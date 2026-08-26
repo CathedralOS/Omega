@@ -48,6 +48,17 @@ Delta evidence lives only in
 bounded implementation canaries, not languages, inventories, or steps toward a
 hidden Omega0/Omega1 chain.
 
+Keep the two decisions and the three compiler artifacts distinct:
+
+| Question | Answered by |
+| --- | --- |
+| What language may the Delta compiler and bridge use? | Delta v1 |
+| Which ordinary-Omega forms may production compiler source use? | `Ωself` |
+| What must the resulting compiler accept? | the full Omega specification |
+
+The canonical Delta compiler, `omega-bootstrap`, and production `omega` are
+artifacts governed by those contracts; they are not three more language rungs.
+
 Queue invariants:
 
 - Gamma supplies Delta's meaning route and happens to host one independent
@@ -282,95 +293,36 @@ evidence stay in
 | compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, remaining concrete Trapping arithmetic/casts, and the observed ranking clause | exact widening, canonical leaf-plus-literal addition, and one recursive pure full-width `u32 in Trapping` `+`/`-`/`*` tree are closed through persisted lower-rooted OMGRFN16. Call and CaseDispatch argument vectors are exact when they contain at most one potentially trapping argument and pure/nontrapping siblings; multiple observable trap sites still require the unresolved order ruling. Broader receivers, recursion, and packages remain separate |
 | source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; the product build now uses normative explicit provider selection, but the one-requirement OMGCOMP2 fixture is still only cost evidence for the six-requirement product `Console` closure; do not infer target-default semantics or import general boundary traits into Delta |
 
-The next bounded increments are selected. Assign a new
-OMGRSW/OMGLOW/CKIR/OMGRFN identity only when its lane actually begins so
-parallel design notes cannot claim the same successor number. CKIR15 is now
-reserved by the independently checked generalized-view contract; its producer,
-meaning, backend, and refinement joins remain open. The intended cuts are:
+The next actions are intentionally capability-shaped. Exact version identities,
+fixture matrices, and byte ceilings remain with their contracts and gates.
 
-| Lane | Next general relation | Deliberate exclusions of that cut |
-| --- | --- | --- |
-| data/views | guarded shared-byte head/tail lowering from a runtime-capable direct `&[u8]` parameter, with the same ordered vector of direct pass-through parameter binders on both arms and more than one occurrence/synthetic block | computed/effectful/independently trapping siblings, mutable-view operations, dynamic indexing, and full `u64` collection arithmetic |
-| scalar/control | direct pure same-carrier `u64 < u64`, including full-width literals/fields/parameters and true-edge range custody into state parameters | nested arithmetic operands, mixed carriers, calls, indexing, mutation, and the other comparison operators |
-| provider plan | one complete six-requirement `Console` candidate selected by the authoritative `Build::select_provider<Console, ConsoleNativeProvider>()`, retained through checked calls and conservative execution | first add an explicit authoritative build-source identity to the compilation envelope (OMGCOMP2 source labels are custody-only); checked-adapter execution then depends on the selected generalized view-vector cut. Provider admission, defaults-as-selection, general installation/runtime authority, Q7 package authority, and Q8 multi-target build migration remain excluded |
+- [ ] Finish the generalized shared-view milestone from the closed
+  [`CKIR15` reference contract](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V15.md):
+  runtime-capable direct `&[u8]`, recurrent guarded head/tail use, and the same
+  ordered direct-binder pass-through vector on both arms. Join producer,
+  Rust-free meaning, conservative backend, and independent refinement before
+  reporting the capability closed. Computed/effectful siblings, mutable views,
+  dynamic indexing, and `u64` collection arithmetic remain outside this cut.
+- [ ] Take the next scalar/control slice as direct pure same-carrier `u64 < u64`
+  with full-width operands and true-edge range custody. Carry both halves through
+  storage, calls/edges where exercised, meaning, emission, and reconstruction;
+  do not widen this into arithmetic, mixed carriers, dynamic indexing, or other
+  comparisons. Preserve the current restriction on multiple observably trapping
+  call/transition arguments until evaluation order is ruled.
+- [ ] Add an explicit authoritative build-source identity to the compilation
+  envelope, then carry the product build's explicit six-requirement `Console`
+  selection through one complete `ProviderPlan`, checked calls, conservative
+  execution, and lower-rooted reconstruction. Product adapter execution also
+  needs the generalized view milestone, its ranking/reach facts, runtime view
+  origin, provider-owned boundary call, and surrounding receiver closure.
+  Structural plan completeness may proceed first, but it must not be presented
+  as the product adapter or as provider admission.
 
-These cuts are chosen from product evidence because they establish reusable
-vector, 64-bit scalar/control, and complete-plan machinery. They must not be
-implemented as file-name checks, exact declaration-count recognition, or a
-Cartesian test matrix inside one verifier.
-
-- [ ] Close the compiler-data/view lane through general parsing, resolution,
-  checking, diagnostics, conservative lowering, and artifact reconstruction.
-  OMGRSW4/CKIR12/OMGRFN14 now close a bounded program-static shared-byte-view
-  prerequisite for `console_write_bytes`: exact literal bytes, immutable
-  `{ptr,len}` transport, a nonempty fact, head access, and one-element tail
-  subslicing. The next cut admits a runtime-capable direct view parameter,
-  generalizes the true-edge argument vector to retain the same direct
-  pass-through parameter binders before, between, and after head/tail, and
-  proves at least two independent or recurrent guarded occurrences. The false
-  edge carries that exact pass-through vector unchanged; computed expressions,
-  duplicates, substitutions, and reordering reject. Continue from that cost
-  evidence toward the general lane; the
-  closed slice does not claim general indexing, mutable slices, allocation,
-  UTF-8 meaning, or same-carrier `u64` collection operations.
-  The platform-neutral
-  [`CKIR15` carrier/reference contract](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V15.md)
-  is closed; do not
-  promote that reference milestone to producer, backend, Rust-free meaning,
-  refinement, or product-source acceptance before each independent join lands.
-- [ ] Close the remaining unblocked compiler-control/scalar forms one general
-  vertical relation at a time. OMGRSW7/OMGLOWF/CKIR14 now close the checkpoint's
-  recursive pure full-width trapping-`u32` `+`/`-`/`*` tranche with ordinary
-  precedence, exact high-word literals and widening, first-trap behavior,
-  representative contexts, inherited CKIR12 views, native/self production,
-  independent meaning, conservative artifacts, and persisted-Beta OMGRFN16
-  R1–R5 reconstruction. Continue from this closed lower-rooted cost slice to
-  a direct pure full-width `u64 < u64` relation with true-edge range custody,
-  rather than adding expression/context permutations to the closed `u32`
-  implementation. This first `u64` cut carries both 32-bit halves through
-  types, constants, storage, calls/edges where exercised, unsigned comparison,
-  meaning, and artifact reconstruction; it does not smuggle in `u64`
-  arithmetic or dynamic indexing.
-  Preserve the rule that a call or transition argument list may contain at
-  most one potentially trapping expression while every sibling is
-  pure/total/nontrapping; do not describe the still-unruled observable-order
-  combinations as generally supported.
-- [ ] Extend the closed source-graph/provider cost evidence without waiting on
-  private cross-module visibility. OMGCOMP2 closes structural custody for an
-  exact Linux-x86-64/native-provider fixture, and OMGRSW6 already closes its
-  exact one-requirement trait, `satisfies`, target-applicability,
-  payload-free-compiler-intrinsic, and receiver-call resolution relation. That
-  result deliberately stops before candidate selection, checked IR, or an
-  executable call. OMGCOMP2 cannot identify the authoritative build source:
-  its source labels are deliberately custody-only, so neither a readable
-  `machine build` name nor a filename may be promoted into selection authority.
-  First publish a successor compilation envelope with an explicit build-source
-  identity and retain the selecting machine/source span in the selected plan.
-  Then consume the refreshed product build's normative explicit selection and
-  complete six-requirement `Console` closure, carrying one complete
-  `ProviderPlan` through checking, conservative lowering, executable meaning,
-  and lower-rooted reconstruction. Structural six-row plan completeness may be
-  implemented independently, but an honest execution of the product
-  `write`/`write_line` checked adapters waits for the selected generalized
-  view-vector milestone: both recurrent guarded edges pass `console`, head,
-  tail, and `newline`, while CKIR12 admits only one synthetic head/tail edge and
-  no pass-through values. Do not substitute a synthetic adapter and claim the
-  product path. This item is
-  product-checkpoint/engineering gated rather than language-design blocked.
-  The vector milestone is necessary but does not alone accept the exact product
-  adapter: its `terminates by bytes -> Slice::Length` ranking clause,
-  `reaches Console`, runtime view origin, provider-owned boundary call, and
-  surrounding call/receiver closure remain explicit implementation
-  prerequisites. Do not infer target-default semantics from compatibility
-  spellings or claim
-  provider admission, general boundary traits in Delta, or compilation
-  authority from the bounded relation.
-  Give ProviderPlan a fresh focused assurance family rather than patching the
-  OMGRFN8/16 materializer chain: the current R2, R3, and R4-lowering
-  persisted-Beta owners are already close to the 262,140-byte tape ceiling.
-  Derive the six normalized rows linearly, keep plan/schema/selection/lowering/
-  result/artifact mutations responsibility-local, and execute one canonical
-  all-owner join instead of declaration or row permutations.
+Implement each as a general relation rather than file-name checks, declaration
+counts, compiler-source AST permutations, or a Cartesian matrix in one verifier.
+Start a fresh focused assurance family when an existing owner is near its tape
+or evaluation ceiling; keep responsibility-local mutations and one canonical
+join.
 - [ ] Consume each later provisional product checkpoint and add only its newly
   observed, directionally clear capability lanes under the same rules. A later
   source need may reopen a provisional exclusion; it does not create another
@@ -550,13 +502,10 @@ work.
 - Exhaustive native matrices may be paired with a small representative
   self-built/lower-rung matrix when the latter is semantically redundant and
   disproportionately slow; document the coverage split.
-- OMGRFN16 is the concrete precedent: its default precise lattice step runs
-  every producer profile and local control through the responsible Python
-  owners, then runs representative recursive/view/trap frames plus one owned
-  rejection through each identical native/self persisted-Beta owner. Set
-  `OMGRFN16_MATRIX=exhaustive` only for an intentional historical Cartesian
-  audit. Keep the phase timings and precise cache manifest live so a closed
-  frontier cannot silently fall out of the lattice.
+- Put version-specific matrix policy beside its gate. The default lattice step
+  should run exhaustive cheap owner-local checks plus a representative expensive
+  native/self or lower-rung join; reserve historical Cartesian audits for an
+  explicit opt-in mode. Keep phase timings and precise cache inputs live.
 - Debug HTML, viewers, exhaustive dumps, and other human-only artifacts are
   opt-in. Default gates emit only checker-consumed evidence and concise failure
   diagnostics.
