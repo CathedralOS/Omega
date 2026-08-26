@@ -37,6 +37,7 @@ fn carries_machine_contract_facts_into_checked_proof_facts() {
         &mut machine,
         SignatureContract {
             kind: SignatureContractKind::Requires,
+            keyword_source_span: None,
             binding: None,
             facts: HandleSpan::from_parts(fact, 1),
             token_count: 1,
@@ -48,6 +49,7 @@ fn carries_machine_contract_facts_into_checked_proof_facts() {
             kind: SignatureContractKind::Crashes {
                 cause: psi_typed_trees::signature::CrashCause::Abort,
             },
+            keyword_source_span: None,
             binding: None,
             facts: HandleSpan::from_parts(fact, 1),
             token_count: 3,
@@ -115,6 +117,7 @@ fn centralizes_contract_facts_in_semantic_fact_plan() {
         &mut machine,
         SignatureContract {
             kind: SignatureContractKind::Requires,
+            keyword_source_span: None,
             binding: None,
             facts: HandleSpan::from_parts(fact, 1),
             token_count: 1,
@@ -205,6 +208,7 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
         &mut signature,
         SignatureContract {
             kind: SignatureContractKind::Requires,
+            keyword_source_span: None,
             binding: None,
             facts: HandleSpan::from_parts(fact, 1),
             token_count: 1,
@@ -276,6 +280,7 @@ fn indexes_call_contract_facts_by_target_machine() {
         &mut target_machine,
         SignatureContract {
             kind: SignatureContractKind::Requires,
+            keyword_source_span: None,
             binding: None,
             facts: HandleSpan::from_parts(fact, 1),
             token_count: 1,
@@ -419,6 +424,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         &mut signature,
         SignatureContract {
             kind: SignatureContractKind::Requires,
+            keyword_source_span: None,
             binding: None,
             facts: HandleSpan::from_parts(fact, 1),
             token_count: 1,
@@ -599,6 +605,7 @@ fn indexes_terminal_state_contract_ensures() {
         &mut machine,
         SignatureContract {
             kind: SignatureContractKind::Ensures,
+            keyword_source_span: None,
             binding: None,
             facts: HandleSpan::from_parts(fact, 1),
             token_count: 1,

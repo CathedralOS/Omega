@@ -91,6 +91,13 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         SourceSpan::new(self.source_id, token.span)
     }
 
+    pub(super) fn current_source_span(&self) -> SourceSpan {
+        self.tokens
+            .first()
+            .map(|token| self.source_span(token))
+            .expect("a current source span requires one semantic token")
+    }
+
     pub(super) fn error_here(&self, message: impl Into<String>) -> ParseError {
         let source_span = self
             .tokens

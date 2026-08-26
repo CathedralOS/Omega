@@ -600,6 +600,7 @@ mod tests {
             .items
             .append_capability_contract(CapabilityContract {
                 kind: CapabilityContractKind::Requires,
+                keyword_source_span: None,
                 binding: None,
                 facts: HandleSpan::empty(),
                 token_count: 3,
@@ -608,6 +609,7 @@ mod tests {
             .items
             .append_capability_contract(CapabilityContract {
                 kind: CapabilityContractKind::Ensures,
+                keyword_source_span: None,
                 binding: None,
                 facts: HandleSpan::empty(),
                 token_count: 3,
@@ -723,6 +725,7 @@ mod tests {
             .items
             .append_capability_contract(CapabilityContract {
                 kind: CapabilityContractKind::Requires,
+                keyword_source_span: None,
                 binding: None,
                 facts: HandleSpan::empty(),
                 token_count: 3,
@@ -731,6 +734,7 @@ mod tests {
             .items
             .append_capability_contract(CapabilityContract {
                 kind: CapabilityContractKind::Ensures,
+                keyword_source_span: None,
                 binding: None,
                 facts: HandleSpan::empty(),
                 token_count: 3,
