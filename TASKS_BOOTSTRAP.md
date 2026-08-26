@@ -186,10 +186,12 @@ does not admit a facility to final `Ωself`.
 - [ ] Close the remaining unblocked compiler-control/scalar forms as general
   compositional relations: state parameters, mutation, calls, result fields,
   ranges, concrete trapping arithmetic, required casts, and any retained
-  ranking form. The next known gap is the UTF-8 arithmetic whose subtraction
-  results feed multiplication/addition. Continue to reject call arguments whose
-  observable or trapping relative order depends on the unresolved language
-  rule.
+  ranking form. The admitted selected frontier is CKIR12 with OMGRFN14. The
+  next known gap is the UTF-8 arithmetic whose subtraction results feed
+  multiplication/addition; close it as a general compositional relation from
+  that frontier.
+  Continue to reject call arguments whose observable or trapping relative order
+  depends on the unresolved language rule.
 - [ ] Close source-graph and selected product-binding forms over resolver-owned
   logical placements: modules/import aliases, target-qualified and bodyless
   machines, `satisfies`, sealed compiler-intrinsic realizations, the retained

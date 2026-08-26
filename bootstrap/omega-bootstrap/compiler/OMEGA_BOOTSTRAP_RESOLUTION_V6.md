@@ -1,8 +1,7 @@
 # Omega-bootstrap normalized provider-resolution witness, schema major 6
 
 [`OMGCOMP2`](OMEGA_BOOTSTRAP_COMPILATION_V2.md) |
-[`OMGRSW1`](OMEGA_BOOTSTRAP_RESOLUTION.md) |
-[`OMGRSW5`](OMEGA_BOOTSTRAP_RESOLUTION_V5.md)
+[`OMGRSW1`](OMEGA_BOOTSTRAP_RESOLUTION.md)
 
 `OMGRSW6` is the frozen resolution-only witness for the bounded
 `Console::exit_process` compatibility-cost carrier. It gives semantic identity
@@ -104,10 +103,11 @@ zero, and header size is 128. No source accepted by this contract has another
 canonical OMGRSW identity. Changing only magic, major, envelope version, target,
 or configuration never creates a cross-version pair.
 
-The major number follows OMGRSW5, but this profile consumes OMGCOMP2 rather
-than widening the OMGCOMP1 source relation. It reuses frozen row shapes where
-stated below; it does not inherit subtraction, checked-IR, or artifact meaning
-from the numerically preceding compiler-cost slice.
+The major number preserves its published identity even though the former
+OMGRSW5 compiler-cost slice was rolled back. This profile consumes OMGCOMP2
+rather than widening the OMGCOMP1 source relation. It reuses frozen row shapes
+where stated below and inherits no subtraction, checked-IR, or artifact meaning
+from the retired numerically preceding slice.
 
 ## 2. Header, fixed counts, and table order
 
