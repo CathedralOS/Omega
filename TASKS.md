@@ -8381,10 +8381,20 @@ boundary without its corresponding checked law.
   exact `PT_INTERP` pathname for Linux x86-64 or AArch64. It preserves raw
   non-UTF-8 bytes, requires a nonempty absolute NUL-free path, and binds the
   exact Linux profile plus length-framed bytes into deterministic identity.
-  This carrier grants no loader, publication, or admission authority. Runnable
-  ELF emission remains fail closed before section planning or byte mutation:
-  no owner yet joins that input to complete dynamic-link structures, and
-  partial symbol-version sections would not constitute a dynamic image.
+  The first ELF-owner join now consumes one exact final image beside that input,
+  replays the canonical referenced-import request, and accepts only a nonempty
+  set of normalized `ElfVersioned` rows for the identical Linux profile. The
+  non-clone carrier privately retains every symbol handle, raw locator,
+  normalized identity, and relocation site; any target drift, string-backed or
+  unused input, or canonical-request failure returns the original image and
+  interpreter unchanged. These carriers grant no loader, section, publication,
+  or admission authority. Runnable ELF emission remains fail closed before
+  section planning or byte mutation: `PT_INTERP`/`PT_DYNAMIC`, `.dynstr`,
+  `.dynsym`, the selected symbol-hash table, `.gnu.version`/`.gnu.version_r`,
+  `.dynamic`, the selected GOT/PLT arrangement, `.rela.dyn`/`.rela.plt`,
+  architecture-specific relocation lowering, complete load/program-header
+  layout, and independent final-byte replay remain unimplemented. Partial
+  symbol-version sections would not constitute a dynamic image.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes
@@ -8395,8 +8405,8 @@ boundary without its corresponding checked law.
   `Array` value without text reconstruction.
   The existing source evaluator is isolated behind an explicitly temporary
   `StringBackedImportBootstrap` variant. Ordinary source `via` evaluation and
-  the complete dynamic-ELF symbol-version/loader-plan join remain engineering
-  work.
+  complete dynamic-ELF section, relocation, and loader-plan realization remain
+  engineering work.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no
