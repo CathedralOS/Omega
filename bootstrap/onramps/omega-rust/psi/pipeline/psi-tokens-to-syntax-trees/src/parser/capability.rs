@@ -20,7 +20,7 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
     let mut member_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        if input.at_keyword(KeywordKind::Entry) {
+        if input.at_contextual("entry") {
             // `entry` is not globally reserved: an ordinary capability field
             // may still use that name. Only the callable-shaped member is the
             // retired host scaffold.
@@ -106,7 +106,7 @@ fn parse_capability_state<'tokens, 'source>(
         input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
     } else {
         while !(input.at_keyword(KeywordKind::State)
-            || input.at_keyword(KeywordKind::Entry)
+            || input.at_contextual("entry")
             || input.at_punctuation(PunctuationKind::RightBrace)
             || input.tokens.is_empty())
         {
@@ -205,7 +205,7 @@ fn capability_contract_terminator(input: Input<'_, '_>) -> bool {
     input.at_punctuation(PunctuationKind::Semicolon)
         || input.at_punctuation(PunctuationKind::RightBrace)
         || input.at_keyword(KeywordKind::State)
-        || input.at_keyword(KeywordKind::Entry)
+        || input.at_contextual("entry")
         || input.at_contextual("requires")
         || input.at_contextual("ensures")
         || input.at_contextual("boundary")

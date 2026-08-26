@@ -1599,10 +1599,8 @@ fn lowers_dungeon_style_machine_program() {
         gold: u32[exact];
     }
 
-    machine Inventory::clear {
-        pub entry(&mut self, inventory: &mut Inventory) {
-            inventory.gold = 0;
-        }
+    pub machine Inventory::clear(&mut self, inventory: &mut Inventory) {
+        inventory.gold = 0;
     }
     "#;
 

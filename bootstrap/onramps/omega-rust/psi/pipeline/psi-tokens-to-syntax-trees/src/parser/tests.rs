@@ -1582,6 +1582,32 @@ fn retired_capability_entry_names_the_boundary_provider_migration() {
 }
 
 #[test]
+fn retired_explicit_machine_entry_members_name_the_machine_body_migration() {
+    for retired in [
+        "machine run { entry() {} }",
+        "machine run { entry begin() {} }",
+        "machine run { pub entry() {} }",
+        "machine run { pub entry begin() {} }",
+    ] {
+        let tokens = Lexer::new(retired)
+            .tokenize()
+            .expect("tokenize retired explicit machine entry");
+        let error = parse_syntax_trees(&tokens)
+            .expect_err("explicit machine entry members must be retired");
+        assert!(
+            error
+                .message
+                .contains("explicit nested `entry` / `pub entry` machine members are retired")
+                && error.message.contains("`machine` head")
+                && error.message.contains("directly in the machine body")
+                && error.message.contains("`pub machine`"),
+            "got for {retired:?}: {}",
+            error.message
+        );
+    }
+}
+
+#[test]
 fn erased_join_type_is_rejected_but_join_names_are_ordinary() {
     let retired = "machine run(task: Join<i32>) {}";
     let tokens = Lexer::new(retired)

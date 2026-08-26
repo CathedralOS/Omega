@@ -644,8 +644,13 @@ Remaining:
   callable-shaped `capability { entry ... }` scaffold now likewise rejects with
   directed boundary-trait and exact `satisfies ... via` guidance, while `state`,
   ordinary fields named `entry`, an ordinary machine named `entry`, and the
-  compiler-generated internal entry remain live and pinned. Explicit
-  machine-member entry and trailing boundary-level retirement remain open.
+  compiler-generated internal entry remain live and pinned. Explicit nested
+  machine `entry` / `pub entry` members are now retired too: `entry` is no
+  longer a Rust or Omega keyword, the parser contextually diagnoses all named/
+  unnamed public/private legacy forms, and the parser-only `StateKind` shim is
+  gone. Authored `state entry` remains an ordinary named state and is no longer
+  conflated with the separately constructed generated entry. Trailing
+  boundary-level retirement remains open.
 
   Acceptance: the former passing library-block fixture becomes a directed
   `library_block_retired` failure canary; separate failure canaries reject

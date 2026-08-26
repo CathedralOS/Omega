@@ -1,4 +1,3 @@
-use crate::parser::context::StateKind;
 use crate::parser::data::{parse_machine_declaration_parameters, parse_machine_type_parameters};
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use crate::parser::state::{
@@ -165,16 +164,20 @@ pub(super) fn parse_machine<'tokens, 'source>(
     }
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        let (mut state, rest) = if input.at_keyword(KeywordKind::Pub) {
-            let input2 = input.take_keyword(KeywordKind::Pub, "pub")?;
-            let input2 = input2.take_keyword(KeywordKind::Entry, "entry")?;
-            parse_state(syntax_trees, input2, StateKind::Entry)?
-        } else if input.at_keyword(KeywordKind::Entry) {
-            let input2 = input.take_keyword(KeywordKind::Entry, "entry")?;
-            parse_state(syntax_trees, input2, StateKind::Entry)?
-        } else if input.at_keyword(KeywordKind::State) {
+        if input.at_contextual("entry")
+            || (input.at_keyword(KeywordKind::Pub)
+                && input
+                    .take_keyword(KeywordKind::Pub, "pub")?
+                    .at_contextual("entry"))
+        {
+            return Err(input.error_here(
+                "explicit nested `entry` / `pub entry` machine members are retired; put the callable signature on the `machine` head, put its entry statements directly in the machine body, and put visibility on the declaration as `pub machine`",
+            ));
+        }
+
+        let (mut state, rest) = if input.at_keyword(KeywordKind::State) {
             let input2 = input.take_keyword(KeywordKind::State, "state")?;
-            parse_state(syntax_trees, input2, StateKind::State)?
+            parse_state(syntax_trees, input2)?
         } else if starts_retired_invariant_member(input) {
             return Err(input.error_here(
                 "the `invariant` machine member is retired: state arrival facts use \
@@ -182,14 +185,8 @@ pub(super) fn parse_machine<'tokens, 'source>(
                  checked transitions",
             ));
         } else {
-            return Err(input.expected_one_of_here(&["`pub entry`", "`entry`", "`state`"]));
+            return Err(input.expected_one_of_here(&["`state`"]));
         };
-
-        if let Some(entry_name) = &entry_name {
-            if state.name == "entry" {
-                state.name = entry_name.clone();
-            }
-        }
 
         if machine_return_type.is_valid() && !state.return_type.is_valid() {
             state.return_type = machine_return_type;
@@ -480,7 +477,7 @@ fn continues_after_machine_parameter_contract(input: Input<'_, '_>) -> bool {
 fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
     !input.at_punctuation(PunctuationKind::RightBrace)
         && !input.at_keyword(KeywordKind::Pub)
-        && !input.at_keyword(KeywordKind::Entry)
+        && !input.at_contextual("entry")
         && !starts_state_member(input)
         && !starts_retired_invariant_member(input)
 }
@@ -488,7 +485,7 @@ fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
 fn starts_machine_member(input: Input<'_, '_>) -> bool {
     input.at_punctuation(PunctuationKind::RightBrace)
         || input.at_keyword(KeywordKind::Pub)
-        || input.at_keyword(KeywordKind::Entry)
+        || input.at_contextual("entry")
         || starts_state_member(input)
         || starts_retired_invariant_member(input)
 }

@@ -15,13 +15,13 @@ fn semantic_kinds(source: &str) -> Vec<TokenKind> {
 }
 
 #[test]
-fn tokenizes_keywords_and_identifiers_distinctly() {
+fn tokenizes_keywords_and_contextual_entry_as_identifiers() {
     assert_eq!(
         semantic_kinds("machine game entry self Self true false custom"),
         vec![
             TokenKind::Keyword(KeywordKind::Machine),
             TokenKind::Identifier,
-            TokenKind::Keyword(KeywordKind::Entry),
+            TokenKind::Identifier,
             TokenKind::Keyword(KeywordKind::SelfValue),
             TokenKind::Keyword(KeywordKind::SelfType),
             TokenKind::Keyword(KeywordKind::True),
