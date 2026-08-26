@@ -22,7 +22,8 @@ mod filesystem_preparation;
 use filesystem_preparation::{
     FIND_DATA_OUTPUT_BYTES, PreparedByteOutput, PreparedFilesystemCall,
     PreparedFilesystemLogicalHandleOutput, PreparedFilesystemLogicalHandlePlan,
-    PreparedFilesystemMutableObservationPlan, PreparedFilesystemPreparation, synthetic_handle_fd,
+    PreparedFilesystemMutableObservationPlan, PreparedFilesystemPreparation, STAT_OUTPUT_BYTES,
+    synthetic_handle_fd,
 };
 
 /// The REAL-filesystem provider (opt-in `FilesystemAccess::RealUnscoped`; the
@@ -357,7 +358,7 @@ pub(crate) fn run_granted_build_machine_arguments(
                 evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
                 let replaying = matches!(
                     &options.filesystem,
-                    FilesystemAccess::ReplaySourceReadChains(_)
+                    FilesystemAccess::ReplaySourceInputs(_)
                 );
                 match options.filesystem {
                     FilesystemAccess::Virtual => {}
@@ -389,7 +390,7 @@ pub(crate) fn run_granted_build_machine_arguments(
                             )?,
                         );
                     }
-                    FilesystemAccess::ReplaySourceReadChains(replay) => {
+                    FilesystemAccess::ReplaySourceInputs(replay) => {
                         evaluator.filesystem_replay = Some(replay);
                     }
                 }
@@ -530,7 +531,7 @@ fn run_on_current_thread(
             };
             evaluator.real_fs = Some(filesystem);
         }
-        FilesystemAccess::ReplaySourceReadChains(replay) => {
+        FilesystemAccess::ReplaySourceInputs(replay) => {
             evaluator.filesystem_replay = Some(replay);
         }
     }
@@ -801,8 +802,8 @@ struct Evaluator<'program> {
     /// keeps the interpreter hermetic -- the differential oracle never touches
     /// real disk.
     real_fs: Option<real_fs::RealFs>,
-    /// Expected compiler-produced events for the bounded no-host
-    /// `open`/`read`/`close` replay rung.
+    /// Expected compiler-produced events for the bounded no-host source-input
+    /// replay rung.
     filesystem_replay: Option<crate::FilesystemReplay>,
     /// The canonical Build activation carried Source/Output facets. In this
     /// mode path-taking host operations require interpreter-retained rooted

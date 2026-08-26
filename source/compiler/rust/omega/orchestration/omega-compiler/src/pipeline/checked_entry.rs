@@ -244,7 +244,7 @@ pub fn compile_to_checked_with_packages(
 }
 
 /// Checked-only compilation whose build machine reconsumes one compiler-owned
-/// source-read replay record. The replay installs no host filesystem provider;
+/// source-input replay record. The replay installs no host filesystem provider;
 /// authored build inputs and the complete event stream must still match.
 pub fn compile_to_checked_with_replay_record(
     root_path: &Path,
@@ -266,7 +266,7 @@ pub fn compile_to_checked_with_replay_record(
 }
 
 /// Package-aware checked compilation whose build machine reconsumes one
-/// compiler-owned source-read replay record without host filesystem authority.
+/// compiler-owned source-input replay record without host filesystem authority.
 pub fn compile_to_checked_with_packages_and_replay_record(
     root_path: &Path,
     target_name: Option<&str>,

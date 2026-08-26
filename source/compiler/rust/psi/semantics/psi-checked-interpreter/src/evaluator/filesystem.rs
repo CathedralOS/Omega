@@ -648,41 +648,72 @@ impl<'program> Evaluator<'program> {
                 "canonical filesystem operation `{operation}` retained metadata without its output carrier"
             ));
         };
-        if output.post_bytes.len() < self.filesystem_metadata_layout.record_size() {
+        let expected_carrier = self.canonical_metadata_carrier(
+            *observation,
+            output.post_bytes.len(),
+            "retained metadata",
+        )?;
+        if output.post_bytes != expected_carrier {
             return trap(format!(
-                "canonical filesystem operation `{operation}` retained a truncated metadata carrier"
+                "canonical filesystem operation `{operation}` metadata carrier disagrees with its selected-target semantic row"
             ));
         }
+        Ok(())
+    }
+
+    fn canonical_metadata_carrier(
+        &self,
+        observation: FilesystemMetadataObservation,
+        capacity: usize,
+        context: &str,
+    ) -> EvalResult<Vec<u8>> {
+        if capacity < STAT_OUTPUT_BYTES || self.filesystem_metadata_layout.record_size() > capacity
+        {
+            return trap(format!(
+                "{context} requires the {STAT_OUTPUT_BYTES}-byte filesystem metadata API carrier and selected {}-byte record, but holds {capacity} bytes",
+                self.filesystem_metadata_layout.record_size()
+            ));
+        }
+        let mut carrier = vec![0u8; capacity];
         for field in FilesystemMetadataField::ALL {
             let placement = self.filesystem_metadata_layout.field_layout(field);
             let width = usize::from(placement.stored_width_bits() / 8);
-            let bytes = &output.post_bytes[placement.offset()..placement.offset() + width];
-            if let Some(expected) = observation.unsigned_field(field) {
-                let mut encoded = [0u8; 8];
-                encoded[..width].copy_from_slice(bytes);
-                if u64::from_le_bytes(encoded) != expected {
+            let bytes = if let Some(value) = observation.unsigned_field(field) {
+                let maximum = match placement.stored_width_bits() {
+                    16 => u64::from(u16::MAX),
+                    32 => u64::from(u32::MAX),
+                    64 => u64::MAX,
+                    _ => unreachable!("validated metadata stored width"),
+                };
+                if value > maximum {
                     return trap(format!(
-                        "canonical filesystem operation `{operation}` metadata field {field:?} disagrees with its selected-target carrier"
+                        "filesystem metadata field {field:?} value {value} exceeds its selected {}-bit carrier",
+                        placement.stored_width_bits()
                     ));
                 }
+                value.to_le_bytes()
             } else {
-                let expected = observation
+                let value = observation
                     .signed_field(field)
                     .expect("metadata field is either signed or unsigned");
-                let actual = match width {
-                    2 => i64::from(i16::from_le_bytes([bytes[0], bytes[1]])),
-                    4 => i64::from(i32::from_le_bytes(bytes.try_into().expect("four bytes"))),
-                    8 => i64::from_le_bytes(bytes.try_into().expect("eight bytes")),
-                    _ => unreachable!("validated metadata width"),
+                let fits = match placement.stored_width_bits() {
+                    16 => i16::try_from(value).is_ok(),
+                    32 => i32::try_from(value).is_ok(),
+                    64 => true,
+                    _ => unreachable!("validated metadata stored width"),
                 };
-                if actual != expected {
+                if !fits {
                     return trap(format!(
-                        "canonical filesystem operation `{operation}` metadata field {field:?} disagrees with its selected-target carrier"
+                        "filesystem metadata field {field:?} value {value} exceeds its selected {}-bit carrier",
+                        placement.stored_width_bits()
                     ));
                 }
-            }
+                value.to_le_bytes()
+            };
+            let start = placement.offset();
+            carrier[start..start + width].copy_from_slice(&bytes[..width]);
         }
-        Ok(())
+        Ok(carrier)
     }
 
     pub(super) fn record_prepared_filesystem_logical_handle_input(
@@ -1942,52 +1973,8 @@ impl<'program> Evaluator<'program> {
         mtime_secs: i64,
     ) -> EvalResult<()> {
         let observation = FilesystemMetadataObservation::new(1, kind, mode, size, mtime_secs);
-        let capacity = output.capacity();
-        if self.filesystem_metadata_layout.record_size() > capacity {
-            return trap(format!(
-                "selected filesystem metadata record requires {} bytes but the prepared carrier holds {capacity}",
-                self.filesystem_metadata_layout.record_size()
-            ));
-        }
-        let mut carrier = vec![0u8; capacity];
-        for field in FilesystemMetadataField::ALL {
-            let placement = self.filesystem_metadata_layout.field_layout(field);
-            let width = usize::from(placement.stored_width_bits() / 8);
-            let bytes = if let Some(value) = observation.unsigned_field(field) {
-                let maximum = match placement.stored_width_bits() {
-                    16 => u64::from(u16::MAX),
-                    32 => u64::from(u32::MAX),
-                    64 => u64::MAX,
-                    _ => unreachable!("validated metadata stored width"),
-                };
-                if value > maximum {
-                    return trap(format!(
-                        "filesystem metadata field {field:?} value {value} exceeds its selected {}-bit carrier",
-                        placement.stored_width_bits()
-                    ));
-                }
-                value.to_le_bytes()
-            } else {
-                let value = observation
-                    .signed_field(field)
-                    .expect("metadata field is either signed or unsigned");
-                let fits = match placement.stored_width_bits() {
-                    16 => i16::try_from(value).is_ok(),
-                    32 => i32::try_from(value).is_ok(),
-                    64 => true,
-                    _ => unreachable!("validated metadata stored width"),
-                };
-                if !fits {
-                    return trap(format!(
-                        "filesystem metadata field {field:?} value {value} exceeds its selected {}-bit carrier",
-                        placement.stored_width_bits()
-                    ));
-                }
-                value.to_le_bytes()
-            };
-            let start = placement.offset();
-            carrier[start..start + width].copy_from_slice(&bytes[..width]);
-        }
+        let carrier =
+            self.canonical_metadata_carrier(observation, output.capacity(), "metadata output")?;
         output.write(&carrier)?;
         let attempt_index = *self
             .filesystem_operation_attempt_stack

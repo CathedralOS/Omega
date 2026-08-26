@@ -999,6 +999,18 @@ region kinds, and event structure reject. No public
 IR stage or nominal Chi is introduced. The package remains `Volatile`; full
 operation replay, output mutation and staged-output reproduction, package-
 command integration, and a `Receipted` verdict remain absent.
+
+Observation summary v23 and compiler replay-record v5 generalize this custody
+to ordered source-input events. Successful Source-rooted `read_metadata` and
+`read_symlink_metadata` calls may appear around the closed read chains. Their
+authored rooted path and separately authorized target, follow/no-follow kind,
+all 14 canonical metadata fields, and complete target carrier survive restart.
+Recovery validates the exact operation lanes and both canonical relative
+paths. Provider-free replay reconstructs the complete selected checked
+`StatLayout` carrier, compares every field, zero padding, and tail byte, and
+then requires exact event/result exhaustion. Failed and descriptor-backed
+metadata remain outside this rung. This changes neither the `Volatile` verdict
+nor the absence of an audit, authenticity, admission, or receipt claim.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or
@@ -1292,8 +1304,8 @@ Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
 observations, and local decisions remain separately bound. Current incomplete
-review-v55 bytes cannot be promoted merely because the future artifact reuses
-their row vocabulary.
+review-v70/canonical-row-v28 bytes cannot be promoted merely because the future
+artifact reuses their row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in
 which an obligation is semantically complete, including private pre-Psi or
@@ -1376,9 +1388,12 @@ manufacture a portable “proof of audit.”
 The `omega-packages` release surface now contains reviewed corrected-model
 building blocks for immutable source custody, typed identity and closure,
 compiler handoff/review, exact row conflicts, and review-only triage. Its final
-admission model is not yet accepted. Legacy manifest, name-keyed lock,
-whole-section receipt, and install/update scaffolding remains isolated behind
-crate tests. Production code must not:
+admission model is not yet accepted. The legacy manifest, name-keyed lock,
+whole-section receipt, caller-constructed instance, and install/update
+scaffolding were deleted rather than retained as compatibility paths. The
+remaining standalone dependency scanner is explicitly non-authoritative and
+must also disappear before mutation. Production code must not reintroduce or
+depend on any path that:
 
 - key locks or symbols by package-authored name alone;
 - ask the installer for both alias and package name;
@@ -1389,13 +1404,14 @@ crate tests. Production code must not:
 - syntactically scan dependency calls while silently skipping malformed
   dependency builds.
 
-Those seams must be replaced before `omega install` or `omega update` can
-mutate project state.
+The corrected recheckable evidence, accepted-lock, and transaction paths must
+exist before `omega install` or `omega update` can mutate project state.
 
 ## Test packages
 
-The existing fixtures now declare `PACKAGE`, use canonical build parameters,
-and regenerate currently representable compiler review evidence from resolver
+The existing fixtures now declare identity through
+`builder.package("canonical-name")`, use coherent build parameters, and
+regenerate currently representable compiler review evidence from resolver
 custody. Tests no longer fabricate package manifests from fixture intent.
 Remote fixtures
 must exercise transport-normalized lineage, immutable commit/tree identity,

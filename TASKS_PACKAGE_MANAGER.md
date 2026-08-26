@@ -1873,6 +1873,25 @@ complete.
   retained source files. Operation schema v18, package review v69/row v27, and
   review-baseline capsule v2 remain unchanged; the result is still review-only,
   `Volatile`, and not a complete filesystem replay verdict.
+  Milestone 2026-08-26: bounded replay is now an ordered source-input event
+  stream rather than a read-chain-only list. In addition to the existing
+  closed descriptor chains, it accepts successful Source-rooted
+  `read_metadata` and `read_symlink_metadata` events before, between, or after
+  chains. Each event retains the authored rooted path and separately resolved
+  authorized target, exact follow/no-follow kind, all 14 target-neutral
+  metadata fields, target-specific mutable resolution and provider pre/post
+  carrier, scalar result, post-error state, and otherwise-empty operation
+  lanes. Recovery rejects wrong kinds, roots, ordinals, noncanonical relative
+  paths, lane shape, or undersized carrier structure. Provider-free replay
+  reconstructs the complete zero-filled carrier from the semantic row and
+  selected checked `StatLayout`, compares every field, padding, and tail byte,
+  and requires exact event/result exhaustion.
+  A followed symlink canary proves that authored and authorized paths remain
+  distinct without leaking a host path. Failed metadata and descriptor-backed
+  `read_file_metadata` remain outside this rung. Observation summary v23 and
+  replay-record v5 bind the extension; review-baseline capsule v2 needs no
+  framing change because it already treats the embedded versioned record as
+  opaque bounded custody. The fact remains review-only and `Volatile`.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker

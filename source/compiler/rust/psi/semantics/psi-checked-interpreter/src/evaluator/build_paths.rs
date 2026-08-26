@@ -1,10 +1,9 @@
 use super::*;
-use crate::FilesystemGrantRootIdentity;
+use crate::{FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemGrantRootIdentity};
 
 pub(super) const ROOTED_BUILD_PATH_TYPE: &str = "$OmegaBuildRootedPath";
 const SOURCE_ROOT_FACET_TYPE: &str = "$OmegaBuildSourceRoot";
 const OUTPUT_ROOT_FACET_TYPE: &str = "$OmegaBuildOutputRoot";
-const MAX_BUILD_RELATIVE_PATH_BYTES: usize = 16 * 1024 * 1024;
 const MAX_INCLUDED_BUILD_SOURCES: usize = 256;
 
 impl<'program> Evaluator<'program> {
@@ -329,9 +328,9 @@ pub(super) fn validate_build_relative_path(relative: &[u8]) -> EvalResult<()> {
     if relative.is_empty() {
         return Err(Halt::Trap("build-root path is empty".to_owned()));
     }
-    if relative.len() > MAX_BUILD_RELATIVE_PATH_BYTES {
+    if relative.len() > FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT {
         return Err(Halt::Resource(format!(
-            "build-root path exceeds its {MAX_BUILD_RELATIVE_PATH_BYTES}-byte ceiling"
+            "build-root path exceeds its {FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT}-byte ceiling"
         )));
     }
     if relative.contains(&0) {

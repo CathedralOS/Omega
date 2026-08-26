@@ -226,7 +226,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 22);
+    assert_eq!(checked_observations.schema_version(), 23);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -1359,6 +1359,327 @@ invokes FilesystemHost;
 }
 
 #[test]
+#[cfg(unix)]
+fn source_path_metadata_is_replayed_without_a_filesystem_provider() {
+    use std::os::unix::fs::symlink;
+
+    let (project, profile) = rooted_build_probe_project(
+        "source-path-metadata-replay",
+        r#"    let link: &[u8] in Path = builder.source.resolve("inputs/main.link");
+    self.code = self.filesystem.read_metadata(link, &mut self.buffer);
+    self.code = self.filesystem.read_symlink_metadata(link, &mut self.buffer);"#,
+    );
+    std::fs::create_dir(project.join("inputs")).expect("create source metadata input directory");
+    symlink("../main.omg", project.join("inputs/main.link"))
+        .expect("create source metadata symlink");
+
+    let compilation = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("source path metadata should compile and replay");
+    let summary = compilation
+        .build_observation_summary()
+        .expect("source metadata build retains observations");
+    assert!(summary.source_inputs_replay_verified());
+    let [followed, unfollowed] = summary.filesystem_operation_attempts() else {
+        panic!("source metadata fixture has two events")
+    };
+    assert_eq!(
+        [followed.operation_tag(), unfollowed.operation_tag()],
+        [38, 40]
+    );
+    assert_eq!(
+        followed.rooted_path_operand_resolutions()[0].relative_path(),
+        b"inputs/main.link"
+    );
+    assert_eq!(
+        followed.authorized_paths()[0].relative_path(),
+        b"main.omg",
+        "followed metadata must retain its distinct canonical authorized target"
+    );
+    assert_eq!(
+        unfollowed.authorized_paths()[0].relative_path(),
+        b"inputs/main.link",
+        "no-follow metadata must authorize the inert link itself"
+    );
+    assert_eq!(
+        followed.metadata_observations()[0].kind(),
+        BuildFilesystemMetadataObservationKind::FollowedPath
+    );
+    assert_eq!(
+        unfollowed.metadata_observations()[0].kind(),
+        BuildFilesystemMetadataObservationKind::UnfollowedFinalPath
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("verified source metadata record must encode")
+        .expect("verified source metadata must retain review-only custody");
+    recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+        .expect("canonical source metadata record must recover");
+
+    let metadata = followed.metadata_observations()[0];
+    let mut metadata_prefix = Vec::new();
+    metadata_prefix.extend_from_slice(&1u64.to_le_bytes());
+    metadata_prefix.extend_from_slice(&[1, 0]);
+    metadata_prefix.extend_from_slice(&metadata.device().to_le_bytes());
+    metadata_prefix.extend_from_slice(&metadata.mode().to_le_bytes());
+    let mut wrong_kind_prefix = metadata_prefix.clone();
+    wrong_kind_prefix[9] = 2;
+    let wrong_kind = replace_unique_bytes(
+        record.canonical_bytes(),
+        &metadata_prefix,
+        &wrong_kind_prefix,
+    );
+    assert!(
+        recover_review_only_build_filesystem_replay_record(&wrong_kind, limits).is_err(),
+        "followed metadata cannot be relabeled as no-follow metadata"
+    );
+
+    let mut complete_metadata_row = metadata_prefix;
+    complete_metadata_row.extend_from_slice(&metadata.link_count().to_le_bytes());
+    complete_metadata_row.extend_from_slice(&metadata.inode().to_le_bytes());
+    complete_metadata_row.extend_from_slice(&metadata.user().to_le_bytes());
+    complete_metadata_row.extend_from_slice(&metadata.group().to_le_bytes());
+    complete_metadata_row.extend_from_slice(&metadata.referenced_device().to_le_bytes());
+    complete_metadata_row.extend_from_slice(&metadata.access_time().to_le_bytes());
+    complete_metadata_row.extend_from_slice(&metadata.modification_time().to_le_bytes());
+    complete_metadata_row.extend_from_slice(&metadata.change_time().to_le_bytes());
+    complete_metadata_row.extend_from_slice(&metadata.birth_time().to_le_bytes());
+    complete_metadata_row.extend_from_slice(&metadata.size().to_le_bytes());
+    complete_metadata_row.extend_from_slice(&metadata.blocks_512().to_le_bytes());
+    complete_metadata_row.extend_from_slice(&metadata.preferred_block_size().to_le_bytes());
+    let mut wrong_field_row = complete_metadata_row.clone();
+    wrong_field_row[86..94].copy_from_slice(&(metadata.size() + 1).to_le_bytes());
+    let wrong_field_bytes = replace_unique_bytes(
+        record.canonical_bytes(),
+        &complete_metadata_row,
+        &wrong_field_row,
+    );
+    let wrong_field_record =
+        recover_review_only_build_filesystem_replay_record(&wrong_field_bytes, limits)
+            .expect("structurally canonical but semantically changed metadata must recover");
+    let diagnostics = compile_to_checked_with_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        wrong_field_record,
+    )
+    .expect_err("metadata field that disagrees with its retained carrier must reject replay");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("metadata carrier disagrees with its selected-target semantic row")),
+        "metadata/carrier mismatch must fail at the selected-layout gate: {diagnostics:?}"
+    );
+
+    let authorized = followed.authorized_paths()[0].relative_path();
+    assert_eq!(authorized.len(), b"../x.omg".len());
+    let mut authorized_lane = Vec::new();
+    authorized_lane.extend_from_slice(&1u64.to_le_bytes());
+    authorized_lane.extend_from_slice(&[0, 0, 0]);
+    authorized_lane.extend_from_slice(
+        &u64::try_from(authorized.len())
+            .expect("authorized path length fits u64")
+            .to_le_bytes(),
+    );
+    authorized_lane.extend_from_slice(authorized);
+    let mut noncanonical_authorized_lane = authorized_lane.clone();
+    let path_start = noncanonical_authorized_lane.len() - authorized.len();
+    noncanonical_authorized_lane[path_start..].copy_from_slice(b"../x.omg");
+    let noncanonical_authorized = replace_unique_bytes(
+        record.canonical_bytes(),
+        &authorized_lane,
+        &noncanonical_authorized_lane,
+    );
+    assert!(
+        recover_review_only_build_filesystem_replay_record(&noncanonical_authorized, limits,)
+            .is_err(),
+        "a noncanonical authorized target must not survive recovery"
+    );
+
+    let mutable = &followed.mutable_byte_operands()[0];
+    let mut mutable_lane = Vec::new();
+    mutable_lane.extend_from_slice(&1u64.to_le_bytes());
+    mutable_lane.push(1);
+    mutable_lane.extend_from_slice(
+        &u64::try_from(mutable.pre_bytes().len())
+            .expect("metadata pre-carrier length fits u64")
+            .to_le_bytes(),
+    );
+    mutable_lane.extend_from_slice(mutable.pre_bytes());
+    mutable_lane.extend_from_slice(
+        &u64::try_from(mutable.post_bytes().len())
+            .expect("metadata post-carrier length fits u64")
+            .to_le_bytes(),
+    );
+    mutable_lane.extend_from_slice(mutable.post_bytes());
+    let mut impossible_padding_lane = mutable_lane.clone();
+    *impossible_padding_lane
+        .last_mut()
+        .expect("metadata carrier is nonempty") = 1;
+    let impossible_padding_bytes = replace_unique_bytes(
+        record.canonical_bytes(),
+        &mutable_lane,
+        &impossible_padding_lane,
+    );
+    let impossible_padding_record =
+        recover_review_only_build_filesystem_replay_record(&impossible_padding_bytes, limits)
+            .expect("structural recovery defers target-layout carrier validation");
+    let diagnostics = compile_to_checked_with_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        impossible_padding_record,
+    )
+    .expect_err("nonzero metadata padding or tail must reject replay");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("metadata carrier disagrees with its selected-target semantic row")),
+        "impossible metadata padding must fail at the selected-layout gate: {diagnostics:?}"
+    );
+
+    let mut stale_record = record.canonical_bytes().to_vec();
+    let version_offset = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0".len();
+    stale_record[version_offset..version_offset + 2].copy_from_slice(&4u16.to_le_bytes());
+    assert_eq!(
+        recover_review_only_build_filesystem_replay_record(&stale_record, limits)
+            .expect_err("stale replay record schema must reject")
+            .message(),
+        "unsupported filesystem replay record version"
+    );
+
+    std::fs::write(
+        project.join("main.omg"),
+        "data Main { value: u8; extra: u64; }\n",
+    )
+    .expect("change followed host metadata after replay capture");
+    let replayed = compile_to_checked_with_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        record.clone(),
+    )
+    .expect("reopened metadata replay must not consult changed host metadata");
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("reopened metadata replay retains observations");
+    assert!(replayed_summary.source_inputs_replay_verified());
+    assert_eq!(
+        replayed_summary.filesystem_operation_attempts(),
+        summary.filesystem_operation_attempts()
+    );
+
+    let build_path = project.join("build.omg");
+    let original_build = std::fs::read_to_string(&build_path).expect("read metadata replay build");
+    let changed_build = original_build.replacen(
+        "self.filesystem.read_metadata(link, &mut self.buffer)",
+        "self.filesystem.read_symlink_metadata(link, &mut self.buffer)",
+        1,
+    );
+    assert_ne!(
+        changed_build, original_build,
+        "fixture must change operation"
+    );
+    std::fs::write(&build_path, changed_build).expect("change metadata replay operation");
+    let diagnostics = compile_to_checked_with_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        record,
+    )
+    .expect_err("changed metadata operation order must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("changed order")),
+        "metadata replay mismatch must identify changed order: {diagnostics:?}"
+    );
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn source_metadata_and_read_chains_replay_in_exact_order() {
+    let (project, profile) = rooted_build_probe_project(
+        "source-metadata-read-chain-replay",
+        r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.code = self.filesystem.read_metadata(path, &mut self.buffer);
+    self.descriptor = self.filesystem.open(path, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 5);
+    self.code = self.filesystem.close(self.descriptor);
+    self.code = self.filesystem.read_symlink_metadata(path, &mut self.buffer);"#,
+    );
+    let compilation = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("ordered source metadata/read events should compile and replay");
+    let summary = compilation
+        .build_observation_summary()
+        .expect("ordered source input build retains observations");
+    assert!(summary.source_inputs_replay_verified());
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![38, 2, 4, 8, 40]
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("verified ordered source inputs must encode")
+        .expect("verified ordered source inputs must retain custody");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .expect("ordered source input record must recover");
+    let replayed = compile_to_checked_with_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        recovered,
+    )
+    .expect("ordered source inputs must replay without a provider");
+    assert_eq!(
+        replayed
+            .build_observation_summary()
+            .expect("replayed source inputs retain observations")
+            .filesystem_operation_attempts(),
+        summary.filesystem_operation_attempts()
+    );
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn failed_or_descriptor_metadata_does_not_claim_source_input_replay() {
+    for (label, body) in [
+        (
+            "failed-source-metadata-no-replay",
+            r#"    let path: &[u8] in Path = builder.source.resolve("missing.omg");
+    self.code = self.filesystem.read_metadata(path, &mut self.buffer);"#,
+        ),
+        (
+            "descriptor-metadata-no-replay",
+            r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 0);
+    self.code = self.filesystem.read_file_metadata(self.descriptor, &mut self.buffer);
+    self.code = self.filesystem.close(self.descriptor);"#,
+        ),
+    ] {
+        let (project, profile) = rooted_build_probe_project(label, body);
+        let compilation =
+            compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+                .expect("out-of-rung metadata remains an ordinary observed build");
+        let summary = compilation
+            .build_observation_summary()
+            .expect("metadata build retains observations");
+        assert!(!summary.source_inputs_replay_verified(), "{label}");
+        assert!(
+            capture_verified_build_filesystem_replay_record(
+                summary,
+                BuildFilesystemReplayRecordLimits::default(),
+            )
+            .expect("non-replayed metadata summary is not a codec error")
+            .is_none(),
+            "{label}"
+        );
+        let _ = std::fs::remove_dir_all(&project);
+    }
+}
+
+#[test]
 fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
     let (project, profile) = rooted_build_probe_project(
         "open-read-close-replay",
@@ -1372,7 +1693,7 @@ fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(summary.source_read_chains_replay_verified());
+    assert!(summary.source_inputs_replay_verified());
     assert_eq!(
         summary
             .filesystem_operation_attempts()
@@ -1457,7 +1778,7 @@ fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("reopened replay retains observations");
-    assert!(replayed_summary.source_read_chains_replay_verified());
+    assert!(replayed_summary.source_inputs_replay_verified());
     assert_eq!(replayed_summary.ceiling(), BuildObservationClass::Volatile);
     assert_eq!(replayed_summary.realized(), BuildObservationClass::Volatile);
     let [_, replayed_read, _] = replayed_summary.filesystem_operation_attempts() else {
@@ -1509,7 +1830,7 @@ fn source_open_read_at_close_is_replayed_without_a_filesystem_provider() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(summary.source_read_chains_replay_verified());
+    assert!(summary.source_inputs_replay_verified());
     assert_eq!(
         summary
             .filesystem_operation_attempts()
@@ -1643,7 +1964,7 @@ fn source_open_mixed_read_sequence_close_replays_exact_cursor_semantics() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(summary.source_read_chains_replay_verified());
+    assert!(summary.source_inputs_replay_verified());
     assert_eq!(
         summary
             .filesystem_operation_attempts()
@@ -1698,7 +2019,7 @@ fn source_open_mixed_read_sequence_close_replays_exact_cursor_semantics() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("reopened mixed replay retains observations");
-    assert!(replayed_summary.source_read_chains_replay_verified());
+    assert!(replayed_summary.source_inputs_replay_verified());
     assert_eq!(
         replayed_summary.filesystem_operation_attempts(),
         summary.filesystem_operation_attempts(),
@@ -1750,7 +2071,7 @@ fn multiple_source_read_chains_replay_distinct_files_and_cursors() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(summary.source_read_chains_replay_verified());
+    assert!(summary.source_inputs_replay_verified());
     assert_eq!(
         summary
             .filesystem_operation_attempts()
@@ -1807,7 +2128,7 @@ fn multiple_source_read_chains_replay_distinct_files_and_cursors() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("reopened source-read chains retain observations");
-    assert!(replayed_summary.source_read_chains_replay_verified());
+    assert!(replayed_summary.source_inputs_replay_verified());
     assert_eq!(
         replayed_summary.filesystem_operation_attempts(),
         summary.filesystem_operation_attempts()
@@ -1853,7 +2174,7 @@ fn failed_source_read_at_does_not_claim_bounded_replay() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(!summary.source_read_chains_replay_verified());
+    assert!(!summary.source_inputs_replay_verified());
     assert!(
         capture_verified_build_filesystem_replay_record(
             summary,
@@ -1908,7 +2229,7 @@ fn empty_or_non_read_middle_source_sequences_do_not_claim_bounded_replay() {
         let summary = compilation
             .build_observation_summary()
             .expect("filesystem build retains observations");
-        assert!(!summary.source_read_chains_replay_verified(), "{label}");
+        assert!(!summary.source_inputs_replay_verified(), "{label}");
         assert!(
             capture_verified_build_filesystem_replay_record(
                 summary,
@@ -1936,7 +2257,7 @@ fn write_like_source_open_does_not_claim_bounded_replay() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(!summary.source_read_chains_replay_verified());
+    assert!(!summary.source_inputs_replay_verified());
     assert!(
         capture_verified_build_filesystem_replay_record(
             summary,
