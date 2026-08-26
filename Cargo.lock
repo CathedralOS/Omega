@@ -987,9 +987,13 @@ version = "0.1.0"
 dependencies = [
  "omega-optimization-unit",
  "omega-terminal-abstract-operations",
+ "omega-terminal-psi-to-abstract-operations",
  "psi-core",
+ "psi-proof-admission",
  "psi-terminal",
+ "psi-terminal-codec",
  "psi-terminal-fuel",
+ "psi-terminal-verifier",
 ]
 
 [[package]]

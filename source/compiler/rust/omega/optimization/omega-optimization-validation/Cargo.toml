@@ -10,7 +10,13 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
+omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
 psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }
+psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }
+
+[dev-dependencies]
+psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }

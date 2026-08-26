@@ -211,6 +211,16 @@ fn omega_projects_verified_scalar_cleanup_proofs_without_regrouping_actions() {
             .collect::<Vec<_>>(),
         vec![obligation_id(1)]
     );
+    let caller_frontiers = optimizer_context
+        .structural_frontiers()
+        .machine(caller.id)
+        .expect("optimizer context retains caller ownership frontiers");
+    assert!(caller_frontiers.block_entry(caller.entry).is_some());
+    assert!(
+        caller_frontiers
+            .edge_entry(caller.blocks[0].terminator.edge())
+            .is_some()
+    );
     assert_eq!(
         optimizer_context
             .accepted_facts()

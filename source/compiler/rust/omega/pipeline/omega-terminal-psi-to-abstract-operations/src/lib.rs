@@ -53,6 +53,7 @@ pub struct VerifiedTerminalOptimizationContext {
     proof_bundle_fingerprint: psi_terminal_codec::ProofBundleFingerprint,
     reconstructed_obligations: psi_terminal_verifier::ReconstructedTerminalObligationSet,
     accepted_facts: Vec<psi_proof_admission::AcceptedFact>,
+    structural_frontiers: psi_terminal_verifier::VerifiedTerminalStructuralFrontiers,
 }
 
 impl VerifiedTerminalOptimizationContext {
@@ -76,6 +77,12 @@ impl VerifiedTerminalOptimizationContext {
 
     pub fn accepted_facts(&self) -> &[psi_proof_admission::AcceptedFact] {
         &self.accepted_facts
+    }
+
+    pub const fn structural_frontiers(
+        &self,
+    ) -> &psi_terminal_verifier::VerifiedTerminalStructuralFrontiers {
+        &self.structural_frontiers
     }
 }
 
@@ -227,6 +234,7 @@ fn retain_verified_optimization_input(
             proof_bundle_fingerprint,
             reconstructed_obligations: verified.reconstructed_obligations().clone(),
             accepted_facts: verified.accepted_facts().to_vec(),
+            structural_frontiers: verified.structural_frontiers().clone(),
         },
     })
 }

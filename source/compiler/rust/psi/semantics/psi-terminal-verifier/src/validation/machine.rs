@@ -783,5 +783,5 @@ pub(super) fn validate_machine(
         &blocks,
         &value_types,
     )?;
-    frontier::validate_structural_frontier(module, machine, machines, &blocks)
+    frontier::validate_structural_frontier(module, machine, machines, &blocks).map(|_| ())
 }

@@ -50,6 +50,11 @@ use foundation::{
     is_nonempty_field_path, partial_affine_residuals, resolve_structural_path,
     validate_structural_foundation,
 };
+pub use frontier::{
+    VerifiedLiveClaim, VerifiedMachineStructuralFrontiers, VerifiedOwnedStructuralPlace,
+    VerifiedPartialStructuralCustody, VerifiedStructuralOwnershipFrontier,
+    VerifiedTerminalStructuralFrontiers,
+};
 pub(crate) use structural_operations::structural_argument_canonical_prefix;
 
 #[derive(Debug, Clone, Copy)]
@@ -99,6 +104,40 @@ pub fn validate_module(
 ) -> Result<ValidatedTerminalModule<'_>, ModuleError> {
     validate_module_with_policy(module, ValidationPolicy::Execution)?;
     Ok(ValidatedTerminalModule { module })
+}
+
+/// Validate a Terminal-Psi module and expose the exact deterministic ownership
+/// frontier snapshots computed by the verifier's own custody walk.
+pub fn reconstruct_structural_ownership_frontiers(
+    module: &TerminalModule,
+) -> Result<VerifiedTerminalStructuralFrontiers, ModuleError> {
+    validate_module(module)?;
+    reconstruct_validated_structural_ownership_frontiers(module)
+}
+
+pub(crate) fn reconstruct_validated_structural_ownership_frontiers(
+    module: &TerminalModule,
+) -> Result<VerifiedTerminalStructuralFrontiers, ModuleError> {
+    let machines = module
+        .machines
+        .iter()
+        .map(|machine| (machine.id, machine))
+        .collect::<BTreeMap<_, _>>();
+    let snapshots = module
+        .machines
+        .iter()
+        .map(|machine| {
+            let blocks = machine
+                .blocks
+                .iter()
+                .map(|block| (block.id, block))
+                .collect::<BTreeMap<_, _>>();
+            frontier::validate_structural_frontier(module, machine, &machines, &blocks)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(VerifiedTerminalStructuralFrontiers {
+        machines: snapshots,
+    })
 }
 
 /// Validate the representation-wide invariants needed by canonical codecs.

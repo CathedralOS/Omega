@@ -4,6 +4,106 @@ use super::affine_cleanup::{
 use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedLiveClaim {
+    pub claim: ClaimId,
+    pub input: Option<PlaceId>,
+    pub path: Vec<StructuralPathSegment>,
+    pub multiplicity: Option<StructuralMultiplicity>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VerifiedOwnedStructuralPlace {
+    pub place: PlaceId,
+    pub multiplicity: StructuralMultiplicity,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedPartialStructuralCustody {
+    pub place: PlaceId,
+    pub moved_paths: Vec<Vec<StructuralPathSegment>>,
+}
+
+/// Exact verifier-owned ownership state at one deterministic control site.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedStructuralOwnershipFrontier {
+    claims: Vec<VerifiedLiveClaim>,
+    owned_places: Vec<VerifiedOwnedStructuralPlace>,
+    partial_custody: Vec<VerifiedPartialStructuralCustody>,
+}
+
+impl VerifiedStructuralOwnershipFrontier {
+    pub fn claims(&self) -> &[VerifiedLiveClaim] {
+        &self.claims
+    }
+
+    pub fn owned_places(&self) -> &[VerifiedOwnedStructuralPlace] {
+        &self.owned_places
+    }
+
+    pub fn partial_custody(&self) -> &[VerifiedPartialStructuralCustody] {
+        &self.partial_custody
+    }
+}
+
+/// Path-sensitive frontier snapshots for one verified Terminal-Psi machine.
+/// Entries and exits are separately retained so a rewrite cannot treat a
+/// transfer as a timeless membership fact.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedMachineStructuralFrontiers {
+    pub machine: MachineId,
+    block_entries: BTreeMap<BlockId, VerifiedStructuralOwnershipFrontier>,
+    operation_entries: BTreeMap<OperationId, VerifiedStructuralOwnershipFrontier>,
+    operation_exits: BTreeMap<OperationId, VerifiedStructuralOwnershipFrontier>,
+    edge_entries: BTreeMap<EdgeId, VerifiedStructuralOwnershipFrontier>,
+    edge_exits: BTreeMap<EdgeId, VerifiedStructuralOwnershipFrontier>,
+}
+
+impl VerifiedMachineStructuralFrontiers {
+    pub fn block_entry(&self, block: BlockId) -> Option<&VerifiedStructuralOwnershipFrontier> {
+        self.block_entries.get(&block)
+    }
+
+    pub fn operation_entry(
+        &self,
+        operation: OperationId,
+    ) -> Option<&VerifiedStructuralOwnershipFrontier> {
+        self.operation_entries.get(&operation)
+    }
+
+    pub fn operation_exit(
+        &self,
+        operation: OperationId,
+    ) -> Option<&VerifiedStructuralOwnershipFrontier> {
+        self.operation_exits.get(&operation)
+    }
+
+    pub fn edge_exit(&self, edge: EdgeId) -> Option<&VerifiedStructuralOwnershipFrontier> {
+        self.edge_exits.get(&edge)
+    }
+
+    pub fn edge_entry(&self, edge: EdgeId) -> Option<&VerifiedStructuralOwnershipFrontier> {
+        self.edge_entries.get(&edge)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedTerminalStructuralFrontiers {
+    pub(super) machines: Vec<VerifiedMachineStructuralFrontiers>,
+}
+
+impl VerifiedTerminalStructuralFrontiers {
+    pub fn machines(&self) -> &[VerifiedMachineStructuralFrontiers] {
+        &self.machines
+    }
+
+    pub fn machine(&self, machine: MachineId) -> Option<&VerifiedMachineStructuralFrontiers> {
+        self.machines
+            .iter()
+            .find(|candidate| candidate.machine == machine)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct LiveClaim {
     input: Option<PlaceId>,
     path: Vec<StructuralPathSegment>,
@@ -24,12 +124,53 @@ struct StructuralOwnershipFrontier {
     partial_custody_paths: BTreeMap<PlaceId, BTreeSet<Vec<StructuralPathSegment>>>,
 }
 
+impl StructuralOwnershipFrontier {
+    fn snapshot(&self) -> VerifiedStructuralOwnershipFrontier {
+        VerifiedStructuralOwnershipFrontier {
+            claims: self
+                .claims
+                .iter()
+                .map(|(claim, live)| VerifiedLiveClaim {
+                    claim: *claim,
+                    input: live.input,
+                    path: live.path.clone(),
+                    multiplicity: live.multiplicity,
+                })
+                .collect(),
+            owned_places: self
+                .owned_places
+                .iter()
+                .map(|(place, multiplicity)| VerifiedOwnedStructuralPlace {
+                    place: *place,
+                    multiplicity: *multiplicity,
+                })
+                .collect(),
+            partial_custody: self
+                .partial_custody_paths
+                .iter()
+                .map(|(place, moved_paths)| VerifiedPartialStructuralCustody {
+                    place: *place,
+                    moved_paths: moved_paths.iter().cloned().collect(),
+                })
+                .collect(),
+        }
+    }
+}
+
 pub(super) fn validate_structural_frontier(
     module: &TerminalModule,
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     blocks: &BTreeMap<BlockId, &psi_terminal::Block>,
-) -> Result<(), ModuleError> {
+) -> Result<VerifiedMachineStructuralFrontiers, ModuleError> {
+    let mut snapshots = VerifiedMachineStructuralFrontiers {
+        machine: machine.id,
+        block_entries: BTreeMap::new(),
+        operation_entries: BTreeMap::new(),
+        operation_exits: BTreeMap::new(),
+        edge_entries: BTreeMap::new(),
+        edge_exits: BTreeMap::new(),
+    };
     let mut claims = BTreeMap::<ClaimId, LiveClaim>::new();
     for claim in &machine.entry_claims {
         let parameter = machine
@@ -148,7 +289,13 @@ pub(super) fn validate_structural_frontier(
             .get(&block_id)
             .expect("topological order contains known blocks");
         let mut frontier = frontier;
+        snapshots
+            .block_entries
+            .insert(block.id, frontier.snapshot());
         for operation in &block.operations {
+            snapshots
+                .operation_entries
+                .insert(operation.id, frontier.snapshot());
             if let OperationKind::BooleanStructuralField { source, .. } = operation.kind
                 && (!frontier.owned_places.contains_key(&source)
                     || frontier.partial_custody_paths.contains_key(&source))
@@ -350,6 +497,12 @@ pub(super) fn validate_structural_frontier(
                     }
                 }
             }
+            snapshots
+                .operation_exits
+                .insert(operation.id, frontier.snapshot());
+        }
+        for edge in block.terminator.edges() {
+            snapshots.edge_entries.insert(edge, frontier.snapshot());
         }
         match &block.terminator {
             Terminator::Jump {
@@ -364,6 +517,7 @@ pub(super) fn validate_structural_frontier(
                     *edge,
                     trivial_affine_discards,
                 )?;
+                snapshots.edge_exits.insert(*edge, frontier.snapshot());
                 incoming.entry(*target).or_default().push(frontier);
             }
             Terminator::Conditional {
@@ -378,6 +532,9 @@ pub(super) fn validate_structural_frontier(
                     when_true.edge,
                     &when_true.trivial_affine_discards,
                 )?;
+                snapshots
+                    .edge_exits
+                    .insert(when_true.edge, true_frontier.snapshot());
                 incoming
                     .entry(when_true.target)
                     .or_default()
@@ -388,6 +545,9 @@ pub(super) fn validate_structural_frontier(
                     when_false.edge,
                     &when_false.trivial_affine_discards,
                 )?;
+                snapshots
+                    .edge_exits
+                    .insert(when_false.edge, frontier.snapshot());
                 incoming
                     .entry(when_false.target)
                     .or_default()
@@ -656,7 +816,7 @@ pub(super) fn validate_structural_frontier(
             }
         }
     }
-    Ok(())
+    Ok(snapshots)
 }
 
 fn projected_linear_root_is_fully_consumed(

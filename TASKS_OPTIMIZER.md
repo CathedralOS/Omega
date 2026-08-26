@@ -80,8 +80,17 @@ These facts constrain the work below.
   bundle and fingerprint, verifier-reconstructed obligation set, and accepted
   facts. The ordinary empty-selection path continues to request only the bare
   plan, so it performs no optimizer-context construction. The unit tasks remain
-  open until the builder derives complete path-sensitive indices from this
-  required context and the independent validator checks them.
+  open until the builder projects this context into complete rule-facing
+  indices and the independent validator checks transformations against them.
+- Psi's structural-frontier verifier now exposes deterministic machine/block,
+  operation-entry/exit, and edge-entry/exit snapshots with exact live claims,
+  owned-place multiplicities, and projected moved paths. The verified optimizer
+  carrier retains those snapshots, and the independent unit validator checks
+  proof fingerprints, reconstructed-obligation/admitted-fact agreement,
+  operation-obligation ownership, and frontier coverage for every retained Psi
+  provenance site. The unit tasks remain open for ordered block-parameter
+  reconstruction, full signatures/effects, total CFG coverage, and projecting
+  these capabilities into region-indexed rule facts.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.

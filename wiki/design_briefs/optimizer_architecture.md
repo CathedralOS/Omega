@@ -134,7 +134,8 @@ canonical Terminal Psi semantic + proof sections
          immutable TerminalModule,
          proof bundle + fingerprint,
          reconstructed obligations,
-         accepted facts }
+         accepted facts,
+         verifier-owned structural frontier snapshots }
     -> build PsiOptimizationUnit (private SSA/CFG + semantic side tables)
     -> target-neutral analyses and verified rewrites
     -> OptimizedPsiPlan + TransformationLedger
@@ -172,6 +173,12 @@ complete verified Terminal module beside the lowering seed ensures that later
 unit builders can derive call obligations, structural place paths, edge
 cleanup, and borrow/claim frontiers even where the current abstract plan does
 not yet project them.
+
+Structural frontier snapshots come from Psi's verifier walk itself. They retain
+block entry, operation entry/exit, and edge entry/exit states with exact claim
+paths, owned-place multiplicities, and partially moved paths. Omega validates
+their coverage and joins them to transformation provenance; it does not
+reimplement the borrow checker as a target alias analysis.
 
 ## Optimization unit
 
