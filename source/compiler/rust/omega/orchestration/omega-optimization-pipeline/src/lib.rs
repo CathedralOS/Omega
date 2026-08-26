@@ -27,6 +27,7 @@ mod literal_folds;
 mod live_ranges;
 mod liveness;
 mod machine_effects;
+mod physical_pipeline;
 mod post_allocation_machine_effects;
 mod post_allocation_selected_form_encoding;
 mod register_environment;
@@ -91,6 +92,10 @@ pub use machine_effects::{
     validate_optimized_machine_effect_custody_after_fixed_view_copies,
     validate_optimized_machine_effect_custody_after_literal_folds,
     validate_optimized_machine_effect_custody_after_selected_lowering,
+};
+pub use physical_pipeline::{
+    OptimizedVerifiedPhysicalPipelineError, StagedOptimizedVerifiedPhysicalPipeline,
+    stage_optimized_verified_physical_pipeline_with_provider_executions,
 };
 pub use post_allocation_machine_effects::{
     OptimizedPostAllocationMachinePipelineError,
@@ -2928,6 +2933,81 @@ mod tests {
                 .unwrap(),
                 *post.custody()
             );
+        }
+    }
+
+    #[test]
+    fn compiler_facing_physical_pipeline_routes_psi_only_and_selected_lowering_suites() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let (semantic, proof) = conditional_exact_binary_artifact(false);
+            let psi_only_selections =
+                OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                ExplicitOptimizationRequest::new(
+                    psi_only_selections.clone(),
+                    selected_lowering_budget(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let staged = stage_optimized_verified_physical_pipeline_with_provider_executions(
+                optimized,
+                target,
+                &[],
+            )
+            .unwrap();
+            assert!(matches!(
+                staged,
+                StagedOptimizedVerifiedPhysicalPipeline::PsiOnly { .. }
+            ));
+            assert_eq!(staged.selections(), psi_only_selections.identity());
+            assert_eq!(staged.selected_lowering_completion(), None);
+
+            for selections in [
+                OptimizationSelections::new([
+                    Optimization::CopyPropagation,
+                    Optimization::SelectedIncomingU12ExactAddImmediate,
+                ])
+                .unwrap(),
+                OptimizationSelections::new([Optimization::SelectedIncomingU12ExactAddImmediate])
+                    .unwrap(),
+            ] {
+                let optimized = optimize_artifact_sections(
+                    &semantic,
+                    &proof,
+                    &AdmissionProfile::default(),
+                    ExplicitOptimizationRequest::new(
+                        selections.clone(),
+                        selected_lowering_budget(),
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+                let staged = stage_optimized_verified_physical_pipeline_with_provider_executions(
+                    optimized,
+                    target,
+                    &[],
+                )
+                .unwrap();
+                let StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { homes, machine } =
+                    &staged
+                else {
+                    panic!("selected-lowering phase must run when its exact family is selected")
+                };
+                assert_eq!(staged.selections(), selections.identity());
+                assert_eq!(
+                    staged.selected_lowering_completion(),
+                    Some(homes.selected_lowering_run().custody().identity())
+                );
+                assert!(homes.selected_lowering_run().steps().is_empty());
+                assert_eq!(
+                    machine.machine().receipt().post_allocation_manifest(),
+                    homes.post_allocation_manifest().record().identity
+                );
+            }
         }
     }
 

@@ -243,6 +243,10 @@ fn selected_optimizer_source_canary() -> PathBuf {
     terminal_source_canary("selected_optimizer_component")
 }
 
+fn selected_lowering_optimizer_source_canary() -> PathBuf {
+    terminal_source_canary("selected_lowering_optimizer_component")
+}
+
 fn unsupported_optimizer_source_canary() -> PathBuf {
     terminal_source_canary("unsupported_optimizer_component")
 }
@@ -1219,7 +1223,7 @@ fn typed_terminal_compile_handoff_reaches_checked_owned_report_custody() {
 }
 
 #[test]
-fn selected_optimizer_source_reaches_staged_assignment_but_not_publication() {
+fn selected_optimizer_source_enters_verified_physical_pipeline_and_fails_closed_at_selection() {
     let checked = compile_to_checked(&selected_optimizer_source_canary(), Some("linux_x64"))
         .expect("selected optimizer source should reach checked compilation");
     let diagnostics = stage_terminal_component(
@@ -1234,14 +1238,43 @@ fn selected_optimizer_source_reaches_staged_assignment_but_not_publication() {
     assert!(
         diagnostics[0]
             .message
-            .contains("`SparseConditionalConstantPropagation`, `CopyPropagation`")
+            .contains("`SparseConditionalConstantPropagation`, `CopyPropagation`"),
+        "{}",
+        diagnostics[0].message
     );
     assert!(
         diagnostics[0]
             .message
-            .contains("completed verified Terminal-Psi optimization and staged target assignment")
+            .contains("entered the optimized verified physical pipeline"),
+        "{}",
+        diagnostics[0].message
     );
+    assert!(diagnostics[0].message.contains("UnsupportedSourceShape"));
+    assert!(!diagnostics[0].message.contains("staged target assignment"));
     assert!(diagnostics[0].message.contains("no output was installed"));
+}
+
+#[test]
+fn lower_only_optimizer_source_enters_the_same_verified_physical_pipeline() {
+    let checked = compile_to_checked(
+        &selected_lowering_optimizer_source_canary(),
+        Some("linux_x64"),
+    )
+    .expect("lower-only optimizer source should reach checked compilation");
+    let diagnostics = stage_terminal_component(
+        &checked,
+        NativeTarget::linux_x64(),
+        3,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .expect_err("unsupported selected shape must fail before publication");
+    assert_eq!(diagnostics.len(), 1);
+    let message = &diagnostics[0].message;
+    assert!(message.contains("`SelectedIncomingU12ExactAddImmediate`"));
+    assert!(message.contains("entered the optimized verified physical pipeline"));
+    assert!(message.contains("UnsupportedSourceShape"));
+    assert!(message.contains("no output was installed"));
 }
 
 #[test]

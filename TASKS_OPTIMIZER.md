@@ -101,9 +101,11 @@ These facts constrain the work below.
   the toolchain build vocabulary. Package-aware admission permits the exact
   root build selection and proves that dependency build companions cannot
   contribute one. The legacy compiler still rejects every nonempty set before
-  emission. The clean selected staging lane now enters verified optimization,
-  target-operation lowering, a bounded typed virtual-register instruction CFG,
-  and the existing scratch-cycling assignment stage. An opaque
+  emission. The clean typed terminal-component staging lane now enters verified
+  optimization, target-operation lowering, a bounded typed virtual-register
+  instruction CFG, independently replayed liveness/ranges/legality, phase-
+  routed selected lowering, strict spill-free homes, and the post-allocation
+  machine sidecar. An opaque
   `StagedOptimizedSelectedInstructions` carrier retains the optimizer run,
   final optimization unit, independent abstract projection, target plan, exact
   validated register environment, selected plan, and a content-identity-bound
@@ -478,8 +480,13 @@ These facts constrain the work below.
   empty-selection compatibility route does not call it. All currently
   representable Terminal abstract operations cross this cut by exhaustive
   behavioral observation and lowering; unavailable named families reject at
-  registry construction. Optimized staging deliberately stops before physical
-  assignment and publication.
+  registry construction. The compiler-facing physical wrapper derives the
+  selected-lowering projection from retained suite custody and covers Psi-only,
+  mixed, and lower-only suites on both targets. The current ordinary empty
+  program entry is outside the bounded selected-instruction shape and now fails
+  at that named boundary rather than falling back to transitional scratch
+  assignment. Successfully admitted physical fixtures still stop before frame,
+  emission, artifact construction, and publication.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.
@@ -797,10 +804,14 @@ dependency.
   strict homes, pre-allocation effects, the post-allocation manifest, and the
   independently replayed post-allocation machine sidecar. Its manifest field is
   separate from the ordered literal-fold ledger, so a verified zero-change run
-  truthfully records completion with no invented transformation. Remaining to
-  close: bind this completion into the final realization manifest, then route
-  the compiler's nonempty selected lane through it without opening publication
-  early.
+  truthfully records completion with no invented transformation. The typed
+  terminal-component compiler route now dispatches that phase from the retained
+  full suite, while Psi-only requests take direct strict homes; both stop after
+  independently validated post-allocation machine custody. The legacy native
+  compiler firewall remains closed rather than feeding selected builds into its
+  old backend. Remaining to close: bind completion into the function-relative
+  and final realization manifests, broaden selected instruction shapes, and
+  complete emission/publication custody.
 
 ## P4 — Lowering optimizer and virtual-register form
 
@@ -827,12 +838,17 @@ dependency.
   Unsupported named families fail at registry construction; the current
   operation vocabulary is admitted by exhaustive behavioral observation,
   projection, and target lowering. The empty-selection compatibility route
-  remains untouched. The validated pre-physical manifest identity survives
+  remains untouched. The typed compiler-facing physical route now replaces
+  its former scratch-assignment probe with selection, liveness, ranges,
+  legality, exact phase dispatch, strict homes, and post-allocation machine
+  replay. The parallel staged-assignment carrier remains transitional evidence,
+  not the compiler route's allocation authority. The validated pre-physical
+  manifest identity survives
   every implemented selected/physical staging receipt, so a later realization
   manifest cannot silently join only the older optimizer bundle. Remaining to
-  close: replace or subsume transitional
-  scratch assignment with independently verified physical assignment; retain
-  optimizer custody through machine emission and component construction; then
+  close: broaden the bounded selected/physical vocabulary and retain optimizer
+  custody through frame/exit validation, machine emission, and component
+  construction; then
   bind optimizer and physical identities into an explicit final realization/
   publication manifest before optimized output can be installed.
 
@@ -1099,9 +1115,11 @@ dependency.
   entire prefix is replayed before append. No-action requests reject. With a
   sole flexible `rax`/`x0` view, two separately requested folds close both leaf
   pressure points; the final home carrier derives both ordered `LiteralFold`
-  manifest entries from custody and reaches homes on both targets. There is no
-  implicit loop, build hook, general rematerialization, spill, frame, or
-  emission authority.
+  manifest entries from custody and reaches homes on both targets. These manual
+  APIs contain no implicit loop. The separately named build-selectable suite
+  owns its explicit fixed-point schedule and verified no-change termination;
+  neither route grants general rematerialization, spill, frame, or emission
+  authority.
   Default staging retains every environment-allocatable view and preserves the
   former spill-free homes. Selected-value ownership/proof custody and target
   frame policy must still join before any victim can become a typed spill or
