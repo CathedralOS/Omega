@@ -731,31 +731,11 @@ impl Compiler {
                 &backend.plan.encoded_machine.semantics.boundaries.footprints,
                 emit_auxiliary_artifacts,
                 |checked_image| {
-                    let Some(bridge) = &mut program_storage_entry_bridge else {
-                        return Ok(());
-                    };
-                    if bridge.wrapper_body_template().is_none() {
-                        if bridge.is_receiver_bound_without_wrapper_template() {
-                            return Ok(());
-                        }
-                        return Err(vec![Diagnostic::error(
-                            "native program-storage publication lost its receiver-free wrapper template without an exact receiver-bound continuation",
-                        )]);
-                    }
-                    let checked_image = checked_image.ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "program-storage entry target emitted no checked executable image",
-                        )]
-                    })?;
-                    let evidence = crate::pipeline::program_storage_wrapper_evidence::bind_final_program_storage_entry_wrapper_evidence(
-                        bridge,
+                    crate::pipeline::program_storage_entry::retain_compiler_generated_program_storage_entry_publication_evidence(
+                        program_storage_entry_bridge.as_mut(),
                         &backend.plan,
                         checked_image,
                     )
-                    .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
-                    bridge
-                        .retain_emitted_wrapper_evidence(evidence)
-                        .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
                 },
             )?;
             let (output_path, output_kind, executable_publication, app_bundle_publication) =
