@@ -307,13 +307,11 @@ pub fn stage_terminal_component(
             .map_err(|error| stage_error("target operation lowering", error))?
         }
         StagedAbstractOperations::Optimized(optimized) => {
-            let _validated_target =
-                omega_lowering_optimizer::lower_optimized_to_target_operations_with_provider_executions(
-                    *optimized,
-                    target,
-                    &admitted,
+            let _staged_assignment =
+                omega_optimization_pipeline::stage_optimized_assignment_with_provider_executions(
+                    *optimized, target, &admitted,
                 )
-                .map_err(|error| stage_error("optimized target operation lowering", error))?;
+                .map_err(|error| stage_error("optimized target assignment", error))?;
             return Err(
                 crate::pipeline::optimization_gate::optimized_publication_unavailable(
                     checked.optimization_selections(),

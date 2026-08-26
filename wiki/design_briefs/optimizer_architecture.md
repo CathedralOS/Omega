@@ -158,8 +158,15 @@ canonical Terminal Psi semantic + proof sections
          retained ValidatedOptimizedAbstractPlan,
          exact native target }
     -> instruction selection / target combines
-    -> register allocation + frame assignment
-    -> assigned target operations
+    -> current transitional bounded scratch assignment
+    -> StagedOptimizedAssignedOperations
+       { current assigned plan (borrowed access only),
+         retained ValidatedOptimizedTargetOperations,
+         root/function-provenance custody receipt,
+         no allocator-validation or emission authority }
+    -> replace/subsume staging with register allocation + frame assignment
+    -> independent allocator validation
+    -> validated assigned target operations
     -> machine scheduling / peepholes / block layout
     -> symbolic machine instructions
     -> encoding, relocation, image, installation
@@ -210,15 +217,27 @@ exact target. This prevents an optimized consumer from obtaining either plan
 by consuming and discarding its evidence. The ordinary bare-plan lowering API
 remains for the empty-selection compatibility lane.
 
+A third opaque `StagedOptimizedAssignedOperations` carrier retains the complete
+optimized-target carrier beside the output of the current bounded
+scratch-cycling assignment stage. Its independently reconstructed custody
+receipt checks Terminal-Psi identity, native target, entry, exact ordered
+function roster, attachments, and operation provenance. It intentionally
+exposes both plans only by borrow. `Staged` is a trust boundary, not a synonym
+for validated allocation: the receipt says nothing about liveness,
+interference, register-unit conflicts, fixed operands, spills, or frame slots,
+and grants no machine-emission or publication authority.
+
 Clean compiler staging branches before constructing optimizer state. Empty
 selection takes the prior compatibility route unchanged. Nonempty selection
 must enter `omega-optimization-pipeline`, and unsupported named families or any
 validation failure reject without fallback. A successful supported selection
-continues through the optimized-only target-lowering carrier, then deliberately
-stops before register assignment, machine emission, object/image construction,
-or component publication. Those stages require a later realization manifest
-that binds optimizer custody to physical records. The legacy compiler's
-nonempty-selection firewall remains closed.
+continues through the optimized-only target-lowering carrier and the opaque
+staged-assignment carrier, then deliberately stops before machine emission,
+object/image construction, or component publication. Independent allocator
+validation must precede any claim that the assigned plan is physically legal;
+later physical stages additionally require a realization manifest that binds
+optimizer custody to their records. The legacy compiler's nonempty-selection
+firewall remains closed.
 
 The verified optimizer input is required, not an optional evidence attachment
 to a bare plan. Compatibility lowering has a separate bare-plan entry; the
@@ -598,7 +617,10 @@ The baseline AArch64 model gives encoding-number-31 stack and zero-register
 views distinct units, aliases `Wn`/`Xn`, and splits vector halves so the AAPCS64
 low-half preservation rule is not inflated to all 128 bits. These declarations
 do not alter the current scratch-cycling assignment lane and are not allocator
-output evidence.
+output evidence. The selected optimizer lane may retain that transitional
+lane's assigned plan inside `StagedOptimizedAssignedOperations` to prove
+cross-stage custody, but cannot treat it as allocator-validated input to
+machine emission.
 
 The first allocator should be deterministic linear scan with interval splitting,
 spills, reloads, rematerialization of cheap constants, and verified frame-slot

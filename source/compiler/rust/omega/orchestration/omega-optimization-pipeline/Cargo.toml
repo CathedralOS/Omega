@@ -12,15 +12,17 @@ path = "src/lib.rs"
 omega-lowering-optimizer = { path = "../../optimization/omega-lowering-optimizer" }
 omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
 omega-psi-optimizer = { path = "../../optimization/omega-psi-optimizer" }
+omega-terminal-assigned-target-operations = { path = "../../representations/omega-terminal-assigned-target-operations" }
+omega-terminal-abstract-operations-to-target-operations = { path = "../../pipeline/omega-terminal-abstract-operations-to-target-operations" }
 omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
+omega-terminal-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-terminal-target-operations-to-assigned-target-operations" }
+omega-target = { path = "../../foundation/omega-target" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }
 
 [dev-dependencies]
-omega-target = { path = "../../foundation/omega-target" }
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
-omega-terminal-abstract-operations-to-target-operations = { path = "../../pipeline/omega-terminal-abstract-operations-to-target-operations" }
-psi-core = { path = "../../../psi/foundation/psi-core" }
-psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
 psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }

@@ -676,7 +676,7 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
 }
 
 #[test]
-fn selected_optimizer_source_reaches_clean_target_lowering_but_not_publication() {
+fn selected_optimizer_source_reaches_staged_assignment_but_not_publication() {
     let checked = compile_to_checked(&selected_optimizer_source_canary(), Some("linux_x64"))
         .expect("selected optimizer source should reach checked compilation");
     let diagnostics = stage_terminal_component(
@@ -696,7 +696,7 @@ fn selected_optimizer_source_reaches_clean_target_lowering_but_not_publication()
     assert!(
         diagnostics[0]
             .message
-            .contains("completed verified Terminal-Psi optimization and clean target lowering")
+            .contains("completed verified Terminal-Psi optimization and staged target assignment")
     );
     assert!(diagnostics[0].message.contains("no output was installed"));
 }
