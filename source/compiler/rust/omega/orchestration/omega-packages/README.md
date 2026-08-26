@@ -28,6 +28,14 @@ real package fixture demonstrates an irreducible external contract.
 - This repository's root workspace currently names `omega/language/std`,
   `source/compiler/omega/psi`, and `source/compiler/omega`. Each member owns
   its declaration; paths locate members but do not name them.
+- The real `omega-language-std` package has a resolver/compiler vertical
+  canary: an ordinary `Source::Path` row derives the
+  `omega_language_std` alias, snapshots std under resolver custody, and retains
+  imported declarations as exact user-package ownership. The same import with
+  no dependency edge rejects, so package-aware compilation has no implicit
+  bundled-std fallback for the ordinary alias. Production still has explicit
+  bundled filesystem, macOS GUI, `omega::...`, and source-classification seams;
+  only `omega::language::core` may remain toolchain-bundled when those migrate.
 - All executable roots under `samples/` declare explicit application roles and
   use the canonical `builder` receiver. A repository canary discovers the full
   sample population and projects each role through this package reader.

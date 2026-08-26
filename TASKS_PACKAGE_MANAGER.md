@@ -2648,6 +2648,28 @@ standard library by path.
 - [ ] **Replace the bundled-std reader.** `frontend.rs:643` reads
       `omega/language/std/<module>.omg` directly. Route it through ordinary
       package resolution once std is a package.
+
+      Milestone 2026-08-26: a resolver/compiler vertical canary now consumes
+      the repository's real `omega/language/std` through an ordinary
+      `Source::Path` dependency. Resolution reads std's own
+      `builder.package("omega-language-std")`, derives the requester-local
+      `omega_language_std` alias, snapshots it outside the live toolchain tree,
+      and hands that exact graph to package-aware compilation. Importing
+      `omega_language_std::wire` retains `wire.omg` and its public declaration
+      as `SourceOrigin::User` under the exact std `PackageKey`; removing the
+      dependency edge makes the same import fail rather than falling back to
+      bundled std. This proves the ordinary package route without Q2's remote
+      workspace selector or Q3's application-root identity.
+
+      The production switch remains open. Package-aware import discovery still
+      treats every `omega::...` path as toolchain-owned, filesystem-reaching
+      builds seed bundled `filesystem.omg` directly, native macOS provider
+      selection injects bundled `macos_gui` bytes, and source storage classifies
+      both core and std below the toolchain root as toolchain source. Migrate
+      std imports to the reconciled alias, load filesystem and GUI providers
+      through exact graph nodes, and classify dangerous authority from the
+      admitted std/provider identities. `omega::language::core` alone remains
+      bundled. Do not preserve the old std namespace through a magic mount.
 - [ ] **Resolve git dependencies by package name.** `declaration.rs` reads
       `build.omg` at the fetched root only, so one git URL means one package at
       the repository root. Read the root manifest, consult its members, and
