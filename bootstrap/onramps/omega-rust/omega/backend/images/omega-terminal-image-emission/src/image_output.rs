@@ -371,6 +371,14 @@ impl TerminalNativeFuelTransferRuntimeExecutableImage {
     ) -> &omega_terminal_installation_evidence::TerminalNativeFuelTransferRuntimeEvidence {
         &self.transfer_runtime_evidence
     }
+
+    pub(crate) fn metered_installation_view(&self) -> TerminalNativeFuelExecutableImage {
+        TerminalNativeFuelExecutableImage {
+            artifact: self.artifact.metered_artifact().clone(),
+            subsystem: self.subsystem,
+            output: self.output.clone(),
+        }
+    }
 }
 
 impl omega_terminal_installation_evidence::TerminalNativeFuelTransferRuntimeImageEvidence

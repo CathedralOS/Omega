@@ -577,7 +577,7 @@ mod tests {
         TerminalNativeFuelSite,
     };
     use omega_terminal_target_operations::TerminalPsiProvenance;
-    use psi_core::{MachineId, OperationId};
+    use psi_core::{MachineId, OperationId, ProfileDecisionId};
     use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
     use psi_terminal_fuel::TerminalFuelSchedule;
 
@@ -947,5 +947,47 @@ mod tests {
             "the Branch26 sponsor call must be materialized"
         );
         assert_ne!(evidence.fingerprint(), 0);
+    }
+
+    #[test]
+    fn transfer_runtime_installations_round_trip_both_target_plans() {
+        for artifact in [bound_artifact(), bound_aarch64_artifact()] {
+            let image =
+                crate::emit_terminal_native_fuel_transfer_runtime_executable_image(&artifact, 3)
+                    .expect("transfer runtime image");
+            let record = crate::build_terminal_native_fuel_transfer_runtime_installation_record(
+                &image,
+                ProfileDecisionId::new(1).unwrap(),
+            )
+            .expect("transfer runtime installation");
+            let installed = record
+                .native_fuel_transfer_runtime()
+                .expect("transfer section");
+            assert_eq!(installed.evidence(), image.transfer_runtime_evidence());
+            assert_eq!(
+                installed.unrelocated_text_byte_count(),
+                artifact.text_bytes().len()
+            );
+            assert_eq!(
+                installed.final_text_byte_count(),
+                image.output().final_text_bytes.len()
+            );
+
+            let encoded = crate::encode_terminal_installation_record(&record)
+                .expect("canonical installation bytes");
+            let decoded = crate::decode_terminal_installation_record(&encoded)
+                .expect("canonical installation decode");
+            assert_eq!(decoded, record);
+            crate::validate_terminal_native_fuel_transfer_runtime_installation_record(
+                &decoded, &image,
+            )
+            .expect("decoded transfer evidence rejoins image");
+
+            let mut fingerprint_drift = encoded;
+            *fingerprint_drift
+                .last_mut()
+                .expect("encoded evidence fingerprint") ^= 1;
+            assert!(crate::decode_terminal_installation_record(&fingerprint_drift).is_err());
+        }
     }
 }
