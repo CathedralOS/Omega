@@ -7830,8 +7830,7 @@ Remaining N6/N8 work:
   rebound shared arguments, const/attached/mode/type parameter drift, named
   evidence lanes, result-case/crash lanes, and conclusion drift reject
   independently. Selection, eligibility, and exact schema verification prove
-  no congruence implication and grant no executable authority; stages 3-4
-  remain fail-closed.
+  no congruence implication and grant no executable authority.
 
   Every request intentionally remains non-executable. Complete admission in
   bounded stages:
@@ -8201,10 +8200,14 @@ checked-result arithmetic decision listed below.
   fixed-array lengths and const-generic arguments now cross the opt-in boundary
   after exact invocation-custody/common-floor admission, decode only an exact
   integer snapshot, and preserve the owning position's nonnegative and host-
-  width conversion checks. Other compiler-owned plan evaluators do not opt in
-  implicitly while their affine result vocabularies remain unchanged. Quotient
-  snapshots, `ConstMaterializable`, target capsules/observations, and
-  representation bytes remain subsequent.
+  width conversion checks. The second position-owner migration is live:
+  machine-backed facts used to discharge concrete const-domain membership now
+  validate their exact integer-to-Boolean signature, cross the same
+  source-custodied opt-in boundary, and decode only an exact Boolean snapshot.
+  Other compiler-owned plan evaluators do not opt in implicitly while their
+  affine result vocabularies remain unchanged. Quotient snapshots,
+  `ConstMaterializable`, target capsules/observations, and representation bytes
+  remain subsequent.
 
   Materialize one compiler-owned versioned typed capsule shared by evaluator and
   backend. Expose only its closed subject-qualified observation vocabulary; do

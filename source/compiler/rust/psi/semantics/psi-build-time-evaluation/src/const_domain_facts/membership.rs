@@ -82,12 +82,6 @@ fn evaluate_machine_fact(
     };
     let machine_name = machine.name.as_str();
 
-    admission.require_common_floor_for_invocation(
-        typed,
-        machine,
-        crate::BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression)),
-    )?;
-
     let parameters = typed.state_parameters(state);
     if parameters.len() != 1
         || parameters[0].is_mutable
@@ -116,13 +110,12 @@ fn evaluate_machine_fact(
         ));
     }
 
-    let fact_holds = match psi_checked_interpreter::evaluate_build_time_machine(
+    let fact_holds = match admission.evaluate_const_evaluable_machine_for_invocation(
         typed,
         machine_name,
         vec![BuildTimeValue::Int(self_value)],
-    )
-    .map_err(|reason| format!("evaluation of `{machine_name}` failed: {reason}"))?
-    {
+        crate::BuildTimeInvocationCustody::Source(typed.expression_table.source_span(expression)),
+    )? {
         BuildTimeValue::Bool(holds) => holds,
         other => {
             return Err(format!(
