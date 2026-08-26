@@ -1,8 +1,9 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use omega_optimization_core::OptimizationUnitIdentity;
 use omega_optimization_unit::{
-    OptimizationFact, PsiOptimizationUnit, PsiProvenance, ValueDefinition, ValueUse,
+    OptimizationEdge, OptimizationFact, PsiOptimizationUnit, PsiProvenance, ValueDefinition,
+    ValueUse,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{BlockId, EdgeId, IntegerValue, MachineId, OperationId, ValueId};
@@ -26,12 +27,50 @@ pub struct ValueFactRegion {
     pub value: ValueId,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScalarConstantFact {
     pub value: ValueId,
     pub constant: ScalarConstant,
-    pub support: OperationId,
+    pub support: ScalarConstantSupport,
     pub valid_in: ValueFactRegion,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ScalarConstantSupport {
+    pub operations: Vec<OperationId>,
+    pub edges: Vec<EdgeId>,
+}
+
+impl ScalarConstantSupport {
+    fn literal(operation: OperationId) -> Self {
+        Self {
+            operations: vec![operation],
+            edges: Vec::new(),
+        }
+    }
+
+    pub fn literal_operation(&self) -> Option<OperationId> {
+        let [operation] = self.operations.as_slice() else {
+            return None;
+        };
+        self.edges.is_empty().then_some(*operation)
+    }
+
+    fn through_edge(mut self, edge: EdgeId) -> Self {
+        if let Err(position) = self.edges.binary_search(&edge) {
+            self.edges.insert(position, edge);
+        }
+        self
+    }
+
+    fn union_with(&mut self, other: &Self) {
+        self.operations.extend_from_slice(&other.operations);
+        self.operations.sort_unstable();
+        self.operations.dedup();
+        self.edges.extend_from_slice(&other.edges);
+        self.edges.sort_unstable();
+        self.edges.dedup();
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,9 +91,8 @@ pub struct ExecutableEdgeFact {
     pub source: BlockId,
     pub edge: EdgeId,
     pub knowledge: ExecutableEdgeKnowledge,
-    /// Exact literal-operation facts supporting a known conditional result.
-    /// Empty support on an unconditional jump is structural, not guessed.
-    pub support: Vec<OperationId>,
+    /// Exact operations and edges supporting this feasibility verdict.
+    pub support: ScalarConstantSupport,
     pub revision: OptimizationUnitIdentity,
 }
 
@@ -63,12 +101,12 @@ pub struct ExecutableEdgeAnalysis {
     pub edges: Vec<ExecutableEdgeFact>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ValueRangeFact {
     pub value: ValueId,
     pub minimum: IntegerValue,
     pub maximum: IntegerValue,
-    pub support: OperationId,
+    pub support: ScalarConstantSupport,
     pub valid_in: ValueFactRegion,
 }
 
@@ -164,23 +202,308 @@ pub(super) fn use_definitions(unit: &PsiOptimizationUnit) -> UseDefinitionAnalys
 }
 
 pub(super) fn scalar_constants(unit: &PsiOptimizationUnit) -> ScalarConstantAnalysis {
+    sparse_conditional_constants(unit).0
+}
+
+pub(super) fn executable_edges(unit: &PsiOptimizationUnit) -> ExecutableEdgeAnalysis {
+    sparse_conditional_constants(unit).1
+}
+
+fn sparse_conditional_constants(
+    unit: &PsiOptimizationUnit,
+) -> (ScalarConstantAnalysis, ExecutableEdgeAnalysis) {
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    enum LatticeValue {
+        Unknown,
+        Constant(ScalarConstant, ScalarConstantSupport),
+        Overdefined,
+    }
+
+    fn merge(
+        target: &mut LatticeValue,
+        incoming: &LatticeValue,
+        path_support: &ScalarConstantSupport,
+    ) -> bool {
+        let incoming = match incoming {
+            LatticeValue::Unknown => return false,
+            LatticeValue::Overdefined => LatticeValue::Overdefined,
+            LatticeValue::Constant(constant, support) => {
+                let mut support = support.clone();
+                support.union_with(path_support);
+                LatticeValue::Constant(*constant, support)
+            }
+        };
+        let next = match (&*target, incoming) {
+            (LatticeValue::Unknown, incoming) => incoming,
+            (_, LatticeValue::Unknown) => return false,
+            (LatticeValue::Overdefined, _) => return false,
+            (_, LatticeValue::Overdefined) => LatticeValue::Overdefined,
+            (
+                LatticeValue::Constant(current, current_support),
+                LatticeValue::Constant(incoming, incoming_support),
+            ) if *current == incoming => {
+                let mut support = current_support.clone();
+                support.union_with(&incoming_support);
+                LatticeValue::Constant(*current, support)
+            }
+            (LatticeValue::Constant(..), LatticeValue::Constant(..)) => LatticeValue::Overdefined,
+        };
+        if *target == next {
+            false
+        } else {
+            *target = next;
+            true
+        }
+    }
+
     let mut facts = Vec::new();
+    let mut edge_facts = Vec::new();
     for function in &unit.functions {
+        let mut values = BTreeMap::<ValueId, LatticeValue>::new();
+        let support_blocks = function
+            .blocks
+            .iter()
+            .flat_map(|block| {
+                block.nodes.iter().flat_map(move |node| {
+                    node.provenance
+                        .iter()
+                        .filter_map(move |source| match source {
+                            PsiProvenance::Operation(operation) => Some((*operation, block.id)),
+                            PsiProvenance::Edge(_) => None,
+                        })
+                })
+            })
+            .collect::<BTreeMap<_, _>>();
+        for parameter in &function.parameters {
+            values.insert(parameter.value, LatticeValue::Overdefined);
+        }
+        for block in &function.blocks {
+            for parameter in &block.parameters {
+                values.insert(parameter.value, LatticeValue::Unknown);
+            }
+            for definition in block.nodes.iter().flat_map(|node| &node.definitions) {
+                values.insert(definition.value, LatticeValue::Overdefined);
+            }
+        }
+        let mut literal_rows = Vec::new();
         for fact in &function.facts {
             let (value, constant, support) = match fact {
                 OptimizationFact::BooleanConstant {
                     value,
                     constant,
                     support,
-                } => (*value, ScalarConstant::Boolean(*constant), *support),
+                } => (
+                    *value,
+                    ScalarConstant::Boolean(*constant),
+                    ScalarConstantSupport::literal(*support),
+                ),
                 OptimizationFact::IntegerConstant {
                     value,
                     constant,
                     support,
-                } => (*value, ScalarConstant::Integer(*constant), *support),
+                } => (
+                    *value,
+                    ScalarConstant::Integer(*constant),
+                    ScalarConstantSupport::literal(*support),
+                ),
                 OptimizationFact::OperationObligationReference { .. } => continue,
             };
-            facts.push(ScalarConstantFact {
+            let block = support_blocks.get(&support.operations[0]).copied();
+            literal_rows.push((value, constant, support.clone(), block));
+            values.insert(
+                value,
+                if block.is_some() {
+                    LatticeValue::Unknown
+                } else {
+                    LatticeValue::Constant(constant, support)
+                },
+            );
+        }
+
+        let mut reachable = BTreeSet::from([function.entry]);
+        let mut feasible_edges = BTreeMap::<EdgeId, ScalarConstantSupport>::new();
+        let mut reach_support = BTreeMap::from([(
+            function.entry,
+            ScalarConstantSupport {
+                operations: Vec::new(),
+                edges: Vec::new(),
+            },
+        )]);
+        loop {
+            let mut changed = false;
+            for block in &function.blocks {
+                if !reachable.contains(&block.id) {
+                    continue;
+                }
+                for (value, constant, support, site) in &literal_rows {
+                    if *site == Some(block.id)
+                        && matches!(values.get(value), Some(LatticeValue::Unknown))
+                    {
+                        values.insert(*value, LatticeValue::Constant(*constant, support.clone()));
+                        changed = true;
+                    }
+                }
+                let Some(node) = block.nodes.last() else {
+                    continue;
+                };
+                let operation_successors = scalar_operation_successors(&node.operation);
+                let successors = match &node.operation {
+                    O::Jump { .. } => operation_successors
+                        .iter()
+                        .map(|successor| (successor, None))
+                        .collect::<Vec<_>>(),
+                    O::Conditional { condition, .. } => match values.get(condition) {
+                        Some(LatticeValue::Constant(
+                            ScalarConstant::Boolean(value),
+                            condition_support,
+                        )) => operation_successors
+                            .iter()
+                            .filter(|successor| {
+                                matches!(
+                                    &node.operation,
+                                    O::Conditional {
+                                        when_true,
+                                        when_false,
+                                        ..
+                                    } if successor.psi_edge
+                                        == if *value {
+                                            when_true.psi_edge
+                                        } else {
+                                            when_false.psi_edge
+                                        }
+                                )
+                            })
+                            .map(|successor| (successor, Some(condition_support.clone())))
+                            .collect(),
+                        Some(LatticeValue::Overdefined) => operation_successors
+                            .iter()
+                            .map(|successor| (successor, None))
+                            .collect::<Vec<_>>(),
+                        Some(LatticeValue::Constant(ScalarConstant::Integer(_), _))
+                        | Some(LatticeValue::Unknown)
+                        | None => Vec::new(),
+                    },
+                    _ => Vec::new(),
+                };
+                for (successor, condition_support) in successors {
+                    let mut path_support = reach_support
+                        .get(&block.id)
+                        .cloned()
+                        .expect("reachable block has support");
+                    if let Some(condition_support) = condition_support {
+                        path_support.union_with(&condition_support);
+                    }
+                    path_support = path_support.through_edge(successor.psi_edge);
+                    match feasible_edges.entry(successor.psi_edge) {
+                        std::collections::btree_map::Entry::Vacant(entry) => {
+                            entry.insert(path_support.clone());
+                            changed = true;
+                        }
+                        std::collections::btree_map::Entry::Occupied(mut entry) => {
+                            let mut joined = entry.get().clone();
+                            joined.union_with(&path_support);
+                            if joined != *entry.get() {
+                                entry.insert(joined);
+                                changed = true;
+                            }
+                        }
+                    }
+                    changed |= reachable.insert(successor.target);
+                    match reach_support.entry(successor.target) {
+                        std::collections::btree_map::Entry::Vacant(entry) => {
+                            entry.insert(path_support.clone());
+                            changed = true;
+                        }
+                        std::collections::btree_map::Entry::Occupied(mut entry) => {
+                            let mut joined = entry.get().clone();
+                            joined.union_with(&path_support);
+                            if joined != *entry.get() {
+                                entry.insert(joined);
+                                changed = true;
+                            }
+                        }
+                    }
+                    for binding in &successor.bindings {
+                        let incoming = values
+                            .get(&binding.argument)
+                            .cloned()
+                            .unwrap_or(LatticeValue::Overdefined);
+                        let target = values
+                            .entry(binding.parameter)
+                            .or_insert(LatticeValue::Unknown);
+                        changed |= merge(target, &incoming, &path_support);
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+
+        for block in &function.blocks {
+            let source_reachable = reachable.contains(&block.id);
+            let source_support = reach_support.get(&block.id);
+            let Some(node) = block.nodes.last() else {
+                continue;
+            };
+            for successor in scalar_operation_successors(&node.operation) {
+                let feasible_support = feasible_edges.get(&successor.psi_edge);
+                let (knowledge, support) = if let Some(support) = feasible_support {
+                    (ExecutableEdgeKnowledge::KnownExecutable, support.clone())
+                } else if !source_reachable {
+                    (
+                        ExecutableEdgeKnowledge::KnownInexecutable,
+                        ScalarConstantSupport {
+                            operations: Vec::new(),
+                            edges: Vec::new(),
+                        },
+                    )
+                } else if let O::Conditional { condition, .. } = &node.operation {
+                    match values.get(condition) {
+                        Some(LatticeValue::Constant(ScalarConstant::Boolean(_), condition)) => {
+                            let mut support =
+                                source_support
+                                    .cloned()
+                                    .unwrap_or_else(|| ScalarConstantSupport {
+                                        operations: Vec::new(),
+                                        edges: Vec::new(),
+                                    });
+                            support.union_with(condition);
+                            (ExecutableEdgeKnowledge::KnownInexecutable, support)
+                        }
+                        _ => (
+                            ExecutableEdgeKnowledge::Unknown,
+                            ScalarConstantSupport {
+                                operations: Vec::new(),
+                                edges: Vec::new(),
+                            },
+                        ),
+                    }
+                } else {
+                    (
+                        ExecutableEdgeKnowledge::KnownInexecutable,
+                        ScalarConstantSupport {
+                            operations: Vec::new(),
+                            edges: Vec::new(),
+                        },
+                    )
+                };
+                edge_facts.push(ExecutableEdgeFact {
+                    machine: function.machine,
+                    source: block.id,
+                    edge: successor.psi_edge,
+                    knowledge,
+                    support,
+                    revision: unit.identity,
+                });
+            }
+        }
+
+        facts.extend(values.into_iter().filter_map(|(value, state)| {
+            let LatticeValue::Constant(constant, support) = state else {
+                return None;
+            };
+            Some(ScalarConstantFact {
                 value,
                 constant,
                 support,
@@ -189,66 +512,41 @@ pub(super) fn scalar_constants(unit: &PsiOptimizationUnit) -> ScalarConstantAnal
                     machine: function.machine,
                     value,
                 },
-            });
-        }
+            })
+        }));
     }
-    ScalarConstantAnalysis { facts }
+    facts.sort_by_key(|fact| (fact.valid_in.machine, fact.value));
+    (
+        ScalarConstantAnalysis { facts },
+        ExecutableEdgeAnalysis { edges: edge_facts },
+    )
 }
 
-pub(super) fn executable_edges(unit: &PsiOptimizationUnit) -> ExecutableEdgeAnalysis {
-    let constants = scalar_constants(unit)
-        .facts
-        .into_iter()
-        .filter_map(|fact| match fact.constant {
-            ScalarConstant::Boolean(value) => {
-                Some(((fact.valid_in.machine, fact.value), (value, fact.support)))
-            }
-            ScalarConstant::Integer(_) => None,
-        })
-        .collect::<BTreeMap<_, _>>();
-    let mut edges = Vec::new();
-    for function in &unit.functions {
-        for block in &function.blocks {
-            let Some(operation) = block.nodes.last().map(|node| &node.operation) else {
-                continue;
-            };
-            match operation {
-                O::Jump { psi_edge, .. } => edges.push(ExecutableEdgeFact {
-                    machine: function.machine,
-                    source: block.id,
-                    edge: *psi_edge,
-                    knowledge: ExecutableEdgeKnowledge::KnownExecutable,
-                    support: Vec::new(),
-                    revision: unit.identity,
-                }),
-                O::Conditional {
-                    condition,
-                    when_true,
-                    when_false,
-                } => {
-                    let known = constants.get(&(function.machine, *condition)).copied();
-                    for (selected_value, edge) in [(true, when_true), (false, when_false)] {
-                        edges.push(ExecutableEdgeFact {
-                            machine: function.machine,
-                            source: block.id,
-                            edge: edge.psi_edge,
-                            knowledge: match known {
-                                Some((value, _)) if value == selected_value => {
-                                    ExecutableEdgeKnowledge::KnownExecutable
-                                }
-                                Some(_) => ExecutableEdgeKnowledge::KnownInexecutable,
-                                None => ExecutableEdgeKnowledge::Unknown,
-                            },
-                            support: known.map_or_else(Vec::new, |(_, support)| vec![support]),
-                            revision: unit.identity,
-                        });
-                    }
-                }
-                _ => {}
-            }
-        }
+fn scalar_operation_successors(operation: &O) -> Vec<OptimizationEdge> {
+    match operation {
+        O::Jump {
+            psi_edge,
+            target,
+            bindings,
+        } => vec![OptimizationEdge {
+            psi_edge: *psi_edge,
+            target: *target,
+            bindings: bindings.clone(),
+        }],
+        O::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => [when_true, when_false]
+            .into_iter()
+            .map(|successor| OptimizationEdge {
+                psi_edge: successor.psi_edge,
+                target: successor.target,
+                bindings: successor.bindings.clone(),
+            })
+            .collect(),
+        _ => Vec::new(),
     }
-    ExecutableEdgeAnalysis { edges }
 }
 
 pub(super) fn value_ranges(unit: &PsiOptimizationUnit) -> ValueRangeAnalysis {

@@ -1185,7 +1185,10 @@ fn integer_constant(
         (fact.valid_in.machine == machine && fact.value == value)
             .then_some(fact)
             .and_then(|fact| match fact.constant {
-                ScalarConstant::Integer(value) => Some((value, fact.support)),
+                ScalarConstant::Integer(value) => fact
+                    .support
+                    .literal_operation()
+                    .map(|support| (value, support)),
                 ScalarConstant::Boolean(_) => None,
             })
     })
@@ -1200,7 +1203,10 @@ fn boolean_constant(
         (fact.valid_in.machine == machine && fact.value == value)
             .then_some(fact)
             .and_then(|fact| match fact.constant {
-                ScalarConstant::Boolean(value) => Some((value, fact.support)),
+                ScalarConstant::Boolean(value) => fact
+                    .support
+                    .literal_operation()
+                    .map(|support| (value, support)),
                 ScalarConstant::Integer(_) => None,
             })
     })

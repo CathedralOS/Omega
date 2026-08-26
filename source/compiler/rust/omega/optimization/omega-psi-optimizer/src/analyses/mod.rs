@@ -11,8 +11,8 @@ pub use manager::{AnalysisManager, AnalysisManagerError, AnalysisRevisionCommit}
 pub use semantic::{
     EffectClass, EffectKnowledge, EffectSummaryAnalysis, ExecutableEdgeAnalysis,
     ExecutableEdgeFact, ExecutableEdgeKnowledge, NodeEffectSummary, NodeLiveness, ScalarConstant,
-    ScalarConstantAnalysis, ScalarConstantFact, UseDefinitionAnalysis, ValueFactRegion,
-    ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
+    ScalarConstantAnalysis, ScalarConstantFact, ScalarConstantSupport, UseDefinitionAnalysis,
+    ValueFactRegion, ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

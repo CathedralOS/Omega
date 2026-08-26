@@ -81,7 +81,10 @@ pub fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
             AnalysisKind::Dominators,
             AnalysisKind::StronglyConnectedComponents,
         ])),
-        AnalysisKind::ScalarConstants => Some(AnalysisSet::new([AnalysisKind::UseDefinition])),
+        AnalysisKind::ScalarConstants => Some(AnalysisSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::UseDefinition,
+        ])),
         AnalysisKind::ExecutableEdges => Some(AnalysisSet::new([
             AnalysisKind::ControlFlowGraph,
             AnalysisKind::ScalarConstants,
