@@ -46,15 +46,17 @@ Primary responsibility: lower checked control flow into explicit operations with
   canonical control-flow arena identity so
   selection-time realization candidates can join without source-text identity.
 - `lowering/boundary.rs` owns the host-operation to abstract boundary-edge
-  summary copy. It records the backend-visible trust edge, not source-level
-  authorization, and links source boundary edges to lowered host-operation
-  edges when they share the same state, statement, and call ordinal. Each
-  lowered edge also records the operation ordinal inside the host call so
-  multi-operation lowerings remain diagnosable.
-  Platform host calls currently carry statement-level ordinal `0` when they do
-  not participate in ordinary borrow-dispatched call facts; expression-level
-  host calls need a dedicated ordinal traversal before this can be fully
-  precise.
+  summary copy. Before forming edges it independently replays one exact
+  identity-only occurrence per `HostCallPlan` row: authored statement or
+  expression handle, registrar target and canonical overload, state/statement/
+  call ordinal, platform-lowering arena identity, and ordered formal ordinal to
+  `NativeParameterId` rows. Result-storage pseudo-arguments are not formal
+  arguments. Source boundary edges link only when state, statement, call
+  ordinal, and resolved registrar target all agree. Each lowered edge points to
+  its exact occurrence and records the operation ordinal inside the host call,
+  so missing, duplicate, reordered, or drifted rows fail before target lowering.
+  This carrier owns no physical place, address, byte offset, or relocation
+  authority.
 - `omega-abstract-operations/src/plan/` owns the representation root:
   executable operation shape lives under `AbstractOperationCode`, while
   preserved semantic evidence lives under `AbstractSemanticSummary`.
@@ -155,7 +157,9 @@ Normalized float runtime-operand lowering consumes the carried checked provider
 identity and policy adapter and fails closed when either fact is absent or
 contradictory. The summaries do not yet decide type-aware ownership kind or
 storage shape.
-Boundary-edge summaries now preserve both source-level boundary trait edges,
-lowered host-operation edges, and first-pass links between those layers. The
-remaining gap is carrying enough call-ordinal/operation provenance to validate
-the result against target policy with precise diagnostics.
+Boundary-edge summaries now preserve source-level boundary trait edges, exact
+identity-only outbound host-call occurrences and native formal identities,
+lowered host-operation edges, and target-aware links between those layers.
+Executable host operations still use transitional coarse source coordinates;
+moving their exact occurrence handle into the operation stream remains a later
+representation cleanup, separate from physical callback placement.

@@ -9,6 +9,7 @@ use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use psi_checked_trees::machine::Machine;
 use psi_checked_trees::statement::TableCall;
+use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
 
 pub(crate) fn platform_call_receiver_type<'program>(
@@ -188,7 +189,10 @@ pub(crate) fn find_platform_call_lowering<'abi>(
     )
 }
 
-fn requirement_identity(program: &CheckedTrees, target_symbol: SymbolHandle) -> Option<String> {
+pub(crate) fn requirement_identity(
+    program: &CheckedTrees,
+    target_symbol: SymbolHandle,
+) -> Option<String> {
     program.traits().iter().find_map(|definition| {
         let signature = program
             .trait_machine_signatures(definition)
@@ -264,10 +268,11 @@ pub(crate) fn host_operation(
 pub(crate) fn lower_host_call_arguments(
     program: &CheckedTrees,
     call: &TableCall,
+    requirement_identity: &str,
     static_values: &StaticValues,
     expressions: &mut ExpressionTable,
     arguments: &mut Arena<HostCallArgument>,
-) -> HandleSpan<HostCallArgument> {
+) -> Result<HandleSpan<HostCallArgument>, Diagnostic> {
     let mut argument_span = HandleSpan::empty();
 
     for (index, argument) in program
@@ -280,6 +285,10 @@ pub(crate) fn lower_host_call_arguments(
             &mut argument_span,
             HostCallArgument {
                 kind: lower_host_call_argument(program, *argument, static_values, expressions),
+                formal: Some(host_call_formal_argument_identity(
+                    requirement_identity,
+                    index,
+                )?),
                 is_borrowed: matches!(
                     program.expression_table.expression(*argument),
                     ExpressionNode::Borrow(_)
@@ -300,7 +309,22 @@ pub(crate) fn lower_host_call_arguments(
         );
     }
 
-    argument_span
+    Ok(argument_span)
+}
+
+pub(crate) fn host_call_formal_argument_identity(
+    requirement_identity: &str,
+    index: usize,
+) -> Result<crate::HostCallFormalArgumentIdentity, Diagnostic> {
+    let formal_ordinal = u32::try_from(index)
+        .map_err(|_| Diagnostic::error("host-call formal ordinal exceeds u32"))?;
+    Ok(crate::HostCallFormalArgumentIdentity {
+        formal_ordinal,
+        native_parameter: omega_calling_conventions::callback_native_parameter_id(
+            requirement_identity,
+            formal_ordinal,
+        ),
+    })
 }
 
 pub(crate) fn call_parameter_expects_reference(

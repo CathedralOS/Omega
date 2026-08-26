@@ -9,7 +9,8 @@ pub mod values;
 
 pub use boundary::{
     AbstractBoundaryEdge, AbstractBoundaryLink, AbstractBoundaryPolicyCheck,
-    AbstractBoundaryPolicyVerdict, AbstractBoundarySummary, AbstractSourceBoundaryEdge,
+    AbstractBoundaryPolicyVerdict, AbstractBoundarySummary, AbstractHostCallNativeArgument,
+    AbstractHostCallOccurrence, AbstractHostCallSourceSite, AbstractSourceBoundaryEdge,
 };
 pub use data::{
     AbstractDataObject, AbstractDataObjectHandle, AbstractDataObjectKind, AbstractDataPlan,

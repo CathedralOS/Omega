@@ -1,7 +1,7 @@
 use super::lowering::{
     call_parameter_expects_address, call_parameter_expects_reference,
     expression_platform_receiver_type, find_platform_call_lowering_by_target,
-    lower_host_call_argument,
+    host_call_formal_argument_identity, lower_host_call_argument, requirement_identity,
 };
 use crate::host_calls::lowering::{
     find_platform_call_lowering, host_operation, lower_host_call_arguments, platform_call_name,
@@ -16,6 +16,7 @@ use omega_control_flow::StateKey;
 use omega_target::NativeTarget;
 use psi_arena::HandleSpan;
 use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::NominalMachineUseSite;
 use psi_checked_trees::machine::Machine;
 use psi_checked_trees::state::State;
 use psi_checked_trees::statement::{StatementNode, TableCall};
@@ -45,10 +46,9 @@ fn collect_state_host_calls(
 ) -> Result<(), Diagnostic> {
     let mut static_values = initial_static_values(program, machine, &mut plan.expressions);
 
-    for (statement_index, statement) in program
+    for (statement_index, (statement_handle, statement)) in program
         .statement_table
-        .statements(state.statement_nodes)
-        .iter()
+        .iter_statements(state.statement_nodes)
         .enumerate()
     {
         match statement {
@@ -80,6 +80,7 @@ fn collect_state_host_calls(
                     machine,
                     state,
                     statement_index,
+                    statement_handle,
                     table_call,
                     &static_values,
                     plan,
@@ -140,6 +141,7 @@ fn collect_assignment_result_host_lowering(
     let Some(platform_name) = expression_platform_receiver_type(program, call.target_symbol) else {
         return Ok(());
     };
+    let requirement_identity = exact_requirement_identity(program, call.target_symbol)?;
     let Some((lowering_handle, lowering)) = find_platform_call_lowering_by_target(
         program,
         host_abi,
@@ -184,6 +186,7 @@ fn collect_assignment_result_host_lowering(
                 static_values,
                 &mut plan.expressions,
             ),
+            formal: None,
             is_borrowed: false,
             expects_reference: false,
             expects_address: false,
@@ -205,6 +208,10 @@ fn collect_assignment_result_host_lowering(
                     static_values,
                     &mut plan.expressions,
                 ),
+                formal: Some(host_call_formal_argument_identity(
+                    &requirement_identity,
+                    index,
+                )?),
                 is_borrowed: matches!(
                     program.expression_table.expression(*argument),
                     psi_checked_trees::expression::ExpressionNode::Borrow(_)
@@ -226,6 +233,9 @@ fn collect_assignment_result_host_lowering(
     }
 
     plan.calls.insert(HostCall {
+        source_site: Some(NominalMachineUseSite::Expression(assignment.value)),
+        registration_operation: call.target_symbol,
+        requirement_identity,
         source_key: state_key(machine, state),
         statement_index,
         call_ordinal: 0,
@@ -280,6 +290,7 @@ fn collect_local_result_host_lowering(
         }
         return Ok(());
     };
+    let requirement_identity = exact_requirement_identity(program, call.target_symbol)?;
     let Some((lowering_handle, lowering)) = find_platform_call_lowering_by_target(
         program,
         host_abi,
@@ -332,6 +343,7 @@ fn collect_local_result_host_lowering(
         &mut argument_span,
         crate::HostCallArgument {
             kind: crate::HostCallArgumentKind::Expression(result_place),
+            formal: None,
             is_borrowed: false,
             expects_reference: false,
             expects_address: false,
@@ -352,6 +364,10 @@ fn collect_local_result_host_lowering(
                     static_values,
                     &mut plan.expressions,
                 ),
+                formal: Some(host_call_formal_argument_identity(
+                    &requirement_identity,
+                    index,
+                )?),
                 is_borrowed: matches!(
                     program.expression_table.expression(*argument),
                     psi_checked_trees::expression::ExpressionNode::Borrow(_)
@@ -373,6 +389,9 @@ fn collect_local_result_host_lowering(
     }
 
     plan.calls.insert(HostCall {
+        source_site: Some(NominalMachineUseSite::Expression(local_data.initial_value)),
+        registration_operation: call.target_symbol,
+        requirement_identity,
         source_key: state_key(machine, state),
         statement_index,
         call_ordinal: 0,
@@ -392,6 +411,7 @@ fn collect_call_host_lowering(
     machine: &Machine,
     state: &State,
     statement_index: usize,
+    statement_handle: psi_checked_trees::statement::StatementHandle,
     call: &TableCall,
     static_values: &StaticValues,
     plan: &mut HostCallPlan,
@@ -399,6 +419,7 @@ fn collect_call_host_lowering(
     let Some(platform_name) = platform_call_receiver_type(program, machine, call) else {
         return Ok(());
     };
+    let requirement_identity = exact_requirement_identity(program, call.target_symbol)?;
     // Host collection currently lowers statement-level platform calls. Borrow
     // facts are preferred when the call also participates in ordinary semantic
     // dispatch; otherwise the statement-level host call is ordinal 0.
@@ -434,11 +455,15 @@ fn collect_call_host_lowering(
     let arguments = lower_host_call_arguments(
         program,
         call,
+        &requirement_identity,
         static_values,
         &mut plan.expressions,
         &mut plan.arguments,
-    );
+    )?;
     plan.calls.insert(HostCall {
+        source_site: Some(NominalMachineUseSite::Statement(statement_handle)),
+        registration_operation: call.target_symbol,
+        requirement_identity,
         source_key: state_key(machine, state),
         statement_index,
         call_ordinal,
@@ -449,6 +474,25 @@ fn collect_call_host_lowering(
         has_result: false,
     });
     Ok(())
+}
+
+fn exact_requirement_identity(
+    program: &CheckedTrees,
+    target_symbol: psi_symbols::SymbolHandle,
+) -> Result<std::sync::Arc<str>, Diagnostic> {
+    if !target_symbol.is_valid() {
+        return Err(Diagnostic::error(
+            "host call does not retain a valid registrar target symbol",
+        ));
+    }
+    requirement_identity(program, target_symbol)
+        .filter(|identity| !identity.is_empty())
+        .map(std::sync::Arc::from)
+        .ok_or_else(|| {
+            Diagnostic::error(
+                "host call registrar target does not resolve to one canonical requirement overload",
+            )
+        })
 }
 
 fn call_ordinal_for_statement_call(

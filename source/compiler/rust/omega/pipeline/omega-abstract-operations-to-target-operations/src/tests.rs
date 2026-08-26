@@ -1,20 +1,74 @@
 use crate::build_target_operation_plan;
 use omega_abstract_operations::{
     AbstractBoundaryEdge, AbstractBoundaryLink, AbstractBoundaryPolicyVerdict,
-    AbstractFunctionPlan, AbstractOperationPlan, AbstractPermissionEvent,
+    AbstractFunctionPlan, AbstractHostCallNativeArgument, AbstractHostCallOccurrence,
+    AbstractHostCallSourceSite, AbstractOperationPlan, AbstractPermissionEvent,
     AbstractSourceBoundaryEdge, AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
     BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin, BoundaryFootprintPlan,
     CallbackBoundaryFootprintPlan,
 };
 use omega_calling_conventions::{
     HostCapability, HostOperation, HostOperationKey, MachineRegister, MachineStateSet, RegisterSet,
-    StateFootprintEvidence, build_host_abi_plan,
+    StateFootprintEvidence, build_host_abi_plan, callback_native_parameter_id,
 };
 use omega_control_flow::{MachineFunctionIdentity, StateKey};
 use omega_platform_interface::HostCallPlan;
 use omega_target::NativeTarget;
 use psi_symbols::SymbolHandle;
 use std::sync::Arc;
+
+#[test]
+fn preserves_exact_host_call_occurrences_in_target_semantics() {
+    let mut abstract_operations = AbstractOperationPlan::default();
+    let requirement: Arc<str> = Arc::from("package::Registrar::register#exact");
+    let mut arguments = psi_arena::HandleSpan::empty();
+    abstract_operations
+        .semantics
+        .boundaries
+        .host_call_arguments
+        .append_to_span(
+            &mut arguments,
+            AbstractHostCallNativeArgument {
+                formal_ordinal: 0,
+                native_parameter: Some(callback_native_parameter_id(&requirement, 0)),
+            },
+        );
+    abstract_operations
+        .semantics
+        .boundaries
+        .host_calls
+        .insert(AbstractHostCallOccurrence {
+            source_call_index: 3,
+            source_call_generation: 1,
+            source_site: AbstractHostCallSourceSite::Statement(
+                psi_arena::Handle::from_arena_index(5),
+            ),
+            registration_operation: SymbolHandle::from_arena_index(7),
+            requirement_identity: requirement,
+            source_key: StateKey::default(),
+            statement_index: 2,
+            call_ordinal: 1,
+            lowering_index: 9,
+            lowering_generation: 1,
+            arguments,
+        });
+
+    let target_operations = build_target_operation_plan(
+        NativeTarget::linux_arm64(),
+        &build_host_abi_plan(NativeTarget::linux_arm64()),
+        &HostCallPlan::default(),
+        &abstract_operations,
+    );
+
+    assert_eq!(
+        target_operations.semantics.boundaries.host_calls,
+        abstract_operations.semantics.boundaries.host_calls
+    );
+    assert_eq!(
+        target_operations.semantics.boundaries.host_call_arguments,
+        abstract_operations.semantics.boundaries.host_call_arguments
+    );
+}
 
 #[test]
 fn preserves_generated_function_identity_in_target_plan() {
@@ -366,6 +420,7 @@ fn validates_linked_boundary_operation_against_host_binding() {
             .boundaries
             .edges
             .insert(AbstractBoundaryEdge {
+                host_call: psi_arena::Handle::invalid(),
                 source_key: Default::default(),
                 statement_index: 9,
                 call_ordinal: 1,
@@ -416,6 +471,7 @@ fn records_missing_source_boundary_for_unlinked_host_operation() {
             .boundaries
             .edges
             .insert(AbstractBoundaryEdge {
+                host_call: psi_arena::Handle::invalid(),
                 source_key: Default::default(),
                 statement_index: 9,
                 call_ordinal: 1,
@@ -473,6 +529,7 @@ fn records_missing_host_binding_for_unknown_boundary_operation() {
             .boundaries
             .edges
             .insert(AbstractBoundaryEdge {
+                host_call: psi_arena::Handle::invalid(),
                 source_key: Default::default(),
                 statement_index: 9,
                 call_ordinal: 1,
@@ -533,6 +590,7 @@ fn records_disallowed_boundary_policy_for_unallowed_host_binding_policy() {
             .boundaries
             .edges
             .insert(AbstractBoundaryEdge {
+                host_call: psi_arena::Handle::invalid(),
                 source_key: Default::default(),
                 statement_index: 9,
                 call_ordinal: 1,

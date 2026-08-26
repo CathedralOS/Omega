@@ -1,8 +1,12 @@
-use omega_calling_conventions::{HostOperationKey, PlatformCallData, PlatformCallLoweringHandle};
+use omega_calling_conventions::{
+    HostOperationKey, NativeParameterId, PlatformCallData, PlatformCallLoweringHandle,
+};
 use omega_control_flow::StateKey;
 use omega_target::NativeTarget;
 use psi_arena::{Arena, HandleSpan};
+use psi_checked_trees::NominalMachineUseSite;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use psi_symbols::SymbolHandle;
 use std::sync::Arc;
 
 mod host_calls;
@@ -69,6 +73,14 @@ impl Default for UnsupportedHostCallReason {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCall {
+    /// Exact authored occurrence of the outbound call. The coarse state and
+    /// statement coordinates below remain useful for runtime-body selection,
+    /// but cannot distinguish expression calls from their containing statement.
+    pub source_site: Option<NominalMachineUseSite>,
+    /// Resolved registrar/callee declaration selected at this occurrence.
+    pub registration_operation: SymbolHandle,
+    /// Canonical overload identity used to derive native formal identities.
+    pub requirement_identity: Arc<str>,
     pub source_key: StateKey,
     pub statement_index: usize,
     pub call_ordinal: usize,
@@ -76,10 +88,10 @@ pub struct HostCall {
     pub data: PlatformCallData,
     pub operations: HandleSpan<LoweredHostOperation>,
     pub arguments: HandleSpan<HostCallArgument>,
-    /// True when the call's RESULT PLACE was prepended as argument[0] (the
+    /// True when the call's RESULT PLACE was prepended as argument\[0\] (the
     /// assignment / let-initializer collectors). Catalog ops key result
     /// handling per operation; source external ops (Unknown key) have no
-    /// bespoke arm, so this flag is selection's only signal that argument[0]
+    /// bespoke arm, so this flag is selection's only signal that argument\[0\]
     /// is a writable place rather than the first declared argument.
     pub has_result: bool,
 }
@@ -87,6 +99,9 @@ pub struct HostCall {
 impl Default for HostCall {
     fn default() -> Self {
         Self {
+            source_site: None,
+            registration_operation: SymbolHandle::invalid(),
+            requirement_identity: Arc::from(""),
             source_key: StateKey::default(),
             statement_index: 0,
             call_ordinal: 0,
@@ -97,6 +112,16 @@ impl Default for HostCall {
             has_result: false,
         }
     }
+}
+
+/// Exact identity of one authored formal argument in a host call.
+///
+/// Result-storage pseudo-arguments intentionally carry `None` instead: they
+/// are lowering operands, not parameters of the registrar requirement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HostCallFormalArgumentIdentity {
+    pub formal_ordinal: u32,
+    pub native_parameter: NativeParameterId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,6 +142,7 @@ impl Default for LoweredHostOperation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCallArgument {
     pub kind: HostCallArgumentKind,
+    pub formal: Option<HostCallFormalArgumentIdentity>,
     /// The checked source argument retained an explicit mutable-borrow wrapper.
     /// Lowering strips that wrapper to resolve the pointee place, so native
     /// selection carries this bit to preserve its address semantics.
@@ -136,6 +162,7 @@ impl Default for HostCallArgument {
     fn default() -> Self {
         Self {
             kind: HostCallArgumentKind::Expression(ExpressionHandle::invalid()),
+            formal: None,
             is_borrowed: false,
             expects_reference: false,
             expects_address: false,

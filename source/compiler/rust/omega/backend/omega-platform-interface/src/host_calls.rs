@@ -153,6 +153,9 @@ fn merge_host_call_plan(target: &mut HostCallPlan, source: HostCallPlan) {
             copy_lowered_host_operations(&mut target.operations, &operations, call.operations);
         let arguments = copy_host_call_arguments(target, &expressions, &arguments, call.arguments);
         target.calls.insert(HostCall {
+            source_site: call.source_site,
+            registration_operation: call.registration_operation,
+            requirement_identity: call.requirement_identity,
             source_key: call.source_key,
             statement_index: call.statement_index,
             call_ordinal: call.call_ordinal,
@@ -196,6 +199,7 @@ fn copy_host_call_arguments(
                         )
                     }
                 },
+                formal: argument.formal,
                 is_borrowed: argument.is_borrowed,
                 expects_reference: argument.expects_reference,
                 expects_address: argument.expects_address,
@@ -254,6 +258,18 @@ mod tests {
         );
         assert_eq!(call.statement_index, 0);
         assert_eq!(call.call_ordinal, 0);
+        assert!(matches!(
+            call.source_site,
+            Some(psi_checked_trees::NominalMachineUseSite::Statement(handle)) if handle.is_valid()
+        ));
+        assert!(call.registration_operation.is_valid());
+        assert!(!call.requirement_identity.is_empty());
+        let arguments = plan.arguments.span(call.arguments).expect("arguments");
+        assert_eq!(arguments[0].formal.expect("formal").formal_ordinal, 0);
+        assert_eq!(
+            arguments[0].formal.expect("formal").native_parameter,
+            omega_calling_conventions::callback_native_parameter_id(&call.requirement_identity, 0)
+        );
     }
 
     #[test]
@@ -286,5 +302,54 @@ mod tests {
             &arguments[0].kind,
             crate::HostCallArgumentKind::Text(bytes) if bytes.as_ref() == [0x80, b'A']
         ));
+    }
+
+    #[test]
+    fn merge_preserves_exact_host_call_and_formal_identity() {
+        let mut source = HostCallPlan::default();
+        let requirement: Arc<str> = Arc::from("package::Registrar::register#exact");
+        let mut call = HostCall {
+            source_site: Some(psi_checked_trees::NominalMachineUseSite::Expression(
+                psi_checked_trees::expression::ExpressionHandle::from_arena_index(9),
+            )),
+            registration_operation: psi_symbols::SymbolHandle::from_arena_index(11),
+            requirement_identity: requirement.clone(),
+            lowering: psi_arena::Handle::from_arena_index(13),
+            ..HostCall::default()
+        };
+        source.arguments.append_to_span(
+            &mut call.arguments,
+            HostCallArgument {
+                kind: HostCallArgumentKind::Integer(7),
+                formal: Some(crate::HostCallFormalArgumentIdentity {
+                    formal_ordinal: 0,
+                    native_parameter: omega_calling_conventions::callback_native_parameter_id(
+                        &requirement,
+                        0,
+                    ),
+                }),
+                ..HostCallArgument::default()
+            },
+        );
+        source.calls.insert(call.clone());
+
+        let mut merged = HostCallPlan::default();
+        merge_host_call_plan(&mut merged, source);
+
+        let (_, retained) = merged.calls.iter().next().expect("merged call");
+        assert_eq!(retained.source_site, call.source_site);
+        assert_eq!(retained.registration_operation, call.registration_operation);
+        assert_eq!(retained.requirement_identity, call.requirement_identity);
+        assert_eq!(retained.lowering, call.lowering);
+        assert_eq!(
+            merged.arguments.span(retained.arguments).expect("argument")[0].formal,
+            Some(crate::HostCallFormalArgumentIdentity {
+                formal_ordinal: 0,
+                native_parameter: omega_calling_conventions::callback_native_parameter_id(
+                    &requirement,
+                    0,
+                ),
+            })
+        );
     }
 }
