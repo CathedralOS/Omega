@@ -286,6 +286,41 @@ pub struct MachineLayout {
     pub layout: TypeLayout,
 }
 
+/// One semantic-field-free callback destination after the selected target has
+/// supplied its function-pointer extent and alignment. The canonical strings
+/// remain audit provenance; outbound plan validation consumes only the nominal
+/// layout/slot/requirement identities and never the physical offset as an
+/// authored calling-plan coordinate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetClosedPrivateCallbackDemand {
+    pub data_symbol: SymbolHandle,
+    pub slot_identity: Arc<str>,
+    pub layout_subject_identity: Arc<str>,
+    pub callback_requirement_identity: Arc<str>,
+    pub layout: omega_calling_conventions::LayoutPlanId,
+    pub slot: omega_calling_conventions::LayoutSlotId,
+    pub requirement: omega_calling_conventions::CallbackRequirementId,
+    pub offset: usize,
+    pub byte_size: usize,
+    pub alignment: usize,
+}
+
+impl TargetClosedPrivateCallbackDemand {
+    pub fn native_demand(
+        &self,
+        parameter: omega_calling_conventions::NativeParameterId,
+    ) -> omega_calling_conventions::NativeCallbackDemand {
+        omega_calling_conventions::NativeCallbackDemand {
+            destination: omega_calling_conventions::NativePlace::Field {
+                parameter,
+                layout: self.layout,
+                field_path: vec![self.slot],
+            },
+            requirement: self.requirement,
+        }
+    }
+}
+
 impl Default for MachineLayout {
     fn default() -> Self {
         Self {
@@ -307,6 +342,7 @@ pub struct LayoutPlan {
     pub repeated_fields: Vec<RepeatedFieldLayout>,
     pub machine_layouts: Arena<MachineLayout>,
     pub variants: Arena<VariantLayout>,
+    pub private_callback_demands: Vec<TargetClosedPrivateCallbackDemand>,
 }
 
 impl LayoutPlan {

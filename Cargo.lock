@@ -930,6 +930,7 @@ dependencies = [
 name = "omega-layout"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-runtime-abi",
  "omega-target",
  "psi-arena",
@@ -943,6 +944,7 @@ dependencies = [
  "psi-symbols",
  "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-tokens-to-syntax-trees",
+ "psi-typed-trees",
 ]
 
 [[package]]

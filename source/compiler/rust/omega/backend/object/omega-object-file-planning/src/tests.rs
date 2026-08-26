@@ -30,6 +30,7 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
         repeated_fields: Vec::new(),
         machine_layouts: Arena::<MachineLayout>::new(),
         variants: Arena::<VariantLayout>::new(),
+        private_callback_demands: Vec::new(),
     };
     layouts.machine_layouts.insert(MachineLayout {
         symbol: machine_symbol,
@@ -855,6 +856,7 @@ fn empty_layouts() -> LayoutPlan {
         repeated_fields: Vec::new(),
         machine_layouts: Arena::<MachineLayout>::new(),
         variants: Arena::<VariantLayout>::new(),
+        private_callback_demands: Vec::new(),
     }
 }
 

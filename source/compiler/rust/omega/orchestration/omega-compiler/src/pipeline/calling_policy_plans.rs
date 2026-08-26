@@ -10,8 +10,8 @@ use omega_calling_conventions::{
     IndirectPointerLocation, LayoutPlanId, LayoutSlotId, MachineRegime, MachineRegister,
     MachineState, MachineStateSet, NativeParameterId, NativePlace, Preemption, RegisterSet,
     StatePlan, StaticMachineBinderId, SystemVEightbyteClass, ValidatedBoundaryEntryPlan,
-    ValueClass, ValueLocation, ValuePlacement, ValueShape, evaluate_ordinary_boundary_entry_plan,
-    validate_boundary_plan_result,
+    ValueClass, ValueLocation, ValuePlacement, ValueShape, callback_requirement_id,
+    evaluate_ordinary_boundary_entry_plan, validate_boundary_plan_result,
 };
 use psi_build_time_evaluation::BuildTimeValue;
 use psi_diagnostics::Diagnostic;
@@ -813,15 +813,10 @@ fn call_signature_from_typed(
                 parameter.name.as_str().as_bytes(),
             ],
         );
-        let callback_requirement_identity = callback_plan_identity(
-            b"omega.callback-requirement.v1",
-            &[requirement_identity.as_bytes()],
-        );
         callback_binders.push(BoundaryCallbackBinder {
             binder: StaticMachineBinderId::new(binder_identity)
                 .expect("callback binder fingerprint is nonzero"),
-            requirement: CallbackRequirementId::new(callback_requirement_identity)
-                .expect("callback requirement fingerprint is nonzero"),
+            requirement: callback_requirement_id(&requirement_identity),
             static_machine_ordinal: ordinal,
             parameter_symbol: parameter.symbol,
             requirement_trait: *trait_definition,
