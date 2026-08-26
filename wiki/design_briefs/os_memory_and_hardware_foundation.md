@@ -1492,7 +1492,7 @@ The installation owner now seals that join as an interrupt-completion route and
 replays the exact installed reach resolution when the provider receipt settles
 the acknowledgement. Publishing the provider-selected completion row in source
 remains blocked on the top-level boundary-provider selection decision in
-`OWNER_QUESTIONS.md` Q10.
+`OWNER_QUESTIONS.md` Q11.
 Their bounded symbolic rows may propagate only inside that installation
 closure. Its preselection manifest reports every row and bound; installation
 substitutes each selected provider row, and final admission rejects an

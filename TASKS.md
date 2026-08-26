@@ -7503,7 +7503,7 @@ state through a raw address.
   the exact installed provider execution, acknowledgement policy, operation,
   and token lineage rather than row equality. That installation-only route is
   now sealed and replayed at acknowledgement settlement; migrating the public
-  completion declaration to its distinct bound remains Q10-blocked. PIC
+  completion declaration to its distinct bound remains Q11-blocked. PIC
   completion resolves to `PortIo`; LAPIC/x2APIC completion resolves to
   `MachineControl`. Checked and terminal artifacts retain the
   selected provider, operation, bound, resolved row, and refinement evidence
