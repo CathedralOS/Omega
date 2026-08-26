@@ -1292,8 +1292,9 @@ promoted into public callable rows. Canonical recovery, source accounting, and
 conflict rendering carry the row; none of them asserts an audit or Terminal
 verification.
 
-Package review v71/canonical row v29 binds each supported checked ordinary named operator
-realization into its public callable value. Checked lowering retains the exact
+Package review v71/canonical row v29 binds each supported checked ordinary
+operator realization into its public callable value, whether the declaration
+has a fixed token or only its named call surface. Checked lowering retains the exact
 machine/operator symbols, conformance/admission form, normalized overload
 shape plus exact lifetime-bearing type nodes, both complete canonical contract sets, and exact typed semantic
 snapshots of their contract graphs in full. The compiler requires exact
@@ -1305,8 +1306,11 @@ mutation both reject. Changing only a valid selected declaration changes only
 the callable row. Private, generic/lifetime-parameterized, aliased, bodyless,
 and operator-bound external realizations reject; the last requires a separate
 trust-bearing executable-supply association rather than borrowing the trait-
-supply row. Boundary and fixed-token realizations remain outside this first
-lane pending positive selected-provider and spelling canaries. Operators with
+supply row. A fixed-token realization uses the same exact declaration
+coordinate as its named call surface. Its public-operator row already owns the
+closed compiler spelling, so the realization edge neither repeats that spelling
+nor introduces another identity form. Boundary realizations remain outside this
+lane pending selected-provider canaries. Operators with
 outcome-specific or crash contracts, and providers with any nonempty checked
 crash behavior, reject until their refinement rules exist. The association is a retained compiler-private
 checked baseline, not a persisted package row, hash, or defense against a

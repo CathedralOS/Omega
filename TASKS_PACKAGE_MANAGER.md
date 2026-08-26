@@ -1544,7 +1544,8 @@ complete.
 
   Milestone 2026-08-26: review v71/canonical row v29 retains every public
   checked-body callable's exact unaliased realization of a public ordinary
-  named, nongeneric, lifetime-free operator. Checked lowering retains the exact machine/operator
+  nongeneric, lifetime-free operator declaration, with or without a fixed
+  token. Checked lowering retains the exact machine/operator
   symbols, conformance/admission form, normalized overload shape plus exact
   lifetime-bearing type nodes, both complete
   canonical contract sets, and exact typed semantic snapshots of the contract
@@ -1556,9 +1557,12 @@ complete.
   mutation of the provider contract therefore both reject. Changing only a
   valid selected operator changes only that callable row. Private, generic/
   lifetime-parameterized, aliased, bodyless, and externally supplied operator
-  realizations remain explicit fail-closed forms. Boundary and fixed-token
-  realizations also remain outside this first lane until their selected-provider
-  and spelling semantics have positive package-review canaries; operator-bound external
+  realizations remain explicit fail-closed forms. A fixed-token realization
+  uses the same exact declaration coordinate as the named call surface; the
+  public-operator row, not the callable realization edge, owns the closed
+  compiler spelling. Positive projection canaries join those rows without a
+  duplicate package name or a new encoding field. Boundary realizations remain
+  outside this lane pending selected-provider semantics; operator-bound external
   supply needs its own trust-bearing association. This is compiler-private
   retained checked baseline, not a persisted review row or a reason for nominal
   Chi. Trusted compiler components remain inside the TCB; this comparison does

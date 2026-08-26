@@ -10109,9 +10109,9 @@ fn project_callable_conformances(
                     machine.name, conformance.name, requirement_name
                 ))]);
             }
-            if operator.is_boundary || operator.spelling.is_some() {
+            if operator.is_boundary {
                 return Err(vec![Diagnostic::error(format!(
-                    "reviewed callable `{}` realizes boundary or fixed-token operator `{}::{}` outside the first checked operator-realization lane",
+                    "reviewed callable `{}` realizes boundary operator `{}::{}` outside the checked operator-realization lane",
                     machine.name, conformance.name, requirement_name
                 ))]);
             }

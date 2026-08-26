@@ -890,8 +890,9 @@ arguments in selected conformance applications and non-public or lifetime-
 parameterized trait realizations fail closed until complete rows land, except
 that binder-free generic requirements, explicit evidence binders, and non-
 generic selected conformances use the canonical public-trait row. Review
-v71/canonical row v29 additionally retains an exact public ordinary named,
+v71/canonical row v29 additionally retains an exact public ordinary,
 nongeneric, lifetime-free operator coordinate for each unaliased checked-body realization,
+whether or not the declaration owns a fixed token,
 after checked lowering retains and projection exactly rederives the selected
 machine/operator symbols, conformance/admission form, normalized overload
 shape plus exact lifetime-bearing type nodes, both full canonical contract sets, and exact typed semantic snapshots of
@@ -902,9 +903,12 @@ behavior, reject until their refinement rules land. The
 association is a retained compiler-private checked baseline, not a hash,
 persisted package format, or defense against a trusted component rewriting both
 typed state and checked facts. Private, generic/lifetime-parameterized, aliased, bodyless, and
-operator-bound external realizations still fail closed. Boundary and fixed-token
-operator realizations remain outside this first lane pending positive selected-
-provider and spelling canaries; trait-bound external
+operator-bound external realizations still fail closed. A fixed-token
+realization uses the same declaration coordinate as its named call surface;
+the public-operator row owns the closed compiler spelling, so the callable edge
+does not repeat it or create another identity form. Boundary operator
+realizations remain outside this lane pending selected-provider canaries;
+trait-bound external
 supply remains the separately represented executable-supply lane. Public callable `requires`
 and `ensures` retain exact structural rows for the closed
 boolean/integer expression subset over parameter ordinals, `result`, generic
