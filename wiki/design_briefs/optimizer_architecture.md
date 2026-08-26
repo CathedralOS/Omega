@@ -319,6 +319,18 @@ Each function contains:
   mappings; and
 - optional target-independent cost features that do not affect validity.
 
+The reconstructible unit owns the exact verified module declarations needed
+after the full Terminal module is discarded: structural types, boundary
+machines, and the complete checked provider-candidate catalog. A function's
+immutable signature is likewise exact, including nominal attachment, ordered
+scalar and structural parameters, Unit/scalar/structural result shape, full
+ordered entry-claim declarations, and the normalized published service
+ceiling. These are not optimizer summaries. Unit content identity encodes every
+field, transformed-revision validation compares them with the immutable
+verified input, and abstract-plan projection reads them from the unit before an
+independent round-trip check. Passes may inspect this custody but cannot rewrite
+it.
+
 The unit must not contain syntax nodes, `ExpressionHandle`, authored names as
 identity, native byte offsets, physical registers, or target instruction
 encodings.

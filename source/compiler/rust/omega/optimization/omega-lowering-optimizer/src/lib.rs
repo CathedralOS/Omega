@@ -324,24 +324,22 @@ fn project_plan(
     {
         return Err(OptimizedAbstractProjectionError::FunctionRosterMismatch);
     }
-    let functions = source
+    let functions = unit
         .functions
         .iter()
-        .zip(&unit.functions)
-        .map(|(source, unit)| project_function(source, unit))
+        .map(project_function)
         .collect::<Result<Vec<_>, _>>()?;
     Ok(TerminalAbstractOperationPlan {
-        terminal_psi: source.terminal_psi,
+        terminal_psi: unit.terminal_psi,
         entry: unit.entry,
-        structural_types: source.structural_types.clone(),
-        boundary_machines: source.boundary_machines.clone(),
-        provider_candidates: source.provider_candidates.clone(),
+        structural_types: unit.structural_types.clone(),
+        boundary_machines: unit.boundary_machines.clone(),
+        provider_candidates: unit.provider_candidates.clone(),
         functions,
     })
 }
 
 fn project_function(
-    source: &TerminalAbstractFunction,
     unit: &omega_optimization_unit::PsiOptimizationFunction,
 ) -> Result<TerminalAbstractFunction, OptimizedAbstractProjectionError> {
     let parameters = unit
@@ -403,13 +401,13 @@ fn project_function(
     }
     Ok(TerminalAbstractFunction {
         machine: unit.machine,
-        attachment: source.attachment,
+        attachment: unit.attachment,
         entry: unit.entry,
         parameters,
-        structural_parameters: source.structural_parameters.clone(),
-        result: source.result.clone(),
-        entry_claims: source.entry_claims.clone(),
-        published_service_ceiling: source.published_service_ceiling.clone(),
+        structural_parameters: unit.structural_parameters.clone(),
+        result: unit.result.clone(),
+        entry_claims: unit.entry_claim_declarations.clone(),
+        published_service_ceiling: unit.published_service_ceiling.clone(),
         block_entries,
         operations,
     })

@@ -12,15 +12,17 @@ use std::collections::BTreeSet;
 
 use omega_optimization_core::{AcceptedObligationFactIdentity, OptimizationUnitIdentity};
 use omega_terminal_abstract_operations::{
-    TerminalAbstractFunction, TerminalAbstractOperation, TerminalAbstractOperationPlan,
-    TerminalAbstractSuccessor, TerminalValueBinding,
+    TerminalAbstractFunction, TerminalAbstractFunctionResult, TerminalAbstractOperation,
+    TerminalAbstractOperationPlan, TerminalAbstractSuccessor, TerminalValueBinding,
 };
 use psi_core::{
     BlockId, ClaimId, EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, ObligationId,
-    OperationId, PlaceId, ScalarType, ValueId,
+    OperationId, PlaceId, ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    StructuralParameterDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
+    BoundaryMachineDeclaration, EntryClaim, ProviderCandidateConformance,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
+    TerminalPsiIdentity,
 };
 
 mod identity;
@@ -156,11 +158,23 @@ pub struct OptimizationBlock {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiOptimizationFunction {
     pub machine: MachineId,
+    /// Exact nominal receiver attachment from the verified Terminal-Psi
+    /// signature. Optimization may inspect but never rewrite this identity.
+    pub attachment: Option<StructuralTypeId>,
     pub entry: BlockId,
     pub parameters: Vec<ValueDefinition>,
     pub structural_parameters: Vec<StructuralParameterDeclaration>,
+    /// Exact normal result signature retained independently of executable
+    /// return nodes, including Unit and structural-result distinctions.
+    pub result: TerminalAbstractFunctionResult,
     pub declared_places: BTreeSet<PlaceId>,
+    /// Full ordered caller/root claim signature. `entry_claims` below is the
+    /// independently checked membership index used by ownership validation.
+    pub entry_claim_declarations: Vec<EntryClaim>,
     pub entry_claims: BTreeSet<ClaimId>,
+    /// Exact verifier-normalized service ceiling in canonical Terminal-Psi
+    /// order. It is semantic custody, not an optimizer-selected reach set.
+    pub published_service_ceiling: Vec<ServiceId>,
     pub facts: Vec<OptimizationFact>,
     pub blocks: Vec<OptimizationBlock>,
 }
@@ -253,6 +267,11 @@ pub struct PsiOptimizationUnit {
     pub terminal_psi: TerminalPsiIdentity,
     pub fuel_schedule: FuelScheduleIdentity,
     pub entry: MachineId,
+    /// Target-neutral module declarations needed by layout, ABI, and checked
+    /// provider installation after the full Terminal module is discarded.
+    pub structural_types: Vec<StructuralTypeDeclaration>,
+    pub boundary_machines: Vec<BoundaryMachineDeclaration>,
+    pub provider_candidates: Vec<ProviderCandidateConformance>,
     pub accepted_obligation_facts: Vec<AcceptedObligationFact>,
     pub functions: Vec<PsiOptimizationFunction>,
 }
@@ -346,6 +365,9 @@ pub fn reconstruct_psi_optimization_unit_seed(
         terminal_psi: plan.terminal_psi,
         fuel_schedule,
         entry: plan.entry,
+        structural_types: plan.structural_types.clone(),
+        boundary_machines: plan.boundary_machines.clone(),
+        provider_candidates: plan.provider_candidates.clone(),
         accepted_obligation_facts: Vec::new(),
         functions,
     };
@@ -492,15 +514,19 @@ fn build_function(
 
     Ok(PsiOptimizationFunction {
         machine: function.machine,
+        attachment: function.attachment,
         entry: function.entry,
         parameters,
         structural_parameters: function.structural_parameters.clone(),
+        result: function.result.clone(),
         declared_places,
+        entry_claim_declarations: function.entry_claims.clone(),
         entry_claims: function
             .entry_claims
             .iter()
             .map(|claim| claim.claim)
             .collect(),
+        published_service_ceiling: function.published_service_ceiling.clone(),
         facts,
         blocks,
     })
@@ -974,8 +1000,14 @@ mod tests {
         TerminalAbstractBlockEntry, TerminalAbstractFunctionResult, TerminalAbstractParameter,
         TerminalAbstractResult, TerminalValueBinding,
     };
-    use psi_core::{IntegerSign, IntegerType, IntegerValue};
-    use psi_terminal::{SemanticFingerprint, VocabularyMarker};
+    use psi_core::{
+        BoundaryMachineId, IntegerSign, IntegerType, IntegerValue, ServiceId, StructuralTypeId,
+    };
+    use psi_terminal::{
+        BoundaryMachineDeclaration, ByteSequenceCarrier, ProviderCandidateConformance,
+        ProviderUnitRefinement, ProviderUnitSignature, SemanticFingerprint,
+        StructuralTypeDeclaration, StructuralTypeShape, VocabularyMarker,
+    };
 
     fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
         constructor(raw).expect("nonzero test identity")
@@ -1048,6 +1080,23 @@ mod tests {
             first.functions[0].blocks[0].nodes[0].fuel[0].site,
             first.functions[0].blocks[0].nodes[1].fuel[0].site
         );
+        let source = plan();
+        assert_eq!(first.structural_types, source.structural_types);
+        assert_eq!(first.boundary_machines, source.boundary_machines);
+        assert_eq!(first.provider_candidates, source.provider_candidates);
+        assert_eq!(
+            first.functions[0].attachment,
+            source.functions[0].attachment
+        );
+        assert_eq!(first.functions[0].result, source.functions[0].result);
+        assert_eq!(
+            first.functions[0].entry_claim_declarations,
+            source.functions[0].entry_claims
+        );
+        assert_eq!(
+            first.functions[0].published_service_ceiling,
+            source.functions[0].published_service_ceiling
+        );
     }
 
     #[test]
@@ -1091,6 +1140,46 @@ mod tests {
         let mut unit = baseline.clone();
         unit.entry = id(90, MachineId::new);
         mutations.push(("entry machine", unit));
+        let structural_type = id(105, StructuralTypeId::new);
+        let boundary = id(106, BoundaryMachineId::new);
+        let mut unit = baseline.clone();
+        unit.structural_types.push(StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "identity-test-structural-type".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        });
+        mutations.push(("module structural type", unit));
+        let mut unit = baseline.clone();
+        unit.boundary_machines.push(BoundaryMachineDeclaration {
+            id: boundary,
+            identity: "identity-test-boundary".into(),
+            attachment: Some(structural_type),
+            scalar_parameters: vec![ScalarType::Boolean],
+            structural_parameters: Vec::new(),
+            result: Some(ScalarType::Boolean),
+            requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            published_service_ceiling: vec![id(107, ServiceId::new)],
+        });
+        mutations.push(("module boundary declaration", unit));
+        let mut unit = baseline.clone();
+        unit.provider_candidates.push(ProviderCandidateConformance {
+            boundary,
+            requirement_identity: "identity-test-requirement".into(),
+            provider_identity: "identity-test-provider".into(),
+            candidate_identity: "identity-test-candidate".into(),
+            candidate: machine,
+            signature: ProviderUnitSignature {
+                parameters: Vec::new(),
+            },
+            refinement: ProviderUnitRefinement {
+                positional_parameters: Vec::new(),
+                required_domains: Vec::new(),
+                realized_service_ceiling: vec![id(108, ServiceId::new)],
+            },
+        });
+        mutations.push(("module provider candidate", unit));
         let mut unit = baseline.clone();
         unit.accepted_obligation_facts
             .push(AcceptedObligationFact::new(
@@ -1105,6 +1194,9 @@ mod tests {
         let mut unit = baseline.clone();
         unit.functions[0].machine = id(92, MachineId::new);
         mutations.push(("function identity", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0].attachment = Some(structural_type);
+        mutations.push(("function attachment", unit));
         let mut unit = baseline.clone();
         unit.functions[0].parameters[0].value = id(93, ValueId::new);
         mutations.push(("scalar parameter", unit));
@@ -1122,13 +1214,28 @@ mod tests {
         );
         mutations.push(("structural parameter", unit));
         let mut unit = baseline.clone();
+        unit.functions[0].result = TerminalAbstractFunctionResult::Unit;
+        mutations.push(("function result signature", unit));
+        let mut unit = baseline.clone();
         unit.functions[0]
             .declared_places
             .insert(id(96, PlaceId::new));
         mutations.push(("declared place", unit));
         let mut unit = baseline.clone();
+        unit.functions[0].entry_claim_declarations.push(EntryClaim {
+            claim: id(109, ClaimId::new),
+            input: id(110, PlaceId::new),
+            path: Vec::new(),
+        });
+        mutations.push(("entry claim declaration", unit));
+        let mut unit = baseline.clone();
         unit.functions[0].entry_claims.insert(id(97, ClaimId::new));
         mutations.push(("entry claim", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0]
+            .published_service_ceiling
+            .push(id(111, ServiceId::new));
+        mutations.push(("function service ceiling", unit));
         let mut unit = baseline.clone();
         unit.functions[0].facts.clear();
         mutations.push(("optimization fact", unit));

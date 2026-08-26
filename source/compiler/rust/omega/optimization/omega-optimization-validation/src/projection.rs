@@ -296,9 +296,14 @@ fn validate_projection_shape(
     projected: &TerminalAbstractOperationPlan,
 ) -> Result<(), OptimizedAbstractPlanProjectionError> {
     if projected.terminal_psi != source.terminal_psi
+        || final_unit.terminal_psi != source.terminal_psi
+        || final_unit.entry != source.entry
         || projected.entry != final_unit.entry
+        || final_unit.structural_types != source.structural_types
         || projected.structural_types != source.structural_types
+        || final_unit.boundary_machines != source.boundary_machines
         || projected.boundary_machines != source.boundary_machines
+        || final_unit.provider_candidates != source.provider_candidates
         || projected.provider_candidates != source.provider_candidates
     {
         return Err(OptimizedAbstractPlanProjectionError::ImmutablePlanMetadataMismatch);
@@ -325,12 +330,16 @@ fn validate_projection_shape(
         .zip(&projected.functions)
     {
         if projected_function.attachment != source_function.attachment
+            || unit_function.attachment != source_function.attachment
             || projected_function.structural_parameters != source_function.structural_parameters
+            || unit_function.structural_parameters != source_function.structural_parameters
             || projected_function.result != source_function.result
+            || unit_function.result != source_function.result
             || projected_function.entry_claims != source_function.entry_claims
+            || unit_function.entry_claim_declarations != source_function.entry_claims
             || projected_function.published_service_ceiling
                 != source_function.published_service_ceiling
-            || unit_function.structural_parameters != source_function.structural_parameters
+            || unit_function.published_service_ceiling != source_function.published_service_ceiling
             || unit_function.entry_claims
                 != source_function
                     .entry_claims
@@ -360,6 +369,9 @@ fn same_reconstructible_projection(
     reconstructed.terminal_psi == final_unit.terminal_psi
         && reconstructed.fuel_schedule == final_unit.fuel_schedule
         && reconstructed.entry == final_unit.entry
+        && reconstructed.structural_types == final_unit.structural_types
+        && reconstructed.boundary_machines == final_unit.boundary_machines
+        && reconstructed.provider_candidates == final_unit.provider_candidates
         && reconstructed.functions.len() == final_unit.functions.len()
         && reconstructed
             .functions
@@ -367,11 +379,15 @@ fn same_reconstructible_projection(
             .zip(&final_unit.functions)
             .all(|(left, right)| {
                 left.machine == right.machine
+                    && left.attachment == right.attachment
                     && left.entry == right.entry
                     && left.parameters == right.parameters
                     && left.structural_parameters == right.structural_parameters
+                    && left.result == right.result
                     && left.declared_places == right.declared_places
+                    && left.entry_claim_declarations == right.entry_claim_declarations
                     && left.entry_claims == right.entry_claims
+                    && left.published_service_ceiling == right.published_service_ceiling
                     && left.facts == right.facts
                     && left.blocks.len() == right.blocks.len()
                     && left.blocks.iter().zip(&right.blocks).all(|(left, right)| {

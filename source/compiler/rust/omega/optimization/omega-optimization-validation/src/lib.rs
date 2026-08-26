@@ -39,6 +39,8 @@ pub enum OptimizationUnitValidationError {
         recomputed: OptimizationUnitIdentity,
     },
     WrongFuelSchedule,
+    EntryClaimIndexMismatch(MachineId),
+    FunctionResultMismatch(MachineId),
     MissingEntryMachine(MachineId),
     DuplicateMachine(MachineId),
     MissingEntryBlock {
@@ -2040,6 +2042,9 @@ fn validate_psi_optimization_unit_with_context(
         unit.fuel_schedule,
     )
     .map_err(|_| OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)?;
+    if !same_immutable_signature_custody(&seed, unit) {
+        return Err(OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch);
+    }
     let mut projected_facts = Vec::new();
     for function in &seed.functions {
         for reference in &function.facts {
@@ -2155,9 +2160,47 @@ fn validate_psi_optimization_unit_with_context(
     Ok(())
 }
 
+fn same_immutable_signature_custody(
+    seed: &PsiOptimizationUnit,
+    unit: &PsiOptimizationUnit,
+) -> bool {
+    seed.terminal_psi == unit.terminal_psi
+        && seed.entry == unit.entry
+        && seed.structural_types == unit.structural_types
+        && seed.boundary_machines == unit.boundary_machines
+        && seed.provider_candidates == unit.provider_candidates
+        && seed.functions.len() == unit.functions.len()
+        && seed
+            .functions
+            .iter()
+            .zip(&unit.functions)
+            .all(|(seed, unit)| {
+                seed.machine == unit.machine
+                    && seed.attachment == unit.attachment
+                    && seed.parameters == unit.parameters
+                    && seed.structural_parameters == unit.structural_parameters
+                    && seed.result == unit.result
+                    && seed.entry_claim_declarations == unit.entry_claim_declarations
+                    && seed.entry_claims == unit.entry_claims
+                    && seed.published_service_ceiling == unit.published_service_ceiling
+            })
+}
+
 fn validate_function(
     function: &PsiOptimizationFunction,
 ) -> Result<(), OptimizationUnitValidationError> {
+    let indexed_entry_claims = function
+        .entry_claim_declarations
+        .iter()
+        .map(|claim| claim.claim)
+        .collect::<BTreeSet<_>>();
+    if indexed_entry_claims.len() != function.entry_claim_declarations.len()
+        || indexed_entry_claims != function.entry_claims
+    {
+        return Err(OptimizationUnitValidationError::EntryClaimIndexMismatch(
+            function.machine,
+        ));
+    }
     let mut blocks = BTreeMap::new();
     for block in &function.blocks {
         if blocks.insert(block.id, block).is_some() {
@@ -2252,6 +2295,53 @@ fn validate_function(
     }
 
     validate_total_cfg(function, &blocks, &successors)?;
+
+    for operation in function
+        .blocks
+        .iter()
+        .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
+    {
+        let matches = match (operation, &function.result) {
+            (
+                omega_terminal_abstract_operations::TerminalAbstractOperation::Return {
+                    result,
+                    scalar_type,
+                    ..
+                },
+                omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Scalar(
+                    signature,
+                ),
+            ) => *result == signature.value && *scalar_type == signature.scalar_type,
+            (
+                omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                    ..
+                },
+                omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Unit,
+            )
+            | (
+                omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnStructural {
+                    ..
+                },
+                omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Structural(_),
+            ) => true,
+            (
+                omega_terminal_abstract_operations::TerminalAbstractOperation::Return { .. }
+                | omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                    ..
+                }
+                | omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnStructural {
+                    ..
+                },
+                _,
+            ) => false,
+            _ => continue,
+        };
+        if !matches {
+            return Err(OptimizationUnitValidationError::FunctionResultMismatch(
+                function.machine,
+            ));
+        }
+    }
 
     validate_provenance_fuel_effects(function)?;
     validate_fact_index(function)?;
@@ -2688,6 +2778,12 @@ fn validate_places_and_claims(
         .structural_parameters
         .iter()
         .map(|parameter| parameter.place)
+        .chain(
+            function
+                .entry_claim_declarations
+                .iter()
+                .map(|claim| claim.input),
+        )
         .collect::<BTreeSet<_>>();
     for parameter in &function.structural_parameters {
         if !function.declared_places.contains(&parameter.place) {
@@ -3522,6 +3618,143 @@ mod tests {
                 stored,
                 recomputed: actual,
             }) if stored == stale.identity && actual == recomputed
+        ));
+    }
+
+    #[test]
+    fn recomputed_immutable_signature_forgery_is_rejected_by_verified_context() {
+        let verified = verified_unit();
+        let structural_type = id(120, psi_core::StructuralTypeId::new);
+        let boundary = id(121, psi_core::BoundaryMachineId::new);
+        let service = id(122, psi_core::ServiceId::new);
+        let mut forged = Vec::new();
+
+        let mut unit = verified.unit().clone();
+        unit.structural_types
+            .push(psi_terminal::StructuralTypeDeclaration {
+                id: structural_type,
+                identity: "forged-structural-type".into(),
+                shape: psi_terminal::StructuralTypeShape::ByteSequence(
+                    psi_terminal::ByteSequenceCarrier::BorrowedView,
+                ),
+            });
+        forged.push(unit);
+
+        let mut unit = verified.unit().clone();
+        unit.boundary_machines
+            .push(psi_terminal::BoundaryMachineDeclaration {
+                id: boundary,
+                identity: "forged-boundary".into(),
+                attachment: None,
+                scalar_parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: None,
+                requires: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                published_service_ceiling: Vec::new(),
+            });
+        forged.push(unit);
+
+        let mut unit = verified.unit().clone();
+        unit.provider_candidates
+            .push(psi_terminal::ProviderCandidateConformance {
+                boundary,
+                requirement_identity: "forged-requirement".into(),
+                provider_identity: "forged-provider".into(),
+                candidate_identity: "forged-candidate".into(),
+                candidate: unit.functions[0].machine,
+                signature: psi_terminal::ProviderUnitSignature {
+                    parameters: Vec::new(),
+                },
+                refinement: psi_terminal::ProviderUnitRefinement {
+                    positional_parameters: Vec::new(),
+                    required_domains: Vec::new(),
+                    realized_service_ceiling: Vec::new(),
+                },
+            });
+        forged.push(unit);
+
+        let mut unit = verified.unit().clone();
+        unit.functions[0].attachment = Some(structural_type);
+        forged.push(unit);
+
+        let mut unit = verified.unit().clone();
+        let result_value = id(126, ValueId::new);
+        unit.functions[0].result = TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+            value: result_value,
+            scalar_type: ScalarType::Boolean,
+        });
+        unit.functions[0].parameters.push(ValueDefinition {
+            value: result_value,
+            scalar_type: ScalarType::Boolean,
+            site: ValueDefinitionSite::FunctionParameter(0),
+        });
+        let block = unit.functions[0].blocks[0].id;
+        let node = &mut unit.functions[0].blocks[0].nodes[0];
+        let psi_edge = match &node.operation {
+            TerminalAbstractOperation::ReturnUnit { psi_edge, .. } => *psi_edge,
+            _ => panic!("verified fixture must return Unit"),
+        };
+        node.operation = TerminalAbstractOperation::Return {
+            psi_edge,
+            result: result_value,
+            value: result_value,
+            scalar_type: ScalarType::Boolean,
+            cleanup_actions: Vec::new(),
+        };
+        node.uses = vec![ValueUse {
+            value: result_value,
+            block,
+            node: 0,
+        }];
+        forged.push(unit);
+
+        let mut unit = verified.unit().clone();
+        unit.functions[0].published_service_ceiling.push(service);
+        forged.push(unit);
+
+        let mut unit = verified.unit().clone();
+        let claim = id(123, ClaimId::new);
+        let place = id(124, PlaceId::new);
+        unit.functions[0]
+            .entry_claim_declarations
+            .push(psi_terminal::EntryClaim {
+                claim,
+                input: place,
+                path: Vec::new(),
+            });
+        unit.functions[0].entry_claims.insert(claim);
+        unit.functions[0].declared_places.insert(place);
+        forged.push(unit);
+
+        for (index, mut unit) in forged.into_iter().enumerate() {
+            refresh_identity(&mut unit);
+            let result = validate_transformed_psi_optimization_unit(verified.input(), &unit);
+            assert!(
+                matches!(
+                    result,
+                    Err(
+                        OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch
+                    )
+                ),
+                "forgery class {index} returned {result:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn bare_unit_result_signature_must_match_normal_exits() {
+        let mut forged = verified_unit().unit().clone();
+        forged.functions[0].result =
+            TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                value: id(125, ValueId::new),
+                scalar_type: ScalarType::Boolean,
+            });
+        refresh_identity(&mut forged);
+        assert!(matches!(
+            validate_psi_optimization_unit(&forged),
+            Err(OptimizationUnitValidationError::FunctionResultMismatch(_))
         ));
     }
 
