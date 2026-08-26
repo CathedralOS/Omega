@@ -1965,22 +1965,28 @@ complete.
 
   Milestone 2026-08-26: the current ordinary package-review vocabulary now has
   a source-handle-free `OrdinaryPackageObligationLedger`. It contains the exact
-  package, target, strictly ordered canonical semantic rows, risk, keys, and
-  complete row bytes while excluding explanatory source coordinates. Recovered
-  row envelopes establish canonical framing only. The selected local compiler
+  package, target, compiler-consumed dependency closure, strictly ordered
+  canonical semantic rows, risk, keys, and complete row bytes while excluding
+  package names, source roots, resolutions, source bytes, and explanatory source
+  coordinates. The closure is projected only from validated compiler inputs and
+  binds every reachable package identity and requester-local alias edge.
+  Recovered row envelopes establish canonical framing only and must be joined
+  to the separately reconstructed closure. The selected local compiler
   reconstructs the complete ledger from checked semantics and requires exact
-  equality; missing, reordered, stale, mixed-package, and mixed-target rows
-  reject. Fresh closure-review publication passes through this same second
-  reconstruction gate before exposing compiler-issued rows. Reconstruction
-  uses the existing typed/checked carriers and package projector; it introduces
-  no nominal IR stage.
+  equality; missing, reordered, stale, mixed-package, mixed-target, renamed-
+  alias, and changed-closure subjects reject. Relocating the same graph does not
+  change this coordinate. Fresh closure-review publication passes through this
+  same second reconstruction gate before exposing compiler-issued rows.
+  Reconstruction uses the existing typed/checked carriers and package projector;
+  it introduces no nominal IR stage.
 
   This closes a replay mechanism for the current review vocabulary, not this
   task. The vocabulary is still incomplete for accepted package evidence, and
   the ledger deliberately has no lock-promotion path. Exact produced-artifact
   subjects, certificate replay and results, transitive open obligations,
-  obligation-schema identity and deltas, dependency composition, and root
-  admission decisions remain required before `PackageInstance` exists.
+  obligation-schema identity and deltas, transitive dependency-evidence
+  composition, and root admission decisions remain required before
+  `PackageInstance` exists.
 
 - **ACCEPTED-LOCK-SCHEMA.** Replace name-keyed/fingerprint-only lock entries.
 

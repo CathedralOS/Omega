@@ -16,6 +16,7 @@ use std::sync::Arc;
 pub struct CheckedCompilation {
     program: CheckedTrees,
     package_identity: Option<psi_core::PackageKeyIdentity>,
+    dependency_closure: Option<super::PackageDependencyClosure>,
     source_consumption_commitment: Option<super::PackageSourceConsumptionCommitment>,
     exact_toolchain_sources: Vec<(psi_source::SourceId, [u8; 32])>,
     generated_source_custody: Vec<(
@@ -43,6 +44,12 @@ impl CheckedCompilation {
     /// Standalone compilation has no package identity.
     pub const fn package_identity(&self) -> Option<psi_core::PackageKeyIdentity> {
         self.package_identity
+    }
+
+    /// Exact source-path-free dependency closure consumed by package-aware
+    /// compilation. Standalone compilation has no package closure.
+    pub const fn dependency_closure(&self) -> Option<&super::PackageDependencyClosure> {
+        self.dependency_closure.as_ref()
     }
 
     /// Canonical commitment to the exact source bytes consumed by this
@@ -685,6 +692,7 @@ fn compile_to_checked_inner_with_replay(
     // `typed_trees_to_checked_trees` wraps the program in an `Arc`; unwrap it for the
     // caller (this is the only owner at this point in the pipeline).
     let program = Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone());
+    let dependency_closure = package_inputs.map(PackageCompilationInputs::dependency_closure);
     let source_consumption_commitment = package_inputs
         .map(|inputs| super::package_source_consumption::derive(&program, inputs))
         .transpose()?;
@@ -702,6 +710,7 @@ fn compile_to_checked_inner_with_replay(
     Ok(CheckedCompilation {
         program,
         package_identity,
+        dependency_closure,
         source_consumption_commitment,
         exact_toolchain_sources,
         generated_source_custody,

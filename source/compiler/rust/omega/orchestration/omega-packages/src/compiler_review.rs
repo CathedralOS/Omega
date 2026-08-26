@@ -371,7 +371,16 @@ fn compile_resolved_package_reviews_in_session(
                 error,
             }
         })?;
+        let dependency_closure = checked.dependency_closure().cloned().ok_or_else(|| {
+            CompileResolvedPackageReviewsError::Projection {
+                package: key.clone(),
+                diagnostics: vec![Diagnostic::error(
+                    "package-aware review compilation emitted no dependency closure",
+                )],
+            }
+        })?;
         let obligation_ledger = ordinary_package_obligation_ledger_from_compiler_rows(
+            dependency_closure,
             &canonical_rows,
         )
         .map_err(|error| CompileResolvedPackageReviewsError::Projection {

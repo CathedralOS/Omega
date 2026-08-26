@@ -50,7 +50,7 @@ pub use pipeline::{
     PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, PACKAGE_REVIEW_ENCODING_VERSION,
     PACKAGE_REVIEW_ROW_ENCODING_VERSION, PROGRAM_STORAGE_INSTALLATION_ARTIFACT,
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
-    PackageReviewArithmeticDomain, PackageReviewByteSequencePredicate,
+    PackageDependencyClosure, PackageReviewArithmeticDomain, PackageReviewByteSequencePredicate,
     PackageReviewCallableConformance, PackageReviewCallableContract,
     PackageReviewCallableParameter, PackageReviewCallableRole, PackageReviewCanonicalRow,
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRecoveryError,

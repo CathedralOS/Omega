@@ -942,14 +942,19 @@ preferred whenever it preserves the same meaning with less machinery.
 
 The current ordinary review vocabulary now exercises that rule directly. A
 source-handle-free `OrdinaryPackageObligationLedger` retains one exact package,
-target, and strictly ordered canonical row set while leaving explanatory source
-coordinates as separate provenance. Recovered row envelopes prove only
-canonical framing. The local compiler reconstructs the complete ledger from
-checked semantics and requires exact equality, and fresh closure-review
-publication performs that reconstruction before exposing its rows. Missing,
-reordered, stale, mixed-package, or mixed-target rows reject. This uses existing
-typed/checked carriers and the internal package projector; it creates no Chi or
-other nominal stage.
+target, compiler-consumed dependency closure, and strictly ordered canonical row
+set while leaving source paths, resolutions, bytes, names, and explanatory
+coordinates outside that graph coordinate. The closure comes only from
+validated compiler inputs and retains every reachable package identity and
+requester-local alias edge. Recovered row envelopes prove only canonical
+framing and must be joined to that separately reconstructed closure. The local
+compiler reconstructs the complete ledger from checked semantics and requires
+exact equality, and fresh closure-review publication performs that
+reconstruction before exposing its rows. Missing, reordered, stale,
+mixed-package, mixed-target, renamed-alias, or changed-closure subjects reject;
+relocation alone does not change the closure. This uses existing typed/checked
+carriers and the internal package projector; it creates no Chi or other nominal
+stage.
 
 This is not yet the ordinary accepted artifact described above. The current
 review vocabulary remains incomplete, and the ledger has no lock-promotion

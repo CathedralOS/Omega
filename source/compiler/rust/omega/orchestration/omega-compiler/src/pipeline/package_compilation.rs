@@ -75,6 +75,30 @@ impl PackageDependencyBinding {
     }
 }
 
+/// Exact, source-path-free dependency closure consumed by one package-aware
+/// compilation. This is a semantic subject coordinate, not source custody or
+/// an admission verdict.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageDependencyClosure {
+    root: PackageKeyIdentity,
+    packages: Vec<PackageKeyIdentity>,
+    dependencies: Vec<PackageDependencyBinding>,
+}
+
+impl PackageDependencyClosure {
+    pub const fn root(&self) -> PackageKeyIdentity {
+        self.root
+    }
+
+    pub fn packages(&self) -> &[PackageKeyIdentity] {
+        &self.packages
+    }
+
+    pub fn dependencies(&self) -> &[PackageDependencyBinding] {
+        &self.dependencies
+    }
+}
+
 /// Closed, requester-scoped package bindings accepted by package-aware
 /// compilation. Construction validates the complete graph and canonicalizes
 /// all source roots before the compiler can consume it.
@@ -246,6 +270,21 @@ impl PackageCompilationInputs {
                 .iter()
                 .map(|(alias, target)| (*requester, alias.as_str(), *target))
         })
+    }
+
+    /// Project the exact validated graph without source paths, package display
+    /// names, immutable source resolutions, or source bytes.
+    pub fn dependency_closure(&self) -> PackageDependencyClosure {
+        PackageDependencyClosure {
+            root: self.root,
+            packages: self.packages.keys().copied().collect(),
+            dependencies: self
+                .dependencies()
+                .map(|(requester, alias, target)| {
+                    PackageDependencyBinding::new(requester, alias, target)
+                })
+                .collect(),
+        }
     }
 
     pub(crate) fn dependency_target(

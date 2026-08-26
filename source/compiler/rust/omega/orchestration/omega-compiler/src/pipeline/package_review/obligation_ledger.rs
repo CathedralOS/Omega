@@ -11,7 +11,7 @@ use super::{
     DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
     PackageReviewCanonicalRowRisk, project_checked_package_review,
 };
-use crate::pipeline::CheckedCompilation;
+use crate::pipeline::{CheckedCompilation, PackageDependencyClosure};
 use omega_target::TargetProfile;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
@@ -51,7 +51,7 @@ impl OrdinaryPackageObligationRow {
 }
 
 /// Complete locally ordered row set for the current ordinary package-review
-/// vocabulary under one exact package and target.
+/// vocabulary under one exact package, target, and dependency closure.
 ///
 /// This is not yet accepted package evidence: exact source/artifact subjects,
 /// certificates, transitive open obligations, schema migration, and local
@@ -60,6 +60,7 @@ impl OrdinaryPackageObligationRow {
 pub struct OrdinaryPackageObligationLedger {
     package: PackageKeyIdentity,
     target: TargetProfile,
+    dependency_closure: PackageDependencyClosure,
     rows: Vec<OrdinaryPackageObligationRow>,
 }
 
@@ -70,6 +71,10 @@ impl OrdinaryPackageObligationLedger {
 
     pub const fn target(&self) -> TargetProfile {
         self.target
+    }
+
+    pub const fn dependency_closure(&self) -> &PackageDependencyClosure {
+        &self.dependency_closure
     }
 
     pub fn rows(&self) -> &[OrdinaryPackageObligationRow] {
@@ -106,6 +111,7 @@ impl std::error::Error for OrdinaryPackageObligationLedgerRecoveryError {}
 /// turn caller-authored bytes into compiler issuance. It is used to place the
 /// same local-reconstruction gate directly on fresh review publication.
 pub fn ordinary_package_obligation_ledger_from_compiler_rows(
+    dependency_closure: PackageDependencyClosure,
     rows: &[PackageReviewCanonicalRow],
 ) -> Result<OrdinaryPackageObligationLedger, OrdinaryPackageObligationLedgerRecoveryError> {
     validate_row_budget(
@@ -149,7 +155,7 @@ pub fn ordinary_package_obligation_ledger_from_compiler_rows(
             row_from_compiler(row)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    finish_ledger(package, target, ledger_rows)
+    finish_ledger(package, target, dependency_closure, ledger_rows)
 }
 
 /// Recover a candidate ledger from individually compiler-decoded row
@@ -157,6 +163,7 @@ pub fn ordinary_package_obligation_ledger_from_compiler_rows(
 /// invoke [`validate_ordinary_package_obligation_ledger`] against the exact
 /// checked source subject.
 pub fn recover_ordinary_package_obligation_ledger(
+    dependency_closure: PackageDependencyClosure,
     rows: &[DecodedPackageReviewCanonicalRow],
 ) -> Result<OrdinaryPackageObligationLedger, OrdinaryPackageObligationLedgerRecoveryError> {
     validate_row_budget(
@@ -194,7 +201,7 @@ pub fn recover_ordinary_package_obligation_ledger(
             row.canonical_bytes(),
         )?);
     }
-    finish_ledger(package, target, ledger_rows)
+    finish_ledger(package, target, dependency_closure, ledger_rows)
 }
 
 /// Reconstruct the complete current ordinary package-review question directly
@@ -202,17 +209,24 @@ pub fn recover_ordinary_package_obligation_ledger(
 pub fn reconstruct_ordinary_package_obligation_ledger(
     compilation: &CheckedCompilation,
 ) -> Result<OrdinaryPackageObligationLedger, Vec<Diagnostic>> {
+    let dependency_closure = compilation.dependency_closure().cloned().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "ordinary package obligation reconstruction requires a package-aware dependency closure",
+        )]
+    })?;
     let projection = project_checked_package_review(compilation)?;
     let rows = projection.canonical_rows().map_err(|error| {
         vec![Diagnostic::error(format!(
             "ordinary package obligation reconstruction failed to encode canonical rows: {error}"
         ))]
     })?;
-    ordinary_package_obligation_ledger_from_compiler_rows(&rows).map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "ordinary package obligation reconstruction produced an invalid ledger: {error}"
-        ))]
-    })
+    ordinary_package_obligation_ledger_from_compiler_rows(dependency_closure, &rows).map_err(
+        |error| {
+            vec![Diagnostic::error(format!(
+                "ordinary package obligation reconstruction produced an invalid ledger: {error}"
+            ))]
+        },
+    )
 }
 
 /// Reconstruct and compare the complete local ordinary package-review
@@ -306,8 +320,14 @@ fn validate_row_budget(
 fn finish_ledger(
     package: PackageKeyIdentity,
     target: TargetProfile,
+    dependency_closure: PackageDependencyClosure,
     rows: Vec<OrdinaryPackageObligationRow>,
 ) -> Result<OrdinaryPackageObligationLedger, OrdinaryPackageObligationLedgerRecoveryError> {
+    if dependency_closure.root() != package {
+        return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+            "ordinary package obligation ledger dependency closure has a different root package",
+        ));
+    }
     if rows
         .windows(2)
         .any(|pair| row_coordinate(&pair[0]) >= row_coordinate(&pair[1]))
@@ -335,6 +355,7 @@ fn finish_ledger(
     Ok(OrdinaryPackageObligationLedger {
         package,
         target,
+        dependency_closure,
         rows,
     })
 }
@@ -353,6 +374,10 @@ fn ledger_mismatch(
     }
     if expected.target != candidate.target {
         return "ordinary package obligation ledger target does not match local reconstruction"
+            .to_owned();
+    }
+    if expected.dependency_closure != candidate.dependency_closure {
+        return "ordinary package obligation ledger dependency closure does not match local reconstruction"
             .to_owned();
     }
     for (index, (expected_row, candidate_row)) in

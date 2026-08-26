@@ -107,7 +107,7 @@ pub use compiler_executable_commitment::{
 };
 pub use package_compilation::{
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
-    PackageSourceBinding,
+    PackageDependencyClosure, PackageSourceBinding,
 };
 pub use package_review::{
     CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
