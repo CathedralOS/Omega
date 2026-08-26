@@ -9,9 +9,9 @@
 //! explicit or exact target-derived landing, float with an explicit or exact
 //! target-derived format, immutable-image byte string to its exact shared byte
 //! view or bounded value-domain buffer, or a canonically context-landed byte
-//! array, direct Boolean-literal array, exact depth-two byte/Boolean-literal
-//! array, or exactly landed integer/float-literal array to its exact fixed-
-//! array representative position.
+//! array, direct Boolean-literal array, exact depth-two byte/Boolean/integer-
+//! literal array, or exactly landed integer/float-literal array to its exact
+//! fixed-array representative position.
 //! Neither policy infers or selects a relation, contract proof, or
 //! representative operation.
 
@@ -81,6 +81,10 @@ pub(super) enum ClosedLiftLiteral {
     },
     NestedFixedByteArray {
         rows: std::sync::Arc<[std::sync::Arc<[u8]>]>,
+        target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
+    },
+    NestedIntegerArray {
+        rows: std::sync::Arc<[std::sync::Arc<[ClosedIntegerArrayElement]>]>,
         target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
     },
     IntegerArray {
@@ -356,6 +360,57 @@ pub(super) fn closed_lift_literal_for_representative(
                     .collect::<Option<Vec<_>>>()
                     .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
                 return Ok(Some(ClosedLiftLiteral::NestedFixedByteArray {
+                    rows: rows.into(),
+                    target_type: program.normalized_type_identity(representative_type),
+                }));
+            }
+            if integer_primitive_landing(row_primitive).is_some() {
+                let rows = elements
+                    .iter()
+                    .map(|row| {
+                        let ExpressionNode::ArrayLiteral(row_elements) =
+                            program.expression_table.expression(*row)
+                        else {
+                            return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(
+                                position,
+                            ));
+                        };
+                        let row_elements =
+                            program.expression_table.expression_handles(*row_elements);
+                        if row_elements.len() != *row_width {
+                            return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(
+                                position,
+                            ));
+                        }
+                        row_elements
+                            .iter()
+                            .map(|element| {
+                                let ExpressionNode::Integer(literal) =
+                                    program.expression_table.expression(*element)
+                                else {
+                                    return Err(
+                                        RelationPlanError::DirectLiftLiteralTargetMismatch(
+                                            position,
+                                        ),
+                                    );
+                                };
+                                let landing = exact_integer_landing(
+                                    program,
+                                    *row_element_type,
+                                    row_primitive,
+                                    literal,
+                                    position,
+                                )?;
+                                Ok(ClosedIntegerArrayElement {
+                                    spelling: literal.text().to_owned(),
+                                    landing,
+                                })
+                            })
+                            .collect::<Result<Vec<_>, _>>()
+                            .map(std::sync::Arc::from)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                return Ok(Some(ClosedLiftLiteral::NestedIntegerArray {
                     rows: rows.into(),
                     target_type: program.normalized_type_identity(representative_type),
                 }));
