@@ -7336,6 +7336,14 @@ state through a raw address.
   present, while the PT PAT bit and every other permission/cache field remain
   uninterpreted. The exact descriptor returns unchanged and grants no backing,
   mapping, placement, TLB, installation, CR3, or machine-control authority.
+  A following ordinary Cathedral carrier binds one requested virtual page base
+  and physical frame base to that role-consistent descriptor. It requires the
+  virtual endpoint to equal the retained canonical address with zero page
+  offset and the physical endpoint to equal the PT entry's retained target,
+  then returns both exact endpoints with the validated descriptor. This records
+  numeric 4-KiB intent only; identity/higher-half layout and permissions remain
+  unchosen, and no Extent, backing, hierarchy-page, mapping, placement, TLB,
+  installation, CR3, or machine-control authority is granted.
   Physical backing, address-space-profile hierarchy, mappings, installation,
   and teardown remain. Do not restore a compiler-owned page-table model.
 
