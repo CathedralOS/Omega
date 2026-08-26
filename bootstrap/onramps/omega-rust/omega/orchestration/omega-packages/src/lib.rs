@@ -67,7 +67,11 @@ pub use compiler_review::{
     CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
     compile_resolved_package_reviews,
 };
-pub use declaration::{PackageDeclaration, PackageDeclarationError, extract_package_declaration};
+pub use declaration::{
+    ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,
+    PackageDeclaration, PackageDeclarationError, WorkspaceDeclaration, extract_build_declaration,
+    extract_package_declaration,
+};
 pub use dependency_edit::{
     BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualPatch,
     BuildDependencyManualReason, BuildFileReplacement, canonical_dependency_statement,

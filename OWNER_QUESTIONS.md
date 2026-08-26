@@ -50,3 +50,72 @@ commitments and reject when no unique descriptor is selected.
 - Tempting but wrong: restore public identity fields merely to recover layout.
 - Tempting but wrong: assign a compiler-global magic size or accept zero-sized
   placement without selected representation evidence.
+
+## Q2 — Package selector for a multi-package source
+
+### Context
+
+A fetched Git repository may have a package at its root or a workspace root
+whose member paths lead to several packages. Member paths are deliberately not
+stable package names. The selected member's own `builder.package("name")`
+declaration remains authoritative identity evidence.
+
+### Problem statement
+
+`Source::Git` currently carries only repository and revision. That is
+unambiguous for a repository-root package but cannot select one package from a
+workspace. The lock cannot be the only selector because a fresh lockless
+resolution must be reproducible, and an import alias cannot select because
+aliases are local and may be explicitly renamed.
+
+### Proposed direction
+
+Make the expected canonical package name explicit in the authored Git source
+request. Treat it only as selection intent: after authenticating the repository
+root, project its workspace members, project each member's own declaration, and
+require exactly one declaration to match. The package-authored declaration—not
+the request string—continues to establish the name joined into `PackageKey`.
+A repository-root package follows the same match rule, avoiding two resolution
+models.
+
+### Alternates
+
+- Acceptable: a concise ordinary Omega wrapper operation may carry the expected
+  name separately from `Source::Git`, provided it is mandatory, survives
+  dependency projection, and has the same exact-match semantics.
+- Tempting but wrong: select by member directory path; repository relocation
+  would become package replacement and callers would duplicate workspace
+  layout.
+- Tempting but wrong: infer selection from the default alias or defer it to
+  `omega.lock`; explicit aliases and first resolution make both ambiguous.
+
+## Q3 — Application identity in the package graph
+
+### Context
+
+Applications now declare `builder.application("name")`, may own dependencies,
+and form the root of a reconciled package closure. Compiler package handoff
+currently identifies graph roots through `PackageKeyIdentity`.
+
+### Problem statement
+
+Giving applications no source-qualified graph identity requires a second root
+identity system and weakens provenance across application updates. Treating an
+application as an ordinary dependency, however, would erase the role
+distinction and permit consumers to import an artifact root as a library.
+
+### Proposed direction
+
+Give an application the same name-plus-source-lineage `PackageKey` used for a
+stable reach-unit identity, while retaining `Application` as its role. It may
+own dependencies and produce artifacts but cannot satisfy another project's
+package dependency. Exact source and artifact evidence remain instance facts.
+
+### Alternates
+
+- Acceptable if a concrete compiler constraint requires it: define a distinct
+  source-qualified application-root key with the same lineage and instance
+  commitments, then prove the graph handoff cannot confuse it with packages.
+- Tempting but wrong: key an application by its authored name alone.
+- Tempting but wrong: make applications importable packages merely to reuse
+  existing graph code.
