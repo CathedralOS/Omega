@@ -620,9 +620,11 @@ field/payload types. Numbered ordinary data is the wire contract; the retired
 standalone `wire data` form is not a
 second API row. Public data default-domain `where` facts now give fields and
 static parameters exact local declaration identities during symbol resolution.
-The compiler rederives the complete evidence graph from final typed Psi,
-including ownership records, semantic rows, references, contexts, symbol
-indexes, and structural places. It requires that graph to equal the retained
+For this data-invariant row family, the compiler rederives the complete evidence
+graph from final typed Psi, currently the earliest coherent owner of all of its
+ownership records, semantic rows, references, contexts, symbol indexes, and
+structural places. That is not a requirement for unrelated package evidence to
+wait for final typed Psi. The compiler requires the graph to equal the retained
 checked graph, projects the facts through the same canonical contract vocabulary
 as public domains, and includes them in public-data identity in review
 v59/canonical row v17. Missing, duplicate, altered, malformed-span, or

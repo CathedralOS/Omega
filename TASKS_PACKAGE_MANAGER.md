@@ -1289,9 +1289,12 @@ complete.
   during symbol resolution. Every typed `where` fact then retains one exact
   checked definition row and ownership record; each structural dependency
   retains its exact root and path. Before projection, the compiler rederives
-  the complete data-invariant evidence graph from final typed Psi—ownership
-  records, semantic rows, references, contexts, symbol indexes, and structural
-  places—and requires structural equality with the retained checked graph.
+  this data-invariant row family's complete evidence graph from final typed
+  Psi—currently the earliest coherent owner of all of its ownership records,
+  semantic rows, references, contexts, symbol indexes, and structural places—
+  and requires structural equality with the retained checked graph. This is a
+  property of the current row family, not a requirement that unrelated package
+  evidence be reconstructed from final typed Psi.
   Review projects
   representable expression, membership, and proposition facts through the
   existing canonical contract vocabulary, sorts and deduplicates the invariant
