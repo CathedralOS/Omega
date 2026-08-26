@@ -3072,6 +3072,12 @@ pub(crate) mod tests {
         assert!(candidates[0].consumed_facts().is_empty());
 
         let accepted = validate_redundant_block_parameter_candidate(&unit, &candidates[0]).unwrap();
+        assert_eq!(
+            accepted.validator(),
+            omega_optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
+                b"omega.validator.redundant-block-parameter.v2"
+            )
+        );
         let output = accepted.unit();
         assert!(output.functions[0].blocks[1].parameters.is_empty());
         let O::Conditional {
