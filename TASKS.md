@@ -8442,7 +8442,11 @@ checked-result arithmetic decision listed below.
   and the private data symbol, then binds every retained realization `StateKey`
   to exactly one private function symbol with a data-section `Absolute64`
   materialization record. Missing or duplicate function identities fail
-  closed. Construction of the runtime `{ instance, table }` pair and rebound,
+  closed. The abstract-data bridge now retains the table's exact trait,
+  conformance, normalized row identities, and private object handle rather than
+  degrading it to ordinary data; a unique symbol-keyed lookup fails closed on
+  missing, duplicate, or malformed bindings for transitional instruction
+  selection. Construction of the runtime `{ instance, table }` pair and rebound,
   stored, joined, escaping, or component-crossing descriptors remain open.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
   realizations.** Complete hermetic evaluation with crash refinement, target
