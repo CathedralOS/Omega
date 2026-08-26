@@ -26,6 +26,10 @@ pub(crate) fn analyze_checked_progress(
     flow: &FlowFacts,
     semantic: &psi_facts::FactPlan,
 ) -> Result<Vec<CheckedProgressSummary>, Vec<Diagnostic>> {
+    let correspondence_diagnostics = validate_qualification_correspondences(program, semantic);
+    if !correspondence_diagnostics.is_empty() {
+        return Err(correspondence_diagnostics);
+    }
     let mut summaries = program
         .machines()
         .iter()
@@ -111,6 +115,182 @@ pub(crate) fn analyze_checked_progress(
     } else {
         Err(diagnostics)
     }
+}
+
+fn validate_qualification_correspondences(
+    program: &psi_typed_trees::TypedTrees,
+    semantic: &psi_facts::FactPlan,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut retained = Vec::new();
+    for (_, correspondence) in semantic.qualification_correspondences.iter() {
+        if retained.contains(correspondence) {
+            diagnostics.push(Diagnostic::error(
+                "qualification correspondence is duplicated",
+            ));
+            continue;
+        }
+        retained.push(*correspondence);
+        if !semantic.facts.is_valid(correspondence.source_fact)
+            || !semantic.facts.is_valid(correspondence.destination_fact)
+            || correspondence.source_fact == correspondence.destination_fact
+            || correspondence.source_fact.arena_index()
+                >= correspondence.destination_fact.arena_index()
+        {
+            diagnostics.push(Diagnostic::error(
+                "qualification correspondence fact identity or construction order drifted",
+            ));
+            continue;
+        }
+        let psi_facts::ProgramPoint::Statement {
+            machine_symbol,
+            state_symbol,
+            ..
+        } = correspondence.formation
+        else {
+            diagnostics.push(Diagnostic::error(
+                "qualification correspondence formation is not an exact statement point",
+            ));
+            continue;
+        };
+        if !machine_symbol.is_valid()
+            || !state_symbol.is_valid()
+            || program.symbols.get(machine_symbol).kind != psi_symbols::SymbolKind::Machine
+            || program.symbols.get(state_symbol).kind != psi_symbols::SymbolKind::State
+            || program.symbols.get(state_symbol).parent != machine_symbol
+        {
+            diagnostics.push(Diagnostic::error(
+                "qualification correspondence formation owner identity drifted",
+            ));
+            continue;
+        }
+        if !exact_correspondence_place(program, semantic, correspondence.source_place)
+            || !exact_correspondence_place(
+                program,
+                semantic,
+                correspondence.source_occurrence_place,
+            )
+            || !exact_correspondence_place(program, semantic, correspondence.destination_place)
+            || correspondence.source_place == correspondence.destination_place
+        {
+            diagnostics.push(Diagnostic::error(
+                "qualification correspondence place is not an exact structural symbol place",
+            ));
+            continue;
+        }
+        let source = semantic.facts.get(correspondence.source_fact);
+        let destination = semantic.facts.get(correspondence.destination_fact);
+        if source.place != FactPlace::Place(correspondence.source_place)
+            || destination.place != FactPlace::Place(correspondence.destination_place)
+        {
+            diagnostics.push(Diagnostic::error(
+                "qualification correspondence place handle drifted from its fact row",
+            ));
+            continue;
+        }
+        if !semantic.places_equal(
+            correspondence.source_place,
+            correspondence.source_occurrence_place,
+        ) {
+            diagnostics.push(Diagnostic::error(
+                "qualification correspondence source occurrence drifted from its fact place",
+            ));
+            continue;
+        }
+        if destination.origin != psi_facts::FactOrigin::StatementTransfer
+            || destination.point != correspondence.formation
+        {
+            diagnostics.push(Diagnostic::error(
+                "qualification correspondence destination is not its exact statement transfer",
+            ));
+            continue;
+        }
+        if source.evidence != correspondence.evidence
+            || destination.evidence != correspondence.evidence
+            || correspondence.evidence.origin
+                != psi_language_semantics::QualificationEvidenceOrigin::CheckedTransformation
+            || !exact_correspondence_evidence_source(program, correspondence.evidence)
+        {
+            diagnostics.push(Diagnostic::error(
+                "qualification correspondence evidence identity drifted",
+            ));
+            continue;
+        }
+        if psi_facts::QualificationPayloadIdentity::from_fact_payload(source.payload)
+            != Some(correspondence.payload)
+            || psi_facts::QualificationPayloadIdentity::from_fact_payload(destination.payload)
+                != Some(correspondence.payload)
+            || !exact_correspondence_payload(program, correspondence.payload)
+        {
+            diagnostics.push(Diagnostic::error(
+                "qualification correspondence payload or domain identity drifted",
+            ));
+        }
+    }
+    diagnostics
+}
+
+fn exact_correspondence_payload(
+    program: &psi_typed_trees::TypedTrees,
+    payload: psi_facts::QualificationPayloadIdentity,
+) -> bool {
+    match payload {
+        psi_facts::QualificationPayloadIdentity::DomainMembership {
+            domain,
+            domain_symbol,
+        } => {
+            domain_symbol.is_valid()
+                && program.symbols.get(domain_symbol).kind == psi_symbols::SymbolKind::Domain
+                && program.domain_path_members.span(domain).is_some()
+        }
+        psi_facts::QualificationPayloadIdentity::CarryPermission { .. }
+        | psi_facts::QualificationPayloadIdentity::CarryOrigin => true,
+    }
+}
+
+fn exact_correspondence_evidence_source(
+    program: &psi_typed_trees::TypedTrees,
+    evidence: psi_facts::QualificationEvidence,
+) -> bool {
+    evidence.source_symbol.is_valid()
+        && evidence.requirement_symbol == SymbolHandle::invalid()
+        && evidence.receipt_identity == 0
+        && matches!(
+            program.symbols.get(evidence.source_symbol).kind,
+            psi_symbols::SymbolKind::Machine | psi_symbols::SymbolKind::Operator
+        )
+}
+
+fn exact_correspondence_place(
+    program: &psi_typed_trees::TypedTrees,
+    semantic: &psi_facts::FactPlan,
+    handle: psi_facts::PlaceHandle,
+) -> bool {
+    if !semantic.places.is_valid(handle) {
+        return false;
+    }
+    let place = semantic.places.get(handle);
+    let PlaceRoot::Symbol(root) = place.root else {
+        return false;
+    };
+    if !root.is_valid() || program.symbols.get(root).kind != psi_symbols::SymbolKind::Parameter {
+        return false;
+    }
+    let Some(segments) = semantic.place_segments.span(place.segments) else {
+        return false;
+    };
+    segments.iter().all(|segment| match segment {
+        PlaceSegment::Field { symbol } => {
+            symbol.is_valid() && program.symbols.get(*symbol).kind == psi_symbols::SymbolKind::Field
+        }
+        PlaceSegment::Case { variant } => {
+            variant.is_valid()
+                && program.symbols.get(*variant).kind == psi_symbols::SymbolKind::Variant
+        }
+        PlaceSegment::FixedIndex { .. }
+        | PlaceSegment::FixedRange { .. }
+        | PlaceSegment::Index { .. } => false,
+    })
 }
 
 fn derive_machine_summary(
@@ -730,4 +910,268 @@ fn subject_label(program: &psi_typed_trees::TypedTrees, subject: &ProgressSubjec
         label.push_str(&program.symbols.display_path(*projection, "::"));
     }
     label
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_arena::HandleSpan;
+    use psi_facts::{
+        Fact, FactOrigin, QualificationCorrespondence, QualificationEvidence,
+        QualificationPayloadIdentity,
+    };
+    use psi_symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    fn correspondence_fixture() -> (
+        psi_typed_trees::TypedTrees,
+        psi_facts::FactPlan,
+        SymbolHandle,
+        SymbolHandle,
+    ) {
+        let mut symbols = SymbolTableBuilder::new();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let roots = symbols.insert_children(
+            root,
+            [
+                (SymbolKind::Machine, SymbolNameRef::Static("worker")),
+                (SymbolKind::Domain, SymbolNameRef::Static("Ready")),
+                (SymbolKind::Field, SymbolNameRef::Static("source")),
+                (SymbolKind::Field, SymbolNameRef::Static("destination")),
+                (SymbolKind::Local, SymbolNameRef::Static("excluded_local")),
+                (
+                    SymbolKind::TypeParameter,
+                    SymbolNameRef::Static("ExcludedType"),
+                ),
+            ],
+        );
+        let roots = SymbolTableBuilder::child_handles(roots).collect::<Vec<_>>();
+        let machine = roots[0];
+        let domain = roots[1];
+        let source_field = roots[2];
+        let destination_field = roots[3];
+        let excluded_local = roots[4];
+        let excluded_generic = roots[5];
+        let machine_members = symbols.insert_children(
+            machine,
+            [
+                (SymbolKind::State, SymbolNameRef::Static("entry")),
+                (SymbolKind::Parameter, SymbolNameRef::Static("self")),
+            ],
+        );
+        let machine_members =
+            SymbolTableBuilder::child_handles(machine_members).collect::<Vec<_>>();
+        let state = machine_members[0];
+        let self_parameter = machine_members[1];
+        let program = psi_typed_trees::TypedTrees {
+            symbols: symbols.finish(),
+            ..psi_typed_trees::TypedTrees::default()
+        };
+
+        let mut semantic = psi_facts::FactPlan::default();
+        let source_place = semantic.append_symbol_place(self_parameter);
+        semantic.push_place_segment(
+            source_place,
+            PlaceSegment::Field {
+                symbol: source_field,
+            },
+        );
+        let destination_place = semantic.append_symbol_place(self_parameter);
+        semantic.push_place_segment(
+            destination_place,
+            PlaceSegment::Field {
+                symbol: destination_field,
+            },
+        );
+        let formation = psi_facts::ProgramPoint::Statement {
+            machine_symbol: machine,
+            state_symbol: state,
+            statement_index: 1,
+        };
+        let payload = FactPayload::DomainMembership {
+            value: psi_typed_trees::expression::ExpressionHandle::invalid(),
+            domain: HandleSpan::empty(),
+            domain_symbol: domain,
+        };
+        let evidence = QualificationEvidence::from_origin(
+            psi_language_semantics::QualificationEvidenceOrigin::CheckedTransformation,
+            machine,
+        );
+        let source_fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(source_place),
+            point: psi_facts::ProgramPoint::CallEnsures {
+                machine_symbol: machine,
+                state_symbol: state,
+                statement_index: 0,
+                call_ordinal: 0,
+            },
+            origin: FactOrigin::CallEnsures,
+            evidence,
+            payload,
+        });
+        let destination_fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(destination_place),
+            point: formation,
+            origin: FactOrigin::StatementTransfer,
+            evidence,
+            payload,
+        });
+        semantic.append_qualification_correspondence(QualificationCorrespondence {
+            source_fact,
+            destination_fact,
+            source_occurrence_place: source_place,
+            source_place,
+            destination_place,
+            formation,
+            payload: QualificationPayloadIdentity::DomainMembership {
+                domain: HandleSpan::empty(),
+                domain_symbol: domain,
+            },
+            evidence,
+        });
+        (program, semantic, excluded_local, excluded_generic)
+    }
+
+    #[test]
+    fn checked_progress_replays_exact_qualification_correspondence() {
+        let (program, semantic, _, _) = correspondence_fixture();
+        assert!(validate_qualification_correspondences(&program, &semantic).is_empty());
+    }
+
+    #[test]
+    fn checked_progress_rejects_correspondence_payload_place_and_order_drift() {
+        let (program, semantic, _, _) = correspondence_fixture();
+
+        let mut payload = semantic.clone();
+        let row = payload
+            .qualification_correspondences
+            .iter()
+            .next()
+            .map(|(handle, _)| handle)
+            .expect("correspondence");
+        payload.qualification_correspondences.get_mut(row).payload =
+            QualificationPayloadIdentity::CarryOrigin;
+        assert!(
+            validate_qualification_correspondences(&program, &payload)
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("payload or domain identity"))
+        );
+
+        let mut occurrence = semantic.clone();
+        let row = occurrence
+            .qualification_correspondences
+            .iter()
+            .next()
+            .map(|(handle, _)| handle)
+            .expect("correspondence");
+        let destination_place = occurrence
+            .qualification_correspondences
+            .get(row)
+            .destination_place;
+        occurrence
+            .qualification_correspondences
+            .get_mut(row)
+            .source_occurrence_place = destination_place;
+        assert!(
+            validate_qualification_correspondences(&program, &occurrence)
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("source occurrence drifted"))
+        );
+
+        let mut indexed = semantic.clone();
+        let source_place = indexed
+            .qualification_correspondences
+            .iter()
+            .next()
+            .map(|(_, row)| row.source_place)
+            .expect("source place");
+        let root = indexed.places.get(source_place).root;
+        let indexed_place = indexed.append_place(psi_facts::Place {
+            root,
+            segments: HandleSpan::empty(),
+        });
+        indexed.push_place_segment(indexed_place, PlaceSegment::FixedIndex { index: 0 });
+        let row = indexed
+            .qualification_correspondences
+            .iter()
+            .next()
+            .map(|(handle, _)| handle)
+            .expect("correspondence");
+        indexed
+            .qualification_correspondences
+            .get_mut(row)
+            .source_place = indexed_place;
+        let source_fact = indexed.qualification_correspondences.get(row).source_fact;
+        indexed.facts.get_mut(source_fact).place = FactPlace::Place(indexed_place);
+        assert!(
+            validate_qualification_correspondences(&program, &indexed)
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("structural symbol place"))
+        );
+
+        let mut reversed = semantic;
+        let row = reversed
+            .qualification_correspondences
+            .iter()
+            .next()
+            .map(|(handle, _)| handle)
+            .expect("correspondence");
+        let retained = reversed.qualification_correspondences.get_mut(row);
+        std::mem::swap(&mut retained.source_fact, &mut retained.destination_fact);
+        assert!(
+            validate_qualification_correspondences(&program, &reversed)
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("construction order drifted"))
+        );
+    }
+
+    #[test]
+    fn checked_progress_rejects_excluded_roots_and_malformed_formation() {
+        let (program, semantic, excluded_local, excluded_generic) = correspondence_fixture();
+        let row = semantic
+            .qualification_correspondences
+            .iter()
+            .next()
+            .map(|(handle, _)| handle)
+            .expect("correspondence");
+        let source_place = semantic.qualification_correspondences.get(row).source_place;
+
+        for excluded_root in [
+            PlaceRoot::Unknown,
+            PlaceRoot::Expression(psi_typed_trees::expression::ExpressionHandle::invalid()),
+            PlaceRoot::TypeReference(psi_typed_trees::types::TypeReferenceHandle::invalid()),
+        ] {
+            let mut drifted = semantic.clone();
+            drifted.places.get_mut(source_place).root = excluded_root;
+            assert!(
+                validate_qualification_correspondences(&program, &drifted)
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("structural symbol place"))
+            );
+        }
+
+        for excluded_symbol in [excluded_local, excluded_generic] {
+            let mut drifted = semantic.clone();
+            drifted.places.get_mut(source_place).root = PlaceRoot::Symbol(excluded_symbol);
+            assert!(
+                validate_qualification_correspondences(&program, &drifted)
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("structural symbol place"))
+            );
+        }
+
+        let mut formation = semantic;
+        formation
+            .qualification_correspondences
+            .get_mut(row)
+            .formation = psi_facts::ProgramPoint::Statement {
+            machine_symbol: SymbolHandle::invalid(),
+            state_symbol: SymbolHandle::invalid(),
+            statement_index: 1,
+        };
+        assert!(
+            validate_qualification_correspondences(&program, &formation)
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("owner identity drifted"))
+        );
+    }
 }

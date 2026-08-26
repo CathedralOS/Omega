@@ -643,7 +643,9 @@ Current ownership is:
   `flow/borrow_lifetimes.rs` owns loan activation/weakening rules,
   `flow/statements.rs` owns statement entry facts, call fact sequencing, loan
   activation, mutation invalidation, and transfer propagation,
-  `flow/transfers.rs` owns statement fact transfers, `flow/calls.rs` owns call
+  `flow/transfers.rs` owns statement fact transfers and emits the narrow
+  checked-only parameter-rooted structural qualification-correspondence ledger,
+  `flow/calls.rs` owns call
   fact assembly, `flow/call_phases.rs` owns call entry/requires/invalidation/exit
   context phase routing, `flow/call_phases/invalidation.rs` owns call mutation
   and domain invalidation, `flow/boundaries.rs`
@@ -745,7 +747,9 @@ Current ownership is:
   ranking proof shapes, `checks/termination/ranking/slice/guards.rs` owns
   slice-length guard predicates, and
   `checks/termination/ranking/slice/arguments.rs` owns slice-tail next-argument
-  rewrite predicates.
+  rewrite predicates. `checks/termination/progress.rs` independently replays
+  retained qualification correspondence before deriving checked progress
+  summaries; malformed or label-only correspondence fails closed.
 - The checked-lowering regression root `tests/termination.rs` is orchestration
   only. Its subordinate modules separately own ranking witnesses, operational
   contract publication, exclusive-cycle write frames, indexed-call write

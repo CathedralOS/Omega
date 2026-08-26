@@ -252,6 +252,18 @@ premise schemas from the named requirement contract rather than from whichever
 implementation is later substituted. This keeps generic and exported contract
 identity fixed across selection.
 
+The first checked-only transition certificate covers an existing statement
+transfer only when both endpoints are exact parameter-rooted Field/Case places
+and the copied fact carries `CheckedTransformation` evidence. A separate proof
+ledger retains both fact identities, the fact's source place, the contextual
+source occurrence, destination place, formation point, qualification
+payload/domain, and evidence. Checked progress independently replays exact
+structural place equality, construction order, statement-transfer origin and
+point, formation ownership, and unchanged payload/evidence. Label-only,
+unknown, expression, type, indexed/ranged, local, generic, and invalid-member
+relations produce no certificate. The ledger changes neither premise admission
+nor Terminal authority.
+
 Durable provider-requirement artifacts retain those public schemas
 structurally: profile identity, provider-receiver or caller-parameter subject,
 the exact subject projections, and the profile owner's normalized closed

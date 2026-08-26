@@ -8,7 +8,8 @@ use crate::{
     BooleanFact, DataDefinitionFactRecord, DomainDefinitionFactRecord, DomainMembershipFact, Fact,
     FactContext, FactContextHandle, FactContextView, FactHandle, FactPayload, FactPlace, FactRef,
     InstantiatedExpression, Place, PlaceHandle, PlaceRoot, PlaceSegment, ProgramPoint,
-    SymbolFactSet, TypeConstraintFact, effective_member_symbol, resolve_place_member_symbol,
+    QualificationCorrespondence, QualificationCorrespondenceHandle, SymbolFactSet,
+    TypeConstraintFact, effective_member_symbol, resolve_place_member_symbol,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -16,6 +17,7 @@ pub struct FactPlan {
     pub places: Arena<Place>,
     pub place_segments: Arena<PlaceSegment>,
     pub facts: Arena<Fact>,
+    pub qualification_correspondences: Arena<QualificationCorrespondence>,
     pub domain_definition_facts: Arena<DomainDefinitionFactRecord>,
     pub data_definition_facts: Arena<DataDefinitionFactRecord>,
     pub instantiated_expressions: Arena<InstantiatedExpression>,
@@ -30,6 +32,7 @@ impl FactPlan {
             places: Arena::with_capacity(fact_capacity),
             place_segments: Arena::with_capacity(fact_capacity),
             facts: Arena::with_capacity(fact_capacity),
+            qualification_correspondences: Arena::with_capacity(fact_capacity),
             domain_definition_facts: Arena::with_capacity(fact_capacity),
             data_definition_facts: Arena::with_capacity(fact_capacity),
             instantiated_expressions: Arena::with_capacity(fact_capacity),
@@ -41,6 +44,20 @@ impl FactPlan {
 
     pub fn append_fact(&mut self, fact: Fact) -> FactHandle {
         self.facts.append(fact)
+    }
+
+    pub fn append_qualification_correspondence(
+        &mut self,
+        correspondence: QualificationCorrespondence,
+    ) -> QualificationCorrespondenceHandle {
+        if let Some((handle, _)) = self
+            .qualification_correspondences
+            .iter()
+            .find(|(_, retained)| **retained == correspondence)
+        {
+            return handle;
+        }
+        self.qualification_correspondences.append(correspondence)
     }
 
     pub fn append_instantiated_expression(

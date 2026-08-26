@@ -1,5 +1,5 @@
 use super::*;
-use psi_facts::PlaceHandle;
+use psi_facts::{PlaceHandle, QualificationCorrespondence, QualificationPayloadIdentity};
 
 pub(super) fn propagate_statement_transfers(
     program: &psi_typed_trees::TypedTrees,
@@ -65,96 +65,111 @@ pub(super) fn propagate_statement_transfers(
     for context_handle in context_handles {
         let context = semantic.contexts.get(context_handle);
         let facts_to_transfer: Vec<_> = semantic
-            .context_view(context)
-            .facts()
-            .filter_map(|fact| match fact.payload {
-                FactPayload::DomainMembership {
-                    domain,
-                    domain_symbol,
-                    ..
+            .refs
+            .span_or_empty(context.facts)
+            .iter()
+            .filter_map(|reference| {
+                let fact = *semantic.facts.get(reference.fact);
+                match fact.payload {
+                    FactPayload::DomainMembership {
+                        domain,
+                        domain_symbol,
+                        ..
+                    }
+                    | FactPayload::ContractDomainMembership {
+                        domain,
+                        domain_symbol,
+                        ..
+                    } => {
+                        let FactPlace::Place(fact_place) = fact.place else {
+                            return None;
+                        };
+                        let fact_label = crate::labels::canonical_place_label(
+                            program,
+                            semantic,
+                            semantic.places.get(fact_place),
+                        );
+                        (source_place.is_some_and(|source_place| {
+                            semantic.places_match(program, fact_place, source_place)
+                        }) || fact_label == source_label)
+                            .then_some((
+                                FactPayload::DomainMembership {
+                                    value: ExpressionHandle::invalid(),
+                                    domain,
+                                    domain_symbol,
+                                },
+                                fact.evidence,
+                                Some((reference.fact, fact_place)),
+                            ))
+                    }
+                    FactPayload::CarryPermission { permission, .. }
+                    | FactPayload::ContractCarryPermission { permission, .. } => {
+                        let FactPlace::Place(fact_place) = fact.place else {
+                            return None;
+                        };
+                        let fact_label = crate::labels::canonical_place_label(
+                            program,
+                            semantic,
+                            semantic.places.get(fact_place),
+                        );
+                        (source_place.is_some_and(|source_place| {
+                            semantic.places_match(program, fact_place, source_place)
+                        }) || fact_label == source_label)
+                            .then_some((
+                                FactPayload::CarryPermission {
+                                    value: ExpressionHandle::invalid(),
+                                    permission,
+                                },
+                                fact.evidence,
+                                Some((reference.fact, fact_place)),
+                            ))
+                    }
+                    FactPayload::CarryOrigin { .. } => {
+                        let FactPlace::Place(fact_place) = fact.place else {
+                            return None;
+                        };
+                        let fact_label = crate::labels::canonical_place_label(
+                            program,
+                            semantic,
+                            semantic.places.get(fact_place),
+                        );
+                        (source_place.is_some_and(|source_place| {
+                            semantic.places_match(program, fact_place, source_place)
+                        }) || fact_label == source_label)
+                            .then_some((
+                                FactPayload::CarryOrigin {
+                                    value: ExpressionHandle::invalid(),
+                                },
+                                fact.evidence,
+                                Some((reference.fact, fact_place)),
+                            ))
+                    }
+                    FactPayload::BooleanExpression(expression) => {
+                        (program.expression_table.display_name(expression) == source_label)
+                            .then_some((
+                                FactPayload::BooleanExpression(expression),
+                                fact.evidence,
+                                None,
+                            ))
+                    }
+                    FactPayload::ContractBooleanExpression {
+                        expression,
+                        instantiated,
+                        ..
+                    } if !instantiated.is_valid() => {
+                        (program.expression_table.display_name(expression) == source_label)
+                            .then_some((
+                                FactPayload::BooleanExpression(expression),
+                                fact.evidence,
+                                None,
+                            ))
+                    }
+                    _ => None,
                 }
-                | FactPayload::ContractDomainMembership {
-                    domain,
-                    domain_symbol,
-                    ..
-                } => {
-                    let FactPlace::Place(fact_place) = fact.place else {
-                        return None;
-                    };
-                    let fact_label = crate::labels::canonical_place_label(
-                        program,
-                        semantic,
-                        semantic.places.get(fact_place),
-                    );
-                    (source_place.is_some_and(|source_place| {
-                        semantic.places_match(program, fact_place, source_place)
-                    }) || fact_label == source_label)
-                        .then_some((
-                            FactPayload::DomainMembership {
-                                value: ExpressionHandle::invalid(),
-                                domain,
-                                domain_symbol,
-                            },
-                            fact.evidence,
-                        ))
-                }
-                FactPayload::CarryPermission { permission, .. }
-                | FactPayload::ContractCarryPermission { permission, .. } => {
-                    let FactPlace::Place(fact_place) = fact.place else {
-                        return None;
-                    };
-                    let fact_label = crate::labels::canonical_place_label(
-                        program,
-                        semantic,
-                        semantic.places.get(fact_place),
-                    );
-                    (source_place.is_some_and(|source_place| {
-                        semantic.places_match(program, fact_place, source_place)
-                    }) || fact_label == source_label)
-                        .then_some((
-                            FactPayload::CarryPermission {
-                                value: ExpressionHandle::invalid(),
-                                permission,
-                            },
-                            fact.evidence,
-                        ))
-                }
-                FactPayload::CarryOrigin { .. } => {
-                    let FactPlace::Place(fact_place) = fact.place else {
-                        return None;
-                    };
-                    let fact_label = crate::labels::canonical_place_label(
-                        program,
-                        semantic,
-                        semantic.places.get(fact_place),
-                    );
-                    (source_place.is_some_and(|source_place| {
-                        semantic.places_match(program, fact_place, source_place)
-                    }) || fact_label == source_label)
-                        .then_some((
-                            FactPayload::CarryOrigin {
-                                value: ExpressionHandle::invalid(),
-                            },
-                            fact.evidence,
-                        ))
-                }
-                FactPayload::BooleanExpression(expression) => {
-                    (program.expression_table.display_name(expression) == source_label)
-                        .then_some((FactPayload::BooleanExpression(expression), fact.evidence))
-                }
-                FactPayload::ContractBooleanExpression {
-                    expression,
-                    instantiated,
-                    ..
-                } if !instantiated.is_valid() => {
-                    (program.expression_table.display_name(expression) == source_label)
-                        .then_some((FactPayload::BooleanExpression(expression), fact.evidence))
-                }
-                _ => None,
             })
             .collect();
 
-        for (payload, evidence) in facts_to_transfer {
+        for (payload, evidence, source) in facts_to_transfer {
             let fact = semantic.append_fact(Fact {
                 place: FactPlace::Place(target_place),
                 point: ProgramPoint::Statement {
@@ -167,6 +182,26 @@ pub(super) fn propagate_statement_transfers(
                 payload,
             });
             semantic.append_ref(&mut refs, fact);
+            if let Some((source_fact, source_fact_place)) = source {
+                if let Some(source_occurrence_place) = source_place {
+                    retain_qualification_correspondence(
+                        program,
+                        semantic,
+                        source_fact,
+                        fact,
+                        source_fact_place,
+                        source_occurrence_place,
+                        target_place,
+                        ProgramPoint::Statement {
+                            machine_symbol,
+                            state_symbol,
+                            statement_index,
+                        },
+                        payload,
+                        evidence,
+                    );
+                }
+            }
         }
     }
 
@@ -248,6 +283,128 @@ pub(super) fn propagate_statement_transfers(
     *active_constraints = next_constraints;
 }
 
+#[allow(clippy::too_many_arguments)]
+fn retain_qualification_correspondence(
+    program: &psi_typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    source_fact: psi_facts::FactHandle,
+    destination_fact: psi_facts::FactHandle,
+    source_place: PlaceHandle,
+    source_occurrence_place: PlaceHandle,
+    destination_place: PlaceHandle,
+    formation: ProgramPoint,
+    destination_payload: FactPayload,
+    evidence: QualificationEvidence,
+) {
+    if evidence.origin != psi_language_semantics::QualificationEvidenceOrigin::CheckedTransformation
+        || !exact_evidence_source(program, evidence)
+        || !exact_structural_symbol_place(program, semantic, source_place)
+        || !exact_structural_symbol_place(program, semantic, source_occurrence_place)
+        || !exact_structural_symbol_place(program, semantic, destination_place)
+        || !semantic.facts.is_valid(source_fact)
+        || !semantic.facts.is_valid(destination_fact)
+        || source_fact == destination_fact
+        || source_fact.arena_index() >= destination_fact.arena_index()
+        || source_place == destination_place
+        || !semantic.places_equal(source_place, source_occurrence_place)
+    {
+        return;
+    }
+    let source = semantic.facts.get(source_fact);
+    let destination = semantic.facts.get(destination_fact);
+    if source.place != FactPlace::Place(source_place)
+        || source.evidence != evidence
+        || destination.place != FactPlace::Place(destination_place)
+        || destination.point != formation
+        || destination.origin != FactOrigin::StatementTransfer
+        || destination.evidence != evidence
+        || destination.payload != destination_payload
+    {
+        return;
+    }
+    let Some(payload) = QualificationPayloadIdentity::from_fact_payload(source.payload) else {
+        return;
+    };
+    if QualificationPayloadIdentity::from_fact_payload(destination_payload) != Some(payload)
+        || !exact_qualification_payload(program, payload)
+    {
+        return;
+    }
+    semantic.append_qualification_correspondence(QualificationCorrespondence {
+        source_fact,
+        destination_fact,
+        source_occurrence_place,
+        source_place,
+        destination_place,
+        formation,
+        payload,
+        evidence,
+    });
+}
+
+fn exact_qualification_payload(
+    program: &psi_typed_trees::TypedTrees,
+    payload: QualificationPayloadIdentity,
+) -> bool {
+    match payload {
+        QualificationPayloadIdentity::DomainMembership {
+            domain,
+            domain_symbol,
+        } => {
+            domain_symbol.is_valid()
+                && program.symbols.get(domain_symbol).kind == psi_symbols::SymbolKind::Domain
+                && program.domain_path_members.span(domain).is_some()
+        }
+        QualificationPayloadIdentity::CarryPermission { .. }
+        | QualificationPayloadIdentity::CarryOrigin => true,
+    }
+}
+
+fn exact_evidence_source(
+    program: &psi_typed_trees::TypedTrees,
+    evidence: QualificationEvidence,
+) -> bool {
+    evidence.source_symbol.is_valid()
+        && evidence.requirement_symbol == SymbolHandle::invalid()
+        && evidence.receipt_identity == 0
+        && matches!(
+            program.symbols.get(evidence.source_symbol).kind,
+            psi_symbols::SymbolKind::Machine | psi_symbols::SymbolKind::Operator
+        )
+}
+
+fn exact_structural_symbol_place(
+    program: &psi_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    handle: PlaceHandle,
+) -> bool {
+    if !semantic.places.is_valid(handle) {
+        return false;
+    }
+    let place = semantic.places.get(handle);
+    let psi_facts::PlaceRoot::Symbol(root) = place.root else {
+        return false;
+    };
+    if !root.is_valid() || program.symbols.get(root).kind != psi_symbols::SymbolKind::Parameter {
+        return false;
+    }
+    let Some(segments) = semantic.place_segments.span(place.segments) else {
+        return false;
+    };
+    segments.iter().all(|segment| match segment {
+        psi_facts::PlaceSegment::Field { symbol } => {
+            symbol.is_valid() && program.symbols.get(*symbol).kind == psi_symbols::SymbolKind::Field
+        }
+        psi_facts::PlaceSegment::Case { variant } => {
+            variant.is_valid()
+                && program.symbols.get(*variant).kind == psi_symbols::SymbolKind::Variant
+        }
+        psi_facts::PlaceSegment::FixedIndex { .. }
+        | psi_facts::PlaceSegment::FixedRange { .. }
+        | psi_facts::PlaceSegment::Index { .. } => false,
+    })
+}
+
 fn contextual_expression_place(
     program: &psi_typed_trees::TypedTrees,
     semantic: &mut FactPlan,
@@ -264,4 +421,200 @@ fn contextual_expression_place(
         statement_index,
         expression,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_arena::HandleSpan;
+    use psi_facts::{Fact, FactOrigin, FactPlace, PlaceSegment};
+    use psi_symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    struct CorrespondenceFixture {
+        program: psi_typed_trees::TypedTrees,
+        semantic: FactPlan,
+        source_fact: psi_facts::FactHandle,
+        destination_fact: psi_facts::FactHandle,
+        source_place: PlaceHandle,
+        source_occurrence_place: PlaceHandle,
+        destination_place: PlaceHandle,
+        formation: ProgramPoint,
+        payload: FactPayload,
+        evidence: QualificationEvidence,
+        local: SymbolHandle,
+    }
+
+    fn correspondence_fixture() -> CorrespondenceFixture {
+        let mut symbols = SymbolTableBuilder::new();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = symbols.insert_children(
+            root,
+            [
+                (SymbolKind::Machine, SymbolNameRef::Static("transform")),
+                (SymbolKind::Domain, SymbolNameRef::Static("Ready")),
+                (SymbolKind::Field, SymbolNameRef::Static("source")),
+                (SymbolKind::Field, SymbolNameRef::Static("destination")),
+                (SymbolKind::Local, SymbolNameRef::Static("excluded_local")),
+            ],
+        );
+        let declarations = SymbolTableBuilder::child_handles(declarations).collect::<Vec<_>>();
+        let machine = declarations[0];
+        let domain = declarations[1];
+        let source_field = declarations[2];
+        let destination_field = declarations[3];
+        let local = declarations[4];
+        let machine_members = symbols.insert_children(
+            machine,
+            [
+                (SymbolKind::State, SymbolNameRef::Static("entry")),
+                (SymbolKind::Parameter, SymbolNameRef::Static("self")),
+            ],
+        );
+        let machine_members =
+            SymbolTableBuilder::child_handles(machine_members).collect::<Vec<_>>();
+        let state = machine_members[0];
+        let parameter = machine_members[1];
+        let program = psi_typed_trees::TypedTrees {
+            symbols: symbols.finish(),
+            ..psi_typed_trees::TypedTrees::default()
+        };
+
+        let mut semantic = FactPlan::default();
+        let source_place = semantic.append_symbol_place(parameter);
+        semantic.push_place_segment(
+            source_place,
+            PlaceSegment::Field {
+                symbol: source_field,
+            },
+        );
+        let destination_place = semantic.append_symbol_place(parameter);
+        semantic.push_place_segment(
+            destination_place,
+            PlaceSegment::Field {
+                symbol: destination_field,
+            },
+        );
+        let payload = FactPayload::DomainMembership {
+            value: ExpressionHandle::invalid(),
+            domain: HandleSpan::empty(),
+            domain_symbol: domain,
+        };
+        let evidence = QualificationEvidence::from_origin(
+            psi_language_semantics::QualificationEvidenceOrigin::CheckedTransformation,
+            machine,
+        );
+        let source_fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(source_place),
+            point: ProgramPoint::CallEnsures {
+                machine_symbol: machine,
+                state_symbol: state,
+                statement_index: 0,
+                call_ordinal: 0,
+            },
+            origin: FactOrigin::CallEnsures,
+            evidence,
+            payload,
+        });
+        let formation = ProgramPoint::Statement {
+            machine_symbol: machine,
+            state_symbol: state,
+            statement_index: 1,
+        };
+        let destination_fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(destination_place),
+            point: formation,
+            origin: FactOrigin::StatementTransfer,
+            evidence,
+            payload,
+        });
+        CorrespondenceFixture {
+            program,
+            semantic,
+            source_fact,
+            destination_fact,
+            source_place,
+            source_occurrence_place: source_place,
+            destination_place,
+            formation,
+            payload,
+            evidence,
+            local,
+        }
+    }
+
+    fn retain(fixture: &mut CorrespondenceFixture) {
+        retain_qualification_correspondence(
+            &fixture.program,
+            &mut fixture.semantic,
+            fixture.source_fact,
+            fixture.destination_fact,
+            fixture.source_place,
+            fixture.source_occurrence_place,
+            fixture.destination_place,
+            fixture.formation,
+            fixture.payload,
+            fixture.evidence,
+        );
+    }
+
+    #[test]
+    fn exact_parameter_field_correspondence_is_retained_once() {
+        let mut fixture = correspondence_fixture();
+        retain(&mut fixture);
+        retain(&mut fixture);
+        assert_eq!(fixture.semantic.qualification_correspondences.len(), 1);
+        let (_, retained) = fixture
+            .semantic
+            .qualification_correspondences
+            .iter()
+            .next()
+            .expect("exact retained correspondence");
+        assert_eq!(retained.source_fact, fixture.source_fact);
+        assert_eq!(retained.destination_fact, fixture.destination_fact);
+        assert_eq!(retained.source_place, fixture.source_place);
+        assert_eq!(
+            retained.source_occurrence_place,
+            fixture.source_occurrence_place
+        );
+        assert_eq!(retained.destination_place, fixture.destination_place);
+        assert_eq!(retained.formation, fixture.formation);
+        assert_eq!(retained.evidence, fixture.evidence);
+    }
+
+    #[test]
+    fn local_or_indexed_correspondence_is_not_retained() {
+        let mut local = correspondence_fixture();
+        local.semantic.places.get_mut(local.source_place).root =
+            psi_facts::PlaceRoot::Symbol(local.local);
+        retain(&mut local);
+        assert!(local.semantic.qualification_correspondences.is_empty());
+
+        let mut indexed = correspondence_fixture();
+        let root = indexed.semantic.places.get(indexed.source_place).root;
+        let indexed_place = indexed.semantic.append_place(psi_facts::Place {
+            root,
+            segments: HandleSpan::empty(),
+        });
+        indexed
+            .semantic
+            .push_place_segment(indexed_place, PlaceSegment::FixedIndex { index: 0 });
+        indexed.source_place = indexed_place;
+        indexed.semantic.facts.get_mut(indexed.source_fact).place = FactPlace::Place(indexed_place);
+        retain(&mut indexed);
+        assert!(indexed.semantic.qualification_correspondences.is_empty());
+
+        let mut mismatched_occurrence = correspondence_fixture();
+        mismatched_occurrence.source_occurrence_place = mismatched_occurrence.destination_place;
+        assert!(!mismatched_occurrence.semantic.places_equal(
+            mismatched_occurrence.source_place,
+            mismatched_occurrence.source_occurrence_place
+        ));
+        retain(&mut mismatched_occurrence);
+        assert!(
+            mismatched_occurrence
+                .semantic
+                .qualification_correspondences
+                .is_empty()
+        );
+    }
 }
