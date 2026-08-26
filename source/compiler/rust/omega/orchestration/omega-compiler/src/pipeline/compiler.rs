@@ -539,10 +539,8 @@ impl Compiler {
         // PRV4 adapter dispatch (both engines, after checking): semantic facts
         // stay attached to the admitted boundary requirement, while execution
         // alone is redirected to the uniquely selected checked adapter.
-        crate::pipeline::adapter_dispatch::rewrite_adapter_calls(
-            &mut Arc::get_mut(&mut checked.program)
-                .expect("checked program must be uniquely owned before backend fan-out")
-                .typed,
+        crate::pipeline::adapter_dispatch::settle_selected_boundary_adapter_dispatch(
+            &mut checked.program,
             &checked.selected_provider_plans,
         )?;
         crate::pipeline::task_plans::settle_compiler_task_activation_plans(

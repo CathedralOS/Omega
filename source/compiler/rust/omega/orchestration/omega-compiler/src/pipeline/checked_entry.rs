@@ -724,16 +724,14 @@ fn compile_to_checked_inner_with_replay(
         &mut checked.program,
         &selected_provider_plan_facts,
     )?;
-    let checked_program = Arc::get_mut(&mut checked.program)
-        .expect("checked program must be uniquely owned before engine handoff");
     // Preserve boundary-requirement proof/evidence at checking time, then
     // redirect only execution to the selected checked adapter.
-    crate::pipeline::adapter_dispatch::rewrite_adapter_calls(
-        &mut checked_program.typed,
+    crate::pipeline::adapter_dispatch::settle_selected_boundary_adapter_dispatch(
+        &mut checked.program,
         &selected_provider_plan_facts,
     )?;
     let task_activations = crate::pipeline::task_plans::elaborate_task_activation_plans(
-        checked_program,
+        &checked.program,
         &selected_provider_plan_facts,
         provider_selection_target,
     )?;
