@@ -7,6 +7,7 @@ mod instantiation;
 mod proof_obligations;
 mod propositions;
 mod qualification_evidence;
+mod resultless_laws;
 mod total_specification_arithmetic;
 
 fn parse_typed_trees(source: &str) -> psi_typed_trees::TypedTrees {

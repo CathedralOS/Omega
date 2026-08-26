@@ -7543,12 +7543,14 @@ Remaining N6/N8 work:
   selected theorem, precondition correspondence, or result-flow edge
   rejects independently; no quotient operation observes representative
   structure or acquires effects/custody beyond the initial integration fence.
-- **RESULTLESS-LAWS — remove dummy runtime results from theorem-only slots.**
-  A theorem-only machine publishes parameters, `requires`, and `ensures` but no
-  `Type` result. Migrate the law requirements in `CommutativeSemiring` and their
-  satisfiers, plus theorem-only helpers such as `add_int_respects_eq`, away from
-  dummy result types; retain return types only for machines that genuinely
-  compute an observed value in addition to proving a contract.
+- **RESULTLESS-LAWS — finish removing dummy runtime results from recursive
+  theorem-only slots.** A theorem-only machine publishes parameters,
+  `requires`, and `ensures` but no `Type` result. The nonrecursive
+  `CommutativeSemiring::mul_identity` slot, its satisfiers, and
+  `add_int_respects_eq` now use that surface. Migrate the remaining law
+  requirements and satisfiers away from dummy result types; retain return types
+  only for machines that genuinely compute an observed value in addition to
+  proving a contract.
   Resultless recursive proofs cite their smaller theorem application as a
   statement and consume its checked `ensures`.
 - **INDUCTIVE-CITATION-EDGES — check every consumed recursive theorem citation.**

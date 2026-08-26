@@ -18,11 +18,11 @@
 // compute-mode unfolding and explicit lemma citation; the checker has no
 // compiler-known zero/one form.
 //
-// Migration note: the `-> Self` results on LAW requirements below are legacy
-// onramp ceremony. The settled surface makes theorem-only law slots resultless;
-// RESULTLESS-LAWS migrates this declaration and its satisfiers together once
-// erased recursive statement citations carry the same ranked-cycle checking as
-// value-position calls.
+// Migration note: the remaining `-> Self` results on LAW requirements below
+// are legacy onramp ceremony. The nonrecursive multiplicative-identity slot is
+// already resultless. RESULTLESS-LAWS migrates each remaining slot with its
+// satisfiers once erased recursive statement citations carry the same
+// ranked-cycle checking as value-position calls.
 trait CommutativeSemiring {
     // Algebra operations are total mathematical functions. Publishing that
     // promise is what permits a selected implementation to denote a value in
@@ -41,7 +41,7 @@ trait CommutativeSemiring {
     ensures mul(a, b) == mul(b, a);
     machine mul_assoc(a: Self, b: Self, c: Self) -> Self
     ensures mul(mul(a, b), c) == mul(a, mul(b, c));
-    machine mul_identity(a: Self) -> Self
+    machine mul_identity(a: Self)
     ensures mul(a, one()) == a;
     machine mul_distributes(a: Self, b: Self, c: Self) -> Self
     ensures mul(a, add(b, c)) == add(mul(a, b), mul(a, c));
