@@ -160,8 +160,16 @@ triage, and source packets as live baselines, including standalone candidate
 packets when old source is unavailable. This capsule is not `omega.lock`: it
 cannot issue a package instance, resolve a conflict, or mutate a project.
 Its aggregate bounded renderer frames compiler-only triage separately from
-hostile source lanes. It does not yet invoke a model, and no advisory answer
-can mint admission or prove an audit occurred.
+hostile source lanes. The runner-neutral advisory boundary passes fixed system
+instructions separately from that bounded evidence; the package library chooses
+no model and supplies no ambient network authority. A caller-supplied output
+ceiling is enforced by an Omega-owned sink into which the runner streams. Only
+the exact canonical result envelope with one of two tokens—`recommend_audit` or
+`no_additional_audit`—is accepted, with no prose. Advice may add an
+audit recommendation but cannot suppress compiler recommendations, alter
+blockers, prove an audit, resolve conflicts, admit a package or evidence, set
+policy, or mutate project state. The outcome carries a commitment to the exact
+rendered input. Concrete provider/configuration and CLI wiring remain.
 
 The complete design is in:
 
@@ -1281,7 +1289,7 @@ omega-packages/
 |   |-- review_evidence.rs # Private live/recovered comparison evidence seam.
 |   |-- review_baseline.rs # Bounded restart-stable capsule and rooted file custody.
 |   |-- review_closure.rs # Shared exact-key compiler-review/custody checks.
-|   |-- source_review.rs   # Custody/evidence join and aggregate review input.
+|   |-- source_review.rs   # Custody/evidence join and bounded advisory boundary.
 |   |-- source_triage.rs   # Compiler-row source/provenance triage.
 |   |-- capability_conflict.rs # Bounded review-only exact row conflicts.
 |   |-- evidence.rs        # Compiler-issued package admission evidence.

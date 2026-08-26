@@ -1299,9 +1299,20 @@ than truncate. Binary or non-UTF-8 changes expose only size and a
 domain-separated content commitment and require standalone audit. Fixed
 grammar and byte escaping prevent source from forging renderer structure, but
 cannot prevent semantic prompt injection in code under review. Model invocation
-remains future work. The implemented join requires a bijection between the
-complete candidate closure and compiler rows by exact key and immutable
-resolution. Its shared validator also rejects duplicate reviews,
+now has a runner-neutral advisory boundary: fixed system instructions remain
+separate from bounded rendered evidence; the package library chooses no model
+and supplies no ambient network authority. The runner streams response bytes
+into an Omega-owned sink enforcing the caller-supplied output ceiling. Only the
+exact canonical result envelope
+with one of two tokens—`recommend_audit` or `no_additional_audit`—is accepted,
+without prose. The recommendation is monotone: it may add audit, but cannot
+suppress compiler recommendations, alter blockers, prove an audit, resolve
+conflicts, admit a package or evidence, set policy, or mutate state.
+The outcome is bound to the exact rendered input by a domain-separated
+commitment. Provider/configuration and CLI wiring remain. The implemented join
+requires a
+bijection between the complete candidate closure and compiler rows by exact key
+and immutable resolution. Its shared validator also rejects duplicate reviews,
 package/projection identity mismatch, mixed deployment targets, and mixed
 compiler-executable commitments before either capability comparison or source
 rendering. It validates every recovered baseline custody against its row and

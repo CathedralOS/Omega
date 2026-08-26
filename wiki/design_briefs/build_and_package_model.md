@@ -944,8 +944,18 @@ deployment targets, and mixed compiler-executable commitments before either
 capability comparison or source rendering. Recovered baseline custody is
 validated against its compiler row, and unavailable old source is derived from
 absence. Its aggregate ceiling preserves separate compiler and hostile-source
-frames. Invoking a model remains future work. Model output is
-policy advice, never package evidence or proof of review.
+frames. The implemented runner-neutral advisory boundary keeps fixed system
+instructions separate from bounded rendered evidence; the package library
+selects no model and supplies no ambient network authority. The runner streams
+response bytes into an Omega-owned sink enforcing the caller-supplied output
+ceiling. Only the exact
+canonical result envelope with one of two tokens—`recommend_audit` or
+`no_additional_audit`—is accepted, with no prose. The result is
+monotone policy advice: it may add an audit recommendation, but cannot suppress
+compiler recommendations, alter blockers, prove an audit, resolve conflicts,
+admit a package or evidence, set policy, or mutate state. Concrete
+provider/configuration and CLI wiring remain. The outcome is bound to the exact
+rendered input by a domain-separated commitment.
 
 ## Package admission projection
 
