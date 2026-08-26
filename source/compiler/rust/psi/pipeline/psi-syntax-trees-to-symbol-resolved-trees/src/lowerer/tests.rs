@@ -1631,6 +1631,83 @@ fn retains_exact_expression_selection_symbols() {
 }
 
 #[test]
+fn outcome_specific_ensures_normalizes_only_against_declared_result_sum() {
+    let source = r#"
+        data Outcome { case Success; case Failure; }
+        machine choose() -> Outcome
+        ensures Outcome::Success -> { true; }
+        { Outcome::Success }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize guarded guarantee");
+    let syntax = parse_syntax_trees(&tokens).expect("parse guarded guarantee");
+    let program = lower_syntax_trees(&syntax).expect("resolve guarded guarantee");
+    let outcome = program
+        .data_definitions
+        .iter()
+        .find(|data| data.name.as_str() == "Outcome")
+        .expect("Outcome data");
+    let success = program
+        .data_members(outcome.members)
+        .iter()
+        .find_map(|member| match member {
+            psi_symbol_resolved_trees::data::DataMember::Variant(variant)
+                if variant.name.as_str() == "Success" =>
+            {
+                Some(variant)
+            }
+            _ => None,
+        })
+        .expect("Success case");
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "choose")
+        .expect("choose machine");
+    let [contract] = program.machine_contracts(machine) else {
+        panic!("one guarded guarantee row")
+    };
+    assert_eq!(
+        contract.kind,
+        psi_symbol_resolved_trees::signature::SignatureContractKind::EnsuresForResultCase {
+            result_data: outcome.symbol,
+            result_case: success.symbol,
+        }
+    );
+}
+
+#[test]
+fn outcome_specific_ensures_rejects_non_sum_and_foreign_cases() {
+    for (source, expected) in [
+        (
+            "data Record {} machine choose() -> Record ensures Record::Success -> { true; } { Record {} }",
+            "requires a sum result",
+        ),
+        (
+            "data Outcome { case Success; } machine choose() -> Outcome ensures Outcome::Missing -> { true; } { Outcome::Success }",
+            "unknown case `Missing`",
+        ),
+        (
+            "data Outcome { case Success; } data Other { case Success; } machine choose() -> Outcome ensures Other::Success -> { true; } { Outcome::Success }",
+            "does not belong to declared result sum `Outcome`",
+        ),
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize invalid guarded guarantee");
+        let syntax = parse_syntax_trees(&tokens).expect("parse invalid guarded guarantee");
+        let diagnostics = lower_syntax_trees(&syntax).expect_err("guard resolution must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "expected {expected:?}, got: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn captures_resolved_calls_and_late_checked_operators_in_private_bodies() {
     let source = r#"
         machine identity(value: u32) -> u32 { value }

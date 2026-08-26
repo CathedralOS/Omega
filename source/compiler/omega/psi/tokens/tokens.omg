@@ -112,8 +112,8 @@ data TokenKind [copy] {
 data Token [copy] {
     kind: TokenKind;
     source_span: SourceSpan;
-    decoded_start: u32 in Trapping;
-    decoded_length: u32 in Trapping;
+    decoded_start: u64 in Trapping;
+    decoded_length: u64 in Trapping;
 }
 
 data LexDiagnosticCode [copy] {
@@ -146,9 +146,9 @@ data LexDiagnostic [copy] {
 
 data TokenStream {
     tokens: [Token; 16384] in Trapping;
-    token_count: u32 [0..=16384];
+    token_count: u64 [0..=16384];
     decoded: [u8; 65536] in Trapping;
-    decoded_length: u32 [0..=65536];
+    decoded_length: u64 [0..=65536];
     diagnostic: LexDiagnostic;
     accepted: bool;
     last_retained: bool;
@@ -169,8 +169,8 @@ machine TokenStream::reject(
     &mut self,
     source: SourceId,
     code: LexDiagnosticCode,
-    start: u32 in Trapping,
-    end: u32 in Trapping
+    start: u64 in Trapping,
+    end: u64 in Trapping
 ) {
     self.accepted = false;
     self.diagnostic.code = code;
@@ -183,10 +183,10 @@ machine TokenStream::push(
     &mut self,
     source: SourceId,
     kind: TokenKind,
-    start: u32 in Trapping,
-    end: u32 in Trapping,
-    decoded_start: u32 in Trapping,
-    decoded_length: u32 in Trapping
+    start: u64 in Trapping,
+    end: u64 in Trapping,
+    decoded_start: u64 in Trapping,
+    decoded_length: u64 in Trapping
 ) {
     self.last_retained = false;
     transition self.token_count < 16384 {

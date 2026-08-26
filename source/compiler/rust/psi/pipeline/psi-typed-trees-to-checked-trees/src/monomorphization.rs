@@ -4534,8 +4534,17 @@ fn encode_contract_kind(
     output.push(match kind {
         psi_typed_trees::signature::SignatureContractKind::Requires => 1,
         psi_typed_trees::signature::SignatureContractKind::Ensures => 2,
+        psi_typed_trees::signature::SignatureContractKind::EnsuresForResultCase { .. } => 3,
         psi_typed_trees::signature::SignatureContractKind::Crashes { .. } => 4,
     });
+    if let psi_typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
+        result_data,
+        result_case,
+    } = kind
+    {
+        output.extend_from_slice(&result_data.arena_index().to_le_bytes());
+        output.extend_from_slice(&result_case.arena_index().to_le_bytes());
+    }
     if let psi_typed_trees::signature::SignatureContractKind::Crashes { cause } = kind {
         output.push(match cause {
             psi_typed_trees::signature::CrashCause::Trap => 1,

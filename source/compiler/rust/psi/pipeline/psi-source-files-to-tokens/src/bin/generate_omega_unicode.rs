@@ -102,7 +102,7 @@ fn main() {
     writeln!(output, "    transition {{ _ -> scan(0) }}").unwrap();
     writeln!(
         output,
-        "    state scan(&mut self, index: u32 in Trapping) {{"
+        "    state scan(&mut self, index: u64 in Trapping) {{"
     )
     .unwrap();
     writeln!(
@@ -114,14 +114,14 @@ fn main() {
     writeln!(output, "    }}").unwrap();
     writeln!(
         output,
-        "    state check(&mut self, index: u32 in Trapping) {{"
+        "    state check(&mut self, index: u64 in Trapping) {{"
     )
     .unwrap();
     writeln!(output, "        transition scalar < self.xid_start[index].first {{ true -> absent() _ -> upper(index) }}").unwrap();
     writeln!(output, "    }}").unwrap();
     writeln!(
         output,
-        "    state upper(&mut self, index: u32 in Trapping) {{"
+        "    state upper(&mut self, index: u64 in Trapping) {{"
     )
     .unwrap();
     writeln!(output, "        transition scalar <= self.xid_start[index].last {{ true -> present() _ -> scan(index + 1) }}").unwrap();
@@ -147,7 +147,7 @@ fn main() {
     writeln!(output, "    transition {{ _ -> scan(0) }}").unwrap();
     writeln!(
         output,
-        "    state scan(&mut self, index: u32 in Trapping) {{"
+        "    state scan(&mut self, index: u64 in Trapping) {{"
     )
     .unwrap();
     writeln!(
@@ -159,14 +159,14 @@ fn main() {
     writeln!(output, "    }}").unwrap();
     writeln!(
         output,
-        "    state check(&mut self, index: u32 in Trapping) {{"
+        "    state check(&mut self, index: u64 in Trapping) {{"
     )
     .unwrap();
     writeln!(output, "        transition scalar < self.xid_continue[index].first {{ true -> absent() _ -> upper(index) }}").unwrap();
     writeln!(output, "    }}").unwrap();
     writeln!(
         output,
-        "    state upper(&mut self, index: u32 in Trapping) {{"
+        "    state upper(&mut self, index: u64 in Trapping) {{"
     )
     .unwrap();
     writeln!(output, "        transition scalar <= self.xid_continue[index].last {{ true -> present() _ -> scan(index + 1) }}").unwrap();

@@ -6,7 +6,10 @@
 //! dynamic-link implementation can consume these rows without rediscovering
 //! import identity from spellings or ambient libraries.
 
-use omega_image::{FinalImage, FinalImageRelocation, FinalImageSection, FinalImageSymbolHandle};
+use omega_image::{
+    FinalImage, FinalImageImportPlan, FinalImageRelocation, FinalImageSection,
+    FinalImageSymbolHandle,
+};
 use omega_object_file::SymbolKind;
 use psi_diagnostics::Diagnostic;
 
@@ -49,8 +52,23 @@ pub(crate) fn canonical_referenced_imports(
                 symbol.name
             )));
         }
-        if import.library.is_empty()
-            || import.library.as_bytes().contains(&0)
+        let library = match &import.import {
+            FinalImageImportPlan::StringBackedBootstrap { library } => library,
+            FinalImageImportPlan::Normalized(locator) => {
+                return Err(Diagnostic::error(format!(
+                    "normalized foreign locator 0x{:016x} reached ELF emission before symbol-version semantics are implemented",
+                    locator.normalized_identity(),
+                )));
+            }
+            FinalImageImportPlan::None => {
+                return Err(Diagnostic::error(format!(
+                    "ELF import `{}` has no retained physical import plan",
+                    symbol.name
+                )));
+            }
+        };
+        if library.is_empty()
+            || library.as_bytes().contains(&0)
             || symbol.name.is_empty()
             || symbol.name.as_bytes().contains(&0)
         {
@@ -71,7 +89,7 @@ pub(crate) fn canonical_referenced_imports(
         if !relocations.is_empty() {
             requests.push(ElfImportRequest {
                 symbol_handle: import.symbol_handle,
-                library: import.library.clone(),
+                library: library.clone(),
                 symbol: symbol.name.clone(),
                 relocations,
             });
@@ -105,7 +123,10 @@ pub(crate) fn canonical_referenced_imports(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_image::{FinalImageImport, FinalImageMemory, FinalImageRelocation, FinalImageSymbol};
+    use omega_image::{
+        FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
+        FinalImageSymbol,
+    };
     use omega_object_file::RelocationKind;
     use psi_arena::Handle;
 
@@ -130,7 +151,9 @@ mod tests {
         });
         image.symbol_table.imports.insert(FinalImageImport {
             symbol_handle: imported,
-            library: "libomega-probes.so".into(),
+            import: FinalImageImportPlan::StringBackedBootstrap {
+                library: "libomega-probes.so".into(),
+            },
         });
         for offset in [4, 12] {
             image
@@ -186,8 +209,9 @@ mod tests {
             .symbol_table
             .imports
             .get_mut(import_handle)
-            .library
-            .clear();
+            .import = FinalImageImportPlan::StringBackedBootstrap {
+            library: String::new(),
+        };
         assert!(canonical_referenced_imports(&unqualified).is_err());
     }
 }

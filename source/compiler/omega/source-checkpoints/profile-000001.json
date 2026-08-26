@@ -3,8 +3,8 @@
   "checkpoint": 1,
   "status": "provisional",
   "checkpoint_manifest": "source/compiler/omega/source-checkpoints/checkpoint-000001.json",
-  "checkpoint_closure_sha256": "2b87543320ed59b54de6aa5c0cc75cafa1e3fd12180dedf5e509389651e0ee78",
-  "checkpoint_content_set_sha256": "21cbf04cb16e93e3a111d20644757e77b29f6548a39a360671e140b70af263c9",
+  "checkpoint_closure_sha256": "5d3531e739fcb32e48169c8ecf4ee8f4c2b9263b3815f0ea902805d34354cb3e",
+  "checkpoint_content_set_sha256": "3e884919abd4955dbe0135809cd3bca0a1b39670c13e0270af5645d4d2034c9f",
   "feature_catalog": "omega.omega-self-feature-catalog.v2",
   "census_schema": "omega.omega-source-feature-census.v2",
   "configuration_policy": {
@@ -524,5 +524,5 @@
       "missing_evidence": "typed census facts beyond syntax-spelled data where, domain, generic, and inline aggregate forms"
     }
   ],
-  "profile_sha256": "06e4a42015ee3fd9f098b4720748356b736f88418cf19041f61cf546568f7b15"
+  "profile_sha256": "69aca35e9d032642e4781cb24d5262b651f7a38b0dcdaf477adac9259fc357d3"
 }

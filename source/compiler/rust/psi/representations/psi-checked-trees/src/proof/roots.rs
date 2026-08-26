@@ -3,13 +3,14 @@ use psi_arena::Arena;
 use crate::{
     CheckedEvidenceTerm, ContractCallFact, ContractEvidenceArgument, ContractExitFact,
     ContractOperatorUseFact, ContractProofFact, ContractProofFactRef, EvidenceForwardingFact,
-    ProofObligationFact, ProofOutputCallFact,
+    OutcomeSpecificGuaranteeFact, ProofObligationFact, ProofOutputCallFact,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProofFacts {
     pub obligations: Arena<ProofObligationFact>,
     pub contract_facts: Arena<ContractProofFact>,
+    pub outcome_specific_guarantees: Arena<OutcomeSpecificGuaranteeFact>,
     pub evidence_terms: Arena<CheckedEvidenceTerm>,
     pub contract_evidence_arguments: Arena<ContractEvidenceArgument>,
     pub evidence_forwardings: Arena<EvidenceForwardingFact>,
@@ -32,6 +33,7 @@ impl ProofFacts {
     pub fn with_roots(
         obligations: Arena<ProofObligationFact>,
         contract_facts: Arena<ContractProofFact>,
+        outcome_specific_guarantees: Arena<OutcomeSpecificGuaranteeFact>,
         evidence_terms: Arena<CheckedEvidenceTerm>,
         contract_evidence_arguments: Arena<ContractEvidenceArgument>,
         evidence_forwardings: Arena<EvidenceForwardingFact>,
@@ -47,6 +49,7 @@ impl ProofFacts {
         Self {
             obligations,
             contract_facts,
+            outcome_specific_guarantees,
             evidence_terms,
             contract_evidence_arguments,
             evidence_forwardings,
@@ -67,7 +70,7 @@ mod tests {
     use crate::{
         CheckedEvidenceTerm, ContractCallFact, ContractEvidenceArgument, ContractExitFact,
         ContractOperatorUseFact, ContractProofFact, ContractProofFactRef, EvidenceForwardingFact,
-        ProofFacts, ProofObligationFact, ProofOutputCallFact,
+        OutcomeSpecificGuaranteeFact, ProofFacts, ProofObligationFact, ProofOutputCallFact,
     };
     use psi_arena::Arena;
 
@@ -75,6 +78,7 @@ mod tests {
     fn proof_facts_constructor_keeps_proof_roots_explicit() {
         let obligations = Arena::<ProofObligationFact>::with_capacity(1);
         let contract_facts = Arena::<ContractProofFact>::with_capacity(2);
+        let outcome_specific_guarantees = Arena::<OutcomeSpecificGuaranteeFact>::with_capacity(2);
         let evidence_terms = Arena::<CheckedEvidenceTerm>::with_capacity(2);
         let contract_evidence_arguments = Arena::<ContractEvidenceArgument>::with_capacity(2);
         let evidence_forwardings = Arena::<EvidenceForwardingFact>::with_capacity(2);
@@ -90,6 +94,7 @@ mod tests {
         let facts = ProofFacts::with_roots(
             obligations.clone(),
             contract_facts.clone(),
+            outcome_specific_guarantees.clone(),
             evidence_terms.clone(),
             contract_evidence_arguments.clone(),
             evidence_forwardings.clone(),
@@ -105,6 +110,10 @@ mod tests {
 
         assert_eq!(facts.obligations, obligations);
         assert_eq!(facts.contract_facts, contract_facts);
+        assert_eq!(
+            facts.outcome_specific_guarantees,
+            outcome_specific_guarantees
+        );
         assert_eq!(facts.evidence_terms, evidence_terms);
         assert_eq!(
             facts.contract_evidence_arguments,

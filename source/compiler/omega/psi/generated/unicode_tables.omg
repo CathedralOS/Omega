@@ -1520,13 +1520,13 @@ machine UnicodeTables::initialize(&mut self) {
 machine UnicodeTables::is_xid_start(&mut self, scalar: u32 in Trapping) {
     self.last_result = false;
     transition { _ -> scan(0) }
-    state scan(&mut self, index: u32 in Trapping) {
+    state scan(&mut self, index: u64 in Trapping) {
         transition index < 691 { true -> check(index) _ -> absent() }
     }
-    state check(&mut self, index: u32 in Trapping) {
+    state check(&mut self, index: u64 in Trapping) {
         transition scalar < self.xid_start[index].first { true -> absent() _ -> upper(index) }
     }
-    state upper(&mut self, index: u32 in Trapping) {
+    state upper(&mut self, index: u64 in Trapping) {
         transition scalar <= self.xid_start[index].last { true -> present() _ -> scan(index + 1) }
     }
     state present(&mut self) { self.last_result = true; }
@@ -1536,13 +1536,13 @@ machine UnicodeTables::is_xid_start(&mut self, scalar: u32 in Trapping) {
 machine UnicodeTables::is_xid_continue(&mut self, scalar: u32 in Trapping) {
     self.last_result = false;
     transition { _ -> scan(0) }
-    state scan(&mut self, index: u32 in Trapping) {
+    state scan(&mut self, index: u64 in Trapping) {
         transition index < 806 { true -> check(index) _ -> absent() }
     }
-    state check(&mut self, index: u32 in Trapping) {
+    state check(&mut self, index: u64 in Trapping) {
         transition scalar < self.xid_continue[index].first { true -> absent() _ -> upper(index) }
     }
-    state upper(&mut self, index: u32 in Trapping) {
+    state upper(&mut self, index: u64 in Trapping) {
         transition scalar <= self.xid_continue[index].last { true -> present() _ -> scan(index + 1) }
     }
     state present(&mut self) { self.last_result = true; }

@@ -74,6 +74,13 @@ pub(crate) fn lower_operator_definition(
                     psi_symbol_resolved_trees::signature::SignatureContractKind::Ensures => {
                         psi_typed_trees::signature::SignatureContractKind::Ensures
                     }
+                    psi_symbol_resolved_trees::signature::SignatureContractKind::EnsuresForResultCase {
+                        result_data,
+                        result_case,
+                    } => psi_typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
+                        result_data: *result_data,
+                        result_case: *result_case,
+                    },
                     psi_symbol_resolved_trees::signature::SignatureContractKind::Crashes {
                         cause,
                     } => psi_typed_trees::signature::SignatureContractKind::Crashes {

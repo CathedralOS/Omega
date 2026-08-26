@@ -1,7 +1,7 @@
 use crate::{ObjectPlan, ObjectSymbolHandle, SectionKind, SymbolPlan, SymbolSection};
 use omega_core::runtime_storage::RuntimeStorageRegion;
 use omega_function_identity::MachineFunctionIdentity;
-use omega_target::{NativeTarget, ObjectFormat};
+use omega_target::{NativeTarget, NormalizedForeignLocator, ObjectFormat};
 
 pub fn object_symbol_handle_by_name(object: &ObjectPlan, symbol_name: &str) -> ObjectSymbolHandle {
     object
@@ -11,6 +11,45 @@ pub fn object_symbol_handle_by_name(object: &ObjectPlan, symbol_name: &str) -> O
         .find(|(_, symbol)| symbol.name == symbol_name)
         .map(|(handle, _)| handle)
         .unwrap_or_else(psi_arena::Handle::invalid)
+}
+
+/// Resolve one exact normalized foreign locator to its object import symbol.
+/// Missing, duplicate, or malformed rows fail closed; diagnostic symbol names
+/// never participate in this join.
+pub fn object_symbol_handle_by_foreign_locator(
+    object: &ObjectPlan,
+    locator: &NormalizedForeignLocator,
+) -> ObjectSymbolHandle {
+    let mut matches = object
+        .layout
+        .normalized_imports
+        .iter()
+        .filter(|import| &import.locator == locator);
+    let Some(import) = matches.next() else {
+        return psi_arena::Handle::invalid();
+    };
+    if matches.next().is_some() {
+        return psi_arena::Handle::invalid();
+    }
+    if !object.layout.symbols.is_valid(import.symbol) {
+        return psi_arena::Handle::invalid();
+    }
+    let symbol = object.layout.symbols.get(import.symbol);
+    (symbol.kind == crate::SymbolKind::Import
+        && symbol.section == SymbolSection::None
+        && symbol.offset == 0
+        && symbol.size == 0)
+        .then_some(import.symbol)
+        .unwrap_or_else(psi_arena::Handle::invalid)
+}
+
+/// Stable diagnostic/linker-local label for an atomic foreign import. The
+/// spelling is not the physical export name and grants no lookup authority.
+pub fn normalized_foreign_import_symbol_name(locator: &NormalizedForeignLocator) -> String {
+    format!(
+        "__omega_foreign_import_{:016x}",
+        locator.normalized_identity()
+    )
 }
 
 pub fn object_symbol_name(object: &ObjectPlan, symbol: ObjectSymbolHandle) -> &str {
@@ -96,8 +135,12 @@ pub fn section_name(target: NativeTarget, kind: SectionKind) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::private_function_symbol_name;
+    use super::{object_symbol_handle_by_foreign_locator, private_function_symbol_name};
+    use crate::{NormalizedImportPlan, ObjectPlan, SymbolKind, SymbolPlan, SymbolSection};
     use omega_function_identity::{MachineFunctionIdentity, StateKey};
+    use omega_target::{
+        ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator,
+    };
 
     #[test]
     fn private_function_names_bind_role_handles_generations_and_segment() {
@@ -147,6 +190,56 @@ mod tests {
                     .expect("callback identity")
             )
             .is_none()
+        );
+    }
+
+    #[test]
+    fn foreign_locator_lookup_joins_exact_coordinates_and_rejects_duplicates() {
+        let locator = normalize_foreign_locator(
+            ForeignLocatorCandidate::PeByName {
+                library: b"raw\xff.dll".to_vec(),
+                export: b"entry".to_vec(),
+            },
+            TargetProfile::WindowsX64,
+        )
+        .expect("valid locator");
+        let mutated = normalize_foreign_locator(
+            ForeignLocatorCandidate::PeByName {
+                library: b"raw\xff.dll".to_vec(),
+                export: b"entry2".to_vec(),
+            },
+            TargetProfile::WindowsX64,
+        )
+        .expect("valid mutated locator");
+        let mut object = ObjectPlan::with_capacity(NativeTarget::windows_x64(), 0, 1);
+        let symbol = object.layout.symbols.insert(SymbolPlan {
+            name: "diagnostic-only".into(),
+            section: SymbolSection::None,
+            offset: 0,
+            size: 0,
+            kind: SymbolKind::Import,
+            import_library: String::new(),
+        });
+        object.layout.normalized_imports.push(NormalizedImportPlan {
+            symbol,
+            locator: locator.clone(),
+        });
+        assert_eq!(
+            object_symbol_handle_by_foreign_locator(&object, &locator),
+            symbol
+        );
+        assert!(
+            !object_symbol_handle_by_foreign_locator(&object, &mutated).is_valid(),
+            "coordinate mutation must not fall back to diagnostic spelling"
+        );
+
+        object.layout.normalized_imports.push(NormalizedImportPlan {
+            symbol,
+            locator: locator.clone(),
+        });
+        assert!(
+            !object_symbol_handle_by_foreign_locator(&object, &locator).is_valid(),
+            "ambiguous exact rows must fail closed"
         );
     }
 }

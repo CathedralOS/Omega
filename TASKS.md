@@ -36,6 +36,12 @@ Compiler validation and code generation may consume general plans. They must
 not acquire customer-shaped semantic types, lifecycle states, writers,
 scanners, or receipts.
 
+Optimizer architecture is specified in
+[`optimizer_architecture.md`](wiki/design_briefs/optimizer_architecture.md), and
+its detailed execution queue lives in
+[`TASKS_OPTIMIZER.md`](TASKS_OPTIMIZER.md). Keep the product-compiler ownership
+task here; do not duplicate optimizer pass milestones in both queues.
+
 ## Omega-written hosted product compiler
 
 Remaining:
@@ -135,16 +141,14 @@ Remaining:
   current Omega-written lexer accepts Unicode XID identifiers despite the
   guide's ASCII-transparent/source-payload-only wording, accepts `\u{...}`
   escapes even though the guide forbids codepoint-to-byte escapes, and accepts
-  raw strings whose delimiter/content rules are not yet normative there. Its
-  `u32` cursors also flow into fixed-array indexing and compare directly with
-  slice `.len`, while the specified `Array`/`Slice` index and count interfaces
-  use `u64`. Chapter 5 now settles explicit denotation-preserving integer
-  widening with `as` and separately forbids implicit widening; it does not make
-  these direct `u32`/`u64` uses valid. The product owner must refactor them to
-  explicit conversions or obtain a distinct heterogeneous-conversion/comparison
-  ruling, then preserve the corresponding rejection canaries. Until then, the
-  checkpoint records tested implementation behavior but does not claim
-  full-spec lexical conformance for those forms.
+  raw strings whose delimiter/content rules are not yet normative there. The
+  product source now uses the specified `u64` `Array`/`Slice` index and count
+  carrier for byte coordinates, collection counts, and scan indices throughout
+  the checkpoint while retaining `u32` for Unicode scalar values; the earlier
+  implicit `u32`/`u64` indexing and `.len` comparisons are gone without adding
+  a heterogeneous-conversion rule. The checkpoint still records the three
+  unsettled lexical behaviors but does not claim full-spec lexical conformance
+  for them.
 
   Two broader evaluation/layout rulings must also close before a source
   checkpoint may depend on them observably. Call-argument and aggregate-literal
@@ -5132,8 +5136,14 @@ Remaining:
   exact `Aarch64Branch26`, `Aarch64Page21`, and `Aarch64PageOffset12`
   relocations, emits through the ELF AArch64 path, and decodes final `BL` plus
   `ADRP`/`ADD` instructions to require the exact sponsor target and `.text`
-  base. The remaining native slice is to connect the admitted runtime into
-  deployed dynamic roots.
+  base. An explicit deployed dynamic-root constructor now selects the dynamic
+  realization from the exact root fuel column and execution environment, binds
+  the sealed attribution and transfer runtime against the exact installed-code
+  occurrence, and then reuses root/provider/slot/trust admission; the ordinary
+  constructor remains fixed-only and substituted installed halves reject. The
+  remaining native slice is deployment-coordinator carriage: no production
+  coordinator currently owns both the final installed attribution and live
+  sponsor-route runtime values needed to call that constructor.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof
@@ -7611,6 +7621,15 @@ Remaining N6/N8 work:
      signature compatibility, canonical codec identity, derivation provenance,
      and verifier replay without adding runtime operations.
 
+  Stage 1 is live. The parser admits only `Result::Case -> { guarantees }`,
+  gives the group no identity, enforces one exact guarantee per row, and rejects
+  Boolean/case-literal ambiguity, duplicate case groups, and duplicate machine-
+  wide public selectors. Resolution accepts only the declared nominal result
+  sum, stamps its exact data/case symbols after declaration assignment, and
+  rejects non-sum, foreign, or unknown cases. Typed and checked trees retain the
+  guarded rows separately from unconditional facts; exit assignment, caller-arm
+  availability, and Terminal lowering remain fail-closed until stages 2-5 land.
+
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct
   concrete calls may see the stronger merged row set while requirement calls see
@@ -7868,13 +7887,21 @@ boundary without its corresponding checked law.
   convention bridge is now live: the sealed locator survives compiler provider
   extraction through `ExternalBindingKind`, `HostImportLocator`, and
   `HostBindingMechanism`, with target drift rejected before host-ABI insertion.
-  Machine emission, runtime replay, and object-symbol planning explicitly fail
-  closed on normalized rows at the still-string-backed physical boundary rather
-  than reconstructing text.
+  Object planning now retains an atomic locator side table keyed by the exact
+  object symbol, deduplicates exact rows, rejects target drift, and carries the
+  normalized case into final-image import identity. Relocation planning joins
+  normalized calls by exact locator equality and rejects missing or ambiguous
+  rows. PE final emission consumes raw `PeByName` library/export bytes without
+  UTF-8 reconstruction and emits `PeByOrdinal` through the ordinal flag in both
+  lookup tables; malformed coordinates, duplicate rows, and target drift reject
+  before mutation. Versioned ELF and Mach-O normalized rows remain explicit
+  fail-closed boundaries rather than being reconstructed as text. Production
+  machine emission and runtime replay likewise remain string-backed and fail
+  closed on normalized rows.
   The existing source evaluator is isolated behind an explicitly temporary
   `StringBackedImportBootstrap` variant. Source `via` evaluation, exact fixed-
-  array widths, object-format-specific PE-name/PE-ordinal/versioned-ELF planning,
-  and PE/ELF emission remain engineering joins.
+  array widths, normalized outbound-call machine emission/runtime replay, and
+  versioned-ELF symbol-version planning/emission remain engineering joins.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no

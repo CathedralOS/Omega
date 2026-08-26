@@ -315,6 +315,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
         match kind {
             SignatureContractKind::Requires => "requires",
             SignatureContractKind::Ensures => "ensures",
+            SignatureContractKind::EnsuresForResultCase { .. } => "outcome-specific ensures",
             SignatureContractKind::Crashes { .. } => "crashes",
         }
     }
@@ -765,6 +766,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         match kind {
             SignatureContractKind::Requires => "requires",
             SignatureContractKind::Ensures => "ensures",
+            SignatureContractKind::EnsuresForResultCase { .. } => "outcome-specific ensures",
             SignatureContractKind::Crashes { .. } => "crashes",
         }
     }

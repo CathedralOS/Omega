@@ -218,7 +218,7 @@ fn installed_code_with_fill_and_installation_identity(
     install_validated(validated, install_authority, installation_receipt).expect("installed code")
 }
 
-fn boundary() -> ValidatedBoundaryEntryPlan {
+pub(crate) fn boundary() -> ValidatedBoundaryEntryPlan {
     evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::SystemVAMD64,
         &CallSignature {
@@ -458,7 +458,7 @@ fn candidate_for_code(entry: EntryStubId, code: &InstalledCode) -> ExternalRootC
     candidate_for_code_with_root(entry, code, 1)
 }
 
-fn candidate_for_code_with_root(
+pub(crate) fn candidate_for_code_with_root(
     entry: EntryStubId,
     code: &InstalledCode,
     root_identity: u64,
@@ -1187,7 +1187,7 @@ fn slot() -> RootSlotAuthority {
     )
 }
 
-fn provider_execution(root: &ValidatedExternalRoot) -> ProviderExecution {
+pub(crate) fn provider_execution(root: &ValidatedExternalRoot) -> ProviderExecution {
     ProviderExecution::from_admitted_provider(
         root_id(54, ProviderExecutionId::from_normalized_identity),
         root,

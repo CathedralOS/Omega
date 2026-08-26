@@ -5,38 +5,127 @@ use omega_calling_conventions::{
     MachineState, MachineStateSet, RegisterSet, StateFootprintEvidence,
 };
 use omega_image::{
-    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageLayout,
-    FinalImageSection,
+    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageImportPlan,
+    FinalImageLayout, FinalImageSection,
 };
+use omega_object_file::SymbolKind;
+use omega_target::{Architecture, ForeignLocatorCandidate, ObjectFormat, TargetProfile};
 use psi_diagnostics::Diagnostic;
+
+const IMAGE_ORDINAL_FLAG64: u64 = 1 << 63;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum PeImportLookup {
+    ByName(Vec<u8>),
+    ByOrdinal(u16),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PeImportThunk {
+    /// Object-local diagnostic label. Physical lookup never uses this field.
     pub(crate) symbol: String,
-    /// Library named by the external binding. Empty requests the compiler's
-    /// target import catalog for legacy built-in imports; no authored provider
-    /// row or ambient library guess is reconstructed here.
-    pub(crate) library: String,
+    pub(crate) library: Vec<u8>,
+    pub(crate) lookup: PeImportLookup,
     pub(crate) text_offset: usize,
 }
 
-pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<PeImportThunk> {
-    let imports = image
-        .symbol_table
-        .imports
-        .iter()
-        .filter_map(|(_, import)| {
-            image
-                .symbol_table
-                .symbols
-                .is_valid(import.symbol_handle)
-                .then_some((import.symbol_handle, import.library.clone()))
-        })
-        .collect::<Vec<_>>();
+pub(crate) fn install_import_thunks(
+    image: &mut FinalImage,
+    subsystem: u16,
+) -> Result<Vec<PeImportThunk>, Diagnostic> {
+    if image.target.architecture != Architecture::X86_64
+        || image.target.object_format != ObjectFormat::Coff
+    {
+        return Err(Diagnostic::error(
+            "PE x86_64 import installation received a non-COFF/x86_64 image target",
+        ));
+    }
+    let mut imports = Vec::with_capacity(image.symbol_table.imports.len());
+    for (_, import) in image.symbol_table.imports.iter() {
+        if !image.symbol_table.symbols.is_valid(import.symbol_handle) {
+            return Err(Diagnostic::error(
+                "PE final image import names an invalid symbol handle",
+            ));
+        }
+        if imports
+            .iter()
+            .any(|(symbol, _)| *symbol == import.symbol_handle)
+        {
+            return Err(Diagnostic::error(
+                "PE final image retains duplicate import rows for one symbol handle",
+            ));
+        }
+        let symbol = image.symbol_table.symbols.get(import.symbol_handle);
+        if symbol.kind != SymbolKind::Import
+            || symbol.section != FinalImageSection::None
+            || symbol.offset != 0
+            || symbol.size != 0
+        {
+            return Err(Diagnostic::error(format!(
+                "PE import `{}` is not an unresolved zero-width import symbol",
+                symbol.name
+            )));
+        }
+        imports.push((import.symbol_handle, import.import.clone()));
+    }
     let mut thunks = Vec::new();
 
-    for (symbol_handle, library) in imports {
+    for (symbol_handle, import) in imports {
         let symbol = image.symbol_table.symbols.get(symbol_handle).name.clone();
+        let (library, lookup) = match import {
+            FinalImageImportPlan::StringBackedBootstrap { library } => {
+                let library = if library.is_empty() {
+                    omega_calling_conventions::windows_import_library(&symbol)
+                        .unwrap_or("KERNEL32.dll")
+                        .as_bytes()
+                        .to_vec()
+                } else {
+                    library.into_bytes()
+                };
+                (library, PeImportLookup::ByName(symbol.as_bytes().to_vec()))
+            }
+            FinalImageImportPlan::Normalized(locator) => {
+                if locator.target() != TargetProfile::WindowsX64
+                    || locator.target().native_target() != image.target
+                    || matches!(subsystem, 10..=12)
+                {
+                    return Err(Diagnostic::error(format!(
+                        "normalized foreign locator 0x{:016x} is not applicable to this PE image target",
+                        locator.normalized_identity(),
+                    )));
+                }
+                match locator.locator() {
+                    ForeignLocatorCandidate::PeByName { library, export } => {
+                        (library.clone(), PeImportLookup::ByName(export.clone()))
+                    }
+                    ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
+                        (library.clone(), PeImportLookup::ByOrdinal(*ordinal))
+                    }
+                    ForeignLocatorCandidate::ElfVersioned { .. } => {
+                        return Err(Diagnostic::error(format!(
+                            "versioned ELF foreign locator 0x{:016x} cannot be emitted in a PE import table",
+                            locator.normalized_identity(),
+                        )));
+                    }
+                }
+            }
+            FinalImageImportPlan::None => {
+                return Err(Diagnostic::error(format!(
+                    "PE import symbol `{symbol}` has no retained physical import plan"
+                )));
+            }
+        };
+        if library.is_empty() || library.contains(&0) {
+            return Err(Diagnostic::error(format!(
+                "PE import `{symbol}` has an invalid library byte coordinate"
+            )));
+        }
+        if matches!(&lookup, PeImportLookup::ByName(export) if export.is_empty() || export.contains(&0))
+        {
+            return Err(Diagnostic::error(format!(
+                "PE import `{symbol}` has an invalid export byte coordinate"
+            )));
+        }
         let text_offset = image.memory.text.len();
         image.memory.text.extend([0xff, 0x25, 0, 0, 0, 0]);
 
@@ -56,11 +145,12 @@ pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<PeImportThunk
         thunks.push(PeImportThunk {
             symbol,
             library,
+            lookup,
             text_offset,
         });
     }
 
-    thunks
+    Ok(thunks)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,26 +179,18 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
             iat_size: 0,
         };
     }
-    // MULTI-DLL import table: thunks are grouped by their catalog library
-    // (default KERNEL32.dll -- the historical single-DLL behavior for symbols
-    // outside the Windows catalog). Layout, all offsets relative to rdata_rva:
+    // MULTI-DLL import table: thunks are grouped by their exact retained raw
+    // library bytes. Legacy catalog fallback is resolved before this boundary.
+    // Layout, all offsets relative to rdata_rva:
     //   [descriptors: (n_dlls + 1) * 20]
     //   [ILT_dll1][ILT_dll2]...      (each (count+1) * 8)
     //   [IAT_dll1][IAT_dll2]...      (contiguous, so ONE directory entry covers all)
     //   [dll names][hint/name entries]
     // `iat_rvas` is returned in the INPUT thunk order (patch_import_thunks zips
     // it against the same slice).
-    let mut libraries: Vec<(&str, Vec<usize>)> = Vec::new();
+    let mut libraries: Vec<(&[u8], Vec<usize>)> = Vec::new();
     for (index, import) in imports.iter().enumerate() {
-        // The binding's own library wins; the per-target catalog is the
-        // fallback for thunks written without one (default KERNEL32.dll --
-        // the historical single-DLL behavior for symbols outside the catalog).
-        let library = if import.library.is_empty() {
-            omega_calling_conventions::windows_import_library(&import.symbol)
-                .unwrap_or("KERNEL32.dll")
-        } else {
-            import.library.as_str()
-        };
+        let library = import.library.as_slice();
         match libraries.iter_mut().find(|(name, _)| *name == library) {
             Some((_, members)) => members.push(index),
             None => libraries.push((library, vec![index])),
@@ -138,10 +220,12 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
     }
     cursor = align_to(cursor, 2);
     // Hint/name entries, in INPUT thunk order.
-    let mut hint_name_offsets = vec![0usize; imports.len()];
+    let mut hint_name_offsets = vec![None; imports.len()];
     for (index, import) in imports.iter().enumerate() {
-        hint_name_offsets[index] = cursor;
-        cursor = align_to(cursor + 2 + import.symbol.len() + 1, 2);
+        if let PeImportLookup::ByName(export) = &import.lookup {
+            hint_name_offsets[index] = Some(cursor);
+            cursor = align_to(cursor + 2 + export.len() + 1, 2);
+        }
     }
 
     let mut bytes = vec![0; cursor];
@@ -156,20 +240,21 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
         write_u32_at(&mut bytes, descriptor_offset + 16, iat_rva);
 
         let name_offset = dll_name_offsets[library_index];
-        bytes[name_offset..name_offset + library.len()].copy_from_slice(library.as_bytes());
+        bytes[name_offset..name_offset + library.len()].copy_from_slice(library);
 
         for (slot, import_index) in members.iter().enumerate() {
-            let hint_name_rva = rdata_rva + hint_name_offsets[*import_index] as u32;
-            write_u64_at(
-                &mut bytes,
-                ilt_offsets[library_index] + slot * 8,
-                u64::from(hint_name_rva),
-            );
-            write_u64_at(
-                &mut bytes,
-                iat_offsets[library_index] + slot * 8,
-                u64::from(hint_name_rva),
-            );
+            let lookup = match (
+                &imports[*import_index].lookup,
+                hint_name_offsets[*import_index],
+            ) {
+                (PeImportLookup::ByName(_), Some(offset)) => u64::from(rdata_rva + offset as u32),
+                (PeImportLookup::ByOrdinal(ordinal), None) => {
+                    IMAGE_ORDINAL_FLAG64 | u64::from(*ordinal)
+                }
+                _ => unreachable!("PE import lookup layout must match its retained case"),
+            };
+            write_u64_at(&mut bytes, ilt_offsets[library_index] + slot * 8, lookup);
+            write_u64_at(&mut bytes, iat_offsets[library_index] + slot * 8, lookup);
         }
     }
 
@@ -181,11 +266,14 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
         }
     }
     for (index, import) in imports.iter().enumerate() {
-        let name_offset = hint_name_offsets[index];
+        let (PeImportLookup::ByName(export), Some(name_offset)) =
+            (&import.lookup, hint_name_offsets[index])
+        else {
+            continue;
+        };
         write_u16_at(&mut bytes, name_offset, 0);
         let symbol_start = name_offset + 2;
-        bytes[symbol_start..symbol_start + import.symbol.len()]
-            .copy_from_slice(import.symbol.as_bytes());
+        bytes[symbol_start..symbol_start + export.len()].copy_from_slice(export);
     }
 
     PeImportTable {
@@ -280,14 +368,18 @@ mod tests {
         PeImportThunk, build_import_table, install_import_thunks, validate_import_thunk_footprints,
     };
     use omega_image::{
-        FinalExecutableRegionOrigin, FinalImage, FinalImageImport, FinalImageSymbol,
+        FinalExecutableRegionOrigin, FinalImage, FinalImageImport, FinalImageImportPlan,
+        FinalImageSymbol,
+    };
+    use omega_target::{
+        ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator,
     };
     use psi_arena::Handle;
 
     #[test]
     fn installed_import_thunks_enter_the_executable_region_inventory() {
         let mut image = FinalImage::with_capacity(
-            FinalImage::default().target,
+            NativeTarget::windows_x64(),
             Default::default(),
             Handle::invalid(),
             1,
@@ -296,14 +388,17 @@ mod tests {
         );
         let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
             name: "ExitProcess".into(),
+            kind: omega_object_file::SymbolKind::Import,
             ..FinalImageSymbol::default()
         });
         image.symbol_table.imports.insert(FinalImageImport {
             symbol_handle: symbol,
-            library: "KERNEL32.dll".into(),
+            import: FinalImageImportPlan::StringBackedBootstrap {
+                library: "KERNEL32.dll".into(),
+            },
         });
 
-        let thunks = install_import_thunks(&mut image);
+        let thunks = install_import_thunks(&mut image, 3).expect("valid bootstrap import");
         validate_import_thunk_footprints(&mut image, &thunks)
             .expect("installed PE thunk bytes should validate");
 
@@ -321,7 +416,7 @@ mod tests {
     #[test]
     fn mutated_import_thunk_opcode_rejects_final_validation() {
         let mut image = FinalImage::with_capacity(
-            FinalImage::default().target,
+            NativeTarget::windows_x64(),
             Default::default(),
             Handle::invalid(),
             1,
@@ -330,13 +425,16 @@ mod tests {
         );
         let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
             name: "ExitProcess".into(),
+            kind: omega_object_file::SymbolKind::Import,
             ..FinalImageSymbol::default()
         });
         image.symbol_table.imports.insert(FinalImageImport {
             symbol_handle: symbol,
-            library: "KERNEL32.dll".into(),
+            import: FinalImageImportPlan::StringBackedBootstrap {
+                library: "KERNEL32.dll".into(),
+            },
         });
-        let thunks = install_import_thunks(&mut image);
+        let thunks = install_import_thunks(&mut image, 3).expect("valid bootstrap import");
         image.memory.text[0] = 0x90;
 
         let diagnostic = validate_import_thunk_footprints(&mut image, &thunks)
@@ -365,12 +463,14 @@ mod tests {
         let thunks = vec![
             PeImportThunk {
                 symbol: "ExitProcess".to_owned(),
-                library: String::new(),
+                library: b"KERNEL32.dll".to_vec(),
+                lookup: super::PeImportLookup::ByName(b"ExitProcess".to_vec()),
                 text_offset: 0,
             },
             PeImportThunk {
                 symbol: "GetStdHandle".to_owned(),
-                library: String::new(),
+                library: b"KERNEL32.dll".to_vec(),
+                lookup: super::PeImportLookup::ByName(b"GetStdHandle".to_vec()),
                 text_offset: 6,
             },
         ];
@@ -388,7 +488,8 @@ mod tests {
         // otherwise file `abs` under the KERNEL32 default.
         let thunks = vec![PeImportThunk {
             symbol: "abs".to_owned(),
-            library: "msvcrt.dll".to_owned(),
+            library: b"msvcrt.dll".to_vec(),
+            lookup: super::PeImportLookup::ByName(b"abs".to_vec()),
             text_offset: 0,
         }];
         let table = build_import_table(&thunks, 0x3000);
@@ -405,5 +506,146 @@ mod tests {
                 .any(|window| window == b"KERNEL32.dll"),
             "catalog default must not leak in when the binding names a library"
         );
+    }
+
+    fn image_with_normalized_import(
+        target: NativeTarget,
+        candidate: ForeignLocatorCandidate,
+    ) -> FinalImage {
+        let locator = normalize_foreign_locator(candidate, TargetProfile::WindowsX64)
+            .expect("valid normalized PE locator");
+        let mut image =
+            FinalImage::with_capacity(target, Default::default(), Handle::invalid(), 1, 1, 0);
+        let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: format!(
+                "__omega_foreign_import_{:016x}",
+                locator.normalized_identity()
+            ),
+            kind: omega_object_file::SymbolKind::Import,
+            ..FinalImageSymbol::default()
+        });
+        image.symbol_table.imports.insert(FinalImageImport {
+            symbol_handle: symbol,
+            import: FinalImageImportPlan::Normalized(locator),
+        });
+        image
+    }
+
+    #[test]
+    fn normalized_pe_name_emits_exact_non_utf8_coordinates_without_symbol_reconstruction() {
+        let mut image = image_with_normalized_import(
+            NativeTarget::windows_x64(),
+            ForeignLocatorCandidate::PeByName {
+                library: b"raw\xff.dll".to_vec(),
+                export: b"entry\xfe".to_vec(),
+            },
+        );
+        let thunks = install_import_thunks(&mut image, 3).expect("Windows PE import");
+        assert_eq!(thunks.len(), 1);
+        assert_eq!(thunks[0].library, b"raw\xff.dll");
+        assert_eq!(
+            thunks[0].lookup,
+            super::PeImportLookup::ByName(b"entry\xfe".to_vec())
+        );
+
+        let table = build_import_table(&thunks, 0x3000);
+        assert!(table.bytes.windows(8).any(|bytes| bytes == b"raw\xff.dll"));
+        assert!(table.bytes.windows(6).any(|bytes| bytes == b"entry\xfe"));
+        assert!(
+            !table
+                .bytes
+                .windows("__omega_foreign_import_".len())
+                .any(|bytes| bytes == b"__omega_foreign_import_"),
+            "object-local labels must not become physical PE lookup bytes"
+        );
+    }
+
+    #[test]
+    fn normalized_pe_ordinal_sets_ordinal_flag_in_both_lookup_tables() {
+        let mut image = image_with_normalized_import(
+            NativeTarget::windows_x64(),
+            ForeignLocatorCandidate::PeByOrdinal {
+                library: b"ordinals.dll".to_vec(),
+                ordinal: 17,
+            },
+        );
+        let thunks = install_import_thunks(&mut image, 3).expect("Windows ordinal import");
+        let table = build_import_table(&thunks, 0x3000);
+        let ilt_offset =
+            u32::from_le_bytes(table.bytes[0..4].try_into().unwrap()) as usize - 0x3000;
+        let iat_offset =
+            u32::from_le_bytes(table.bytes[16..20].try_into().unwrap()) as usize - 0x3000;
+        let expected = super::IMAGE_ORDINAL_FLAG64 | 17;
+        assert_eq!(
+            u64::from_le_bytes(table.bytes[ilt_offset..ilt_offset + 8].try_into().unwrap()),
+            expected
+        );
+        assert_eq!(
+            u64::from_le_bytes(table.bytes[iat_offset..iat_offset + 8].try_into().unwrap()),
+            expected
+        );
+        assert!(
+            table
+                .bytes
+                .windows(12)
+                .any(|bytes| bytes == b"ordinals.dll")
+        );
+    }
+
+    #[test]
+    fn locator_mutation_changes_pe_import_bytes_and_target_drift_rejects_before_installation() {
+        let make_table = |export: &[u8]| {
+            let mut image = image_with_normalized_import(
+                NativeTarget::windows_x64(),
+                ForeignLocatorCandidate::PeByName {
+                    library: b"exact.dll".to_vec(),
+                    export: export.to_vec(),
+                },
+            );
+            let thunks = install_import_thunks(&mut image, 3).expect("Windows name import");
+            build_import_table(&thunks, 0x3000).bytes
+        };
+        assert_ne!(make_table(b"entry_a"), make_table(b"entry_b"));
+
+        let mut uefi = image_with_normalized_import(
+            NativeTarget::uefi_x64(),
+            ForeignLocatorCandidate::PeByOrdinal {
+                library: b"forbidden.dll".to_vec(),
+                ordinal: 9,
+            },
+        );
+        let diagnostic = install_import_thunks(&mut uefi, 10)
+            .expect_err("Windows imports must not leak into a UEFI PE image");
+        assert!(diagnostic.message.contains("not applicable"));
+        assert!(
+            uefi.memory.text.is_empty(),
+            "rejection must precede thunk mutation"
+        );
+
+        let mut missing = FinalImage::with_capacity(
+            NativeTarget::windows_x64(),
+            Default::default(),
+            Handle::invalid(),
+            1,
+            1,
+            0,
+        );
+        let symbol = missing.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "missing-plan".into(),
+            kind: omega_object_file::SymbolKind::Import,
+            ..FinalImageSymbol::default()
+        });
+        missing.symbol_table.imports.insert(FinalImageImport {
+            symbol_handle: symbol,
+            import: FinalImageImportPlan::None,
+        });
+        let diagnostic = install_import_thunks(&mut missing, 3)
+            .expect_err("an import symbol without retained coordinates must reject");
+        assert!(
+            diagnostic
+                .message
+                .contains("no retained physical import plan")
+        );
+        assert!(missing.memory.text.is_empty());
     }
 }
