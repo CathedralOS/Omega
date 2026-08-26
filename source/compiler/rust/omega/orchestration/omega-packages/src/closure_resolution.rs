@@ -3,8 +3,11 @@ use crate::graph::{
     PackageClosureValidationError, ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode,
     ResolvedSourceIdentity,
 };
-use crate::identity::{AliasName, ImmutableSourceResolution, PackageKey};
-use crate::source::LocalSourceLimits;
+use crate::identity::{
+    AliasName, ExternalSourceContext, ImmutableSourceResolution, PackageKey, SourceLineage,
+    WorkspaceMemberPath,
+};
+use crate::source::{GitSourceRequest, LocalSourceLimits};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -23,6 +26,26 @@ pub struct PackageSourceCustody {
     /// operational policy, not package/source identity.
     source_limits: LocalSourceLimits,
     dependency_requests: Vec<DependencySourceRequest>,
+}
+
+/// The exact request that selected the root of one resolved source closure.
+///
+/// Dependency requests are authored in a requester's `build.omg` and remain in
+/// that requester's custody. The root has no requester, so its request must be
+/// retained separately instead of being inferred from normalized lineage or
+/// immutable resolution after traversal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageRootSourceRequest {
+    Git(GitSourceRequest),
+    WorkspaceMember {
+        workspace_root_source: SourceLineage,
+        member_path: WorkspaceMemberPath,
+        requested_workspace_root: PathBuf,
+    },
+    ExternalLocal {
+        requested_root: PathBuf,
+        source_context: ExternalSourceContext,
+    },
 }
 
 impl PartialEq for PackageSourceCustody {
@@ -256,12 +279,125 @@ impl<E: std::error::Error + 'static> std::error::Error for PackageSourceClosureR
 /// every package source root.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedPackageSourceClosure {
+    root_request: PackageRootSourceRequest,
     graph: ResolvedPackageClosure,
     custodies: Vec<PackageSourceCustody>,
     custody_indices: BTreeMap<PackageKey, usize>,
 }
 
+/// One exact root request joined to the source identity it selected.
+#[derive(Debug, Clone, Copy)]
+pub struct ResolvedRootPackageSourceRequest<'a> {
+    request: &'a PackageRootSourceRequest,
+    selected: &'a ResolvedSourceIdentity,
+}
+
+impl<'a> ResolvedRootPackageSourceRequest<'a> {
+    pub fn request(&self) -> &'a PackageRootSourceRequest {
+        self.request
+    }
+
+    pub fn selected(&self) -> &'a ResolvedSourceIdentity {
+        self.selected
+    }
+}
+
+/// One exact authored dependency request joined to the source it selected.
+///
+/// The request remains owned once by the requester's source custody. This view
+/// binds it to the graph edge and target resolution without copying hostile
+/// locator strings or choosing one primary request in a diamond graph.
+#[derive(Debug, Clone, Copy)]
+pub struct ResolvedDependencySourceRequest<'a> {
+    requester: &'a PackageKey,
+    dependency_index: usize,
+    request: &'a DependencySourceRequest,
+    alias: &'a AliasName,
+    selected: &'a ResolvedSourceIdentity,
+}
+
+impl<'a> ResolvedDependencySourceRequest<'a> {
+    pub fn requester(&self) -> &'a PackageKey {
+        self.requester
+    }
+
+    pub fn dependency_index(&self) -> usize {
+        self.dependency_index
+    }
+
+    pub fn request(&self) -> &'a DependencySourceRequest {
+        self.request
+    }
+
+    pub fn alias(&self) -> &'a AliasName {
+        self.alias
+    }
+
+    pub fn selected(&self) -> &'a ResolvedSourceIdentity {
+        self.selected
+    }
+}
+
+/// A zero-copy, resolver-validated view of every source-selection occurrence.
+///
+/// This is source custody only. It is not compiler evidence, package admission,
+/// a lock record, or a package instance.
+#[derive(Debug, Clone, Copy)]
+pub struct ResolvedPackageSourceRequestSet<'a> {
+    closure: &'a ResolvedPackageSourceClosure,
+}
+
+impl<'a> ResolvedPackageSourceRequestSet<'a> {
+    pub fn root(&self) -> ResolvedRootPackageSourceRequest<'a> {
+        let selected = self
+            .closure
+            .graph
+            .package(self.closure.graph.root())
+            .expect("validated closure contains its root package")
+            .source();
+        ResolvedRootPackageSourceRequest {
+            request: &self.closure.root_request,
+            selected,
+        }
+    }
+
+    pub fn dependencies(&self) -> impl Iterator<Item = ResolvedDependencySourceRequest<'a>> + 'a {
+        let closure = self.closure;
+        closure.graph.packages().iter().flat_map(move |requester| {
+            let requester_key = requester.source().key();
+            let custody = closure
+                .custody(requester_key)
+                .expect("every validated graph package has source custody");
+            debug_assert_eq!(
+                requester.dependencies().len(),
+                custody.dependency_requests().len()
+            );
+            requester.dependencies().iter().enumerate().map(
+                move |(dependency_index, dependency)| {
+                    let request = &custody.dependency_requests()[dependency_index];
+                    let selected = closure
+                        .graph
+                        .package(dependency.target())
+                        .expect("validated dependency edge has a target package")
+                        .source();
+                    ResolvedDependencySourceRequest {
+                        requester: requester_key,
+                        dependency_index,
+                        request,
+                        alias: dependency.alias(),
+                        selected,
+                    }
+                },
+            )
+        })
+    }
+}
+
 impl ResolvedPackageSourceClosure {
+    pub fn source_requests(&self) -> ResolvedPackageSourceRequestSet<'_> {
+        ResolvedPackageSourceRequestSet { closure: self }
+    }
+
     pub fn graph(&self) -> &ResolvedPackageClosure {
         &self.graph
     }
@@ -364,7 +500,9 @@ struct ObservedCustody {
 /// `resolve_dependency`. The callback receives the requester's exact custody
 /// and one projected request and must return custody derived from a concrete
 /// `ResolvedPackageSource<S>` adapter result.
-pub fn resolve_package_source_closure<E, F>(
+#[cfg(test)]
+pub(crate) fn resolve_package_source_closure<E, F>(
+    root_request: PackageRootSourceRequest,
     root: PackageSourceCustody,
     resolve_dependency: F,
 ) -> Result<ResolvedPackageSourceClosure, PackageSourceClosureResolutionError<E>>
@@ -372,6 +510,7 @@ where
     F: FnMut(&PackageSourceCustody, &DependencySourceRequest) -> Result<PackageSourceCustody, E>,
 {
     resolve_package_source_closure_with_limits(
+        root_request,
         root,
         PackageSourceClosureLimits::default(),
         resolve_dependency,
@@ -380,7 +519,8 @@ where
 
 /// Resolve a complete source closure under caller-selected ceilings no looser
 /// than the authority the caller is prepared to spend on hostile graph input.
-pub fn resolve_package_source_closure_with_limits<E, F>(
+pub(crate) fn resolve_package_source_closure_with_limits<E, F>(
+    root_request: PackageRootSourceRequest,
     root: PackageSourceCustody,
     limits: PackageSourceClosureLimits,
     mut resolve_dependency: F,
@@ -507,6 +647,7 @@ where
         .collect();
 
     Ok(ResolvedPackageSourceClosure {
+        root_request,
         graph,
         custodies,
         custody_indices,
@@ -705,6 +846,19 @@ mod tests {
         )
     }
 
+    fn git_root_request(root: &PackageSourceCustody) -> PackageRootSourceRequest {
+        PackageRootSourceRequest::Git(
+            GitSourceRequest::new(
+                format!(
+                    "https://github.com/CathedralOS/{}.git",
+                    root.key().name().as_str()
+                ),
+                Some("HEAD".to_owned()),
+            )
+            .expect("synthetic root request"),
+        )
+    }
+
     fn fake_adapter(
         packages: BTreeMap<&'static str, PackageSourceCustody>,
     ) -> impl FnMut(
@@ -790,17 +944,18 @@ mod tests {
             ("shared-from-right", shared.clone()),
         ]);
 
-        let closure = resolve_package_source_closure(root, |requester, request| {
-            calls.borrow_mut().push((
-                requester.key().name().as_str().to_owned(),
-                request_location(request).to_owned(),
-            ));
-            packages
-                .get(request_location(request))
-                .cloned()
-                .ok_or("unknown fake source")
-        })
-        .expect("diamond closure resolves");
+        let closure =
+            resolve_package_source_closure(git_root_request(&root), root, |requester, request| {
+                calls.borrow_mut().push((
+                    requester.key().name().as_str().to_owned(),
+                    request_location(request).to_owned(),
+                ));
+                packages
+                    .get(request_location(request))
+                    .cloned()
+                    .ok_or("unknown fake source")
+            })
+            .expect("diamond closure resolves");
 
         assert_eq!(closure.graph().packages().len(), 4);
         assert_eq!(closure.custodies().len(), 4);
@@ -832,6 +987,38 @@ mod tests {
                 .is_empty()
         );
         assert!(closure.dependency_path(&key("absent", "absent")).is_none());
+
+        let requests = closure.source_requests();
+        let root_binding = requests.root();
+        let PackageRootSourceRequest::Git(root_request) = root_binding.request() else {
+            panic!("synthetic root retains its Git request")
+        };
+        assert_eq!(
+            root_request.requested_locator(),
+            "https://github.com/CathedralOS/application.git"
+        );
+        assert_eq!(root_request.requested_revision(), "HEAD");
+        assert_eq!(root_binding.selected().key(), closure.graph().root());
+
+        let dependency_bindings = requests.dependencies().collect::<Vec<_>>();
+        assert_eq!(dependency_bindings.len(), 4);
+        let shared_bindings = dependency_bindings
+            .iter()
+            .filter(|binding| binding.selected().key() == shared.key())
+            .collect::<Vec<_>>();
+        assert_eq!(shared_bindings.len(), 2);
+        assert_eq!(
+            shared_bindings
+                .iter()
+                .map(|binding| request_location(binding.request()))
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from(["shared-from-left", "shared-from-right"])
+        );
+        assert!(
+            shared_bindings
+                .iter()
+                .all(|binding| binding.alias().as_str() == "shared_math")
+        );
     }
 
     #[test]
@@ -852,21 +1039,30 @@ mod tests {
         .into_custody();
         let root_key = root.key().clone();
 
-        let closure = resolve_package_source_closure(root, |requester, request| {
-            let DependencySourceRequest::Path { location, .. } = request else {
-                return Err("fixture unexpectedly requested a network source".to_owned());
-            };
-            let member = workspace_member_request(requester, location)?;
-            resolve_workspace_member_package_source(
-                &workspace_source,
-                member,
-                &fixtures,
-                &cache,
-                LocalSourceLimits::default(),
-            )
-            .map(ResolvedPackageSource::into_custody)
-            .map_err(|error| error.to_string())
-        })
+        let closure = resolve_package_source_closure(
+            PackageRootSourceRequest::WorkspaceMember {
+                workspace_root_source: workspace_source.clone(),
+                member_path: WorkspaceMemberPath::parse("graph-workbench")
+                    .expect("root member path"),
+                requested_workspace_root: fixtures.clone(),
+            },
+            root,
+            |requester, request| {
+                let DependencySourceRequest::Path { location, .. } = request else {
+                    return Err("fixture unexpectedly requested a network source".to_owned());
+                };
+                let member = workspace_member_request(requester, location)?;
+                resolve_workspace_member_package_source(
+                    &workspace_source,
+                    member,
+                    &fixtures,
+                    &cache,
+                    LocalSourceLimits::default(),
+                )
+                .map(ResolvedPackageSource::into_custody)
+                .map_err(|error| error.to_string())
+            },
+        )
         .expect("resolve authored fixture closure");
 
         assert_eq!(closure.graph().packages().len(), 3);
@@ -913,6 +1109,7 @@ mod tests {
         let leaf_key = leaf.key().clone();
 
         let closure = resolve_package_source_closure(
+            git_root_request(&root),
             root,
             fake_adapter(BTreeMap::from([
                 ("second", second),
@@ -952,6 +1149,7 @@ mod tests {
         let root_key = root.key().clone();
 
         let closure = resolve_package_source_closure(
+            git_root_request(&root),
             root,
             fake_adapter(BTreeMap::from([
                 ("ordinary", ordinary),
@@ -984,6 +1182,7 @@ mod tests {
         );
 
         let error = resolve_package_source_closure(
+            git_root_request(&root),
             root,
             fake_adapter(BTreeMap::from([("first", first), ("second", second)])),
         )
@@ -1044,6 +1243,7 @@ mod tests {
         );
 
         let error = resolve_package_source_closure(
+            git_root_request(&root),
             root,
             fake_adapter(BTreeMap::from([
                 ("left", left),
@@ -1099,6 +1299,7 @@ mod tests {
         );
 
         let error = resolve_package_source_closure(
+            git_root_request(&root),
             root,
             fake_adapter(BTreeMap::from([("first", first), ("second", second)])),
         )
@@ -1138,6 +1339,7 @@ mod tests {
         );
 
         let error = resolve_package_source_closure(
+            git_root_request(&root),
             root,
             fake_adapter(BTreeMap::from([
                 ("library", library),
@@ -1202,6 +1404,7 @@ mod tests {
             ),
         ] {
             let error = resolve_package_source_closure_with_limits(
+                git_root_request(&root),
                 root.clone(),
                 limits,
                 fake_adapter(packages.clone()),
@@ -1225,7 +1428,7 @@ mod tests {
             vec![request("missing")],
         );
 
-        let error = resolve_package_source_closure(root, |_, _| {
+        let error = resolve_package_source_closure(git_root_request(&root), root, |_, _| {
             Err::<PackageSourceCustody, _>("network unavailable")
         })
         .expect_err("adapter failure returns");

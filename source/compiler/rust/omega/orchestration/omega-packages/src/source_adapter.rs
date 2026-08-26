@@ -1,6 +1,6 @@
 use crate::closure_resolution::{
-    PackageSourceClosureLimits, PackageSourceClosureResolutionError, PackageSourceCustody,
-    ResolvedPackageSourceClosure, resolve_package_source_closure_with_limits,
+    PackageRootSourceRequest, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
+    PackageSourceCustody, ResolvedPackageSourceClosure, resolve_package_source_closure_with_limits,
 };
 use crate::dependency_projection::DependencySourceRequest;
 use crate::identity::{
@@ -10,7 +10,9 @@ use crate::package_source::{
     ResolvePackageSourceError, resolve_external_local_package_source, resolve_git_package_source,
     resolve_workspace_member_package_source,
 };
-use crate::source::{GitSourceRequest, GitSourceRequestError, LocalSourceLimits};
+use crate::source::{
+    GitSourceRequest, GitSourceRequestError, LocalSourceLimits, ResolvedGitSource,
+};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -18,19 +20,48 @@ use std::path::{Path, PathBuf};
 #[derive(Debug)]
 pub enum ResolveWorkspacePackageClosureError {
     Root(ResolvePackageSourceError),
+    RootRequestMismatch,
     Closure(PackageSourceClosureResolutionError<ResolveDependencySourceError>),
 }
 
 #[derive(Debug)]
 pub enum ResolveExternalLocalPackageClosureError {
     Root(ResolvePackageSourceError),
+    RootRequestMismatch,
     Closure(PackageSourceClosureResolutionError<ResolveDependencySourceError>),
 }
+
+#[derive(Debug)]
+pub enum ResolveGitPackageClosureError {
+    Root(ResolvePackageSourceError),
+    RootRequestMismatch,
+    RootWorkspace(ResolveDependencySourceError),
+    Closure(PackageSourceClosureResolutionError<ResolveDependencySourceError>),
+}
+
+impl fmt::Display for ResolveGitPackageClosureError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Root(error) => write!(formatter, "cannot resolve root package: {error}"),
+            Self::RootRequestMismatch => formatter
+                .write_str("resolved root Git source does not match its exact validated request"),
+            Self::RootWorkspace(error) => {
+                write!(formatter, "cannot register root Git workspace: {error}")
+            }
+            Self::Closure(error) => write!(formatter, "cannot resolve package closure: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for ResolveGitPackageClosureError {}
 
 impl fmt::Display for ResolveExternalLocalPackageClosureError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Root(error) => write!(formatter, "cannot resolve root package: {error}"),
+            Self::RootRequestMismatch => {
+                formatter.write_str("resolved external-local root does not match its exact request")
+            }
             Self::Closure(error) => write!(formatter, "cannot resolve package closure: {error}"),
         }
     }
@@ -42,6 +73,8 @@ impl fmt::Display for ResolveWorkspacePackageClosureError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Root(error) => write!(formatter, "cannot resolve root package: {error}"),
+            Self::RootRequestMismatch => formatter
+                .write_str("resolved workspace root does not match its exact member request"),
             Self::Closure(error) => write!(formatter, "cannot resolve package closure: {error}"),
         }
     }
@@ -184,6 +217,11 @@ fn resolve_workspace_package_closure_impl(
     closure_limits: PackageSourceClosureLimits,
     external_context: Option<&ExternalSourceContext>,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
+    let root_request = PackageRootSourceRequest::WorkspaceMember {
+        workspace_root_source: workspace_root_source.clone(),
+        member_path: root_member_path.clone(),
+        requested_workspace_root: live_workspace_root.to_path_buf(),
+    };
     let workspace_cache = cache_dir.join("workspace-members");
     let git_cache = cache_dir.join("git-sources");
     let workspace_identity = WorkspaceLineageIdentity::from_root_source(workspace_root_source)
@@ -191,13 +229,12 @@ fn resolve_workspace_package_closure_impl(
         .map_err(ResolveWorkspacePackageClosureError::Root)?;
     let root = resolve_workspace_member_package_source(
         workspace_root_source,
-        root_member_path,
+        root_member_path.clone(),
         live_workspace_root,
         &workspace_cache,
         source_limits,
     )
-    .map_err(ResolveWorkspacePackageClosureError::Root)?
-    .into_custody();
+    .map_err(ResolveWorkspacePackageClosureError::Root)?;
 
     let canonical_workspace_root = live_workspace_root.canonicalize().map_err(|error| {
         ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::WorkspacePath {
@@ -205,6 +242,22 @@ fn resolve_workspace_package_closure_impl(
             message: error.to_string(),
         })
     })?;
+    let requested_member_root = canonical_workspace_root.join(root_member_path.as_str());
+    let expected_member_root = requested_member_root.canonicalize().map_err(|error| {
+        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::WorkspacePath {
+            path: requested_member_root,
+            message: error.to_string(),
+        })
+    })?;
+    if root.source().canonical_live_root != expected_member_root
+        || root.key().source_lineage()
+            != &SourceLineage::Workspace(crate::identity::WorkspaceMemberLineage::new(
+                workspace_identity.clone(),
+                root_member_path,
+            ))
+    {
+        return Err(ResolveWorkspacePackageClosureError::RootRequestMismatch);
+    }
     let mut workspaces = BTreeMap::from([(
         workspace_identity,
         WorkspaceContext {
@@ -215,7 +268,8 @@ fn resolve_workspace_package_closure_impl(
     )]);
 
     resolve_registered_package_closure(
-        root,
+        root_request,
+        root.into_custody(),
         closure_limits,
         &workspace_cache,
         &git_cache,
@@ -226,6 +280,62 @@ fn resolve_workspace_package_closure_impl(
         external_context,
     )
     .map_err(ResolveWorkspacePackageClosureError::Closure)
+}
+
+/// Resolve one repository-root Git package and its complete Path/Git closure.
+///
+/// The exact validated root request is retained independently from normalized
+/// lineage and immutable commit/tree/content identity. A Git root that is a
+/// multi-package workspace remains ambiguous until the explicit package
+/// selector design is implemented.
+pub fn resolve_git_package_closure(
+    request: &GitSourceRequest,
+    cache_dir: impl AsRef<Path>,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveGitPackageClosureError> {
+    let cache_dir = cache_dir.as_ref();
+    let workspace_cache = cache_dir.join("workspace-members");
+    let git_cache = cache_dir.join("git-sources");
+    let local_cache = cache_dir.join("external-local-sources");
+    let root = resolve_git_package_source(request, &git_cache, source_limits)
+        .map_err(ResolveGitPackageClosureError::Root)?;
+    if !git_root_request_matches(request, root.source(), root.key().source_lineage()) {
+        return Err(ResolveGitPackageClosureError::RootRequestMismatch);
+    }
+    let mut workspaces = BTreeMap::new();
+    register_workspace(
+        &mut workspaces,
+        root.key().source_lineage(),
+        root.snapshot_root(),
+    )
+    .map_err(ResolveGitPackageClosureError::RootWorkspace)?;
+
+    resolve_registered_package_closure(
+        PackageRootSourceRequest::Git(request.clone()),
+        root.into_custody(),
+        closure_limits,
+        &workspace_cache,
+        &git_cache,
+        &local_cache,
+        source_limits,
+        &mut workspaces,
+        &mut BTreeMap::new(),
+        None,
+    )
+    .map_err(ResolveGitPackageClosureError::Closure)
+}
+
+fn git_root_request_matches(
+    request: &GitSourceRequest,
+    resolved: &ResolvedGitSource,
+    lineage: &SourceLineage,
+) -> bool {
+    resolved.requested_locator == request.requested_locator()
+        && resolved.locator_identity == request.locator_identity()
+        && resolved.requested_rev == request.requested_revision()
+        && resolved.transport_profile == request.transport_profile()
+        && lineage == request.lineage()
 }
 
 /// Resolve one explicitly selected non-workspace local package and its complete
@@ -243,23 +353,38 @@ pub fn resolve_external_local_package_closure(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
+    let requested_root = live_root.as_ref().to_path_buf();
+    let root_request = PackageRootSourceRequest::ExternalLocal {
+        requested_root: requested_root.clone(),
+        source_context: source_context.clone(),
+    };
     let cache_dir = cache_dir.as_ref();
     let local_cache = cache_dir.join("external-local-sources");
     let workspace_cache = cache_dir.join("workspace-members");
     let git_cache = cache_dir.join("git-sources");
     let root = resolve_external_local_package_source(
-        live_root,
+        &requested_root,
         &local_cache,
         source_limits,
         source_context.clone(),
     )
     .map_err(ResolveExternalLocalPackageClosureError::Root)?;
+    if root.source().requested_root != requested_root
+        || !matches!(
+            root.key().source_lineage(),
+            SourceLineage::ExternalLocal(lineage)
+                if lineage.source_context() == &source_context
+        )
+    {
+        return Err(ResolveExternalLocalPackageClosureError::RootRequestMismatch);
+    }
     let mut external_roots = BTreeMap::from([(
         root.key().clone(),
         root.source().canonical_live_root.clone(),
     )]);
 
     resolve_registered_package_closure(
+        root_request,
         root.into_custody(),
         closure_limits,
         &workspace_cache,
@@ -274,6 +399,7 @@ pub fn resolve_external_local_package_closure(
 }
 
 fn resolve_registered_package_closure(
+    root_request: PackageRootSourceRequest,
     root: PackageSourceCustody,
     closure_limits: PackageSourceClosureLimits,
     workspace_cache: &Path,
@@ -287,8 +413,11 @@ fn resolve_registered_package_closure(
     ResolvedPackageSourceClosure,
     PackageSourceClosureResolutionError<ResolveDependencySourceError>,
 > {
-    resolve_package_source_closure_with_limits(root, closure_limits, |requester, request| {
-        match request {
+    resolve_package_source_closure_with_limits(
+        root_request,
+        root,
+        closure_limits,
+        |requester, request| match request {
             DependencySourceRequest::Git {
                 repository,
                 revision,
@@ -354,8 +483,8 @@ fn resolve_registered_package_closure(
                     Err(error) => Err(error),
                 }
             }
-        }
-    })
+        },
+    )
 }
 
 fn register_workspace(
@@ -568,7 +697,8 @@ fn invalid_path(location: &str, reason: &str) -> ResolveDependencySourceError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::PackageSourceClosureLimitKind;
+    use crate::{GitTransportProfile, PackageSourceClosureLimitKind};
+    use std::process::Command;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn fixture_root() -> PathBuf {
@@ -609,6 +739,23 @@ mod tests {
         std::fs::write(root.join("main.omg"), "machine root() {}\n").expect("write source");
     }
 
+    fn run_test_git<I, S>(directory: &Path, args: I)
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<std::ffi::OsStr>,
+    {
+        let output = Command::new("git")
+            .current_dir(directory)
+            .args(args)
+            .output()
+            .expect("spawn test Git");
+        assert!(
+            output.status.success(),
+            "test Git command failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
     #[test]
     fn resolves_explicit_workspace_path_closure() {
         let cache = temp_root("fixture-cache");
@@ -636,6 +783,20 @@ mod tests {
             aliases,
             std::collections::BTreeSet::from(["arithmetic_kernels", "file_journal"])
         );
+        let root_binding = closure.source_requests().root();
+        let PackageRootSourceRequest::WorkspaceMember {
+            workspace_root_source,
+            member_path,
+            requested_workspace_root,
+        } = root_binding.request()
+        else {
+            panic!("workspace adapter retains the workspace root request")
+        };
+        assert_eq!(workspace_root_source, &fixture_lineage());
+        assert_eq!(member_path.as_str(), "graph-workbench");
+        assert_eq!(requested_workspace_root, &fixture_root());
+        assert_eq!(root_binding.selected().key(), closure.graph().root());
+        assert_eq!(closure.source_requests().dependencies().count(), 2);
 
         let _ = std::fs::remove_dir_all(cache);
     }
@@ -709,6 +870,16 @@ mod tests {
                     if lineage.source_context() == &first_context
             )
         }));
+        let first_root_binding = first.source_requests().root();
+        let PackageRootSourceRequest::ExternalLocal {
+            requested_root,
+            source_context,
+        } = first_root_binding.request()
+        else {
+            panic!("external adapter retains its root request")
+        };
+        assert_eq!(requested_root, &sources.join("root"));
+        assert_eq!(source_context, &first_context);
 
         let second_context = ExternalSourceContext::derive(b"second-consuming-lock");
         let second = resolve_external_local_package_closure(
@@ -732,6 +903,80 @@ mod tests {
         let _ = std::fs::remove_dir_all(sources);
         let _ = std::fs::remove_dir_all(first_cache);
         let _ = std::fs::remove_dir_all(second_cache);
+    }
+
+    #[test]
+    fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
+        let repository = temp_root("git-root-repository");
+        let cache = temp_root("git-root-cache");
+        write_package(&repository, "network-root", None);
+        run_test_git(&repository, ["init", "--quiet"]);
+        run_test_git(
+            &repository,
+            ["config", "user.email", "omega@example.invalid"],
+        );
+        run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
+        run_test_git(&repository, ["add", "."]);
+        run_test_git(&repository, ["commit", "--quiet", "-m", "root"]);
+        let request = GitSourceRequest::for_local_test_repository_with_lineage(
+            &repository,
+            None,
+            "https://github.com/CathedralOS/network-root.git",
+        )
+        .expect("validated local Git root request");
+        let resolved = resolve_git_package_source(
+            &request,
+            cache.join("git-sources"),
+            LocalSourceLimits::default(),
+        )
+        .expect("resolve root for exact request validation");
+        assert!(git_root_request_matches(
+            &request,
+            resolved.source(),
+            resolved.key().source_lineage()
+        ));
+        let mut wrong_revision = resolved.source().clone();
+        wrong_revision.requested_rev = "different-revision".to_owned();
+        assert!(!git_root_request_matches(
+            &request,
+            &wrong_revision,
+            resolved.key().source_lineage()
+        ));
+        let mut wrong_locator = resolved.source().clone();
+        wrong_locator.requested_locator =
+            "https://github.com/CathedralOS/other-root.git".to_owned();
+        assert!(!git_root_request_matches(
+            &request,
+            &wrong_locator,
+            resolved.key().source_lineage()
+        ));
+
+        let closure = resolve_git_package_closure(
+            &request,
+            &cache,
+            LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+        )
+        .expect("resolve repository-root Git closure");
+
+        let root_binding = closure.source_requests().root();
+        let PackageRootSourceRequest::Git(retained) = root_binding.request() else {
+            panic!("Git adapter retains its root request")
+        };
+        assert_eq!(
+            retained.requested_locator(),
+            "https://github.com/CathedralOS/network-root.git"
+        );
+        assert_eq!(retained.requested_revision(), "HEAD");
+        assert_eq!(retained.transport_profile(), GitTransportProfile::TestFile);
+        assert_eq!(
+            root_binding.selected().key().name().as_str(),
+            "network-root"
+        );
+        assert!(closure.source_requests().dependencies().next().is_none());
+
+        let _ = std::fs::remove_dir_all(repository);
+        let _ = std::fs::remove_dir_all(cache);
     }
 
     #[test]

@@ -1001,6 +1001,20 @@ migration, dependency composition, and local admission decisions remain
 separate required joins before a `PackageInstance` can exist. Canonical decode
 or a matching ledger fingerprint cannot substitute for local reconstruction.
 
+Source-selector custody now closes one prerequisite independently from that
+ledger. A resolved closure retains the exact validated root request separately
+from normalized lineage and immutable commit/tree/content resolution. A zero-
+copy request-set view joins it, and every requester-owned dependency row by
+authored ordinal, to the exact selected package key and resolution. Thus two
+different requests that converge on one package remain two selection
+occurrences; the resolver never invents a primary request. Aliases remain edge
+naming, and transport observations remain provenance rather than package
+identity. Repository-root Git traversal exercises the same path, including a
+retained `HEAD` selector. This custody is not canonical lock encoding, compiler
+evidence, admission, or a package instance, and it is deliberately absent from
+the ordinary obligation ledger. Multi-package Git selection remains governed
+by its separate open selector decision.
+
 The first bounded replay component exists at Terminal Psi. The verifier exposes
 one complete ordered obligation set for executable operations, call and nominal
 cleanup requirements, and contract guarantees; each row retains exact owner,

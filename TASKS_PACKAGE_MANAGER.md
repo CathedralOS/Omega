@@ -2174,6 +2174,23 @@ complete.
   capability/API evidence, transitive open obligations, schema deltas, and
   `PackageInstance` remain deliberately absent.
 
+  Milestone 2026-08-26: resolved source closure now retains the exact validated
+  root request separately from normalized lineage and immutable resolution and
+  exposes one zero-copy request-set view joining every root/dependency request
+  occurrence to the exact selected package key and resolution. Dependency
+  selectors remain owned once by requester custody and are joined by authored
+  ordinal, so distinct requests converging on one package remain distinct
+  without copying hostile strings or choosing a primary request. Repository-
+  root Git closure resolution now uses this path and keeps requested locator,
+  normalized requested revision (including default `HEAD`), and transport
+  profile separate from commit/tree/content identity. Mismatched root request/
+  custody rejects. This is bounded
+  resolver custody only: no selector enters the obligation ledger, no compiler
+  review gains authority, and no lock, certificate, discharge, open-obligation,
+  admission, or `PackageInstance` API exists. Canonical accepted-lock encoding
+  and source-subject reconstruction remain open; Q2 separately governs multi-
+  package Git selection.
+
   Milestone 2026-08-26: the current ordinary package-review vocabulary now has
   a source-handle-free `OrdinaryPackageObligationLedger`. It contains the exact
   package, target, compiler-consumed dependency closure, strictly ordered
