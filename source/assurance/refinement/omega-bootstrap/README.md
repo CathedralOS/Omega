@@ -17,7 +17,7 @@ library carrier proves that
 `StaticByteView` is optional but is not disguised as an entry-bearing OMGRFN17
 frame.
 
-The current successor carrier is [`OMGRFN16`](OMGCOMP_REFINEMENT_WITNESS_V16.md):
+The arithmetic predecessor remains [`OMGRFN16`](OMGCOMP_REFINEMENT_WITNESS_V16.md):
 `OMGRFNG\0` / version 16 binds exact OMGCOMP1 and canonical OMGRSW7 to CKIR14's
 recursive full-width trapping-`u32` relation and its exact conservative
 artifact. Eight independent R1–R5 Python owners pass all twelve producer-backed
