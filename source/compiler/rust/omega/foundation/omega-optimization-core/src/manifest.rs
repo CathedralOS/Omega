@@ -1,14 +1,15 @@
 use crate::{
-    AnalysisSet, CoreContractDecodeError, OptimizationCandidateIdentity,
-    OptimizationCandidateVerdict, OptimizationDecisionIdentity, OptimizationPassIdentity,
-    OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationUnitIdentity,
-    OptimizationValidatorIdentity, OptimizationWorkBudget, ScalarConstantFactIdentity,
+    AcceptedObligationFactIdentity, AnalysisSet, CoreContractDecodeError,
+    OptimizationCandidateIdentity, OptimizationCandidateVerdict, OptimizationDecisionIdentity,
+    OptimizationPassIdentity, OptimizationRuleIdentity, OptimizationRuleSetIdentity,
+    OptimizationUnitIdentity, OptimizationValidatorIdentity, OptimizationWorkBudget,
+    ScalarConstantFactIdentity,
 };
 use std::collections::BTreeSet;
 use std::fmt;
 
 const DECISION_MAGIC: &[u8; 8] = b"OMGDEC\0\0";
-const DECISION_VERSION: u32 = 2;
+const DECISION_VERSION: u32 = 3;
 const PASS_RECORD_MAGIC: &[u8; 8] = b"OMGPAR\0\0";
 const PASS_RECORD_VERSION: u32 = 1;
 const DECISION_FIXED_WIDTH: usize = 155;
@@ -16,6 +17,7 @@ const DECISION_FIXED_WIDTH: usize = 155;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum OptimizationFactReference {
     ScalarConstant(ScalarConstantFactIdentity),
+    AcceptedObligation(AcceptedObligationFactIdentity),
 }
 
 /// Actual work consumed by one pass. Zero is valid; publication separately
@@ -253,7 +255,7 @@ fn decision_identity(
     validator: Option<OptimizationValidatorIdentity>,
 ) -> OptimizationDecisionIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.optimization-manifest-decision.v2\0");
+    canonical.extend_from_slice(b"omega.optimization-manifest-decision.v3\0");
     canonical.extend_from_slice(&input.bytes());
     canonical.extend_from_slice(&candidate.bytes());
     canonical.extend_from_slice(&rule.bytes());
@@ -283,6 +285,10 @@ fn encode_fact_reference(encoded: &mut Vec<u8>, fact: OptimizationFactReference)
             encoded.push(1);
             encoded.extend_from_slice(&identity.bytes());
         }
+        OptimizationFactReference::AcceptedObligation(identity) => {
+            encoded.push(2);
+            encoded.extend_from_slice(&identity.bytes());
+        }
     }
 }
 
@@ -292,6 +298,9 @@ fn decode_fact_reference(
     match cursor.take(1)?[0] {
         1 => Ok(OptimizationFactReference::ScalarConstant(
             ScalarConstantFactIdentity::from_bytes(cursor.array()?),
+        )),
+        2 => Ok(OptimizationFactReference::AcceptedObligation(
+            AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
         )),
         tag => Err(OptimizationManifestDecodeError::UnknownFactReference(tag)),
     }
@@ -566,6 +575,12 @@ mod tests {
         ))
     }
 
+    fn obligation_fact(name: &[u8]) -> OptimizationFactReference {
+        OptimizationFactReference::AcceptedObligation(
+            AcceptedObligationFactIdentity::from_canonical_bytes(name),
+        )
+    }
+
     fn decision(rule: OptimizationRuleIdentity) -> OptimizationDecisionRecord {
         OptimizationDecisionRecord::new(
             OptimizationUnitIdentity::from_canonical_bytes(b"input"),
@@ -743,6 +758,25 @@ mod tests {
         assert_eq!(
             OptimizationDecisionRecord::decode(&unknown),
             Err(OptimizationManifestDecodeError::UnknownFactReference(99))
+        );
+
+        let mut mixed = vec![fact(b"operand"), obligation_fact(b"proof")];
+        mixed.sort_unstable();
+        let mixed_record = OptimizationDecisionRecord::new(
+            OptimizationUnitIdentity::from_canonical_bytes(b"mixed-input"),
+            OptimizationCandidateIdentity::from_canonical_bytes(b"mixed-candidate"),
+            rule(b"mixed-rule"),
+            OptimizationCandidateVerdict::Applied,
+            AnalysisSet::new([AnalysisKind::ScalarConstants]),
+            mixed,
+            Some(OptimizationValidatorIdentity::from_canonical_bytes(
+                b"mixed-validator",
+            )),
+        )
+        .unwrap();
+        assert_eq!(
+            OptimizationDecisionRecord::decode(&mixed_record.encode()),
+            Ok(mixed_record)
         );
     }
 

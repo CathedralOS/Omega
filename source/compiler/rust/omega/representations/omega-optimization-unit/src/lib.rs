@@ -10,7 +10,7 @@
 
 use std::collections::BTreeSet;
 
-use omega_optimization_core::OptimizationUnitIdentity;
+use omega_optimization_core::{AcceptedObligationFactIdentity, OptimizationUnitIdentity};
 use omega_terminal_abstract_operations::{
     TerminalAbstractFunction, TerminalAbstractOperation, TerminalAbstractOperationPlan,
     TerminalAbstractSuccessor, TerminalValueBinding,
@@ -162,13 +162,158 @@ pub struct PsiOptimizationFunction {
     pub blocks: Vec<OptimizationBlock>,
 }
 
+/// An admitted proof fact projected from the immutable verifier context.
+///
+/// The row binds both semantic artifact identities and the exact operation
+/// owner. It remains attached after a rewrite removes that operation so the
+/// transformation ledger and manifest can retain proof custody.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AcceptedObligationFact {
+    pub identity: AcceptedObligationFactIdentity,
+    pub terminal_psi: TerminalPsiIdentity,
+    pub proof_bundle_fingerprint: [u8; 32],
+    pub machine: MachineId,
+    pub operation: OperationId,
+    pub obligation: ObligationId,
+    pub proposition: Vec<u8>,
+}
+
+impl AcceptedObligationFact {
+    pub fn new(
+        terminal_psi: TerminalPsiIdentity,
+        proof_bundle_fingerprint: [u8; 32],
+        machine: MachineId,
+        operation: OperationId,
+        obligation: ObligationId,
+        proposition: Vec<u8>,
+    ) -> Self {
+        let identity = accepted_obligation_fact_identity(
+            terminal_psi,
+            proof_bundle_fingerprint,
+            machine,
+            operation,
+            obligation,
+            &proposition,
+        );
+        Self {
+            identity,
+            terminal_psi,
+            proof_bundle_fingerprint,
+            machine,
+            operation,
+            obligation,
+            proposition,
+        }
+    }
+
+    pub fn has_canonical_identity(&self) -> bool {
+        self.identity
+            == accepted_obligation_fact_identity(
+                self.terminal_psi,
+                self.proof_bundle_fingerprint,
+                self.machine,
+                self.operation,
+                self.obligation,
+                &self.proposition,
+            )
+    }
+}
+
+pub fn accepted_obligation_fact_identity(
+    terminal_psi: TerminalPsiIdentity,
+    proof_bundle_fingerprint: [u8; 32],
+    machine: MachineId,
+    operation: OperationId,
+    obligation: ObligationId,
+    proposition: &[u8],
+) -> AcceptedObligationFactIdentity {
+    let mut canonical = Vec::new();
+    canonical.extend_from_slice(b"omega.psi-accepted-obligation-fact.v1\0");
+    canonical.extend_from_slice(terminal_psi.program_fingerprint.as_bytes());
+    canonical.extend_from_slice(&terminal_psi.vocabulary_marker.get().to_le_bytes());
+    canonical.extend_from_slice(&proof_bundle_fingerprint);
+    canonical.extend_from_slice(&machine.get().to_le_bytes());
+    canonical.extend_from_slice(&operation.get().to_le_bytes());
+    canonical.extend_from_slice(&obligation.get().to_le_bytes());
+    canonical.extend_from_slice(
+        &u64::try_from(proposition.len())
+            .expect("canonical proposition length fits u64")
+            .to_le_bytes(),
+    );
+    canonical.extend_from_slice(proposition);
+    AcceptedObligationFactIdentity::from_canonical_bytes(&canonical)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiOptimizationUnit {
     pub identity: OptimizationUnitIdentity,
     pub terminal_psi: TerminalPsiIdentity,
     pub fuel_schedule: FuelScheduleIdentity,
     pub entry: MachineId,
+    pub accepted_obligation_facts: Vec<AcceptedObligationFact>,
     pub functions: Vec<PsiOptimizationFunction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AcceptedObligationFactIndexError {
+    AlreadyAttached,
+    TerminalIdentityMismatch,
+    InvalidFactIdentity,
+    DuplicateOwner,
+}
+
+impl std::fmt::Display for AcceptedObligationFactIndexError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "invalid accepted obligation fact index: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for AcceptedObligationFactIndexError {}
+
+/// Attach the canonical verifier projection exactly once and bind it into the
+/// optimization-unit identity. Bare units intentionally retain an empty index.
+pub fn attach_accepted_obligation_facts(
+    mut unit: PsiOptimizationUnit,
+    mut facts: Vec<AcceptedObligationFact>,
+) -> Result<PsiOptimizationUnit, AcceptedObligationFactIndexError> {
+    if !unit.accepted_obligation_facts.is_empty() {
+        return Err(AcceptedObligationFactIndexError::AlreadyAttached);
+    }
+    if facts
+        .iter()
+        .any(|fact| fact.terminal_psi != unit.terminal_psi)
+    {
+        return Err(AcceptedObligationFactIndexError::TerminalIdentityMismatch);
+    }
+    if facts.iter().any(|fact| !fact.has_canonical_identity()) {
+        return Err(AcceptedObligationFactIndexError::InvalidFactIdentity);
+    }
+    facts.sort_by_key(|fact| (fact.machine, fact.operation, fact.obligation));
+    if facts.windows(2).any(|pair| {
+        (pair[0].machine, pair[0].operation, pair[0].obligation)
+            == (pair[1].machine, pair[1].operation, pair[1].obligation)
+    }) {
+        return Err(AcceptedObligationFactIndexError::DuplicateOwner);
+    }
+    if !facts.is_empty() {
+        let mut canonical = Vec::new();
+        canonical.extend_from_slice(b"omega.psi-optimization-unit.accepted-obligations.v1\0");
+        canonical.extend_from_slice(&unit.identity.bytes());
+        canonical.extend_from_slice(
+            &u64::try_from(facts.len())
+                .expect("accepted obligation fact count fits u64")
+                .to_le_bytes(),
+        );
+        for fact in &facts {
+            canonical.extend_from_slice(&fact.identity.bytes());
+        }
+        unit.identity = OptimizationUnitIdentity::from_canonical_bytes(&canonical);
+    }
+    unit.accepted_obligation_facts = facts;
+    Ok(unit)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -212,6 +357,7 @@ pub fn reconstruct_psi_optimization_unit_seed(
         terminal_psi: plan.terminal_psi,
         fuel_schedule,
         entry: plan.entry,
+        accepted_obligation_facts: Vec::new(),
         functions,
     })
 }

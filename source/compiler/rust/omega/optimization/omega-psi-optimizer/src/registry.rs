@@ -5,6 +5,7 @@ use omega_optimization_core::{
     OptimizationRuleIdentity, OptimizationRuleSetIdentity,
 };
 use omega_optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewriteCandidateError};
+use psi_core::{MachineId, ObligationId, OperationId};
 
 use crate::AnalysisProduct;
 
@@ -27,6 +28,11 @@ impl<'a> RuleAnalysisView<'a> {
 pub enum RuleProposalError {
     MissingAnalysis(AnalysisKind),
     InvalidCandidate(PsiRewriteCandidateError),
+    MissingAcceptedObligation {
+        machine: MachineId,
+        operation: OperationId,
+        obligation: Option<ObligationId>,
+    },
 }
 
 impl std::fmt::Display for RuleProposalError {

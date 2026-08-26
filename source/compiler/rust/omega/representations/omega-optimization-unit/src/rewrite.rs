@@ -1,9 +1,10 @@
 use std::collections::BTreeSet;
 
 use omega_optimization_core::{
-    AnalysisInvalidationSet, AnalysisSet, OptimizationCandidateIdentity, OptimizationFactReference,
-    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
-    OptimizationUnitIdentity, ScalarConstantFactIdentity,
+    AcceptedObligationFactIdentity, AnalysisInvalidationSet, AnalysisSet,
+    OptimizationCandidateIdentity, OptimizationFactReference, OptimizationRuleContract,
+    OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationUnitIdentity,
+    ScalarConstantFactIdentity,
 };
 use psi_core::{
     BlockId, EdgeId, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId,
@@ -42,6 +43,55 @@ pub enum ScalarEvaluationWitness {
         left_fact: ScalarConstantFactIdentity,
         right_fact: ScalarConstantFactIdentity,
     },
+    ProofCertifiedUnary {
+        operand_fact: ScalarConstantFactIdentity,
+        obligation_fact: AcceptedObligationFactIdentity,
+    },
+    ProofCertifiedBinary {
+        left_fact: ScalarConstantFactIdentity,
+        right_fact: ScalarConstantFactIdentity,
+        obligation_fact: AcceptedObligationFactIdentity,
+    },
+}
+
+impl ScalarEvaluationWitness {
+    pub const fn unary_operand(self) -> Option<ScalarConstantFactIdentity> {
+        match self {
+            Self::Unary { operand_fact } | Self::ProofCertifiedUnary { operand_fact, .. } => {
+                Some(operand_fact)
+            }
+            Self::Binary { .. } | Self::ProofCertifiedBinary { .. } => None,
+        }
+    }
+
+    pub const fn binary_operands(
+        self,
+    ) -> Option<(ScalarConstantFactIdentity, ScalarConstantFactIdentity)> {
+        match self {
+            Self::Binary {
+                left_fact,
+                right_fact,
+            }
+            | Self::ProofCertifiedBinary {
+                left_fact,
+                right_fact,
+                ..
+            } => Some((left_fact, right_fact)),
+            Self::Unary { .. } | Self::ProofCertifiedUnary { .. } => None,
+        }
+    }
+
+    pub const fn obligation_fact(self) -> Option<AcceptedObligationFactIdentity> {
+        match self {
+            Self::ProofCertifiedUnary {
+                obligation_fact, ..
+            }
+            | Self::ProofCertifiedBinary {
+                obligation_fact, ..
+            } => Some(obligation_fact),
+            Self::Unary { .. } | Self::Binary { .. } => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -314,6 +364,7 @@ pub enum PsiRewriteCandidateError {
     EmptyIncomingBindings,
     NonCanonicalIncomingBindings,
     BlockParameterSubstitutionMismatch,
+    ProofWitnessSafetyMismatch,
 }
 
 impl std::fmt::Display for PsiRewriteCandidateError {
@@ -452,6 +503,18 @@ impl PsiRewriteCandidate {
         {
             return Err(PsiRewriteCandidateError::NonCanonicalProvenance);
         }
+        if matches!(
+            contract.safety_class(),
+            OptimizationSafetyClass::ProofCertified
+        ) != matches!(
+            witness,
+            PsiRewriteWitness::ScalarEvaluation(
+                ScalarEvaluationWitness::ProofCertifiedUnary { .. }
+                    | ScalarEvaluationWitness::ProofCertifiedBinary { .. }
+            )
+        ) {
+            return Err(PsiRewriteCandidateError::ProofWitnessSafetyMismatch);
+        }
         match patch {
             PsiRewritePatch::ReplaceIntegerOperationWithConstant(_)
             | PsiRewritePatch::ReplaceBooleanOperationWithConstant(_) => {
@@ -586,6 +649,24 @@ impl PsiRewriteCandidate {
                 OptimizationFactReference::ScalarConstant(*left_fact),
                 OptimizationFactReference::ScalarConstant(*right_fact),
             ],
+            PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::ProofCertifiedUnary {
+                operand_fact,
+                obligation_fact,
+            }) => vec![
+                OptimizationFactReference::ScalarConstant(*operand_fact),
+                OptimizationFactReference::AcceptedObligation(*obligation_fact),
+            ],
+            PsiRewriteWitness::ScalarEvaluation(
+                ScalarEvaluationWitness::ProofCertifiedBinary {
+                    left_fact,
+                    right_fact,
+                    obligation_fact,
+                },
+            ) => vec![
+                OptimizationFactReference::ScalarConstant(*left_fact),
+                OptimizationFactReference::ScalarConstant(*right_fact),
+                OptimizationFactReference::AcceptedObligation(*obligation_fact),
+            ],
             PsiRewriteWitness::RedundantBlockParameter(_) => Vec::new(),
         };
         facts.sort_unstable();
@@ -615,7 +696,7 @@ fn encode_candidate(
     patch: PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v4\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v5\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     encode_location(&mut bytes, decision_point);
@@ -672,6 +753,24 @@ fn encode_candidate(
             bytes.extend_from_slice(&[1, 2]);
             bytes.extend_from_slice(&left_fact.bytes());
             bytes.extend_from_slice(&right_fact.bytes());
+        }
+        PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::ProofCertifiedUnary {
+            operand_fact,
+            obligation_fact,
+        }) => {
+            bytes.extend_from_slice(&[1, 3]);
+            bytes.extend_from_slice(&operand_fact.bytes());
+            bytes.extend_from_slice(&obligation_fact.bytes());
+        }
+        PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::ProofCertifiedBinary {
+            left_fact,
+            right_fact,
+            obligation_fact,
+        }) => {
+            bytes.extend_from_slice(&[1, 4]);
+            bytes.extend_from_slice(&left_fact.bytes());
+            bytes.extend_from_slice(&right_fact.bytes());
+            bytes.extend_from_slice(&obligation_fact.bytes());
         }
         PsiRewriteWitness::RedundantBlockParameter(witness) => {
             bytes.push(2);
