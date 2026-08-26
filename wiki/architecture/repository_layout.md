@@ -191,28 +191,9 @@ Omega/
 |   `-- omega-compiler/                                    # Hosted Omega-written product compiler entrypoint.
 |
 |-- omega/
-|   |-- language/
-|   |   |-- core/                                       # Always-available language package.
-|   |   `-- std/                                        # Higher-level standard package surface.
-|   |
-|   `-- host/                                           # Cross-platform boundary, authority, and per-target host surfaces.
-|
-|-- target_runtime/                                     # Linkable runtime payloads shipped with the toolchain.
-|   |-- shared/                                         # Target-independent runtime manifests and metadata schemas.
-|   |
-|   `-- targets/
-|       |-- macos_arm64/
-|       |   |-- startup_objects/                        # Entry bridges such as `_start` or platform CRT replacements.
-|       |   `-- platform/                               # Link-time host adapters and image metadata.
-|       |-- linux_x64/
-|       |   |-- startup_objects/
-|       |   `-- platform/
-|       |-- windows_x64/
-|       |   |-- startup_objects/
-|       |   `-- platform/
-|       `-- wasm32/
-|           |-- startup_objects/
-|           `-- platform/
+|   `-- language/
+|       |-- core/                                       # Always-available language package.
+|       `-- std/                                        # Higher-level standard package surface.
 |
 |-- samples/
 |   |-- cli_mvp/                                        # Smallest console program.
@@ -367,8 +348,10 @@ Omega/
 
 - Process entry and startup-runtime replacement are placement intent for a
   future `compiler/runtime/startup/*` layer; there are no compiler-side runtime
-  or startup crates today. Linkable startup payloads currently live as data under
-  `target_runtime/`.
+  or startup crates today, and no linkable startup payloads exist yet. The
+  `target_runtime/` skeleton that once reserved a home for them held only
+  `.gitkeep` files and was removed; reserve that placement here in prose rather
+  than as empty directories on disk.
 - The retired `omega/host` capability scaffold is not a second boundary model.
   Portable host requirements and checked adapters live under
   `omega/language/std`; target-owned implementations/defaults live under
