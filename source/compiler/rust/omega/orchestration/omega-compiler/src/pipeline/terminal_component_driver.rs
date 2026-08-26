@@ -36,10 +36,10 @@ impl<'evidence> TerminalComponentStagingInputs<'evidence> {
     /// remains the sole operation that consumes checked semantics.
     pub fn from_checked(
         checked: &CheckedCompilation,
-        subsystem: u16,
         profile: &'evidence psi_proof_admission::AdmissionProfile,
         settlements: Vec<TerminalComponentProviderSettlement<'evidence>>,
     ) -> Result<Self, Box<TerminalComponentStagingInputBindingError<'evidence>>> {
+        let subsystem = checked.subsystem();
         let Some(target) = checked.selected_native_target() else {
             return Err(Box::new(TerminalComponentStagingInputBindingError {
                 subsystem,

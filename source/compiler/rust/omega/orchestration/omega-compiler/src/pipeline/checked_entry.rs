@@ -15,6 +15,8 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCompilation {
     program: CheckedTrees,
+    source_file_count: usize,
+    subsystem: u16,
     package_identity: Option<psi_core::PackageKeyIdentity>,
     dependency_closure: Option<super::PackageDependencyClosure>,
     source_consumption_commitment: Option<super::PackageSourceConsumptionCommitment>,
@@ -40,6 +42,16 @@ pub struct CheckedCompilation {
 }
 
 impl CheckedCompilation {
+    /// Exact physical/generated source count consumed by this checked run.
+    pub const fn source_file_count(&self) -> usize {
+        self.source_file_count
+    }
+
+    /// Exact image subsystem selected by the owning build configuration.
+    pub const fn subsystem(&self) -> u16 {
+        self.subsystem
+    }
+
     /// Reconciled root package identity for package-aware compilation.
     /// Standalone compilation has no package identity.
     pub const fn package_identity(&self) -> Option<psi_core::PackageKeyIdentity> {
@@ -321,6 +333,27 @@ pub fn compile_to_checked_with_packages_in_sponsored_build_dir(
     })
 }
 
+/// Run the ordinary checked frontend for the typed terminal-component handoff
+/// without consuming its caller-owned request or deployment authority.
+pub(super) fn compile_to_checked_for_terminal(
+    options: &super::CompileOptions,
+    package_inputs: Option<&PackageCompilationInputs>,
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    let root_path = options.root_path.clone();
+    let build_dir = options.build_dir();
+    let target_name = options.target_name.clone();
+    let package_inputs = package_inputs.cloned();
+    super::compiler::run_on_compile_thread(move || {
+        compile_to_checked_inner(
+            &root_path,
+            target_name.as_deref(),
+            package_inputs.as_ref(),
+            Some(&build_dir),
+            None,
+        )
+    })
+}
+
 struct CheckedFrontend {
     typed: psi_typed_trees::TypedTrees,
     target_default_machine_names: Vec<String>,
@@ -417,7 +450,7 @@ fn compile_to_checked_inner_with_replay(
 
     // The interpreter keeps the abstract `boundary trait Gui` for its headless
     // provider; only the native-image pipeline substitutes target providers.
-    let (_source_file_count, syntax) = source_files_to_syntax_trees_for_engine(
+    let (source_file_count, syntax) = source_files_to_syntax_trees_for_engine(
         root_path,
         target_name,
         false,
@@ -549,6 +582,7 @@ fn compile_to_checked_inner_with_replay(
     let build_evaluation_usage = computed_build_config.evaluation_usage;
     let build_observation_summary = computed_build_config.observation_summary;
     let build_config = computed_build_config.config;
+    let subsystem = build_config.subsystem;
     let optimization_selections = build_config.optimizations.clone();
     let optimization_selection_identity = optimization_selections.identity();
     // A semantic-only checked compilation has no selected target and therefore
@@ -709,6 +743,8 @@ fn compile_to_checked_inner_with_replay(
     }
     Ok(CheckedCompilation {
         program,
+        source_file_count,
+        subsystem,
         package_identity,
         dependency_closure,
         source_consumption_commitment,

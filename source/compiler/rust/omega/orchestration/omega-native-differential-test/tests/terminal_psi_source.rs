@@ -10,14 +10,15 @@ use omega_calling_conventions::{
 };
 use omega_compiler::{
     CompileOptions, CompileReport, OwnedTerminalComponentDeploymentError,
-    SuppliedTerminalComponentDeploymentError, TerminalComponentDeploymentInputOwner,
+    SuppliedTerminalComponentDeploymentError, TerminalComponentCompileError,
+    TerminalComponentCompileRequest, TerminalComponentDeploymentInputOwner,
     TerminalComponentDeploymentInputRejection, TerminalComponentDeploymentInputs,
     TerminalComponentDeploymentOutputError, TerminalComponentDeploymentOutputStage,
     TerminalComponentDeploymentSupply, TerminalComponentProviderSettlement,
     TerminalComponentStagingInputs, acquire_and_deploy_terminal_component_output,
-    compile_to_checked, deploy_and_write_terminal_component_output,
-    stage_acquire_and_deploy_terminal_component_output, stage_terminal_component,
-    write_finalized_terminal_component_output,
+    compile_terminal_component_output, compile_to_checked,
+    deploy_and_write_terminal_component_output, stage_acquire_and_deploy_terminal_component_output,
+    stage_terminal_component, write_finalized_terminal_component_output,
 };
 use omega_component_deployment::{
     ComponentProgressAttestationBinding, begin_terminal_component_deployment,
@@ -1057,7 +1058,6 @@ fn complete_terminal_driver_binds_checked_target_and_metadata_before_report_cust
     };
     let binding_error = TerminalComponentStagingInputs::from_checked(
         &targetless_checked,
-        3,
         &staging_profile,
         Vec::new(),
     )
@@ -1073,11 +1073,11 @@ fn complete_terminal_driver_binds_checked_target_and_metadata_before_report_cust
     assert!(returned_settlements.is_empty());
     let staging_inputs = TerminalComponentStagingInputs::from_checked(
         &checked,
-        subsystem,
         returned_profile,
         returned_settlements,
     )
     .expect("selected checked result should bind its exact native target");
+    assert_eq!(staging_inputs.subsystem(), subsystem);
     assert_eq!(staging_inputs.target(), NativeTarget::linux_x64());
     let expected_build_evaluation_usage = checked.build_evaluation_usage();
     let expected_build_observation_summary = checked.build_observation_summary().cloned();
@@ -1107,6 +1107,115 @@ fn complete_terminal_driver_binds_checked_target_and_metadata_before_report_cust
         .expect("complete driver report retains deployment")
         .validate()
         .expect("complete driver deployment should replay");
+}
+
+#[cfg(unix)]
+#[test]
+fn typed_terminal_compile_handoff_retains_frontend_and_binding_custody() {
+    let staging_profile = AdmissionProfile::default();
+    let scratch = ScratchDirectory(fresh_scratch_directory(
+        "omega-typed-terminal-compile-recovery",
+    ));
+    let missing_source = scratch.0.join("missing.omg");
+    let frontend_error = compile_terminal_component_output(TerminalComponentCompileRequest::new(
+        CompileOptions {
+            root_path: missing_source.clone(),
+            build_dir: Some(scratch.0.join("frontend-build")),
+            target_name: Some("linux_x64".into()),
+            write_output: true,
+        },
+        &staging_profile,
+        Vec::new(),
+        InstallingSourceDeploymentInputOwner {
+            profile_decision: ProfileDecisionId::new(0x55f5)
+                .expect("frontend-recovery profile decision"),
+        },
+    ))
+    .expect_err("missing source must return the complete terminal request");
+    let TerminalComponentCompileError::Frontend {
+        diagnostics,
+        request,
+    } = *frontend_error
+    else {
+        panic!("expected frontend-stage terminal compile recovery");
+    };
+    assert!(!diagnostics.is_empty());
+    assert_eq!(request.options().root_path, missing_source);
+    assert!(request.package_inputs().is_none());
+    assert!(std::ptr::eq(request.profile(), &staging_profile));
+    assert!(request.settlements().is_empty());
+    assert_eq!(
+        request.deployment_owner().profile_decision,
+        ProfileDecisionId::new(0x55f5).expect("frontend-recovery profile decision")
+    );
+
+    let source = progress_free_selected_source_canary();
+    let binding_error = compile_terminal_component_output(TerminalComponentCompileRequest::new(
+        CompileOptions {
+            root_path: source.clone(),
+            build_dir: Some(scratch.0.join("binding-build")),
+            target_name: None,
+            write_output: true,
+        },
+        &staging_profile,
+        Vec::new(),
+        InstallingSourceDeploymentInputOwner {
+            profile_decision: ProfileDecisionId::new(0x55f6)
+                .expect("binding-recovery profile decision"),
+        },
+    ))
+    .expect_err("targetless checked result must return checked and request custody");
+    let TerminalComponentCompileError::StagingInputBinding {
+        diagnostic,
+        checked,
+        request,
+    } = *binding_error
+    else {
+        panic!("expected staging-input binding recovery");
+    };
+    assert!(diagnostic.message.contains("owning checked result"));
+    assert_eq!(checked.source_file_count(), 3);
+    assert_eq!(checked.subsystem(), 3);
+    assert!(checked.selected_native_target().is_none());
+    assert_eq!(request.options().root_path, source);
+    assert!(std::ptr::eq(request.profile(), &staging_profile));
+    assert!(request.settlements().is_empty());
+    assert_eq!(
+        request.deployment_owner().profile_decision,
+        ProfileDecisionId::new(0x55f6).expect("binding-recovery profile decision")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn typed_terminal_compile_handoff_reaches_checked_owned_report_custody() {
+    let source = progress_free_selected_source_canary();
+    let staging_profile = AdmissionProfile::default();
+    let scratch = ScratchDirectory(fresh_scratch_directory(
+        "omega-typed-terminal-compile-success",
+    ));
+    let report = compile_terminal_component_output(TerminalComponentCompileRequest::new(
+        CompileOptions {
+            root_path: source,
+            build_dir: Some(scratch.0.clone()),
+            target_name: Some("linux_x64".into()),
+            write_output: true,
+        },
+        &staging_profile,
+        Vec::new(),
+        InstallingSourceDeploymentInputOwner {
+            profile_decision: ProfileDecisionId::new(0x55f7)
+                .expect("typed handoff profile decision"),
+        },
+    ))
+    .expect("typed terminal compile should reach deployment report custody");
+    assert_eq!(report.source_file_count, 3);
+    assert!(report.executable_publication().is_none());
+    report
+        .terminal_component_deployment()
+        .expect("typed handoff report retains terminal deployment")
+        .validate()
+        .expect("typed handoff deployment should replay");
 }
 
 #[test]

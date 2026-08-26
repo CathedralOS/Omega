@@ -7643,15 +7643,30 @@ compiler concept is introduced.
   them to an exactly targeted checked result, and proves the checked metadata
   reaches terminal-deployment report custody unchanged.
 
+  The ordinary Psi-owned checked frontend now has a separate typed terminal
+  compile handoff without entering the legacy backend coordinator.
+  `CheckedCompilation` retains its exact consumed source count and build-
+  selected image subsystem; `TerminalComponentCompileRequest` owns compile
+  options, optional package inputs, the externally borrowed admission profile
+  and provider settlements, and the external deployment-input owner. Frontend
+  rejection returns that complete request. Targetless staging-input binding
+  returns both the exact checked result and the reconstructed request, while
+  later rejection uses the established staging/deployment custody and retains
+  options and package inputs beside it. The successful source canary proves the
+  checked-owned three-file count reaches report custody rather than the former
+  fixture-restated count of one. This handoff never calls legacy
+  `Compiler::compile` or `write_output` and cannot manufacture installation,
+  provider-occurrence, progress, or profile-decision authority.
+
   Remaining TPR6-B engineering: retire the legacy compiler's temporary final-
   output rejection only after a concrete non-test installation/deployment owner
-  implements this acquisition boundary and the Psi-owned checked result is
-  routed into the connected terminal driver. No such provider exists in the
-  compiler today, and the ordinary compiler still reaches its checked result
-  inside the legacy backend coordinator. The current legacy path publishes a
-  native executable directly and carries neither the manifest nor an
-  installation acceptance, so removing the fence there would erase the
-  obligation; selected plans and authorized routes remain insufficient.
+  implements this acquisition boundary and an ordinary production caller
+  supplies that owner to the typed terminal handoff. No such provider exists in
+  the compiler today. The current legacy path publishes a native executable
+  directly and carries neither the manifest nor an installation acceptance, so
+  removing the fence there would erase the obligation; selected plans and
+  authorized routes remain insufficient. This is missing platform/provider
+  engineering, not a language-design block.
   Independently add authored
   qualification-preserving correspondence beyond direct parameter/field
   identity. `QualificationEvidence` retains evidence kind and source
