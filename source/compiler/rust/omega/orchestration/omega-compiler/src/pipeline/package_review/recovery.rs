@@ -262,6 +262,16 @@ pub fn decode_package_review_canonical_row_with_limits(
     Ok(decoded)
 }
 
+pub(super) fn canonical_row_subject_for_ledger(
+    canonical_bytes: &[u8],
+) -> Result<(PackageKeyIdentity, TargetProfile), PackageReviewCanonicalRowRecoveryError> {
+    let framing = parse_canonical_row(
+        canonical_bytes,
+        PackageReviewCanonicalRowRecoveryLimits::default(),
+    )?;
+    Ok((framing.package, framing.target))
+}
+
 struct ParsedCanonicalRow {
     package: PackageKeyIdentity,
     target: TargetProfile,

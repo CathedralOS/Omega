@@ -8,11 +8,18 @@
 //! persisted as an accepted lock baseline.
 
 mod encoding;
+mod obligation_ledger;
 mod recovery;
 
 pub use encoding::{
     PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     PackageReviewEncodingError,
+};
+pub use obligation_ledger::{
+    OrdinaryPackageObligationLedger, OrdinaryPackageObligationLedgerRecoveryError,
+    OrdinaryPackageObligationRow, ordinary_package_obligation_ledger_from_compiler_rows,
+    reconstruct_ordinary_package_obligation_ledger, recover_ordinary_package_obligation_ledger,
+    validate_ordinary_package_obligation_ledger,
 };
 pub use recovery::{
     DecodedPackageReviewCanonicalRow, PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION,
