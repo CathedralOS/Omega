@@ -458,3 +458,48 @@ syntax.
 - Tempting but wrong: encode the normalized signature as an authored string.
 - Tempting but wrong: apply a family override only to overloads the provider
   happens to implement and leave the rest on unrelated defaults.
+
+## Q11 — Provider selection for a top-level boundary requirement
+
+### Context
+
+Bounded installation-reach rows can now remain symbolic until an installed
+root joins them to one exact selected provider plan. Trait and operator
+requirements already have authored `satisfies Trait::requirement` selection,
+but core also owns bodyless top-level boundary requirements. Interrupt entry
+and acknowledgement completion need distinct exact operation rows: PIC
+completion resolves to `PortIo`, while LAPIC/x2APIC completion resolves to
+`MachineControl`.
+
+### Problem statement
+
+No approved source form selects the realization of one exact top-level
+bodyless boundary requirement. Reusing trait `satisfies` would invent an owner
+that the requirement does not have; inferring a provider from equal resolved
+reach rows would erase the distinct entry/completion operations and their token
+lineage. Until this is settled, provider selection cannot close the top-level
+completion dependency and the public interrupt completion contract cannot
+replace its conservative fixed reach with a separately resolved bound.
+
+### Proposed direction
+
+Add one explicit nominal provider-binding form for a canonical top-level
+requirement path. The binding must name the selected realization directly,
+retain the requirement and operation identity independently from its bounded
+reach row, and flow through selected-provider, installed-root, acknowledgement
+policy, invocation, and token-lineage evidence. Missing, ambiguous, foreign,
+or duplicate bindings reject; row equality grants neither selection nor
+settlement authority.
+
+### Alternates
+
+- Acceptable: place the explicit selection in target/build provider policy if
+  it still names the exact top-level requirement and realization and survives
+  into installed evidence.
+- Acceptable: give top-level boundary requirements a nominal owner solely for
+  provider selection, provided that ownership is ordinary declared language
+  structure rather than a compiler-synthesized trait.
+- Tempting but wrong: choose the unique visible provider whose concrete reach
+  happens to refine the same bound.
+- Tempting but wrong: keep one hardcoded `PortIo` completion row and treat it as
+  proof of PIC/LAPIC provider coherence.

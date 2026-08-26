@@ -7452,12 +7452,13 @@ state through a raw address.
     producers contain no service-bearing boundary operation, so there is no
     additional producer row to populate today; verifier reconstruction remains
     the fail-closed fence if one gains such an operation.
-    **Design-blocked:** settle how a realization supplies one exact top-level
-    bodyless boundary requirement. The existing `satisfies Trait::requirement`
-    surface selects trait/operator requirements; no approved source form yet
-    binds a provider to a top-level requirement path. Until that is settled,
-    provider selection cannot close the new top-level dependency, and
-    `InterruptAcknowledgement::complete` must retain its fixed `PortIo` row.
+    **Design-blocked on `OWNER_QUESTIONS.md` Q11:** settle how a realization
+    supplies one exact top-level bodyless boundary requirement. The existing
+    `satisfies Trait::requirement` surface selects trait/operator requirements;
+    no approved source form yet binds a provider to a top-level requirement
+    path. Until that is settled, provider selection cannot close the new
+    top-level dependency, and `InterruptAcknowledgement::complete` must retain
+    its fixed `PortIo` row.
   - **Constraints:** `+` is union. Do not infer one shared row from equal sets or
     add negation, subtraction, lower bounds, exclusive-or, named row variables,
     or cross-requirement correlation.
