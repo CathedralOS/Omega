@@ -2,7 +2,7 @@ use std::fmt::Write;
 use std::path::PathBuf;
 
 use omega_compiler::{
-    ArtifactEmissionPolicy, CompileOptions, compile_to_checked, compile_with_artifact_policy,
+    ArtifactEmissionPolicy, CompileOptions, CompileRequest, compile_request, compile_to_checked,
     compile_with_worker_count_and_artifact_policy,
 };
 use omega_core::allocations::CountingAllocator;
@@ -76,7 +76,7 @@ fn main() {
     } else {
         ArtifactEmissionPolicy::Full
     };
-    match compile_with_artifact_policy(options, artifact_policy) {
+    match compile_request(CompileRequest::new(options).with_artifact_policy(artifact_policy)) {
         Ok(report) => {
             println!("{}", report.summary());
         }
