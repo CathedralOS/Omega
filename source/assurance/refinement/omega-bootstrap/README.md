@@ -3,11 +3,15 @@
 The current successor carrier is [`OMGRFN16`](OMGCOMP_REFINEMENT_WITNESS_V16.md):
 `OMGRFNG\0` / version 16 binds exact OMGCOMP1 and canonical OMGRSW7 to CKIR14's
 recursive full-width trapping-`u32` relation and its exact conservative
-artifact. Eight independent R1–R5 owners pass twelve producer-backed
-successful/trapping profiles in Python and as native/self persisted-Beta
-executables, including recursive postorder, first traps, complete Call and
-CaseDispatch argument vectors, inherited CKIR12 views, local mutations,
-cross-pairs, and resource teeth.
+artifact. Eight independent R1–R5 Python owners pass all twelve producer-backed
+successful/trapping profiles and the complete responsibility-local control
+matrix. Matching native/self persisted-Beta executables have identical
+compiler output and pass representative recursive, inherited-view, and trap
+frames plus one responsibility-owned rejection each. The historical Cartesian
+native/self matrix remains available as an explicit exhaustive mode, but is not
+the default lattice obligation. The precise cached lattice step reports phase
+timings and retains local mutations, cross-pairs, and resource teeth without
+multiplying every case by every independent owner.
 
 The immediately preceding static-view carrier remains
 [`OMGRFN14`](OMGCOMP_REFINEMENT_WITNESS_V14.md): `OMGRFNE\0` / version 14 binds

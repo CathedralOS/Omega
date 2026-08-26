@@ -291,7 +291,7 @@ cuts are:
 | --- | --- | --- |
 | data/views | guarded shared-byte head/tail lowering with an ordered vector of pure, total pass-through arguments and more than one occurrence/synthetic block | effectful or independently trapping siblings, mutable-view operations, dynamic indexing, and full `u64` collection arithmetic |
 | scalar/control | direct pure same-carrier `u64 < u64`, including full-width literals/fields/parameters and true-edge range custody into state parameters | nested arithmetic operands, mixed carriers, calls, indexing, mutation, and the other comparison operators |
-| provider plan | one complete six-requirement `Console` candidate selected by the authoritative `Build::select_provider<Console, ConsoleNativeProvider>()`, retained through checked calls and conservative execution | provider admission, defaults-as-selection, general installation/runtime authority, Q7 package authority, and Q8 multi-target build migration |
+| provider plan | one complete six-requirement `Console` candidate selected by the authoritative `Build::select_provider<Console, ConsoleNativeProvider>()`, retained through checked calls and conservative execution | first add an explicit authoritative build-source identity to the compilation envelope (OMGCOMP2 source labels are custody-only); checked-adapter execution then depends on the selected generalized view-vector cut. Provider admission, defaults-as-selection, general installation/runtime authority, Q7 package authority, and Q8 multi-target build migration remain excluded |
 
 These cuts are chosen from product evidence because they establish reusable
 vector, 64-bit scalar/control, and complete-plan machinery. They must not be
@@ -332,14 +332,31 @@ Cartesian test matrix inside one verifier.
   exact one-requirement trait, `satisfies`, target-applicability,
   payload-free-compiler-intrinsic, and receiver-call resolution relation. That
   result deliberately stops before candidate selection, checked IR, or an
-  executable call. Next consume the refreshed product build's normative
-  explicit selection and complete six-requirement `Console` closure, then carry
-  one complete `ProviderPlan` through checking, conservative lowering,
-  executable meaning, and lower-rooted reconstruction. This item is
+  executable call. OMGCOMP2 cannot identify the authoritative build source:
+  its source labels are deliberately custody-only, so neither a readable
+  `machine build` name nor a filename may be promoted into selection authority.
+  First publish a successor compilation envelope with an explicit build-source
+  identity and retain the selecting machine/source span in the selected plan.
+  Then consume the refreshed product build's normative explicit selection and
+  complete six-requirement `Console` closure, carrying one complete
+  `ProviderPlan` through checking, conservative lowering, executable meaning,
+  and lower-rooted reconstruction. Structural six-row plan completeness may be
+  implemented independently, but an honest execution of the product
+  `write`/`write_line` checked adapters waits for the selected generalized
+  view-vector milestone: both recurrent guarded edges pass `console`, head,
+  tail, and `newline`, while CKIR12 admits only one synthetic head/tail edge and
+  no pass-through values. Do not substitute a synthetic adapter and claim the
+  product path. This item is
   product-checkpoint/engineering gated rather than language-design blocked;
   do not infer target-default semantics from compatibility spellings or claim
   provider admission, general boundary traits in Delta, or compilation
   authority from the bounded relation.
+  Give ProviderPlan a fresh focused assurance family rather than patching the
+  OMGRFN8/16 materializer chain: the current R2, R3, and R4-lowering
+  persisted-Beta owners are already close to the 262,140-byte tape ceiling.
+  Derive the six normalized rows linearly, keep plan/schema/selection/lowering/
+  result/artifact mutations responsibility-local, and execute one canonical
+  all-owner join instead of declaration or row permutations.
 - [ ] Consume each later provisional product checkpoint and add only its newly
   observed, directionally clear capability lanes under the same rules. A later
   source need may reopen a provisional exclusion; it does not create another
@@ -519,6 +536,13 @@ work.
 - Exhaustive native matrices may be paired with a small representative
   self-built/lower-rung matrix when the latter is semantically redundant and
   disproportionately slow; document the coverage split.
+- OMGRFN16 is the concrete precedent: its default precise lattice step runs
+  every producer profile and local control through the responsible Python
+  owners, then runs representative recursive/view/trap frames plus one owned
+  rejection through each identical native/self persisted-Beta owner. Set
+  `OMGRFN16_MATRIX=exhaustive` only for an intentional historical Cartesian
+  audit. Keep the phase timings and precise cache manifest live so a closed
+  frontier cannot silently fall out of the lattice.
 - Debug HTML, viewers, exhaustive dumps, and other human-only artifacts are
   opt-in. Default gates emit only checker-consumed evidence and concise failure
   diagnostics.
