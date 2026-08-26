@@ -45,7 +45,10 @@ These facts constrain the work below.
   either the legacy or clean target backend can emit output until the verified
   optimizer pipeline exists. Package-aware admission permits the exact root
   build selection and proves that dependency build companions cannot
-  contribute one. Persistent build/cache identity remains P0 work.
+  contribute one. Checked compilation retains the domain-separated selection
+  identity, and the core crate defines a canonical replay/cache identity bundle
+  over selections, ordered rules, target cost model, optional decision and
+  workload inputs, and the transformation ledger.
 - Terminal Psi semantics, proof evidence, fuel schedules, installation choices,
   and debug maps have separate identities. Optimization must preserve that
   separation and retain source fuel/provenance mappings.
@@ -154,14 +157,6 @@ route new optimization through legacy `StateGraph` merely to avoid that
 dependency.
 
 ## P0 — Opt-in and compatibility firewall
-
-- **OPT-SELECTION-IDENTITY.** Define canonical identities for the exact selected
-  optimizations, normalized ordered rule set, target cost model, optional
-  decision log, optional workload profile, and transformation ledger.
-
-  Acceptance: cache/rebuild records cannot collide across any differing input.
-  Machine-local paths, allocation addresses, hash-map order, debug formatting,
-  and report emission policy do not enter these identities.
 
 - **OPT-MANIFEST-SCHEMA.** Add a structured optimization manifest and a human
   report projection.

@@ -27,6 +27,7 @@ pub struct CheckedCompilation {
     selected_program_entry_machine: Option<String>,
     selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
     optimization_selections: omega_optimization_core::OptimizationSelections,
+    optimization_selection_identity: omega_optimization_core::OptimizationSelectionIdentity,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     selected_provider_provenance: Vec<super::provider_plans::SelectedProviderReviewProvenance>,
     component_progress: Option<omega_effects::ComponentProgressManifest>,
@@ -104,6 +105,15 @@ impl CheckedCompilation {
         &self,
     ) -> &omega_optimization_core::OptimizationSelections {
         &self.optimization_selections
+    }
+
+    /// Domain-separated identity of the exact canonical selected set. This is
+    /// retained independently so later cache, replay, and artifact boundaries
+    /// never have to rediscover an optimization input from build syntax.
+    pub const fn optimization_selection_identity(
+        &self,
+    ) -> omega_optimization_core::OptimizationSelectionIdentity {
+        self.optimization_selection_identity
     }
 
     pub const fn selected_provider_plans(&self) -> &omega_effects::SelectedProviderPlanFacts {
@@ -544,6 +554,7 @@ fn compile_to_checked_inner_with_replay(
     let build_observation_summary = computed_build_config.observation_summary;
     let build_config = computed_build_config.config;
     let optimization_selections = build_config.optimizations.clone();
+    let optimization_selection_identity = optimization_selections.identity();
     // A semantic-only checked compilation has no selected target and therefore
     // no storage root. Authored bindings remain available in the evaluated
     // build configuration, but only an exact target selection may activate one
@@ -701,6 +712,7 @@ fn compile_to_checked_inner_with_replay(
         selected_program_entry_machine,
         selected_build_machine_symbol,
         optimization_selections,
+        optimization_selection_identity,
         selected_provider_plans: selected_provider_plan_facts,
         selected_provider_provenance,
         component_progress,
