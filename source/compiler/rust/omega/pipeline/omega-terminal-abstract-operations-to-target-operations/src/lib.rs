@@ -931,6 +931,7 @@ fn lower_function(
             }
             TerminalAbstractOperation::IntegerExactCast {
                 psi_operation,
+                obligation,
                 result,
                 source_type,
                 target_type,
@@ -948,20 +949,13 @@ fn lower_function(
                     Some(_) => return Err(LoweringError::IntegerExactCastTypeMismatch(*result)),
                     None => return Err(LoweringError::UnknownValue(*operand)),
                 };
-                let value = match operand_value {
-                    KnownInteger::Immediate(value) => KnownInteger::Immediate(
-                        source_type
-                            .exact_cast_value_to(*target_type, value)
-                            .ok_or(LoweringError::IntegerExactCastTypeMismatch(*result))?,
-                    ),
-                    KnownInteger::Runtime(expression) => {
-                        KnownInteger::Runtime(TerminalTargetIntegerExpression::IntegerExactCast {
-                            psi_operation: *psi_operation,
-                            source_type: *source_type,
-                            operand: Box::new(expression),
-                        })
-                    }
-                };
+                let value =
+                    KnownInteger::Runtime(TerminalTargetIntegerExpression::IntegerExactCast {
+                        psi_operation: *psi_operation,
+                        obligation: *obligation,
+                        source_type: *source_type,
+                        operand: Box::new(operand_value.into_expression(*operand)),
+                    });
                 insert_value(
                     &mut values,
                     *result,
@@ -1018,6 +1012,7 @@ fn lower_function(
             }
             TerminalAbstractOperation::ExactIntegerShiftRight {
                 psi_operation,
+                obligation,
                 result,
                 value_type,
                 count_type,
@@ -1032,6 +1027,7 @@ fn lower_function(
                     *value,
                     *count,
                     *psi_operation,
+                    *obligation,
                 )?;
                 insert_value(
                     &mut values,
@@ -1045,6 +1041,7 @@ fn lower_function(
             }
             TerminalAbstractOperation::ExactIntegerShiftLeft {
                 psi_operation,
+                obligation,
                 result,
                 value_type,
                 count_type,
@@ -1059,6 +1056,7 @@ fn lower_function(
                     *value,
                     *count,
                     *psi_operation,
+                    *obligation,
                 )?;
                 insert_value(
                     &mut values,
@@ -1076,7 +1074,21 @@ fn lower_function(
                 scalar_type,
                 left,
                 right,
+            }
+            | TerminalAbstractOperation::ExactIntegerAdd {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+                ..
             } => {
+                let exact_obligation = match operation {
+                    TerminalAbstractOperation::ExactIntegerAdd { obligation, .. } => {
+                        Some(*obligation)
+                    }
+                    _ => None,
+                };
                 let left_id = *left;
                 let right_id = *right;
                 let left = values
@@ -1103,15 +1115,23 @@ fn lower_function(
                 if left_type != *scalar_type || right_type != *scalar_type {
                     return Err(LoweringError::WrappingAddOperandTypeMismatch(*result));
                 }
-                let value = match (left, right) {
-                    (KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => {
+                let value = match (exact_obligation, left, right) {
+                    (None, KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => {
                         KnownInteger::Immediate(
                             scalar_type
                                 .wrapping_add(left, right)
                                 .ok_or(LoweringError::WrappingAddOperandTypeMismatch(*result))?,
                         )
                     }
-                    (left, right) => {
+                    (Some(obligation), left, right) => {
+                        KnownInteger::Runtime(TerminalTargetIntegerExpression::ExactAdd {
+                            psi_operation: *psi_operation,
+                            obligation,
+                            left: Box::new(left.into_expression(left_id)),
+                            right: Box::new(right.into_expression(right_id)),
+                        })
+                    }
+                    (None, left, right) => {
                         KnownInteger::Runtime(TerminalTargetIntegerExpression::WrappingAdd {
                             psi_operation: *psi_operation,
                             left: Box::new(left.into_expression(left_id)),
@@ -1194,7 +1214,21 @@ fn lower_function(
                 scalar_type,
                 left,
                 right,
+            }
+            | TerminalAbstractOperation::ExactIntegerSubtract {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+                ..
             } => {
+                let exact_obligation = match operation {
+                    TerminalAbstractOperation::ExactIntegerSubtract { obligation, .. } => {
+                        Some(*obligation)
+                    }
+                    _ => None,
+                };
                 let left_id = *left;
                 let right_id = *right;
                 let left = values
@@ -1222,13 +1256,21 @@ fn lower_function(
                     return Err(LoweringError::WrappingSubtractOperandTypeMismatch(*result));
                 }
                 let value =
-                    match (left, right) {
-                        (KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => {
+                    match (exact_obligation, left, right) {
+                        (None, KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => {
                             KnownInteger::Immediate(scalar_type.wrapping_sub(left, right).ok_or(
                                 LoweringError::WrappingSubtractOperandTypeMismatch(*result),
                             )?)
                         }
-                        (left, right) => KnownInteger::Runtime(
+                        (Some(obligation), left, right) => {
+                            KnownInteger::Runtime(TerminalTargetIntegerExpression::ExactSubtract {
+                                psi_operation: *psi_operation,
+                                obligation,
+                                left: Box::new(left.into_expression(left_id)),
+                                right: Box::new(right.into_expression(right_id)),
+                            })
+                        }
+                        (None, left, right) => KnownInteger::Runtime(
                             TerminalTargetIntegerExpression::WrappingSubtract {
                                 psi_operation: *psi_operation,
                                 left: Box::new(left.into_expression(left_id)),
@@ -1313,7 +1355,21 @@ fn lower_function(
                 scalar_type,
                 left,
                 right,
+            }
+            | TerminalAbstractOperation::ExactIntegerMultiply {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+                ..
             } => {
+                let exact_obligation = match operation {
+                    TerminalAbstractOperation::ExactIntegerMultiply { obligation, .. } => {
+                        Some(*obligation)
+                    }
+                    _ => None,
+                };
                 let left_id = *left;
                 let right_id = *right;
                 let left = values
@@ -1341,13 +1397,21 @@ fn lower_function(
                     return Err(LoweringError::WrappingMultiplyOperandTypeMismatch(*result));
                 }
                 let value =
-                    match (left, right) {
-                        (KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => {
+                    match (exact_obligation, left, right) {
+                        (None, KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => {
                             KnownInteger::Immediate(scalar_type.wrapping_mul(left, right).ok_or(
                                 LoweringError::WrappingMultiplyOperandTypeMismatch(*result),
                             )?)
                         }
-                        (left, right) => KnownInteger::Runtime(
+                        (Some(obligation), left, right) => {
+                            KnownInteger::Runtime(TerminalTargetIntegerExpression::ExactMultiply {
+                                psi_operation: *psi_operation,
+                                obligation,
+                                left: Box::new(left.into_expression(left_id)),
+                                right: Box::new(right.into_expression(right_id)),
+                            })
+                        }
+                        (None, left, right) => KnownInteger::Runtime(
                             TerminalTargetIntegerExpression::WrappingMultiply {
                                 psi_operation: *psi_operation,
                                 left: Box::new(left.into_expression(left_id)),
@@ -1428,6 +1492,7 @@ fn lower_function(
             }
             TerminalAbstractOperation::ExactIntegerDivide {
                 psi_operation,
+                obligation,
                 result,
                 scalar_type,
                 left,
@@ -1439,7 +1504,7 @@ fn lower_function(
                     *scalar_type,
                     *left,
                     *right,
-                    IntegerBinaryKind::ExactDivide,
+                    IntegerBinaryKind::ExactDivide(*obligation),
                     *psi_operation,
                 )?;
                 insert_value(
@@ -1454,6 +1519,7 @@ fn lower_function(
             }
             TerminalAbstractOperation::ExactIntegerRemainder {
                 psi_operation,
+                obligation,
                 result,
                 scalar_type,
                 left,
@@ -1465,7 +1531,7 @@ fn lower_function(
                     *scalar_type,
                     *left,
                     *right,
-                    IntegerBinaryKind::ExactRemainder,
+                    IntegerBinaryKind::ExactRemainder(*obligation),
                     *psi_operation,
                 )?;
                 insert_value(
@@ -1480,6 +1546,7 @@ fn lower_function(
             }
             TerminalAbstractOperation::WrappingIntegerDivide {
                 psi_operation,
+                obligation,
                 result,
                 scalar_type,
                 left,
@@ -1491,7 +1558,7 @@ fn lower_function(
                     *scalar_type,
                     *left,
                     *right,
-                    IntegerBinaryKind::WrappingDivide,
+                    IntegerBinaryKind::WrappingDivide(*obligation),
                     *psi_operation,
                 )?;
                 insert_value(
@@ -1506,6 +1573,7 @@ fn lower_function(
             }
             TerminalAbstractOperation::WrappingIntegerRemainder {
                 psi_operation,
+                obligation,
                 result,
                 scalar_type,
                 left,
@@ -1517,7 +1585,7 @@ fn lower_function(
                     *scalar_type,
                     *left,
                     *right,
-                    IntegerBinaryKind::WrappingRemainder,
+                    IntegerBinaryKind::WrappingRemainder(*obligation),
                     *psi_operation,
                 )?;
                 insert_value(
@@ -1532,6 +1600,7 @@ fn lower_function(
             }
             TerminalAbstractOperation::SaturatingIntegerDivide {
                 psi_operation,
+                obligation,
                 result,
                 scalar_type,
                 left,
@@ -1543,7 +1612,7 @@ fn lower_function(
                     *scalar_type,
                     *left,
                     *right,
-                    IntegerBinaryKind::SaturatingDivide,
+                    IntegerBinaryKind::SaturatingDivide(*obligation),
                     *psi_operation,
                 )?;
                 insert_value(
@@ -1558,6 +1627,7 @@ fn lower_function(
             }
             TerminalAbstractOperation::SaturatingIntegerRemainder {
                 psi_operation,
+                obligation,
                 result,
                 scalar_type,
                 left,
@@ -1569,7 +1639,7 @@ fn lower_function(
                     *scalar_type,
                     *left,
                     *right,
-                    IntegerBinaryKind::SaturatingRemainder,
+                    IntegerBinaryKind::SaturatingRemainder(*obligation),
                     *psi_operation,
                 )?;
                 insert_value(
@@ -1930,10 +2000,13 @@ fn shared_boolean_cleanup_convergence_return_edge(
             | TerminalAbstractOperation::ExactIntegerShiftLeft { .. }
             | TerminalAbstractOperation::ExactIntegerShiftRight { .. }
             | TerminalAbstractOperation::WrappingIntegerAdd { .. }
+            | TerminalAbstractOperation::ExactIntegerAdd { .. }
             | TerminalAbstractOperation::SaturatingIntegerAdd { .. }
             | TerminalAbstractOperation::WrappingIntegerSubtract { .. }
+            | TerminalAbstractOperation::ExactIntegerSubtract { .. }
             | TerminalAbstractOperation::SaturatingIntegerSubtract { .. }
             | TerminalAbstractOperation::WrappingIntegerMultiply { .. }
+            | TerminalAbstractOperation::ExactIntegerMultiply { .. }
             | TerminalAbstractOperation::SaturatingIntegerMultiply { .. }
             | TerminalAbstractOperation::ExactIntegerDivide { .. }
             | TerminalAbstractOperation::ExactIntegerRemainder { .. } => {}
@@ -2964,10 +3037,13 @@ fn lower_unit_function(
             | TerminalAbstractOperation::ExactIntegerShiftLeft { .. }
             | TerminalAbstractOperation::ExactIntegerShiftRight { .. }
             | TerminalAbstractOperation::WrappingIntegerAdd { .. }
+            | TerminalAbstractOperation::ExactIntegerAdd { .. }
             | TerminalAbstractOperation::SaturatingIntegerAdd { .. }
             | TerminalAbstractOperation::WrappingIntegerSubtract { .. }
+            | TerminalAbstractOperation::ExactIntegerSubtract { .. }
             | TerminalAbstractOperation::SaturatingIntegerSubtract { .. }
             | TerminalAbstractOperation::WrappingIntegerMultiply { .. }
+            | TerminalAbstractOperation::ExactIntegerMultiply { .. }
             | TerminalAbstractOperation::SaturatingIntegerMultiply { .. }
             | TerminalAbstractOperation::ExactIntegerDivide { .. }
             | TerminalAbstractOperation::ExactIntegerRemainder { .. }
@@ -4012,10 +4088,13 @@ fn conditional_provenance(
             | TerminalAbstractOperation::ExactIntegerShiftLeft { psi_operation, .. }
             | TerminalAbstractOperation::ExactIntegerShiftRight { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerAdd { psi_operation, .. }
+            | TerminalAbstractOperation::ExactIntegerAdd { psi_operation, .. }
             | TerminalAbstractOperation::SaturatingIntegerAdd { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerSubtract { psi_operation, .. }
+            | TerminalAbstractOperation::ExactIntegerSubtract { psi_operation, .. }
             | TerminalAbstractOperation::SaturatingIntegerSubtract { psi_operation, .. }
             | TerminalAbstractOperation::WrappingIntegerMultiply { psi_operation, .. }
+            | TerminalAbstractOperation::ExactIntegerMultiply { psi_operation, .. }
             | TerminalAbstractOperation::SaturatingIntegerMultiply { psi_operation, .. } => {
                 Some(*psi_operation)
             }

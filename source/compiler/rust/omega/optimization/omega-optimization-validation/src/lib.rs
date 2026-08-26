@@ -9,8 +9,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_optimization_unit::{
-    OptimizationEdge, OwnershipEvent, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
-    ValueDefinitionSite,
+    OptimizationEdge, OptimizationFact, OwnershipEvent, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
 };
 use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ValueId};
 use psi_terminal_fuel::TerminalFuelSchedule;
@@ -63,6 +63,7 @@ pub enum OptimizationUnitValidationError {
         block: BlockId,
         node: u32,
     },
+    FactIndexMismatch(MachineId),
     BrokenEffectChain {
         machine: MachineId,
         expected: u64,
@@ -213,8 +214,115 @@ fn validate_function(
     }
 
     validate_provenance_fuel_effects(function)?;
+    validate_fact_index(function)?;
     validate_values_and_bindings(function, &blocks, &predecessor)?;
     validate_places_and_claims(function)?;
+    Ok(())
+}
+
+fn validate_fact_index(
+    function: &PsiOptimizationFunction,
+) -> Result<(), OptimizationUnitValidationError> {
+    use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
+
+    let mut expected = Vec::new();
+    for operation in function
+        .blocks
+        .iter()
+        .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
+    {
+        match operation {
+            O::IntegerExactCast {
+                psi_operation,
+                obligation,
+                ..
+            }
+            | O::ExactIntegerShiftLeft {
+                psi_operation,
+                obligation,
+                ..
+            }
+            | O::ExactIntegerShiftRight {
+                psi_operation,
+                obligation,
+                ..
+            }
+            | O::ExactIntegerAdd {
+                psi_operation,
+                obligation,
+                ..
+            }
+            | O::ExactIntegerSubtract {
+                psi_operation,
+                obligation,
+                ..
+            }
+            | O::ExactIntegerMultiply {
+                psi_operation,
+                obligation,
+                ..
+            }
+            | O::ExactIntegerDivide {
+                psi_operation,
+                obligation,
+                ..
+            }
+            | O::ExactIntegerRemainder {
+                psi_operation,
+                obligation,
+                ..
+            }
+            | O::WrappingIntegerDivide {
+                psi_operation,
+                obligation,
+                ..
+            }
+            | O::WrappingIntegerRemainder {
+                psi_operation,
+                obligation,
+                ..
+            }
+            | O::SaturatingIntegerDivide {
+                psi_operation,
+                obligation,
+                ..
+            }
+            | O::SaturatingIntegerRemainder {
+                psi_operation,
+                obligation,
+                ..
+            } => expected.push(OptimizationFact::OperationObligationReference {
+                obligation: *obligation,
+                support: *psi_operation,
+            }),
+            _ => {}
+        }
+        match operation {
+            O::BooleanConstant {
+                psi_operation,
+                result,
+                value,
+            } => expected.push(OptimizationFact::BooleanConstant {
+                value: *result,
+                constant: *value,
+                support: *psi_operation,
+            }),
+            O::IntegerConstant {
+                psi_operation,
+                result,
+                ..
+            } => expected.push(OptimizationFact::IntegerConstant {
+                value: *result,
+                support: *psi_operation,
+            }),
+            _ => {}
+        }
+    }
+    if expected != function.facts {
+        return Err(OptimizationUnitValidationError::FactIndexMismatch(
+            function.machine,
+        ));
+    }
     Ok(())
 }
 
@@ -590,10 +698,13 @@ fn expected_provenance(
         | O::ExactIntegerShiftLeft { psi_operation, .. }
         | O::ExactIntegerShiftRight { psi_operation, .. }
         | O::WrappingIntegerAdd { psi_operation, .. }
+        | O::ExactIntegerAdd { psi_operation, .. }
         | O::SaturatingIntegerAdd { psi_operation, .. }
         | O::WrappingIntegerSubtract { psi_operation, .. }
+        | O::ExactIntegerSubtract { psi_operation, .. }
         | O::SaturatingIntegerSubtract { psi_operation, .. }
         | O::WrappingIntegerMultiply { psi_operation, .. }
+        | O::ExactIntegerMultiply { psi_operation, .. }
         | O::ExactIntegerDivide { psi_operation, .. }
         | O::ExactIntegerRemainder { psi_operation, .. }
         | O::WrappingIntegerDivide { psi_operation, .. }
@@ -796,6 +907,13 @@ mod tests {
         assert!(matches!(
             validate_psi_optimization_unit(&effects),
             Err(OptimizationUnitValidationError::BrokenEffectChain { .. })
+        ));
+
+        let mut facts = unit();
+        facts.functions[0].facts.clear();
+        assert!(matches!(
+            validate_psi_optimization_unit(&facts),
+            Err(OptimizationUnitValidationError::FactIndexMismatch(_))
         ));
 
         let mut undefined = unit();

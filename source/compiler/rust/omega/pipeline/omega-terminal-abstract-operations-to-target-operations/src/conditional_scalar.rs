@@ -222,6 +222,27 @@ pub(super) fn lower_conditional_scalar_operation(
                 *psi_operation,
             )?,
         ),
+        TerminalAbstractOperation::ExactIntegerAdd {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            lower_conditional_integer_binary(
+                values,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+                IntegerBinaryKind::ExactAdd(*obligation),
+                *psi_operation,
+            )?,
+        ),
         TerminalAbstractOperation::SaturatingIntegerAdd {
             psi_operation,
             result,
@@ -259,6 +280,27 @@ pub(super) fn lower_conditional_scalar_operation(
                 *left,
                 *right,
                 IntegerBinaryKind::WrappingSubtract,
+                *psi_operation,
+            )?,
+        ),
+        TerminalAbstractOperation::ExactIntegerSubtract {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            lower_conditional_integer_binary(
+                values,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+                IntegerBinaryKind::ExactSubtract(*obligation),
                 *psi_operation,
             )?,
         ),
@@ -302,6 +344,27 @@ pub(super) fn lower_conditional_scalar_operation(
                 *psi_operation,
             )?,
         ),
+        TerminalAbstractOperation::ExactIntegerMultiply {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            lower_conditional_integer_binary(
+                values,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+                IntegerBinaryKind::ExactMultiply(*obligation),
+                *psi_operation,
+            )?,
+        ),
         TerminalAbstractOperation::SaturatingIntegerMultiply {
             psi_operation,
             result,
@@ -324,6 +387,7 @@ pub(super) fn lower_conditional_scalar_operation(
         ),
         TerminalAbstractOperation::ExactIntegerDivide {
             psi_operation,
+            obligation,
             result,
             scalar_type,
             left,
@@ -338,12 +402,13 @@ pub(super) fn lower_conditional_scalar_operation(
                 *scalar_type,
                 *left,
                 *right,
-                IntegerBinaryKind::ExactDivide,
+                IntegerBinaryKind::ExactDivide(*obligation),
                 *psi_operation,
             )?,
         ),
         TerminalAbstractOperation::ExactIntegerRemainder {
             psi_operation,
+            obligation,
             result,
             scalar_type,
             left,
@@ -358,12 +423,13 @@ pub(super) fn lower_conditional_scalar_operation(
                 *scalar_type,
                 *left,
                 *right,
-                IntegerBinaryKind::ExactRemainder,
+                IntegerBinaryKind::ExactRemainder(*obligation),
                 *psi_operation,
             )?,
         ),
         TerminalAbstractOperation::WrappingIntegerDivide {
             psi_operation,
+            obligation,
             result,
             scalar_type,
             left,
@@ -378,12 +444,13 @@ pub(super) fn lower_conditional_scalar_operation(
                 *scalar_type,
                 *left,
                 *right,
-                IntegerBinaryKind::WrappingDivide,
+                IntegerBinaryKind::WrappingDivide(*obligation),
                 *psi_operation,
             )?,
         ),
         TerminalAbstractOperation::WrappingIntegerRemainder {
             psi_operation,
+            obligation,
             result,
             scalar_type,
             left,
@@ -398,12 +465,13 @@ pub(super) fn lower_conditional_scalar_operation(
                 *scalar_type,
                 *left,
                 *right,
-                IntegerBinaryKind::WrappingRemainder,
+                IntegerBinaryKind::WrappingRemainder(*obligation),
                 *psi_operation,
             )?,
         ),
         TerminalAbstractOperation::SaturatingIntegerDivide {
             psi_operation,
+            obligation,
             result,
             scalar_type,
             left,
@@ -418,12 +486,13 @@ pub(super) fn lower_conditional_scalar_operation(
                 *scalar_type,
                 *left,
                 *right,
-                IntegerBinaryKind::SaturatingDivide,
+                IntegerBinaryKind::SaturatingDivide(*obligation),
                 *psi_operation,
             )?,
         ),
         TerminalAbstractOperation::SaturatingIntegerRemainder {
             psi_operation,
+            obligation,
             result,
             scalar_type,
             left,
@@ -438,7 +507,7 @@ pub(super) fn lower_conditional_scalar_operation(
                 *scalar_type,
                 *left,
                 *right,
-                IntegerBinaryKind::SaturatingRemainder,
+                IntegerBinaryKind::SaturatingRemainder(*obligation),
                 *psi_operation,
             )?,
         ),
@@ -508,6 +577,7 @@ pub(super) fn lower_conditional_scalar_operation(
         }
         TerminalAbstractOperation::IntegerExactCast {
             psi_operation,
+            obligation,
             result,
             source_type,
             target_type,
@@ -525,20 +595,12 @@ pub(super) fn lower_conditional_scalar_operation(
                 Some(_) => return Err(LoweringError::IntegerExactCastTypeMismatch(*result)),
                 None => return Err(LoweringError::UnknownValue(*operand)),
             };
-            let value = match operand_value {
-                KnownInteger::Immediate(value) => KnownInteger::Immediate(
-                    source_type
-                        .exact_cast_value_to(*target_type, value)
-                        .ok_or(LoweringError::IntegerExactCastTypeMismatch(*result))?,
-                ),
-                KnownInteger::Runtime(expression) => {
-                    KnownInteger::Runtime(TerminalTargetIntegerExpression::IntegerExactCast {
-                        psi_operation: *psi_operation,
-                        source_type: *source_type,
-                        operand: Box::new(expression),
-                    })
-                }
-            };
+            let value = KnownInteger::Runtime(TerminalTargetIntegerExpression::IntegerExactCast {
+                psi_operation: *psi_operation,
+                obligation: *obligation,
+                source_type: *source_type,
+                operand: Box::new(operand_value.into_expression(*operand)),
+            });
             (*psi_operation, *result, *target_type, value)
         }
         TerminalAbstractOperation::IntegerBitwiseAnd {
@@ -629,6 +691,7 @@ pub(super) fn lower_conditional_scalar_operation(
         }
         TerminalAbstractOperation::ExactIntegerShiftRight {
             psi_operation,
+            obligation,
             result,
             value_type,
             count_type,
@@ -646,10 +709,12 @@ pub(super) fn lower_conditional_scalar_operation(
                 *value,
                 *count,
                 *psi_operation,
+                *obligation,
             )?,
         ),
         TerminalAbstractOperation::ExactIntegerShiftLeft {
             psi_operation,
+            obligation,
             result,
             value_type,
             count_type,
@@ -667,6 +732,7 @@ pub(super) fn lower_conditional_scalar_operation(
                 *value,
                 *count,
                 *psi_operation,
+                *obligation,
             )?,
         ),
         _ => return Ok(false),
@@ -682,17 +748,20 @@ pub(super) enum IntegerBinaryKind {
     BitwiseOr,
     BitwiseXor,
     WrappingAdd,
+    ExactAdd(psi_core::ObligationId),
     SaturatingAdd,
     WrappingSubtract,
+    ExactSubtract(psi_core::ObligationId),
     SaturatingSubtract,
     WrappingMultiply,
+    ExactMultiply(psi_core::ObligationId),
     SaturatingMultiply,
-    ExactDivide,
-    ExactRemainder,
-    WrappingDivide,
-    WrappingRemainder,
-    SaturatingDivide,
-    SaturatingRemainder,
+    ExactDivide(psi_core::ObligationId),
+    ExactRemainder(psi_core::ObligationId),
+    WrappingDivide(psi_core::ObligationId),
+    WrappingRemainder(psi_core::ObligationId),
+    SaturatingDivide(psi_core::ObligationId),
+    SaturatingRemainder(psi_core::ObligationId),
 }
 
 #[derive(Clone, Copy)]
@@ -762,6 +831,7 @@ pub(super) fn lower_exact_shift_right(
     value_id: ValueId,
     count_id: ValueId,
     psi_operation: psi_core::OperationId,
+    obligation: psi_core::ObligationId,
 ) -> Result<KnownInteger, LoweringError> {
     let operand = |id, expected_type| match values.get(&id).cloned() {
         Some(KnownScalar::Integer { scalar_type, value }) if scalar_type == expected_type => {
@@ -772,21 +842,15 @@ pub(super) fn lower_exact_shift_right(
     };
     let value = operand(value_id, value_type)?;
     let count = operand(count_id, count_type)?;
-    Ok(match (value, count) {
-        (KnownInteger::Immediate(value), KnownInteger::Immediate(count)) => {
-            KnownInteger::Immediate(
-                value_type
-                    .exact_shift_right(value, count_type, count)
-                    .ok_or(LoweringError::ExactShiftOperandTypeMismatch(result))?,
-            )
-        }
-        (value, count) => KnownInteger::Runtime(TerminalTargetIntegerExpression::ExactShiftRight {
+    Ok(KnownInteger::Runtime(
+        TerminalTargetIntegerExpression::ExactShiftRight {
             psi_operation,
+            obligation,
             count_type,
             value: Box::new(value.into_expression(value_id)),
             count: Box::new(count.into_expression(count_id)),
-        }),
-    })
+        },
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -798,6 +862,7 @@ pub(super) fn lower_exact_shift_left(
     value_id: ValueId,
     count_id: ValueId,
     psi_operation: psi_core::OperationId,
+    obligation: psi_core::ObligationId,
 ) -> Result<KnownInteger, LoweringError> {
     let operand = |id, expected_type| match values.get(&id).cloned() {
         Some(KnownScalar::Integer { scalar_type, value }) if scalar_type == expected_type => {
@@ -808,21 +873,15 @@ pub(super) fn lower_exact_shift_left(
     };
     let value = operand(value_id, value_type)?;
     let count = operand(count_id, count_type)?;
-    Ok(match (value, count) {
-        (KnownInteger::Immediate(value), KnownInteger::Immediate(count)) => {
-            KnownInteger::Immediate(
-                value_type
-                    .exact_shift_left(value, count_type, count)
-                    .ok_or(LoweringError::ExactShiftOperandTypeMismatch(result))?,
-            )
-        }
-        (value, count) => KnownInteger::Runtime(TerminalTargetIntegerExpression::ExactShiftLeft {
+    Ok(KnownInteger::Runtime(
+        TerminalTargetIntegerExpression::ExactShiftLeft {
             psi_operation,
+            obligation,
             count_type,
             value: Box::new(value.into_expression(value_id)),
             count: Box::new(count.into_expression(count_id)),
-        }),
-    })
+        },
+    ))
 }
 
 pub(super) fn lower_conditional_integer_binary(
@@ -844,6 +903,13 @@ pub(super) fn lower_conditional_integer_binary(
     };
     let left = operand(left_id)?;
     let right = operand(right_id)?;
+    if kind.is_proof_bearing() {
+        return Ok(KnownInteger::Runtime(kind.expression(
+            psi_operation,
+            left.into_expression(left_id),
+            right.into_expression(right_id),
+        )));
+    }
     Ok(match (left, right) {
         (KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => KnownInteger::Immediate(
             kind.fold(scalar_type, left, right)
@@ -863,22 +929,30 @@ impl IntegerBinaryKind {
             Self::BitwiseAnd | Self::BitwiseOr | Self::BitwiseXor => {
                 LoweringError::IntegerBitwiseOperandTypeMismatch(result)
             }
-            Self::WrappingAdd => LoweringError::WrappingAddOperandTypeMismatch(result),
+            Self::WrappingAdd | Self::ExactAdd(_) => {
+                LoweringError::WrappingAddOperandTypeMismatch(result)
+            }
             Self::SaturatingAdd => LoweringError::SaturatingAddOperandTypeMismatch(result),
-            Self::WrappingSubtract => LoweringError::WrappingSubtractOperandTypeMismatch(result),
+            Self::WrappingSubtract | Self::ExactSubtract(_) => {
+                LoweringError::WrappingSubtractOperandTypeMismatch(result)
+            }
             Self::SaturatingSubtract => {
                 LoweringError::SaturatingSubtractOperandTypeMismatch(result)
             }
-            Self::WrappingMultiply => LoweringError::WrappingMultiplyOperandTypeMismatch(result),
+            Self::WrappingMultiply | Self::ExactMultiply(_) => {
+                LoweringError::WrappingMultiplyOperandTypeMismatch(result)
+            }
             Self::SaturatingMultiply => {
                 LoweringError::SaturatingMultiplyOperandTypeMismatch(result)
             }
-            Self::ExactDivide => LoweringError::ExactDivideOperandTypeMismatch(result),
-            Self::ExactRemainder => LoweringError::ExactRemainderOperandTypeMismatch(result),
-            Self::WrappingDivide => LoweringError::WrappingDivideOperandTypeMismatch(result),
-            Self::WrappingRemainder => LoweringError::WrappingRemainderOperandTypeMismatch(result),
-            Self::SaturatingDivide => LoweringError::SaturatingDivideOperandTypeMismatch(result),
-            Self::SaturatingRemainder => {
+            Self::ExactDivide(_) => LoweringError::ExactDivideOperandTypeMismatch(result),
+            Self::ExactRemainder(_) => LoweringError::ExactRemainderOperandTypeMismatch(result),
+            Self::WrappingDivide(_) => LoweringError::WrappingDivideOperandTypeMismatch(result),
+            Self::WrappingRemainder(_) => {
+                LoweringError::WrappingRemainderOperandTypeMismatch(result)
+            }
+            Self::SaturatingDivide(_) => LoweringError::SaturatingDivideOperandTypeMismatch(result),
+            Self::SaturatingRemainder(_) => {
                 LoweringError::SaturatingRemainderOperandTypeMismatch(result)
             }
         }
@@ -895,17 +969,20 @@ impl IntegerBinaryKind {
             Self::BitwiseOr => scalar_type.bitwise_or(left, right),
             Self::BitwiseXor => scalar_type.bitwise_xor(left, right),
             Self::WrappingAdd => scalar_type.wrapping_add(left, right),
+            Self::ExactAdd(_) => scalar_type.exact_add(left, right),
             Self::SaturatingAdd => scalar_type.saturating_add(left, right),
             Self::WrappingSubtract => scalar_type.wrapping_sub(left, right),
+            Self::ExactSubtract(_) => scalar_type.exact_sub(left, right),
             Self::SaturatingSubtract => scalar_type.saturating_sub(left, right),
             Self::WrappingMultiply => scalar_type.wrapping_mul(left, right),
+            Self::ExactMultiply(_) => scalar_type.exact_mul(left, right),
             Self::SaturatingMultiply => scalar_type.saturating_mul(left, right),
-            Self::ExactDivide => scalar_type.exact_div(left, right),
-            Self::ExactRemainder => scalar_type.exact_rem(left, right),
-            Self::WrappingDivide => scalar_type.wrapping_div(left, right),
-            Self::WrappingRemainder => scalar_type.wrapping_rem(left, right),
-            Self::SaturatingDivide => scalar_type.saturating_div(left, right),
-            Self::SaturatingRemainder => scalar_type.saturating_rem(left, right),
+            Self::ExactDivide(_) => scalar_type.exact_div(left, right),
+            Self::ExactRemainder(_) => scalar_type.exact_rem(left, right),
+            Self::WrappingDivide(_) => scalar_type.wrapping_div(left, right),
+            Self::WrappingRemainder(_) => scalar_type.wrapping_rem(left, right),
+            Self::SaturatingDivide(_) => scalar_type.saturating_div(left, right),
+            Self::SaturatingRemainder(_) => scalar_type.saturating_rem(left, right),
         }
     }
 
@@ -938,6 +1015,12 @@ impl IntegerBinaryKind {
                 left,
                 right,
             },
+            Self::ExactAdd(obligation) => TerminalTargetIntegerExpression::ExactAdd {
+                psi_operation,
+                obligation,
+                left,
+                right,
+            },
             Self::SaturatingAdd => TerminalTargetIntegerExpression::SaturatingAdd {
                 psi_operation,
                 left,
@@ -945,6 +1028,12 @@ impl IntegerBinaryKind {
             },
             Self::WrappingSubtract => TerminalTargetIntegerExpression::WrappingSubtract {
                 psi_operation,
+                left,
+                right,
+            },
+            Self::ExactSubtract(obligation) => TerminalTargetIntegerExpression::ExactSubtract {
+                psi_operation,
+                obligation,
                 left,
                 right,
             },
@@ -958,41 +1047,76 @@ impl IntegerBinaryKind {
                 left,
                 right,
             },
+            Self::ExactMultiply(obligation) => TerminalTargetIntegerExpression::ExactMultiply {
+                psi_operation,
+                obligation,
+                left,
+                right,
+            },
             Self::SaturatingMultiply => TerminalTargetIntegerExpression::SaturatingMultiply {
                 psi_operation,
                 left,
                 right,
             },
-            Self::ExactDivide => TerminalTargetIntegerExpression::ExactDivide {
+            Self::ExactDivide(obligation) => TerminalTargetIntegerExpression::ExactDivide {
                 psi_operation,
+                obligation,
                 left,
                 right,
             },
-            Self::ExactRemainder => TerminalTargetIntegerExpression::ExactRemainder {
+            Self::ExactRemainder(obligation) => TerminalTargetIntegerExpression::ExactRemainder {
                 psi_operation,
+                obligation,
                 left,
                 right,
             },
-            Self::WrappingDivide => TerminalTargetIntegerExpression::WrappingDivide {
+            Self::WrappingDivide(obligation) => TerminalTargetIntegerExpression::WrappingDivide {
                 psi_operation,
+                obligation,
                 left,
                 right,
             },
-            Self::WrappingRemainder => TerminalTargetIntegerExpression::WrappingRemainder {
-                psi_operation,
-                left,
-                right,
-            },
-            Self::SaturatingDivide => TerminalTargetIntegerExpression::SaturatingDivide {
-                psi_operation,
-                left,
-                right,
-            },
-            Self::SaturatingRemainder => TerminalTargetIntegerExpression::SaturatingRemainder {
-                psi_operation,
-                left,
-                right,
-            },
+            Self::WrappingRemainder(obligation) => {
+                TerminalTargetIntegerExpression::WrappingRemainder {
+                    psi_operation,
+                    obligation,
+                    left,
+                    right,
+                }
+            }
+            Self::SaturatingDivide(obligation) => {
+                TerminalTargetIntegerExpression::SaturatingDivide {
+                    psi_operation,
+                    obligation,
+                    left,
+                    right,
+                }
+            }
+            Self::SaturatingRemainder(obligation) => {
+                TerminalTargetIntegerExpression::SaturatingRemainder {
+                    psi_operation,
+                    obligation,
+                    left,
+                    right,
+                }
+            }
         }
+    }
+}
+
+impl IntegerBinaryKind {
+    fn is_proof_bearing(self) -> bool {
+        matches!(
+            self,
+            Self::ExactAdd(_)
+                | Self::ExactSubtract(_)
+                | Self::ExactMultiply(_)
+                | Self::ExactDivide(_)
+                | Self::ExactRemainder(_)
+                | Self::WrappingDivide(_)
+                | Self::WrappingRemainder(_)
+                | Self::SaturatingDivide(_)
+                | Self::SaturatingRemainder(_)
+        )
     }
 }

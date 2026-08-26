@@ -15,8 +15,13 @@ use omega_terminal_target_operations::{
 };
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
-    BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, ServiceId, StructuralTypeId,
+    BoundaryMachineId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, ServiceId,
+    StructuralTypeId,
 };
+
+fn proof_obligation() -> ObligationId {
+    ObligationId::new(1).expect("proof obligation")
+}
 use psi_terminal::{
     ByteSequenceCarrier, NominalAffineCleanup, SemanticFingerprint, StructuralAccess,
     StructuralArgument, StructuralMultiplicity, StructuralPathSegment, StructuralPlaceDeclaration,
@@ -2890,6 +2895,7 @@ fn conditional_division_and_crash_admit_accountable_arm_forms() {
     };
     *expression = TerminalTargetIntegerExpression::WrappingDivide {
         psi_operation: OperationId::new(8).expect("divide operation"),
+        obligation: proof_obligation(),
         left: Box::new(TerminalTargetIntegerExpression::Immediate {
             source_value: ValueId::new(8).expect("left"),
             value: IntegerValue::Unsigned(8),
@@ -2930,6 +2936,7 @@ fn conditional_division_and_crash_admit_accountable_arm_forms() {
         };
         *expression = TerminalTargetIntegerExpression::WrappingDivide {
             psi_operation: OperationId::new(8).expect("divide operation"),
+            obligation: proof_obligation(),
             left: Box::new(TerminalTargetIntegerExpression::Parameter {
                 source_value: ValueId::new(8).expect("left"),
                 parameter_index: 1,
@@ -3104,31 +3111,37 @@ fn branch_free_division_and_remainder_are_retained_in_either_conditional_arm() {
                 *expression = match kind {
                     0 => TerminalTargetIntegerExpression::ExactDivide {
                         psi_operation: operation,
+                        obligation: proof_obligation(),
                         left: left(),
                         right: right(),
                     },
                     1 => TerminalTargetIntegerExpression::ExactRemainder {
                         psi_operation: operation,
+                        obligation: proof_obligation(),
                         left: left(),
                         right: right(),
                     },
                     2 => TerminalTargetIntegerExpression::WrappingDivide {
                         psi_operation: operation,
+                        obligation: proof_obligation(),
                         left: left(),
                         right: right(),
                     },
                     3 => TerminalTargetIntegerExpression::WrappingRemainder {
                         psi_operation: operation,
+                        obligation: proof_obligation(),
                         left: left(),
                         right: right(),
                     },
                     4 => TerminalTargetIntegerExpression::SaturatingDivide {
                         psi_operation: operation,
+                        obligation: proof_obligation(),
                         left: left(),
                         right: right(),
                     },
                     5 => TerminalTargetIntegerExpression::SaturatingRemainder {
                         psi_operation: operation,
+                        obligation: proof_obligation(),
                         left: left(),
                         right: right(),
                     },
@@ -3182,31 +3195,37 @@ fn branch_free_division_and_remainder_are_retained_in_expression_conditions() {
             let quotient = match kind {
                 0 => TerminalTargetIntegerExpression::ExactDivide {
                     psi_operation: operation,
+                    obligation: proof_obligation(),
                     left: left(),
                     right: right(),
                 },
                 1 => TerminalTargetIntegerExpression::ExactRemainder {
                     psi_operation: operation,
+                    obligation: proof_obligation(),
                     left: left(),
                     right: right(),
                 },
                 2 => TerminalTargetIntegerExpression::WrappingDivide {
                     psi_operation: operation,
+                    obligation: proof_obligation(),
                     left: left(),
                     right: right(),
                 },
                 3 => TerminalTargetIntegerExpression::WrappingRemainder {
                     psi_operation: operation,
+                    obligation: proof_obligation(),
                     left: left(),
                     right: right(),
                 },
                 4 => TerminalTargetIntegerExpression::SaturatingDivide {
                     psi_operation: operation,
+                    obligation: proof_obligation(),
                     left: left(),
                     right: right(),
                 },
                 5 => TerminalTargetIntegerExpression::SaturatingRemainder {
                     psi_operation: operation,
+                    obligation: proof_obligation(),
                     left: left(),
                     right: right(),
                 },
@@ -3253,6 +3272,7 @@ fn expression_condition_division_retains_x86_policy_diamonds() {
             scalar_type,
             left: Box::new(TerminalTargetIntegerExpression::WrappingDivide {
                 psi_operation: OperationId::new(30).expect("division operation"),
+                obligation: proof_obligation(),
                 left: Box::new(TerminalTargetIntegerExpression::Immediate {
                     source_value: ValueId::new(30).expect("left"),
                     value: IntegerValue::Signed(i64::MIN.into()),
@@ -3358,6 +3378,7 @@ fn parameter_conditional_retains_typed_calls_inside_direct_linear_arms() {
     };
     *expression = TerminalTargetIntegerExpression::WrappingDivide {
         psi_operation: OperationId::new(9).unwrap(),
+        obligation: proof_obligation(),
         left: Box::new(TerminalTargetIntegerExpression::Immediate {
             source_value: ValueId::new(8).unwrap(),
             value: IntegerValue::Unsigned(8),
@@ -3465,6 +3486,7 @@ fn expression_conditional_retains_division_in_typed_condition_call_argument() {
             scalar_type,
             left: Box::new(TerminalTargetIntegerExpression::WrappingDivide {
                 psi_operation: OperationId::new(11).expect("division operation"),
+                obligation: proof_obligation(),
                 left: Box::new(TerminalTargetIntegerExpression::Immediate {
                     source_value: ValueId::new(11).expect("left"),
                     value: left,
@@ -3964,6 +3986,7 @@ fn emits_parameter_fed_exact_divide_for_both_architectures() {
         let scalar_type = IntegerType::new(sign, 64).expect("64-bit integer");
         let expression = |left, right| TerminalTargetIntegerExpression::ExactDivide {
             psi_operation: OperationId::new(4).expect("operation"),
+            obligation: proof_obligation(),
             left: Box::new(TerminalTargetIntegerExpression::Parameter {
                 source_value: ValueId::new(1).expect("left"),
                 parameter_index: 0,
@@ -4015,6 +4038,7 @@ fn emits_parameter_fed_exact_remainder_for_both_architectures() {
         let scalar_type = IntegerType::new(sign, 64).expect("64-bit integer");
         let expression = |left, right| TerminalTargetIntegerExpression::ExactRemainder {
             psi_operation: OperationId::new(5).expect("operation"),
+            obligation: proof_obligation(),
             left: Box::new(TerminalTargetIntegerExpression::Parameter {
                 source_value: ValueId::new(1).expect("left"),
                 parameter_index: 0,
@@ -4073,6 +4097,7 @@ fn emits_parameter_fed_wrapping_divide_for_both_architectures() {
         let scalar_type = IntegerType::new(sign, 64).expect("64-bit integer");
         let expression = |left, right| TerminalTargetIntegerExpression::WrappingDivide {
             psi_operation: OperationId::new(6).expect("operation"),
+            obligation: proof_obligation(),
             left: Box::new(TerminalTargetIntegerExpression::Parameter {
                 source_value: ValueId::new(1).expect("left"),
                 parameter_index: 0,
@@ -4138,6 +4163,7 @@ fn emits_parameter_fed_wrapping_remainder_for_both_architectures() {
         let scalar_type = IntegerType::new(sign, 64).expect("64-bit integer");
         let expression = |left, right| TerminalTargetIntegerExpression::WrappingRemainder {
             psi_operation: OperationId::new(7).expect("operation"),
+            obligation: proof_obligation(),
             left: Box::new(TerminalTargetIntegerExpression::Parameter {
                 source_value: ValueId::new(1).expect("left"),
                 parameter_index: 0,
@@ -4206,6 +4232,7 @@ fn emits_parameter_fed_saturating_divide_for_both_architectures() {
     let scalar_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
     let expression = |left, right| TerminalTargetIntegerExpression::SaturatingDivide {
         psi_operation: OperationId::new(8).expect("operation"),
+        obligation: proof_obligation(),
         left: Box::new(TerminalTargetIntegerExpression::Parameter {
             source_value: ValueId::new(1).expect("left"),
             parameter_index: 0,
@@ -4637,31 +4664,37 @@ fn division_retains_exact_scalar_stack_control_evidence() {
         match kind {
             0 => TerminalTargetIntegerExpression::ExactDivide {
                 psi_operation,
+                obligation: proof_obligation(),
                 left,
                 right,
             },
             1 => TerminalTargetIntegerExpression::ExactRemainder {
                 psi_operation,
+                obligation: proof_obligation(),
                 left,
                 right,
             },
             2 => TerminalTargetIntegerExpression::WrappingDivide {
                 psi_operation,
+                obligation: proof_obligation(),
                 left,
                 right,
             },
             3 => TerminalTargetIntegerExpression::WrappingRemainder {
                 psi_operation,
+                obligation: proof_obligation(),
                 left,
                 right,
             },
             4 => TerminalTargetIntegerExpression::SaturatingDivide {
                 psi_operation,
+                obligation: proof_obligation(),
                 left,
                 right,
             },
             5 => TerminalTargetIntegerExpression::SaturatingRemainder {
                 psi_operation,
+                obligation: proof_obligation(),
                 left,
                 right,
             },
@@ -4734,6 +4767,7 @@ fn division_retains_exact_scalar_stack_control_evidence() {
     };
     let divide = |operation| TerminalTargetIntegerExpression::WrappingDivide {
         psi_operation: OperationId::new(operation).expect("division operation"),
+        obligation: proof_obligation(),
         left: Box::new(parameter(1, 0, MachineRegister::X86Rdi)),
         right: Box::new(parameter(2, 1, MachineRegister::X86Rsi)),
     };

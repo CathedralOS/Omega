@@ -16,8 +16,8 @@ use omega_terminal_abstract_operations::{
     TerminalAbstractSuccessor, TerminalValueBinding,
 };
 use psi_core::{
-    BlockId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId, ScalarType,
-    ValueId,
+    BlockId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, ObligationId, OperationId, PlaceId,
+    ScalarType, ValueId,
 };
 use psi_terminal::{
     StructuralParameterDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
@@ -90,6 +90,13 @@ pub enum OwnershipEvent {
 /// until their verified evidence is retained across the lowering boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationFact {
+    /// A proof-bearing operation's obligation lookup key. This reference is
+    /// not itself accepted evidence: publication must resolve it against the
+    /// verifier-owned context for the immutable Terminal Psi artifact.
+    OperationObligationReference {
+        obligation: ObligationId,
+        support: OperationId,
+    },
     BooleanConstant {
         value: ValueId,
         constant: bool,
@@ -409,10 +416,13 @@ fn operation_provenance(operation: &TerminalAbstractOperation) -> Vec<PsiProvena
         | O::ExactIntegerShiftLeft { psi_operation, .. }
         | O::ExactIntegerShiftRight { psi_operation, .. }
         | O::WrappingIntegerAdd { psi_operation, .. }
+        | O::ExactIntegerAdd { psi_operation, .. }
         | O::SaturatingIntegerAdd { psi_operation, .. }
         | O::WrappingIntegerSubtract { psi_operation, .. }
+        | O::ExactIntegerSubtract { psi_operation, .. }
         | O::SaturatingIntegerSubtract { psi_operation, .. }
         | O::WrappingIntegerMultiply { psi_operation, .. }
+        | O::ExactIntegerMultiply { psi_operation, .. }
         | O::ExactIntegerDivide { psi_operation, .. }
         | O::ExactIntegerRemainder { psi_operation, .. }
         | O::WrappingIntegerDivide { psi_operation, .. }
@@ -476,6 +486,11 @@ fn operation_definition(operation: &TerminalAbstractOperation) -> Option<(ValueI
             scalar_type,
             ..
         }
+        | O::ExactIntegerAdd {
+            result,
+            scalar_type,
+            ..
+        }
         | O::SaturatingIntegerAdd {
             result,
             scalar_type,
@@ -486,12 +501,22 @@ fn operation_definition(operation: &TerminalAbstractOperation) -> Option<(ValueI
             scalar_type,
             ..
         }
+        | O::ExactIntegerSubtract {
+            result,
+            scalar_type,
+            ..
+        }
         | O::SaturatingIntegerSubtract {
             result,
             scalar_type,
             ..
         }
         | O::WrappingIntegerMultiply {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::ExactIntegerMultiply {
             result,
             scalar_type,
             ..
@@ -573,10 +598,13 @@ fn operation_uses(operation: &TerminalAbstractOperation) -> Vec<ValueId> {
         | O::IntegerBitwiseOr { left, right, .. }
         | O::IntegerBitwiseXor { left, right, .. }
         | O::WrappingIntegerAdd { left, right, .. }
+        | O::ExactIntegerAdd { left, right, .. }
         | O::SaturatingIntegerAdd { left, right, .. }
         | O::WrappingIntegerSubtract { left, right, .. }
+        | O::ExactIntegerSubtract { left, right, .. }
         | O::SaturatingIntegerSubtract { left, right, .. }
         | O::WrappingIntegerMultiply { left, right, .. }
+        | O::ExactIntegerMultiply { left, right, .. }
         | O::ExactIntegerDivide { left, right, .. }
         | O::ExactIntegerRemainder { left, right, .. }
         | O::WrappingIntegerDivide { left, right, .. }
@@ -649,6 +677,12 @@ fn collect_places(operation: &TerminalAbstractOperation, places: &mut BTreeSet<P
 }
 
 fn collect_fact(operation: &TerminalAbstractOperation, facts: &mut Vec<OptimizationFact>) {
+    if let Some((obligation, support)) = operation_obligation(operation) {
+        facts.push(OptimizationFact::OperationObligationReference {
+            obligation,
+            support,
+        });
+    }
     match operation {
         TerminalAbstractOperation::BooleanConstant {
             psi_operation,
@@ -668,6 +702,75 @@ fn collect_fact(operation: &TerminalAbstractOperation, facts: &mut Vec<Optimizat
             support: *psi_operation,
         }),
         _ => {}
+    }
+}
+
+fn operation_obligation(
+    operation: &TerminalAbstractOperation,
+) -> Option<(ObligationId, OperationId)> {
+    use TerminalAbstractOperation as O;
+    match operation {
+        O::IntegerExactCast {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | O::ExactIntegerShiftLeft {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | O::ExactIntegerShiftRight {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | O::ExactIntegerAdd {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | O::ExactIntegerSubtract {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | O::ExactIntegerMultiply {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | O::ExactIntegerDivide {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | O::ExactIntegerRemainder {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | O::WrappingIntegerDivide {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | O::WrappingIntegerRemainder {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | O::SaturatingIntegerDivide {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | O::SaturatingIntegerRemainder {
+            psi_operation,
+            obligation,
+            ..
+        } => Some((*obligation, *psi_operation)),
+        _ => None,
     }
 }
 

@@ -82,7 +82,10 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
             .iter()
             .any(|operation| matches!(
                 operation,
-                TerminalAbstractOperation::WrappingIntegerMultiply { .. }
+                TerminalAbstractOperation::ExactIntegerMultiply {
+                    obligation: retained,
+                    ..
+                } if *retained == obligation
             ))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

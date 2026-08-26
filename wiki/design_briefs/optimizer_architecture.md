@@ -354,6 +354,13 @@ laws. Atomic, placed, volatile, boundary, and may-suspend operations are
 barriers according to their explicit contracts rather than a blanket list of
 names.
 
+That identity remains explicit through target and assigned-target operations.
+Two policies may select the same final ISA opcode only at machine realization.
+Likewise, constant folding or instruction selection cannot erase a
+proof-bearing operation's obligation merely because its operands are currently
+known; an accepted transformation must first settle the obligation and record
+that settlement in the transformation ledger.
+
 ## Lowering optimization
 
 Lowering optimization begins after provider and target selection and before

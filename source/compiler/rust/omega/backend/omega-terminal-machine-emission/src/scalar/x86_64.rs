@@ -1353,13 +1353,16 @@ fn emit_x86_64_expression_node(
             emit_x86_64_normalize(bytes, scalar_type);
         }
         TerminalAssignedIntegerExpression::WrappingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactAdd { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseAnd { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseOr { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseXor { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingAdd { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingSubtract { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingMultiply { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactMultiply { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. } => {
             emit_x86_64_expression_node(
                 bytes,
@@ -1397,14 +1400,16 @@ fn emit_x86_64_expression_node(
                     bytes.extend_from_slice(&[0x4c, 0x31, 0xd0]); // xor rax, r10
                     emit_x86_64_normalize(bytes, scalar_type);
                 }
-                TerminalAssignedIntegerExpression::WrappingAdd { .. } => {
+                TerminalAssignedIntegerExpression::WrappingAdd { .. }
+                | TerminalAssignedIntegerExpression::ExactAdd { .. } => {
                     bytes.extend_from_slice(&[0x4c, 0x01, 0xd0]); // add rax, r10
                     emit_x86_64_normalize(bytes, scalar_type);
                 }
                 TerminalAssignedIntegerExpression::SaturatingAdd { .. } => {
                     emit_x86_64_saturating_add(bytes, scalar_type);
                 }
-                TerminalAssignedIntegerExpression::WrappingSubtract { .. } => {
+                TerminalAssignedIntegerExpression::WrappingSubtract { .. }
+                | TerminalAssignedIntegerExpression::ExactSubtract { .. } => {
                     bytes.extend_from_slice(&[0x49, 0x29, 0xc2]); // sub r10, rax
                     bytes.extend_from_slice(&[0x4c, 0x89, 0xd0]); // mov rax, r10
                     emit_x86_64_normalize(bytes, scalar_type);
@@ -1412,7 +1417,8 @@ fn emit_x86_64_expression_node(
                 TerminalAssignedIntegerExpression::SaturatingSubtract { .. } => {
                     emit_x86_64_saturating_subtract(bytes, scalar_type);
                 }
-                TerminalAssignedIntegerExpression::WrappingMultiply { .. } => {
+                TerminalAssignedIntegerExpression::WrappingMultiply { .. }
+                | TerminalAssignedIntegerExpression::ExactMultiply { .. } => {
                     bytes.extend_from_slice(&[0x49, 0x0f, 0xaf, 0xc2]); // imul rax, r10
                     emit_x86_64_normalize(bytes, scalar_type);
                 }

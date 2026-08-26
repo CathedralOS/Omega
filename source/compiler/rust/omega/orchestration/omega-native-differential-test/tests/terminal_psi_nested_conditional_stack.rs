@@ -575,6 +575,7 @@ fn install_signed_division_in_nested_leaf(
     };
     *expression = TerminalTargetIntegerExpression::WrappingDivide {
         psi_operation: operation,
+        obligation: psi_core::ObligationId::new(1).unwrap(),
         left: Box::new(TerminalTargetIntegerExpression::Immediate {
             source_value: *source_value,
             value: IntegerValue::Signed(i64::MIN.into()),
@@ -637,6 +638,7 @@ fn signed_division_condition(
         scalar_type: IntegerType::new(IntegerSign::Signed, 64).expect("i64"),
         left: Box::new(TerminalTargetIntegerExpression::WrappingDivide {
             psi_operation: division_operation,
+            obligation: psi_core::ObligationId::new(1).unwrap(),
             left: Box::new(TerminalTargetIntegerExpression::Immediate {
                 source_value: value_id(source),
                 value: IntegerValue::Signed(i64::MIN.into()),

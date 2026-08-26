@@ -511,6 +511,7 @@ fn linear_integer_expression(expression: &TerminalAssignedIntegerExpression) -> 
             linear_integer_expression(operand)
         }
         TerminalAssignedIntegerExpression::WrappingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactAdd { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseAnd { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseOr { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseXor { left, right, .. }
@@ -536,8 +537,10 @@ fn linear_integer_expression(expression: &TerminalAssignedIntegerExpression) -> 
         }
         | TerminalAssignedIntegerExpression::SaturatingAdd { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingSubtract { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingMultiply { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactMultiply { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. }
         | TerminalAssignedIntegerExpression::ExactDivide { left, right, .. }
         | TerminalAssignedIntegerExpression::ExactRemainder { left, right, .. } => {
@@ -565,6 +568,7 @@ pub(crate) fn accountable_direct_integer_expression(
             accountable_direct_integer_expression(operand)
         }
         TerminalAssignedIntegerExpression::WrappingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactAdd { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseAnd { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseOr { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseXor { left, right, .. }
@@ -590,8 +594,10 @@ pub(crate) fn accountable_direct_integer_expression(
         }
         | TerminalAssignedIntegerExpression::SaturatingAdd { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingSubtract { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingMultiply { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactMultiply { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. }
         | TerminalAssignedIntegerExpression::ExactDivide { left, right, .. }
         | TerminalAssignedIntegerExpression::ExactRemainder { left, right, .. }
@@ -849,6 +855,7 @@ fn accountable_conditional_arm_integer_expression(
             accountable_conditional_arm_integer_expression(operand)
         }
         TerminalAssignedIntegerExpression::WrappingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactAdd { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseAnd { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseOr { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseXor { left, right, .. }
@@ -874,8 +881,10 @@ fn accountable_conditional_arm_integer_expression(
         }
         | TerminalAssignedIntegerExpression::SaturatingAdd { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingSubtract { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingMultiply { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactMultiply { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. }
         | TerminalAssignedIntegerExpression::ExactDivide { left, right, .. }
         | TerminalAssignedIntegerExpression::ExactRemainder { left, right, .. }
@@ -994,6 +1003,7 @@ pub(crate) fn expression_source(expression: &TerminalAssignedIntegerExpression) 
             expression_source(operand)
         }
         TerminalAssignedIntegerExpression::WrappingAdd { left, .. }
+        | TerminalAssignedIntegerExpression::ExactAdd { left, .. }
         | TerminalAssignedIntegerExpression::BitwiseAnd { left, .. }
         | TerminalAssignedIntegerExpression::BitwiseOr { left, .. }
         | TerminalAssignedIntegerExpression::BitwiseXor { left, .. }
@@ -1003,8 +1013,10 @@ pub(crate) fn expression_source(expression: &TerminalAssignedIntegerExpression) 
         | TerminalAssignedIntegerExpression::ExactShiftRight { value: left, .. }
         | TerminalAssignedIntegerExpression::SaturatingAdd { left, .. }
         | TerminalAssignedIntegerExpression::WrappingSubtract { left, .. }
+        | TerminalAssignedIntegerExpression::ExactSubtract { left, .. }
         | TerminalAssignedIntegerExpression::SaturatingSubtract { left, .. }
         | TerminalAssignedIntegerExpression::WrappingMultiply { left, .. }
+        | TerminalAssignedIntegerExpression::ExactMultiply { left, .. }
         | TerminalAssignedIntegerExpression::SaturatingMultiply { left, .. } => {
             expression_source(left)
         }

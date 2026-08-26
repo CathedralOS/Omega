@@ -543,7 +543,10 @@ fn lower_machine(
                         operand,
                     });
                 }
-                OperationKind::IntegerExactCast { operand, .. } => {
+                OperationKind::IntegerExactCast {
+                    operand,
+                    obligation,
+                } => {
                     let Some(ScalarType::Integer(source_type)) = value_types.get(&operand).copied()
                     else {
                         return Err(LoweringError::VerifiedIntegerExactCastMalformed(
@@ -559,6 +562,7 @@ fn lower_machine(
                     };
                     operations.push(TerminalAbstractOperation::IntegerExactCast {
                         psi_operation: operation.id,
+                        obligation,
                         result: operation.result.expect_scalar().id,
                         source_type,
                         target_type,
@@ -639,7 +643,11 @@ fn lower_machine(
                         _ => unreachable!(),
                     });
                 }
-                OperationKind::ExactIntegerShiftRight { value, count, .. } => {
+                OperationKind::ExactIntegerShiftRight {
+                    value,
+                    count,
+                    obligation,
+                } => {
                     let ScalarType::Integer(value_type) =
                         operation.result.expect_scalar().scalar_type
                     else {
@@ -651,6 +659,7 @@ fn lower_machine(
                     };
                     operations.push(TerminalAbstractOperation::ExactIntegerShiftRight {
                         psi_operation: operation.id,
+                        obligation,
                         result: operation.result.expect_scalar().id,
                         value_type,
                         count_type,
@@ -658,7 +667,11 @@ fn lower_machine(
                         count,
                     });
                 }
-                OperationKind::ExactIntegerShiftLeft { value, count, .. } => {
+                OperationKind::ExactIntegerShiftLeft {
+                    value,
+                    count,
+                    obligation,
+                } => {
                     let ScalarType::Integer(value_type) =
                         operation.result.expect_scalar().scalar_type
                     else {
@@ -670,6 +683,7 @@ fn lower_machine(
                     };
                     operations.push(TerminalAbstractOperation::ExactIntegerShiftLeft {
                         psi_operation: operation.id,
+                        obligation,
                         result: operation.result.expect_scalar().id,
                         value_type,
                         count_type,
@@ -684,12 +698,27 @@ fn lower_machine(
                     else {
                         return Err(LoweringError::VerifiedWrappingAddMalformed(operation.id));
                     };
-                    operations.push(TerminalAbstractOperation::WrappingIntegerAdd {
-                        psi_operation: operation.id,
-                        result: operation.result.expect_scalar().id,
-                        scalar_type,
-                        left,
-                        right,
+                    operations.push(match operation.kind.clone() {
+                        OperationKind::ExactIntegerAdd { obligation, .. } => {
+                            TerminalAbstractOperation::ExactIntegerAdd {
+                                psi_operation: operation.id,
+                                obligation,
+                                result: operation.result.expect_scalar().id,
+                                scalar_type,
+                                left,
+                                right,
+                            }
+                        }
+                        OperationKind::WrappingIntegerAdd { .. } => {
+                            TerminalAbstractOperation::WrappingIntegerAdd {
+                                psi_operation: operation.id,
+                                result: operation.result.expect_scalar().id,
+                                scalar_type,
+                                left,
+                                right,
+                            }
+                        }
+                        _ => unreachable!(),
                     });
                 }
                 OperationKind::ExactIntegerSubtract { left, right, .. }
@@ -701,12 +730,27 @@ fn lower_machine(
                             operation.id,
                         ));
                     };
-                    operations.push(TerminalAbstractOperation::WrappingIntegerSubtract {
-                        psi_operation: operation.id,
-                        result: operation.result.expect_scalar().id,
-                        scalar_type,
-                        left,
-                        right,
+                    operations.push(match operation.kind.clone() {
+                        OperationKind::ExactIntegerSubtract { obligation, .. } => {
+                            TerminalAbstractOperation::ExactIntegerSubtract {
+                                psi_operation: operation.id,
+                                obligation,
+                                result: operation.result.expect_scalar().id,
+                                scalar_type,
+                                left,
+                                right,
+                            }
+                        }
+                        OperationKind::WrappingIntegerSubtract { .. } => {
+                            TerminalAbstractOperation::WrappingIntegerSubtract {
+                                psi_operation: operation.id,
+                                result: operation.result.expect_scalar().id,
+                                scalar_type,
+                                left,
+                                right,
+                            }
+                        }
+                        _ => unreachable!(),
                     });
                 }
                 OperationKind::ExactIntegerMultiply { left, right, .. }
@@ -718,15 +762,34 @@ fn lower_machine(
                             operation.id,
                         ));
                     };
-                    operations.push(TerminalAbstractOperation::WrappingIntegerMultiply {
-                        psi_operation: operation.id,
-                        result: operation.result.expect_scalar().id,
-                        scalar_type,
-                        left,
-                        right,
+                    operations.push(match operation.kind.clone() {
+                        OperationKind::ExactIntegerMultiply { obligation, .. } => {
+                            TerminalAbstractOperation::ExactIntegerMultiply {
+                                psi_operation: operation.id,
+                                obligation,
+                                result: operation.result.expect_scalar().id,
+                                scalar_type,
+                                left,
+                                right,
+                            }
+                        }
+                        OperationKind::WrappingIntegerMultiply { .. } => {
+                            TerminalAbstractOperation::WrappingIntegerMultiply {
+                                psi_operation: operation.id,
+                                result: operation.result.expect_scalar().id,
+                                scalar_type,
+                                left,
+                                right,
+                            }
+                        }
+                        _ => unreachable!(),
                     });
                 }
-                OperationKind::ExactIntegerDivide { left, right, .. } => {
+                OperationKind::ExactIntegerDivide {
+                    left,
+                    right,
+                    obligation,
+                } => {
                     let ScalarType::Integer(scalar_type) =
                         operation.result.expect_scalar().scalar_type
                     else {
@@ -734,13 +797,18 @@ fn lower_machine(
                     };
                     operations.push(TerminalAbstractOperation::ExactIntegerDivide {
                         psi_operation: operation.id,
+                        obligation,
                         result: operation.result.expect_scalar().id,
                         scalar_type,
                         left,
                         right,
                     });
                 }
-                OperationKind::ExactIntegerRemainder { left, right, .. } => {
+                OperationKind::ExactIntegerRemainder {
+                    left,
+                    right,
+                    obligation,
+                } => {
                     let ScalarType::Integer(scalar_type) =
                         operation.result.expect_scalar().scalar_type
                     else {
@@ -748,13 +816,18 @@ fn lower_machine(
                     };
                     operations.push(TerminalAbstractOperation::ExactIntegerRemainder {
                         psi_operation: operation.id,
+                        obligation,
                         result: operation.result.expect_scalar().id,
                         scalar_type,
                         left,
                         right,
                     });
                 }
-                OperationKind::WrappingIntegerDivide { left, right, .. } => {
+                OperationKind::WrappingIntegerDivide {
+                    left,
+                    right,
+                    obligation,
+                } => {
                     let ScalarType::Integer(scalar_type) =
                         operation.result.expect_scalar().scalar_type
                     else {
@@ -762,13 +835,18 @@ fn lower_machine(
                     };
                     operations.push(TerminalAbstractOperation::WrappingIntegerDivide {
                         psi_operation: operation.id,
+                        obligation,
                         result: operation.result.expect_scalar().id,
                         scalar_type,
                         left,
                         right,
                     });
                 }
-                OperationKind::WrappingIntegerRemainder { left, right, .. } => {
+                OperationKind::WrappingIntegerRemainder {
+                    left,
+                    right,
+                    obligation,
+                } => {
                     let ScalarType::Integer(scalar_type) =
                         operation.result.expect_scalar().scalar_type
                     else {
@@ -778,13 +856,18 @@ fn lower_machine(
                     };
                     operations.push(TerminalAbstractOperation::WrappingIntegerRemainder {
                         psi_operation: operation.id,
+                        obligation,
                         result: operation.result.expect_scalar().id,
                         scalar_type,
                         left,
                         right,
                     });
                 }
-                OperationKind::SaturatingIntegerDivide { left, right, .. } => {
+                OperationKind::SaturatingIntegerDivide {
+                    left,
+                    right,
+                    obligation,
+                } => {
                     let ScalarType::Integer(scalar_type) =
                         operation.result.expect_scalar().scalar_type
                     else {
@@ -794,13 +877,18 @@ fn lower_machine(
                     };
                     operations.push(TerminalAbstractOperation::SaturatingIntegerDivide {
                         psi_operation: operation.id,
+                        obligation,
                         result: operation.result.expect_scalar().id,
                         scalar_type,
                         left,
                         right,
                     });
                 }
-                OperationKind::SaturatingIntegerRemainder { left, right, .. } => {
+                OperationKind::SaturatingIntegerRemainder {
+                    left,
+                    right,
+                    obligation,
+                } => {
                     let ScalarType::Integer(scalar_type) =
                         operation.result.expect_scalar().scalar_type
                     else {
@@ -810,6 +898,7 @@ fn lower_machine(
                     };
                     operations.push(TerminalAbstractOperation::SaturatingIntegerRemainder {
                         psi_operation: operation.id,
+                        obligation,
                         result: operation.result.expect_scalar().id,
                         scalar_type,
                         left,

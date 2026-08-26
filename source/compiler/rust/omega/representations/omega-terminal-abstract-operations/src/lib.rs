@@ -254,6 +254,7 @@ pub enum TerminalAbstractOperation {
     },
     IntegerExactCast {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         result: ValueId,
         source_type: IntegerType,
         target_type: IntegerType,
@@ -298,6 +299,7 @@ pub enum TerminalAbstractOperation {
     },
     ExactIntegerShiftLeft {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         result: ValueId,
         value_type: IntegerType,
         count_type: IntegerType,
@@ -306,6 +308,7 @@ pub enum TerminalAbstractOperation {
     },
     ExactIntegerShiftRight {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         result: ValueId,
         value_type: IntegerType,
         count_type: IntegerType,
@@ -314,6 +317,18 @@ pub enum TerminalAbstractOperation {
     },
     WrappingIntegerAdd {
         psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+    /// Exact mathematical addition admitted only after Psi verifies the
+    /// operation's overflow obligation. Target realization may use the same
+    /// modular instruction as wrapping addition, but the semantic operation
+    /// identity remains distinct for optimization and audit.
+    ExactIntegerAdd {
+        psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         result: ValueId,
         scalar_type: IntegerType,
         left: ValueId,
@@ -333,6 +348,17 @@ pub enum TerminalAbstractOperation {
         left: ValueId,
         right: ValueId,
     },
+    /// Exact mathematical subtraction with a verifier-discharged range
+    /// obligation. It must not be reclassified as wrapping arithmetic merely
+    /// because both lower to the same native instruction on admitted inputs.
+    ExactIntegerSubtract {
+        psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
     SaturatingIntegerSubtract {
         psi_operation: OperationId,
         result: ValueId,
@@ -347,8 +373,19 @@ pub enum TerminalAbstractOperation {
         left: ValueId,
         right: ValueId,
     },
+    /// Exact mathematical multiplication with a verifier-discharged range
+    /// obligation, retained separately from modular multiplication.
+    ExactIntegerMultiply {
+        psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
     ExactIntegerDivide {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         result: ValueId,
         scalar_type: IntegerType,
         left: ValueId,
@@ -356,6 +393,7 @@ pub enum TerminalAbstractOperation {
     },
     ExactIntegerRemainder {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         result: ValueId,
         scalar_type: IntegerType,
         left: ValueId,
@@ -363,6 +401,7 @@ pub enum TerminalAbstractOperation {
     },
     WrappingIntegerDivide {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         result: ValueId,
         scalar_type: IntegerType,
         left: ValueId,
@@ -370,6 +409,7 @@ pub enum TerminalAbstractOperation {
     },
     WrappingIntegerRemainder {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         result: ValueId,
         scalar_type: IntegerType,
         left: ValueId,
@@ -377,6 +417,7 @@ pub enum TerminalAbstractOperation {
     },
     SaturatingIntegerDivide {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         result: ValueId,
         scalar_type: IntegerType,
         left: ValueId,
@@ -384,6 +425,7 @@ pub enum TerminalAbstractOperation {
     },
     SaturatingIntegerRemainder {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         result: ValueId,
         scalar_type: IntegerType,
         left: ValueId,

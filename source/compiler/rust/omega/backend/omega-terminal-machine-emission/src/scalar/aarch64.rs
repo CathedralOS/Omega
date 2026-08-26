@@ -1151,13 +1151,16 @@ fn emit_aarch64_expression_node(
             emit_aarch64_normalize(instructions, scalar_type);
         }
         TerminalAssignedIntegerExpression::WrappingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactAdd { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseAnd { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseOr { left, right, .. }
         | TerminalAssignedIntegerExpression::BitwiseXor { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingAdd { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingSubtract { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingMultiply { left, right, .. }
+        | TerminalAssignedIntegerExpression::ExactMultiply { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. } => {
             emit_aarch64_expression_node(
                 instructions,
@@ -1207,21 +1210,24 @@ fn emit_aarch64_expression_node(
                     instructions.push(0xca00_0120); // eor x0, x9, x0
                     emit_aarch64_normalize(instructions, scalar_type);
                 }
-                TerminalAssignedIntegerExpression::WrappingAdd { .. } => {
+                TerminalAssignedIntegerExpression::WrappingAdd { .. }
+                | TerminalAssignedIntegerExpression::ExactAdd { .. } => {
                     instructions.push(0x8b00_0120); // add x0, x9, x0
                     emit_aarch64_normalize(instructions, scalar_type);
                 }
                 TerminalAssignedIntegerExpression::SaturatingAdd { .. } => {
                     emit_aarch64_saturating_add(instructions, scalar_type);
                 }
-                TerminalAssignedIntegerExpression::WrappingSubtract { .. } => {
+                TerminalAssignedIntegerExpression::WrappingSubtract { .. }
+                | TerminalAssignedIntegerExpression::ExactSubtract { .. } => {
                     instructions.push(0xcb00_0120); // sub x0, x9, x0
                     emit_aarch64_normalize(instructions, scalar_type);
                 }
                 TerminalAssignedIntegerExpression::SaturatingSubtract { .. } => {
                     emit_aarch64_saturating_subtract(instructions, scalar_type);
                 }
-                TerminalAssignedIntegerExpression::WrappingMultiply { .. } => {
+                TerminalAssignedIntegerExpression::WrappingMultiply { .. }
+                | TerminalAssignedIntegerExpression::ExactMultiply { .. } => {
                     instructions.push(0x9b00_7d20); // mul x0, x9, x0
                     emit_aarch64_normalize(instructions, scalar_type);
                 }
