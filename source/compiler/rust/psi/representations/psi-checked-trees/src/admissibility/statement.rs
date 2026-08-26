@@ -7,7 +7,8 @@ use crate::{
 impl<'facts> AcceptanceView for StatementAcceptance<'facts> {
     fn summary(&self) -> AcceptanceSummary {
         AcceptanceSummary::accepted(
-            borrow_constraint_count(&self.facts.flow, self.statement.entry_constraints),
+            borrow_constraint_count(&self.facts.flow, self.statement.entry_constraints)
+                + self.borrow_compatibility_certificates().count(),
             0,
             0,
             0,
@@ -41,5 +42,22 @@ impl<'facts> StatementAcceptance<'facts> {
 
     pub fn entry_constraints(&self) -> &'facts [FlowConstraintRef] {
         constraints(&self.facts.flow, self.statement.entry_constraints)
+    }
+
+    /// Already-validated borrow-compatibility certificates formed by this
+    /// exact state-owned statement.
+    pub fn borrow_compatibility_certificates(
+        &self,
+    ) -> impl Iterator<Item = &'facts crate::CheckedBorrowCompatibilityCertificate> + '_ {
+        self.facts
+            .borrow
+            .compatibility_certificates
+            .iter()
+            .filter_map(|(_, certificate)| {
+                (certificate.formation.machine_symbol == self.state.machine_symbol
+                    && certificate.formation.state_symbol == self.state.state_symbol
+                    && certificate.formation.statement_index == self.statement.statement_index)
+                    .then_some(certificate)
+            })
     }
 }

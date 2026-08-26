@@ -50,7 +50,8 @@ impl<'facts> AcceptanceView for StateAcceptance<'facts> {
             .sum::<usize>();
 
         AcceptanceSummary::accepted(
-            state_borrow_evidence_count(&self.facts.flow, self.state, statements, calls, exits),
+            state_borrow_evidence_count(&self.facts.flow, self.state, statements, calls, exits)
+                + self.borrow_compatibility_certificates().count(),
             state_proof_evidence_count(calls, exits) + operator_proof_evidence,
             service_reach_evidence_count(self.facts, self.state.service_reach),
             suspension_evidence_count(self.state.suspension),
@@ -98,6 +99,23 @@ impl<'facts> StateAcceptance<'facts> {
             .span_or_empty(self.state.statements)
     }
 
+    /// Already-validated borrow-compatibility certificates formed in this
+    /// exact state. The checked borrow pass remains their sole validator; this
+    /// acceptance view only publishes its retained evidence.
+    pub fn borrow_compatibility_certificates(
+        &self,
+    ) -> impl Iterator<Item = &'facts crate::CheckedBorrowCompatibilityCertificate> + '_ {
+        self.facts
+            .borrow
+            .compatibility_certificates
+            .iter()
+            .filter_map(|(_, certificate)| {
+                (certificate.formation.machine_symbol == self.state.machine_symbol
+                    && certificate.formation.state_symbol == self.state.state_symbol)
+                    .then_some(certificate)
+            })
+    }
+
     pub fn calls(&self) -> &'facts [FlowCallFact] {
         self.facts
             .flow
@@ -139,6 +157,7 @@ impl<'facts> StateAcceptance<'facts> {
             .state_statement(self.state, statement_index)
             .map(|statement| StatementAcceptance {
                 facts: self.facts,
+                state: self.state,
                 statement,
             })
     }
@@ -177,8 +196,13 @@ impl<'facts> StateAcceptance<'facts> {
 
     pub fn operations(&self) -> impl Iterator<Item = StateOperationAcceptance<'facts>> + '_ {
         let facts = self.facts;
+        let state = self.state;
         let statements = self.statements().iter().map(move |statement| {
-            StateOperationAcceptance::Statement(StatementAcceptance { facts, statement })
+            StateOperationAcceptance::Statement(StatementAcceptance {
+                facts,
+                state,
+                statement,
+            })
         });
         let calls = self
             .calls()

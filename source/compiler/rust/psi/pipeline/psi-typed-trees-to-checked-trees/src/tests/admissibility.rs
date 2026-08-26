@@ -282,6 +282,111 @@ fn exposes_exit_acceptance_through_shared_view_surface() {
     assert_eq!(operations[1].summary().proof.evidence_count, 1);
 }
 
+#[test]
+fn acceptance_views_publish_exact_state_owned_borrow_compatibility_certificates() {
+    let source = r#"
+        data Main { items: [i32; 4]; }
+        data Other {}
+
+        machine Main::split(&mut self) -> u64 {
+            let mid: u64 = 2;
+            let cut: u64 = mid;
+            let left: &mut [i32] = self.items[0..cut];
+            let right: &mut [i32] = self.items[mid..4];
+            left.len + right.len
+        }
+
+        machine Other::idle(&mut self) {}
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("symbolic adjacency should retain one structural borrow certificate");
+    let split = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::split")
+        .expect("split machine");
+    let split_state = checked.machine_states(split).first().expect("split state");
+    let split_machine_symbol = split.symbol;
+    let split_state_symbol = split_state.symbol;
+    let split_acceptance = checked
+        .state_acceptance(split_machine_symbol, split_state_symbol)
+        .expect("split state acceptance");
+
+    let certificates = split_acceptance
+        .borrow_compatibility_certificates()
+        .collect::<Vec<_>>();
+    let [certificate] = certificates.as_slice() else {
+        panic!("split state should publish exactly one compatibility certificate")
+    };
+    assert_eq!(certificate.formation.machine_symbol, split_machine_symbol);
+    assert_eq!(certificate.formation.state_symbol, split_state_symbol);
+    assert_eq!(certificate.formation.statement_index, 3);
+
+    let forming_statement = split_acceptance
+        .statement(3)
+        .expect("forming statement acceptance");
+    assert_eq!(
+        forming_statement
+            .borrow_compatibility_certificates()
+            .count(),
+        1
+    );
+    assert_eq!(
+        split_acceptance
+            .statement(2)
+            .expect("sibling statement acceptance")
+            .borrow_compatibility_certificates()
+            .count(),
+        0,
+        "a certificate must not leak to a sibling statement"
+    );
+
+    let state_borrow_evidence = split_acceptance.summary().borrow.evidence_count;
+    let statement_borrow_evidence = forming_statement.summary().borrow.evidence_count;
+    let mut without_certificate = checked.clone();
+    without_certificate
+        .facts
+        .borrow
+        .compatibility_certificates
+        .reset_retain_capacity();
+    let without_state = without_certificate
+        .state_acceptance(split_machine_symbol, split_state_symbol)
+        .expect("split state acceptance without retained certificate");
+    assert_eq!(
+        state_borrow_evidence,
+        without_state.summary().borrow.evidence_count + 1,
+        "state acceptance should count the retained certificate exactly once"
+    );
+    assert_eq!(
+        statement_borrow_evidence,
+        without_state
+            .statement(3)
+            .expect("forming statement without retained certificate")
+            .summary()
+            .borrow
+            .evidence_count
+            + 1,
+        "statement acceptance should count the retained certificate exactly once"
+    );
+
+    let idle = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Other::idle")
+        .expect("idle machine");
+    let idle_state = checked.machine_states(idle).first().expect("idle state");
+    assert_eq!(
+        checked
+            .state_acceptance(idle.symbol, idle_state.symbol)
+            .expect("idle state acceptance")
+            .borrow_compatibility_certificates()
+            .count(),
+        0,
+        "a certificate must not leak to another state"
+    );
+}
+
 fn parse_typed_trees(source: &str) -> psi_typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

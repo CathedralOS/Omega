@@ -20,6 +20,7 @@ pub struct StateAcceptance<'facts> {
 #[derive(Debug, Clone, Copy)]
 pub struct StatementAcceptance<'facts> {
     pub(crate) facts: &'facts CheckFacts,
+    pub(crate) state: &'facts FlowStateFact,
     pub(crate) statement: &'facts FlowStatementFact,
 }
 
