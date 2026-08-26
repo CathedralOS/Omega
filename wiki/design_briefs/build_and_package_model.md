@@ -1108,9 +1108,14 @@ currently representable structural expression/membership facts retain the
 domain carrier and exact
 package-qualified member/domain identities. A typed fact is admissible only
 when it has exactly one checked definition row, one fact-keyed ownership
-record, and exact checked dependency places for nested member paths. Callable
-or proposition-shaped applications, semantic roles, and domain operators fail
-closed until their authority and exact rows are settled.
+record, and exact checked dependency places for nested member paths. Public
+domain semantic contributions are retained from the exact typed role record as
+closed compiler-owned tags. Every retained role must name the declaration's own
+typed semantic identity; canonical evidence stores the package-qualified domain
+and role rather than the private semantic-domain ID or a name inference. Public
+domain operators remain separate exact `PublicOperator` rows. Unsupported
+callable forms continue to fail closed until their authority and exact rows are
+settled.
 Closed compiler-owned classifications and authorized establishment routes
 retain exact route kind plus package-qualified trait and requirement identity;
 alternative routes are canonically sorted and deduplicated.

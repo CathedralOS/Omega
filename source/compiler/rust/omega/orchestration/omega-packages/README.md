@@ -613,8 +613,8 @@ preserve supported argument categories as direct concrete type identities,
 parser-canonical integer const literals, caller machine-binder ordinals, or
 exact concrete machine entry identities. Nested static applications, forwarded
 or symbolic type/const binders, proposition/evidence static arguments, quotient
-calls, compiler intrinsics, malformed or ambiguous joins, semantic roles, and
-operators remain fail-closed until exact rows land.
+calls, compiler intrinsics, and malformed or ambiguous joins remain fail-closed
+until exact rows land.
 Review v46 and canonical row v6 add bounded recursive generic data-type static
 arguments in contract calls. Each application base rejoins exactly one checked
 data declaration, whose telescope is recursively classified; changing a nested
@@ -725,6 +725,12 @@ requirement-identity machine parameter as a closed, payload-free contract kind.
 It is distinct from structural callable contracts and nominal trait-requirement
 pairs, and therefore cannot be reinterpreted as either during compatibility
 review.
+Public domain semantic roles now project from the exact typed declaration as a
+closed compiler-owned tag set. Every retained contribution must point to that
+declaration's own semantic identity; canonical review records the package-
+qualified domain and role, not a compiler-private semantic ID or a role guessed
+from source spelling. The separately encoded exact `PublicOperator` rows remain
+the operator contract surface.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`

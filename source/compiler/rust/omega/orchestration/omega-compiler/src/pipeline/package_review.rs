@@ -552,6 +552,18 @@ pub enum PackageReviewDomainClassification {
     ProgressProfile,
 }
 
+/// One compiler-owned semantic role contributed by a public domain.
+///
+/// The role vocabulary is closed compiler semantics. The declaration's
+/// compiler-private semantic-domain ID is validated during projection but does
+/// not cross the canonical package-review boundary; the package-qualified
+/// domain identity is the persistent subject.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewDomainSemanticRole {
+    DenotationDimension,
+    ArithmeticPolicy,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewDomainEstablishmentKind {
     CheckedRequirement,
@@ -595,6 +607,7 @@ pub struct PackageReviewDomainShape {
     predicate_facts: Vec<PackageReviewContractFact>,
     alias_expansion: Option<Vec<PackageReviewDomainAliasAtom>>,
     classification: Option<PackageReviewDomainClassification>,
+    semantic_roles: Vec<PackageReviewDomainSemanticRole>,
     establishment_routes: Vec<PackageReviewDomainEstablishmentRoute>,
 }
 
@@ -629,6 +642,10 @@ impl PackageReviewDomainShape {
 
     pub const fn classification(&self) -> Option<PackageReviewDomainClassification> {
         self.classification
+    }
+
+    pub fn semantic_roles(&self) -> &[PackageReviewDomainSemanticRole] {
+        &self.semantic_roles
     }
 
     pub fn establishment_routes(&self) -> &[PackageReviewDomainEstablishmentRoute] {
@@ -4140,12 +4157,6 @@ fn project_public_domains(
         if !reviewed_package_owns(&identity, package)? {
             continue;
         }
-        if !definition.semantic_roles.is_empty() {
-            return Err(vec![Diagnostic::error(format!(
-                "public domain `{}` uses semantic roles not yet represented by package review",
-                identity.path
-            ))]);
-        }
         let parameters = compilation.domain_type_parameters(definition);
         let (binders, type_parameters) =
             project_type_parameters(compilation, parameters, "domain", &identity.path, &[])?;
@@ -4170,6 +4181,7 @@ fn project_public_domains(
             .collect::<Result<Vec<_>, _>>()?;
         establishment_routes.sort();
         establishment_routes.dedup();
+        let semantic_roles = project_domain_semantic_roles(definition, &identity)?;
         rows.push(ProjectedReviewRow {
             row: PackageReviewDomainShape {
                 identity,
@@ -4190,6 +4202,7 @@ fn project_public_domains(
                 predicate_facts,
                 alias_expansion,
                 classification,
+                semantic_roles,
                 establishment_routes,
             },
             declaration: definition.symbol,
@@ -4197,6 +4210,35 @@ fn project_public_domains(
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
     Ok(rows)
+}
+
+fn project_domain_semantic_roles(
+    definition: &psi_typed_trees::domain::DomainDefinition,
+    identity: &PackageReviewNominalIdentity,
+) -> Result<Vec<PackageReviewDomainSemanticRole>, Vec<Diagnostic>> {
+    let mut roles = Vec::new();
+    for (role, semantic_identity) in [
+        (
+            PackageReviewDomainSemanticRole::DenotationDimension,
+            definition.semantic_roles.denotation_dimension,
+        ),
+        (
+            PackageReviewDomainSemanticRole::ArithmeticPolicy,
+            definition.semantic_roles.arithmetic_policy,
+        ),
+    ] {
+        let Some(semantic_identity) = semantic_identity else {
+            continue;
+        };
+        if semantic_identity != definition.semantic_id {
+            return Err(vec![Diagnostic::error(format!(
+                "public domain `{}` semantic role does not name its exact typed semantic identity",
+                identity.path
+            ))]);
+        }
+        roles.push(role);
+    }
+    Ok(roles)
 }
 
 fn project_domain_predicate_facts(

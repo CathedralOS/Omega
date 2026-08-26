@@ -10,7 +10,7 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 57;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 58;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
 pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 16;
 
@@ -735,6 +735,13 @@ fn encode_domain_shape(
         None => encoder.byte(0),
         Some(PackageReviewDomainClassification::ProgressProfile) => encoder.byte(1),
     }
+    encoder.sequence(&shape.semantic_roles, |encoder, role| {
+        encoder.byte(match role {
+            PackageReviewDomainSemanticRole::DenotationDimension => 0,
+            PackageReviewDomainSemanticRole::ArithmeticPolicy => 1,
+        });
+        Ok(())
+    })?;
     encoder.sequence(
         &shape.establishment_routes,
         encode_domain_establishment_route,
