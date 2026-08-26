@@ -8584,10 +8584,17 @@ boundary without its corresponding checked law.
   size, and no link/info relationship. Independent bounded replay walks every
   contiguous NUL-framed name, rejects any byte or metadata drift, and preserves
   exact `.dynamic`-descriptor custody. It still assigns no numeric index,
-  `e_shstrndx`, address, or placement. Runnable ELF emission remains fail
-  closed before image mutation: the final section roster, numeric
-  `sh_name`/`sh_link`/`e_shstrndx`, section-
-  header serialization, placement, `PT_INTERP` program-header placement,
+  `e_shstrndx`, address, or placement. The numeric-roster rung now consumes
+  that owner into twelve closed rows: null index zero; the retained six base
+  rows at 1–6; `.plt`/`.got.plt`/`.rela.plt` at 7–9; `.dynamic` at 10; and
+  `.shstrtab` at 11, which is also the exact `e_shstrndx`. It preserves every
+  `sh_name` offset and literal `sh_info`, resolves semantic `sh_link` and the
+  relocated-section `sh_info` to exact in-roster indexes, and independently
+  replays order, unique coverage, every metadata field/reference, identity,
+  and name-table custody. The closed numeric roster still assigns no address,
+  file offset, payload placement, or header bytes. Runnable ELF emission
+  remains fail closed before image mutation: section-header serialization,
+  placement, `PT_INTERP` program-header placement,
   `PT_DYNAMIC`, `.dynamic` address resolution, optional
   `.gnu.hash`, numeric indexes for `.plt`/`.got.plt`/`.rela.plt`, address-
   resolved fixup application, complete
