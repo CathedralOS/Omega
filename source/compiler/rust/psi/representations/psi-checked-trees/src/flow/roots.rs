@@ -161,7 +161,8 @@ pub struct FlowFacts {
     /// One result-bearing bodyless boundary call whose successful completion
     /// consumes the exact structural claim frontier.
     pub terminal_boundary_scalar_returns: super::CheckedBoundaryScalarReturnPlans,
-    /// Exact one-parameter whole-root structural result transfers.
+    /// Exact whole-root structural transfers and separate zero-input
+    /// payload-less sum-case constructors.
     pub terminal_structural_returns: super::CheckedStructuralReturnPlans,
     /// Final direct internal calls whose exact whole-root structural result is
     /// returned immediately by the caller.
