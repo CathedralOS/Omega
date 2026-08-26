@@ -7226,8 +7226,9 @@ Owners:
   target-neutral requirement placed at different x86/x64 offsets once the
   target catalog gains its missing 32-bit x86 engineering support; its present
   native targets are X86-64 and AArch64 only. Add the remaining fail canaries
-  for semantic projection/read/write/serialization, raw calling-plan offset,
-  and replay drift.
+  for serialization, raw calling-plan offset, and replay drift; semantic
+  projection/read and assignment already reject because the private slot is
+  absent from the layout data's source field schema.
 - **REGISTERED-CALLBACK-LIFETIME — implement the runtime protocol.** A
   successful registrar call establishes one future external root represented
   by a linear `Registration`; rejection establishes none. Successful
