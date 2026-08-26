@@ -19,6 +19,15 @@ use omega_terminal_psi_to_abstract_operations::{
 };
 use psi_proof_admission::AdmissionProfile;
 
+mod assignment;
+
+pub use assignment::{
+    OptimizedAssignmentCustodyError, OptimizedAssignmentPipelineError,
+    StagedOptimizedAssignedOperations, StagedOptimizedAssignmentCustodyReceipt,
+    stage_optimized_assignment, stage_optimized_assignment_with_provider_executions,
+    validate_optimized_assignment_custody,
+};
+
 /// Exact optimizer inputs chosen by compiler orchestration.
 ///
 /// Construction rejects the empty selection so compatibility builds cannot
@@ -123,7 +132,6 @@ mod tests {
     use omega_psi_optimizer::{OptimizationRunError, RuleRegistryError};
     use omega_target::NativeTarget;
     use omega_terminal_abstract_operations::TerminalAbstractOperation;
-    use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
     use psi_core::{
         BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
         ObligationId, OperationId, ScalarType, ValueId,
@@ -308,7 +316,22 @@ mod tests {
             &optimized.plan().functions[0].operations[4],
             TerminalAbstractOperation::Return { value, .. } if *value == ValueId::new(2_006).unwrap()
         ));
-        lower_to_target_operations(optimized.plan(), NativeTarget::linux_x64()).unwrap();
+        let target = omega_lowering_optimizer::lower_optimized_to_target_operations(
+            optimized,
+            NativeTarget::linux_x64(),
+        )
+        .unwrap();
+        let staged = stage_optimized_assignment(target).unwrap();
+        assert_eq!(staged.assigned().functions.len(), 1);
+        assert_eq!(staged.custody().function_count(), 1);
+        assert_eq!(
+            staged.custody().optimization(),
+            staged
+                .optimized_target()
+                .optimized()
+                .identity_bundle()
+                .identity()
+        );
     }
 
     #[test]
@@ -379,5 +402,126 @@ mod tests {
             error,
             OptimizationPipelineError::Run(OptimizationRunError::WorkBudgetExhausted("commits"))
         ));
+    }
+
+    #[test]
+    fn staged_assignment_is_deterministic_and_retains_optimizer_custody() {
+        let (semantic, proof) = artifact();
+        let selections = OptimizationSelections::new([
+            Optimization::SparseConditionalConstantPropagation,
+            Optimization::CopyPropagation,
+        ])
+        .unwrap();
+        let stage = || {
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                request(selections.clone()),
+            )
+            .unwrap();
+            let target = omega_lowering_optimizer::lower_optimized_to_target_operations(
+                optimized,
+                NativeTarget::linux_x64(),
+            )
+            .unwrap();
+            stage_optimized_assignment(target).unwrap()
+        };
+        let first = stage();
+        let second = stage();
+
+        assert_eq!(first.assigned(), second.assigned());
+        assert_eq!(first.custody(), second.custody());
+        assert_eq!(
+            first.optimized_target().optimized().transformation_ledger(),
+            second
+                .optimized_target()
+                .optimized()
+                .transformation_ledger()
+        );
+        assert_eq!(
+            first.optimized_target().optimized().pass_manifests(),
+            second.optimized_target().optimized().pass_manifests()
+        );
+    }
+
+    #[test]
+    fn independent_assignment_custody_rejects_each_root_and_provenance_corruption() {
+        let (semantic, proof) = artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(
+                OptimizationSelections::new([
+                    Optimization::SparseConditionalConstantPropagation,
+                    Optimization::CopyPropagation,
+                ])
+                .unwrap(),
+            ),
+        )
+        .unwrap();
+        let target = omega_lowering_optimizer::lower_optimized_to_target_operations(
+            optimized,
+            NativeTarget::linux_x64(),
+        )
+        .unwrap();
+        let staged = stage_optimized_assignment(target).unwrap();
+
+        let mut corrupted = staged.assigned().clone();
+        corrupted.terminal_psi.program_fingerprint =
+            psi_terminal::SemanticFingerprint::from_bytes([0x44; 32]);
+        assert_eq!(
+            validate_optimized_assignment_custody(staged.optimized_target(), &corrupted),
+            Err(OptimizedAssignmentCustodyError::TerminalPsiMismatch)
+        );
+
+        let mut corrupted = staged.assigned().clone();
+        corrupted.target = NativeTarget::windows_x64();
+        assert_eq!(
+            validate_optimized_assignment_custody(staged.optimized_target(), &corrupted),
+            Err(OptimizedAssignmentCustodyError::NativeTargetMismatch)
+        );
+
+        let mut corrupted = staged.assigned().clone();
+        corrupted.entry = MachineId::new(9_001).unwrap();
+        assert_eq!(
+            validate_optimized_assignment_custody(staged.optimized_target(), &corrupted),
+            Err(OptimizedAssignmentCustodyError::EntryMismatch)
+        );
+
+        let mut corrupted = staged.assigned().clone();
+        corrupted.functions.push(corrupted.functions[0].clone());
+        assert_eq!(
+            validate_optimized_assignment_custody(staged.optimized_target(), &corrupted),
+            Err(OptimizedAssignmentCustodyError::FunctionCountMismatch {
+                expected: 1,
+                actual: 2,
+            })
+        );
+
+        let mut corrupted = staged.assigned().clone();
+        corrupted.functions[0].machine = MachineId::new(9_002).unwrap();
+        assert_eq!(
+            validate_optimized_assignment_custody(staged.optimized_target(), &corrupted),
+            Err(OptimizedAssignmentCustodyError::FunctionMachineMismatch { position: 0 })
+        );
+
+        let mut corrupted = staged.assigned().clone();
+        corrupted.functions[0].attachment = Some(psi_core::StructuralTypeId::new(9_003).unwrap());
+        assert_eq!(
+            validate_optimized_assignment_custody(staged.optimized_target(), &corrupted),
+            Err(OptimizedAssignmentCustodyError::FunctionAttachmentMismatch { position: 0 })
+        );
+
+        let mut corrupted = staged.assigned().clone();
+        corrupted.functions[0]
+            .provenance
+            .operations
+            .push(OperationId::new(9_004).unwrap());
+        assert_eq!(
+            validate_optimized_assignment_custody(staged.optimized_target(), &corrupted),
+            Err(OptimizedAssignmentCustodyError::FunctionProvenanceMismatch { position: 0 })
+        );
     }
 }

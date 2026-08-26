@@ -60,10 +60,15 @@ These facts constrain the work below.
   the toolchain build vocabulary. Package-aware admission permits the exact
   root build selection and proves that dependency build companions cannot
   contribute one. The legacy compiler still rejects every nonempty set before
-  emission. The clean selected staging lane now enters verified optimization
-  and target-operation lowering, then fails closed before register assignment,
-  machine emission, object/image construction, or installation because those
-  physical records do not yet retain optimizer custody. Checked compilation
+  emission. The clean selected staging lane now enters verified optimization,
+  target-operation lowering, and the existing scratch-cycling assignment stage
+  while an opaque `StagedOptimizedAssignedOperations` carrier retains the
+  optimizer run, ledger, projection receipt, target plan, assigned plan, and
+  independently reconstructed root/function provenance custody. This is not
+  allocator validation: the lane still fails closed before machine emission,
+  object/image construction, component construction, or installation because
+  no independent liveness/interference or physical-realization validator yet
+  authorizes those records. Checked compilation
   retains the domain-separated selection identity, and the core crate defines
   a canonical replay/cache identity bundle over selections, ordered rules,
   target cost model, optional decision and workload inputs, and the
@@ -632,13 +637,20 @@ dependency.
   projection and opaque custody carriers are landed. The opt-in-only
   `omega-optimization-pipeline` is the clean compiler lane's sole selected
   entry, and SCCP/copy-propagation outputs lower through a dedicated optimized
-  target-operation API without legacy state. Unsupported named families fail
-  at registry construction; the current operation vocabulary is admitted by
-  exhaustive behavioral observation, projection, and target lowering. The
-  empty-selection compatibility route remains untouched. Remaining to close:
-  retain optimizer custody through target legalization, physical assignment,
-  emission, and component construction, then bind it into an explicit final
-  realization/publication manifest before optimized output can be installed.
+  target-operation API without legacy state. The opaque staged-assignment
+  carrier now also retains that complete custody through the existing bounded
+  scratch-register assignment and independently checks Terminal-Psi identity,
+  native target, entry, exact function order, attachments, and operation
+  provenance. Its `Staged` name is load-bearing: it proves cross-stage custody,
+  not physical-home legality, liveness, interference, or publication fitness.
+  Unsupported named families fail at registry construction; the current
+  operation vocabulary is admitted by exhaustive behavioral observation,
+  projection, and target lowering. The empty-selection compatibility route
+  remains untouched. Remaining to close: replace or subsume transitional
+  scratch assignment with independently verified physical assignment; retain
+  optimizer custody through machine emission and component construction; then
+  bind optimizer and physical identities into an explicit final realization/
+  publication manifest before optimized output can be installed.
 
 - **OPT-VIRTUAL-REGISTERS.** Change instruction selection to produce typed
   virtual registers/classes and explicit register/machine-state uses and defs.
