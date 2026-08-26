@@ -34,6 +34,9 @@ pub fn lower_typed_trees(
     lowerer::lower_typed_trees(program)
 }
 
+#[cfg(test)]
+pub(crate) use lowerer::lower_typed_trees_for_crash_fact_inspection;
+
 /// Bind exact PDI3 operation/algebra authority and refresh every enclosing
 /// indexed-domain semantic ID. Orchestration calls this before typed
 /// snapshots and trust receipts; checked lowering calls it before capturing

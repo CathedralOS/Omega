@@ -1,4 +1,5 @@
 use super::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees};
+use crate::lower_typed_trees_for_crash_fact_inspection;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 
 mod crash_routes;

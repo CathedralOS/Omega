@@ -33,6 +33,22 @@ pub(crate) fn check_checked_facts_recording(
     program: &psi_typed_trees::TypedTrees,
     facts: &mut psi_checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    check_checked_facts_recording_with_crash_admission(program, facts, true)
+}
+
+#[cfg(test)]
+pub(crate) fn check_checked_facts_recording_without_crash_admission(
+    program: &psi_typed_trees::TypedTrees,
+    facts: &mut psi_checked_trees::CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    check_checked_facts_recording_with_crash_admission(program, facts, false)
+}
+
+fn check_checked_facts_recording_with_crash_admission(
+    program: &psi_typed_trees::TypedTrees,
+    facts: &mut psi_checked_trees::CheckFacts,
+    enforce_crash_admission: bool,
+) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let call_frames = psi_validation::CallFrameResolver::new(program);
     let incoming_guards =
@@ -59,8 +75,12 @@ pub(crate) fn check_checked_facts_recording(
     }
 
     crashes::infer_path_conditioned_guard_coverage(program, facts, &incoming_guards);
-    if let Err(mut crash_diagnostics) = crashes::check_published_ceiling_coverage(program, facts) {
-        diagnostics.append(&mut crash_diagnostics);
+    if enforce_crash_admission {
+        if let Err(mut crash_diagnostics) =
+            crashes::check_published_ceiling_coverage(program, facts)
+        {
+            diagnostics.append(&mut crash_diagnostics);
+        }
     }
 
     content::infer_identity_preserving_reshuffles(program, facts);
