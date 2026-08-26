@@ -553,6 +553,66 @@ mod tests {
     }
 
     #[test]
+    fn rejects_reusing_one_count_axiom_for_a_distinct_shift_count() {
+        let i32_type = integer_type(IntegerSign::Signed, 32);
+        let u8_type = integer_type(IntegerSign::Unsigned, 8);
+        let root = value(1, i32_type);
+        let first_count = value(2, u8_type);
+        let middle = value(3, i32_type);
+        let second_count = value(4, u8_type);
+        let target = value(5, i32_type);
+        let axioms = vec![
+            Proposition::Equal(first_count.clone(), integer(u8_type, 1)),
+            shift_definition(
+                middle.clone(),
+                IntegerShiftDirection::Left,
+                i32_type,
+                u8_type,
+                root.clone(),
+                first_count,
+            ),
+            Proposition::Equal(second_count.clone(), integer(u8_type, 2)),
+            shift_definition(
+                target.clone(),
+                IntegerShiftDirection::Right,
+                i32_type,
+                u8_type,
+                middle,
+                second_count,
+            ),
+        ];
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(i32_type)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(u8_type)),
+            (ValueId::new(3).unwrap(), ScalarType::Integer(i32_type)),
+            (ValueId::new(4).unwrap(), ScalarType::Integer(u8_type)),
+            (ValueId::new(5).unwrap(), ScalarType::Integer(i32_type)),
+        ])
+        .unwrap();
+        assert_eq!(
+            check_integer_shift_chain_witness(
+                &context,
+                &axioms,
+                &IntegerShiftChainWitness {
+                    root,
+                    target,
+                    steps: vec![
+                        IntegerShiftStepWitness {
+                            definition_axiom: 1,
+                            count_axiom: Some(0),
+                        },
+                        IntegerShiftStepWitness {
+                            definition_axiom: 3,
+                            count_axiom: Some(0),
+                        },
+                    ],
+                },
+            ),
+            Err(IntegerShiftChainWitnessError::CountAxiomMismatch(0)),
+        );
+    }
+
+    #[test]
     fn rejects_reordered_discontinuous_nonexact_and_target_drifted_words() {
         let i32_type = integer_type(IntegerSign::Signed, 32);
         let u8_type = integer_type(IntegerSign::Unsigned, 8);

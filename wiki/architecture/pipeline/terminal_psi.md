@@ -2815,6 +2815,17 @@ preimage or interval claim. Cast witnesses remain non-certificate custody;
 affine witnesses become certificate premises only inside a checked
 `IntegerAffineBound` node.
 
+The legacy trusted exact-left mixed-chain reducer now selects its complete
+latest-definition walk and exact earlier landing index for every nonclosed
+count, reverses that word into root-to-target order, and invokes the common
+checker. It computes the unchanged interval preimage only from the checked
+value carrier, root, direction, and mathematical count rows. The reducer no
+longer independently interprets each selected definition's direction/count.
+This is checker consumption rather than proof promotion: the reducer remains
+trusted, its left-shift safety goal and certificate routing are unchanged, and
+no other direct, cast-adjacent, affine-adjacent, or divide/remainder shift family
+switches custody.
+
 The correlated affine exact-divide/remainder family now has one complete
 non-serialized `IntegerCorrelatedForbiddenRootWitness`. It independently
 replays both nonempty exact add/subtract/multiply branches backward from the

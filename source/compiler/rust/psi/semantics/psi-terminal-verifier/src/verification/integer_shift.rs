@@ -6,7 +6,7 @@
 
 use std::collections::BTreeSet;
 
-use psi_core::{IntegerSign, IntegerValue, Proposition, ScalarTerm, ValueId};
+use psi_core::{IntegerSign, IntegerValue, Proposition, PropositionContext, ScalarTerm, ValueId};
 
 use super::{canonical_conjunction, integer_value_cmp, known_integer_term_value};
 
@@ -87,7 +87,8 @@ pub(super) fn exact_integer_shift_obligation(
     canonical_conjunction(bounds)
 }
 
-pub(super) fn exact_integer_shift_left_obligation(
+pub(super) fn exact_integer_shift_left_obligation_with_context(
+    proposition_context: &PropositionContext,
     value_type: psi_core::IntegerType,
     count_type: psi_core::IntegerType,
     value: ScalarTerm,
@@ -104,6 +105,7 @@ pub(super) fn exact_integer_shift_left_obligation(
         definition_axiom_count,
     ) {
         if let Some(obligation) = exact_integer_mixed_shift_chain_obligation(
+            proposition_context,
             value_type,
             value.clone(),
             count_value,
@@ -234,4 +236,26 @@ pub(super) fn exact_integer_shift_left_obligation(
     let maximum_count = known_maximum.unwrap_or_else(|| u32::from(value_type.bits() - 1));
     append_exact_shift_left_value_bounds(&mut bounds, value_type, value, maximum_count);
     canonical_conjunction(bounds)
+}
+
+#[cfg(test)]
+pub(super) fn exact_integer_shift_left_obligation(
+    value_type: psi_core::IntegerType,
+    count_type: psi_core::IntegerType,
+    value: ScalarTerm,
+    count: ScalarTerm,
+    semantic_axioms: &[Proposition],
+    definition_axiom_count: usize,
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Proposition {
+    exact_integer_shift_left_obligation_with_context(
+        &PropositionContext::default(),
+        value_type,
+        count_type,
+        value,
+        count,
+        semantic_axioms,
+        definition_axiom_count,
+        machine_parameter_values,
+    )
 }

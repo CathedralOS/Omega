@@ -4061,11 +4061,18 @@ Remaining:
   fixed-native count carriers are retained, and every mathematical count must
   be nonnegative and less than the value width. The checked form preserves the
   exact direction/count/index word rather than an unsound cumulative summary
-  for mixed shifts. Unsupported carriers, nonexact operations, unlanded, late,
-  reversed, mistyped, negative, or out-of-range counts, stale or reordered
+  for mixed shifts. The legacy trusted exact-left mixed-chain reducer now
+  retains its exact latest-definition and prior nonclosed-count landing
+  coordinates, orders them root-to-target, invokes this independent checker,
+  and computes its unchanged interval preimage only from checked direction,
+  count, carrier, and root custody. Its prior duplicate direction/count
+  interpretation is gone. Unsupported carriers, nonexact operations, unlanded,
+  late, reversed, mistyped, negative, or out-of-range counts, stale or reordered
   definitions, discontinuity, cycles, and target drift reject. This checker
-  accepts no proof authority, establishes no root custody, and proves neither
-  left-shift overflow safety nor a surrounding interval/preimage claim.
+  consumption promotes no trust: the reducer remains trusted, accepts no proof
+  authority, establishes no new root custody, and proves neither left-shift
+  overflow safety nor a surrounding interval/preimage claim. Other shift
+  families and certificate routing remain unchanged.
   A fourth non-serialized checker now binds the complete correlated
   forbidden-root family shared by exact divide and remainder. It independently
   replays both nonempty landed-literal affine branches, requires disjoint

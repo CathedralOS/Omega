@@ -22,7 +22,9 @@ use super::integer_divide_remainder::{
     exact_integer_remainder_obligation_with_definitions,
 };
 use super::integer_multiply::exact_integer_multiply_obligation_with_definitions;
-use super::integer_shift::{exact_integer_shift_left_obligation, exact_integer_shift_obligation};
+use super::integer_shift::{
+    exact_integer_shift_left_obligation_with_context, exact_integer_shift_obligation,
+};
 
 pub(super) fn reduce_proof_bearing_scalar_goal(
     proposition_context: &PropositionContext,
@@ -70,7 +72,8 @@ pub(super) fn reduce_proof_bearing_scalar_goal(
                 value,
                 count,
             },
-        ) => exact_integer_shift_left_obligation(
+        ) => exact_integer_shift_left_obligation_with_context(
+            proposition_context,
             *value_type,
             *count_type,
             value.clone(),
