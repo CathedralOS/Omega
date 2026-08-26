@@ -2180,6 +2180,60 @@ fn exact_named_dynamic_parameter_resolves_argument_conformance() {
 }
 
 #[test]
+fn selected_local_dynamic_value_passes_to_a_compatible_bare_parameter() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Shape { machine code(&self) -> i32; }
+        data Item {}
+        First: Item satisfies Shape {
+            machine code(&self) -> i32 { 1 }
+        }
+        Second: Item satisfies Shape {
+            machine code(&self) -> i32 { 2 }
+        }
+
+        machine dispatch(erased: &dyn Shape) -> i32 { erased.code() }
+        machine run(item: Item) -> i32 {
+            let erased: &dyn Shape = &item as &dyn Item::First;
+            dispatch(erased)
+        }
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("an already-selected local descriptor should pass to the same bare trait surface");
+}
+
+#[test]
+fn selected_local_dynamic_value_does_not_pass_to_a_different_bare_trait() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Shape { machine code(&self) -> i32; }
+        trait Other { machine code(&self) -> i32; }
+        data Item {}
+        First: Item satisfies Shape {
+            machine code(&self) -> i32 { 1 }
+        }
+        OtherImpl: Item satisfies Other {
+            machine code(&self) -> i32 { 2 }
+        }
+
+        machine dispatch(erased: &dyn Other) -> i32 { erased.code() }
+        machine run(item: Item) -> i32 {
+            let erased: &dyn Shape = &item as &dyn Item::First;
+            dispatch(erased)
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a descriptor for one trait must not be rebound as another trait");
+    assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+        "cannot pass dynamic value to bare parameter `erased` without one earlier exact compatible local conformance selection"
+    )), "unexpected diagnostics: {diagnostics:?}");
+}
+
+#[test]
 fn named_local_dynamic_coercion_selects_one_exact_conformance() {
     let typed = typed_program_from_source(
         r#"
