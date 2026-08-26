@@ -66,10 +66,16 @@
 //!    that text — exit code alone passes even when a RENDERER silently draws
 //!    nothing (a broken carrier render), so the renderers assert a glyph they draw.
 
-use omega_compiler::{CompileOptions, compile_options as compile_program, compile_to_checked};
+use omega_compiler::{CompileOptions, compile_to_checked};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+
+fn compile_program(
+    options: CompileOptions,
+) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
+    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+}
 
 const HOSTED_SAMPLE_TARGETS: &[&str] = &["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"];
 const GUI_SAMPLE_TARGETS: &[&str] = &["windows_x64", "macos_arm64"];

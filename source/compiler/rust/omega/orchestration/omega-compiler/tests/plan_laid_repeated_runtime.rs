@@ -2,10 +2,15 @@
 //! destinations retain a constant physical stride larger than element width.
 
 use omega_compiler::{
-    BuildTimeValue, CompileOptions, compile_options as compile, compile_to_checked,
-    compute_layout_plan, evaluate_and_materialize_typed_owned_layout_into,
-    materialize_typed_owned_layout_into,
+    BuildTimeValue, CompileOptions, compile_to_checked, compute_layout_plan,
+    evaluate_and_materialize_typed_owned_layout_into, materialize_typed_owned_layout_into,
 };
+
+fn compile(
+    options: CompileOptions,
+) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
+    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+}
 use psi_checked_interpreter::interpret_entry;
 use psi_layout_plans::ByteOrder;
 use std::path::{Path, PathBuf};

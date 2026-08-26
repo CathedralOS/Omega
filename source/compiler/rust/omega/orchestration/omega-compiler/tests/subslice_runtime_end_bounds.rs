@@ -13,9 +13,15 @@
 //      stays frame-only (its indexed-address instruction has a frame-only index).
 //
 // These are held in a dedicated file (not the shared, hot `canary_suite.rs`).
-use omega_compiler::{CompileOptions, compile_options as compile};
+use omega_compiler::CompileOptions;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+fn compile(
+    options: CompileOptions,
+) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
+    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+}
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))

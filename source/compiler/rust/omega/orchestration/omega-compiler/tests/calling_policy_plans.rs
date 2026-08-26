@@ -12,13 +12,19 @@ use omega_compiler::{
     bind_program_storage_entry_whole_root_arguments,
     bind_program_storage_entry_whole_root_logical_values,
     bind_program_storage_entry_whole_root_operands,
-    bind_recorded_program_storage_entry_whole_root_arguments, compile_options as compile,
-    compile_to_checked, evaluate_calling_policy_plan,
-    install_program_storage_entry_provider_invocation,
+    bind_recorded_program_storage_entry_whole_root_arguments, compile_to_checked,
+    evaluate_calling_policy_plan, install_program_storage_entry_provider_invocation,
     plan_program_storage_entry_wrapper_caller_frame, program_storage_installation_record_json,
     reserve_program_storage_entry_outgoing_stack_frame, selected_external_root_entry_fact_bindings,
     selected_external_root_provider_plan, selected_external_root_provider_plan_id,
 };
+
+fn compile(
+    options: CompileOptions,
+) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
+    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+}
+
 use omega_instruction_selection::derive_boundary_entry_storage;
 use psi_extents::{
     AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRights,
