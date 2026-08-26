@@ -35,8 +35,17 @@ pub use manifest::{
 };
 
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
-const SELECTION_ENCODING_VERSION: u32 = 1;
-const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v1\0";
+const SELECTION_ENCODING_VERSION: u32 = 2;
+const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v2\0";
+
+/// Closed execution phase for one explicitly named optimization. Phase
+/// projection routes a complete source-visible suite; it never replaces that
+/// suite's identity or creates an optimization-level alias.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum OptimizationExecutionPhase {
+    Psi,
+    SelectedLowering,
+}
 
 /// One source-visible, semantics-preserving optimization family.
 ///
@@ -52,16 +61,18 @@ pub enum Optimization {
     GlobalValueNumbering = 4,
     DeadPureScalarElimination = 5,
     ProofCheckElision = 6,
+    SelectedIncomingU12ExactAddImmediate = 7,
 }
 
 impl Optimization {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::ControlFlowCleanup,
         Self::SparseConditionalConstantPropagation,
         Self::CopyPropagation,
         Self::GlobalValueNumbering,
         Self::DeadPureScalarElimination,
         Self::ProofCheckElision,
+        Self::SelectedIncomingU12ExactAddImmediate,
     ];
 
     pub const fn build_case_name(self) -> &'static str {
@@ -72,6 +83,7 @@ impl Optimization {
             Self::GlobalValueNumbering => "GlobalValueNumbering",
             Self::DeadPureScalarElimination => "DeadPureScalarElimination",
             Self::ProofCheckElision => "ProofCheckElision",
+            Self::SelectedIncomingU12ExactAddImmediate => "SelectedIncomingU12ExactAddImmediate",
         }
     }
 
@@ -83,6 +95,23 @@ impl Optimization {
             Self::GlobalValueNumbering => "global_value_numbering",
             Self::DeadPureScalarElimination => "dead_pure_scalar_elimination",
             Self::ProofCheckElision => "proof_check_elision",
+            Self::SelectedIncomingU12ExactAddImmediate => {
+                "selected_incoming_u12_exact_add_immediate"
+            }
+        }
+    }
+
+    pub const fn execution_phase(self) -> OptimizationExecutionPhase {
+        match self {
+            Self::ControlFlowCleanup
+            | Self::SparseConditionalConstantPropagation
+            | Self::CopyPropagation
+            | Self::GlobalValueNumbering
+            | Self::DeadPureScalarElimination
+            | Self::ProofCheckElision => OptimizationExecutionPhase::Psi,
+            Self::SelectedIncomingU12ExactAddImmediate => {
+                OptimizationExecutionPhase::SelectedLowering
+            }
         }
     }
 
@@ -124,6 +153,19 @@ impl OptimizationSelections {
 
     pub fn contains(&self, optimization: Optimization) -> bool {
         self.selected.binary_search(&optimization).is_ok()
+    }
+
+    /// Canonical subset routed to one execution phase. The complete selection
+    /// remains the identity-bearing optimizer input.
+    pub fn for_phase(&self, phase: OptimizationExecutionPhase) -> Self {
+        Self {
+            selected: self
+                .selected
+                .iter()
+                .copied()
+                .filter(|optimization| optimization.execution_phase() == phase)
+                .collect(),
+        }
     }
 
     /// Canonical standalone encoding for cache, artifact, and replay inputs.
@@ -265,7 +307,9 @@ impl std::error::Error for SelectionDecodeError {}
 
 #[cfg(test)]
 mod tests {
-    use super::{Optimization, OptimizationSelections, SelectionDecodeError};
+    use super::{
+        Optimization, OptimizationExecutionPhase, OptimizationSelections, SelectionDecodeError,
+    };
 
     #[test]
     fn selections_are_sorted_and_round_trip_canonically() {
@@ -326,6 +370,13 @@ mod tests {
             OptimizationSelections::decode(&trailing),
             Err(SelectionDecodeError::TrailingBytes)
         );
+
+        let mut old_version = selections.encode();
+        old_version[8..12].copy_from_slice(&1_u32.to_le_bytes());
+        assert_eq!(
+            OptimizationSelections::decode(&old_version),
+            Err(SelectionDecodeError::UnsupportedVersion(1))
+        );
     }
 
     #[test]
@@ -336,5 +387,38 @@ mod tests {
             .identity();
         assert_ne!(empty, selected);
         assert_eq!(empty, OptimizationSelections::default().identity());
+    }
+
+    #[test]
+    fn phase_projection_is_canonical_without_replacing_the_full_identity() {
+        let selections = OptimizationSelections::new([
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+            Optimization::CopyPropagation,
+            Optimization::SparseConditionalConstantPropagation,
+        ])
+        .unwrap();
+        let full_identity = selections.identity();
+        assert_eq!(
+            selections
+                .for_phase(OptimizationExecutionPhase::Psi)
+                .as_slice(),
+            &[
+                Optimization::SparseConditionalConstantPropagation,
+                Optimization::CopyPropagation,
+            ]
+        );
+        assert_eq!(
+            selections
+                .for_phase(OptimizationExecutionPhase::SelectedLowering)
+                .as_slice(),
+            &[Optimization::SelectedIncomingU12ExactAddImmediate]
+        );
+        assert_eq!(full_identity, selections.identity());
+        assert_ne!(
+            full_identity,
+            selections
+                .for_phase(OptimizationExecutionPhase::Psi)
+                .identity()
+        );
     }
 }

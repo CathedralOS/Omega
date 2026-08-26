@@ -2,10 +2,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omega_optimization_core::{
     InvalidOptimizationManifestRecord, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
-    OptimizationDecisionRecord, OptimizationIdentityBundle, OptimizationPassManifestRecord,
-    OptimizationReasonCode, OptimizationRuleIdentity, OptimizationRuleSetIdentity,
-    OptimizationSelections, OptimizationUnitIdentity, OptimizationValidatorIdentity,
-    OptimizationWorkBudget, OptimizationWorkUsage, TargetCostModelIdentity,
+    OptimizationDecisionRecord, OptimizationExecutionPhase, OptimizationIdentityBundle,
+    OptimizationPassManifestRecord, OptimizationReasonCode, OptimizationRuleIdentity,
+    OptimizationRuleSetIdentity, OptimizationSelections, OptimizationUnitIdentity,
+    OptimizationValidatorIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
+    TargetCostModelIdentity,
 };
 use omega_optimization_policy::{
     BaselineDecisionLog, BaselineDecisionLogDecodeError, BaselineDecisionOutcome, BaselinePolicy,
@@ -89,7 +90,10 @@ pub struct OptimizationRunUsage {
 
 #[derive(Debug)]
 pub struct OptimizationRun {
+    /// Complete source-visible suite requested by the root build.
     pub selections: OptimizationSelections,
+    /// Exact subset executed by this Psi-phase run.
+    pub psi_selections: OptimizationSelections,
     pub budget_per_pass: OptimizationWorkBudget,
     pub session: VerifiedPsiOptimizationSession,
     pub commits: Vec<PsiOptimizationCommit>,
@@ -103,6 +107,10 @@ pub struct OptimizationRun {
 impl OptimizationRun {
     pub const fn selections(&self) -> &OptimizationSelections {
         &self.selections
+    }
+
+    pub const fn psi_selections(&self) -> &OptimizationSelections {
+        &self.psi_selections
     }
 
     pub const fn session(&self) -> &VerifiedPsiOptimizationSession {
@@ -220,6 +228,7 @@ fn run_registries(
     registries: &[OrderedRuleRegistry],
     budget_per_pass: OptimizationWorkBudget,
 ) -> Result<OptimizationRun, OptimizationRunError> {
+    let psi_selections = selections.for_phase(OptimizationExecutionPhase::Psi);
     let initial_identity = session.unit.identity;
     let terminal_psi = session.unit.terminal_psi;
     let fuel_schedule = session.unit.fuel_schedule;
@@ -274,6 +283,7 @@ fn run_registries(
     );
     Ok(OptimizationRun {
         selections: selections.clone(),
+        psi_selections,
         budget_per_pass,
         session: VerifiedPsiOptimizationSession {
             input: session.input,
@@ -1278,6 +1288,52 @@ mod tests {
             run.session.unit().terminal_psi,
             run.session.input().plan().terminal_psi
         );
+    }
+
+    #[test]
+    fn lower_only_suite_retains_the_request_but_executes_no_psi_pass() {
+        let selections =
+            OptimizationSelections::new([Optimization::SelectedIncomingU12ExactAddImmediate])
+                .unwrap();
+        let run = run_psi_pipeline(verified_empty_unit(), &selections, budget(2)).unwrap();
+
+        assert_eq!(run.selections(), &selections);
+        assert!(run.psi_selections().is_empty());
+        assert_eq!(run.identity_bundle.selections(), selections.identity());
+        assert_eq!(
+            run.identity_bundle.rule_set(),
+            OptimizationRuleSetIdentity::from_ordered_rules(&[]).unwrap()
+        );
+        assert!(run.commits.is_empty());
+        assert!(run.pass_manifests.is_empty());
+        assert!(run.decisions.records.is_empty());
+        assert!(run.transformation_ledger.records().is_empty());
+        assert_eq!(run.usage, OptimizationRunUsage::default());
+        assert_eq!(
+            run.transformation_ledger.input(),
+            run.transformation_ledger.output()
+        );
+    }
+
+    #[test]
+    fn mixed_suite_executes_only_its_psi_projection() {
+        let selections = OptimizationSelections::new([
+            Optimization::SparseConditionalConstantPropagation,
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+        ])
+        .unwrap();
+        let psi_selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let run = run_psi_pipeline(verified_exact_add_unit(), &selections, budget(8)).unwrap();
+        let registry = built_in_psi_registry(&psi_selections).unwrap();
+
+        assert_eq!(run.selections(), &selections);
+        assert_eq!(run.psi_selections(), &psi_selections);
+        assert_eq!(run.identity_bundle.selections(), selections.identity());
+        assert_eq!(run.identity_bundle.rule_set(), registry.identity());
+        assert_eq!(run.pass_manifests.len(), 1);
+        assert_eq!(run.commits.len(), 1);
     }
 
     #[test]

@@ -1330,6 +1330,7 @@ data Optimization {
     case GlobalValueNumbering;
     case DeadPureScalarElimination;
     case ProofCheckElision;
+    case SelectedIncomingU12ExactAddImmediate;
 }
 
 data Optimizations {
@@ -1358,6 +1359,15 @@ Omega's ordinary method and build-evaluation rules. Its semantic requirement is
 an exact set of named selections. Empty means disabled. Registry metadata may
 mark an individual optimization experimental, preview, or stable, but that is
 an admission/support label on that optimization—not a broad compiler mode.
+
+Each named transformation also has one closed execution phase. Phase routing
+projects the full requested suite into exact subsets; it does not invent a
+level, preset, or implied companion optimization. Custody records retain both
+the full build request and the subset completed at that stage. For example,
+`SelectedIncomingU12ExactAddImmediate` belongs to selected lowering, so a
+pre-physical Psi receipt may retain it in the requested suite while recording
+that it completed no Psi pass. A later selected-lowering receipt must bind the
+same full request before the suite can be considered complete.
 
 Rules:
 

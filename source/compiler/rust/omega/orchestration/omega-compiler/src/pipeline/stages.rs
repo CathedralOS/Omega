@@ -451,6 +451,7 @@ pub data Optimization {
     case GlobalValueNumbering;
     case DeadPureScalarElimination;
     case ProofCheckElision;
+    case SelectedIncomingU12ExactAddImmediate;
 }
 pub data Optimizations {
     control_flow_cleanup: u8 in Trapping;
@@ -459,6 +460,7 @@ pub data Optimizations {
     global_value_numbering: u8 in Trapping;
     dead_pure_scalar_elimination: u8 in Trapping;
     proof_check_elision: u8 in Trapping;
+    selected_incoming_u12_exact_add_immediate: u8 in Trapping;
 }
 pub data Build {
     subsystem: Subsystem;
@@ -487,6 +489,7 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
         Optimization::GlobalValueNumbering -> global_value_numbering()
         Optimization::DeadPureScalarElimination -> dead_pure_scalar_elimination()
         Optimization::ProofCheckElision -> proof_check_elision()
+        Optimization::SelectedIncomingU12ExactAddImmediate -> selected_incoming_u12_exact_add_immediate()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -512,6 +515,10 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
     state proof_check_elision(&mut self) {
         self.proof_check_elision = self.proof_check_elision + 1;
     }
+
+    state selected_incoming_u12_exact_add_immediate(&mut self) {
+        self.selected_incoming_u12_exact_add_immediate = self.selected_incoming_u12_exact_add_immediate + 1;
+    }
 }
 "#;
 
@@ -530,6 +537,7 @@ pub data Optimization {
     case GlobalValueNumbering;
     case DeadPureScalarElimination;
     case ProofCheckElision;
+    case SelectedIncomingU12ExactAddImmediate;
 }
 pub data Optimizations {
     control_flow_cleanup: u8 in Trapping;
@@ -538,6 +546,7 @@ pub data Optimizations {
     global_value_numbering: u8 in Trapping;
     dead_pure_scalar_elimination: u8 in Trapping;
     proof_check_elision: u8 in Trapping;
+    selected_incoming_u12_exact_add_immediate: u8 in Trapping;
 }
 pub data BuildSource {
 }
@@ -573,6 +582,7 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
         Optimization::GlobalValueNumbering -> global_value_numbering()
         Optimization::DeadPureScalarElimination -> dead_pure_scalar_elimination()
         Optimization::ProofCheckElision -> proof_check_elision()
+        Optimization::SelectedIncomingU12ExactAddImmediate -> selected_incoming_u12_exact_add_immediate()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -597,6 +607,10 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
 
     state proof_check_elision(&mut self) {
         self.proof_check_elision = self.proof_check_elision + 1;
+    }
+
+    state selected_incoming_u12_exact_add_immediate(&mut self) {
+        self.selected_incoming_u12_exact_add_immediate = self.selected_incoming_u12_exact_add_immediate + 1;
     }
 }
 pub machine BuildSource::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
@@ -1447,6 +1461,40 @@ mod tests {
                     "GlobalValueNumbering",
                     "DeadPureScalarElimination",
                     "ProofCheckElision",
+                    "SelectedIncomingU12ExactAddImmediate",
+                ]
+            );
+            let optimizations = syntax_trees
+                .root_items()
+                .find_map(|item| match item {
+                    psi_syntax_trees::item::Item::Data(data)
+                        if data.name.as_str() == "Optimizations" =>
+                    {
+                        Some(data)
+                    }
+                    _ => None,
+                })
+                .expect("build prelude must define Optimizations");
+            assert_eq!(
+                syntax_trees
+                    .items
+                    .data_members(optimizations.members)
+                    .iter()
+                    .filter_map(|member| match member {
+                        psi_syntax_trees::item::DataMember::Field(field) => {
+                            Some(field.name.as_str())
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+                [
+                    "control_flow_cleanup",
+                    "sparse_conditional_constant_propagation",
+                    "copy_propagation",
+                    "global_value_numbering",
+                    "dead_pure_scalar_elimination",
+                    "proof_check_elision",
+                    "selected_incoming_u12_exact_add_immediate",
                 ]
             );
             let build = syntax_trees

@@ -70,6 +70,7 @@ fn enable_calls_project_the_exact_canonical_named_set() {
     builder.optimizations.enable(Optimization::ProofCheckElision);
     builder.optimizations.enable(Optimization::ControlFlowCleanup);
     builder.optimizations.enable(Optimization::CopyPropagation);
+    builder.optimizations.enable(Optimization::SelectedIncomingU12ExactAddImmediate);
 }
 "#,
         ),
@@ -82,6 +83,7 @@ fn enable_calls_project_the_exact_canonical_named_set() {
             Optimization::ControlFlowCleanup,
             Optimization::CopyPropagation,
             Optimization::ProofCheckElision,
+            Optimization::SelectedIncomingU12ExactAddImmediate,
         ]
     );
     assert_eq!(
@@ -169,7 +171,7 @@ fn selected_native_build_fails_closed_without_installing_output() {
         Some(
             r#"machine build(builder: &mut Build) {
     builder.application("optimizer-fail-closed");
-    builder.optimizations.enable(Optimization::ControlFlowCleanup);
+    builder.optimizations.enable(Optimization::SelectedIncomingU12ExactAddImmediate);
 }
 "#,
         ),
@@ -183,11 +185,15 @@ fn selected_native_build_fails_closed_without_installing_output() {
     })
     .expect_err("selected optimization must not fall through to legacy O0 lowering");
     assert_eq!(diagnostics.len(), 1);
-    assert!(diagnostics[0].message.contains("`ControlFlowCleanup`"));
     assert!(
         diagnostics[0]
             .message
-            .contains("verified Terminal-Psi optimizer pipeline")
+            .contains("`SelectedIncomingU12ExactAddImmediate`")
+    );
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("complete verified optimizer pipeline")
     );
     assert!(!build_dir.join("omega-program").exists());
     assert!(!build_dir.join("omega-program.exe").exists());

@@ -1,10 +1,10 @@
 use std::fmt::Write;
 
 use omega_optimization_core::{
-    OptimizationCandidateVerdict, OptimizationFactReference, OptimizationIdentityBundle,
-    OptimizationPassManifestRecord, OptimizationSelections, OptimizationUnitIdentity,
-    OptimizationWorkBudget, OptimizationWorkUsage, OptimizedAbstractPlanProjectionIdentity,
-    PrePhysicalOptimizationManifestIdentity,
+    OptimizationCandidateVerdict, OptimizationExecutionPhase, OptimizationFactReference,
+    OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationSelections,
+    OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
+    OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
 };
 use omega_optimization_policy::BaselineDecisionLog;
 use omega_optimization_unit::{PsiOptimizationUnit, PsiProvenance, PsiTransformationLedger};
@@ -15,7 +15,7 @@ use psi_terminal::TerminalPsiIdentity;
 use crate::ValidatedOptimizedAbstractPlanProjection;
 
 const PRE_PHYSICAL_MANIFEST_MAGIC: &[u8; 8] = b"OMGPPM\0\0";
-const PRE_PHYSICAL_MANIFEST_VERSION: u32 = 1;
+const PRE_PHYSICAL_MANIFEST_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizationManifestStage {
@@ -55,7 +55,10 @@ pub struct PrePhysicalOptimizationManifest {
     pub initial_unit: OptimizationUnitIdentity,
     pub final_unit: OptimizationUnitIdentity,
     pub projection: OptimizedAbstractPlanProjectionIdentity,
+    /// Complete source-visible suite requested by the root build.
     pub selections: OptimizationSelections,
+    /// Exact selection subset executed and validated in this Psi-stage record.
+    pub psi_selections: OptimizationSelections,
     pub budget_per_pass: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
     pub decision_log: BaselineDecisionLog,
@@ -116,6 +119,8 @@ impl PrePhysicalOptimizationManifest {
         let projection = OptimizedAbstractPlanProjectionIdentity::from_bytes(cursor.array()?);
         let selections = OptimizationSelections::decode(cursor.length_prefixed()?)
             .map_err(|_| PrePhysicalOptimizationManifestDecodeError::InvalidSelections)?;
+        let psi_selections = OptimizationSelections::decode(cursor.length_prefixed()?)
+            .map_err(|_| PrePhysicalOptimizationManifestDecodeError::InvalidSelections)?;
         let budget_per_pass = OptimizationWorkBudget::decode(cursor.take(40)?)
             .map_err(|_| PrePhysicalOptimizationManifestDecodeError::InvalidWorkBudget)?;
         let usage = OptimizationWorkUsage::decode(cursor.take(40)?)
@@ -152,6 +157,7 @@ impl PrePhysicalOptimizationManifest {
             final_unit,
             projection,
             selections,
+            psi_selections,
             budget_per_pass,
             usage,
             decision_log,
@@ -222,7 +228,15 @@ impl PrePhysicalOptimizationManifest {
             .map(|selection| selection.build_case_name())
             .collect::<Vec<_>>()
             .join(", ");
-        writeln!(output, "selections: {selected}").unwrap();
+        writeln!(output, "requested selections: {selected}").unwrap();
+        let psi_selected = self
+            .psi_selections
+            .as_slice()
+            .iter()
+            .map(|selection| selection.build_case_name())
+            .collect::<Vec<_>>()
+            .join(", ");
+        writeln!(output, "completed Psi selections: {psi_selected}").unwrap();
         writeln!(output, "passes: {}", self.pass_manifests.len()).unwrap();
         for (pass_index, pass) in self.pass_manifests.iter().enumerate() {
             writeln!(
@@ -407,6 +421,7 @@ pub fn project_pre_physical_optimization_manifest(
     input: &VerifiedTerminalOptimizationInput,
     final_unit: &PsiOptimizationUnit,
     selections: &OptimizationSelections,
+    psi_selections: &OptimizationSelections,
     budget_per_pass: OptimizationWorkBudget,
     usage: OptimizationWorkUsage,
     decisions: &BaselineDecisionLog,
@@ -419,6 +434,7 @@ pub fn project_pre_physical_optimization_manifest(
         input,
         final_unit,
         selections,
+        psi_selections,
         budget_per_pass,
         usage,
         decisions,
@@ -433,6 +449,7 @@ pub fn project_pre_physical_optimization_manifest(
         input,
         final_unit,
         selections,
+        psi_selections,
         budget_per_pass,
         usage,
         decisions,
@@ -449,6 +466,7 @@ pub fn validate_pre_physical_optimization_manifest(
     input: &VerifiedTerminalOptimizationInput,
     final_unit: &PsiOptimizationUnit,
     selections: &OptimizationSelections,
+    psi_selections: &OptimizationSelections,
     budget_per_pass: OptimizationWorkBudget,
     usage: OptimizationWorkUsage,
     decisions: &BaselineDecisionLog,
@@ -459,6 +477,7 @@ pub fn validate_pre_physical_optimization_manifest(
 ) -> Result<ValidatedPrePhysicalOptimizationManifest, PrePhysicalOptimizationManifestError> {
     validate_joins(
         selections,
+        psi_selections,
         budget_per_pass,
         usage,
         decisions,
@@ -471,6 +490,7 @@ pub fn validate_pre_physical_optimization_manifest(
         input,
         final_unit,
         selections,
+        psi_selections,
         budget_per_pass,
         usage,
         decisions,
@@ -493,6 +513,7 @@ fn expected_record(
     input: &VerifiedTerminalOptimizationInput,
     final_unit: &PsiOptimizationUnit,
     selections: &OptimizationSelections,
+    psi_selections: &OptimizationSelections,
     budget_per_pass: OptimizationWorkBudget,
     usage: OptimizationWorkUsage,
     decisions: &BaselineDecisionLog,
@@ -516,6 +537,7 @@ fn expected_record(
         final_unit: final_unit.identity,
         projection: projection.identity(),
         selections: selections.clone(),
+        psi_selections: psi_selections.clone(),
         budget_per_pass,
         usage,
         decision_log: decisions.clone(),
@@ -530,6 +552,7 @@ fn expected_record(
 #[allow(clippy::too_many_arguments)]
 fn validate_joins(
     selections: &OptimizationSelections,
+    psi_selections: &OptimizationSelections,
     budget_per_pass: OptimizationWorkBudget,
     usage: OptimizationWorkUsage,
     decisions: &BaselineDecisionLog,
@@ -540,6 +563,11 @@ fn validate_joins(
 ) -> Result<(), PrePhysicalOptimizationManifestError> {
     if bundle.selections() != selections.identity()
         || projection.selections() != selections.identity()
+    {
+        return Err(PrePhysicalOptimizationManifestError::SelectionMismatch);
+    }
+    if *psi_selections != selections.for_phase(OptimizationExecutionPhase::Psi)
+        || projection.psi_selections() != psi_selections.identity()
     {
         return Err(PrePhysicalOptimizationManifestError::SelectionMismatch);
     }
@@ -685,7 +713,7 @@ fn pre_physical_manifest_identity(
     manifest: &PrePhysicalOptimizationManifest,
 ) -> PrePhysicalOptimizationManifestIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.pre-physical-optimization-manifest.v1\0");
+    canonical.extend_from_slice(b"omega.pre-physical-optimization-manifest.v2\0");
     canonical.extend_from_slice(&encode_manifest_content(manifest));
     PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(&canonical)
 }
@@ -705,6 +733,7 @@ fn encode_manifest_content(manifest: &PrePhysicalOptimizationManifest) -> Vec<u8
     canonical.extend_from_slice(&manifest.final_unit.bytes());
     canonical.extend_from_slice(&manifest.projection.bytes());
     encode_bytes(&mut canonical, &manifest.selections.encode());
+    encode_bytes(&mut canonical, &manifest.psi_selections.encode());
     canonical.extend_from_slice(&manifest.budget_per_pass.encode());
     canonical.extend_from_slice(&manifest.usage.encode());
     encode_bytes(&mut canonical, &manifest.decision_log.encode());
@@ -738,6 +767,7 @@ fn encode_manifest_artifact_content(manifest: &PrePhysicalOptimizationManifest) 
     canonical.extend_from_slice(&manifest.final_unit.bytes());
     canonical.extend_from_slice(&manifest.projection.bytes());
     encode_bytes(&mut canonical, &manifest.selections.encode());
+    encode_bytes(&mut canonical, &manifest.psi_selections.encode());
     canonical.extend_from_slice(&manifest.budget_per_pass.encode());
     canonical.extend_from_slice(&manifest.usage.encode());
     encode_bytes(&mut canonical, &manifest.decision_log.encode());

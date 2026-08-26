@@ -1,7 +1,7 @@
 use omega_optimization_core::{
-    OptimizationCandidateVerdict, OptimizationIdentityBundle, OptimizationPassManifestRecord,
-    OptimizationRuleSetIdentity, OptimizationSelectionIdentity, OptimizationSelections,
-    OptimizationUnitIdentity, OptimizationValidatorIdentity,
+    OptimizationCandidateVerdict, OptimizationExecutionPhase, OptimizationIdentityBundle,
+    OptimizationPassManifestRecord, OptimizationRuleSetIdentity, OptimizationSelectionIdentity,
+    OptimizationSelections, OptimizationUnitIdentity, OptimizationValidatorIdentity,
     OptimizedAbstractPlanProjectionIdentity, TargetCostModelIdentity, TransformationLedgerIdentity,
 };
 use omega_optimization_policy::{BaselineDecisionLog, BaselineDecisionLogDecodeError};
@@ -29,7 +29,10 @@ pub struct ValidatedOptimizedAbstractPlanProjection {
     fuel_schedule: FuelScheduleIdentity,
     initial_unit: OptimizationUnitIdentity,
     final_unit: OptimizationUnitIdentity,
+    /// Complete source-visible suite requested by the root build.
     selections: OptimizationSelectionIdentity,
+    /// Exact selection subset whose Psi passes this receipt validates.
+    psi_selections: OptimizationSelectionIdentity,
     ledger: TransformationLedgerIdentity,
     bundle: omega_optimization_core::OptimizationIdentityBundleIdentity,
     validator: OptimizationValidatorIdentity,
@@ -56,6 +59,10 @@ impl ValidatedOptimizedAbstractPlanProjection {
         self.selections
     }
 
+    pub const fn psi_selections(self) -> OptimizationSelectionIdentity {
+        self.psi_selections
+    }
+
     pub const fn ledger(self) -> TransformationLedgerIdentity {
         self.ledger
     }
@@ -73,13 +80,14 @@ impl ValidatedOptimizedAbstractPlanProjection {
     /// This is suitable for downstream joins but grants no physical-emission
     /// or publication authority.
     pub fn identity(self) -> OptimizedAbstractPlanProjectionIdentity {
-        let mut canonical = Vec::with_capacity(240);
+        let mut canonical = Vec::with_capacity(272);
         canonical.extend_from_slice(&self.terminal_psi.vocabulary_marker.get().to_le_bytes());
         canonical.extend_from_slice(self.terminal_psi.program_fingerprint.as_bytes());
         canonical.extend_from_slice(&self.fuel_schedule.marker().to_le_bytes());
         canonical.extend_from_slice(&self.initial_unit.bytes());
         canonical.extend_from_slice(&self.final_unit.bytes());
         canonical.extend_from_slice(&self.selections.bytes());
+        canonical.extend_from_slice(&self.psi_selections.bytes());
         canonical.extend_from_slice(&self.ledger.bytes());
         canonical.extend_from_slice(&self.bundle.bytes());
         canonical.extend_from_slice(&self.validator.bytes());
@@ -97,6 +105,7 @@ pub enum OptimizedAbstractPlanProjectionError {
     LedgerInitialMismatch,
     LedgerFinalMismatch,
     SelectionIdentityMismatch,
+    PsiSelectionProjectionMismatch,
     RuleSetIdentityMismatch,
     CostModelIdentityMismatch,
     DecisionLogIdentityMismatch,
@@ -130,6 +139,7 @@ pub fn validate_optimized_abstract_plan_projection(
     final_unit: &PsiOptimizationUnit,
     projected: &TerminalAbstractOperationPlan,
     selections: &OptimizationSelections,
+    psi_selections: &OptimizationSelections,
     expected_rule_set: OptimizationRuleSetIdentity,
     expected_cost_model: TargetCostModelIdentity,
     decisions: &BaselineDecisionLog,
@@ -176,6 +186,9 @@ pub fn validate_optimized_abstract_plan_projection(
     if bundle.selections() != selections.identity() {
         return Err(OptimizedAbstractPlanProjectionError::SelectionIdentityMismatch);
     }
+    if *psi_selections != selections.for_phase(OptimizationExecutionPhase::Psi) {
+        return Err(OptimizedAbstractPlanProjectionError::PsiSelectionProjectionMismatch);
+    }
     if bundle.rule_set() != expected_rule_set {
         return Err(OptimizedAbstractPlanProjectionError::RuleSetIdentityMismatch);
     }
@@ -207,10 +220,11 @@ pub fn validate_optimized_abstract_plan_projection(
         initial_unit: initial_identity,
         final_unit: final_unit.identity,
         selections: selections.identity(),
+        psi_selections: psi_selections.identity(),
         ledger: ledger.identity(),
         bundle: bundle.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.optimized-abstract-plan-projection.v1",
+            b"omega.validator.optimized-abstract-plan-projection.v2",
         ),
     })
 }
@@ -422,6 +436,7 @@ mod tests {
             initial_unit: OptimizationUnitIdentity::from_canonical_bytes(b"initial"),
             final_unit: OptimizationUnitIdentity::from_canonical_bytes(b"final"),
             selections: OptimizationSelectionIdentity::from_bytes([3; 32]),
+            psi_selections: OptimizationSelectionIdentity::from_bytes([4; 32]),
             ledger: TransformationLedgerIdentity::from_canonical_bytes(b"ledger"),
             bundle:
                 omega_optimization_core::OptimizationIdentityBundleIdentity::from_canonical_bytes(
@@ -456,6 +471,10 @@ mod tests {
             },
             ValidatedOptimizedAbstractPlanProjection {
                 selections: OptimizationSelectionIdentity::from_bytes([9; 32]),
+                ..baseline
+            },
+            ValidatedOptimizedAbstractPlanProjection {
+                psi_selections: OptimizationSelectionIdentity::from_bytes([9; 32]),
                 ..baseline
             },
             ValidatedOptimizedAbstractPlanProjection {
