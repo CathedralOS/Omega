@@ -13,13 +13,13 @@ use omega_optimization_core::{
     OptimizationValidatorIdentity,
 };
 use omega_optimization_unit::{
-    BooleanConstantRewrite, IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation,
-    OptimizationEdge, OptimizationFact, OwnershipEvent, PsiNodeObservation,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate,
-    PsiRewritePatch, ScalarConstantValue, SccpBlockRow, SccpEdgeRow, SccpEdgeState,
-    SccpMachineSnapshot, SccpValueRow, SccpValueState, ValueDefinition, ValueDefinitionSite,
-    ValueUse, derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
-    reconstruct_psi_observation_model,
+    BlockParameterIncomingBinding, BooleanConstantRewrite, IntegerConstantRewrite,
+    IntegerEvaluationWitness, NodeLocation, OptimizationEdge, OptimizationFact, OwnershipEvent,
+    PsiNodeObservation, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+    PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterRewrite, ScalarConstantValue,
+    SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState,
+    ValueDefinition, ValueDefinitionSite, ValueUse, derived_sccp_scalar_constant_fact_identity,
+    literal_scalar_constant_fact_identity, reconstruct_psi_observation_model,
 };
 use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ScalarType, ValueId};
 use psi_terminal_fuel::TerminalFuelSchedule;
@@ -157,6 +157,9 @@ pub enum OptimizationUnitValidationError {
     CandidateEvaluationMismatch,
     CandidateObservationMismatch,
     CandidateLiveBoundaryMismatch,
+    CandidateBlockParameterMismatch,
+    CandidateIncomingBindingMismatch,
+    CandidateSubstitutionMismatch,
 }
 
 impl std::fmt::Display for OptimizationUnitValidationError {
@@ -440,6 +443,306 @@ pub fn validate_scalar_evaluation_candidate(
         PsiRewritePatch::ReplaceBooleanOperationWithConstant(_) => {
             validate_boolean_evaluation_candidate(input, candidate)
         }
+        PsiRewritePatch::RemoveRedundantBlockParameter(_) => {
+            Err(OptimizationUnitValidationError::CandidatePatchMismatch)
+        }
+    }
+}
+
+/// Dispatch one closed Psi rewrite candidate to a patch-specific independent
+/// validator. Rules cannot construct accepted outputs themselves.
+pub fn validate_psi_rewrite_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    match candidate.patch() {
+        PsiRewritePatch::ReplaceIntegerOperationWithConstant(_)
+        | PsiRewritePatch::ReplaceBooleanOperationWithConstant(_) => {
+            validate_scalar_evaluation_candidate(input, candidate)
+        }
+        PsiRewritePatch::RemoveRedundantBlockParameter(_) => {
+            validate_redundant_block_parameter_candidate(input, candidate)
+        }
+    }
+}
+
+/// Independently replay one redundant block-parameter elimination. The rule's
+/// incoming-edge witness is treated only as a claim: this validator enumerates
+/// every exact incoming edge again before applying the substitution.
+pub fn validate_redundant_block_parameter_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_psi_optimization_unit(input)?;
+    if candidate.input() != input.identity {
+        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
+    }
+    if !candidate
+        .required_analyses()
+        .contains(AnalysisKind::ControlFlowGraph)
+        || !candidate
+            .required_analyses()
+            .contains(AnalysisKind::Dominators)
+        || !candidate
+            .required_analyses()
+            .contains(AnalysisKind::UseDefinition)
+        || !candidate
+            .invalidated_analyses()
+            .contains(AnalysisKind::UseDefinition)
+        || !candidate
+            .invalidated_analyses()
+            .contains(AnalysisKind::EffectSummaries)
+        || candidate.safety_class() != OptimizationSafetyClass::StructuralIdentity
+    {
+        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
+    }
+    let PsiRewritePatch::RemoveRedundantBlockParameter(patch) = candidate.patch() else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
+    let witness = candidate
+        .redundant_block_parameter_witness()
+        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+    let function = input
+        .functions
+        .iter()
+        .find(|function| function.machine == patch.machine)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if function.entry == patch.block || patch.parameter == patch.replacement {
+        return Err(OptimizationUnitValidationError::CandidateBlockParameterMismatch);
+    }
+    let block = function
+        .blocks
+        .iter()
+        .find(|block| block.id == patch.block)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let position = usize::try_from(patch.position).expect("u32 fits usize");
+    let Some(parameter) = block.parameters.get(position) else {
+        return Err(OptimizationUnitValidationError::CandidateBlockParameterMismatch);
+    };
+    if parameter.value != patch.parameter
+        || parameter.scalar_type != patch.scalar_type
+        || parameter.site
+            != (ValueDefinitionSite::BlockParameter {
+                block: patch.block,
+                position: patch.position,
+            })
+    {
+        return Err(OptimizationUnitValidationError::CandidateBlockParameterMismatch);
+    }
+    let replacement_type = function
+        .parameters
+        .iter()
+        .chain(function.blocks.iter().flat_map(|block| {
+            block
+                .parameters
+                .iter()
+                .chain(block.nodes.iter().flat_map(|node| &node.definitions))
+        }))
+        .find(|definition| definition.value == patch.replacement)
+        .map(|definition| definition.scalar_type);
+    if replacement_type != Some(patch.scalar_type) {
+        return Err(OptimizationUnitValidationError::CandidateSubstitutionMismatch);
+    }
+
+    let mut incoming = Vec::new();
+    let mut expected_provenance = Vec::new();
+    let mut affected_blocks = BTreeSet::from([patch.block]);
+    for source in &function.blocks {
+        for (node_index, node) in source.nodes.iter().enumerate() {
+            let location = NodeLocation {
+                machine: patch.machine,
+                block: source.id,
+                node: u32::try_from(node_index).expect("unit node index fits u32"),
+            };
+            let changes_use = node
+                .uses
+                .iter()
+                .any(|use_site| use_site.value == patch.parameter);
+            let mut changes_binding = false;
+            for edge in &node.successors {
+                if edge.target != patch.block {
+                    continue;
+                }
+                let Some(binding) = edge.bindings.get(position) else {
+                    return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
+                };
+                incoming.push(BlockParameterIncomingBinding {
+                    source: source.id,
+                    edge: edge.psi_edge,
+                    argument: binding.argument,
+                });
+                changes_binding = true;
+            }
+            if changes_use || changes_binding {
+                affected_blocks.insert(source.id);
+                expected_provenance.push(omega_optimization_unit::ProvenanceRewrite {
+                    output: location,
+                    sources: node.provenance.clone(),
+                    fuel: node.fuel.clone(),
+                });
+            }
+        }
+    }
+    incoming.sort_by_key(|row| (row.edge, row.source));
+    if incoming != witness.incoming
+        || incoming
+            .iter()
+            .any(|binding| binding.argument != patch.replacement)
+    {
+        return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
+    }
+    if candidate.substitutions()
+        != [omega_optimization_unit::ScalarSubstitution {
+            from: patch.parameter,
+            to: patch.replacement,
+            scalar_type: patch.scalar_type,
+        }]
+    {
+        return Err(OptimizationUnitValidationError::CandidateSubstitutionMismatch);
+    }
+    if candidate.affected_blocks() != affected_blocks.into_iter().collect::<Vec<_>>()
+        || candidate.provenance() != expected_provenance
+    {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    }
+
+    let mut output = input.clone();
+    let function = output
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == patch.machine)
+        .expect("candidate function exists");
+    let block = function
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == patch.block)
+        .expect("candidate block exists");
+    block.parameters.remove(position);
+    for (new_position, parameter) in block.parameters.iter_mut().enumerate().skip(position) {
+        parameter.site = ValueDefinitionSite::BlockParameter {
+            block: patch.block,
+            position: u32::try_from(new_position).expect("parameter index fits u32"),
+        };
+    }
+    for block in &mut function.blocks {
+        for (node_index, node) in block.nodes.iter_mut().enumerate() {
+            rewrite_block_parameter_operation(&mut node.operation, patch);
+            let node_index = u32::try_from(node_index).expect("unit node index fits u32");
+            node.definitions = expected_definitions(&node.operation, block.id, node_index);
+            node.uses = expected_uses(&node.operation, block.id, node_index);
+            node.successors = expected_edges(&node.operation);
+            node.ownership = expected_ownership(&node.operation);
+        }
+    }
+    function.facts = reconstruct_fact_index(function);
+    output.identity = candidate.output();
+    validate_psi_optimization_unit(&output)?;
+    Ok(ValidatedPsiRewrite {
+        unit: output,
+        candidate: candidate.identity(),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(
+            b"omega.validator.redundant-block-parameter.v1",
+        ),
+    })
+}
+
+fn rewrite_block_parameter_operation(
+    operation: &mut omega_terminal_abstract_operations::TerminalAbstractOperation,
+    patch: RedundantBlockParameterRewrite,
+) {
+    use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
+
+    let replace = |value: &mut ValueId| {
+        if *value == patch.parameter {
+            *value = patch.replacement;
+        }
+    };
+    let rewrite_bindings =
+        |bindings: &mut Vec<omega_terminal_abstract_operations::TerminalValueBinding>| {
+            for binding in bindings.iter_mut() {
+                if binding.argument == patch.parameter {
+                    binding.argument = patch.replacement;
+                }
+            }
+        };
+    match operation {
+        O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => {
+            for argument in arguments {
+                replace(argument);
+            }
+        }
+        O::BooleanNot { operand, .. }
+        | O::IntegerBitwiseNot { operand, .. }
+        | O::IntegerWiden { operand, .. }
+        | O::IntegerExactCast { operand, .. } => replace(operand),
+        O::BooleanEqual { left, right, .. }
+        | O::IntegerEqual { left, right, .. }
+        | O::IntegerLessThan { left, right, .. }
+        | O::IntegerLessOrEqual { left, right, .. }
+        | O::IntegerBitwiseAnd { left, right, .. }
+        | O::IntegerBitwiseOr { left, right, .. }
+        | O::IntegerBitwiseXor { left, right, .. }
+        | O::WrappingIntegerAdd { left, right, .. }
+        | O::ExactIntegerAdd { left, right, .. }
+        | O::SaturatingIntegerAdd { left, right, .. }
+        | O::WrappingIntegerSubtract { left, right, .. }
+        | O::ExactIntegerSubtract { left, right, .. }
+        | O::SaturatingIntegerSubtract { left, right, .. }
+        | O::WrappingIntegerMultiply { left, right, .. }
+        | O::ExactIntegerMultiply { left, right, .. }
+        | O::ExactIntegerDivide { left, right, .. }
+        | O::ExactIntegerRemainder { left, right, .. }
+        | O::WrappingIntegerDivide { left, right, .. }
+        | O::WrappingIntegerRemainder { left, right, .. }
+        | O::SaturatingIntegerDivide { left, right, .. }
+        | O::SaturatingIntegerRemainder { left, right, .. }
+        | O::SaturatingIntegerMultiply { left, right, .. } => {
+            replace(left);
+            replace(right);
+        }
+        O::WrappingIntegerShiftLeft { value, count, .. }
+        | O::WrappingIntegerShiftRight { value, count, .. }
+        | O::ExactIntegerShiftLeft { value, count, .. }
+        | O::ExactIntegerShiftRight { value, count, .. } => {
+            replace(value);
+            replace(count);
+        }
+        O::Jump {
+            target, bindings, ..
+        } => {
+            rewrite_bindings(bindings);
+            if *target == patch.block {
+                bindings.remove(usize::try_from(patch.position).expect("u32 fits usize"));
+            }
+        }
+        O::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } => {
+            replace(condition);
+            for successor in [when_true, when_false] {
+                rewrite_bindings(&mut successor.bindings);
+                if successor.target == patch.block {
+                    successor
+                        .bindings
+                        .remove(usize::try_from(patch.position).expect("u32 fits usize"));
+                }
+            }
+        }
+        O::Return { value, .. } => replace(value),
+        O::EstablishByteSequenceLiteral { .. }
+        | O::EstablishTrivialAffineLocal { .. }
+        | O::CallUnit { .. }
+        | O::CallStructuralScalar { .. }
+        | O::CallStructural { .. }
+        | O::PortWrite { .. }
+        | O::IntegerConstant { .. }
+        | O::BooleanConstant { .. }
+        | O::BooleanStructuralField { .. }
+        | O::ReturnUnit { .. }
+        | O::ReturnStructural { .. }
+        | O::Crash { .. } => {}
     }
 }
 
@@ -578,7 +881,10 @@ fn evaluate_boolean_operation(
             result,
             operand,
         } => {
-            let IntegerEvaluationWitness::Unary { operand_fact } = candidate.witness() else {
+            let IntegerEvaluationWitness::Unary { operand_fact } = candidate
+                .scalar_evaluation_witness()
+                .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?
+            else {
                 return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
             };
             let operand = literal_boolean_fact(function, candidate.input(), operand, operand_fact)
@@ -594,7 +900,9 @@ fn evaluate_boolean_operation(
             let IntegerEvaluationWitness::Binary {
                 left_fact,
                 right_fact,
-            } = candidate.witness()
+            } = candidate
+                .scalar_evaluation_witness()
+                .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?
             else {
                 return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
             };
@@ -625,7 +933,9 @@ fn evaluate_boolean_operation(
             let IntegerEvaluationWitness::Binary {
                 left_fact,
                 right_fact,
-            } = candidate.witness()
+            } = candidate
+                .scalar_evaluation_witness()
+                .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?
             else {
                 return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
             };
@@ -1109,7 +1419,9 @@ fn evaluate_integer_operation(
     let IntegerEvaluationWitness::Binary {
         left_fact,
         right_fact,
-    } = candidate.witness()
+    } = candidate
+        .scalar_evaluation_witness()
+        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?
     else {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     };
@@ -1217,7 +1529,10 @@ fn unary_integer_operand(
     candidate: &PsiRewriteCandidate,
     operand: ValueId,
 ) -> Result<psi_core::IntegerValue, OptimizationUnitValidationError> {
-    let IntegerEvaluationWitness::Unary { operand_fact } = candidate.witness() else {
+    let IntegerEvaluationWitness::Unary { operand_fact } = candidate
+        .scalar_evaluation_witness()
+        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?
+    else {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     };
     literal_integer_fact(function, candidate.input(), operand, operand_fact)

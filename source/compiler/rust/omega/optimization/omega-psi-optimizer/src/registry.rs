@@ -68,6 +68,7 @@ impl RuleScheduleKey {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuleRegistryError {
     UnsupportedOptimization(Optimization),
+    UnsupportedOptimizationCombination,
     DuplicateRule(OptimizationRuleIdentity),
     MixedPasses {
         expected: OptimizationPassIdentity,

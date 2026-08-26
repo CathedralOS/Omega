@@ -38,7 +38,7 @@ pub use rules::{
     ExactIntegerSubtractConstantsRule, IntegerBitwiseAndConstantsRule,
     IntegerBitwiseNotConstantsRule, IntegerBitwiseOrConstantsRule, IntegerBitwiseXorConstantsRule,
     IntegerEqualConstantsRule, IntegerLessOrEqualConstantsRule, IntegerLessThanConstantsRule,
-    IntegerWidenConstantsRule, SaturatingIntegerAddConstantsRule,
+    IntegerWidenConstantsRule, RedundantBlockParameterRule, SaturatingIntegerAddConstantsRule,
     SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,
     SaturatingIntegerRemainderConstantsRule, SaturatingIntegerSubtractConstantsRule,
     WrappingIntegerAddConstantsRule, WrappingIntegerDivideConstantsRule,

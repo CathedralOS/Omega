@@ -185,6 +185,23 @@ These facts constrain the work below.
   debug/release mode: the identity names the actual explicit transformation
   selection set and every constituent rule. A convenience spelling may only
   expand to that visible set; it cannot become a distinct opaque level.
+- The separately named `CopyPropagation` selection now registers one initial
+  redundant-block-parameter rule. It proposes elimination only when every
+  exact incoming `EdgeId` binds the same typed value and dominator/use-definition
+  products prove that value dominates every rewritten use. The candidate binds
+  the complete ordered incoming-edge witness, exact scalar substitution, all
+  affected blocks, and multi-node provenance/fuel rows. A patch-specific
+  validator independently enumerates the edges, replays the substitution,
+  removes only the parameter and corresponding binding positions, reindexes
+  later parameters, reconstructs operation metadata and the proof-fact index,
+  and runs the total unit validator. Focused tests cover both arms of one
+  conditional targeting the same block, differing arguments, incomplete
+  witnesses, proof-obligation retention, semantic-accounting retention, the
+  empty consumed-fact manifest projection, and a block-parameter-count fixed
+  point. `OPT-COPY-PROPAGATION` remains open for explicit scalar-copy forms and
+  wider call-result/debug-materialization coverage. Until orchestration owns a
+  multi-pass manifest, selecting SCCP and copy propagation together rejects
+  rather than blurring their two named pass identities.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds input and
   output revision identities, rule contract, decision point, affected region,
