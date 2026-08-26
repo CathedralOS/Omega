@@ -429,7 +429,7 @@ filesystem providers. ABI aliases remain distinct. Package-rooted execution
 rejects `canonicalize` and `final_path_name_by_handle` because they expose host-
 absolute paths. `read_link` payload remains inert and acquires no rooted
 authority without checked resolution. Observation
-summary schema v19 carries operation-attempt schema v18, retaining in call-start order
+summary schema v20 carries operation-attempt schema v18, retaining in call-start order
 each completed operation's exact provider, stable tag, normalized result,
 post-operation error state, and every direct scoped path authorization for a
 successful build evaluation. Each authorized path retains its exact operand
@@ -510,21 +510,24 @@ contract or reason to add nominal Chi. Complete replay remains absent. It is
 an incomplete operation trace, not a transcript or receipt, and makes no
 replayability or source-rebuildability claim.
 The first bounded replay executor accepts exactly one successful Source-rooted,
-flags-zero `open` -> `read` -> `close` chain. It reruns the build without a
-filesystem provider, uses inert rooted coordinates, supplies the recorded
-scalar/logical results and mutable read bytes, reconstructs descriptor
+flags-zero `open` -> (`read` or `read_at`) -> `close` chain. It reruns the build
+without a filesystem provider, uses inert rooted coordinates, supplies the
+recorded scalar/logical results and mutable read bytes, reconstructs descriptor
 lifetimes, and rejects the first extra, reordered, changed, or missing event.
-Exact result and complete-record equality are required. The summary binds
-successful partial replay. Compiler replay-record v1 now retains the complete
-three-event record in canonical binary form, rejects stale semantic schemas and
-operation-inapplicable or internally inconsistent lanes, and survives restart
-inside review-baseline capsule v2. The record is opaque, bounded, and review-
+The positioned form additionally binds its exact count, signed nonnegative
+file offset, and positioned region kind. Exact result and complete-record
+equality are required. Summary v20 binds successful partial replay. Compiler
+replay-record v2 retains either complete three-event record in canonical binary
+form, rejects stale semantic schemas and operation-inapplicable or internally
+inconsistent lanes, and survives restart inside review-baseline capsule v2.
+The record is opaque, bounded, and review-
 only; custody alone establishes neither authenticity, admission, nor a receipt.
 An explicit checked-compilation entry now strictly rehydrates the canonical
 record into the PSI executor's exact typed three-event replay and evaluates the
 build machine with no host filesystem provider. The replay supplies retained
 source bytes even if that host file has changed and rejects changed authored
-inputs or event structure through the same exact checks. This uses an existing
+paths, counts, positioned offsets, operation or region kinds, and event
+structure through the same exact checks. This uses an existing
 compiler-private checked/evaluator seam rather than exposing an IR contract or
 adding nominal Chi. The build remains `Volatile` until all operations, output
 mutation and staged-output reproduction, package-command integration, and the

@@ -1673,7 +1673,7 @@ complete.
   boundary dispatcher. `read_link` is recognized as
   conditionally absolute-path-producing; `canonicalize` and
   `final_path_name_by_handle` are unconditionally so. Observation-summary
-  schema v19 carries operation-attempt schema v18: an ordered successful-run call-start
+  schema v20 carries operation-attempt schema v18: an ordered successful-run call-start
   trace of exact provider, operation tag, normalized result, post-operation error
   state, and every direct scoped path authorization through compiler reports
   and package review. Each authorization retains exact operand ordinal,
@@ -1821,6 +1821,15 @@ complete.
   integration, and a complete replay verdict remain open. This uses the
   compiler's existing coherent checked-entry/evaluator seam; it does not expose
   a public IR contract or justify nominal Chi.
+  Milestone 2026-08-26: the same closed rung now also accepts exactly one
+  `open` -> `read_at` -> `close` chain. Summary v20 distinguishes the exact
+  positioned operation, count, signed nonnegative file offset, positioned
+  region kind, returned length, and complete mutable carrier; replay-record v2
+  strictly rehydrates either the sequential or positioned form. Reopened
+  positioned replay supplies retained source bytes without a host provider.
+  Changed authored offsets and relabeled operation/region kinds reject. This is
+  still one read-family event, not broad filesystem replay or a `Receipted`
+  claim.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker

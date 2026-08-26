@@ -1237,11 +1237,18 @@ pub struct EvaluationObservations {
 }
 
 /// Opaque, compiler-produced operation record for the first filesystem replay
-/// rung. The bounded rung accepts only `open`, `read`, and `close`; broadening
-/// that set requires explicit replay semantics for the added operation.
+/// rung. The bounded rung accepts only `open`, one sequential or positioned
+/// read, and `close`; broadening that set requires explicit replay semantics
+/// for the added operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemReplay {
     attempts: Vec<FilesystemOperationAttempt>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemReplayReadKind {
+    Sequential,
+    Positioned { offset: i64 },
 }
 
 /// Typed input used to reconstruct the first replay rung after its canonical
@@ -1253,6 +1260,7 @@ pub struct FilesystemOpenReadCloseReplayRecord {
     source_relative_path: Vec<u8>,
     logical_handle_identity: FilesystemLogicalHandleIdentity,
     open_post_error: i32,
+    read_kind: FilesystemReplayReadKind,
     requested_count: u64,
     read_result: i64,
     read_post_error: i32,
@@ -1269,6 +1277,7 @@ impl FilesystemOpenReadCloseReplayRecord {
         source_relative_path: Vec<u8>,
         logical_handle_identity: u64,
         open_post_error: i32,
+        read_kind: FilesystemReplayReadKind,
         requested_count: u64,
         read_result: i64,
         read_post_error: i32,
@@ -1283,7 +1292,8 @@ impl FilesystemOpenReadCloseReplayRecord {
             .map_err(|_| "filesystem replay read result must be nonnegative".to_owned())?;
         let requested_capacity = usize::try_from(requested_count)
             .map_err(|_| "filesystem replay request exceeds this host".to_owned())?;
-        if mutable_resolution != mutable_pre_state
+        if matches!(read_kind, FilesystemReplayReadKind::Positioned { offset } if offset < 0)
+            || mutable_resolution != mutable_pre_state
             || mutable_pre_state.len() != mutable_post_state.len()
             || requested_capacity > mutable_post_state.len()
             || read_length > requested_capacity
@@ -1296,6 +1306,7 @@ impl FilesystemOpenReadCloseReplayRecord {
             source_relative_path,
             logical_handle_identity,
             open_post_error,
+            read_kind,
             requested_count,
             read_result,
             read_post_error,
@@ -1317,13 +1328,21 @@ impl FilesystemReplay {
             return Err("filesystem replay observation schema is not current".to_owned());
         }
         let attempts = observations.filesystem_operation_attempts();
-        if attempts
-            .iter()
-            .map(FilesystemOperationAttempt::operation_tag)
-            .ne([2, 4, 8])
-        {
+        let [open, read, close] = attempts else {
             return Err(
-                "bounded filesystem replay requires exactly one open/read/close chain".to_owned(),
+                "bounded filesystem replay requires exactly one open/read-or-read_at/close chain"
+                    .to_owned(),
+            );
+        };
+        let operation_tags = [
+            open.operation_tag(),
+            read.operation_tag(),
+            close.operation_tag(),
+        ];
+        if operation_tags != [2, 4, 8] && operation_tags != [2, 6, 8] {
+            return Err(
+                "bounded filesystem replay requires exactly one open/read-or-read_at/close chain"
+                    .to_owned(),
             );
         }
         for (index, attempt) in attempts.iter().enumerate() {
@@ -1389,24 +1408,45 @@ impl FilesystemReplay {
         };
         let read_length =
             usize::try_from(record.read_result).expect("validated replay read result fits usize");
+        let (read_operation_tag, read_scalars, read_region_kind) = match record.read_kind {
+            FilesystemReplayReadKind::Positioned { offset } => (
+                6,
+                vec![
+                    FilesystemScalarOperand {
+                        operand_ordinal: 2,
+                        value: FilesystemScalarOperandValue::U64(record.requested_count),
+                    },
+                    FilesystemScalarOperand {
+                        operand_ordinal: 3,
+                        value: FilesystemScalarOperandValue::I64(offset),
+                    },
+                ],
+                FilesystemObservedByteRegionKind::PositionedFileRead,
+            ),
+            FilesystemReplayReadKind::Sequential => (
+                4,
+                vec![FilesystemScalarOperand {
+                    operand_ordinal: 2,
+                    value: FilesystemScalarOperandValue::U64(record.requested_count),
+                }],
+                FilesystemObservedByteRegionKind::SequentialFileRead,
+            ),
+        };
         let read = FilesystemOperationAttempt {
-            operation_tag: 4,
+            operation_tag: read_operation_tag,
             provider: FilesystemObservationProvider::RealScoped,
             outcome: Some(FilesystemOperationAttemptOutcome::Returned {
                 result: FilesystemOperationResult::Scalar(record.read_result),
                 post_error: record.read_post_error,
             }),
-            scalar_operands: vec![FilesystemScalarOperand {
-                operand_ordinal: 2,
-                value: FilesystemScalarOperandValue::U64(record.requested_count),
-            }],
+            scalar_operands: read_scalars,
             byte_operands: Vec::new(),
             path_like_operands: Vec::new(),
             rooted_path_operand_resolutions: Vec::new(),
             returned_paths: Vec::new(),
             observed_byte_regions: vec![FilesystemObservedByteRegion {
                 output_operand_ordinal: 1,
-                kind: FilesystemObservedByteRegionKind::SequentialFileRead,
+                kind: read_region_kind,
                 offset: 0,
                 length: read_length,
             }],

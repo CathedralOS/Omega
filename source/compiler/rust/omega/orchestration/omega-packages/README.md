@@ -371,7 +371,7 @@ operation identity shared exhaustively by both providers; aliases remain
 distinct. Future rooted transcripts must handle potentially absolute
 `read_link` output and necessarily absolute `canonicalize` and
 `final_path_name_by_handle` output.
-Observation-summary schema v19 carries operation-attempt schema v18, retaining exact
+Observation-summary schema v20 carries operation-attempt schema v18, retaining exact
 providers, operation tags, normalized results, post-error state, and every direct
 scoped path authorization in successful-run call-start order. Authorized paths
 use closed Source/Output identities and canonical slash-separated relative
@@ -448,18 +448,21 @@ descriptor and cross-checks it against the semantic row. Package commitments
 bind both representations. This creates neither a public internal-IR contract
 nor nominal Chi. Complete replay remains absent, so this is still an incomplete
 trace rather than a transcript or receipt.
-Exactly one successful Source-rooted, flags-zero `open` -> `read` -> `close`
-chain receives one bounded compiler replay with no filesystem provider. It
-supplies recorded results and read bytes, reconstructs logical descriptors, and
-requires exact event order, inputs, outputs, exhaustion, and final result. The
-package commitment binds this partial replay fact. Compiler replay-record v1
-now retains the exact verified chain, and review-baseline capsule v2 preserves
+Exactly one successful Source-rooted, flags-zero `open` -> (`read` or `read_at`)
+-> `close` chain receives one bounded compiler replay with no filesystem
+provider. It supplies recorded results and read bytes, reconstructs logical
+descriptors, and requires exact event order, inputs, outputs, exhaustion, and
+final result. Positioned replay additionally binds the exact count, signed
+nonnegative file offset, and positioned region kind. The package commitment
+binds this partial replay fact. Compiler replay-record v2 retains either exact
+verified chain, and review-baseline capsule v2 preserves
 it across restart as opaque, bounded, non-admitting bytes associated with the
 parent observation. Checked compilation can strictly rehydrate those bytes into
-the PSI executor's exact typed `open`/`read`/`close` replay and reevaluate the
+the PSI executor's exact typed three-event source-read replay and reevaluate the
 selected build machine without a host filesystem provider. Recorded source
 bytes are used even after the corresponding host file changes, while changed
-authored inputs or event structure reject. This creates no host authority,
+authored paths, counts, positioned offsets, operation or region kinds, and
+event structure reject. This creates no host authority,
 authenticity claim, admission, public IR contract, or nominal Chi. It does not
 make the build `Receipted`; full operation coverage, output mutation and staged-
 tree reproduction, package-command integration, and a complete replay verdict

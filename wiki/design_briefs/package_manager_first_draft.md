@@ -859,7 +859,7 @@ compilation. Stable `/source/...` and `/output/...` spellings are transcript
 serialization, never package-facing paths.
 
 These observations stay separate from capability/API comparison bytes.
-Observation-summary schema v19
+Observation-summary schema v20
 carries operation-attempt schema v18, retaining each completed operation's exact
 provider, stable tag, normalized result, post-error, and every direct scoped path
 authorization in successful-run call-start order. Authorized paths retain exact
@@ -959,20 +959,23 @@ replay only. Canonical operation replay, recorded observed inputs, generated-
 output handoff, and the complete record replay checker remain required before
 any `Receipted` verdict. This rung does not claim hostile same-user race
 exclusion.
-For exactly one successful Source-rooted, flags-zero `open` -> `read` ->
-`close` chain, the compiler performs one bounded replay with no filesystem
-provider. It consumes rows in order, supplies recorded results and read bytes,
-reconstructs logical descriptors, and requires exact event exhaustion,
-observations, and final result. Summary v19 binds that partial replay fact.
-Compiler replay-record v1 now preserves every lane of the verified chain in a
-bounded canonical binary form, rejects stale semantic schemas and inconsistent
-operation-specific state, and is retained by review-baseline capsule v2 under
+For exactly one successful Source-rooted, flags-zero `open` -> (`read` or
+`read_at`) -> `close` chain, the compiler performs one bounded replay with no
+filesystem provider. It consumes rows in order, supplies recorded results and
+read bytes, reconstructs logical descriptors, and requires exact event
+exhaustion, observations, and final result. The positioned form additionally
+binds its exact count, signed nonnegative file offset, and positioned region
+kind. Summary v20 binds that partial replay fact. Compiler replay-record v2
+preserves every lane of either verified chain in a bounded canonical binary
+form, rejects stale semantic schemas and inconsistent operation-specific state,
+and is retained by review-baseline capsule v2 under
 a parent-observation association and aggregate byte ceiling. This is durable
 review-only custody, not proof of authenticity, review, or admission. Checked
 compilation can now strictly decode the reopened bytes into the PSI executor's
 exact typed three-event replay and evaluate the build machine without a host
 filesystem provider. Retained source bytes serve the replay even after host
-source drift; changed authored call inputs or event structure reject. No public
+source drift; changed authored paths, counts, positioned offsets, operation or
+region kinds, and event structure reject. No public
 IR stage or nominal Chi is introduced. The package remains `Volatile`; full
 operation replay, output mutation and staged-output reproduction, package-
 command integration, and a `Receipted` verdict remain absent.

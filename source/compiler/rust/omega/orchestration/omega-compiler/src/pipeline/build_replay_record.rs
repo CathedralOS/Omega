@@ -12,7 +12,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 1;
+const VERSION: u16 = 2;
 
 /// Resource ceilings for compiler-owned recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -136,8 +136,19 @@ pub(super) fn rehydrate_review_only_build_filesystem_replay_record(
     let ShapeResult::Scalar(read_result) = read.result else {
         unreachable!("validated bounded replay read returns a scalar")
     };
-    let [(2, ShapeScalar::U64(requested_count))] = read.scalars.as_slice() else {
-        unreachable!("validated bounded replay read has one count")
+    let (read_kind, requested_count) = match read.scalars.as_slice() {
+        [(2, ShapeScalar::U64(requested_count))] => (
+            psi_checked_interpreter::FilesystemReplayReadKind::Sequential,
+            requested_count,
+        ),
+        [
+            (2, ShapeScalar::U64(requested_count)),
+            (3, ShapeScalar::I64(offset)),
+        ] => (
+            psi_checked_interpreter::FilesystemReplayReadKind::Positioned { offset: *offset },
+            requested_count,
+        ),
+        _ => unreachable!("validated bounded replay read has exact count and optional offset"),
     };
     let [source_path] = open.rooted_paths.as_slice() else {
         unreachable!("validated bounded replay open has one rooted path")
@@ -153,6 +164,7 @@ pub(super) fn rehydrate_review_only_build_filesystem_replay_record(
         clone_bytes(source_path.bytes)?,
         logical_handle_identity,
         open.post_error,
+        read_kind,
         *requested_count,
         read_result,
         read.post_error,
@@ -679,7 +691,8 @@ fn validate_first_rung(
             "bounded replay shape is incomplete",
         ));
     };
-    if [open.operation, read.operation, close.operation] != [2, 4, 8]
+    let operations = [open.operation, read.operation, close.operation];
+    if (operations != [2, 4, 8] && operations != [2, 6, 8])
         || [open.provider, read.provider, close.provider] != [2, 2, 2]
         || open.scalars.as_slice() != [(1, ShapeScalar::I32(0))]
     {
@@ -743,10 +756,20 @@ fn validate_first_rung(
             "bounded replay read did not succeed",
         ));
     };
-    let [(2, ShapeScalar::U64(requested))] = read.scalars.as_slice() else {
-        return Err(BuildFilesystemReplayRecordError::new(
-            "bounded replay read has no unique transfer count",
-        ));
+    let (requested, expected_region_kind) = match (read.operation, read.scalars.as_slice()) {
+        (4, [(2, ShapeScalar::U64(requested))]) => (requested, 0),
+        (
+            6,
+            [
+                (2, ShapeScalar::U64(requested)),
+                (3, ShapeScalar::I64(offset)),
+            ],
+        ) if *offset >= 0 => (requested, 1),
+        _ => {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "bounded replay read has no exact transfer count and positioned offset",
+            ));
+        }
     };
     let [region] = read.observed_regions.as_slice() else {
         return Err(BuildFilesystemReplayRecordError::new(
@@ -769,7 +792,7 @@ fn validate_first_rung(
         ));
     };
     if region.ordinal != 1
-        || region.kind != 0
+        || region.kind != expected_region_kind
         || region.offset != 0
         || region.length != read_length
         || *resolution_ordinal != 1

@@ -719,7 +719,7 @@ same enum exhaustively, while aliases and platform alternatives stay distinct.
 Authorized results from `canonicalize` and `final_path_name_by_handle` remain
 bound to their exact root or reject. `read_link` returns only inert payload
 bytes; using that payload as a path requires checked resolution through a root.
-Observation-summary schema v19 carries operation-attempt schema v18: an ordered
+Observation-summary schema v20 carries operation-attempt schema v18: an ordered
 successful-run call-start trace of exact provider, operation tag, normalized result,
 post-operation error state, and every direct scoped path authorization.
 Authorized paths retain exact operand/access, closed Source/Output root, and
@@ -803,21 +803,24 @@ layout policy before execution. This private seam does not create a public IR
 contract or nominal Chi. Complete replay remains absent, so the record remains
 non-receipted.
 The first bounded replay rung handles exactly one successful Source-rooted,
-flags-zero `open` -> `read` -> `close` chain. It reruns the build without any
-filesystem provider, supplies recorded results and read bytes, reconstructs
-logical descriptors, and requires exact event order, inputs, outputs,
-exhaustion, and final result. The summary binds this successful partial replay.
-Compiler replay-record v1 canonically retains every lane of the verified chain
-and strictly recovers only the current semantic schemas and exact source-read
-shape. Review-baseline capsule v2 keeps those opaque bytes across restart,
+flags-zero `open` -> (`read` or `read_at`) -> `close` chain. It reruns the build
+without any filesystem provider, supplies recorded results and read bytes,
+reconstructs logical descriptors, and requires exact event order, inputs,
+outputs, exhaustion, and final result. Positioned replay additionally binds the
+exact count, signed nonnegative file offset, and positioned region kind.
+Summary v20 binds this successful partial replay. Compiler replay-record v2
+canonically retains every lane of either verified chain and strictly recovers
+only the current semantic schemas and exact source-read shape. Review-baseline
+capsule v2 keeps those opaque bytes across restart,
 binds their commitment to the parent build observation, and accounts them under
 one aggregate capsule ceiling. The checksum and association are custody checks,
 not authenticity or admission. This does not change the observation class:
 checked compilation can now strictly rehydrate reopened custody into the PSI
 executor's exact typed three-event replay and evaluate the build machine with
 no host filesystem provider. Retained source bytes serve that build call even
-after host source drift, while changed authored inputs or event structure
-reject. This uses the existing compiler-private checked/evaluator seam and does
+after host source drift, while changed authored paths, counts, positioned
+offsets, operation or region kinds, or event structure reject. This uses the
+existing compiler-private checked/evaluator seam and does
 not justify nominal Chi. Broad operation replay, output mutation and output-
 tree reproduction, package-command integration, and a complete replay verdict
 remain absent, so the build remains `Volatile`.
