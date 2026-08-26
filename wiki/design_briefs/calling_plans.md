@@ -738,6 +738,21 @@ rows unchanged. They remain identity-only: they select no `NativePlace`, target
 operand, byte offset, object relocation, address, registration authority, or
 callback lifetime.
 
+At the first backend-plan point where both catalogs coexist, one
+`CallbackRegistrarArgumentBinding` joins each ordered private-relocation demand
+to exactly one retained registrar occurrence and one ordered native-formal row.
+Independent replay first revalidates the complete placement/thunk/demand
+catalog, then checks the authored site, resolved registrar target, canonical
+overload, state/statement/call coordinates, platform-lowering identity, formal
+order, and overload-derived `NativeParameterId`. A direct destination selects
+that parameter row; a field destination selects the same root while preserving
+its complete nominal layout identity and ordered field path. Multiple field
+demands may share one root but remain distinct through those paths. Missing,
+duplicate, reordered, handle-, identity-, layout-, or path-drifted rows reject.
+The binding remains address-free and grants no target operand, physical offset,
+object relocation, runtime storage, address, registration authority, or
+callback lifetime.
+
 The checked identity spine is live. Admission records the exact statement or
 expression handle, argument ordinal, registration operation, selected machine
 and entry, unique satisfaction trait/requirement pair, and canonical overload

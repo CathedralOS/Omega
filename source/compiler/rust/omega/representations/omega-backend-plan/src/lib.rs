@@ -13,8 +13,9 @@ pub use callback_placements::{
     validate_bound_nominal_callback_placement,
 };
 pub use callback_private_relocations::{
-    CallbackPrivateRelocationDemand, replay_callback_private_relocation_demand,
-    replay_callback_private_relocation_demands,
+    CallbackPrivateRelocationDemand, CallbackRegistrarArgumentBinding,
+    replay_callback_private_relocation_demand, replay_callback_private_relocation_demands,
+    replay_callback_registrar_argument_bindings,
 };
 pub use callback_root_schedule::{
     CallbackRootActivationIdentity, CallbackRootSchedule, plan_callback_root_schedule,

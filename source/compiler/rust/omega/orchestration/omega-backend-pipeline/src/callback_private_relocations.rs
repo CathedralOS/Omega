@@ -43,7 +43,7 @@ pub(super) fn plan_callback_private_relocations(
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
     use crate::callback_thunks::plan_callback_thunks;
     use omega_backend_plan::{
@@ -64,10 +64,15 @@ mod tests {
         SymbolHandle::from_arena_index(index)
     }
 
-    fn fixture() -> (ControlFlowPlan, BoundNominalCallbackPlacement) {
+    pub(super) fn fixture() -> (ControlFlowPlan, BoundNominalCallbackPlacement) {
+        fixture_with_destination(NativePlace::Parameter(NativeParameterId::new(17).unwrap()))
+    }
+
+    pub(crate) fn fixture_with_destination(
+        destination: NativePlace,
+    ) -> (ControlFlowPlan, BoundNominalCallbackPlacement) {
         let binder = StaticMachineBinderId::new(11).unwrap();
         let requirement = CallbackRequirementId::new(13).unwrap();
-        let destination = NativePlace::Parameter(NativeParameterId::new(17).unwrap());
         let other_binder = StaticMachineBinderId::new(19).unwrap();
         let other_requirement = CallbackRequirementId::new(23).unwrap();
         let other_destination = NativePlace::Parameter(NativeParameterId::new(29).unwrap());

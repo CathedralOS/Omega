@@ -8,6 +8,7 @@ use omega_control_flow::ControlFlowPlan;
 
 mod builder;
 mod callback_private_relocations;
+mod callback_registrar_arguments;
 mod callback_thunks;
 mod entry;
 mod program_storage_wrapper;
