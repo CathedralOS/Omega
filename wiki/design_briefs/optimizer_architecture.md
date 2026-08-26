@@ -284,6 +284,14 @@ record may truthfully say no spill was required for the admitted plan. Frame
 layout, machine emission, and publication remain explicitly unavailable, so
 the record grants none of those authorities.
 
+The post-allocation record also has a versioned canonical codec. It reconstructs
+the typed target, direct-versus-post-copy presence, every upstream identity,
+availability status, and statistic, then recomputes the stored manifest
+identity. Unknown stage, target, optional, spill, or availability tags,
+identity tampering, truncation, and trailing bytes reject. Decode still returns
+the plain record; only independent replay against the validated range,
+legality, and home carriers can produce its validated wrapper.
+
 The direct home path is still not the general allocator and grants no copy
 insertion, splitting, spill, frame, emission, or publication authority. An
 incompatible ABI-entry to fixed-return view remains an explicit transition
@@ -1102,7 +1110,8 @@ validated abstract-plan boundary and a second joined projection through the
 strict spill-free register-home boundary. The pre-physical manifest's versioned
 standalone codec serializes that whole earlier record and strict nested codecs;
 the post-allocation record adds truthful home statistics while marking frame,
-emission, and publication unavailable. Neither is yet wired into a
+emission, and publication unavailable. Both records now have versioned strict
+standalone codecs, but neither is yet wired into a
 compiler-owned artifact or rebuild-metadata section. `OPT-MANIFEST-SCHEMA`
 remains open until later manifests join frame/emission/publication records,
 enter that metadata path, and the compiler exposes a suppressible report

@@ -183,12 +183,12 @@ mod tests {
     use omega_optimization_unit::ValueDefinitionSite;
     use omega_psi_optimizer::{OptimizationRunError, RuleRegistryError};
     use omega_regalloc::{
-        PostAllocationOptimizationManifestError, TerminalAllocationLegalityError,
-        TerminalArchitecturalUnitActionKind, TerminalFixedViewCopyError,
-        TerminalFixedViewCopyPolicy, TerminalLiveRangeError, TerminalLiveRangeFragment,
-        TerminalLiveRangePoint, TerminalLivenessError, TerminalRegisterHomeError,
-        TerminalRegisterHomePlan, TerminalVirtualFixedConstraintSite, TerminalVirtualInterference,
-        analyze_terminal_live_ranges, analyze_terminal_liveness,
+        PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
+        TerminalAllocationLegalityError, TerminalArchitecturalUnitActionKind,
+        TerminalFixedViewCopyError, TerminalFixedViewCopyPolicy, TerminalLiveRangeError,
+        TerminalLiveRangeFragment, TerminalLiveRangePoint, TerminalLivenessError,
+        TerminalRegisterHomeError, TerminalRegisterHomePlan, TerminalVirtualFixedConstraintSite,
+        TerminalVirtualInterference, analyze_terminal_live_ranges, analyze_terminal_liveness,
         terminal_allocation_legality_identity, terminal_fixed_view_copy_identity,
         terminal_live_range_identity, terminal_liveness_identity, terminal_register_home_identity,
         validate_post_allocation_optimization_manifest, validate_terminal_allocation_legality,
@@ -1988,6 +1988,10 @@ mod tests {
             assert_eq!(replay, *staged.homes());
             let manifest = staged.post_allocation_manifest().record();
             assert_eq!(manifest.identity, manifest.recomputed_identity());
+            assert_eq!(
+                PostAllocationOptimizationManifest::decode(&manifest.encode()),
+                Ok(manifest.clone())
+            );
             assert_eq!(manifest.pre_physical, staged.custody().manifest());
             assert_eq!(manifest.target, target);
             assert_eq!(manifest.fixed_view_copy, None);
@@ -2371,6 +2375,10 @@ mod tests {
             assert_eq!(homes.custody().assignment_count(), 4);
             let manifest = homes.post_allocation_manifest().record();
             assert_eq!(manifest.identity, manifest.recomputed_identity());
+            assert_eq!(
+                PostAllocationOptimizationManifest::decode(&manifest.encode()),
+                Ok(manifest.clone())
+            );
             assert_eq!(
                 manifest.fixed_view_copy,
                 Some(homes.custody().source().source().transformation())
