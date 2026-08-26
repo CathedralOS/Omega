@@ -444,7 +444,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 layouts: &backend_plan.layouts,
                 data: &backend_plan.abstract_data,
             })
-        });
+        })?;
     backend_plan.target_operations =
         record_backend_phase(&mut phase_timings, "target operations", || {
             build_target_operation_plan(

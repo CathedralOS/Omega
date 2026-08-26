@@ -28,6 +28,9 @@ objects: pointer-aligned zero-filled slot bytes plus a private symbol. Object
 planning publishes their exact existing object spans and does not rediscover
 trait rows or choose realization addresses. The following relocation stage
 owns binding each retained address-free row target to a private function.
+Those functions already arrive as nonempty encoded regions with exact source
+`StateKey` identities; object planning derives their canonical private symbols
+through the same function-symbol path as other non-entry source functions.
 
 Backend orchestration shape: the aggregate `BackendPlan` keeps symbolic machine
 instructions, encoded machine bytes, object layout, and relocation records under

@@ -81,6 +81,12 @@ Primary responsibility: lower checked control flow into explicit operations with
   as permission-realization candidates. Abstract lowering publishes a ledger
   only when every canonical event has selected instructions or a validated
   no-code reason.
+- Private dynamic-conformance rows are also reconstructed against checked
+  normalized requirement/realization identity here. Each unique non-entry
+  realization emits an ordinary private abstract function containing its exact
+  retained control-flow state body; an entry realization reuses the existing
+  entry function. Missing states, duplicate logical tables, or identity-to-key
+  disagreement return a diagnostic before target lowering.
 
 ## Semantic Ownership
 

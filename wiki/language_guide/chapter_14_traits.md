@@ -711,13 +711,19 @@ bindings fail closed. A direct-place pass-through now constructs the exact
 runtime pair at the target parameter: the instance word receives the retained
 source-place address, and the table word receives the private data-object
 address through a distinct single-word operation. Both native encoders and
-their final relocation replay keep those words separate. Full-image execution
-still needs the selected realization to own a standalone private function
-symbol; that is an engineering emission rung, not a change to dynamic language
-semantics. Rebinding, storage, joins, escaping, and component crossing remain
-open. Those consumers use the same complete normalized maps. Each row retains
-the declaring trait, requirement, exact satisfier machine, default instantiation
-when applicable, normalized contracts, and selected conformance identity.
+their final relocation replay keep those words separate. Instruction selection
+reconstructs the checked row map again and emits one standalone private
+function for each unique exact realization `StateKey`; that function contains
+the retained control-flow state body rather than an alias or empty placeholder.
+An exact repeated realization deduplicates, an entry-state realization reuses
+the existing entry identity, and identity, state, or one-to-one demand drift
+rejects before machine bytes. The full native pass-through image can therefore
+link every table slot on both supported architectures. Runtime indirect
+slot-call lowering remains open, as do rebinding, storage, joins, escaping, and
+component crossing. Those consumers use the same complete normalized maps.
+Each row retains the declaring trait, requirement, exact satisfier machine,
+default instantiation when applicable, normalized contracts, and selected
+conformance identity.
 
 The table is a private realization. Logical identity records the trait,
 selected conformance, and normalized contracts rather than a table address.

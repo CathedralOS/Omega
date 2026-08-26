@@ -976,6 +976,41 @@ fn runtime_local_named_dyn_devirtualized_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
+    let canary = pass_canary("traits/runtime_local_named_dyn_pass_through_exit");
+    for target in ["linux_x64", "linux_arm64"] {
+        compile_rooted_backend_canary_without_output_for_target(&canary, target).unwrap_or_else(
+            |diagnostics| {
+                panic!(
+                    "{target} should link the exact private realization function into the dynamic table:\n{}",
+                    diagnostics
+                        .iter()
+                        .map(|diagnostic| diagnostic.message.as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            },
+        );
+    }
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-local-named-dyn-pass-through-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("a forwarded named dynamic value should emit its exact private table function");
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "forwarded named dynamic descriptor canary",
+        "the exact Primary realization must survive pass-through descriptor construction",
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_dyn_two_impl_dispatch_exit_canary_runs() {
     // TWO data types satisfy Shape, so the `&mut dyn Shape` receiver cannot
     // devirtualize; the call is monomorphized over the trait's closed world and

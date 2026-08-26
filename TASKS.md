@@ -8505,10 +8505,15 @@ checked-result arithmetic decision listed below.
   the selected private table. Target lowering, both native encoders, final-byte
   validation, and the table/frame relocation pair preserve that distinction;
   failed exact joins never fall through to copying the unmaterialized erased
-  local. Full-image execution remains an engineering rung because the retained
-  realization still needs a standalone private function symbol for the table's
-  existing slot relocation. Rebound, stored, joined, escaping, or component-
-  crossing descriptors also remain open.
+  local. Instruction selection now independently reconstructs each checked
+  table row, validates normalized requirement/realization identity and exact
+  control-flow `StateKey`, and emits one standalone private function containing
+  that retained state body. Repeated exact realizations deduplicate, entry-state
+  realizations reuse the existing entry identity, and missing, duplicate, or
+  mismatched demands fail before machine bytes. Both native targets now complete
+  the table relocation and full-image pass-through canary. Runtime indirect
+  slot-call lowering, plus rebound, stored, joined, escaping, or component-
+  crossing descriptors, remains open.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
   realizations.** Complete hermetic evaluation with crash refinement, target
   capsule, separate result/usage identities, deterministic progress, and

@@ -65,6 +65,7 @@ mod bindings;
 mod host_operations;
 mod instruction_sink;
 mod lookups;
+mod private_dynamic_functions;
 mod receiver_base;
 mod runtime_dispatch;
 mod state_bodies;
@@ -83,7 +84,9 @@ use runtime_dispatch::{
 };
 use state_bodies::{StateBodyVisitStack, runtime_reachable_states, select_state_body_instructions};
 
-pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> AbstractOperationPlan {
+pub fn build_instruction_plan(
+    input: &InstructionSelectionInput<'_>,
+) -> Result<AbstractOperationPlan, psi_diagnostics::Diagnostic> {
     let mut instruction_plan = estimated_instruction_plan(input);
 
     let (instructions, mut permission_realization_candidates, boundary_footprints) =
@@ -104,10 +107,15 @@ pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> Abstract
             identity: omega_control_flow::MachineFunctionIdentity::source(input.entry_key),
             instructions,
         });
+    private_dynamic_functions::select_private_dynamic_realization_functions(
+        input,
+        &mut instruction_plan,
+        &mut permission_realization_candidates,
+    )?;
     instruction_plan.permission_realization_candidates = permission_realization_candidates;
     instruction_plan.semantics.boundaries.footprints = boundary_footprints;
 
-    instruction_plan
+    Ok(instruction_plan)
 }
 
 fn append_elided_no_debt_realizations(

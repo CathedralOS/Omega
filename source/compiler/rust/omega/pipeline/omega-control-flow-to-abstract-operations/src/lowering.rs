@@ -12,8 +12,8 @@ use semantics::build_abstract_semantic_summary;
 
 pub(crate) fn build_abstract_operation_plan(
     input: &AbstractOperationLoweringInput<'_>,
-) -> AbstractOperationPlan {
-    let instruction_plan = build_instruction_plan(&InstructionSelectionInput::from(input));
+) -> Result<AbstractOperationPlan, psi_diagnostics::Diagnostic> {
+    let instruction_plan = build_instruction_plan(&InstructionSelectionInput::from(input))?;
     let mut semantics = build_abstract_semantic_summary(input);
     let _ = semantics
         .ownership
@@ -23,9 +23,9 @@ pub(crate) fn build_abstract_operation_plan(
         );
     semantics.boundaries.footprints = instruction_plan.semantics.boundaries.footprints;
 
-    AbstractOperationPlan::with_roots(
+    Ok(AbstractOperationPlan::with_roots(
         instruction_plan.code,
         semantics,
         instruction_plan.permission_realization_candidates,
-    )
+    ))
 }
