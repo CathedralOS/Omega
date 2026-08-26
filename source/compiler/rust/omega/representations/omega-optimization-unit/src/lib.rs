@@ -23,9 +23,13 @@ use psi_terminal::{
     StructuralParameterDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
 };
 
+mod ledger;
 mod observation;
 mod rewrite;
 
+pub use ledger::{
+    InvalidPsiTransformationLedger, PsiTransformationLedger, PsiTransformationRecord,
+};
 pub use observation::{
     ObservationEventClass, ObservationKnowledge, PsiNodeObservation, PsiObservableEvent,
     PsiObservationModel, reconstruct_psi_observation_model,
