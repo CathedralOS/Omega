@@ -21,7 +21,10 @@ real package fixture demonstrates an irreducible external contract.
   more `builder.member("relative/path")` rows. Absence never infers a role.
   Identity projection accepts only direct root statements on the canonical
   `builder: &mut Build` parameter and runs before dependency resolution or
-  package-controlled build execution.
+  package-controlled build execution. The compiler-neutral
+  `omega-build-declarations` crate owns this grammar; package identity and
+  dependency projection consume its validated results rather than maintaining
+  another build-entry parser or name/path validator.
 - This repository's root workspace currently names `omega/language/std`,
   `source/compiler/omega/psi`, and `source/compiler/omega`. Each member owns
   its declaration; paths locate members but do not name them.

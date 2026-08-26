@@ -2534,6 +2534,26 @@ standard library by path.
       applications and only 11 named exceptions: the intrinsically wrong-arity
       root, five Q4-scoped roots, four target-only fragments, and the
       main-source `Build` collision.
+
+      Milestone 2026-08-26: standalone project discovery now retains the exact
+      selected companion `build.omg` source identity through typed lowering.
+      Build prelude detection and build-machine evaluation consume that source
+      identity; they no longer rescan the expanded frontier for files named
+      `build.omg` or reduce authority to machine-name strings. A regression
+      imports an unrelated nested `build.omg` and proves its same-shaped
+      machine remains ordinary program code. Global role enforcement remains
+      open: the shared declaration projector must sit below both compiler and
+      package orchestration, and the main-source `Build` canary still requires
+      source-specific resolution of the toolchain build vocabulary.
+
+      Milestone 2026-08-26: `omega-build-declarations` now owns that
+      compiler-neutral role grammar beneath both orchestration layers. It
+      exposes validated source/syntax projections and exact build-entry handles;
+      package identity converts its validated names and member paths without a
+      second validation rule, while dependency projection reuses the same
+      entry instead of rediscovering the root signature. Compiler enforcement
+      remains deliberately pending on the Q4 compatibility lane and the
+      source-specific toolchain-vocabulary resolution above.
 - [x] **Record the bundled-core decision** in
       `wiki/design_briefs/build_and_package_model.md`: core is welded to the
       compiler because it is the language, not because nobody wrote a manifest.

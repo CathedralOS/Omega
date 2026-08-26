@@ -116,6 +116,7 @@ members = [
     "source/compiler/rust/omega/backend/object/omega-relocations",
     "source/compiler/rust/omega/orchestration/omega-artifacts",
     "source/compiler/rust/omega/orchestration/omega-backend-pipeline",
+    "source/compiler/rust/omega/orchestration/omega-build-declarations",
     "source/compiler/rust/omega/orchestration/omega-compiler",
     "source/compiler/rust/omega/orchestration/omega-packages",
     "source/compiler/rust/omega/orchestration/omega-native-differential-test",

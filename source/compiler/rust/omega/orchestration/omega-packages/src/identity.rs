@@ -35,13 +35,8 @@ pub struct PackageName(String);
 impl PackageName {
     pub fn parse(value: impl Into<String>) -> Result<Self, String> {
         let value = value.into();
-        if is_kebab_case(&value) {
-            Ok(Self(value))
-        } else {
-            Err(format!(
-                "package identity `{value}` must start with a lowercase letter and use kebab-case lowercase words"
-            ))
-        }
+        omega_build_declarations::ProjectName::parse(value.clone())?;
+        Ok(Self(value))
     }
 
     pub fn as_str(&self) -> &str {
@@ -50,6 +45,12 @@ impl PackageName {
 
     pub fn default_alias(&self) -> AliasName {
         AliasName(self.0.replace('-', "_"))
+    }
+}
+
+impl From<omega_build_declarations::ProjectName> for PackageName {
+    fn from(value: omega_build_declarations::ProjectName) -> Self {
+        Self(value.into_string())
     }
 }
 
@@ -354,27 +355,19 @@ pub struct WorkspaceMemberPath(String);
 
 impl WorkspaceMemberPath {
     pub fn parse(value: &str) -> Result<Self, IdentityError> {
-        if value.is_empty()
-            || value.starts_with('/')
-            || value.ends_with('/')
-            || value.contains('\\')
-            || value.bytes().any(|byte| byte.is_ascii_control())
-        {
-            return Err(IdentityError::InvalidWorkspaceMemberPath);
-        }
-        for component in value.split('/') {
-            if component.is_empty()
-                || matches!(component, "." | "..")
-                || !component.bytes().all(is_portable_path_byte)
-            {
-                return Err(IdentityError::InvalidWorkspaceMemberPath);
-            }
-        }
+        omega_build_declarations::WorkspaceMemberPath::parse(value)
+            .map_err(|_| IdentityError::InvalidWorkspaceMemberPath)?;
         Ok(Self(value.to_owned()))
     }
 
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl From<omega_build_declarations::WorkspaceMemberPath> for WorkspaceMemberPath {
+    fn from(value: omega_build_declarations::WorkspaceMemberPath) -> Self {
+        Self(value.into_string())
     }
 }
 
@@ -884,10 +877,6 @@ fn is_repository_path_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_')
 }
 
-fn is_portable_path_byte(byte: u8) -> bool {
-    is_repository_path_byte(byte)
-}
-
 fn is_github_owner(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 39
@@ -903,28 +892,6 @@ fn is_github_repository(value: &str) -> bool {
         && value.len() <= 100
         && !matches!(value, "." | "..")
         && value.bytes().all(is_repository_path_byte)
-}
-
-fn is_kebab_case(value: &str) -> bool {
-    if !value.as_bytes().first().is_some_and(u8::is_ascii_lowercase) || value.ends_with('-') {
-        return false;
-    }
-
-    let mut previous_separator = false;
-    for byte in value.bytes() {
-        if byte == b'-' {
-            if previous_separator {
-                return false;
-            }
-            previous_separator = true;
-            continue;
-        }
-        previous_separator = false;
-        if !byte.is_ascii_lowercase() && !byte.is_ascii_digit() {
-            return false;
-        }
-    }
-    true
 }
 
 fn is_snake_case(value: &str) -> bool {

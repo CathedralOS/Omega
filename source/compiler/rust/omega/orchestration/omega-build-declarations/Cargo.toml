@@ -1,0 +1,14 @@
+[package]
+name = "omega-build-declarations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_build_declarations"
+path = "src/lib.rs"
+
+[dependencies]
+psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
+psi-syntax-trees = { path = "../../../psi/representations/psi-syntax-trees" }
+psi-tokens-to-syntax-trees = { path = "../../../psi/pipeline/psi-tokens-to-syntax-trees" }

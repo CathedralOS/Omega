@@ -460,6 +460,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-build-declarations"
+version = "0.1.0"
+dependencies = [
+ "psi-source-files-to-tokens",
+ "psi-syntax-trees",
+ "psi-tokens-to-syntax-trees",
+]
+
+[[package]]
 name = "omega-calling-conventions"
 version = "0.1.0"
 dependencies = [
@@ -1121,6 +1130,7 @@ dependencies = [
  "cap-std",
  "command-group",
  "nix",
+ "omega-build-declarations",
  "omega-compiler",
  "psi-core",
  "psi-diagnostics",

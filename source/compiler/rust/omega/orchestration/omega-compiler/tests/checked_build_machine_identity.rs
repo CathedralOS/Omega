@@ -23,7 +23,11 @@ impl TempProject {
     }
 
     fn write(&self, name: &str, source: &str) {
-        fs::write(self.0.join(name), source).expect("write temporary Omega source");
+        let path = self.0.join(name);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("create temporary Omega source directory");
+        }
+        fs::write(path, source).expect("write temporary Omega source");
     }
 
     fn main(&self) -> PathBuf {
@@ -67,6 +71,34 @@ fn present_build_machine_retains_its_exact_checked_symbol() {
         .expect("checked build machine");
 
     assert_eq!(checked.selected_build_machine_symbol(), Some(build.symbol));
+}
+
+#[test]
+fn imported_file_named_build_is_not_a_project_build_root() {
+    let project = TempProject::new();
+    project.write(
+        "main.omg",
+        "use nested::build;\ndata Helper { }\nconst ANSWER: u32 = 42;\n",
+    );
+    project.write("build.omg", "machine build(builder: &mut Build) { }\n");
+    project.write(
+        "nested/build.omg",
+        "machine Helper::build(&mut self, builder: &mut Build) { }\n",
+    );
+
+    let checked = compile_to_checked(&project.main(), None)
+        .expect("an imported build.omg must remain ordinary program source");
+    let root_build = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "build")
+        .expect("checked project build machine");
+
+    assert_eq!(
+        checked.selected_build_machine_symbol(),
+        Some(root_build.symbol)
+    );
 }
 
 #[test]

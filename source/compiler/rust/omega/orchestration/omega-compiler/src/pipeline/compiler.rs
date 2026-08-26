@@ -562,28 +562,7 @@ impl Compiler {
                 &mut syntax.syntax_trees,
                 self.options.target_name.as_deref(),
             )?;
-        // The BUILD-MACHINE identity is FILE-based (owner answer #3:
-        // build.omg is the home; a `Builder::build` in ordinary source is
-        // just a machine): collect the machines declared at build.omg roots
-        // BEFORE the syntax storage moves into resolution. Typed machines
-        // carry no source file (TASKS_FS open item), so the name list is
-        // the thread.
-        let build_file_machine_names: Vec<String> = syntax
-            .files
-            .iter()
-            .filter(|file| {
-                file.path.file_name().and_then(|name| name.to_str()) == Some("build.omg")
-            })
-            .flat_map(|file| file.root_items.iter())
-            .filter_map(|handle| match syntax.syntax_trees.root_item(*handle) {
-                // The syntax machine's `name` is already the FULL spelled
-                // path (`Stager::build` -- split_machine_path joins it).
-                psi_syntax_trees::item::Item::Machine(machine) => {
-                    Some(machine.name.as_str().to_owned())
-                }
-                _ => None,
-            })
-            .collect();
+        let build_source_id = syntax.build_source_id;
         if emit_auxiliary_artifacts {
             remove_stale_phase_diagrams(&self.options)?;
             write_pipeline_index(&self.options)?;
@@ -644,7 +623,7 @@ impl Compiler {
             );
         let computed_build_config = crate::pipeline::build_config::compute_build_config(
             &typed,
-            &build_file_machine_names,
+            build_source_id,
             &build_machine_filesystem_scope,
         )?;
         crate::pipeline::build_config::reject_uncompiled_generated_sources(&computed_build_config)?;
@@ -688,7 +667,7 @@ impl Compiler {
                 &target_default_machine_names,
             )?;
         let build_machine_present = typed.machines().iter().any(|machine| {
-            crate::pipeline::build_config::is_build_machine(machine, &build_file_machine_names)
+            crate::pipeline::build_config::is_build_machine(&typed, machine, build_source_id)
         });
         // ASM DISCHARGE v0 (privileged_effects_and_binary_trust): asm
         // intrinsics (`hlt`, port I/O) are permitted only in a FREESTANDING
