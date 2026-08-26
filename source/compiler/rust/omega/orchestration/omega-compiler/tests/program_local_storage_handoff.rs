@@ -1375,6 +1375,165 @@ fn stale_program_local_epoch_rejects_atomically_then_fresh_epoch_completes_hando
 }
 
 #[test]
+fn source_derived_two_root_handoff_returns_exact_inputs_after_lifecycle_substitution() {
+    let (compiled_directory, exact_bridge, catalog, terminal) =
+        compiled_receiver_free_bridge("lifecycle_substitution_retry");
+    let exact_binding = exact_bridge.binding().clone();
+    let requirement_identity = exact_binding.requirement_identity().to_owned();
+    let entry = EntryStubId::from_normalized_identity(1).expect("entry identity");
+    let mut code = installed_code(entry);
+    let installed_code_identity = code.identity().normalized_identity();
+    let (mut root_ledger, root) =
+        install_program_entry_root(&mut code, entry, &requirement_identity);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("program-local installation ledger");
+    let mut prebindings = installation
+        .prebind(&catalog, &terminal, &root)
+        .expect("source-derived program-storage prebindings");
+    prebindings.sort_by_key(|prebinding| prebinding.source_parameter_position());
+    let [image_prebinding, storage_prebinding] = prebindings.as_slice() else {
+        panic!("source entry must derive exactly two program-local roots")
+    };
+
+    let mut lifecycle = lifecycle(installed_code_identity, &requirement_identity);
+    let members = prebindings
+        .iter()
+        .enumerate()
+        .map(|(index, prebinding)| {
+            let lease = lifecycle
+                .acquire_program_local_root_epoch_lease(
+                    ProgramLocalRootEpochLeaseId::from_normalized_identity(860 + index as u64)
+                        .expect("epoch lease identity"),
+                    10,
+                    &requirement_identity,
+                )
+                .expect("exact epoch lease");
+            ProgramLocalRootCohortMember::new(prebinding.identity(), &root, lease)
+        })
+        .collect::<Vec<_>>();
+    let cohort = installation
+        .seal_epoch_cohort(&lifecycle, members)
+        .expect("source-derived two-root cohort");
+    let aggregate_snapshot = cohort.aggregate_snapshot();
+    let mut runtime = cohort.into_runtime();
+    assert_eq!(runtime.pending_occurrences().len(), 2);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(2));
+
+    let expected_plans = [
+        extent_plan(0x5000, 0x400, "Extent::Granted"),
+        extent_plan(0xb000, 0x1000, "Extent::Granted"),
+    ];
+    let artifact_directory = temp_directory("lifecycle-substitution-retry");
+    let substituted_lifecycle =
+        lifecycle_with_identity(731, installed_code_identity, &requirement_identity);
+    let rejected = establish_program_storage_entry_program_local_roots(
+        &artifact_directory,
+        exact_binding.clone(),
+        &mut installation,
+        &mut runtime,
+        &substituted_lifecycle,
+        subject(&root, 0, 931, 0x5000, 0x400),
+        expected_plans[0].clone(),
+        subject(&root, 1, 932, 0xb000, 0x1000),
+        expected_plans[1].clone(),
+    )
+    .expect_err("a foreign lifecycle ledger cannot establish either source-derived root");
+    let ProgramLocalStorageInstallationHandoffError::Subject(rejected) = rejected else {
+        panic!("lifecycle substitution must reject before either account is established")
+    };
+    assert!(
+        rejected
+            .diagnostic()
+            .0
+            .contains("exact current lifecycle epoch")
+    );
+    assert_eq!(runtime.pending_occurrences().len(), 2);
+    assert_eq!(runtime.aggregate_snapshot(), aggregate_snapshot);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(2));
+    assert_eq!(
+        substituted_lifecycle.program_local_root_authority_holds(10),
+        Some(0)
+    );
+
+    let (returned_binding, returned_subjects, returned_plans) = rejected.into_parts();
+    assert_eq!(returned_binding, exact_binding);
+    assert_eq!(returned_plans, expected_plans);
+    let [image_subject, storage_subject]: [_; 2] = returned_subjects
+        .try_into()
+        .expect("lifecycle rejection returns both subjects in source order");
+    assert_eq!(image_subject.invocation().normalized_identity(), 900);
+    assert_eq!(image_subject.argument_index(), 0);
+    assert_eq!(image_subject.source_parameter_position(), 0);
+    assert_eq!(image_subject.qualification_identity(), "Extent::Granted");
+    assert_eq!(image_subject.carrier_identity(), "named(name(Extent))");
+    assert_eq!(image_subject.subject_place().normalized_identity(), 931);
+    assert_eq!(storage_subject.invocation().normalized_identity(), 900);
+    assert_eq!(storage_subject.argument_index(), 1);
+    assert_eq!(storage_subject.source_parameter_position(), 1);
+    assert_eq!(storage_subject.qualification_identity(), "Extent::Granted");
+    assert_eq!(storage_subject.carrier_identity(), "named(name(Extent))");
+    assert_eq!(storage_subject.subject_place().normalized_identity(), 932);
+    let [image_plan, storage_plan] = returned_plans;
+
+    let recorded = establish_program_storage_entry_program_local_roots(
+        &artifact_directory,
+        returned_binding,
+        &mut installation,
+        &mut runtime,
+        &lifecycle,
+        image_subject,
+        image_plan,
+        storage_subject,
+        storage_plan,
+    )
+    .expect("the exact returned two-root handoff retries under its owning lifecycle");
+    assert_eq!(runtime.pending_occurrences().len(), 0);
+    assert_eq!(recorded.registry().held_accounts(), 2);
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(2));
+    let image = recorded.roots().image();
+    let storage = recorded
+        .roots()
+        .initial_storage()
+        .expect("receiver-free storage root");
+    assert_eq!(
+        BTreeSet::from([
+            image.lineage_root().normalized_identity(),
+            storage.lineage_root().normalized_identity(),
+        ]),
+        BTreeSet::from([1, 2]),
+        "only the successful retry may mint the two source-derived lineages"
+    );
+    assert_origin(
+        image.origin().program_local().expect("program-local image"),
+        recorded.roots().binding().root_slot(),
+        image_prebinding.identity().schema_identity(),
+        931,
+        10,
+    );
+    assert_origin(
+        storage
+            .origin()
+            .program_local()
+            .expect("program-local storage"),
+        recorded.roots().binding().root_slot(),
+        storage_prebinding.identity().schema_identity(),
+        932,
+        10,
+    );
+    let emitted =
+        fs::read_to_string(artifact_directory.join(PROGRAM_STORAGE_INSTALLATION_ARTIFACT))
+            .expect("read retried two-root installation audit");
+    assert_eq!(
+        emitted,
+        program_storage_installation_record_json(&recorded.installation_record())
+    );
+
+    fs::remove_dir_all(&artifact_directory).expect("remove lifecycle-retry artifacts");
+    fs::remove_dir_all(compiled_directory).expect("remove compiled lifecycle-retry fixture");
+}
+
+#[test]
 fn source_derived_one_root_introduction_retains_exact_installation_account_and_origin() {
     let source_directory = temp_directory("source-one-root");
     fs::create_dir_all(&source_directory).expect("create one-root source directory");
