@@ -7,7 +7,7 @@
   "build_source": "source/compiler/omega/build.omg",
   "source_file_count": 12,
   "content_set_sha256": "17a52ec4ff9c9699b3fb3d6d47d0de193f86fca6661c70467086200162df15cd",
-  "closure_sha256": "722e04a62c75d805409ca08108d17af5e6266d9bf03b0132eb958f0848556b93",
+  "closure_sha256": "78f56d0e4b4a4ec0d125925eaab63604880cbf1ce0057c4450a4ccd2c705f7c5",
   "configurations": [
     {
       "native_provider_substitution": true,
@@ -189,7 +189,7 @@
     {
       "path": "source/compiler/rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs",
       "role": "virtual_source_provider",
-      "sha256": "fb1839b08da99c9c78a55600e6712507e87a584eda229d5f7e2b4971d8774aba"
+      "sha256": "9cc4078b2db99916a9847f0f9d045f16d9248e9adc7c4aba49feffab833c11d9"
     },
     {
       "path": "source/compiler/rust/psi/pipeline/psi-source-files-to-tokens/Cargo.toml",
