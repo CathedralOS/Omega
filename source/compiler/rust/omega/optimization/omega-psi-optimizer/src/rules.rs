@@ -176,6 +176,102 @@ integer_evaluation_rule!(
     OptimizationSafetyClass::ExactOperationSemantics
 );
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ExactIntegerCastConstantsRule;
+
+impl ExactIntegerCastConstantsRule {
+    pub fn contract() -> OptimizationRuleContract {
+        integer_evaluation_contract(
+            b"omega.psi-rule.exact-integer-cast-constants.v1",
+            OptimizationSafetyClass::ProofCertified,
+        )
+    }
+}
+
+impl PsiOptimizationRule for ExactIntegerCastConstantsRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        propose_exact_integer_cast_constants(unit, analyses, Self::contract())
+    }
+}
+
+fn propose_exact_integer_cast_constants(
+    unit: &PsiOptimizationUnit,
+    analyses: RuleAnalysisView<'_>,
+    contract: OptimizationRuleContract,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+    let Some(AnalysisProduct::ScalarConstants(constants)) =
+        analyses.get(AnalysisKind::ScalarConstants)
+    else {
+        return Err(RuleProposalError::MissingAnalysis(
+            AnalysisKind::ScalarConstants,
+        ));
+    };
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let O::IntegerExactCast {
+                    psi_operation,
+                    result,
+                    source_type,
+                    target_type,
+                    operand,
+                    ..
+                } = node.operation
+                else {
+                    continue;
+                };
+                let Some((operand_value, operand_support)) =
+                    integer_constant(constants, function.machine, operand)
+                else {
+                    continue;
+                };
+                let Some(constant) = source_type.exact_cast_value_to(target_type, operand_value)
+                else {
+                    continue;
+                };
+                let location = NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: u32::try_from(node_index).expect("optimization node indices are u32"),
+                };
+                candidates.push(
+                    PsiRewriteCandidate::new_integer_evaluation(
+                        unit.identity,
+                        contract,
+                        vec![block.id],
+                        Vec::new(),
+                        vec![ProvenanceRewrite {
+                            output: location,
+                            sources: node.provenance.clone(),
+                            fuel: node.fuel.clone(),
+                        }],
+                        IntegerEvaluationWitness::Unary { operand_support },
+                        -1,
+                        IntegerConstantRewrite {
+                            location,
+                            source_operation: psi_operation,
+                            result,
+                            scalar_type: target_type,
+                            constant,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+    }
+    Ok(candidates)
+}
+
 fn propose_integer_binary_constants(
     unit: &PsiOptimizationUnit,
     analyses: RuleAnalysisView<'_>,
@@ -228,7 +324,7 @@ fn propose_integer_binary_constants(
                             sources: node.provenance.clone(),
                             fuel: node.fuel.clone(),
                         }],
-                        IntegerEvaluationWitness {
+                        IntegerEvaluationWitness::Binary {
                             left_support,
                             right_support,
                         },
@@ -684,6 +780,7 @@ pub fn built_in_psi_registry(
         rules.push(Arc::new(ExactIntegerShiftRightConstantsRule));
         rules.push(Arc::new(WrappingIntegerShiftLeftConstantsRule));
         rules.push(Arc::new(WrappingIntegerShiftRightConstantsRule));
+        rules.push(Arc::new(ExactIntegerCastConstantsRule));
     }
     OrderedRuleRegistry::new(rules)
 }
@@ -1003,6 +1100,70 @@ pub(crate) mod tests {
         unit
     }
 
+    fn exact_cast_unit(value: u128) -> PsiOptimizationUnit {
+        let machine = id(321, MachineId::new);
+        let block = id(322, BlockId::new);
+        let operand = id(323, ValueId::new);
+        let result = id(324, ValueId::new);
+        let source_type = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
+        let target_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([14; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry: block,
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: result,
+                        scalar_type: ScalarType::Integer(target_type),
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        TerminalAbstractOperation::IntegerConstant {
+                            psi_operation: id(325, OperationId::new),
+                            result: operand,
+                            scalar_type: ScalarType::Integer(source_type),
+                            value: IntegerValue::Unsigned(value),
+                        },
+                        TerminalAbstractOperation::IntegerExactCast {
+                            psi_operation: id(326, OperationId::new),
+                            obligation: id(327, ObligationId::new),
+                            result,
+                            source_type,
+                            target_type,
+                            operand,
+                        },
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(328, EdgeId::new),
+                            result,
+                            value: result,
+                            scalar_type: ScalarType::Integer(target_type),
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
     #[test]
     fn selected_builtin_proposes_one_independently_validated_exact_fold() {
         let unit = exact_add_unit();
@@ -1012,7 +1173,7 @@ pub(crate) mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        assert_eq!(registry.len(), 19);
+        assert_eq!(registry.len(), 20);
         let mut dispatched = 0usize;
         let mut candidates = Vec::new();
         for rule in registry.iter() {
@@ -1157,6 +1318,71 @@ pub(crate) mod tests {
         let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
         assert!(
             ExactIntegerShiftLeftConstantsRule
+                .propose(&unit, RuleAnalysisView::new(&[constants]))
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn exact_cast_rule_uses_unary_evidence_and_target_integer_semantics() {
+        let unit = exact_cast_unit(250);
+        let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
+        let candidates = ExactIntegerCastConstantsRule
+            .propose(&unit, RuleAnalysisView::new(&[constants]))
+            .unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(
+            candidates[0].safety_class(),
+            OptimizationSafetyClass::ProofCertified
+        );
+        assert!(matches!(
+            candidates[0].witness(),
+            IntegerEvaluationWitness::Unary { .. }
+        ));
+        let accepted = validate_integer_evaluation_candidate(&unit, &candidates[0]).unwrap();
+        let target_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        assert!(matches!(
+            accepted.unit().functions[0].blocks[0].nodes[1].operation,
+            TerminalAbstractOperation::IntegerConstant {
+                scalar_type: ScalarType::Integer(scalar_type),
+                value: IntegerValue::Unsigned(250),
+                ..
+            } if scalar_type == target_type
+        ));
+
+        let IntegerEvaluationWitness::Unary { operand_support } = candidates[0].witness() else {
+            unreachable!()
+        };
+        let omega_optimization_unit::PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) =
+            candidates[0].patch();
+        let binary_witness = PsiRewriteCandidate::new_integer_evaluation(
+            unit.identity,
+            ExactIntegerCastConstantsRule::contract(),
+            vec![unit.functions[0].blocks[0].id],
+            Vec::new(),
+            candidates[0].provenance().to_vec(),
+            IntegerEvaluationWitness::Binary {
+                left_support: operand_support,
+                right_support: operand_support,
+            },
+            -1,
+            patch,
+        )
+        .unwrap();
+        assert_ne!(binary_witness.identity(), candidates[0].identity());
+        assert!(matches!(
+            validate_integer_evaluation_candidate(&unit, &binary_witness),
+            Err(omega_optimization_validation::OptimizationUnitValidationError::CandidateOperandFactMismatch)
+        ));
+    }
+
+    #[test]
+    fn exact_cast_rule_declines_a_constant_outside_the_target_domain() {
+        let unit = exact_cast_unit(300);
+        let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
+        assert!(
+            ExactIntegerCastConstantsRule
                 .propose(&unit, RuleAnalysisView::new(&[constants]))
                 .unwrap()
                 .is_empty()

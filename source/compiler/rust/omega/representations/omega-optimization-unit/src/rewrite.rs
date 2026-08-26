@@ -33,9 +33,14 @@ pub struct ProvenanceRewrite {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct IntegerEvaluationWitness {
-    pub left_support: OperationId,
-    pub right_support: OperationId,
+pub enum IntegerEvaluationWitness {
+    Unary {
+        operand_support: OperationId,
+    },
+    Binary {
+        left_support: OperationId,
+        right_support: OperationId,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -234,7 +239,7 @@ fn encode_candidate(
     patch: PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v1\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v2\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     encode_location(&mut bytes, decision_point);
@@ -279,8 +284,20 @@ fn encode_candidate(
             bytes.extend_from_slice(&settlement.units.to_le_bytes());
         }
     }
-    bytes.extend_from_slice(&witness.left_support.get().to_le_bytes());
-    bytes.extend_from_slice(&witness.right_support.get().to_le_bytes());
+    match witness {
+        IntegerEvaluationWitness::Unary { operand_support } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&operand_support.get().to_le_bytes());
+        }
+        IntegerEvaluationWitness::Binary {
+            left_support,
+            right_support,
+        } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&left_support.get().to_le_bytes());
+            bytes.extend_from_slice(&right_support.get().to_le_bytes());
+        }
+    }
     bytes.extend_from_slice(&predicted_cost_delta.to_le_bytes());
     match patch {
         PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) => {

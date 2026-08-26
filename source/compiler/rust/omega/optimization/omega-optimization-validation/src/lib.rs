@@ -13,10 +13,10 @@ use omega_optimization_core::{
     OptimizationValidatorIdentity,
 };
 use omega_optimization_unit::{
-    IntegerConstantRewrite, NodeLocation, OptimizationEdge, OptimizationFact, OwnershipEvent,
-    PsiNodeObservation, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
-    PsiRewriteCandidate, PsiRewritePatch, ValueDefinition, ValueDefinitionSite, ValueUse,
-    reconstruct_psi_observation_model,
+    IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationEdge,
+    OptimizationFact, OwnershipEvent, PsiNodeObservation, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate, PsiRewritePatch, ValueDefinition,
+    ValueDefinitionSite, ValueUse, reconstruct_psi_observation_model,
 };
 use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ScalarType, ValueId};
 use psi_terminal_fuel::TerminalFuelSchedule;
@@ -350,8 +350,8 @@ pub fn validate_integer_evaluation_candidate(
         return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
     }
 
-    let (source_operation, result, scalar_type, left, right, evaluated, safety_class) =
-        evaluate_integer_binary(function, node, candidate)?;
+    let (source_operation, result, scalar_type, evaluated, safety_class) =
+        evaluate_integer_operation(function, node, candidate)?;
     if candidate.safety_class() != safety_class {
         return Err(OptimizationUnitValidationError::CandidateSafetyClassMismatch);
     }
@@ -366,8 +366,6 @@ pub fn validate_integer_evaluation_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidateEvaluationMismatch);
     }
-    let _ = (left, right);
-
     let mut output = input.clone();
     let function = output
         .functions
@@ -453,7 +451,7 @@ fn same_closed_scalar_observation(input: &PsiNodeObservation, output: &PsiNodeOb
         && input.events == output.events
 }
 
-fn evaluate_integer_binary(
+fn evaluate_integer_operation(
     function: &PsiOptimizationFunction,
     node: &omega_optimization_unit::OptimizationNode,
     candidate: &PsiRewriteCandidate,
@@ -462,14 +460,37 @@ fn evaluate_integer_binary(
         psi_core::OperationId,
         ValueId,
         psi_core::IntegerType,
-        ValueId,
-        ValueId,
         psi_core::IntegerValue,
         OptimizationSafetyClass,
     ),
     OptimizationUnitValidationError,
 > {
     use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
+    if let O::IntegerExactCast {
+        psi_operation,
+        result,
+        source_type,
+        target_type,
+        operand,
+        ..
+    } = node.operation
+    {
+        let IntegerEvaluationWitness::Unary { operand_support } = candidate.witness() else {
+            return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
+        };
+        let operand_value = literal_integer_fact(function, operand, operand_support)
+            .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+        let evaluated = source_type
+            .exact_cast_value_to(target_type, operand_value)
+            .ok_or(OptimizationUnitValidationError::CandidateEvaluationMismatch)?;
+        return Ok((
+            psi_operation,
+            result,
+            target_type,
+            evaluated,
+            OptimizationSafetyClass::ProofCertified,
+        ));
+    }
     enum IntegerOperation {
         ExactAdd,
         ExactSubtract,
@@ -775,10 +796,16 @@ fn evaluate_integer_binary(
         ),
         _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     };
-    let witness = candidate.witness();
-    let left_value = literal_integer_fact(function, left, witness.left_support)
+    let IntegerEvaluationWitness::Binary {
+        left_support,
+        right_support,
+    } = candidate.witness()
+    else {
+        return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
+    };
+    let left_value = literal_integer_fact(function, left, left_support)
         .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
-    let right_value = literal_integer_fact(function, right, witness.right_support)
+    let right_value = literal_integer_fact(function, right, right_support)
         .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
     let (evaluated, safety_class) = match kind {
         IntegerOperation::ExactAdd => (
@@ -860,15 +887,7 @@ fn evaluate_integer_binary(
     };
     let evaluated =
         evaluated.ok_or(OptimizationUnitValidationError::CandidateEvaluationMismatch)?;
-    Ok((
-        source,
-        result,
-        scalar_type,
-        left,
-        right,
-        evaluated,
-        safety_class,
-    ))
+    Ok((source, result, scalar_type, evaluated, safety_class))
 }
 
 fn literal_integer_fact(
@@ -2275,7 +2294,7 @@ mod tests {
                 sources: node.provenance.clone(),
                 fuel: node.fuel.clone(),
             }],
-            IntegerEvaluationWitness {
+            IntegerEvaluationWitness::Binary {
                 left_support: id(206, OperationId::new),
                 right_support: id(207, OperationId::new),
             },

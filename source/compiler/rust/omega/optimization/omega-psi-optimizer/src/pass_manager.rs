@@ -448,6 +448,7 @@ fn integer_evaluation_operation_count(unit: &PsiOptimizationUnit) -> u64 {
                     | omega_terminal_abstract_operations::TerminalAbstractOperation::ExactIntegerShiftRight { .. }
                     | omega_terminal_abstract_operations::TerminalAbstractOperation::WrappingIntegerShiftLeft { .. }
                     | omega_terminal_abstract_operations::TerminalAbstractOperation::WrappingIntegerShiftRight { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::IntegerExactCast { .. }
             )
         })
         .count()
@@ -731,14 +732,14 @@ mod tests {
         assert_eq!(usage.commits, 1);
         assert_eq!(usage.validation_steps, 1);
         assert_eq!(usage.iterations, 2);
-        assert_eq!(usage.rule_evaluations, 20);
+        assert_eq!(usage.rule_evaluations, 21);
         assert_eq!(decisions.records.len(), 1);
         assert_eq!(
             decisions.records[0].outcome,
             BaselineDecisionOutcome::Choose(commits[0].candidate)
         );
         let pass_manifest = pass_manifest.expect("selected pass emits a manifest row");
-        assert_eq!(pass_manifest.ordered_rules().len(), 19);
+        assert_eq!(pass_manifest.ordered_rules().len(), 20);
         assert_eq!(pass_manifest.input(), unit.identity);
         assert_eq!(pass_manifest.output(), output.identity);
         assert_eq!(pass_manifest.decisions().len(), 1);
@@ -771,7 +772,7 @@ mod tests {
 
         assert_eq!(commits.len(), 2);
         assert_eq!(usage.iterations, 3);
-        assert_eq!(usage.rule_evaluations, 23);
+        assert_eq!(usage.rule_evaluations, 24);
         assert!(matches!(
             output.functions[0].blocks[0].nodes[2].operation,
             TerminalAbstractOperation::IntegerConstant {
@@ -787,7 +788,7 @@ mod tests {
             }
         ));
         let manifest = pass_manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 19);
+        assert_eq!(manifest.ordered_rules().len(), 20);
         assert_eq!(manifest.decisions().len(), 2);
         assert_eq!(ledger.records().len(), 2);
     }
