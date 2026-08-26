@@ -75,12 +75,15 @@ impl CompileRequest {
 }
 
 /// Execute the single typed production compiler request.
-pub fn compile_request(request: CompileRequest) -> Result<CompileReport, Vec<Diagnostic>> {
+pub fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diagnostic>> {
     run_on_compile_thread(move || Compiler::from_request(request).compile())
 }
 
-pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_request(CompileRequest::new(options))
+/// Temporary integration-test migration seam. Production callers construct a
+/// [`CompileRequest`] and use [`compile`].
+#[doc(hidden)]
+pub fn compile_options(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile(CompileRequest::new(options))
 }
 
 /// Explicitly test-only compiler controls. Entry overrides and worker ceilings

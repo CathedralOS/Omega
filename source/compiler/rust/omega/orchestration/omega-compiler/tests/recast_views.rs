@@ -5,7 +5,7 @@
 //! for another subsystem.
 
 use omega_compiler::{
-    CheckedCompilation, CompileOptions, CompileRequest, compile_request, compile_to_checked,
+    CheckedCompilation, CompileOptions, CompileRequest, compile, compile_to_checked,
 };
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::path::{Path, PathBuf};
@@ -43,7 +43,7 @@ fn compile_and_run(canary_rel: &str, tag: &str) -> std::process::Output {
     let build_dir = std::env::temp_dir().join(format!("omega-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
 
-    compile_request(CompileRequest::new(CompileOptions {
+    compile(CompileRequest::new(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some(profile.target_name().to_owned()),
@@ -88,7 +88,7 @@ fn compile_for_cross_targets(canary_rel: &str, tag: &str) {
         std::fs::copy(canary.join("build.omg"), source_dir.join("build.omg"))
             .expect("copy exact recast root matrix");
 
-        compile_request(CompileRequest::new(CompileOptions {
+        compile(CompileRequest::new(CompileOptions {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir),
             target_name: Some(target.to_owned()),

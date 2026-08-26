@@ -13,7 +13,7 @@
 //      stays frame-only (its indexed-address instruction has a frame-only index).
 //
 // These are held in a dedicated file (not the shared, hot `canary_suite.rs`).
-use omega_compiler::{CompileOptions, compile};
+use omega_compiler::{CompileOptions, compile_options as compile};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 

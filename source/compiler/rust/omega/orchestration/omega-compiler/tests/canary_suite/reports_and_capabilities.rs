@@ -44,7 +44,7 @@ fn assert_toolchain_build_source_drops(report: &str) {
 #[test]
 fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
     let success_build_dir = unique_no_output_build_dir();
-    let success = compile_request(
+    let success = omega_compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: pass_canary("dependent/boundary_equality_recast_witness_compile")
                 .join("main.omg"),
@@ -62,7 +62,7 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
     );
 
     let failure_build_dir = unique_no_output_build_dir();
-    let diagnostics = compile_request(
+    let diagnostics = omega_compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: fail_canary("wire/wire_compatibility_preservation_unmet").join("main.omg"),
             build_dir: Some(failure_build_dir.clone()),
@@ -87,7 +87,7 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
 #[test]
 fn output_only_backend_compile_keeps_primary_image_and_certification() {
     let build_dir = unique_no_output_build_dir();
-    let report = compile_request(
+    let report = omega_compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
             build_dir: Some(build_dir.clone()),

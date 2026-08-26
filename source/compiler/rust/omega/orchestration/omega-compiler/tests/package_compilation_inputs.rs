@@ -1,6 +1,6 @@
 use omega_compiler::{
     CompileOptions, CompileRequest, PackageCompilationInputs, PackageDependencyBinding,
-    PackageSourceBinding, compile_request, compile_to_checked_with_packages,
+    PackageSourceBinding, compile, compile_to_checked_with_packages,
     compile_to_checked_with_packages_in_build_dir,
 };
 use psi_core::PackageKeyIdentity;
@@ -257,7 +257,7 @@ machine misuse(resource: &mut Resource) {
     );
 
     if let Some(target_name) = host_target_name() {
-        let native_diagnostics = compile_request(
+        let native_diagnostics = compile(
             CompileRequest::new(CompileOptions {
                 root_path: root.join("main.omg"),
                 build_dir: Some(tree.0.join("native-build")),
@@ -2162,7 +2162,7 @@ invokes FilesystemHost;
 
     if let Some(target_name) = host_target_name() {
         let native_build = tree.0.join("native-build");
-        let native_diagnostics = compile_request(
+        let native_diagnostics = compile(
             CompileRequest::new(CompileOptions {
                 root_path: root.join("main.omg"),
                 build_dir: Some(native_build.clone()),
@@ -2404,7 +2404,7 @@ machine build(builder: &mut Build) {
     )
     .expect("reconciled package graph should validate");
 
-    compile_request(
+    compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
             build_dir: Some(tree.0.join("build-output")),

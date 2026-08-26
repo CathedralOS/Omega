@@ -1924,8 +1924,9 @@ Remaining:
 
   The first request-normalization rung is live. One typed `CompileRequest`
   now owns the production compile options, executable-TCB policy, auxiliary
-  observation policy, and optional reconciled package graph, and one
-  `compile_request` operation constructs the production coordinator. The
+  observation policy, and optional reconciled package graph. The canonical
+  production `compile` operation now accepts only that request; the temporary
+  options-based integration seam is explicitly named `compile_options`. The
   real `omega` and `omega-run` command-line callers now construct that request
   directly, including their observation policy. The obsolete
   `compile_with_artifact_policy` permutation is removed; its differential and
@@ -1934,9 +1935,8 @@ Remaining:
   permutations are removed. The five entry/worker permutations are replaced by
   one explicitly test-only `CompileHarnessRequest` and `compile_harness`
   operation; its entry override and worker ceiling cannot enter the production
-  request. The legacy `compile(CompileOptions)` migration entry,
-  requested-product stopping, the checked/terminal route, and output
-  destination custody remain open.
+  request. Removal of `compile_options`, requested-product stopping, the
+  checked/terminal route, and output destination custody remain open.
 
   Restore the driver contract:
 
