@@ -27,6 +27,16 @@ const SOURCE: &str = r#"
         "\x80A"
     }
 
+    data Snapshot [copy] { ok: bool; bytes: [u8; 2]; }
+    machine snapshot() -> Snapshot {
+        Snapshot { ok: true, bytes: "\x01\x02" }
+    }
+
+    data Choice [copy] { case Ready(bytes: [u8; 2]); case Empty; }
+    machine choice() -> Choice {
+        (Choice::Ready { bytes: "\x03\x04" })
+    }
+
     data Stager { filesystem: FilesystemHost; result: i32; }
     machine Stager::build(&mut self, value: &mut Build)
     reaches FilesystemHost
@@ -50,12 +60,12 @@ fn admission_plan_owns_result_machine_lookup_gate_and_evaluation() {
     let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
 
     let value = admission
-        .evaluate_machine(&typed, "policy_value", vec![])
+        .evaluate_const_evaluable_machine(&typed, "policy_value", vec![])
         .expect("an admitted result machine should evaluate");
     assert_eq!(value, BuildTimeValue::Int(7));
 
     let error = admission
-        .evaluate_machine(&typed, "Stager::build", vec![])
+        .evaluate_const_evaluable_machine(&typed, "Stager::build", vec![])
         .expect_err("admission must reject reached services before interpretation");
     assert!(error.contains("service reach [FilesystemHost]"), "{error}");
 }
@@ -66,12 +76,102 @@ fn exact_width_quoted_literal_evaluates_as_an_owned_raw_byte_array() {
     let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
 
     let value = admission
-        .evaluate_machine(&typed, "raw_bytes", vec![])
+        .evaluate_const_evaluable_machine(&typed, "raw_bytes", vec![])
         .expect("exact-width owned bytes should evaluate");
     assert_eq!(
         value,
         BuildTimeValue::Array(vec![BuildTimeValue::Int(0x80), BuildTimeValue::Int(0x41)])
     );
+}
+
+#[test]
+fn closed_copy_record_and_realized_copy_sum_case_cross_as_owned_snapshots() {
+    let typed = typed(SOURCE);
+    let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
+
+    assert_eq!(
+        admission
+            .evaluate_const_evaluable_machine(&typed, "snapshot", vec![])
+            .expect("a closed copy record should be ConstEvaluable"),
+        BuildTimeValue::Struct {
+            type_name: "Snapshot".to_owned(),
+            fields: vec![
+                (
+                    "bytes".to_owned(),
+                    BuildTimeValue::Array(vec![BuildTimeValue::Int(1), BuildTimeValue::Int(2)]),
+                ),
+                ("ok".to_owned(), BuildTimeValue::Bool(true)),
+            ],
+        }
+    );
+    assert_eq!(
+        admission
+            .evaluate_const_evaluable_machine(&typed, "choice", vec![])
+            .expect("a realized case of a closed copy sum should be ConstEvaluable"),
+        BuildTimeValue::Case {
+            variant: "Ready".to_owned(),
+            payload: vec![(
+                "bytes".to_owned(),
+                BuildTimeValue::Array(vec![BuildTimeValue::Int(3), BuildTimeValue::Int(4)]),
+            )],
+        }
+    );
+}
+
+#[test]
+fn opt_in_const_boundary_rejects_an_affine_nominal_record() {
+    let typed = typed(
+        r#"
+        data Receipt { code: u8; }
+        machine receipt() -> Receipt { Receipt { code: 1 } }
+        "#,
+    );
+    let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
+
+    assert!(
+        admission
+            .evaluate_machine(&typed, "receipt", vec![])
+            .is_ok(),
+        "legacy structured-plan positions retain their own result validation"
+    );
+    let error = admission
+        .evaluate_const_evaluable_machine(&typed, "receipt", vec![])
+        .expect_err("an affine nominal record cannot cross the opt-in const result boundary");
+    assert!(error.contains("not ConstEvaluable"), "{error}");
+    assert!(error.contains("affine or linear type `Receipt`"), "{error}");
+}
+
+#[test]
+fn sum_admission_walks_only_the_realized_case_payload() {
+    let typed = typed(
+        r#"
+        data Decision {
+            case Accepted(code: u8);
+            case Rejected(reason: &[u8]);
+        }
+        machine accepted() -> Decision {
+            (Decision::Accepted { code: 7 })
+        }
+        machine rejected() -> Decision {
+            (Decision::Rejected { reason: "no" })
+        }
+        "#,
+    );
+    let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
+
+    assert_eq!(
+        admission
+            .evaluate_const_evaluable_machine(&typed, "accepted", vec![])
+            .expect("an inactive Text case must not contaminate the realized copy case"),
+        BuildTimeValue::Case {
+            variant: "Accepted".to_owned(),
+            payload: vec![("code".to_owned(), BuildTimeValue::Int(7))],
+        }
+    );
+    let error = admission
+        .evaluate_const_evaluable_machine(&typed, "rejected", vec![])
+        .expect_err("the realized Text payload must remain fail-closed");
+    assert!(error.contains("contains Text"), "{error}");
 }
 
 #[test]
