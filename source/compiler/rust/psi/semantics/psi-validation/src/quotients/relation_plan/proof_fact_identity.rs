@@ -71,11 +71,7 @@ impl ProofValueSubstitution {
         Self {
             symbol,
             rendered: format!("{bytes:?}"),
-            trace: bytes
-                .iter()
-                .map(|byte| format!("integer:{byte}:unlanded"))
-                .collect::<Vec<_>>()
-                .join(","),
+            trace: array_trace(bytes.iter().map(|byte| format!("integer:{byte}:unlanded"))),
         }
     }
 
@@ -83,11 +79,27 @@ impl ProofValueSubstitution {
         Self {
             symbol,
             rendered: format!("{values:?}"),
-            trace: values
-                .iter()
-                .map(|value| boolean_trace(*value))
-                .collect::<Vec<_>>()
-                .join(","),
+            trace: array_trace(values.iter().map(|value| boolean_trace(*value))),
+        }
+    }
+
+    pub(super) fn nested_boolean_array(
+        symbol: SymbolHandle,
+        rows: &[std::sync::Arc<[bool]>],
+    ) -> Self {
+        Self {
+            symbol,
+            rendered: format!(
+                "[{}]",
+                rows.iter()
+                    .map(|row| format!("{:?}", row.as_ref()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            trace: array_trace(
+                rows.iter()
+                    .map(|row| array_trace(row.iter().map(|value| boolean_trace(*value)))),
+            ),
         }
     }
 
@@ -106,11 +118,11 @@ impl ProofValueSubstitution {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            trace: elements
-                .iter()
-                .map(|(spelling, landing)| integer_trace(spelling, *landing))
-                .collect::<Vec<_>>()
-                .join(","),
+            trace: array_trace(
+                elements
+                    .iter()
+                    .map(|(spelling, landing)| integer_trace(spelling, *landing)),
+            ),
         }
     }
 
@@ -129,11 +141,11 @@ impl ProofValueSubstitution {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            trace: elements
-                .iter()
-                .map(|(spelling, landing)| float_trace(spelling, Some(*landing)))
-                .collect::<Vec<_>>()
-                .join(","),
+            trace: array_trace(
+                elements
+                    .iter()
+                    .map(|(spelling, landing)| float_trace(spelling, Some(*landing))),
+            ),
         }
     }
 
@@ -253,13 +265,13 @@ fn expression_symbol_trace(
                 .collect::<Vec<_>>()
                 .join(","),
         ),
-        ExpressionNode::ArrayLiteral(values_span) => program
-            .expression_table
-            .expression_handles(*values_span)
-            .iter()
-            .map(|value| trace(*value))
-            .collect::<Vec<_>>()
-            .join(","),
+        ExpressionNode::ArrayLiteral(values_span) => array_trace(
+            program
+                .expression_table
+                .expression_handles(*values_span)
+                .iter()
+                .map(|value| trace(*value)),
+        ),
         ExpressionNode::Atomic(value) => trace(value.value),
         ExpressionNode::Binary(value) => format!("{}|{}", trace(value.left), trace(value.right)),
         ExpressionNode::Cast(value) => format!(
@@ -300,6 +312,13 @@ fn expression_symbol_trace(
         ExpressionNode::Float(value) => float_trace(value.text(), value.landing()),
         ExpressionNode::String(value) => byte_string_trace(value),
     }
+}
+
+fn array_trace(elements: impl IntoIterator<Item = String>) -> String {
+    format!(
+        "array:[{}]",
+        elements.into_iter().collect::<Vec<_>>().join(",")
+    )
 }
 
 fn boolean_trace(value: bool) -> String {

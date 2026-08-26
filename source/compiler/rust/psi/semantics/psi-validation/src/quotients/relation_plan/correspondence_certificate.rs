@@ -142,6 +142,15 @@ pub(super) fn derive_direct_lift_precondition_implication(
                     values,
                 )),
                 DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::NestedBooleanArray {
+                        rows,
+                        ..
+                    },
+                ) => representative_values.push(ProofValueSubstitution::nested_boolean_array(
+                    position.representative_parameter,
+                    rows,
+                )),
+                DirectLiftArgumentSource::Literal(
                     super::runtime_correspondence::ClosedLiftLiteral::IntegerArray {
                         elements, ..
                     },
