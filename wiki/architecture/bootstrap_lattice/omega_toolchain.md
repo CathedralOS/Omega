@@ -2,7 +2,7 @@
 
 [Lattice overview](bootstrap_lattice.md) | [Delta language rung](rungs/delta.md)
 
-Omega is the product language and toolchain, not another Greek bootstrap rung.
+Omega is the product-language endpoint, not another small bootstrap language.
 Psi owns source processing through terminal portable IR; Omega consumes that IR
 and performs target realization, optimization, and native emission. Today the
 working implementations are primarily Rust. The hosted destination has one
