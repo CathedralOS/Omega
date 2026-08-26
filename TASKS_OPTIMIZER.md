@@ -71,8 +71,9 @@ These facts constrain the work below.
   active reservation profile. The current named conservative baseline activates
   every declared non-inapplicable overlay, excludes the Darwin platform overlay
   on Linux AArch64, and records the exact sorted effective-unit union. A composite
-  identity binds the native target, all three component identities, and the four
-  selected instruction keys, and is copied through selection, liveness,
+  identity binds the native target, all three component identities, and the five
+  selected instruction keys (including the exact target `copy_i64` row), and is
+  copied through selection, liveness,
   live-range, and transitional-assignment custody. The transitional
   scratch assignment and emission paths still do not consume it as allocator
   evidence. `OPT-REGISTER-MODEL` remains open for the complete ordinary

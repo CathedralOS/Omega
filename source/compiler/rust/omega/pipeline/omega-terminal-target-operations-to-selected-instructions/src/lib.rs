@@ -660,6 +660,7 @@ fn require_key_rows(
 ) -> Result<(), SelectedInstructionError> {
     for key in [
         keys.materialize_i64,
+        keys.copy_i64,
         keys.compare_i64_zero,
         keys.conditional_branch,
         keys.return_i64,
@@ -1584,6 +1585,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &TerminalSelectedInstruc
         TerminalSelectedInstructionKind::MaterializeI64 { .. } => 1,
         TerminalSelectedInstructionKind::ConditionalBranchNonZero => 2,
         TerminalSelectedInstructionKind::ReturnI64 => 3,
+        TerminalSelectedInstructionKind::CopyI64 => 4,
     });
     if let TerminalSelectedInstructionKind::MaterializeI64 { value } = instruction.kind {
         match value {

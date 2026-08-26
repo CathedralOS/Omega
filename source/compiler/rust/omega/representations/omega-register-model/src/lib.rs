@@ -191,6 +191,7 @@ pub struct RegisterConstraintKey {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TargetRegisterEnvironmentConstraintKeys {
     pub materialize_i64: RegisterConstraintKey,
+    pub copy_i64: RegisterConstraintKey,
     pub compare_i64_zero: RegisterConstraintKey,
     pub conditional_branch: RegisterConstraintKey,
     pub return_i64: RegisterConstraintKey,
@@ -1590,6 +1591,7 @@ mod tests {
         .unwrap();
         let keys = TargetRegisterEnvironmentConstraintKeys {
             materialize_i64: instruction_key(1),
+            copy_i64: instruction_key(5),
             compare_i64_zero: instruction_key(2),
             conditional_branch: instruction_key(3),
             return_i64: instruction_key(4),
@@ -1645,6 +1647,10 @@ mod tests {
         for changed_keys in [
             TargetRegisterEnvironmentConstraintKeys {
                 materialize_i64: instruction_key(11),
+                ..keys
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                copy_i64: instruction_key(15),
                 ..keys
             },
             TargetRegisterEnvironmentConstraintKeys {
