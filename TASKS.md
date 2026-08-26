@@ -8176,13 +8176,24 @@ Remaining N6/N8 work:
   identity. Existing flat, matrix, and depth-three Boolean owners retain
   priority; this fallback neither reclassifies their evidence nor admits data
   aggregates.
-  Exact
-  structural `Q => P` substitution now permits a
+  Exact structural `Q => P` substitution now permits a
   dependent representative `P` fact to mention a literal-fed position only
   when public `Q` contains the identical post-substitution fact. Boolean value,
   integer spelling, landed type and arithmetic domain, and float spelling and
   format are all proof-value identity even when rendering would erase a
   difference. Literal-only facts remain fixed ordinary call obligations.
+  When no exact fact match exists, one strict authored-implication rung now
+  admits integer `ProofFact::Expression` goals that the existing arithmetic
+  contract engine proves from the complete ordered dependent public-`Q`
+  expression roster after exact left/right symbol, representative-static
+  `const`, and integer-literal substitution. Resolved symbols, not display
+  names, select atoms; only exact integer carriers/domains participate, every
+  hypothesis and goal must be inside the engine language, and only `Proven`
+  succeeds. Exact matches retain priority. Each arithmetic row retains the
+  full ordered public premise coordinates plus its representative and distinct
+  theorem-side legality coordinates for later replay. Unknown, refuted, mixed
+  membership/proposition, float, member-path, proof-view, operator/domain, or
+  identity-drifted judgments remain fail-closed.
   Mismatched or out-of-range integers, mismatched floats, mutable/non-byte,
   undersized or otherwise constrained byte-string targets, raw strings not
   already context-landed for a bare fixed array, noncanonical or heterogeneous
@@ -8195,10 +8206,15 @@ Remaining N6/N8 work:
   attached targets, and literal arguments to `define` remain fail-closed.
   `define` remains strictly position-preserving at exact public
   arity and retains its exact `Q <=> P` bijection. Fixed representative facts
-  remain ordinary call obligations; generic owner substitution,
-  general adapted lift arguments, general logical implication, and canonical
+  remain ordinary call obligations; generic owner substitution, general
+  adapted lift arguments, non-arithmetic logical implication, and canonical
   Terminal replay remain fail-closed, so stage 3 is not complete and stage 4
-  remains open.
+  remains open. Arithmetic `Expression` entailment is implemented; transport
+  of quotient-domain membership and opaque proposition families is
+  language-design blocked on **OWNER_QUESTIONS Q9**. Q9 must settle the
+  explicit selection locus, per-side transport/weakening application, and
+  canonical theorem identity and replay evidence. Ambient domain linking,
+  visibility search, or an opaque solver verdict cannot supply that authority.
 
   Every request intentionally remains non-executable. Complete admission in
   bounded stages:

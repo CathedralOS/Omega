@@ -282,6 +282,11 @@ pub(super) struct Engine<'program> {
     machine_symbol: SymbolHandle,
     /// Canonical atom names for the machine's parameters.
     pub(super) parameter_atoms: Vec<String>,
+    /// Authority-bearing adapters bind resolved symbols directly. When this
+    /// is `Some`, an unbound name is outside the language rather than falling
+    /// back to its display spelling.
+    strict_symbol_bindings: Option<Vec<(SymbolHandle, Polynomial)>>,
+    strict_symbol_bindings_valid: bool,
     /// Parameters whose primitive type is unsigned carry an implicit `>= 0`.
     unsigned_atoms: Vec<String>,
     /// Directed substitutions from requires equations (`atom := polynomial`),
@@ -330,6 +335,8 @@ impl<'program> Engine<'program> {
             program,
             machine_symbol: machine.symbol,
             parameter_atoms,
+            strict_symbol_bindings: None,
+            strict_symbol_bindings_valid: true,
             unsigned_atoms,
             substitutions: BTreeMap::new(),
             bounds: Vec::new(),
@@ -337,6 +344,50 @@ impl<'program> Engine<'program> {
             matrix: BTreeMap::new(),
             requires_unsatisfiable: false,
         }
+    }
+
+    pub(super) fn strict_with_symbol_bindings(
+        program: &'program TypedTrees,
+        machine: &Machine,
+        bindings: &[StrictArithmeticSymbolBinding],
+    ) -> Self {
+        let mut engine = Self::new(program, machine);
+        engine.parameter_atoms.clear();
+        engine.unsigned_atoms.clear();
+        let mut resolved = Vec::with_capacity(bindings.len());
+        for binding in bindings {
+            let polynomial = match &binding.value {
+                StrictArithmeticBindingValue::Atom { identity, unsigned } => {
+                    if !engine.parameter_atoms.contains(identity) {
+                        engine.parameter_atoms.push(identity.clone());
+                    }
+                    if *unsigned && !engine.unsigned_atoms.contains(identity) {
+                        engine.unsigned_atoms.push(identity.clone());
+                    }
+                    Polynomial::atom(identity.clone())
+                }
+                StrictArithmeticBindingValue::Integer(value) => Polynomial::constant(value.clone()),
+            };
+            if let Some((_, existing)) = resolved
+                .iter()
+                .find(|(symbol, _)| *symbol == binding.symbol)
+            {
+                if existing != &polynomial {
+                    // A contradictory binding set must invalidate even a
+                    // constant-only goal, not degrade to an empty table.
+                    engine.strict_symbol_bindings_valid = false;
+                    return engine;
+                }
+                continue;
+            }
+            resolved.push((binding.symbol, polynomial));
+        }
+        engine.strict_symbol_bindings = Some(resolved);
+        engine
+    }
+
+    pub(super) fn strict_symbol_bindings_are_valid(&self) -> bool {
+        self.strict_symbol_bindings_valid
     }
 
     /// Like [`Engine::new`], plus the reserved `result` atom for the
@@ -875,6 +926,20 @@ impl<'program> Engine<'program> {
             ExpressionNode::Integer(value) => Some(Polynomial::constant(value.value_bignum()?)),
             ExpressionNode::Borrow(inner) => self.normalize(inner.target),
             ExpressionNode::Name(path) => {
+                if let Some(bindings) = &self.strict_symbol_bindings {
+                    if self
+                        .program
+                        .expression_table
+                        .name_path_members(path.members)
+                        .len()
+                        != 1
+                    {
+                        return None;
+                    }
+                    return bindings.iter().find_map(|(symbol, value)| {
+                        (*symbol == path.symbol).then(|| value.clone())
+                    });
+                }
                 let members = self
                     .program
                     .expression_table
@@ -926,6 +991,9 @@ impl<'program> Engine<'program> {
                 _ => None,
             },
             ExpressionNode::Call(call) => {
+                if self.strict_symbol_bindings.is_some() {
+                    return None;
+                }
                 // Proof-view applications are opaque atoms compared by
                 // equality only. Anything else is outside the language.
                 let target = call.target.as_str();

@@ -398,13 +398,26 @@ fn expression_symbol_trace(
 ) -> String {
     let trace = |expression| expression_symbol_trace(program, expression, values);
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => values
-            .iter()
-            .find_map(|value| {
-                (value.symbol == path.symbol || value.symbol == path.head_symbol)
-                    .then(|| value.trace.clone())
-            })
-            .unwrap_or_else(|| format!("name:{:?}:{:?}", path.head_symbol, path.symbol)),
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            if members.len() == 1
+                && let Some(value) = values
+                    .iter()
+                    .find(|value| value.symbol == path.symbol || value.symbol == path.head_symbol)
+            {
+                return value.trace.clone();
+            }
+            format!(
+                "name:{:?}:{:?}:[{}]",
+                path.head_symbol,
+                path.symbol,
+                members
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::")
+            )
+        }
         ExpressionNode::Call(call) => format!(
             "call:{:?}:{}:{:?}:{:?}:{:?}:{:?}:[{}]:({})",
             call.target_symbol,

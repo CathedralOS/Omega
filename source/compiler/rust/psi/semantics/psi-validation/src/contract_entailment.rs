@@ -91,6 +91,62 @@ use structural_terms::{
     unfold_constant_applications,
 };
 
+/// One exact symbol substitution admitted by the strict arithmetic
+/// implication adapter. Quotient correspondence supplies canonical
+/// theorem-side atoms or exact integer constants; display spellings never
+/// select a binding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct StrictArithmeticSymbolBinding {
+    pub(crate) symbol: psi_symbols::SymbolHandle,
+    pub(crate) value: StrictArithmeticBindingValue,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum StrictArithmeticBindingValue {
+    Atom { identity: String, unsigned: bool },
+    Integer(psi_numerics::bignum::BigInt),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StrictArithmeticImplicationJudgment {
+    Proven,
+    Refuted,
+    Unknown,
+}
+
+/// Judge one instantiated integer-expression goal from an exact authored
+/// hypothesis roster. This authority-bearing adapter is stricter than the
+/// ordinary contract validator: every hypothesis and the goal must be inside
+/// the arithmetic engine's language, every name must resolve through a
+/// symbol-keyed binding, and only `Proven` succeeds. In particular, the
+/// validator's sound stand-down behavior is `Unknown` here, never acceptance.
+pub(crate) fn strict_arithmetic_expression_implication(
+    program: &TypedTrees,
+    context_machine: &Machine,
+    hypotheses: &[ExpressionHandle],
+    goal: ExpressionHandle,
+    bindings: &[StrictArithmeticSymbolBinding],
+) -> StrictArithmeticImplicationJudgment {
+    let mut engine = Engine::strict_with_symbol_bindings(program, context_machine, bindings);
+    if !engine.strict_symbol_bindings_are_valid() {
+        return StrictArithmeticImplicationJudgment::Unknown;
+    }
+    let mut comparisons = Vec::new();
+    if !engine.collect_comparisons(hypotheses, &mut comparisons)
+        || !engine.install_hypotheses(comparisons)
+    {
+        return StrictArithmeticImplicationJudgment::Unknown;
+    }
+    if engine.requires_unsatisfiable {
+        return StrictArithmeticImplicationJudgment::Proven;
+    }
+    match engine.judge(goal) {
+        Judgment::Proven => StrictArithmeticImplicationJudgment::Proven,
+        Judgment::ConstantFalse | Judgment::Refuted => StrictArithmeticImplicationJudgment::Refuted,
+        Judgment::Unknown { .. } => StrictArithmeticImplicationJudgment::Unknown,
+    }
+}
+
 /// Prove one transparent Boolean proposition application through the same
 /// structural entailment engine used for ordinary Boolean contracts. Named
 /// propositions remain the public fact identity; transparency is only the
