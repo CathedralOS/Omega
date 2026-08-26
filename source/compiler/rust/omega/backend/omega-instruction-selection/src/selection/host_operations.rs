@@ -12,8 +12,8 @@ use psi_arena::Arena;
 
 use super::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
-    InstructionOperand, InstructionOperandKind, RuntimeValueOperand, SelectedInstruction,
-    SelectedInstructionKind,
+    AbstractHostFormalOperandBinding, AbstractHostOperationProvenance, InstructionOperand,
+    InstructionOperandKind, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
 };
 pub(in crate::selection) use operands::system_v_record_descriptor_shape;
 use operands::{data_object_handle, operand, select_host_operation_operands};
@@ -33,6 +33,12 @@ pub(super) fn select_host_call(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    let source_call = input
+        .host_calls
+        .calls
+        .iter()
+        .find(|(_, candidate)| std::ptr::eq(*candidate, host_call))
+        .map(|(handle, _)| handle);
     if input.runtime_storage.host_argument_scratch_size > 0
         && let Some(arguments) = input.host_calls.arguments.span(host_call.arguments)
     {
@@ -113,11 +119,50 @@ pub(super) fn select_host_call(
             operation,
             operands,
         );
+        let provenance = matches!(
+            operation.operation_key.capability,
+            HostCapability::Unknown | HostCapability::Custom(_)
+        )
+        .then(|| {
+            let formal_operands = input
+                .host_calls
+                .arguments
+                .span_or_empty(host_call.arguments)
+                .iter()
+                .enumerate()
+                .filter_map(|(source_argument_index, argument)| {
+                    let formal = argument.formal?;
+                    let source_argument_index = u32::try_from(source_argument_index).ok()?;
+                    let operand_index = operation_operands
+                        .start()
+                        .arena_index()
+                        .checked_add(source_argument_index)?;
+                    (source_argument_index < operation_operands.count()).then_some(
+                        AbstractHostFormalOperandBinding {
+                            formal_ordinal: formal.formal_ordinal,
+                            native_parameter: formal.native_parameter,
+                            operand: psi_arena::Handle::from_parts(
+                                operand_index,
+                                operation_operands.start().generation(),
+                            ),
+                        },
+                    )
+                })
+                .collect::<Vec<_>>();
+            AbstractHostOperationProvenance {
+                source_call_index: source_call.map_or(u32::MAX, |handle| handle.arena_index()),
+                source_call_generation: source_call.map_or(u32::MAX, |handle| handle.generation()),
+                call_ordinal: host_call.call_ordinal,
+                operation_ordinal: u16::try_from(operation_ordinal).unwrap_or(u16::MAX),
+                formal_operands: formal_operands.into(),
+            }
+        });
 
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::HostOperation {
                 operation_ordinal: operation_ordinal as u16,
                 operands: operation_operands,
+                provenance,
             },
             source_key: host_call.source_key,
             source_statement: host_call.statement_index,

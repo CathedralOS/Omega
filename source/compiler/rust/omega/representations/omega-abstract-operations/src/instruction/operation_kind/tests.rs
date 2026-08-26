@@ -9,6 +9,7 @@ fn operation_kinds_expose_host_boundary_domain() {
     let operation = AbstractOperationKind::HostOperation {
         operation_ordinal: 0,
         operands: HandleSpan::empty(),
+        provenance: None,
     };
 
     assert_eq!(

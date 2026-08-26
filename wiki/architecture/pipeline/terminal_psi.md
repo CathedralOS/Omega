@@ -245,9 +245,20 @@ offset, pointer extent, and alignment replay against the selected target and
 containing data layout. The offset is retained evidence, not source-authored
 identity. Multi-segment physical path composition rejects as an engineering
 gap, and direct-parameter construction remains synthetic-only pending Q13.
-The recipe still has no selected/assigned operation, object symbol, relocation,
-bytes, runtime address, registration authority, or lease; an exact
-registrar-formal-to-assigned-operand carrier must precede emission.
+That physical-destination recipe itself has no selected/assigned operation,
+object symbol, relocation, bytes, runtime address, registration authority, or
+lease; the exact registrar-formal-to-assigned-operand join follows separately.
+
+That exact assigned-operand carrier now exists for custom/unknown outbound
+registrar host operations. Selection records the exact source-call handle,
+call/operation ordinals, and formal/native-parameter-to-abstract-operand rows,
+excluding the result pseudo-argument. Target lowering resolves exactly one
+retained occurrence and boundary edge and preserves abstract/target operand
+handles; backend planning joins them to the assigned instruction and operand
+for the prior physical destination. Replay rejects coordinate collisions,
+missing or duplicated rows, stale handles, and operand-shape drift. Generic
+host operations remain outside the carrier, and it grants no object,
+relocation, byte, runtime, registration, or lease authority.
 
 Reference identities retain loan compatibility and permitted operations
 separately. `&write T` carries an exclusive loan over an existing valid `T`

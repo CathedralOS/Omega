@@ -3,6 +3,31 @@ use crate::{
     RuntimeTextReadTarget, StateGuardLowering, StateGuardOperator, TargetDataObjectHandle,
     TargetValueOperandHandle,
 };
+use omega_calling_conventions::NativeParameterId;
+use psi_arena::Handle;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetHostFormalOperandBinding {
+    pub native_argument: Handle<omega_abstract_operations::AbstractHostCallNativeArgument>,
+    pub formal_ordinal: u32,
+    pub native_parameter: NativeParameterId,
+    pub abstract_operand: Handle<omega_abstract_operations::InstructionOperand>,
+    pub abstract_operand_kind: omega_abstract_operations::InstructionOperandKind,
+    pub operand: Handle<InstructionOperand>,
+}
+
+/// Target-validated identity for one opted-in outbound host operation.
+///
+/// The carrier binds selected operands only. It grants no object, relocation,
+/// byte, runtime-address, registration, or callback-lifetime authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetHostOperationProvenance {
+    pub occurrence: Handle<omega_abstract_operations::AbstractHostCallOccurrence>,
+    pub boundary_edge: Handle<omega_abstract_operations::AbstractBoundaryEdge>,
+    pub call_ordinal: usize,
+    pub operation_ordinal: u16,
+    pub formal_operands: std::sync::Arc<[TargetHostFormalOperandBinding]>,
+}
 use psi_arena::HandleSpan;
 
 mod classification;
@@ -563,6 +588,7 @@ pub enum TargetOperationKind {
     HostOperation {
         operation_key: HostOperationKey,
         operands: HandleSpan<InstructionOperand>,
+        provenance: Option<TargetHostOperationProvenance>,
     },
     /// The x86 `hlt` privileged instruction (`asm { hlt }`), emitting the
     /// `MachineControl` service. Zero operands, no relocation. See the

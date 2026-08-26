@@ -76,6 +76,7 @@ pub fn derive_boundary_compiler_body_outbound_indirect_call_footprint(
         let AbstractOperationKind::HostOperation {
             operation_ordinal,
             operands: operand_span,
+            ..
         } = &instruction.kind
         else {
             continue;

@@ -23,6 +23,7 @@ pub fn derive_boundary_compiler_body_constant_host_result_footprint(
         let AbstractOperationKind::HostOperation {
             operation_ordinal,
             operands: operand_span,
+            ..
         } = &instruction.kind
         else {
             continue;

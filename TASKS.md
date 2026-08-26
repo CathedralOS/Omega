@@ -7467,11 +7467,19 @@ Owners:
   prerequisite; the nominal path is already settled. Direct-parameter
   construction remains synthetic-only pending Q13. This carrier still owns no
   selected/assigned operation, object symbol, relocation kind, bytes, runtime
-  address, registration authority, or lease. The next emission prerequisite is
-  an exact registrar-occurrence/formal-to-assigned-operand carrier: target
-  `HostOperation` currently retains only operation key and operand span, so
-  operand position or coarse source coordinates cannot authorize a callback
-  relocation.
+  address, registration authority, or lease. The exact assigned-operand
+  prerequisite is now complete for the custom/unknown outbound registrar
+  branch. Selection retains the exact source host-call handle, call/operation
+  ordinals, and ordered formal/native-parameter-to-abstract-operand rows while
+  excluding the result pseudo-argument. Target lowering rejoins exactly one
+  registrar occurrence and boundary edge and preserves exact abstract/target
+  operand handles; backend planning binds those to the prior physical
+  destination and assigned instruction/operand identity. Independent replay
+  rejects same-coordinate call collisions, cardinality/order/identity drift,
+  stale handles, and operand-shape substitution. Generic host operations
+  remain outside this opt-in path. The carrier owns no object symbol,
+  relocation, bytes, runtime address, registration authority, or lease; exact
+  object-relative relocation selection remains the next engineering rung.
 
   The first source canary cohort is live: the exact target-selected registrar
   closes two explicitly named, nonoverlapping nested private slots for two

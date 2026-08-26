@@ -30,6 +30,7 @@ pub(crate) fn selected_host_operation(
     let SelectedInstructionKind::HostOperation {
         operation_key,
         operands,
+        ..
     } = kind
     else {
         return None;

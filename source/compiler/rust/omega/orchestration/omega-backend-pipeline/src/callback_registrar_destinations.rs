@@ -123,4 +123,4 @@ pub(super) fn plan_callback_registrar_physical_destinations(
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

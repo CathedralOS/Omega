@@ -35,6 +35,12 @@ pub(crate) fn operand_span(
     )
 }
 
+pub(crate) fn operand_handle(
+    handle: Handle<omega_abstract_operations::InstructionOperand>,
+) -> Handle<TargetInstructionOperand> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
 pub(crate) fn runtime_value_handle(
     handle: omega_abstract_operations::AbstractValueOperandHandle,
 ) -> TargetValueOperandHandle {

@@ -985,6 +985,7 @@ fn compiler_instruction_validation_kind(
         SelectedInstructionKind::HostOperation {
             operation_key,
             operands,
+            ..
         } if operation_key.lowers_to_constant_result()
             && crate::host_bindings::host_binding(emission_context, *operation_key).is_none() =>
         {
@@ -1024,6 +1025,7 @@ fn compiler_instruction_validation_kind(
         SelectedInstructionKind::HostOperation {
             operation_key,
             operands,
+            ..
         } => {
             let Some(binding) =
                 crate::host_bindings::host_binding(emission_context, *operation_key)

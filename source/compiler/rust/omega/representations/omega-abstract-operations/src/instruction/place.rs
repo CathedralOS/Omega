@@ -94,7 +94,7 @@ impl Place {
         true
     }
 
-    /// Builder form of [`push_step`]; `None` when the path is full.
+    /// Builder form of [`Self::push_step`]; `None` when the path is full.
     #[must_use]
     pub fn with_step(mut self, step: PlaceStep) -> Option<Self> {
         self.push_step(step).then_some(self)

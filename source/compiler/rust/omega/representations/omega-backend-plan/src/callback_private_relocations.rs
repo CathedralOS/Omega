@@ -72,6 +72,26 @@ pub enum CallbackRegistrarPhysicalDestinationKind {
     },
 }
 
+/// Exact selected/assigned operand binding for one callback registrar
+/// destination.
+///
+/// This row ends at assigned-operation identity. It owns no object symbol,
+/// relocation, emitted bytes, runtime address, registration authority, or
+/// callback lease.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallbackRegistrarAssignedOperandBinding {
+    pub destination_index: usize,
+    pub destination: CallbackRegistrarPhysicalDestination,
+    pub abstract_instruction: Handle<omega_abstract_operations::AbstractOperation>,
+    pub target_instruction: Handle<omega_target_operations::TargetOperation>,
+    pub assigned_instruction: Handle<omega_assigned_target_operations::AssignedOperation>,
+    pub abstract_provenance: omega_abstract_operations::AbstractHostOperationProvenance,
+    pub provenance: omega_target_operations::TargetHostOperationProvenance,
+    pub formal_operand: omega_target_operations::TargetHostFormalOperandBinding,
+    pub target_operand: omega_target_operations::TargetInstructionOperand,
+    pub assigned_operand: Handle<omega_assigned_target_operations::AssignedInstructionOperand>,
+}
+
 /// Independently replay one address-free demand against its exact checked
 /// placement and emitted thunk/root schedule.
 pub fn replay_callback_private_relocation_demand(
@@ -506,6 +526,191 @@ pub fn replay_callback_registrar_physical_destinations(
         }
     }
     Ok(())
+}
+
+/// Independently replay exact callback registrar destination bindings through
+/// abstract, target, and assigned operation/operand identity.
+#[allow(clippy::too_many_arguments)]
+pub fn replay_callback_registrar_assigned_operand_bindings(
+    target: omega_target::NativeTarget,
+    placements: &[BoundNominalCallbackPlacement],
+    thunks: &[CallbackThunkPlan],
+    demands: &[CallbackPrivateRelocationDemand],
+    host_calls: &HostCallPlan,
+    boundaries: &omega_abstract_operations::AbstractBoundarySummary,
+    argument_bindings: &[CallbackRegistrarArgumentBinding],
+    layouts: &omega_layout::LayoutPlan,
+    destinations: &[CallbackRegistrarPhysicalDestination],
+    abstract_operations: &omega_abstract_operations::AbstractOperationPlan,
+    target_operations: &omega_target_operations::TargetOperationPlan,
+    assigned_operations: &omega_assigned_target_operations::AssignedTargetOperationPlan,
+    bindings: &[CallbackRegistrarAssignedOperandBinding],
+) -> Result<(), PlanDiagnostic> {
+    replay_callback_registrar_physical_destinations(
+        target,
+        placements,
+        thunks,
+        demands,
+        host_calls,
+        boundaries,
+        argument_bindings,
+        layouts,
+        destinations,
+    )?;
+    if target_operations.target != target
+        || assigned_operations.target != target
+        || bindings.len() != destinations.len()
+    {
+        return Err(PlanDiagnostic(
+            "callback registrar assigned-operand catalog target or cardinality drifted".into(),
+        ));
+    }
+
+    for (destination_index, destination) in destinations.iter().enumerate() {
+        let binding = bindings.get(destination_index).ok_or_else(|| {
+            PlanDiagnostic(format!(
+                "callback registrar destination {destination_index} is missing its assigned operand binding"
+            ))
+        })?;
+        if binding.destination_index != destination_index || binding.destination != *destination {
+            return Err(PlanDiagnostic(format!(
+                "callback registrar assigned operand {destination_index} drifted from its physical destination"
+            )));
+        }
+        let abstract_instruction = abstract_operations
+            .code
+            .instructions
+            .iter()
+            .find(|(handle, _)| *handle == binding.abstract_instruction)
+            .map(|(_, instruction)| instruction)
+            .ok_or_else(|| assigned_operand_error(destination_index, "abstract instruction"))?;
+        let target_instruction = target_operations
+            .code
+            .instructions
+            .iter()
+            .find(|(handle, _)| *handle == binding.target_instruction)
+            .map(|(_, instruction)| instruction)
+            .ok_or_else(|| assigned_operand_error(destination_index, "target instruction"))?;
+        let assigned_instruction = assigned_operations
+            .code
+            .instructions
+            .iter()
+            .find(|(handle, _)| *handle == binding.assigned_instruction)
+            .map(|(_, instruction)| instruction)
+            .ok_or_else(|| assigned_operand_error(destination_index, "assigned instruction"))?;
+        if binding.abstract_instruction.arena_index() != binding.target_instruction.arena_index()
+            || binding.abstract_instruction.generation() != binding.target_instruction.generation()
+            || binding.target_instruction != binding.assigned_instruction
+            || target_instruction != assigned_instruction
+        {
+            return Err(PlanDiagnostic(format!(
+                "callback registrar assigned operand {destination_index} changed its 1:1 instruction identity"
+            )));
+        }
+        let omega_abstract_operations::AbstractOperationKind::HostOperation {
+            provenance: Some(abstract_provenance),
+            operation_ordinal,
+            operands: abstract_operands,
+        } = &abstract_instruction.kind
+        else {
+            return Err(assigned_operand_error(
+                destination_index,
+                "opted-in abstract host operation",
+            ));
+        };
+        let omega_target_operations::TargetOperationKind::HostOperation {
+            operation_key,
+            operands: target_operands,
+            provenance: Some(target_provenance),
+        } = &target_instruction.kind
+        else {
+            return Err(assigned_operand_error(
+                destination_index,
+                "opted-in target host operation",
+            ));
+        };
+        if !matches!(
+            operation_key.capability,
+            omega_calling_conventions::HostCapability::Unknown
+                | omega_calling_conventions::HostCapability::Custom(_)
+        ) || abstract_provenance.operation_ordinal != *operation_ordinal
+            || binding.abstract_provenance != *abstract_provenance
+            || binding.provenance != *target_provenance
+            || target_provenance.occurrence != destination.binding.host_call
+        {
+            return Err(PlanDiagnostic(format!(
+                "callback registrar assigned operand {destination_index} changed its exact outbound operation provenance"
+            )));
+        }
+        let matching_formals = target_provenance
+            .formal_operands
+            .iter()
+            .filter(|formal| {
+                formal.native_argument == destination.binding.native_argument
+                    && formal.formal_ordinal == destination.formal_ordinal
+            })
+            .collect::<Vec<_>>();
+        let [formal] = matching_formals.as_slice() else {
+            return Err(PlanDiagnostic(format!(
+                "callback registrar assigned operand {destination_index} resolves to {} exact formal operands; one is required",
+                matching_formals.len()
+            )));
+        };
+        if binding.formal_operand != **formal
+            || !handle_in_span(formal.abstract_operand, *abstract_operands)
+            || !handle_in_span(formal.operand, *target_operands)
+        {
+            return Err(PlanDiagnostic(format!(
+                "callback registrar assigned operand {destination_index} changed its exact formal or operand handle"
+            )));
+        }
+        let abstract_operand = abstract_operations
+            .code
+            .operands
+            .iter()
+            .find(|(handle, _)| *handle == formal.abstract_operand)
+            .map(|(_, operand)| operand)
+            .ok_or_else(|| assigned_operand_error(destination_index, "abstract operand"))?;
+        let target_operand = target_operations
+            .code
+            .operands
+            .iter()
+            .find(|(handle, _)| *handle == formal.operand)
+            .map(|(_, operand)| operand)
+            .ok_or_else(|| assigned_operand_error(destination_index, "target operand"))?;
+        let assigned_operand = assigned_operations
+            .code
+            .operands
+            .iter()
+            .find(|(handle, _)| *handle == binding.assigned_operand)
+            .map(|(_, operand)| operand)
+            .ok_or_else(|| assigned_operand_error(destination_index, "assigned operand"))?;
+        if formal.abstract_operand.arena_index() != formal.operand.arena_index()
+            || formal.abstract_operand.generation() != formal.operand.generation()
+            || formal.operand != binding.assigned_operand
+            || formal.abstract_operand_kind != abstract_operand.kind
+            || binding.target_operand != *target_operand
+            || target_operand.kind != assigned_operand.kind
+        {
+            return Err(PlanDiagnostic(format!(
+                "callback registrar assigned operand {destination_index} changed abstract-to-target-to-assigned operand identity or shape"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn handle_in_span<T>(handle: Handle<T>, span: psi_arena::HandleSpan<T>) -> bool {
+    !span.is_empty()
+        && handle.generation() == span.start().generation()
+        && handle.arena_index() >= span.start().arena_index()
+        && handle.arena_index() < span.start().arena_index().saturating_add(span.count())
+}
+
+fn assigned_operand_error(index: usize, identity: &str) -> PlanDiagnostic {
+    PlanDiagnostic(format!(
+        "callback registrar assigned operand {index} lost its exact {identity}"
+    ))
 }
 
 fn replay_physical_layout_geometry(

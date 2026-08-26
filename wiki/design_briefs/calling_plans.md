@@ -768,11 +768,20 @@ is covered only by synthetic compiler tests pending Q13. The recipe grants no
 selected or assigned operation, object symbol, relocation, bytes, runtime
 address, registration authority, or callback lifetime.
 
-The next relocation prerequisite is an exact selected/assigned registrar
-operand binding. Target `HostOperation` presently carries an operation key and
-operand span but not the source host-call occurrence, operation ordinal, or an
-exact formal/native-parameter-to-operand handle map. Neither operand position
-nor coarse source coordinates may substitute for that missing identity.
+The selected/assigned registrar-operand prerequisite is now complete for the
+closed custom/unknown outbound host-operation branch. Instruction selection
+retains the exact source-call arena identity, call and operation ordinals, and
+an ordered formal/`NativeParameterId` to abstract-operand map; result-storage
+pseudo-arguments are excluded. Target lowering resolves that source handle to
+exactly one registrar occurrence and boundary edge and carries exact abstract
+and target operand handles. At backend-plan coexistence, one
+`CallbackRegistrarAssignedOperandBinding` joins the prior physical destination
+to its abstract, target, and assigned instruction/operand identities. Replay
+rejects same-coordinate call collisions, missing or duplicated edges and
+operations, formal/cardinality drift, stale handles, and operand-shape drift.
+Generic host operations remain outside this opt-in carrier. The row still owns
+no object symbol, relocation, bytes, runtime address, registration authority,
+or callback lifetime; object-relative relocation selection remains later.
 
 The checked identity spine is live. Admission records the exact statement or
 expression handle, argument ordinal, registration operation, selected machine

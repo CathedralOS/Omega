@@ -61,7 +61,10 @@ Primary responsibility: lower checked control flow into explicit operations with
   formal by typed arena handle. A nested callback destination retains its
   nominal layout identity and complete field path while selecting only the
   formal's root `NativeParameterId`; it still derives no physical offset or
-  relocation authority.
+  relocation authority. For a custom/unknown outbound registrar operation,
+  later instruction selection also retains the exact source-call handle,
+  call/operation ordinals, and formal-to-abstract-operand handles so target
+  lowering never rediscovers the call from coarse source coordinates.
 - `omega-abstract-operations/src/plan/` owns the representation root:
   executable operation shape lives under `AbstractOperationCode`, while
   preserved semantic evidence lives under `AbstractSemanticSummary`.

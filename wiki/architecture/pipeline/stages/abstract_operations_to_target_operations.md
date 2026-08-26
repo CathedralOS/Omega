@@ -22,7 +22,11 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - `operands.rs` owns instruction operand translation and abstract data-handle remapping.
 - `values.rs` owns runtime value operand translation and runtime value handle remapping.
 - `remap.rs` owns handle/span remapping when arena ordering is preserved across the lowering boundary.
-- `host.rs` owns lowered host operation key resolution and host ABI binding reconciliation.
+- `host.rs` owns lowered host operation key resolution and host ABI binding
+  reconciliation. For opted-in custom/unknown registrar operations it resolves
+  the exact retained source-call handle to one occurrence and boundary edge and
+  preserves the ordered formal/native-parameter abstract-to-target operand map;
+  coarse coordinate lookup cannot select that path.
 - `boundary_policy.rs` owns first-pass target boundary validation: it records
   whether each lowered host operation is linked to a source boundary edge and
   whether the target ABI has a binding/policy for that operation. It also
@@ -79,8 +83,9 @@ to drive target storage or ownership policy.
 Boundary-edge summaries are preserved through target legalization, including
 source-level boundary edges, exact registrar occurrence/native-parameter
 identity rows, target-aware links, and lowered host-operation edges. These rows
-remain address-free; target physical destinations and object relocations are
-not inferred here.
+remain address-free. The opted-in registrar host-operation provenance adds
+exact source-call, occurrence, edge, ordinal, and operand handles, but target
+physical destinations and object relocations are not inferred here.
 Boundary policy checks currently validate source-link presence, target host
 binding presence, and whether the binding policy is allowed by the selected ABI
 policy set. Exact source policy path matching is still pending because source

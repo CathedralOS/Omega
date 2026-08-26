@@ -11,10 +11,11 @@ pub use instruction::{
     InstructionOperandLike, InstructionPlan, RuntimeStorageRegion, RuntimeTextReadSource,
     RuntimeTextReadTarget, RuntimeValueOperand, RuntimeValueOperandHandle,
     RuntimeValueOperandSource, SelectedInstruction, SelectedInstructionKind, TargetBoundarySummary,
-    TargetHostBinding, TargetInstructionOperand, TargetInstructionOperandKind, TargetOperation,
-    TargetOperationCode, TargetOperationDomain, TargetOperationFunction, TargetOperationKind,
-    TargetOperationPlan, TargetOwnershipSummary, TargetSemanticSummary, TargetValueOperand,
-    TargetValueOperandHandle, TargetValueSummary,
+    TargetHostBinding, TargetHostFormalOperandBinding, TargetHostOperationProvenance,
+    TargetInstructionOperand, TargetInstructionOperandKind, TargetOperation, TargetOperationCode,
+    TargetOperationDomain, TargetOperationFunction, TargetOperationKind, TargetOperationPlan,
+    TargetOwnershipSummary, TargetSemanticSummary, TargetValueOperand, TargetValueOperandHandle,
+    TargetValueSummary,
 };
 pub use omega_abstract_operations::{
     BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin, BoundaryFootprintPlan,
