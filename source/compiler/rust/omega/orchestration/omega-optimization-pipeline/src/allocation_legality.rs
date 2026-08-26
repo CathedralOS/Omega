@@ -10,6 +10,8 @@ use omega_regalloc::{
     materialize_terminal_allocator_availability, validate_terminal_allocation_legality,
     validate_terminal_allocator_availability,
 };
+use omega_terminal_isa_aarch64::aarch64_preservation_convention_for_target;
+use omega_terminal_isa_x86_64::x86_64_preservation_convention_for_target;
 use omega_terminal_selected_instructions::TerminalSelectedInstructionPlanIdentity;
 use psi_core::{FuelScheduleIdentity, MachineId};
 use psi_terminal::TerminalPsiIdentity;
@@ -136,6 +138,7 @@ pub enum OptimizedAllocationLegalityCustodyError {
     Availability(TerminalAllocatorAvailabilityError),
     Analysis(TerminalAllocationLegalityError),
     Revalidation(TerminalAllocationLegalityError),
+    UnsupportedFramelessLeafConvention,
     ReceiptMismatch,
 }
 
@@ -165,6 +168,58 @@ pub fn stage_optimized_allocation_legality(
         environment.reservations(),
         environment.allocation_constraint_keys(),
         TerminalAllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1,
+    )
+    .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;
+    stage_optimized_allocation_legality_with_availability(ranges, availability)
+}
+
+/// Restrict unconstrained allocation to the exact selected convention's
+/// caller-saved units. This is the required search policy for the current
+/// frameless leaf lane; fixed ABI/operand views remain authoritative.
+pub fn stage_optimized_allocation_legality_for_frameless_leaf(
+    ranges: StagedOptimizedLiveRanges,
+) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {
+    let environment = ranges
+        .liveness_stage()
+        .selected_stage()
+        .register_environment();
+    let convention = match environment.target().architecture {
+        omega_target::Architecture::X86_64 => {
+            x86_64_preservation_convention_for_target(environment.physical(), environment.target())
+        }
+        omega_target::Architecture::Aarch64 => {
+            aarch64_preservation_convention_for_target(environment.physical(), environment.target())
+        }
+    }
+    .ok_or(OptimizedAllocationLegalityCustodyError::UnsupportedFramelessLeafConvention)?;
+    let caller_saved = convention
+        .caller_saved
+        .iter()
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    let views = environment
+        .physical()
+        .model()
+        .views
+        .iter()
+        .filter(|view| {
+            view.allocatable
+                && view
+                    .units
+                    .iter()
+                    .chain(&view.write_units)
+                    .all(|unit| caller_saved.contains(unit))
+        })
+        .map(|view| view.id)
+        .collect::<Vec<_>>();
+    let availability = materialize_terminal_allocator_availability(
+        environment.identity(),
+        environment.target(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        environment.allocation_constraint_keys(),
+        TerminalAllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views },
     )
     .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;
     stage_optimized_allocation_legality_with_availability(ranges, availability)

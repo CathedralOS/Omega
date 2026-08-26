@@ -20,8 +20,8 @@ pub use register_model::{
     AARCH64_DARWIN_RETURN, AARCH64_INLINE_ASSEMBLY_DEFAULT, AARCH64_LINUX_SYSTEM_CALL,
     AARCH64_MATERIALIZE_I64, AARCH64_REQUIRED_REGISTER_CONSTRAINTS, AARCH64_SUBTRACT_I64,
     Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view,
-    aarch64_physical_register_model, aarch64_register_constraint_catalog,
-    validate_aarch64_register_constraint_catalog,
+    aarch64_physical_register_model, aarch64_preservation_convention_for_target,
+    aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
 };
 pub use selected_form_encoding::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,

@@ -36,10 +36,12 @@ mod register_homes;
 mod resolved_selected_form_layout;
 mod selected_reanalysis;
 mod selection;
+mod whole_function_exit_contract;
 
 pub use allocation_legality::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
     StagedOptimizedAllocationLegalityCustodyReceipt, stage_optimized_allocation_legality,
+    stage_optimized_allocation_legality_for_frameless_leaf,
     stage_optimized_allocation_legality_with_availability,
     validate_optimized_allocation_legality_custody,
 };
@@ -159,6 +161,14 @@ pub use selection::{
     OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
     StagedOptimizedSelectedInstructions, StagedOptimizedSelectionCustodyReceipt,
     stage_optimized_instruction_selection, validate_optimized_selection_custody,
+};
+pub use whole_function_exit_contract::{
+    TerminalWholeFunctionEntryAssumption, TerminalWholeFunctionExitContract,
+    TerminalWholeFunctionExitContractError, TerminalWholeFunctionExitContractIdentity,
+    TerminalWholeFunctionExitEvidence, TerminalWholeFunctionExitPolicy,
+    TerminalWholeFunctionHardeningPolicy, TerminalWholeFunctionReturnEvidence,
+    TerminalWholeFunctionReturnMechanism, ValidatedTerminalWholeFunctionExitContract,
+    stage_terminal_whole_function_exit_contract, validate_terminal_whole_function_exit_contract,
 };
 
 /// Exact optimizer inputs chosen by compiler orchestration.
@@ -2897,6 +2907,16 @@ mod tests {
             assert_eq!(manifest.selected, final_selected);
             assert_eq!(manifest.pre_layout, realization.encoding().identity());
             assert_eq!(manifest.resolved_layout, realization.layout().identity());
+            assert_eq!(
+                manifest.whole_function_exit_contract,
+                realization.exit_contract().identity()
+            );
+            assert_eq!(
+                realization.exit_contract().contract().functions[0]
+                    .returns
+                    .len(),
+                2
+            );
             assert_eq!(manifest.statistics.functions, 1);
             assert_eq!(manifest.statistics.blocks, 3);
             assert_eq!(manifest.statistics.resolved_conditional_branches, 1);
@@ -2914,13 +2934,18 @@ mod tests {
 
     #[test]
     fn named_selected_lowering_suite_retains_verified_no_change_completion() {
-        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::windows_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+        ] {
             let selections = OptimizationSelections::new([
                 Optimization::CopyPropagation,
                 Optimization::SelectedIncomingU12ExactAddImmediate,
             ])
             .unwrap();
-            let legality = stage_optimized_allocation_legality(
+            let legality = stage_optimized_allocation_legality_for_frameless_leaf(
                 stage_optimized_live_ranges(
                     stage_optimized_liveness(staged_exact_add_conditional_with_selections(
                         target,
@@ -2978,6 +3003,82 @@ mod tests {
             let manifest = realization.manifest().record();
             assert_eq!(manifest.selected_lowering_completion, completion);
             assert_eq!(manifest.selected, source_selected);
+            assert_eq!(
+                manifest.whole_function_exit_contract,
+                realization.exit_contract().identity()
+            );
+            assert_eq!(realization.exit_contract().contract().functions.len(), 1);
+            assert_eq!(
+                realization.exit_contract().contract().functions[0]
+                    .returns
+                    .len(),
+                2
+            );
+            assert!(
+                realization.exit_contract().contract().functions[0]
+                    .modified_callee_saved_units
+                    .is_empty()
+            );
+            let exit = realization.exit_contract().contract();
+            assert_eq!(
+                exit.hardening,
+                TerminalWholeFunctionHardeningPolicy::NoAdditionalEntryExitHardeningV1
+            );
+            match (target.architecture, target.object_format) {
+                (omega_target::Architecture::X86_64, omega_target::ObjectFormat::Elf) => {
+                    assert_eq!(
+                        exit.policy,
+                        TerminalWholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1
+                    );
+                    assert_eq!(
+                        exit.entry_assumption,
+                        TerminalWholeFunctionEntryAssumption::CallerReturnAddressAtStackPointerV1
+                    );
+                    assert!(exit.functions[0].returns.iter().all(|returned| matches!(
+                        returned.mechanism,
+                        TerminalWholeFunctionReturnMechanism::X86ActivationStackReturnV1 {
+                            read_bytes: 8,
+                            pop_bytes: 8,
+                            ..
+                        }
+                    )));
+                }
+                (omega_target::Architecture::X86_64, omega_target::ObjectFormat::Coff) => {
+                    assert_eq!(
+                        exit.policy,
+                        TerminalWholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1
+                    );
+                    assert_eq!(
+                        exit.entry_assumption,
+                        TerminalWholeFunctionEntryAssumption::CallerReturnAddressAtStackPointerV1
+                    );
+                }
+                (omega_target::Architecture::Aarch64, omega_target::ObjectFormat::Elf) => {
+                    assert_eq!(
+                        exit.policy,
+                        TerminalWholeFunctionExitPolicy::Aapcs64FramelessLeafV1
+                    );
+                    assert!(matches!(
+                        exit.entry_assumption,
+                        TerminalWholeFunctionEntryAssumption::CallerLinkRegisterV1 { .. }
+                    ));
+                    assert!(exit.functions[0].returns.iter().all(|returned| matches!(
+                        returned.mechanism,
+                        TerminalWholeFunctionReturnMechanism::Aarch64LinkRegisterReturnV1 { .. }
+                    )));
+                }
+                (omega_target::Architecture::Aarch64, omega_target::ObjectFormat::MachO) => {
+                    assert_eq!(
+                        exit.policy,
+                        TerminalWholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1
+                    );
+                    assert!(matches!(
+                        exit.entry_assumption,
+                        TerminalWholeFunctionEntryAssumption::CallerLinkRegisterV1 { .. }
+                    ));
+                }
+                _ => unreachable!(),
+            }
             assert_eq!(manifest.statistics.functions, 1);
             assert_eq!(manifest.statistics.blocks, 3);
             assert_eq!(manifest.statistics.resolved_conditional_branches, 1);
@@ -3004,12 +3105,22 @@ mod tests {
                 Err(FunctionRelativeOptimizationRealizationManifestDecodeError::WrongMagic)
             );
             let mut wrong_version = encoded.clone();
-            wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+            wrong_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
             assert_eq!(
                 FunctionRelativeOptimizationRealizationManifest::decode(&wrong_version),
                 Err(
                     FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(
-                        2
+                        3
+                    )
+                )
+            );
+            let mut legacy_version = encoded.clone();
+            legacy_version[8..12].copy_from_slice(&1_u32.to_le_bytes());
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(&legacy_version),
+                Err(
+                    FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(
+                        1
                     )
                 )
             );
@@ -3032,7 +3143,7 @@ mod tests {
                 FunctionRelativeOptimizationRealizationManifest::decode(&unknown_stage),
                 Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownStage(9))
             );
-            let target_offset = content_offset + 1 + 10 * 32;
+            let target_offset = content_offset + 1 + 11 * 32;
             let mut unknown_architecture = encoded.clone();
             unknown_architecture[target_offset] = 9;
             assert_eq!(
@@ -3149,7 +3260,18 @@ mod tests {
                 resolved_layout,
                 TerminalResolvedSelectedFormLayoutIdentity::from_bytes([0x5a; 32])
             );
-            assert_manifest_field_is_bound!(target, NativeTarget::windows_x64());
+            assert_manifest_field_is_bound!(
+                whole_function_exit_contract,
+                TerminalWholeFunctionExitContractIdentity::from_bytes([0x5b; 32])
+            );
+            assert_manifest_field_is_bound!(
+                target,
+                if target == NativeTarget::linux_x64() {
+                    NativeTarget::linux_arm64()
+                } else {
+                    NativeTarget::linux_x64()
+                }
+            );
             let original_bytes = corrupted.manifest().record().statistics.bytes;
             corrupted.manifest_mut().record_mut().statistics.bytes = original_bytes + 1;
             assert_eq!(
@@ -3157,12 +3279,93 @@ mod tests {
                 Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
             );
             corrupted.manifest_mut().record_mut().statistics.bytes = original_bytes;
+            let original_result_view = corrupted.exit_contract().contract().result_view;
+            corrupted.exit_contract_mut().contract_mut().result_view = RegisterViewId(u16::MAX);
+            assert_eq!(
+                validate_selected_lowering_function_relative_realization_custody(&corrupted),
+                Err(FunctionRelativeOptimizationRealizationError::ExitContract(
+                    TerminalWholeFunctionExitContractError::ArtifactMismatch
+                ))
+            );
+            corrupted.exit_contract_mut().contract_mut().result_view = original_result_view;
+            let original_exit_identity = corrupted.exit_contract().identity();
+            corrupted.exit_contract_mut().contract_mut().identity =
+                TerminalWholeFunctionExitContractIdentity::from_bytes([0x61; 32]);
+            assert_eq!(
+                validate_selected_lowering_function_relative_realization_custody(&corrupted),
+                Err(FunctionRelativeOptimizationRealizationError::ExitContract(
+                    TerminalWholeFunctionExitContractError::ArtifactMismatch
+                ))
+            );
+            corrupted.exit_contract_mut().contract_mut().identity = original_exit_identity;
+            let original_offset =
+                corrupted.exit_contract().contract().functions[0].returns[0].offset;
+            corrupted.exit_contract_mut().contract_mut().functions[0].returns[0].offset =
+                original_offset + 1;
+            assert_eq!(
+                validate_selected_lowering_function_relative_realization_custody(&corrupted),
+                Err(FunctionRelativeOptimizationRealizationError::ExitContract(
+                    TerminalWholeFunctionExitContractError::ArtifactMismatch
+                ))
+            );
+            corrupted.exit_contract_mut().contract_mut().functions[0].returns[0].offset =
+                original_offset;
             assert_eq!(
                 validate_selected_lowering_function_relative_realization_custody(&corrupted)
                     .unwrap(),
                 *corrupted.custody()
             );
         }
+    }
+
+    #[test]
+    fn frameless_exit_contract_rejects_unpreserved_x86_callee_saved_write() {
+        let target = NativeTarget::linux_x64();
+        let selections = OptimizationSelections::new([
+            Optimization::CopyPropagation,
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+        ])
+        .unwrap();
+        let legality = stage_optimized_allocation_legality(
+            stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_exact_add_conditional_with_selections(
+                    target,
+                    selections,
+                    selected_lowering_budget(),
+                ))
+                .unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let run = run_selected_lowering_optimizations(legality).unwrap();
+        assert!(run.steps().is_empty());
+        let homes = stage_optimized_register_homes_after_selected_lowering(run).unwrap();
+        let rbx_units = homes
+            .selected_lowering_run()
+            .source_legality_stage()
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage()
+            .register_environment()
+            .physical()
+            .model()
+            .view_named("rbx")
+            .unwrap()
+            .units
+            .clone();
+        let error = stage_selected_lowering_function_relative_realization(homes).unwrap_err();
+        let FunctionRelativeOptimizationRealizationError::ExitContract(
+            TerminalWholeFunctionExitContractError::CalleeSavedWrite { instruction, unit },
+        ) = error
+        else {
+            panic!("unpreserved RBX write must fail at the whole-function exit contract")
+        };
+        assert_eq!(
+            instruction,
+            omega_terminal_selected_instructions::TerminalSelectedInstructionId(3)
+        );
+        assert!(rbx_units.contains(&unit));
     }
 
     #[test]

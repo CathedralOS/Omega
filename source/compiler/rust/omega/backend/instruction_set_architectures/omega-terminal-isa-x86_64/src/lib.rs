@@ -23,7 +23,8 @@ pub use register_model::{
     X86_64_REQUIRED_REGISTER_CONSTRAINTS, X86_64_SUBTRACT_I64, X86_64_SYSTEM_V_CALL,
     X86_64_SYSTEM_V_RETURN, X86_64RegisterConstraintCatalogValidationError,
     validate_x86_64_register_constraint_catalog, x86_64_fixed_register_view,
-    x86_64_physical_register_model, x86_64_register_constraint_catalog,
+    x86_64_physical_register_model, x86_64_preservation_convention_for_target,
+    x86_64_register_constraint_catalog,
 };
 pub use selected_form_encoding::{
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
