@@ -1,6 +1,6 @@
 # Bootstrap lattice — active work
 
-Last pruned: 2026-08-25.
+Last pruned: 2026-08-26.
 
 This file is the current bootstrap execution queue, not an architecture essay or
 changelog. Standing decisions live in
@@ -33,7 +33,8 @@ the optimizer and advanced lowering even if its own executable was lowered
 conservatively. The bracketed `omega` rebuild is optional executable
 optimization, not bootstrap closure.
 
-The queue has only two source contracts:
+The bootstrap has only two remaining source-surface selections. Full Omega is
+already specified and is not a third bootstrap feature vote:
 
 | Contract | Scope | Working rule |
 | --- | --- | --- |
@@ -51,8 +52,9 @@ Queue invariants:
 
 - Gamma supplies Delta's meaning route and happens to host one independent
   proof-kernel implementation. Proof checking remains cross-cutting assurance.
-- Direct lower-rooted source-to-artifact refinement closes provenance. Do not
-  create a DDC lane or make Rust agreement a bootstrap/release requirement.
+- Direct lower-rooted, subject-qualified source-to-artifact refinement closes
+  provenance. Bare kernel acceptance is insufficient. Do not create a DDC lane
+  or make Rust agreement a bootstrap/release requirement.
 - `source/compiler/omega/{psi,omega}/` are permanent Omega-written product owners;
   the current external-language implementation lives at `source/compiler/rust/`.
 - Only source transitively imported by the compiler belongs to the hosted
@@ -60,96 +62,6 @@ Queue invariants:
   and similar tools do not.
 - The bridge may use a private checked IR and conservative backend. It need not
   execute the product optimizer or use Terminal Psi internally.
-
-## Detailed closure model
-
-In artifact shorthand this is `Alpha → Beta → Gamma → Delta → omega-bootstrap
-→ omega [→ omega]`. Selection of new bootstrap-language rungs stops at Delta.
-Everything to its right is a compiler artifact or a build edge; the `omega`
-artifacts implement the already-specified full Omega language rather than
-introducing another bootstrap dialect.
-
-The corresponding language-capability view is simply
-`Alpha → Beta → Gamma → Delta → Omega`. `omega-bootstrap` appears only in the
-artifact view because it is a Delta-written compiler, not a language. The
-bracketed second `omega` is the same product source rebuilt for executable
-quality, not another feature surface or compiler generation.
-
-There are exactly two source-surface inventories left to settle. Only the first
-creates a language specification; the second constrains how one
-ordinary-Omega program is authored:
-
-| Surface | Kind | Required closure |
-| --- | --- | --- |
-| Delta v1 | independent robust compiler-host language, C-like in power and Omega-shaped where cheap | the complete Delta source of the canonical Delta compiler and `omega-bootstrap`, plus explicit coherence, robustness, safety, and maintainability arguments |
-| `Ωself` | compositional subset of already-valid Omega, with no private meaning | the complete Omega source of production `omega` |
-
-There are three source closures but only these two surface contracts: the
-canonical Delta compiler and `omega-bootstrap` are both Delta-v1 programs; the
-production compiler is ordinary Omega constrained by `Ωself`. Do not derive a
-third inventory from the fact that the three programs have different jobs.
-
-Use this working direction until complete-source measurements overturn it:
-
-| Surface | Default | Deliberate pressure points |
-| --- | --- | --- |
-| Delta v1 | a coherent C-class compiler host with regular data/control, modules, deterministic bounded storage or allocation, explicit exhaustion/failure, and sealed byte/artifact/diagnostic/exit I/O | exact arithmetic, aggregate, call, arena, representation, and module inventory still follows the two complete Delta source closures plus robustness arguments; runtime-sized allocation may use fixed, bump, or paged backing, but never inherits an ambient host allocator implicitly |
-| `Ωself` | retain ordinary compiler-building Omega facilities once real source uses them | presumptively omit proof-program mathematics and dependent/proof-indexed forms; measure advanced generics/domains, numeric schema tags, mixed record-plus-sum declarations, and aggregate transition payloads |
-
-For ordinary `Ωself` facilities, a concrete cheaper source refactor is
-required to justify exclusion. Feature-count reduction by itself is not a win.
-
-`omega-bootstrap` is written in Delta and need only accept `Ωself`. The
-production source is written in `Ωself` but must define a compiler that accepts
-full Omega and contains the production optimizer and advanced lowering. A
-compiler does not need to use a language feature in order to implement that
-feature for its users.
-
-Those two source choices discharge three artifact obligations:
-
-| Artifact | Must accept | Must contain or produce |
-| --- | --- | --- |
-| lower-rung-published Delta compiler | Delta v1 | a correct `omega-bootstrap` executable from the exact Delta bridge closure |
-| `omega-bootstrap` | frozen `Ωself` | a semantically exact, possibly conservative production-compiler executable |
-| production `omega` | full Omega | the full optimizer, advanced lowering, and specified artifact behavior |
-
-The first production binary may be slow because the bridge lowered it
-conservatively; its accepted language and the compiler implementation it
-contains are still complete. Only the optional bracketed edge is an Omega
-self-rebuild. Detailed rationale and the feature-disposition procedure live in
-[`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
-
-Use the role names precisely in tasks and status reports. `omega-bootstrap` is
-the deliberately input-incomplete bridge compiler, not an “Omega 0” generation.
-The first `omega` it produces is already the full-spec production compiler; a
-later rebuild changes the quality of that compiler's executable, not its source
-language, implementation obligations, or generation number.
-
-Guardrails for this queue:
-
-- The proof kernel is cross-cutting assurance, with Beta and Gamma
-  implementations; Gamma is not the proof-checker rung.
-- Artifact authority is subject-qualified operational refinement, never bare
-  kernel acceptance. Bootstrap gates reconstruct the source/artifact subjects,
-  observation profile, semantics versions, checked bridge graph, and disclosed
-  admissions; a physical-target claim remains a deployment admission.
-- Compiler authority follows direct lower-rooted source-to-artifact refinement;
-  cross-compiler agreement is optional bug-finding evidence. See
-  [D5](wiki/architecture/bootstrap_lattice/decisions.md#d5--direct-checked-refinement-closes-compiler-provenance).
-- Do not create a diverse-double-compilation lane. The complete lower-rooted
-  chain checks source correspondence and semantic refinement at every compiler
-  edge directly, which subsumes the relevant DDC provenance question. Another
-  producer may find bugs but cannot add authority or become a release
-  dependency merely by agreeing.
-- The current Rust Psi/Omega compiler stays under the explicitly suffixed
-  `source/compiler/rust/` owner as an optional differential producer.
-  `source/compiler/omega/{psi,omega}/` owns Omega-written product source.
-- Standalone Terminal-Psi interpreters, verifiers, REPLs, proof explorers,
-  viewers, and debuggers are not in the hosted compiler closure unless the
-  compiler executable imports them. Product Terminal-Psi representation and
-  lowering modules that it does import remain ordinary source dependencies.
-- `omega-bootstrap` may use a direct checked-IR lowering. It need not use
-  Terminal Psi internally merely because it compiles product modules that do.
 
 ## Delta → omega-bootstrap → production Omega readiness
 
@@ -172,9 +84,9 @@ This table is the stopping-point summary. A row is not promoted by a nearby
 fixture or format version: only its stated whole-source and acceptance join
 closes it.
 
-Two lanes co-evolve until their join:
+Five coupled workstreams co-evolve until their join:
 
-| Lane | Owner | Bootstrap responsibility |
+| Workstream | Current evidence | Required closure |
 | --- | --- | --- |
 | Delta | corpus, native path, self-host, growing Delta→Gamma route | one frozen v1 contract over both complete required Delta source closures |
 | canonical Delta compiler | Delta-written self-host and bounded lower-rung runs | exact complete-source publication through Gamma joined to refinement |
@@ -212,11 +124,10 @@ and do not depend on this ruling.
 Checkpoint 000001's product lexer also conflicts with the current language
 guide: Unicode XID identifiers contradict its ASCII-transparent wording,
 `\u{...}` escapes contradict its explicit prohibition, raw-string semantics
-are absent, and `u32` cursors are used directly where the specified `Array` and
-`Slice` indexing/count interfaces require `u64`. Explicit exact `as` widening is
-settled and implicit widening is forbidden; the current direct uses still need
-a product-source refactor or a distinct heterogeneous conversion/comparison
-ruling. Those are product-language ruling blockers recorded under
+are absent. The refreshed source uses `u64` for collection coordinates and
+counts, so the former direct `u32` indexing/comparison conflict is closed rather
+than becoming a heterogeneous-conversion ruling. The remaining lexical questions
+are product-language blockers recorded under
 `OMEGA-PRODUCT-COMPILER-SOURCE` in
 [`TASKS.md`](TASKS.md). They do not block bridge implementation for source
 forms whose meaning is already settled, as the closed same-module runtime-
@@ -243,18 +154,6 @@ so declaration-order case identity must not be described as a unique public
 byte ABI. The first payload-sum tranche remains unblocked by excluding explicit
 discriminants and deriving one bridge-private layout from the checked
 declaration graph.
-
-The language guide specifies exact nominal provider selection and says target
-packages contribute defaults, but it does not specify the product source's
-current `Owner::provider_defaults(defaults: &mut Owner)` declaration convention.
-The Rust on-ramp recognizes that name suffix and scans the body for
-`select_provider`; that implementation convention is not language authority.
-The product owner must either rewrite target defaults into an already-normative
-`Build::select_provider<Service, Provider>` surface or publish the declaration,
-receiver, target-scope, and duplicate/default precedence rules. Until then the
-bridge may retain that spelling as opaque custody or use it in an explicitly
-bounded cost fixture, but it must not claim general provider-default selection
-semantics from it.
 
 ## External contract dependency
 
@@ -297,12 +196,11 @@ independent tasks that can be permanently checked off:
   `OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md), verify its exact
   deterministic closure and derive or update the distinct compositional
   candidate feature/resource profile. Checkpoint 000001 supplied the first
-  published closure and normalized-syntax/resource profile. Its compiled
-  sources and extracted build prelude still match the refreshed snapshot, but
-  the fast gate currently rejects provenance drift in `Cargo.lock` and
-  `Cargo.toml`. Treat checkpoint acceptance as stale until the product owner
-  refreshes the complete manifest/profile evidence together; later compiler
-  phases publish later checkpoints from that owner.
+  coherent published closure and normalized-syntax/resource profile. Its
+  compiled sources, Cargo/provider provenance, extracted build prelude, and
+  explicit typed Console-provider selection now match the refreshed evidence.
+  Any future drift must refresh the complete manifest/profile/prelude set
+  together; later compiler phases publish later checkpoints from that owner.
 - Measure every used feature's source benefit against the cost of its
   general Delta-written bridge implementation. Record one provisional outcome:
   retain, refactor from product source and preserve a negative canary, or leave
@@ -356,6 +254,7 @@ beside the linked contracts:
 | --- | --- | --- |
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | multi-unit structural custody | closed for generic `OMGCOMP1` and the exact Linux-x86-64/native-provider configuration in `OMGCOMP2`; bounded Delta SHA-256 closes exact raw-envelope hashing through the public ceiling, while source/provider spellings remain opaque and no expected commitment, resolver/lock, or digest authority follows | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md), [`OMEGA_BOOTSTRAP_COMPILATION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V2.md), [`OMEGA_BOOTSTRAP_SHA256.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_SHA256.md) |
+| generated ordinary-source custody | closed for checkpoint 000001's exact Unicode tuple through a sealed locked/offline recipe, generic provenance roles, two-run reproduction, bounded/no-publication teeth, exact OMGCOMP1 extent, CKIR3/OMGRFN4 preflight composition, and the refreshed product-owned checkpoint join | [`OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md), [`source checkpoint status`](source/compiler/omega/source-checkpoints/README.md) |
 | source resolution | bounded compositional relations are closed for the selected checkpoint facilities; least-version behavior, canonical identities, and refusal/resource boundaries are gated | versioned `OMEGA_BOOTSTRAP_RESOLUTION*.md` contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
 | checked lowering and composition | bounded compositional relations are closed for selected data, control, scalar, and view facilities, with inherited behavior and conservative traps retained across versions | versioned `OMEGA_BOOTSTRAP_CHECKED_IR*.md` and backend contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
 | lower-rooted artifact reconstruction | independent R1–R5 owners reconstruct the currently selected source/checked-IR/artifact relations; each version remains bounded by its own contract | [`omega-bootstrap` refinement status](source/assurance/refinement/omega-bootstrap/README.md) and its versioned witness contracts |
@@ -379,10 +278,9 @@ evidence stay in
 
 | Open implementation lane | Checkpoint forms to carry generally | Known boundary |
 | --- | --- | --- |
-| compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; the bounded program-static shared-byte-view window (`&[u8]`, nonempty guard, `[0]`, `[1..]`) is closed through OMGRSW4/CKIR12/OMGRFN14, while general views remain open and authored `u32` indexes/cursors versus the `u64` `Array`/`Slice` contracts remain language-blocked |
+| compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; the bounded program-static shared-byte-view window (`&[u8]`, nonempty guard, `[0]`, `[1..]`) is closed through OMGRSW4/CKIR12/OMGRFN14, while general views and the product source's same-carrier `u64` collection operations remain open |
 | compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, concrete Trapping arithmetic, the remaining proof-gated narrowing/other casts, and the observed ranking clause | exact widening and canonical `u32 in Trapping` leaf-plus-literal addition are closed; only argument combinations with multiple potentially observable/trapping computations need the unresolved call-order ruling; broader receivers, recursion, and packages remain separate |
-| source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; the one-requirement OMGCOMP2 fixture is cost evidence rather than the six-requirement product `Console` closure, and general target-default selection waits on the product-source spelling ruling; do not import general boundary traits into Delta |
-| generated closure and resource behavior | bridge-side custody is closed for the exact Unicode tuple: generic manifest roles, a sealed locked/offline recipe, two-run reproduction, bounded/no-publication teeth, exact OMGCOMP1 extent, and CKIR3/OMGRFN4 preflight composition | the enclosing checkpoint's source/prelude still match, but Cargo lock/workspace provenance has drifted and must be refreshed by the product owner over the same tuple; generated files are ordinary source, not hard-coded bridge exceptions |
+| source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; the product build now uses normative explicit provider selection, but the one-requirement OMGCOMP2 fixture is still only cost evidence for the six-requirement product `Console` closure; do not infer target-default semantics or import general boundary traits into Delta |
 
 - [ ] Close the compiler-data/view lane through general parsing, resolution,
   checking, diagnostics, conservative lowering, and artifact reconstruction.
@@ -391,7 +289,7 @@ evidence stay in
   `{ptr,len}` transport, a nonempty fact, head access, and one-element tail
   subslicing. Continue from that cost evidence toward the general lane; the
   closed slice does not claim general indexing, mutable slices, allocation,
-  UTF-8 meaning, or resolution of the authored `u32`/`u64` mismatch.
+  UTF-8 meaning, or same-carrier `u64` collection operations.
 - [ ] Close the remaining unblocked compiler-control/scalar forms one general
   vertical relation at a time. Preserve the CKIR11 rule that a call may contain
   at most one potentially trapping argument while every sibling is
@@ -405,22 +303,11 @@ evidence stay in
   one-requirement `Console::exit_process` profile. Treat that result as cost
   evidence only: real product `Console` has six requirements and provider
   selection requires one complete provider plan, so the fixture cannot claim
-  product-plan closure. Do not lower the call through a supposedly selected
-  realization until selection comes from a normative source form. This remains
+  product-plan closure. The refreshed product build supplies the normative
+  explicit selection; extend the bridge relation to that complete plan without
+  inferring semantics from compatibility target-default spellings. This remains
   product binding support, not admission of general boundary traits to Delta,
   provider admission, or compilation authority.
-- [ ] Complete the product-checkpoint join for generated-source custody. The
-  bridge-side infrastructure is closed without another source format, checked
-  IR, or lowering path: the generic manifest verifier binds generator roles and
-  complete referenced input/external sets without Unicode-header rules; the
-  sealed recipe reproduces the exact output twice under locked/offline inputs;
-  resource and failure teeth publish nothing; and the exact output extent is
-  composed with the existing OMGCOMP1→CKIR3→ELF and OMGRFN4 same-frame paths.
-  This item remains open only until the product owner refreshes checkpoint
-  000001 and its profile over that same generator/input/output tuple, including
-  the currently drifted Cargo lock/workspace provenance. Do not
-  weaken the checkpoint, duplicate the recipe into a new manifest dialect, or
-  treat bridge-local reproduction as product-owned checkpoint authority.
 - [ ] Consume each later provisional product checkpoint and add only its newly
   observed, directionally clear capability lanes under the same rules. A later
   source need may reopen a provisional exclusion; it does not create another
