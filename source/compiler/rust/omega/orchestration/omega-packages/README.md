@@ -1003,7 +1003,10 @@ The former commands accepting `manifest.json`, `receipt.json`, `--package`, or
 mandatory `--alias` were removed from the production CLI. Their name-keyed
 manifest, lock, review, install, update, audit, diff, and command modules have
 now also been deleted rather than retained as a parallel test-only model.
-Invoking the old command names fails before parsing or writing any artifact.
+Direct `omega install` and `omega update` invocations, along with the old
+review/plan/lock command names, fail at dispatch before compiler parsing,
+resolution, or project writes. Ordinary source files named `install.omg` or
+`update.omg` remain compiler inputs.
 
 ## Responsibilities
 
