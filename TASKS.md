@@ -7344,6 +7344,15 @@ state through a raw address.
   numeric 4-KiB intent only; identity/higher-half layout and permissions remain
   unchosen, and no Extent, backing, hierarchy-page, mapping, placement, TLB,
   installation, CR3, or machine-control authority is granted.
+  Cathedral now also validates one complete 512-entry page image against one
+  retained walk step. It replays the exact step geometry, requires the selected
+  entry to be present and field-for-field identical at its retained index, and
+  checks with decreasing fuel that all 511 other entries preserve the complete
+  zero encoding. Success returns the exact step and page unchanged; every
+  permission/cache/software/PAT field remains uninterpreted, and no backing,
+  placement, hierarchy, mapping, TLB, installation, CR3, or machine-control
+  authority is granted. A later aggregator must bind four such validated images
+  to the endpoint-consistent descriptor before authority-bearing mapping work.
   Physical backing, address-space-profile hierarchy, mappings, installation,
   and teardown remain. Do not restore a compiler-owned page-table model.
 
