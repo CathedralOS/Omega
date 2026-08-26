@@ -2,8 +2,10 @@ use omega_register_model::{RegisterOperandAccess, RegisterUnitId, RegisterWriteS
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_selected_instructions::{
     TerminalMachineAlternative, TerminalMachineAlternativeApplicability,
-    TerminalMachineAlternativeFamily, TerminalMachineLatencyKnowledge,
-    TerminalMachineSizeKnowledge,
+    TerminalMachineAlternativeFamily, TerminalMachineEncodedControlEffect,
+    TerminalMachineEncodedEffects, TerminalMachineEncodedMemoryEffect,
+    TerminalMachineEncodedStackEffect, TerminalMachineEncodedTrapBehavior,
+    TerminalMachineLatencyKnowledge, TerminalMachineSizeKnowledge,
 };
 
 use crate::{TerminalPostAllocationMachineIdentity, TerminalPostAllocationMachinePlan};
@@ -14,7 +16,7 @@ pub fn terminal_post_allocation_machine_identity(
     use sha2::{Digest, Sha256};
 
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-postallocation-machine.v1\0");
+    bytes.extend_from_slice(b"omega.terminal-postallocation-machine.v2\0");
     bytes.extend_from_slice(&encode_terminal_post_allocation_machine_content(plan));
     TerminalPostAllocationMachineIdentity::from_bytes(Sha256::digest(bytes).into())
 }
@@ -46,7 +48,7 @@ pub(crate) fn encode_terminal_post_allocation_machine_content(
             encode_len(&mut bytes, block.instructions.len());
             for instruction in &block.instructions {
                 bytes.extend_from_slice(&instruction.instruction.0.to_le_bytes());
-                encode_alternative(&mut bytes, instruction.alternative);
+                encode_alternative(&mut bytes, &instruction.alternative);
                 encode_len(&mut bytes, instruction.operands.len());
                 for operand in &instruction.operands {
                     bytes.extend_from_slice(&operand.operand.to_le_bytes());
@@ -88,7 +90,7 @@ pub(crate) fn encode_terminal_post_allocation_machine_content(
     bytes
 }
 
-fn encode_alternative(bytes: &mut Vec<u8>, alternative: TerminalMachineAlternative) {
+fn encode_alternative(bytes: &mut Vec<u8>, alternative: &TerminalMachineAlternative) {
     bytes.push(match alternative.key.family {
         TerminalMachineAlternativeFamily::CompareI64Zero => 0,
         TerminalMachineAlternativeFamily::MaterializeI64 => 1,
@@ -171,6 +173,57 @@ fn encode_alternative(bytes: &mut Vec<u8>, alternative: TerminalMachineAlternati
     bytes.push(match alternative.latency {
         TerminalMachineLatencyKnowledge::StableBaselineUnavailable => 0,
     });
+    encode_encoded_effects(bytes, &alternative.encoded);
+}
+
+fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &TerminalMachineEncodedEffects) {
+    encode_u16s(bytes, &effects.external_operand_reads);
+    encode_u16s(bytes, &effects.external_operand_writes);
+    encode_units(bytes, &effects.implicit_unit_uses);
+    encode_units(bytes, &effects.implicit_unit_defs);
+    encode_units(bytes, &effects.implicit_unit_clobbers);
+    match effects.memory {
+        TerminalMachineEncodedMemoryEffect::NoneV1 => bytes.push(0),
+        TerminalMachineEncodedMemoryEffect::ReadActivationStackV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+            bytes.extend_from_slice(&byte_count.to_le_bytes());
+        }
+    }
+    match effects.stack {
+        TerminalMachineEncodedStackEffect::UnchangedV1 => bytes.push(0),
+        TerminalMachineEncodedStackEffect::PopBytesV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+            bytes.extend_from_slice(&byte_count.to_le_bytes());
+        }
+    }
+    bytes.push(match effects.trap {
+        TerminalMachineEncodedTrapBehavior::NeverV1 => 0,
+        TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
+    });
+    match effects.control {
+        TerminalMachineEncodedControlEffect::FallThroughV1 => bytes.push(0),
+        TerminalMachineEncodedControlEffect::ConditionalRelativeBranchV1 => bytes.push(1),
+        TerminalMachineEncodedControlEffect::ReturnFromActivationStackV1 => bytes.push(2),
+        TerminalMachineEncodedControlEffect::ReturnIndirectRegisterV1 { target } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&target.0.to_le_bytes());
+        }
+    }
+}
+
+fn encode_u16s(bytes: &mut Vec<u8>, values: &[u16]) {
+    encode_len(bytes, values.len());
+    for value in values {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
 }
 
 fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {

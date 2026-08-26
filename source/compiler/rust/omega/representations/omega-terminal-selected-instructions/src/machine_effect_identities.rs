@@ -4,14 +4,17 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use crate::{
     TerminalMachineAlternativeApplicability, TerminalMachineAlternativeFamily,
     TerminalMachineBarrier, TerminalMachineEffectCatalog, TerminalMachineEffectCatalogIdentity,
-    TerminalMachineLatencyKnowledge, TerminalMachineSemanticKind, TerminalMachineSizeKnowledge,
+    TerminalMachineEncodedControlEffect, TerminalMachineEncodedEffects,
+    TerminalMachineEncodedMemoryEffect, TerminalMachineEncodedStackEffect,
+    TerminalMachineEncodedTrapBehavior, TerminalMachineLatencyKnowledge,
+    TerminalMachineSemanticKind, TerminalMachineSizeKnowledge,
 };
 
 pub fn terminal_machine_effect_catalog_identity(
     catalog: &TerminalMachineEffectCatalog,
 ) -> TerminalMachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v1\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v2\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in catalog.selected_keys.in_identity_order() {
@@ -119,9 +122,67 @@ pub fn terminal_machine_effect_catalog_identity(
             bytes.push(match alternative.latency {
                 TerminalMachineLatencyKnowledge::StableBaselineUnavailable => 0,
             });
+            encode_encoded_effects(&mut bytes, &alternative.encoded);
         }
     }
     TerminalMachineEffectCatalogIdentity::from_canonical_bytes(&bytes)
+}
+
+fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &TerminalMachineEncodedEffects) {
+    encode_u16s(bytes, &effects.external_operand_reads);
+    encode_u16s(bytes, &effects.external_operand_writes);
+    encode_units(bytes, &effects.implicit_unit_uses);
+    encode_units(bytes, &effects.implicit_unit_defs);
+    encode_units(bytes, &effects.implicit_unit_clobbers);
+    match effects.memory {
+        TerminalMachineEncodedMemoryEffect::NoneV1 => bytes.push(0),
+        TerminalMachineEncodedMemoryEffect::ReadActivationStackV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+            bytes.extend_from_slice(&byte_count.to_le_bytes());
+        }
+    }
+    match effects.stack {
+        TerminalMachineEncodedStackEffect::UnchangedV1 => bytes.push(0),
+        TerminalMachineEncodedStackEffect::PopBytesV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+            bytes.extend_from_slice(&byte_count.to_le_bytes());
+        }
+    }
+    bytes.push(match effects.trap {
+        TerminalMachineEncodedTrapBehavior::NeverV1 => 0,
+        TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
+    });
+    match effects.control {
+        TerminalMachineEncodedControlEffect::FallThroughV1 => bytes.push(0),
+        TerminalMachineEncodedControlEffect::ConditionalRelativeBranchV1 => bytes.push(1),
+        TerminalMachineEncodedControlEffect::ReturnFromActivationStackV1 => bytes.push(2),
+        TerminalMachineEncodedControlEffect::ReturnIndirectRegisterV1 { target } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&target.0.to_le_bytes());
+        }
+    }
+}
+
+fn encode_u16s(bytes: &mut Vec<u8>, values: &[u16]) {
+    encode_len(bytes, values.len());
+    for value in values {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+}
+
+fn encode_units(bytes: &mut Vec<u8>, units: &[omega_register_model::RegisterUnitId]) {
+    encode_len(bytes, units.len());
+    for unit in units {
+        bytes.extend_from_slice(&unit.0.to_le_bytes());
+    }
 }
 
 fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
@@ -256,6 +317,7 @@ mod tests {
                 applicability: TerminalMachineAlternativeApplicability::Always,
                 size: TerminalMachineSizeKnowledge::ExactBytes(4),
                 latency: TerminalMachineLatencyKnowledge::StableBaselineUnavailable,
+                encoded: TerminalMachineEncodedEffects::fallthrough_v1(vec![], vec![]),
             }],
         }
     }

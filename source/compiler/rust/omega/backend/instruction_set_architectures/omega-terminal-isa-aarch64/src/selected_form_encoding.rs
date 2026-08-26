@@ -1,7 +1,9 @@
 use omega_register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use omega_terminal_selected_instructions::{
     TerminalMachineAlternativeFamily, TerminalMachineAlternativeKey,
-    TerminalSelectedInstructionKind,
+    TerminalMachineEncodedControlEffect, TerminalMachineEncodedEffects,
+    TerminalMachineEncodedMemoryEffect, TerminalMachineEncodedStackEffect,
+    TerminalMachineEncodedTrapBehavior, TerminalSelectedInstructionKind,
 };
 use psi_core::IntegerValue;
 
@@ -12,6 +14,7 @@ pub struct Aarch64SelectedFormFootprint {
     pub register_reads: Vec<RegisterViewId>,
     pub register_writes: Vec<RegisterViewId>,
     pub writes_nzcv: bool,
+    pub encoded: TerminalMachineEncodedEffects,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,7 +36,7 @@ impl ValidatedAarch64SelectedFormEncoding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Aarch64SelectedFormEncodingError {
     NonCanonicalPhysicalModel,
-    LayoutDependentOrControlForm,
+    LayoutDependentForm,
     AlternativeMismatch,
     OperandCountMismatch,
     UnknownOrNonGpr64View(RegisterViewId),
@@ -62,6 +65,7 @@ pub fn encode_aarch64_terminal_selected_form(
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     validate_request(physical, kind, alternative, operands)?;
     let registers = resolve_registers(physical, operands)?;
+    validate_return_home(kind, &registers)?;
     let bytes = encode_unchecked(kind, &registers)?;
     validate_aarch64_terminal_selected_form_encoding(physical, kind, alternative, operands, &bytes)
 }
@@ -75,6 +79,7 @@ pub fn validate_aarch64_terminal_selected_form_encoding(
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     validate_request(physical, kind, alternative, operands)?;
     let registers = resolve_registers(physical, operands)?;
+    validate_return_home(kind, &registers)?;
     let decoded = decode_words(bytes)?;
     validate_decoded(kind, &registers, &decoded)?;
     let canonical = encode_unchecked(kind, &registers)?;
@@ -126,11 +131,23 @@ fn family_and_operand_count(
         TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => {
             (TerminalMachineAlternativeFamily::ExactAddI64Immediate, 2)
         }
-        TerminalSelectedInstructionKind::ConditionalBranchNonZero
-        | TerminalSelectedInstructionKind::ReturnI64 => {
-            return Err(Aarch64SelectedFormEncodingError::LayoutDependentOrControlForm);
+        TerminalSelectedInstructionKind::ReturnI64 => {
+            (TerminalMachineAlternativeFamily::ReturnI64, 1)
+        }
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero => {
+            return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
     })
+}
+
+fn validate_return_home(
+    kind: TerminalSelectedInstructionKind,
+    registers: &[u8],
+) -> Result<(), Aarch64SelectedFormEncodingError> {
+    if matches!(kind, TerminalSelectedInstructionKind::ReturnI64) && registers != [0] {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    Ok(())
 }
 
 fn resolve_registers(
@@ -218,9 +235,9 @@ fn encode_unchecked(
                     | u32::from(registers[2]),
             );
         }
-        TerminalSelectedInstructionKind::ConditionalBranchNonZero
-        | TerminalSelectedInstructionKind::ReturnI64 => {
-            return Err(Aarch64SelectedFormEncodingError::LayoutDependentOrControlForm);
+        TerminalSelectedInstructionKind::ReturnI64 => words.push(0xd65f_03c0),
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero => {
+            return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
     }
     Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
@@ -275,6 +292,7 @@ enum DecodedWord {
         right: u8,
         destination: u8,
     },
+    Return,
 }
 
 fn decode_words(bytes: &[u8]) -> Result<Vec<DecodedWord>, Aarch64SelectedFormEncodingError> {
@@ -339,6 +357,9 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
             destination: register,
         });
     }
+    if word == 0xd65f_03c0 {
+        return Ok(DecodedWord::Return);
+    }
     Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
 }
 
@@ -388,8 +409,8 @@ fn validate_decoded(
                     destination: registers[2],
                 }]
         }
-        TerminalSelectedInstructionKind::ConditionalBranchNonZero
-        | TerminalSelectedInstructionKind::ReturnI64 => false,
+        TerminalSelectedInstructionKind::ReturnI64 => decoded == [DecodedWord::Return],
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero => false,
     };
     if valid {
         Ok(())
@@ -444,15 +465,58 @@ fn footprint(
         TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => {
             (vec![operands[0]], vec![operands[1]], false)
         }
-        TerminalSelectedInstructionKind::ConditionalBranchNonZero
-        | TerminalSelectedInstructionKind::ReturnI64 => {
+        TerminalSelectedInstructionKind::ReturnI64 => (vec![], vec![], false),
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero => {
             unreachable!("control forms reject before footprint")
         }
+    };
+    let physical = aarch64_physical_register_model();
+    let units = |name: &str| physical.view_named(name).unwrap().units.clone();
+    let encoded = if matches!(kind, TerminalSelectedInstructionKind::ReturnI64) {
+        TerminalMachineEncodedEffects {
+            external_operand_reads: vec![],
+            external_operand_writes: vec![],
+            implicit_unit_uses: units("x30"),
+            implicit_unit_defs: units("pc"),
+            implicit_unit_clobbers: vec![],
+            memory: TerminalMachineEncodedMemoryEffect::NoneV1,
+            stack: TerminalMachineEncodedStackEffect::UnchangedV1,
+            trap: TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            control: TerminalMachineEncodedControlEffect::ReturnIndirectRegisterV1 {
+                target: physical.view_named("x30").unwrap().id,
+            },
+        }
+    } else {
+        let mut effects = TerminalMachineEncodedEffects::fallthrough_v1(
+            match kind {
+                TerminalSelectedInstructionKind::MaterializeI64 { .. } => vec![],
+                TerminalSelectedInstructionKind::CopyI64
+                | TerminalSelectedInstructionKind::CompareI64Zero
+                | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => vec![0],
+                TerminalSelectedInstructionKind::ExactAddI64 { .. }
+                | TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => vec![0, 1],
+                _ => unreachable!("control forms handled separately"),
+            },
+            match kind {
+                TerminalSelectedInstructionKind::MaterializeI64 { .. } => vec![0],
+                TerminalSelectedInstructionKind::CopyI64
+                | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => vec![1],
+                TerminalSelectedInstructionKind::ExactAddI64 { .. }
+                | TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
+                TerminalSelectedInstructionKind::CompareI64Zero => vec![],
+                _ => unreachable!("control forms handled separately"),
+            },
+        );
+        if writes_nzcv {
+            effects.implicit_unit_defs = units("nzcv");
+        }
+        effects
     };
     Aarch64SelectedFormFootprint {
         register_reads: reads,
         register_writes: writes,
         writes_nzcv,
+        encoded,
     }
 }
 
@@ -554,5 +618,65 @@ mod tests {
             .unwrap();
             assert_eq!(encoded.bytes().len(), 4);
         }
+    }
+
+    #[test]
+    fn ret_x30_is_exact_and_separates_abi_result_custody_from_encoded_effects() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let x0 = physical.model().view_named("x0").unwrap().id;
+        let x1 = physical.model().view_named("x1").unwrap().id;
+        let x30 = physical.model().view_named("x30").unwrap();
+        let pc = physical.model().view_named("pc").unwrap();
+        let kind = TerminalSelectedInstructionKind::ReturnI64;
+        let alternative = alternative(TerminalMachineAlternativeFamily::ReturnI64);
+        let encoded =
+            encode_aarch64_terminal_selected_form(&physical, kind, alternative, &[x0]).unwrap();
+
+        assert_eq!(encoded.bytes(), [0xc0, 0x03, 0x5f, 0xd6]);
+        assert!(encoded.footprint().register_reads.is_empty());
+        assert!(encoded.footprint().register_writes.is_empty());
+        assert_eq!(encoded.footprint().encoded.external_operand_reads, []);
+        assert_eq!(encoded.footprint().encoded.external_operand_writes, []);
+        assert_eq!(encoded.footprint().encoded.implicit_unit_uses, x30.units);
+        assert_eq!(encoded.footprint().encoded.implicit_unit_defs, pc.units);
+        assert_eq!(
+            encoded.footprint().encoded.memory,
+            TerminalMachineEncodedMemoryEffect::NoneV1
+        );
+        assert_eq!(
+            encoded.footprint().encoded.stack,
+            TerminalMachineEncodedStackEffect::UnchangedV1
+        );
+        assert_eq!(
+            encoded.footprint().encoded.trap,
+            TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1
+        );
+        assert_eq!(
+            encoded.footprint().encoded.control,
+            TerminalMachineEncodedControlEffect::ReturnIndirectRegisterV1 { target: x30.id }
+        );
+        assert!(
+            encode_aarch64_terminal_selected_form(&physical, kind, alternative, &[x1]).is_err()
+        );
+        assert!(
+            validate_aarch64_terminal_selected_form_encoding(
+                &physical,
+                kind,
+                alternative,
+                &[x0],
+                &0xd65f_03a0_u32.to_le_bytes()
+            )
+            .is_err()
+        );
+        assert!(
+            validate_aarch64_terminal_selected_form_encoding(
+                &physical,
+                kind,
+                alternative,
+                &[x0],
+                &[0xc0, 0x03, 0x5f, 0xd6, 0xc0, 0x03, 0x5f, 0xd6]
+            )
+            .is_err()
+        );
     }
 }

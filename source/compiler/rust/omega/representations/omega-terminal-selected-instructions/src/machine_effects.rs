@@ -155,12 +155,84 @@ pub enum TerminalMachineLatencyKnowledge {
     StableBaselineUnavailable,
 }
 
+/// External dependencies and architectural effects of one encoded
+/// alternative. These refine, but never replace, the selected instruction's
+/// semantic/ABI operand custody and complete conservative constraint row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalMachineEncodedEffects {
+    /// Numbered selected operands whose incoming values affect the encoded
+    /// result. Internal reads of values defined earlier in a multi-instruction
+    /// realization are deliberately excluded.
+    pub external_operand_reads: Vec<u16>,
+    /// Numbered selected operands whose physical homes are written.
+    pub external_operand_writes: Vec<u16>,
+    pub implicit_unit_uses: Vec<omega_register_model::RegisterUnitId>,
+    pub implicit_unit_defs: Vec<omega_register_model::RegisterUnitId>,
+    pub implicit_unit_clobbers: Vec<omega_register_model::RegisterUnitId>,
+    pub memory: TerminalMachineEncodedMemoryEffect,
+    pub stack: TerminalMachineEncodedStackEffect,
+    pub trap: TerminalMachineEncodedTrapBehavior,
+    pub control: TerminalMachineEncodedControlEffect,
+}
+
+impl TerminalMachineEncodedEffects {
+    pub fn fallthrough_v1(
+        external_operand_reads: Vec<u16>,
+        external_operand_writes: Vec<u16>,
+    ) -> Self {
+        Self {
+            external_operand_reads,
+            external_operand_writes,
+            implicit_unit_uses: Vec::new(),
+            implicit_unit_defs: Vec::new(),
+            implicit_unit_clobbers: Vec::new(),
+            memory: TerminalMachineEncodedMemoryEffect::NoneV1,
+            stack: TerminalMachineEncodedStackEffect::UnchangedV1,
+            trap: TerminalMachineEncodedTrapBehavior::NeverV1,
+            control: TerminalMachineEncodedControlEffect::FallThroughV1,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalMachineEncodedMemoryEffect {
+    NoneV1,
+    ReadActivationStackV1 {
+        stack_pointer: RegisterViewId,
+        byte_count: u16,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalMachineEncodedStackEffect {
+    UnchangedV1,
+    PopBytesV1 {
+        stack_pointer: RegisterViewId,
+        byte_count: u16,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalMachineEncodedTrapBehavior {
+    NeverV1,
+    MayArchitecturalFaultV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalMachineEncodedControlEffect {
+    FallThroughV1,
+    ConditionalRelativeBranchV1,
+    ReturnFromActivationStackV1,
+    ReturnIndirectRegisterV1 { target: RegisterViewId },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalMachineAlternative {
     pub key: TerminalMachineAlternativeKey,
     pub applicability: TerminalMachineAlternativeApplicability,
     pub size: TerminalMachineSizeKnowledge,
     pub latency: TerminalMachineLatencyKnowledge,
+    pub encoded: TerminalMachineEncodedEffects,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -211,6 +283,7 @@ pub enum TerminalMachineEffectCatalogValidationError {
     EmptyAlternatives(TerminalMachineSemanticKind),
     AlternativeFamilyMismatch(TerminalMachineSemanticKind),
     InvalidAlternativeApplicability(TerminalMachineSemanticKind),
+    InvalidEncodedEffects(TerminalMachineSemanticKind),
     InvalidSizeKnowledge(TerminalMachineSemanticKind),
     BarrierMismatch(TerminalMachineSemanticKind),
 }
@@ -316,6 +389,9 @@ fn validate_declaration(
         validate_applicability(constraint, alternative.applicability).map_err(|()| {
             TerminalMachineEffectCatalogValidationError::InvalidAlternativeApplicability(semantic)
         })?;
+        validate_encoded_effects(constraint, declaration, &alternative.encoded).map_err(|()| {
+            TerminalMachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+        })?;
         match alternative.size {
             TerminalMachineSizeKnowledge::ExactBytes(0)
             | TerminalMachineSizeKnowledge::EncoderResolved {
@@ -335,6 +411,101 @@ fn validate_declaration(
             }
             _ => {}
         }
+    }
+    Ok(())
+}
+
+fn validate_encoded_effects(
+    constraint: &RegisterInstructionConstraint,
+    declaration: &TerminalMachineEffectDeclaration,
+    encoded: &TerminalMachineEncodedEffects,
+) -> Result<(), ()> {
+    let canonical = |values: &[u16]| values.windows(2).all(|pair| pair[0] < pair[1]);
+    if !canonical(&encoded.external_operand_reads)
+        || !canonical(&encoded.external_operand_writes)
+        || encoded
+            .implicit_unit_uses
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        || encoded
+            .implicit_unit_defs
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        || encoded
+            .implicit_unit_clobbers
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+    {
+        return Err(());
+    }
+    for operand in &encoded.external_operand_reads {
+        let row = constraint
+            .operands
+            .iter()
+            .find(|row| row.operand == *operand)
+            .ok_or(())?;
+        if !matches!(
+            row.access,
+            RegisterOperandAccess::Use | RegisterOperandAccess::UseDef
+        ) {
+            return Err(());
+        }
+    }
+    for operand in &encoded.external_operand_writes {
+        let row = constraint
+            .operands
+            .iter()
+            .find(|row| row.operand == *operand)
+            .ok_or(())?;
+        if !matches!(
+            row.access,
+            RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
+        ) {
+            return Err(());
+        }
+    }
+    if !encoded
+        .implicit_unit_uses
+        .iter()
+        .all(|unit| constraint.implicit_uses.contains(unit))
+        || !encoded
+            .implicit_unit_defs
+            .iter()
+            .all(|unit| constraint.implicit_defs.contains(unit))
+        || !encoded
+            .implicit_unit_clobbers
+            .iter()
+            .all(|unit| constraint.clobbers.contains(unit))
+    {
+        return Err(());
+    }
+    let control = !matches!(
+        encoded.control,
+        TerminalMachineEncodedControlEffect::FallThroughV1
+    );
+    if control != matches!(declaration.barrier, TerminalMachineBarrier::ControlFlow) {
+        return Err(());
+    }
+    match (encoded.memory, encoded.stack, encoded.trap) {
+        (
+            TerminalMachineEncodedMemoryEffect::ReadActivationStackV1 {
+                stack_pointer: memory_pointer,
+                byte_count: memory_bytes,
+            },
+            TerminalMachineEncodedStackEffect::PopBytesV1 {
+                stack_pointer,
+                byte_count: stack_bytes,
+            },
+            TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if memory_pointer == stack_pointer
+            && memory_bytes == stack_bytes
+            && memory_bytes != 0 => {}
+        (
+            TerminalMachineEncodedMemoryEffect::NoneV1,
+            TerminalMachineEncodedStackEffect::UnchangedV1,
+            _,
+        ) => {}
+        _ => return Err(()),
     }
     Ok(())
 }

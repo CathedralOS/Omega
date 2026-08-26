@@ -249,11 +249,11 @@ fn choose_alternative(
     let mut applicable = Vec::new();
     for alternative in alternatives {
         if applicability(instruction, operands, alternative.applicability, physical)? {
-            applicable.push(*alternative);
+            applicable.push(alternative.clone());
         }
     }
     match applicable.as_slice() {
-        [alternative] => Ok(*alternative),
+        [alternative] => Ok(alternative.clone()),
         [] => Err(TerminalPostAllocationMachineError::NoApplicableAlternative { instruction }),
         _ => {
             Err(TerminalPostAllocationMachineError::AmbiguousApplicableAlternatives { instruction })
@@ -463,6 +463,11 @@ mod tests {
             applicability,
             size: TerminalMachineSizeKnowledge::ExactBytes(3),
             latency: TerminalMachineLatencyKnowledge::StableBaselineUnavailable,
+            encoded:
+                omega_terminal_selected_instructions::TerminalMachineEncodedEffects::fallthrough_v1(
+                    vec![0, 1],
+                    vec![2],
+                ),
         }
     }
 
@@ -549,10 +554,15 @@ mod tests {
                 maximum_bytes: Some(5),
             },
             latency: TerminalMachineLatencyKnowledge::StableBaselineUnavailable,
+            encoded:
+                omega_terminal_selected_instructions::TerminalMachineEncodedEffects::fallthrough_v1(
+                    vec![0, 1],
+                    vec![2],
+                ),
         };
         let operands = [operand(0, r12), operand(1, r12), operand(2, rax)];
         assert_eq!(
-            choose_alternative(8, &operands, &[add], &physical)
+            choose_alternative(8, &operands, std::slice::from_ref(&add), &physical)
                 .unwrap()
                 .key,
             add.key

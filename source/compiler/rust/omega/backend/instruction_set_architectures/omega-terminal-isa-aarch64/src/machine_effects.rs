@@ -5,8 +5,11 @@ use omega_terminal_selected_instructions::{
     TerminalMachineAlternativeKey, TerminalMachineBarrier, TerminalMachineCallEffect,
     TerminalMachineCleanupEffect, TerminalMachineEffectCatalog,
     TerminalMachineEffectCatalogValidationError, TerminalMachineEffectDeclaration,
-    TerminalMachineLatencyKnowledge, TerminalMachineMemoryEffect, TerminalMachineSemanticKind,
-    TerminalMachineSizeKnowledge, TerminalMachineTrapBehavior, TerminalSelectedConstraintKeys,
+    TerminalMachineEncodedControlEffect, TerminalMachineEncodedEffects,
+    TerminalMachineEncodedMemoryEffect, TerminalMachineEncodedStackEffect,
+    TerminalMachineEncodedTrapBehavior, TerminalMachineLatencyKnowledge,
+    TerminalMachineMemoryEffect, TerminalMachineSemanticKind, TerminalMachineSizeKnowledge,
+    TerminalMachineTrapBehavior, TerminalSelectedConstraintKeys,
     ValidatedTerminalMachineEffectCatalog, validate_terminal_machine_effect_catalog,
 };
 
@@ -126,7 +129,80 @@ fn declaration(
             applicability: TerminalMachineAlternativeApplicability::Always,
             size: size(semantic),
             latency: TerminalMachineLatencyKnowledge::StableBaselineUnavailable,
+            encoded: encoded_effects(semantic),
         }],
+    }
+}
+
+fn encoded_effects(semantic: TerminalMachineSemanticKind) -> TerminalMachineEncodedEffects {
+    let physical = crate::aarch64_physical_register_model();
+    let units = |name: &str| {
+        physical
+            .view_named(name)
+            .unwrap_or_else(|| panic!("canonical AArch64 model declares {name}"))
+            .units
+            .clone()
+    };
+    let view = |name: &str| {
+        physical
+            .view_named(name)
+            .unwrap_or_else(|| panic!("canonical AArch64 model declares {name}"))
+            .id
+    };
+    let (reads, writes) = match semantic {
+        TerminalMachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
+        TerminalMachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
+        TerminalMachineSemanticKind::CopyI64 => (vec![0], vec![1]),
+        TerminalMachineSemanticKind::ExactAddI64
+        | TerminalMachineSemanticKind::ExactSubtractI64 => (vec![0, 1], vec![2]),
+        TerminalMachineSemanticKind::ExactAddI64Immediate => (vec![0], vec![1]),
+        TerminalMachineSemanticKind::ConditionalBranchNonZero
+        | TerminalMachineSemanticKind::ReturnI64 => (vec![], vec![]),
+    };
+    let (implicit_uses, implicit_defs, trap, control) = match semantic {
+        TerminalMachineSemanticKind::CompareI64Zero => (
+            vec![],
+            units("nzcv"),
+            TerminalMachineEncodedTrapBehavior::NeverV1,
+            TerminalMachineEncodedControlEffect::FallThroughV1,
+        ),
+        TerminalMachineSemanticKind::ConditionalBranchNonZero => {
+            let mut uses = units("nzcv");
+            uses.extend(units("pc"));
+            uses.sort_unstable();
+            uses.dedup();
+            (
+                uses,
+                units("pc"),
+                TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                TerminalMachineEncodedControlEffect::ConditionalRelativeBranchV1,
+            )
+        }
+        TerminalMachineSemanticKind::ReturnI64 => (
+            units("x30"),
+            units("pc"),
+            TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            TerminalMachineEncodedControlEffect::ReturnIndirectRegisterV1 {
+                target: view("x30"),
+            },
+        ),
+        _ => (
+            vec![],
+            vec![],
+            TerminalMachineEncodedTrapBehavior::NeverV1,
+            TerminalMachineEncodedControlEffect::FallThroughV1,
+        ),
+    };
+    TerminalMachineEncodedEffects {
+        external_operand_reads: reads,
+        external_operand_writes: writes,
+        implicit_unit_uses: implicit_uses,
+        implicit_unit_defs: implicit_defs,
+        implicit_unit_clobbers: vec![],
+        memory: TerminalMachineEncodedMemoryEffect::NoneV1,
+        stack: TerminalMachineEncodedStackEffect::UnchangedV1,
+        trap,
+        control,
     }
 }
 

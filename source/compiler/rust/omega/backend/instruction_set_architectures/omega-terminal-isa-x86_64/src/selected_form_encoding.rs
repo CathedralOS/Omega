@@ -1,7 +1,9 @@
 use omega_register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use omega_terminal_selected_instructions::{
     TerminalMachineAlternativeFamily, TerminalMachineAlternativeKey,
-    TerminalSelectedInstructionKind,
+    TerminalMachineEncodedControlEffect, TerminalMachineEncodedEffects,
+    TerminalMachineEncodedMemoryEffect, TerminalMachineEncodedStackEffect,
+    TerminalMachineEncodedTrapBehavior, TerminalSelectedInstructionKind,
 };
 use psi_core::IntegerValue;
 
@@ -12,6 +14,7 @@ pub struct X86_64SelectedFormFootprint {
     pub register_reads: Vec<RegisterViewId>,
     pub register_writes: Vec<RegisterViewId>,
     pub writes_rflags: bool,
+    pub encoded: TerminalMachineEncodedEffects,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,7 +36,7 @@ impl ValidatedX86_64SelectedFormEncoding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum X86_64SelectedFormEncodingError {
     NonCanonicalPhysicalModel,
-    LayoutDependentOrControlForm,
+    LayoutDependentForm,
     AlternativeMismatch,
     OperandCountMismatch,
     UnknownOrNonGpr64View(RegisterViewId),
@@ -59,6 +62,7 @@ pub fn encode_x86_64_terminal_selected_form(
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     validate_request(physical, kind, alternative, operands)?;
     let registers = resolve_registers(physical, operands)?;
+    validate_return_home(kind, &registers)?;
     validate_alias_partition(kind, alternative, &registers)?;
     let bytes = encode_unchecked(kind, alternative, &registers)?;
     validate_x86_64_terminal_selected_form_encoding(physical, kind, alternative, operands, &bytes)
@@ -73,6 +77,7 @@ pub fn validate_x86_64_terminal_selected_form_encoding(
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     validate_request(physical, kind, alternative, operands)?;
     let registers = resolve_registers(physical, operands)?;
+    validate_return_home(kind, &registers)?;
     validate_alias_partition(kind, alternative, &registers)?;
     let decoded = decode_all(bytes)?;
     validate_decoded(kind, alternative, &registers, &decoded)?;
@@ -82,7 +87,7 @@ pub fn validate_x86_64_terminal_selected_form_encoding(
     }
     Ok(ValidatedX86_64SelectedFormEncoding {
         bytes: bytes.to_vec(),
-        footprint: footprint(kind, operands),
+        footprint: footprint(kind, alternative, operands),
     })
 }
 
@@ -136,11 +141,23 @@ fn family_and_operand_count(
             2,
             0..=0,
         ),
-        TerminalSelectedInstructionKind::ConditionalBranchNonZero
-        | TerminalSelectedInstructionKind::ReturnI64 => {
-            return Err(X86_64SelectedFormEncodingError::LayoutDependentOrControlForm);
+        TerminalSelectedInstructionKind::ReturnI64 => {
+            (TerminalMachineAlternativeFamily::ReturnI64, 1, 0..=0)
+        }
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero => {
+            return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
     })
+}
+
+fn validate_return_home(
+    kind: TerminalSelectedInstructionKind,
+    registers: &[u8],
+) -> Result<(), X86_64SelectedFormEncodingError> {
+    if matches!(kind, TerminalSelectedInstructionKind::ReturnI64) && registers != [0] {
+        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    Ok(())
 }
 
 fn resolve_registers(
@@ -309,9 +326,9 @@ fn encode_unchecked(
             }
             _ => return Err(X86_64SelectedFormEncodingError::AlternativeMismatch),
         },
-        TerminalSelectedInstructionKind::ConditionalBranchNonZero
-        | TerminalSelectedInstructionKind::ReturnI64 => {
-            return Err(X86_64SelectedFormEncodingError::LayoutDependentOrControlForm);
+        TerminalSelectedInstructionKind::ReturnI64 => bytes.push(0xc3),
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero => {
+            return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
     }
     Ok(bytes)
@@ -351,6 +368,7 @@ enum DecodedInstruction {
         source: u8,
         destination: u8,
     },
+    Return,
 }
 
 fn decode_all(bytes: &[u8]) -> Result<Vec<DecodedInstruction>, X86_64SelectedFormEncodingError> {
@@ -372,6 +390,9 @@ fn decode_all(bytes: &[u8]) -> Result<Vec<DecodedInstruction>, X86_64SelectedFor
 fn decode_one(
     bytes: &[u8],
 ) -> Result<(DecodedInstruction, usize), X86_64SelectedFormEncodingError> {
+    if bytes.first() == Some(&0xc3) {
+        return Ok((DecodedInstruction::Return, 1));
+    }
     let (&rex, rest) = bytes
         .split_first()
         .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?;
@@ -578,8 +599,8 @@ fn validate_decoded(
             }
             _ => false,
         },
-        TerminalSelectedInstructionKind::ConditionalBranchNonZero
-        | TerminalSelectedInstructionKind::ReturnI64 => false,
+        TerminalSelectedInstructionKind::ReturnI64 => decoded == [DecodedInstruction::Return],
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero => false,
     };
     if valid {
         Ok(())
@@ -590,6 +611,7 @@ fn validate_decoded(
 
 fn footprint(
     kind: TerminalSelectedInstructionKind,
+    alternative: TerminalMachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> X86_64SelectedFormFootprint {
     let (reads, writes, writes_rflags) = match kind {
@@ -604,18 +626,84 @@ fn footprint(
         TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => {
             (vec![operands[0]], vec![operands[1]], false)
         }
+        TerminalSelectedInstructionKind::ExactSubtractI64 { .. } if alternative.variant == 0 => {
+            (vec![], vec![operands[2]], true)
+        }
         TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
-        TerminalSelectedInstructionKind::ConditionalBranchNonZero
-        | TerminalSelectedInstructionKind::ReturnI64 => {
+        TerminalSelectedInstructionKind::ReturnI64 => (vec![], vec![], false),
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero => {
             unreachable!("control forms reject before footprint")
         }
+    };
+    let physical = x86_64_physical_register_model();
+    let units = |name: &str| physical.view_named(name).unwrap().units.clone();
+    let encoded = if matches!(kind, TerminalSelectedInstructionKind::ReturnI64) {
+        let stack_pointer = physical.view_named("rsp").unwrap().id;
+        let mut defs = units("rsp");
+        defs.extend(units("rip"));
+        defs.sort_unstable();
+        defs.dedup();
+        TerminalMachineEncodedEffects {
+            external_operand_reads: vec![],
+            external_operand_writes: vec![],
+            implicit_unit_uses: units("rsp"),
+            implicit_unit_defs: defs,
+            implicit_unit_clobbers: vec![],
+            memory: TerminalMachineEncodedMemoryEffect::ReadActivationStackV1 {
+                stack_pointer,
+                byte_count: 8,
+            },
+            stack: TerminalMachineEncodedStackEffect::PopBytesV1 {
+                stack_pointer,
+                byte_count: 8,
+            },
+            trap: TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            control: TerminalMachineEncodedControlEffect::ReturnFromActivationStackV1,
+        }
+    } else {
+        let mut effects = TerminalMachineEncodedEffects::fallthrough_v1(
+            match kind {
+                TerminalSelectedInstructionKind::MaterializeI64 { .. } => vec![],
+                TerminalSelectedInstructionKind::CopyI64
+                | TerminalSelectedInstructionKind::CompareI64Zero
+                | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => vec![0],
+                TerminalSelectedInstructionKind::ExactAddI64 { .. } => vec![0, 1],
+                TerminalSelectedInstructionKind::ExactSubtractI64 { .. }
+                    if alternative.variant == 0 =>
+                {
+                    vec![]
+                }
+                TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => vec![0, 1],
+                _ => unreachable!("control forms handled separately"),
+            },
+            match kind {
+                TerminalSelectedInstructionKind::MaterializeI64 { .. } => vec![0],
+                TerminalSelectedInstructionKind::CopyI64
+                | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => vec![1],
+                TerminalSelectedInstructionKind::ExactAddI64 { .. }
+                | TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
+                TerminalSelectedInstructionKind::CompareI64Zero => vec![],
+                _ => unreachable!("control forms handled separately"),
+            },
+        );
+        if matches!(kind, TerminalSelectedInstructionKind::CompareI64Zero) {
+            effects.implicit_unit_defs = units("rflags");
+        }
+        if matches!(
+            kind,
+            TerminalSelectedInstructionKind::ExactSubtractI64 { .. }
+        ) {
+            effects.implicit_unit_clobbers = units("rflags");
+        }
+        effects
     };
     X86_64SelectedFormFootprint {
         register_reads: reads,
         register_writes: writes,
         writes_rflags,
+        encoded,
     }
 }
 
@@ -724,5 +812,78 @@ mod tests {
             .unwrap();
             assert_eq!(encoded.bytes().len(), size);
         }
+    }
+
+    #[test]
+    fn near_return_is_exact_and_separates_abi_result_custody_from_encoded_effects() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let rax = physical.model().view_named("rax").unwrap().id;
+        let rbx = physical.model().view_named("rbx").unwrap().id;
+        let rsp = physical.model().view_named("rsp").unwrap();
+        let rip = physical.model().view_named("rip").unwrap();
+        let kind = TerminalSelectedInstructionKind::ReturnI64;
+        let alternative = alternative(TerminalMachineAlternativeFamily::ReturnI64, 0);
+        let encoded =
+            encode_x86_64_terminal_selected_form(&physical, kind, alternative, &[rax]).unwrap();
+
+        assert_eq!(encoded.bytes(), [0xc3]);
+        assert!(encoded.footprint().register_reads.is_empty());
+        assert!(encoded.footprint().register_writes.is_empty());
+        assert_eq!(encoded.footprint().encoded.external_operand_reads, []);
+        assert_eq!(encoded.footprint().encoded.external_operand_writes, []);
+        assert_eq!(encoded.footprint().encoded.implicit_unit_uses, rsp.units);
+        let mut expected_defs = rsp.units.clone();
+        expected_defs.extend(&rip.units);
+        expected_defs.sort_unstable();
+        expected_defs.dedup();
+        assert_eq!(
+            encoded.footprint().encoded.implicit_unit_defs,
+            expected_defs
+        );
+        assert_eq!(
+            encoded.footprint().encoded.memory,
+            TerminalMachineEncodedMemoryEffect::ReadActivationStackV1 {
+                stack_pointer: rsp.id,
+                byte_count: 8,
+            }
+        );
+        assert_eq!(
+            encoded.footprint().encoded.stack,
+            TerminalMachineEncodedStackEffect::PopBytesV1 {
+                stack_pointer: rsp.id,
+                byte_count: 8,
+            }
+        );
+        assert_eq!(
+            encoded.footprint().encoded.trap,
+            TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1
+        );
+        assert_eq!(
+            encoded.footprint().encoded.control,
+            TerminalMachineEncodedControlEffect::ReturnFromActivationStackV1
+        );
+        assert!(
+            encode_x86_64_terminal_selected_form(&physical, kind, alternative, &[rbx]).is_err()
+        );
+        assert!(
+            validate_x86_64_terminal_selected_form_encoding(
+                &physical,
+                kind,
+                alternative,
+                &[rax],
+                &[0xc2, 0, 0]
+            )
+            .is_err()
+        );
+        assert!(
+            validate_x86_64_terminal_selected_form_encoding(
+                &physical,
+                kind,
+                alternative,
+                &[rax],
+                &[0xc3, 0xc3]
+            )
+            .is_err()
+        );
     }
 }

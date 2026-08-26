@@ -5,8 +5,11 @@ use omega_terminal_selected_instructions::{
     TerminalMachineAlternativeKey, TerminalMachineBarrier, TerminalMachineCallEffect,
     TerminalMachineCleanupEffect, TerminalMachineEffectCatalog,
     TerminalMachineEffectCatalogValidationError, TerminalMachineEffectDeclaration,
-    TerminalMachineLatencyKnowledge, TerminalMachineMemoryEffect, TerminalMachineSemanticKind,
-    TerminalMachineSizeKnowledge, TerminalMachineTrapBehavior, TerminalSelectedConstraintKeys,
+    TerminalMachineEncodedControlEffect, TerminalMachineEncodedEffects,
+    TerminalMachineEncodedMemoryEffect, TerminalMachineEncodedStackEffect,
+    TerminalMachineEncodedTrapBehavior, TerminalMachineLatencyKnowledge,
+    TerminalMachineMemoryEffect, TerminalMachineSemanticKind, TerminalMachineSizeKnowledge,
+    TerminalMachineTrapBehavior, TerminalSelectedConstraintKeys,
     ValidatedTerminalMachineEffectCatalog, validate_terminal_machine_effect_catalog,
 };
 
@@ -192,6 +195,116 @@ fn alternative(
         applicability,
         size,
         latency: TerminalMachineLatencyKnowledge::StableBaselineUnavailable,
+        encoded: encoded_effects(semantic, variant),
+    }
+}
+
+fn encoded_effects(
+    semantic: TerminalMachineSemanticKind,
+    variant: u32,
+) -> TerminalMachineEncodedEffects {
+    let physical = crate::x86_64_physical_register_model();
+    let units = |name: &str| {
+        physical
+            .view_named(name)
+            .unwrap_or_else(|| panic!("canonical x86-64 model declares {name}"))
+            .units
+            .clone()
+    };
+    let view = |name: &str| {
+        physical
+            .view_named(name)
+            .unwrap_or_else(|| panic!("canonical x86-64 model declares {name}"))
+            .id
+    };
+    let (reads, writes) = match semantic {
+        TerminalMachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
+        TerminalMachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
+        TerminalMachineSemanticKind::CopyI64 => (vec![0], vec![1]),
+        TerminalMachineSemanticKind::ExactAddI64 => (vec![0, 1], vec![2]),
+        TerminalMachineSemanticKind::ExactAddI64Immediate => (vec![0], vec![1]),
+        TerminalMachineSemanticKind::ExactSubtractI64 if variant == 0 => (vec![], vec![2]),
+        TerminalMachineSemanticKind::ExactSubtractI64 => (vec![0, 1], vec![2]),
+        TerminalMachineSemanticKind::ConditionalBranchNonZero
+        | TerminalMachineSemanticKind::ReturnI64 => (vec![], vec![]),
+    };
+    let (implicit_uses, implicit_defs, implicit_clobbers, memory, stack, trap, control) =
+        match semantic {
+            TerminalMachineSemanticKind::CompareI64Zero => (
+                vec![],
+                units("rflags"),
+                vec![],
+                TerminalMachineEncodedMemoryEffect::NoneV1,
+                TerminalMachineEncodedStackEffect::UnchangedV1,
+                TerminalMachineEncodedTrapBehavior::NeverV1,
+                TerminalMachineEncodedControlEffect::FallThroughV1,
+            ),
+            TerminalMachineSemanticKind::ExactSubtractI64 => (
+                vec![],
+                vec![],
+                units("rflags"),
+                TerminalMachineEncodedMemoryEffect::NoneV1,
+                TerminalMachineEncodedStackEffect::UnchangedV1,
+                TerminalMachineEncodedTrapBehavior::NeverV1,
+                TerminalMachineEncodedControlEffect::FallThroughV1,
+            ),
+            TerminalMachineSemanticKind::ConditionalBranchNonZero => {
+                let mut uses = units("rflags");
+                uses.extend(units("rip"));
+                uses.sort_unstable();
+                uses.dedup();
+                (
+                    uses,
+                    units("rip"),
+                    vec![],
+                    TerminalMachineEncodedMemoryEffect::NoneV1,
+                    TerminalMachineEncodedStackEffect::UnchangedV1,
+                    TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                    TerminalMachineEncodedControlEffect::ConditionalRelativeBranchV1,
+                )
+            }
+            TerminalMachineSemanticKind::ReturnI64 => {
+                let stack_pointer = view("rsp");
+                let mut defs = units("rsp");
+                defs.extend(units("rip"));
+                defs.sort_unstable();
+                defs.dedup();
+                (
+                    units("rsp"),
+                    defs,
+                    vec![],
+                    TerminalMachineEncodedMemoryEffect::ReadActivationStackV1 {
+                        stack_pointer,
+                        byte_count: 8,
+                    },
+                    TerminalMachineEncodedStackEffect::PopBytesV1 {
+                        stack_pointer,
+                        byte_count: 8,
+                    },
+                    TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                    TerminalMachineEncodedControlEffect::ReturnFromActivationStackV1,
+                )
+            }
+            _ => (
+                vec![],
+                vec![],
+                vec![],
+                TerminalMachineEncodedMemoryEffect::NoneV1,
+                TerminalMachineEncodedStackEffect::UnchangedV1,
+                TerminalMachineEncodedTrapBehavior::NeverV1,
+                TerminalMachineEncodedControlEffect::FallThroughV1,
+            ),
+        };
+    TerminalMachineEncodedEffects {
+        external_operand_reads: reads,
+        external_operand_writes: writes,
+        implicit_unit_uses: implicit_uses,
+        implicit_unit_defs: implicit_defs,
+        implicit_unit_clobbers: implicit_clobbers,
+        memory,
+        stack,
+        trap,
+        control,
     }
 }
 
