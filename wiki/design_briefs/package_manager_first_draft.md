@@ -798,8 +798,10 @@ retained compiler-private baseline is neither a hash nor persisted package
 evidence, and trusted compiler components remain inside the TCB. Operators with
 outcome-specific or crash contracts, and providers with any nonempty checked
 crash behavior, reject until their refinement rules exist.
-Private, generic/lifetime-parameterized, aliased, bodyless, and operator-bound
-external realizations remain fail-closed. A fixed-token realization points to
+Private, generic/lifetime-parameterized, aliased, and bodyless checked
+realizations remain fail-closed. Operator-bound external supply uses the
+separate tagged v72/canonical-row-v30 trust association described below rather
+than a trait-conformance shape. A fixed-token checked realization points to
 the same exact declaration coordinate as its named call surface; the joined
 public-operator row owns the closed compiler spelling. The callable edge does
 not duplicate it or create another identity. Checked-body boundary realizations
@@ -809,8 +811,7 @@ realizing machine. Projection repeats the exact symbol, slot, checked-adapter
 binding, package, and machine join. A named-boundary canary covers unique
 selection. Fixed-token boundary operators remain fail-closed until checked-
 adapter token dispatch exists. Authored override of a same-path overloaded
-operator family remains OWNER Q10, and operator-bound external supply remains
-separate. The projection never substitutes an overload
+operator family remains OWNER Q10. The projection never substitutes an overload
 display name or a runtime-layout-only
 type identity for this contract surface.
 
@@ -1072,17 +1073,18 @@ as a weaker “complete enough” bit or mistaken for a Terminal-verified claim.
 Every package-owned bodyless external realization, including a private
 implementation leaf, is consequently one separate blocking
 executable-supply trust row. It binds the exact package-qualified callable and
-conformance application to a closed compiler-owned mechanism identity: import
-library and symbol, syscall number, compiler intrinsic, vtable slot, vtable
-field, or table-function field. The projector cross-checks machine supply mode,
-conformance binding, and the external-binding table. Missing, duplicate,
+tagged requirement application—trait conformance or operator overload
+coordinate—to a closed compiler-owned mechanism identity: import library and
+symbol, syscall number, compiler intrinsic, vtable slot, vtable field, or table-
+function field. The projector cross-checks machine supply mode, satisfies
+binding, and the external-binding table. Missing, duplicate,
 mismatched, or unsupported state rejects. The row is not callable API, reach,
 boundary representation, an accepted proof, or Terminal evidence, and does not
 claim that anyone audited the supplied code or verified its realization.
 
 Projection reads each component from the earliest coherent compiler-owned
 representation in which it is semantically settled. Private pre-Terminal binding
-identity may join the checked callable/conformance association only after
+identity may join the checked callable/requirement association only after
 successful compilation. Only the versioned canonical row crosses into package
 orchestration; the checker may move with compiler internals. Psi may repeat the
 invariant as a backstop but is not the mandatory reconstruction source. Do not
@@ -1100,6 +1102,17 @@ callable API bytes across a binding-only update while producing one
 `OpaqueBlocking` supply conflict. Private leaves receive the trust row without
 becoming public callable API. Recovery, source accounting, and conflict
 rendering retain the row without making an audit or Terminal claim.
+
+Review v72/canonical row v30 tags the exact requirement in that same row as
+either a trait conformance or an existing package-qualified operator overload
+coordinate. The first operator lane accepts bodyless external supply for a
+public, named, nongeneric boundary operator. Public realization machines retain
+the coordinate in callable API; private leaves remain absent from public API.
+Selected-provider evidence remains separate and must rejoin the exact operator,
+realization symbol, package, normalized machine identity, and binding, so an
+opaque supply row never implies selection. Compiler-known intrinsics are the
+first executable mechanism. Ordinary or private operators, aliases, generic/
+lifetime applications, and fixed-token boundary operators reject.
 
 Underdeclared effective reach is a compiler error. Overdeclared reach remains a
 visible contract-slack row. “Realized” here is the exact inferred transitive row
@@ -1331,7 +1344,7 @@ Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
 observations, and local decisions remain separately bound. Current incomplete
-review-v71/canonical-row-v29 bytes cannot be promoted merely because the future
+review-v72/canonical-row-v30 bytes cannot be promoted merely because the future
 artifact reuses their row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in

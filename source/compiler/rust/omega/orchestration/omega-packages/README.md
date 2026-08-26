@@ -902,19 +902,19 @@ specific or crash contracts, and providers with any nonempty checked crash
 behavior, reject until their refinement rules land. The
 association is a retained compiler-private checked baseline, not a hash,
 persisted package format, or defense against a trusted component rewriting both
-typed state and checked facts. Private, generic/lifetime-parameterized, aliased, bodyless, and
-operator-bound external realizations still fail closed. A fixed-token
-realization uses the same declaration coordinate as its named call surface;
-the public-operator row owns the closed compiler spelling, so the callable edge
-does not repeat it or create another identity form. Checked-body boundary
+typed state and checked facts. Private, generic/lifetime-parameterized, aliased,
+and bodyless checked realizations still fail closed. Operator-bound external
+supply uses the tagged v72/canonical-row-v30 trust association below. A fixed-
+token checked realization uses the same declaration coordinate as its named
+call surface; the public-operator row owns the closed compiler spelling, so the
+callable edge does not repeat it or create another identity form. Checked-body boundary
 operators use the same satisfaction edge; the selected-provider set separately
 identifies the active plan and rejoins its exact requirement and realizing
 machine. Projection repeats the exact symbol, slot, checked-adapter binding,
 package, and machine join. A named-boundary canary covers unique selection.
 Fixed-token boundary operators remain fail-closed until checked-adapter token
-dispatch exists. Authored same-path overload-family override remains OWNER Q10,
-and operator-bound external supply remains separate; trait-bound external
-supply remains the separately represented executable-supply lane. Public callable `requires`
+dispatch exists. Authored same-path overload-family override remains OWNER Q10.
+Public callable `requires`
 and `ensures` retain exact structural rows for the closed
 boolean/integer expression subset over parameter ordinals, `result`, generic
 binders, and package-qualified nominals. Domain-membership rows retain the exact
@@ -1304,6 +1304,16 @@ rows. The compiler projects this only after successful checking, joining facts
 from their earliest coherent private representations. Only the canonical row
 crosses this crate boundary; it makes no Terminal or audit claim and introduces
 no nominal Chi stage or public package IR.
+
+Review v72/row v30 keeps the same row kind and risk while tagging the exact
+requirement as either a trait conformance or an operator overload coordinate.
+The first operator lane accepts a bodyless external leaf for a public, named,
+nongeneric boundary operator. Public leaves retain that coordinate in callable
+API; private leaves do not become public. The selected-provider row remains the
+only selection claim and must exactly rejoin the operator, realization, package,
+normalized machine identity, and binding. Compiler-known intrinsics are the
+first executable mechanism. Ordinary or private operators, aliases, generic/
+lifetime applications, and fixed-token operators remain fail closed.
 
 ## Fixtures
 

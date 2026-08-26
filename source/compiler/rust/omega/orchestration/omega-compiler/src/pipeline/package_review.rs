@@ -343,13 +343,19 @@ pub enum PackageReviewExternalBinding {
 }
 
 /// One trust-bearing association between an exact reviewed callable,
-/// conformance application, and externally supplied executable mechanism.
+/// requirement application, and externally supplied executable mechanism.
 /// This is not Terminal evidence and makes no implementation-correctness or
 /// audit claim.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewExternalRequirement {
+    Trait(PackageReviewCallableConformance),
+    Operator(PackageReviewOperatorCoordinate),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewExternalExecutableSupply {
     callable: PackageReviewNominalIdentity,
-    conformance: PackageReviewCallableConformance,
+    requirement: PackageReviewExternalRequirement,
     binding: PackageReviewExternalBinding,
 }
 
@@ -358,8 +364,22 @@ impl PackageReviewExternalExecutableSupply {
         &self.callable
     }
 
-    pub const fn conformance(&self) -> &PackageReviewCallableConformance {
-        &self.conformance
+    pub const fn requirement(&self) -> &PackageReviewExternalRequirement {
+        &self.requirement
+    }
+
+    pub const fn conformance(&self) -> Option<&PackageReviewCallableConformance> {
+        match &self.requirement {
+            PackageReviewExternalRequirement::Trait(conformance) => Some(conformance),
+            PackageReviewExternalRequirement::Operator(_) => None,
+        }
+    }
+
+    pub const fn operator(&self) -> Option<&PackageReviewOperatorCoordinate> {
+        match &self.requirement {
+            PackageReviewExternalRequirement::Trait(_) => None,
+            PackageReviewExternalRequirement::Operator(operator) => Some(operator),
+        }
     }
 
     pub const fn binding(&self) -> &PackageReviewExternalBinding {
@@ -10078,34 +10098,93 @@ fn project_callable_conformances(
                     machine.name, conformance.name, requirement_name
                 ))]);
             }
-            let Some(operator) = psi_typed_trees::operator::resolve_satisfied_checked_operator(
-                &compilation.typed,
-                machine,
-                conformance.name.as_str(),
-                requirement_name.as_str(),
-            ) else {
+            let external_operator =
+                expected_external.is_some() || conformance.external_binding.is_some();
+            let operator = if external_operator {
+                psi_typed_trees::operator::resolve_satisfied_boundary_operator(
+                    &compilation.typed,
+                    machine,
+                    conformance.name.as_str(),
+                    requirement_name.as_str(),
+                )
+            } else {
+                psi_typed_trees::operator::resolve_satisfied_checked_operator(
+                    &compilation.typed,
+                    machine,
+                    conformance.name.as_str(),
+                    requirement_name.as_str(),
+                )
+            };
+            let Some(operator) = operator else {
                 return Err(vec![Diagnostic::error(format!(
-                    "reviewed callable `{}` realization `{}::{}` resolves to neither one exact trait requirement nor one exact checked operator",
-                    machine.name, conformance.name, requirement_name
+                    "reviewed callable `{}` realization `{}::{}` resolves to neither one exact trait requirement nor one exact {}operator",
+                    machine.name,
+                    conformance.name,
+                    requirement_name,
+                    if external_operator {
+                        "boundary "
+                    } else {
+                        "checked "
+                    }
                 ))]);
             };
-            if expected_external.is_some() || conformance.external_binding.is_some() {
+            if !operator.is_public && (external_operator || require_public_trait) {
                 return Err(vec![Diagnostic::error(format!(
-                    "reviewed callable `{}` realizes operator `{}::{}` through external executable supply not yet represented by package review",
+                    "reviewed callable `{}` realizes non-public operator `{}::{}` whose complete contract is absent from package review",
                     machine.name, conformance.name, requirement_name
                 ))]);
+            }
+            if external_operator {
+                if operator.spelling.is_some() {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` realizes fixed-token boundary operator `{}::{}` before external token dispatch is represented",
+                        machine.name, conformance.name, requirement_name
+                    ))]);
+                }
+                if !operator.lifetime_parameters.is_empty()
+                    || !compilation.operator_type_parameters(operator).is_empty()
+                    || !machine.lifetime_parameters.is_empty()
+                    || !machine.type_parameters.is_empty()
+                {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` realizes generic or lifetime-parameterized boundary operator `{}::{}` through external supply not yet represented by package review",
+                        machine.name, conformance.name, requirement_name
+                    ))]);
+                }
+                if conformance.alias.is_some() {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` realizes boundary operator `{}::{}` through an alias not yet represented by package review",
+                        machine.name, conformance.name, requirement_name
+                    ))]);
+                }
+                let Some((_, binding)) = expected_external.as_ref() else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` realizes boundary operator `{}::{}` through an external binding without exact external supply",
+                        machine.name, conformance.name, requirement_name
+                    ))]);
+                };
+                validate_selected_boundary_operator_external_supply(
+                    compilation,
+                    machine,
+                    operator,
+                    binding,
+                )?;
+                let coordinate = project_operator_coordinate(compilation, operator)?;
+                if require_public_trait {
+                    operator_realizations.push(coordinate.clone());
+                }
+                external_executable_supply.push(PackageReviewExternalExecutableSupply {
+                    callable: callable_identity.clone(),
+                    requirement: PackageReviewExternalRequirement::Operator(coordinate),
+                    binding: binding.clone(),
+                });
+                continue;
             }
             if !matches!(machine.supply_mode, MachineSupplyMode::CheckedBody)
                 || !machine.body_is_present
             {
                 return Err(vec![Diagnostic::error(format!(
                     "reviewed callable `{}` realizes operator `{}::{}` without one checked implementation body",
-                    machine.name, conformance.name, requirement_name
-                ))]);
-            }
-            if require_public_trait && !operator.is_public {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed callable `{}` realizes non-public operator `{}::{}` whose complete contract is absent from package review",
                     machine.name, conformance.name, requirement_name
                 ))]);
             }
@@ -10254,7 +10333,7 @@ fn project_callable_conformances(
         if let Some((_, binding)) = expected_external.as_ref() {
             external_executable_supply.push(PackageReviewExternalExecutableSupply {
                 callable: callable_identity.clone(),
-                conformance: row.clone(),
+                requirement: PackageReviewExternalRequirement::Trait(row.clone()),
                 binding: binding.clone(),
             });
         }
@@ -10379,6 +10458,141 @@ fn validate_selected_boundary_operator_checked_adapter(
     {
         return Err(vec![Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` does not join exact operator `{slot}` to checked adapter `{}`",
+            plan.name, machine.name,
+        ))]);
+    }
+    Ok(())
+}
+
+fn validate_selected_boundary_operator_external_supply(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    operator: &psi_typed_trees::operator::OperatorDefinition,
+    binding: &PackageReviewExternalBinding,
+) -> Result<(), Vec<Diagnostic>> {
+    let plans = compilation.selected_provider_plans().plans();
+    let provenance = compilation.selected_provider_provenance();
+    if plans.len() != provenance.len() {
+        return Err(vec![Diagnostic::error(
+            "selected boundary-operator provider plans are not aligned with retained declaration provenance",
+        )]);
+    }
+    let slot = psi_typed_trees::operator::boundary_operator_requirement_identity(
+        &compilation.typed,
+        operator,
+    );
+    let matches = plans
+        .iter()
+        .zip(provenance)
+        .filter(|(plan, retained)| {
+            plan.schema.trait_name == slot
+                && retained.provider.schema
+                    == super::provider_plans::ProviderSchemaDeclaration::BoundaryOperator(
+                        operator.symbol,
+                    )
+                && retained.provider.row_realizations.contains(&machine.symbol)
+        })
+        .collect::<Vec<_>>();
+    if matches.is_empty() {
+        return Ok(());
+    }
+    let [(plan, retained)] = matches.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed external leaf `{}` realizes boundary operator `{slot}`, but package review found {} selected provider plans for that exact candidate",
+            machine.name,
+            matches.len(),
+        ))]);
+    };
+    let [method] = plan.schema.methods.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` must contain exactly one schema method",
+            plan.name,
+        ))]);
+    };
+    let [row] = plan.rows.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` must contain exactly one realization row",
+            plan.name,
+        ))]);
+    };
+    let [requirement_symbol] = retained.provider.row_requirements.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` must retain exactly one requirement declaration",
+            plan.name,
+        ))]);
+    };
+    let [realization_symbol] = retained.provider.row_realizations.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` must retain exactly one realization declaration",
+            plan.name,
+        ))]);
+    };
+    let expected_machine_identity = compilation
+        .normalized_machine_overload_identity(machine)
+        .map(|identity| identity.identity())
+        .unwrap_or_default();
+    let expected_package = compilation
+        .typed
+        .symbols
+        .symbol_package_identity(machine.symbol);
+    let expected_table = machine
+        .attached_data
+        .as_ref()
+        .map(|name| name.as_str())
+        .unwrap_or_default();
+    let binding_matches = match (binding, &row.binding) {
+        (
+            PackageReviewExternalBinding::Import { library, symbol },
+            omega_effects::provider_plan::ProviderBinding::StringBackedImportBootstrap {
+                library: selected_library,
+                symbol: selected_symbol,
+            },
+        ) => library == selected_library && symbol == selected_symbol,
+        (
+            PackageReviewExternalBinding::Syscall { number },
+            omega_effects::provider_plan::ProviderBinding::Syscall {
+                number: selected_number,
+            },
+        ) => number == selected_number,
+        (
+            PackageReviewExternalBinding::CompilerIntrinsic,
+            omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                machine: selected_machine,
+            },
+        ) => selected_machine == &expected_machine_identity,
+        (
+            PackageReviewExternalBinding::VtableSlot { index },
+            omega_effects::provider_plan::ProviderBinding::VtableSlot {
+                index: selected_index,
+            },
+        ) => index == selected_index,
+        (
+            PackageReviewExternalBinding::VtableField { field },
+            omega_effects::provider_plan::ProviderBinding::VtableField {
+                table,
+                field: selected_field,
+            },
+        ) => table == expected_table && field == selected_field,
+        (
+            PackageReviewExternalBinding::TableFunction { field },
+            omega_effects::provider_plan::ProviderBinding::TableFunction {
+                table,
+                field: selected_field,
+            },
+        ) => table == expected_table && field == selected_field,
+        _ => false,
+    };
+    if retained.plan != **plan
+        || *requirement_symbol != operator.symbol
+        || *realization_symbol != machine.symbol
+        || plan.origin_package_identity != expected_package
+        || method.requirement_owner != slot
+        || method.requirement_identity != slot
+        || row.requirement_identity != slot
+        || !binding_matches
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` does not join exact operator `{slot}` to external leaf `{}` and its binding",
             plan.name, machine.name,
         ))]);
     }
