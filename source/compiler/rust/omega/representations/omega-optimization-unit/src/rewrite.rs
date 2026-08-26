@@ -338,7 +338,6 @@ enum PsiRewriteWitness {
 pub struct PsiRewriteCandidate {
     identity: OptimizationCandidateIdentity,
     input: OptimizationUnitIdentity,
-    output: OptimizationUnitIdentity,
     rule: OptimizationRuleIdentity,
     decision_point: NodeLocation,
     affected_blocks: Vec<BlockId>,
@@ -555,14 +554,9 @@ impl PsiRewriteCandidate {
             patch,
         );
         let identity = OptimizationCandidateIdentity::from_canonical_bytes(&canonical);
-        let mut output_canonical = Vec::with_capacity(64);
-        output_canonical.extend_from_slice(&input.bytes());
-        output_canonical.extend_from_slice(&identity.bytes());
-        let output = OptimizationUnitIdentity::from_canonical_bytes(&output_canonical);
         Ok(Self {
             identity,
             input,
-            output,
             rule: contract.identity(),
             decision_point,
             affected_blocks,
@@ -583,10 +577,6 @@ impl PsiRewriteCandidate {
 
     pub const fn input(&self) -> OptimizationUnitIdentity {
         self.input
-    }
-
-    pub const fn output(&self) -> OptimizationUnitIdentity {
-        self.output
     }
 
     pub const fn rule(&self) -> OptimizationRuleIdentity {
@@ -696,7 +686,7 @@ fn encode_candidate(
     patch: PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v5\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v6\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     encode_location(&mut bytes, decision_point);

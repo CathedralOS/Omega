@@ -39,9 +39,10 @@ These facts constrain the work below.
   registers. It has no general liveness, interference, spilling, splitting,
   coalescing, or frame allocation. The clean Terminal assignment lane handles
   bounded forms but is also not a general allocator.
-- `omega-regalloc` now owns separate target-neutral declarative physical-
+- `omega-register-model` now owns separate target-neutral declarative physical-
   register and instruction-constraint vocabularies with total structural
-  validators, but performs no allocation.
+  validators. `omega-regalloc` is a compatibility facade and future allocator
+  consumer; neither crate performs allocation yet.
   Clean Terminal-ISA-owned x86-64 declarations split every GPR into exact
   byte/word/dword/qword storage lanes, retain non-allocatable high-byte views,
   model 32-bit zero-extension, and cover XMM, RFLAGS, and RIP state. AArch64
@@ -147,19 +148,26 @@ These facts constrain the work below.
   from incoming edges. The unit validator independently re-derives operation
   definitions and uses, rejects forged parameter positions, and rechecks the
   current verified CFG contract: parameter-free entry blocks, closed edges,
-  total reachability, and acyclicity. The unit tasks remain open for complete
-  function/module signatures, region-indexed semantic facts, and a canonical
-  mutable-unit revision identity.
+  total reachability, and acyclicity. Every admitted unit revision now has a
+  versioned content identity recomputed from its complete function, CFG,
+  operation, fact, effect, ownership, provenance, and fuel state. Construction,
+  accepted-fact attachment, rewrite validation, projection replay, and analysis
+  admission reject a stale identity. Equal accepted content therefore has one
+  unit identity independent of rewrite history; the transformation ledger
+  retains that history separately. The unit tasks remain open for complete
+  function/module signatures and region-indexed semantic facts.
 - `omega-psi-optimizer` now owns the first deterministic analysis slice:
   predecessor/successor and reachability indices, normal/crash exits,
   dominators, post-dominators, block SCCs, reducible/irreducible loop regions,
   and recursive call-graph SCCs. Its compilation-local analysis manager caches
   by unit identity, resolves declared dependencies in canonical order, expands
   invalidation transitively, supports stable parallel cold computation, and in
-  validation mode rejects an undeclared graph change atomically. The manager
-  and CFG tasks remain open until rewrite rules exercise this audit, mutable
-  unit revision identity is recomputable, and suspension/richer call exits are
-  present in the optimization representation.
+  validation mode rejects an undeclared graph change atomically. Every cached,
+  cold, and revision-commit entry first checks the recomputed content identity,
+  so mutating a unit while retaining its old revision cannot reuse cache rows.
+  The manager and CFG tasks remain open until rewrite rules exercise the full
+  audit and suspension/richer call exits are present in the optimization
+  representation.
 - The Psi optimizer now also has immutable compilation-local rule registries.
   They preserve the pass manager's explicit schedule (never hash-sort it),
   reject duplicate rule identities, bind the exact order into a rule-set
@@ -252,10 +260,11 @@ These facts constrain the work below.
   copy-propagation schedule and retains one chained manifest per named pass,
   including a manifest for a pass that commits no rewrite.
 - The first closed rewrite candidate is exact integer constant evaluation for
-  proof-bearing add/subtract/multiply. The immutable candidate binds input and
-  output revision identities, rule contract, decision point, affected region,
-  required analyses and invalidations, substitutions, exact provenance/fuel,
-  literal-fact witness, predicted non-authoritative cost, and a typed patch.
+  proof-bearing add/subtract/multiply. The immutable candidate binds its input
+  revision, rule contract, decision point, affected region, required analyses
+  and invalidations, substitutions, exact provenance/fuel, literal-fact
+  witness, predicted non-authoritative cost, and a typed patch. Only the
+  independent validator may derive the accepted output's content identity.
   Witnesses no longer trust raw supporting operation IDs: each operand names a
   domain-separated scalar-fact identity bound to the input revision, machine,
   value, scalar type, exact definition site, constant payload, and literal
@@ -391,6 +400,7 @@ Rust migration/reference implementation:
 source/compiler/rust/omega/
   foundation/omega-optimization-core/
   representations/omega-optimization-unit/
+  representations/omega-register-model/
   optimization/
     omega-psi-optimizer/
     omega-lowering-optimizer/

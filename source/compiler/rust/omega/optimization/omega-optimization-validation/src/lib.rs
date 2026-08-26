@@ -9,7 +9,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_optimization_core::{
-    AnalysisKind, OptimizationCandidateIdentity, OptimizationSafetyClass,
+    AnalysisKind, OptimizationCandidateIdentity, OptimizationSafetyClass, OptimizationUnitIdentity,
     OptimizationValidatorIdentity,
 };
 use omega_optimization_unit::{
@@ -19,7 +19,8 @@ use omega_optimization_unit::{
     PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterRewrite, ScalarConstantValue,
     SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState,
     ValueDefinition, ValueDefinitionSite, ValueUse, derived_sccp_scalar_constant_fact_identity,
-    literal_scalar_constant_fact_identity, reconstruct_psi_observation_model,
+    literal_scalar_constant_fact_identity, recompute_psi_optimization_unit_identity,
+    reconstruct_psi_observation_model,
 };
 use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ScalarType, ValueId};
 use psi_terminal_fuel::TerminalFuelSchedule;
@@ -33,6 +34,10 @@ pub use projection::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitValidationError {
+    ContentIdentityMismatch {
+        stored: OptimizationUnitIdentity,
+        recomputed: OptimizationUnitIdentity,
+    },
     WrongFuelSchedule,
     MissingEntryMachine(MachineId),
     DuplicateMachine(MachineId),
@@ -293,6 +298,13 @@ impl ValidatedPsiRewrite {
 pub fn validate_psi_optimization_unit(
     unit: &PsiOptimizationUnit,
 ) -> Result<(), OptimizationUnitValidationError> {
+    let recomputed = recompute_psi_optimization_unit_identity(unit);
+    if unit.identity != recomputed {
+        return Err(OptimizationUnitValidationError::ContentIdentityMismatch {
+            stored: unit.identity,
+            recomputed,
+        });
+    }
     if unit.fuel_schedule != TerminalFuelSchedule::CURRENT.identity() {
         return Err(OptimizationUnitValidationError::WrongFuelSchedule);
     }
@@ -459,7 +471,7 @@ pub fn validate_integer_evaluation_candidate(
     node.successors.clear();
     node.ownership.clear();
     function.facts = reconstruct_fact_index(function);
-    output.identity = candidate.output();
+    output.identity = recompute_psi_optimization_unit_identity(&output);
     validate_psi_optimization_unit(&output)?;
     let output_observation = observation_at(&output, patch.location)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
@@ -689,7 +701,7 @@ pub fn validate_redundant_block_parameter_candidate(
         }
     }
     function.facts = reconstruct_fact_index(function);
-    output.identity = candidate.output();
+    output.identity = recompute_psi_optimization_unit_identity(&output);
     validate_psi_optimization_unit(&output)?;
     Ok(ValidatedPsiRewrite {
         unit: output,
@@ -897,7 +909,7 @@ pub fn validate_boolean_evaluation_candidate(
     node.successors.clear();
     node.ownership.clear();
     function.facts = reconstruct_fact_index(function);
-    output.identity = candidate.output();
+    output.identity = recompute_psi_optimization_unit_identity(&output);
     validate_psi_optimization_unit(&output)?;
     let output_observation = observation_at(&output, patch.location)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
@@ -3178,6 +3190,10 @@ mod tests {
     };
     use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
+    fn refresh_identity(unit: &mut PsiOptimizationUnit) {
+        unit.identity = recompute_psi_optimization_unit_identity(unit);
+    }
+
     fn verified_unit() -> omega_terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
         use psi_terminal::{
             Block, MachineContract, TerminalMachine, TerminalMachineResult, TerminalModule,
@@ -3402,6 +3418,22 @@ mod tests {
         supplied_left_fact: Option<omega_optimization_core::ScalarConstantFactIdentity>,
         supplied_obligation_fact: Option<omega_optimization_core::AcceptedObligationFactIdentity>,
     ) -> PsiRewriteCandidate {
+        integer_candidate_with_facts_and_cost(
+            unit,
+            constant,
+            supplied_left_fact,
+            supplied_obligation_fact,
+            -1,
+        )
+    }
+
+    fn integer_candidate_with_facts_and_cost(
+        unit: &PsiOptimizationUnit,
+        constant: IntegerValue,
+        supplied_left_fact: Option<omega_optimization_core::ScalarConstantFactIdentity>,
+        supplied_obligation_fact: Option<omega_optimization_core::AcceptedObligationFactIdentity>,
+        predicted_cost_delta: i64,
+    ) -> PsiRewriteCandidate {
         let function = &unit.functions[0];
         let block = &function.blocks[0];
         let node = &block.nodes[2];
@@ -3462,7 +3494,7 @@ mod tests {
                 obligation_fact: supplied_obligation_fact
                     .unwrap_or(unit.accepted_obligation_facts[0].identity),
             },
-            -1,
+            predicted_cost_delta,
             IntegerConstantRewrite {
                 location,
                 source_operation: psi_operation,
@@ -3477,6 +3509,20 @@ mod tests {
     #[test]
     fn independently_accepts_builder_output() {
         validate_psi_optimization_unit(&unit()).unwrap();
+    }
+
+    #[test]
+    fn stale_stored_content_identity_is_rejected_before_structural_validation() {
+        let mut stale = unit();
+        stale.functions[0].blocks[0].nodes[0].effect.output += 1;
+        let recomputed = recompute_psi_optimization_unit_identity(&stale);
+        assert!(matches!(
+            validate_psi_optimization_unit(&stale),
+            Err(OptimizationUnitValidationError::ContentIdentityMismatch {
+                stored,
+                recomputed: actual,
+            }) if stored == stale.identity && actual == recomputed
+        ));
     }
 
     #[test]
@@ -3508,7 +3554,10 @@ mod tests {
         assert_eq!(input_boundary.live_out, output_boundary.live_out);
         assert_eq!(accepted.candidate(), candidate.identity());
         assert_ne!(accepted.unit().identity, input.identity);
-        assert_eq!(accepted.unit().identity, candidate.output());
+        assert_eq!(
+            accepted.unit().identity,
+            recompute_psi_optimization_unit_identity(accepted.unit())
+        );
         assert_eq!(
             accepted.unit().functions[0].blocks[0].nodes[2].provenance,
             input.functions[0].blocks[0].nodes[2].provenance
@@ -3574,9 +3623,38 @@ mod tests {
     }
 
     #[test]
+    fn candidate_history_does_not_declare_the_accepted_content_identity() {
+        let input = exact_add_unit();
+        let first = integer_candidate_with_facts_and_cost(
+            &input,
+            IntegerValue::Unsigned(15),
+            None,
+            None,
+            -1,
+        );
+        let second = integer_candidate_with_facts_and_cost(
+            &input,
+            IntegerValue::Unsigned(15),
+            None,
+            None,
+            -2,
+        );
+        assert_ne!(first.identity(), second.identity());
+
+        let first_output = validate_integer_evaluation_candidate(&input, &first).unwrap();
+        let second_output = validate_integer_evaluation_candidate(&input, &second).unwrap();
+        assert_eq!(first_output.unit(), second_output.unit());
+        assert_eq!(
+            first_output.unit().identity,
+            recompute_psi_optimization_unit_identity(first_output.unit())
+        );
+    }
+
+    #[test]
     fn corruption_classes_fail_independently() {
         let mut accepted_fact = exact_add_unit();
         accepted_fact.accepted_obligation_facts[0].proof_bundle_fingerprint[0] ^= 1;
+        refresh_identity(&mut accepted_fact);
         assert!(matches!(
             validate_psi_optimization_unit(&accepted_fact),
             Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)
@@ -3586,6 +3664,7 @@ mod tests {
         provenance.functions[0].blocks[0].nodes[0]
             .provenance
             .clear();
+        refresh_identity(&mut provenance);
         assert!(matches!(
             validate_psi_optimization_unit(&provenance),
             Err(OptimizationUnitValidationError::OperationMetadataMismatch { .. })
@@ -3593,6 +3672,7 @@ mod tests {
 
         let mut fuel = unit();
         fuel.functions[0].blocks[0].nodes[0].fuel.clear();
+        refresh_identity(&mut fuel);
         assert!(matches!(
             validate_psi_optimization_unit(&fuel),
             Err(OptimizationUnitValidationError::FuelDoesNotMatchProvenance { .. })
@@ -3600,6 +3680,7 @@ mod tests {
 
         let mut effects = unit();
         effects.functions[0].blocks[0].nodes[1].effect.input = 99;
+        refresh_identity(&mut effects);
         assert!(matches!(
             validate_psi_optimization_unit(&effects),
             Err(OptimizationUnitValidationError::BrokenEffectChain { .. })
@@ -3607,6 +3688,7 @@ mod tests {
 
         let mut facts = unit();
         facts.functions[0].facts.clear();
+        refresh_identity(&mut facts);
         assert!(matches!(
             validate_psi_optimization_unit(&facts),
             Err(OptimizationUnitValidationError::FactIndexMismatch(_))
@@ -3621,6 +3703,7 @@ mod tests {
                 block,
                 node: 1,
             });
+        refresh_identity(&mut forged_uses);
         assert!(matches!(
             validate_psi_optimization_unit(&forged_uses),
             Err(OptimizationUnitValidationError::OperationMetadataMismatch { .. })
@@ -3630,6 +3713,7 @@ mod tests {
         forged_definitions.functions[0].blocks[0].nodes[0]
             .definitions
             .clear();
+        refresh_identity(&mut forged_definitions);
         assert!(matches!(
             validate_psi_optimization_unit(&forged_definitions),
             Err(OptimizationUnitValidationError::OperationMetadataMismatch { .. })
@@ -3648,6 +3732,7 @@ mod tests {
             block,
             node: 1,
         }];
+        refresh_identity(&mut undefined);
         assert!(matches!(
             validate_psi_optimization_unit(&undefined),
             Err(OptimizationUnitValidationError::UndefinedValue { .. })
@@ -3657,6 +3742,7 @@ mod tests {
         place.functions[0]
             .declared_places
             .insert(id(88, PlaceId::new));
+        refresh_identity(&mut place);
         assert!(matches!(
             validate_psi_optimization_unit(&place),
             Err(OptimizationUnitValidationError::UnknownPlace { .. })
@@ -3664,6 +3750,7 @@ mod tests {
 
         let mut cleanup = unit();
         cleanup.functions[0].blocks[0].nodes[1].ownership.clear();
+        refresh_identity(&mut cleanup);
         assert!(matches!(
             validate_psi_optimization_unit(&cleanup),
             Err(OptimizationUnitValidationError::OperationMetadataMismatch { .. })
@@ -3679,6 +3766,7 @@ mod tests {
             expected_edges(&cfg.functions[0].blocks[0].nodes[1].operation);
         cfg.functions[0].blocks[0].nodes[1].uses.clear();
         cfg.functions[0].blocks[0].nodes[1].ownership.clear();
+        refresh_identity(&mut cfg);
         assert!(matches!(
             validate_psi_optimization_unit(&cfg),
             Err(OptimizationUnitValidationError::UnknownSuccessor { .. })
@@ -3693,6 +3781,7 @@ mod tests {
                 scalar_type: ScalarType::Boolean,
                 site: ValueDefinitionSite::BlockParameter { block, position: 0 },
             });
+        refresh_identity(&mut entry_parameters);
         assert!(matches!(
             validate_psi_optimization_unit(&entry_parameters),
             Err(OptimizationUnitValidationError::EntryBlockHasParameters { .. })
@@ -3708,6 +3797,7 @@ mod tests {
             node.uses = expected_uses(&node.operation, block, node_index);
         }
         unreachable.functions[0].blocks.push(detached);
+        refresh_identity(&mut unreachable);
         assert!(matches!(
             validate_psi_optimization_unit(&unreachable),
             Err(OptimizationUnitValidationError::UnreachableBlock { .. })
@@ -3726,6 +3816,7 @@ mod tests {
         node.uses = expected_uses(&node.operation, block, 1);
         node.successors = expected_edges(&node.operation);
         node.ownership = expected_ownership(&node.operation);
+        refresh_identity(&mut cycle);
         assert!(matches!(
             validate_psi_optimization_unit(&cycle),
             Err(OptimizationUnitValidationError::ControlCycle { .. })
@@ -3750,6 +3841,7 @@ mod tests {
         node.uses.clear();
         node.successors.clear();
         node.ownership = expected_ownership(&node.operation);
+        refresh_identity(&mut unit);
         assert!(matches!(
             validate_psi_optimization_unit(&unit),
             Err(OptimizationUnitValidationError::UnknownClaim { .. })

@@ -23,9 +23,12 @@ use psi_terminal::{
     StructuralParameterDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
 };
 
+mod identity;
 mod ledger;
 mod observation;
 mod rewrite;
+
+pub use identity::recompute_psi_optimization_unit_identity;
 
 pub use ledger::{
     InvalidPsiTransformationLedger, PsiTransformationLedger, PsiTransformationRecord,
@@ -298,21 +301,8 @@ pub fn attach_accepted_obligation_facts(
     }) {
         return Err(AcceptedObligationFactIndexError::DuplicateOwner);
     }
-    if !facts.is_empty() {
-        let mut canonical = Vec::new();
-        canonical.extend_from_slice(b"omega.psi-optimization-unit.accepted-obligations.v1\0");
-        canonical.extend_from_slice(&unit.identity.bytes());
-        canonical.extend_from_slice(
-            &u64::try_from(facts.len())
-                .expect("accepted obligation fact count fits u64")
-                .to_le_bytes(),
-        );
-        for fact in &facts {
-            canonical.extend_from_slice(&fact.identity.bytes());
-        }
-        unit.identity = OptimizationUnitIdentity::from_canonical_bytes(&canonical);
-    }
     unit.accepted_obligation_facts = facts;
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
     Ok(unit)
 }
 
@@ -351,15 +341,16 @@ pub fn reconstruct_psi_optimization_unit_seed(
         .iter()
         .map(build_function)
         .collect::<Result<Vec<_>, _>>()?;
-    let canonical = canonical_identity_input(plan, fuel_schedule, &functions);
-    Ok(PsiOptimizationUnit {
-        identity: OptimizationUnitIdentity::from_canonical_bytes(&canonical),
+    let mut unit = PsiOptimizationUnit {
+        identity: OptimizationUnitIdentity::from_canonical_bytes(b"pending canonical content"),
         terminal_psi: plan.terminal_psi,
         fuel_schedule,
         entry: plan.entry,
         accepted_obligation_facts: Vec::new(),
         functions,
-    })
+    };
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    Ok(unit)
 }
 
 fn build_function(
@@ -976,45 +967,6 @@ fn operation_ownership(operation: &TerminalAbstractOperation) -> Vec<OwnershipEv
     }
 }
 
-fn canonical_identity_input(
-    plan: &TerminalAbstractOperationPlan,
-    fuel_schedule: FuelScheduleIdentity,
-    functions: &[PsiOptimizationFunction],
-) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-optimization-unit.v1\0");
-    bytes.extend_from_slice(plan.terminal_psi.program_fingerprint.as_bytes());
-    bytes.extend_from_slice(&plan.terminal_psi.vocabulary_marker.get().to_le_bytes());
-    bytes.extend_from_slice(&plan.entry.get().to_le_bytes());
-    bytes.extend_from_slice(&fuel_schedule.marker().to_le_bytes());
-    bytes.extend_from_slice(&(functions.len() as u64).to_le_bytes());
-    for function in functions {
-        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
-        bytes.extend_from_slice(&function.entry.get().to_le_bytes());
-        bytes.extend_from_slice(&(function.blocks.len() as u64).to_le_bytes());
-        for block in &function.blocks {
-            bytes.extend_from_slice(&block.id.get().to_le_bytes());
-            bytes.extend_from_slice(&(block.nodes.len() as u64).to_le_bytes());
-            for node in &block.nodes {
-                bytes.extend_from_slice(&(node.provenance.len() as u64).to_le_bytes());
-                for site in &node.provenance {
-                    match site {
-                        PsiProvenance::Operation(id) => {
-                            bytes.push(1);
-                            bytes.extend_from_slice(&id.get().to_le_bytes());
-                        }
-                        PsiProvenance::Edge(id) => {
-                            bytes.push(2);
-                            bytes.extend_from_slice(&id.get().to_le_bytes());
-                        }
-                    }
-                }
-            }
-        }
-    }
-    bytes
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1096,6 +1048,143 @@ mod tests {
             first.functions[0].blocks[0].nodes[0].fuel[0].site,
             first.functions[0].blocks[0].nodes[1].fuel[0].site
         );
+    }
+
+    #[test]
+    fn canonical_identity_is_content_recomputable_and_history_independent() {
+        let schedule = FuelScheduleIdentity::new(1).expect("nonzero schedule");
+        let first = reconstruct_psi_optimization_unit_seed(&plan(), schedule).unwrap();
+        let second = reconstruct_psi_optimization_unit_seed(&plan(), schedule).unwrap();
+        assert_eq!(
+            recompute_psi_optimization_unit_identity(&first),
+            recompute_psi_optimization_unit_identity(&second)
+        );
+
+        let mut different_stored_history = first.clone();
+        different_stored_history.identity =
+            OptimizationUnitIdentity::from_canonical_bytes(b"unrelated stored history");
+        assert_eq!(
+            recompute_psi_optimization_unit_identity(&first),
+            recompute_psi_optimization_unit_identity(&different_stored_history)
+        );
+    }
+
+    #[test]
+    fn canonical_identity_binds_every_retained_field_class() {
+        let baseline = reconstruct_psi_optimization_unit_seed(
+            &plan(),
+            FuelScheduleIdentity::new(1).expect("nonzero schedule"),
+        )
+        .unwrap();
+        let baseline_identity = recompute_psi_optimization_unit_identity(&baseline);
+        let machine = baseline.functions[0].machine;
+        let block = baseline.functions[0].blocks[0].id;
+        let scalar_type = baseline.functions[0].parameters[0].scalar_type;
+        let mut mutations = Vec::new();
+
+        let mut unit = baseline.clone();
+        unit.terminal_psi.program_fingerprint = SemanticFingerprint::from_bytes([8; 32]);
+        mutations.push(("terminal identity", unit));
+        let mut unit = baseline.clone();
+        unit.fuel_schedule = FuelScheduleIdentity::new(2).unwrap();
+        mutations.push(("fuel schedule", unit));
+        let mut unit = baseline.clone();
+        unit.entry = id(90, MachineId::new);
+        mutations.push(("entry machine", unit));
+        let mut unit = baseline.clone();
+        unit.accepted_obligation_facts
+            .push(AcceptedObligationFact::new(
+                unit.terminal_psi,
+                [4; 32],
+                machine,
+                id(5, OperationId::new),
+                id(91, ObligationId::new),
+                vec![1, 2, 3],
+            ));
+        mutations.push(("accepted fact", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0].machine = id(92, MachineId::new);
+        mutations.push(("function identity", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0].parameters[0].value = id(93, ValueId::new);
+        mutations.push(("scalar parameter", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0].structural_parameters.push(
+            psi_terminal::StructuralParameterDeclaration {
+                place: id(94, PlaceId::new),
+                position: 0,
+                is_self: false,
+                structural_type: id(95, psi_core::StructuralTypeId::new),
+                multiplicity: psi_terminal::StructuralMultiplicity::Affine,
+                access: psi_terminal::StructuralAccess::Owned,
+                qualifications: Vec::new(),
+            },
+        );
+        mutations.push(("structural parameter", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0]
+            .declared_places
+            .insert(id(96, PlaceId::new));
+        mutations.push(("declared place", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0].entry_claims.insert(id(97, ClaimId::new));
+        mutations.push(("entry claim", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0].facts.clear();
+        mutations.push(("optimization fact", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0].blocks[0].id = id(98, BlockId::new);
+        mutations.push(("block", unit));
+        let mut unit = baseline.clone();
+        let TerminalAbstractOperation::IntegerConstant { value, .. } =
+            &mut unit.functions[0].blocks[0].nodes[0].operation
+        else {
+            unreachable!()
+        };
+        *value = IntegerValue::Unsigned(10);
+        mutations.push(("operation payload", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0].blocks[0].nodes[0].provenance[0] =
+            PsiProvenance::Operation(id(99, OperationId::new));
+        mutations.push(("provenance", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0].blocks[0].nodes[0].fuel[0].units = 2;
+        mutations.push(("fuel settlement", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0].blocks[0].nodes[0].effect.output = 77;
+        mutations.push(("effect", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0].blocks[0].nodes[0].definitions[0].scalar_type = ScalarType::Boolean;
+        mutations.push(("definition", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0].blocks[0].nodes[1].uses[0].value = id(100, ValueId::new);
+        mutations.push(("use", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0].blocks[0].nodes[0]
+            .successors
+            .push(OptimizationEdge {
+                psi_edge: id(101, EdgeId::new),
+                target: block,
+                bindings: vec![TerminalValueBinding {
+                    parameter: id(102, ValueId::new),
+                    argument: id(103, ValueId::new),
+                    scalar_type,
+                }],
+            });
+        mutations.push(("successor", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0].blocks[0].nodes[0]
+            .ownership
+            .push(OwnershipEvent::ClaimTransfer(vec![id(104, ClaimId::new)]));
+        mutations.push(("ownership", unit));
+
+        for (field_class, unit) in mutations {
+            assert_ne!(
+                recompute_psi_optimization_unit_identity(&unit),
+                baseline_identity,
+                "{field_class} must contribute to canonical content identity"
+            );
+        }
     }
 
     #[test]
