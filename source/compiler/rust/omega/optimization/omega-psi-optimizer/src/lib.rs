@@ -34,14 +34,15 @@ pub use rules::{
     ExactIntegerAddConstantsRule, ExactIntegerCastConstantsRule, ExactIntegerDivideConstantsRule,
     ExactIntegerMultiplyConstantsRule, ExactIntegerRemainderConstantsRule,
     ExactIntegerShiftLeftConstantsRule, ExactIntegerShiftRightConstantsRule,
-    ExactIntegerSubtractConstantsRule, IntegerBitwiseNotConstantsRule, IntegerWidenConstantsRule,
-    SaturatingIntegerAddConstantsRule, SaturatingIntegerDivideConstantsRule,
-    SaturatingIntegerMultiplyConstantsRule, SaturatingIntegerRemainderConstantsRule,
-    SaturatingIntegerSubtractConstantsRule, WrappingIntegerAddConstantsRule,
-    WrappingIntegerDivideConstantsRule, WrappingIntegerMultiplyConstantsRule,
-    WrappingIntegerRemainderConstantsRule, WrappingIntegerShiftLeftConstantsRule,
-    WrappingIntegerShiftRightConstantsRule, WrappingIntegerSubtractConstantsRule,
-    built_in_psi_registry,
+    ExactIntegerSubtractConstantsRule, IntegerBitwiseAndConstantsRule,
+    IntegerBitwiseNotConstantsRule, IntegerBitwiseOrConstantsRule, IntegerBitwiseXorConstantsRule,
+    IntegerWidenConstantsRule, SaturatingIntegerAddConstantsRule,
+    SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,
+    SaturatingIntegerRemainderConstantsRule, SaturatingIntegerSubtractConstantsRule,
+    WrappingIntegerAddConstantsRule, WrappingIntegerDivideConstantsRule,
+    WrappingIntegerMultiplyConstantsRule, WrappingIntegerRemainderConstantsRule,
+    WrappingIntegerShiftLeftConstantsRule, WrappingIntegerShiftRightConstantsRule,
+    WrappingIntegerSubtractConstantsRule, built_in_psi_registry,
 };
 
 #[cfg(test)]
