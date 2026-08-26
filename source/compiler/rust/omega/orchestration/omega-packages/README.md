@@ -906,9 +906,14 @@ typed state and checked facts. Private, generic/lifetime-parameterized, aliased,
 operator-bound external realizations still fail closed. A fixed-token
 realization uses the same declaration coordinate as its named call surface;
 the public-operator row owns the closed compiler spelling, so the callable edge
-does not repeat it or create another identity form. Boundary operator
-realizations remain outside this lane pending selected-provider canaries;
-trait-bound external
+does not repeat it or create another identity form. Checked-body boundary
+operators use the same satisfaction edge; the selected-provider set separately
+identifies the active plan and rejoins its exact requirement and realizing
+machine. Projection repeats the exact symbol, slot, checked-adapter binding,
+package, and machine join. A named-boundary canary covers unique selection.
+Fixed-token boundary operators remain fail-closed until checked-adapter token
+dispatch exists. Authored same-path overload-family override remains OWNER Q10,
+and operator-bound external supply remains separate; trait-bound external
 supply remains the separately represented executable-supply lane. Public callable `requires`
 and `ensures` retain exact structural rows for the closed
 boolean/integer expression subset over parameter ordinals, `result`, generic

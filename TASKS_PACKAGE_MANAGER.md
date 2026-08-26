@@ -1561,9 +1561,18 @@ complete.
   uses the same exact declaration coordinate as the named call surface; the
   public-operator row, not the callable realization edge, owns the closed
   compiler spelling. Positive projection canaries join those rows without a
-  duplicate package name or a new encoding field. Boundary realizations remain
-  outside this lane pending selected-provider semantics; operator-bound external
-  supply needs its own trust-bearing association. This is compiler-private
+  duplicate package name or a new encoding field. Checked-body boundary
+  realizations now use that same edge only for contract satisfaction; the
+  existing selected-provider set separately names the active target plan,
+  exact operator requirement, and realizing machine. A named-boundary canary
+  joins all three rows under unique covering selection, and projection repeats
+  that exact symbol, slot, binding, package, and machine join. Thus an
+  unselected candidate is not mislabeled as selected and provider identity is
+  not duplicated into the callable. Fixed-token boundary operators remain
+  fail-closed until checked-adapter token dispatch exists. Authored override of
+  a same-path overloaded boundary-operator family remains blocked on OWNER Q10.
+  Operator-bound external supply still needs its own trust-bearing association.
+  This is compiler-private
   retained checked baseline, not a persisted review row or a reason for nominal
   Chi. Trusted compiler components remain inside the TCB; this comparison does
   not claim to resist a component that rewrites both typed state and checked
