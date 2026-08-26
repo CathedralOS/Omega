@@ -6,8 +6,8 @@ use omega_optimization_core::{
     OptimizationSelections,
 };
 use omega_optimization_unit::{
-    IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, ProvenanceRewrite,
-    PsiOptimizationUnit, PsiRewriteCandidate,
+    BooleanConstantRewrite, IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation,
+    ProvenanceRewrite, PsiOptimizationUnit, PsiRewriteCandidate,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{IntegerValue, MachineId, OperationId, ValueId};
@@ -193,6 +193,235 @@ integer_evaluation_rule!(
     IntegerBinaryKind::BitwiseXor,
     OptimizationSafetyClass::ExactOperationSemantics
 );
+
+macro_rules! boolean_evaluation_rule {
+    ($name:ident, $rule_name:literal, $kind:expr) => {
+        #[derive(Debug, Clone, Copy, Default)]
+        pub struct $name;
+
+        impl $name {
+            pub fn contract() -> OptimizationRuleContract {
+                integer_evaluation_contract(
+                    $rule_name,
+                    OptimizationSafetyClass::ExactOperationSemantics,
+                )
+            }
+        }
+
+        impl PsiOptimizationRule for $name {
+            fn contract(&self) -> OptimizationRuleContract {
+                Self::contract()
+            }
+
+            fn propose(
+                &self,
+                unit: &PsiOptimizationUnit,
+                analyses: RuleAnalysisView<'_>,
+            ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+                propose_boolean_constants(unit, analyses, Self::contract(), $kind)
+            }
+        }
+    };
+}
+
+boolean_evaluation_rule!(
+    BooleanNotConstantsRule,
+    b"omega.psi-rule.boolean-not-constants.v1",
+    BooleanEvaluationKind::Not
+);
+boolean_evaluation_rule!(
+    BooleanEqualConstantsRule,
+    b"omega.psi-rule.boolean-equal-constants.v1",
+    BooleanEvaluationKind::Equal
+);
+boolean_evaluation_rule!(
+    IntegerEqualConstantsRule,
+    b"omega.psi-rule.integer-equal-constants.v1",
+    BooleanEvaluationKind::IntegerEqual
+);
+boolean_evaluation_rule!(
+    IntegerLessThanConstantsRule,
+    b"omega.psi-rule.integer-less-than-constants.v1",
+    BooleanEvaluationKind::IntegerLessThan
+);
+boolean_evaluation_rule!(
+    IntegerLessOrEqualConstantsRule,
+    b"omega.psi-rule.integer-less-or-equal-constants.v1",
+    BooleanEvaluationKind::IntegerLessOrEqual
+);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BooleanEvaluationKind {
+    Not,
+    Equal,
+    IntegerEqual,
+    IntegerLessThan,
+    IntegerLessOrEqual,
+}
+
+fn propose_boolean_constants(
+    unit: &PsiOptimizationUnit,
+    analyses: RuleAnalysisView<'_>,
+    contract: OptimizationRuleContract,
+    kind: BooleanEvaluationKind,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+    let Some(AnalysisProduct::ScalarConstants(constants)) =
+        analyses.get(AnalysisKind::ScalarConstants)
+    else {
+        return Err(RuleProposalError::MissingAnalysis(
+            AnalysisKind::ScalarConstants,
+        ));
+    };
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let (source_operation, result, constant, witness) = match (&node.operation, kind) {
+                    (
+                        O::BooleanNot {
+                            psi_operation,
+                            result,
+                            operand,
+                        },
+                        BooleanEvaluationKind::Not,
+                    ) => {
+                        let Some((operand, operand_support)) =
+                            boolean_constant(constants, function.machine, *operand)
+                        else {
+                            continue;
+                        };
+                        (
+                            *psi_operation,
+                            *result,
+                            !operand,
+                            IntegerEvaluationWitness::Unary { operand_support },
+                        )
+                    }
+                    (
+                        O::BooleanEqual {
+                            psi_operation,
+                            result,
+                            left,
+                            right,
+                        },
+                        BooleanEvaluationKind::Equal,
+                    ) => {
+                        let Some((left, left_support)) =
+                            boolean_constant(constants, function.machine, *left)
+                        else {
+                            continue;
+                        };
+                        let Some((right, right_support)) =
+                            boolean_constant(constants, function.machine, *right)
+                        else {
+                            continue;
+                        };
+                        (
+                            *psi_operation,
+                            *result,
+                            left == right,
+                            IntegerEvaluationWitness::Binary {
+                                left_support,
+                                right_support,
+                            },
+                        )
+                    }
+                    (
+                        O::IntegerEqual {
+                            psi_operation,
+                            result,
+                            left,
+                            right,
+                        },
+                        BooleanEvaluationKind::IntegerEqual,
+                    )
+                    | (
+                        O::IntegerLessThan {
+                            psi_operation,
+                            result,
+                            left,
+                            right,
+                        },
+                        BooleanEvaluationKind::IntegerLessThan,
+                    )
+                    | (
+                        O::IntegerLessOrEqual {
+                            psi_operation,
+                            result,
+                            left,
+                            right,
+                        },
+                        BooleanEvaluationKind::IntegerLessOrEqual,
+                    ) => {
+                        let Some((left_value, left_support)) =
+                            integer_constant(constants, function.machine, *left)
+                        else {
+                            continue;
+                        };
+                        let Some((right_value, right_support)) =
+                            integer_constant(constants, function.machine, *right)
+                        else {
+                            continue;
+                        };
+                        let Some(left_type) = integer_value_type(function, *left) else {
+                            continue;
+                        };
+                        if integer_value_type(function, *right) != Some(left_type) {
+                            continue;
+                        }
+                        let Some(ordering) = left_type.compare(left_value, right_value) else {
+                            continue;
+                        };
+                        let constant = match kind {
+                            BooleanEvaluationKind::IntegerEqual => ordering.is_eq(),
+                            BooleanEvaluationKind::IntegerLessThan => ordering.is_lt(),
+                            BooleanEvaluationKind::IntegerLessOrEqual => !ordering.is_gt(),
+                            _ => unreachable!(),
+                        };
+                        (
+                            *psi_operation,
+                            *result,
+                            constant,
+                            IntegerEvaluationWitness::Binary {
+                                left_support,
+                                right_support,
+                            },
+                        )
+                    }
+                    _ => continue,
+                };
+                let location = NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: u32::try_from(node_index).expect("optimization node indices are u32"),
+                };
+                candidates.push(
+                    PsiRewriteCandidate::new_boolean_evaluation(
+                        unit.identity,
+                        contract,
+                        vec![block.id],
+                        Vec::new(),
+                        vec![ProvenanceRewrite {
+                            output: location,
+                            sources: node.provenance.clone(),
+                            fuel: node.fuel.clone(),
+                        }],
+                        witness,
+                        -1,
+                        BooleanConstantRewrite {
+                            location,
+                            source_operation,
+                            result,
+                            constant,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+    }
+    Ok(candidates)
+}
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ExactIntegerCastConstantsRule;
@@ -962,6 +1191,40 @@ fn integer_constant(
     })
 }
 
+fn boolean_constant(
+    constants: &ScalarConstantAnalysis,
+    machine: MachineId,
+    value: ValueId,
+) -> Option<(bool, OperationId)> {
+    constants.facts.iter().find_map(|fact| {
+        (fact.valid_in.machine == machine && fact.value == value)
+            .then_some(fact)
+            .and_then(|fact| match fact.constant {
+                ScalarConstant::Boolean(value) => Some((value, fact.support)),
+                ScalarConstant::Integer(_) => None,
+            })
+    })
+}
+
+fn integer_value_type(
+    function: &omega_optimization_unit::PsiOptimizationFunction,
+    value: ValueId,
+) -> Option<psi_core::IntegerType> {
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.definitions)
+        .find_map(|definition| {
+            (definition.value == value)
+                .then_some(definition.scalar_type)
+                .and_then(|scalar_type| match scalar_type {
+                    psi_core::ScalarType::Integer(integer) => Some(integer),
+                    psi_core::ScalarType::Boolean => None,
+                })
+        })
+}
+
 pub fn built_in_psi_registry(
     selections: &OptimizationSelections,
 ) -> Result<OrderedRuleRegistry, RuleRegistryError> {
@@ -999,6 +1262,11 @@ pub fn built_in_psi_registry(
         rules.push(Arc::new(IntegerBitwiseAndConstantsRule));
         rules.push(Arc::new(IntegerBitwiseOrConstantsRule));
         rules.push(Arc::new(IntegerBitwiseXorConstantsRule));
+        rules.push(Arc::new(BooleanNotConstantsRule));
+        rules.push(Arc::new(BooleanEqualConstantsRule));
+        rules.push(Arc::new(IntegerEqualConstantsRule));
+        rules.push(Arc::new(IntegerLessThanConstantsRule));
+        rules.push(Arc::new(IntegerLessOrEqualConstantsRule));
     }
     OrderedRuleRegistry::new(rules)
 }
@@ -1006,7 +1274,9 @@ pub fn built_in_psi_registry(
 #[cfg(test)]
 pub(crate) mod tests {
     use omega_optimization_unit::{OptimizationFact, reconstruct_psi_optimization_unit_seed};
-    use omega_optimization_validation::validate_integer_evaluation_candidate;
+    use omega_optimization_validation::{
+        validate_boolean_evaluation_candidate, validate_integer_evaluation_candidate,
+    };
     use omega_terminal_abstract_operations::{
         TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
         TerminalAbstractOperation, TerminalAbstractOperationPlan, TerminalAbstractResult,
@@ -1530,6 +1800,170 @@ pub(crate) mod tests {
         .unwrap()
     }
 
+    pub(crate) fn boolean_unit(equal: bool) -> PsiOptimizationUnit {
+        let machine = id(341, MachineId::new);
+        let block = id(342, BlockId::new);
+        let left = id(343, ValueId::new);
+        let right = id(344, ValueId::new);
+        let result = id(345, ValueId::new);
+        let operation = if equal {
+            TerminalAbstractOperation::BooleanEqual {
+                psi_operation: id(348, OperationId::new),
+                result,
+                left,
+                right,
+            }
+        } else {
+            TerminalAbstractOperation::BooleanNot {
+                psi_operation: id(348, OperationId::new),
+                result,
+                operand: left,
+            }
+        };
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([16; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry: block,
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: result,
+                        scalar_type: ScalarType::Boolean,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        TerminalAbstractOperation::BooleanConstant {
+                            psi_operation: id(346, OperationId::new),
+                            result: left,
+                            value: true,
+                        },
+                        TerminalAbstractOperation::BooleanConstant {
+                            psi_operation: id(347, OperationId::new),
+                            result: right,
+                            value: false,
+                        },
+                        operation,
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(349, EdgeId::new),
+                            result,
+                            value: result,
+                            scalar_type: ScalarType::Boolean,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[derive(Clone, Copy)]
+    enum ComparisonFixtureKind {
+        Equal,
+        LessThan,
+        LessOrEqual,
+    }
+
+    fn integer_comparison_unit(kind: ComparisonFixtureKind) -> PsiOptimizationUnit {
+        let machine = id(351, MachineId::new);
+        let block = id(352, BlockId::new);
+        let left = id(353, ValueId::new);
+        let right = id(354, ValueId::new);
+        let result = id(355, ValueId::new);
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let operation = match kind {
+            ComparisonFixtureKind::Equal => TerminalAbstractOperation::IntegerEqual {
+                psi_operation: id(358, OperationId::new),
+                result,
+                left,
+                right,
+            },
+            ComparisonFixtureKind::LessThan => TerminalAbstractOperation::IntegerLessThan {
+                psi_operation: id(358, OperationId::new),
+                result,
+                left,
+                right,
+            },
+            ComparisonFixtureKind::LessOrEqual => TerminalAbstractOperation::IntegerLessOrEqual {
+                psi_operation: id(358, OperationId::new),
+                result,
+                left,
+                right,
+            },
+        };
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([17; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry: block,
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: result,
+                        scalar_type: ScalarType::Boolean,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        TerminalAbstractOperation::IntegerConstant {
+                            psi_operation: id(356, OperationId::new),
+                            result: left,
+                            scalar_type: ScalarType::Integer(scalar_type),
+                            value: IntegerValue::Unsigned(7),
+                        },
+                        TerminalAbstractOperation::IntegerConstant {
+                            psi_operation: id(357, OperationId::new),
+                            result: right,
+                            scalar_type: ScalarType::Integer(scalar_type),
+                            value: IntegerValue::Unsigned(8),
+                        },
+                        operation,
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(359, EdgeId::new),
+                            result,
+                            value: result,
+                            scalar_type: ScalarType::Boolean,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
     #[test]
     fn selected_builtin_proposes_one_independently_validated_exact_fold() {
         let unit = exact_add_unit();
@@ -1539,7 +1973,7 @@ pub(crate) mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        assert_eq!(registry.len(), 25);
+        assert_eq!(registry.len(), 30);
         let mut dispatched = 0usize;
         let mut candidates = Vec::new();
         for rule in registry.iter() {
@@ -1754,7 +2188,10 @@ pub(crate) mod tests {
             unreachable!()
         };
         let omega_optimization_unit::PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) =
-            candidates[0].patch();
+            candidates[0].patch()
+        else {
+            unreachable!()
+        };
         let binary_witness = PsiRewriteCandidate::new_integer_evaluation(
             unit.identity,
             ExactIntegerCastConstantsRule::contract(),
@@ -1817,6 +2254,65 @@ pub(crate) mod tests {
                     value: IntegerValue::Unsigned(value),
                     ..
                 } if value == expected && scalar_type.bits() == expected_bits
+            ));
+        }
+    }
+
+    #[test]
+    fn boolean_not_and_equal_use_typed_boolean_patches() {
+        let cases: [(bool, &dyn PsiOptimizationRule); 2] = [
+            (false, &BooleanNotConstantsRule),
+            (true, &BooleanEqualConstantsRule),
+        ];
+        for (equal, rule) in cases {
+            let unit = boolean_unit(equal);
+            let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
+            let candidates = rule
+                .propose(&unit, RuleAnalysisView::new(&[constants]))
+                .unwrap();
+            assert_eq!(candidates.len(), 1);
+            assert!(matches!(
+                candidates[0].patch(),
+                omega_optimization_unit::PsiRewritePatch::ReplaceBooleanOperationWithConstant(_)
+            ));
+            let accepted = validate_boolean_evaluation_candidate(&unit, &candidates[0]).unwrap();
+            assert!(matches!(
+                accepted.unit().functions[0].blocks[0].nodes[2].operation,
+                TerminalAbstractOperation::BooleanConstant { value: false, .. }
+            ));
+        }
+    }
+
+    #[test]
+    fn integer_comparison_rules_reconstruct_operand_types_and_boolean_results() {
+        let cases: [(ComparisonFixtureKind, &dyn PsiOptimizationRule, bool); 3] = [
+            (
+                ComparisonFixtureKind::Equal,
+                &IntegerEqualConstantsRule,
+                false,
+            ),
+            (
+                ComparisonFixtureKind::LessThan,
+                &IntegerLessThanConstantsRule,
+                true,
+            ),
+            (
+                ComparisonFixtureKind::LessOrEqual,
+                &IntegerLessOrEqualConstantsRule,
+                true,
+            ),
+        ];
+        for (kind, rule, expected) in cases {
+            let unit = integer_comparison_unit(kind);
+            let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
+            let candidates = rule
+                .propose(&unit, RuleAnalysisView::new(&[constants]))
+                .unwrap();
+            assert_eq!(candidates.len(), 1);
+            let accepted = validate_boolean_evaluation_candidate(&unit, &candidates[0]).unwrap();
+            assert!(matches!(
+                accepted.unit().functions[0].blocks[0].nodes[2].operation,
+                TerminalAbstractOperation::BooleanConstant { value, .. } if value == expected
             ));
         }
     }

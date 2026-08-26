@@ -36,8 +36,9 @@ pub use observation::{
 };
 
 pub use rewrite::{
-    IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, ProvenanceRewrite,
-    PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch, ScalarSubstitution,
+    BooleanConstantRewrite, IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation,
+    ProvenanceRewrite, PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch,
+    ScalarEvaluationWitness, ScalarSubstitution,
 };
 
 /// The exact immutable Terminal Psi semantic site realized by one unit node.
