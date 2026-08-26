@@ -152,7 +152,6 @@ pub enum OptimizationUnitValidationError {
     CandidateFuelMismatch,
     CandidateOperandFactMismatch,
     CandidateEvaluationMismatch,
-    CandidateFactReplacementMissing,
     CandidateObservationMismatch,
     CandidateLiveBoundaryMismatch,
 }
@@ -319,9 +318,6 @@ pub fn validate_integer_evaluation_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
-    if candidate.safety_class() != OptimizationSafetyClass::ProofCertified {
-        return Err(OptimizationUnitValidationError::CandidateSafetyClassMismatch);
-    }
     let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch();
     if candidate.decision_point() != patch.location {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
@@ -354,8 +350,11 @@ pub fn validate_integer_evaluation_candidate(
         return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
     }
 
-    let (source_operation, result, scalar_type, left, right, evaluated) =
+    let (source_operation, result, scalar_type, left, right, evaluated, safety_class) =
         evaluate_exact_binary(function, node, candidate)?;
+    if candidate.safety_class() != safety_class {
+        return Err(OptimizationUnitValidationError::CandidateSafetyClassMismatch);
+    }
     if patch
         != (IntegerConstantRewrite {
             location: patch.location,
@@ -399,20 +398,7 @@ pub fn validate_integer_evaluation_candidate(
     node.uses.clear();
     node.successors.clear();
     node.ownership.clear();
-    let Some(fact) = function.facts.iter_mut().find(|fact| {
-        matches!(
-            fact,
-            OptimizationFact::OperationObligationReference { support, .. }
-                if *support == patch.source_operation
-        )
-    }) else {
-        return Err(OptimizationUnitValidationError::CandidateFactReplacementMissing);
-    };
-    *fact = OptimizationFact::IntegerConstant {
-        value: patch.result,
-        constant: patch.constant,
-        support: patch.source_operation,
-    };
+    function.facts = reconstruct_fact_index(function);
     output.identity = candidate.output();
     validate_psi_optimization_unit(&output)?;
     let output_observation = observation_at(&output, patch.location)
@@ -479,14 +465,21 @@ fn evaluate_exact_binary(
         ValueId,
         ValueId,
         psi_core::IntegerValue,
+        OptimizationSafetyClass,
     ),
     OptimizationUnitValidationError,
 > {
     use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
-    enum ExactOperation {
-        Add,
-        Subtract,
-        Multiply,
+    enum IntegerOperation {
+        ExactAdd,
+        ExactSubtract,
+        ExactMultiply,
+        WrappingAdd,
+        WrappingSubtract,
+        WrappingMultiply,
+        SaturatingAdd,
+        SaturatingSubtract,
+        SaturatingMultiply,
     }
     let (kind, source, result, scalar_type, left, right) = match &node.operation {
         O::ExactIntegerAdd {
@@ -497,7 +490,7 @@ fn evaluate_exact_binary(
             right,
             ..
         } => (
-            ExactOperation::Add,
+            IntegerOperation::ExactAdd,
             *psi_operation,
             *result,
             *scalar_type,
@@ -512,7 +505,7 @@ fn evaluate_exact_binary(
             right,
             ..
         } => (
-            ExactOperation::Subtract,
+            IntegerOperation::ExactSubtract,
             *psi_operation,
             *result,
             *scalar_type,
@@ -527,7 +520,91 @@ fn evaluate_exact_binary(
             right,
             ..
         } => (
-            ExactOperation::Multiply,
+            IntegerOperation::ExactMultiply,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        O::WrappingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IntegerOperation::WrappingAdd,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        O::WrappingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IntegerOperation::WrappingSubtract,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        O::WrappingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IntegerOperation::WrappingMultiply,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        O::SaturatingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IntegerOperation::SaturatingAdd,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        O::SaturatingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IntegerOperation::SaturatingSubtract,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        O::SaturatingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IntegerOperation::SaturatingMultiply,
             *psi_operation,
             *result,
             *scalar_type,
@@ -541,13 +618,55 @@ fn evaluate_exact_binary(
         .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
     let right_value = literal_integer_fact(function, right, witness.right_support)
         .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
-    let evaluated = match kind {
-        ExactOperation::Add => scalar_type.exact_add(left_value, right_value),
-        ExactOperation::Subtract => scalar_type.exact_sub(left_value, right_value),
-        ExactOperation::Multiply => scalar_type.exact_mul(left_value, right_value),
-    }
-    .ok_or(OptimizationUnitValidationError::CandidateEvaluationMismatch)?;
-    Ok((source, result, scalar_type, left, right, evaluated))
+    let (evaluated, safety_class) = match kind {
+        IntegerOperation::ExactAdd => (
+            scalar_type.exact_add(left_value, right_value),
+            OptimizationSafetyClass::ProofCertified,
+        ),
+        IntegerOperation::ExactSubtract => (
+            scalar_type.exact_sub(left_value, right_value),
+            OptimizationSafetyClass::ProofCertified,
+        ),
+        IntegerOperation::ExactMultiply => (
+            scalar_type.exact_mul(left_value, right_value),
+            OptimizationSafetyClass::ProofCertified,
+        ),
+        IntegerOperation::WrappingAdd => (
+            scalar_type.wrapping_add(left_value, right_value),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        ),
+        IntegerOperation::WrappingSubtract => (
+            scalar_type.wrapping_sub(left_value, right_value),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        ),
+        IntegerOperation::WrappingMultiply => (
+            scalar_type.wrapping_mul(left_value, right_value),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        ),
+        IntegerOperation::SaturatingAdd => (
+            scalar_type.saturating_add(left_value, right_value),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        ),
+        IntegerOperation::SaturatingSubtract => (
+            scalar_type.saturating_sub(left_value, right_value),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        ),
+        IntegerOperation::SaturatingMultiply => (
+            scalar_type.saturating_mul(left_value, right_value),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        ),
+    };
+    let evaluated =
+        evaluated.ok_or(OptimizationUnitValidationError::CandidateEvaluationMismatch)?;
+    Ok((
+        source,
+        result,
+        scalar_type,
+        left,
+        right,
+        evaluated,
+        safety_class,
+    ))
 }
 
 fn literal_integer_fact(
@@ -891,6 +1010,16 @@ fn validate_total_cfg(
 fn validate_fact_index(
     function: &PsiOptimizationFunction,
 ) -> Result<(), OptimizationUnitValidationError> {
+    let expected = reconstruct_fact_index(function);
+    if expected != function.facts {
+        return Err(OptimizationUnitValidationError::FactIndexMismatch(
+            function.machine,
+        ));
+    }
+    Ok(())
+}
+
+fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<OptimizationFact> {
     use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 
     let mut expected = Vec::new();
@@ -988,12 +1117,7 @@ fn validate_fact_index(
             _ => {}
         }
     }
-    if expected != function.facts {
-        return Err(OptimizationUnitValidationError::FactIndexMismatch(
-            function.machine,
-        ));
-    }
-    Ok(())
+    expected
 }
 
 fn validate_provenance_fuel_effects(
@@ -1976,7 +2100,7 @@ mod tests {
     }
 
     #[test]
-    fn independent_integer_rewrite_constructor_accepts_only_exact_evaluation() {
+    fn independent_integer_rewrite_constructor_accepts_only_declared_evaluation() {
         let input = exact_add_unit();
         let candidate = integer_candidate(&input, IntegerValue::Unsigned(15));
         let replay = integer_candidate(&input, IntegerValue::Unsigned(15));

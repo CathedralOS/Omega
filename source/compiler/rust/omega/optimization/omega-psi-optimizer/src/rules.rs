@@ -19,26 +19,29 @@ use crate::{
 
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v1";
 
-fn exact_integer_contract(rule_name: &[u8]) -> OptimizationRuleContract {
+fn integer_evaluation_contract(
+    rule_name: &[u8],
+    safety_class: OptimizationSafetyClass,
+) -> OptimizationRuleContract {
     OptimizationRuleContract::new(
         OptimizationRuleIdentity::from_canonical_bytes(rule_name),
         OptimizationPassIdentity::from_canonical_bytes(SCCP_PASS_NAME),
         1,
         AnalysisSet::new([AnalysisKind::ScalarConstants]),
         AnalysisInvalidationSet::new([AnalysisKind::UseDefinition]),
-        OptimizationSafetyClass::ProofCertified,
+        safety_class,
     )
     .expect("built-in rule has nonzero version")
 }
 
-macro_rules! exact_integer_rule {
-    ($name:ident, $rule_name:literal, $kind:expr) => {
+macro_rules! integer_evaluation_rule {
+    ($name:ident, $rule_name:literal, $kind:expr, $safety:expr) => {
         #[derive(Debug, Clone, Copy, Default)]
         pub struct $name;
 
         impl $name {
             pub fn contract() -> OptimizationRuleContract {
-                exact_integer_contract($rule_name)
+                integer_evaluation_contract($rule_name, $safety)
             }
         }
 
@@ -52,33 +55,72 @@ macro_rules! exact_integer_rule {
                 unit: &PsiOptimizationUnit,
                 analyses: RuleAnalysisView<'_>,
             ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-                propose_exact_integer_constants(unit, analyses, Self::contract(), $kind)
+                propose_integer_binary_constants(unit, analyses, Self::contract(), $kind)
             }
         }
     };
 }
 
-exact_integer_rule!(
+integer_evaluation_rule!(
     ExactIntegerAddConstantsRule,
     b"omega.psi-rule.exact-integer-add-constants.v1",
-    ExactBinaryKind::Add
+    IntegerBinaryKind::ExactAdd,
+    OptimizationSafetyClass::ProofCertified
 );
-exact_integer_rule!(
+integer_evaluation_rule!(
     ExactIntegerSubtractConstantsRule,
     b"omega.psi-rule.exact-integer-subtract-constants.v1",
-    ExactBinaryKind::Subtract
+    IntegerBinaryKind::ExactSubtract,
+    OptimizationSafetyClass::ProofCertified
 );
-exact_integer_rule!(
+integer_evaluation_rule!(
     ExactIntegerMultiplyConstantsRule,
     b"omega.psi-rule.exact-integer-multiply-constants.v1",
-    ExactBinaryKind::Multiply
+    IntegerBinaryKind::ExactMultiply,
+    OptimizationSafetyClass::ProofCertified
+);
+integer_evaluation_rule!(
+    WrappingIntegerAddConstantsRule,
+    b"omega.psi-rule.wrapping-integer-add-constants.v1",
+    IntegerBinaryKind::WrappingAdd,
+    OptimizationSafetyClass::ExactOperationSemantics
+);
+integer_evaluation_rule!(
+    WrappingIntegerSubtractConstantsRule,
+    b"omega.psi-rule.wrapping-integer-subtract-constants.v1",
+    IntegerBinaryKind::WrappingSubtract,
+    OptimizationSafetyClass::ExactOperationSemantics
+);
+integer_evaluation_rule!(
+    WrappingIntegerMultiplyConstantsRule,
+    b"omega.psi-rule.wrapping-integer-multiply-constants.v1",
+    IntegerBinaryKind::WrappingMultiply,
+    OptimizationSafetyClass::ExactOperationSemantics
+);
+integer_evaluation_rule!(
+    SaturatingIntegerAddConstantsRule,
+    b"omega.psi-rule.saturating-integer-add-constants.v1",
+    IntegerBinaryKind::SaturatingAdd,
+    OptimizationSafetyClass::ExactOperationSemantics
+);
+integer_evaluation_rule!(
+    SaturatingIntegerSubtractConstantsRule,
+    b"omega.psi-rule.saturating-integer-subtract-constants.v1",
+    IntegerBinaryKind::SaturatingSubtract,
+    OptimizationSafetyClass::ExactOperationSemantics
+);
+integer_evaluation_rule!(
+    SaturatingIntegerMultiplyConstantsRule,
+    b"omega.psi-rule.saturating-integer-multiply-constants.v1",
+    IntegerBinaryKind::SaturatingMultiply,
+    OptimizationSafetyClass::ExactOperationSemantics
 );
 
-fn propose_exact_integer_constants(
+fn propose_integer_binary_constants(
     unit: &PsiOptimizationUnit,
     analyses: RuleAnalysisView<'_>,
     contract: OptimizationRuleContract,
-    kind: ExactBinaryKind,
+    kind: IntegerBinaryKind,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
     let Some(AnalysisProduct::ScalarConstants(constants)) =
         analyses.get(AnalysisKind::ScalarConstants)
@@ -91,7 +133,7 @@ fn propose_exact_integer_constants(
     for function in &unit.functions {
         for block in &function.blocks {
             for (node_index, node) in block.nodes.iter().enumerate() {
-                let Some(shape) = exact_binary_shape(&node.operation) else {
+                let Some(shape) = integer_binary_shape(&node.operation) else {
                     continue;
                 };
                 if shape.kind != kind {
@@ -147,33 +189,45 @@ fn propose_exact_integer_constants(
     Ok(candidates)
 }
 
-struct ExactBinaryShape {
+struct IntegerBinaryShape {
     source: OperationId,
     result: ValueId,
     scalar_type: psi_core::IntegerType,
     left: ValueId,
     right: ValueId,
-    kind: ExactBinaryKind,
+    kind: IntegerBinaryKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ExactBinaryKind {
-    Add,
-    Subtract,
-    Multiply,
+enum IntegerBinaryKind {
+    ExactAdd,
+    ExactSubtract,
+    ExactMultiply,
+    WrappingAdd,
+    WrappingSubtract,
+    WrappingMultiply,
+    SaturatingAdd,
+    SaturatingSubtract,
+    SaturatingMultiply,
 }
 
-impl ExactBinaryShape {
+impl IntegerBinaryShape {
     fn evaluate(&self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
         match self.kind {
-            ExactBinaryKind::Add => self.scalar_type.exact_add(left, right),
-            ExactBinaryKind::Subtract => self.scalar_type.exact_sub(left, right),
-            ExactBinaryKind::Multiply => self.scalar_type.exact_mul(left, right),
+            IntegerBinaryKind::ExactAdd => self.scalar_type.exact_add(left, right),
+            IntegerBinaryKind::ExactSubtract => self.scalar_type.exact_sub(left, right),
+            IntegerBinaryKind::ExactMultiply => self.scalar_type.exact_mul(left, right),
+            IntegerBinaryKind::WrappingAdd => self.scalar_type.wrapping_add(left, right),
+            IntegerBinaryKind::WrappingSubtract => self.scalar_type.wrapping_sub(left, right),
+            IntegerBinaryKind::WrappingMultiply => self.scalar_type.wrapping_mul(left, right),
+            IntegerBinaryKind::SaturatingAdd => self.scalar_type.saturating_add(left, right),
+            IntegerBinaryKind::SaturatingSubtract => self.scalar_type.saturating_sub(left, right),
+            IntegerBinaryKind::SaturatingMultiply => self.scalar_type.saturating_mul(left, right),
         }
     }
 }
 
-fn exact_binary_shape(operation: &O) -> Option<ExactBinaryShape> {
+fn integer_binary_shape(operation: &O) -> Option<IntegerBinaryShape> {
     let (source, result, scalar_type, left, right, kind) = match operation {
         O::ExactIntegerAdd {
             psi_operation,
@@ -188,7 +242,7 @@ fn exact_binary_shape(operation: &O) -> Option<ExactBinaryShape> {
             *scalar_type,
             *left,
             *right,
-            ExactBinaryKind::Add,
+            IntegerBinaryKind::ExactAdd,
         ),
         O::ExactIntegerSubtract {
             psi_operation,
@@ -203,7 +257,7 @@ fn exact_binary_shape(operation: &O) -> Option<ExactBinaryShape> {
             *scalar_type,
             *left,
             *right,
-            ExactBinaryKind::Subtract,
+            IntegerBinaryKind::ExactSubtract,
         ),
         O::ExactIntegerMultiply {
             psi_operation,
@@ -218,11 +272,95 @@ fn exact_binary_shape(operation: &O) -> Option<ExactBinaryShape> {
             *scalar_type,
             *left,
             *right,
-            ExactBinaryKind::Multiply,
+            IntegerBinaryKind::ExactMultiply,
+        ),
+        O::WrappingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            IntegerBinaryKind::WrappingAdd,
+        ),
+        O::WrappingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            IntegerBinaryKind::WrappingSubtract,
+        ),
+        O::WrappingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            IntegerBinaryKind::WrappingMultiply,
+        ),
+        O::SaturatingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            IntegerBinaryKind::SaturatingAdd,
+        ),
+        O::SaturatingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            IntegerBinaryKind::SaturatingSubtract,
+        ),
+        O::SaturatingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            IntegerBinaryKind::SaturatingMultiply,
         ),
         _ => return None,
     };
-    Some(ExactBinaryShape {
+    Some(IntegerBinaryShape {
         source,
         result,
         scalar_type,
@@ -262,13 +400,19 @@ pub fn built_in_psi_registry(
         rules.push(Arc::new(ExactIntegerAddConstantsRule));
         rules.push(Arc::new(ExactIntegerSubtractConstantsRule));
         rules.push(Arc::new(ExactIntegerMultiplyConstantsRule));
+        rules.push(Arc::new(WrappingIntegerAddConstantsRule));
+        rules.push(Arc::new(WrappingIntegerSubtractConstantsRule));
+        rules.push(Arc::new(WrappingIntegerMultiplyConstantsRule));
+        rules.push(Arc::new(SaturatingIntegerAddConstantsRule));
+        rules.push(Arc::new(SaturatingIntegerSubtractConstantsRule));
+        rules.push(Arc::new(SaturatingIntegerMultiplyConstantsRule));
     }
     OrderedRuleRegistry::new(rules)
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use omega_optimization_unit::reconstruct_psi_optimization_unit_seed;
+    use omega_optimization_unit::{OptimizationFact, reconstruct_psi_optimization_unit_seed};
     use omega_optimization_validation::validate_integer_evaluation_candidate;
     use omega_terminal_abstract_operations::{
         TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
@@ -378,6 +522,69 @@ pub(crate) mod tests {
         .unwrap()
     }
 
+    fn policy_add_unit(saturating: bool) -> PsiOptimizationUnit {
+        let mut unit = exact_add_unit();
+        let function = &mut unit.functions[0];
+        let block = &mut function.blocks[0];
+        let O::IntegerConstant { value, .. } = &mut block.nodes[0].operation else {
+            unreachable!()
+        };
+        *value = IntegerValue::Unsigned(250);
+        let O::IntegerConstant { value, .. } = &mut block.nodes[1].operation else {
+            unreachable!()
+        };
+        *value = IntegerValue::Unsigned(10);
+        let O::ExactIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } = block.nodes[2].operation
+        else {
+            unreachable!()
+        };
+        block.nodes[2].operation = if saturating {
+            O::SaturatingIntegerAdd {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            }
+        } else {
+            O::WrappingIntegerAdd {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            }
+        };
+        let OptimizationFact::IntegerConstant { constant, .. } = &mut function.facts[0] else {
+            unreachable!()
+        };
+        *constant = IntegerValue::Unsigned(250);
+        let OptimizationFact::IntegerConstant { constant, .. } = &mut function.facts[1] else {
+            unreachable!()
+        };
+        *constant = IntegerValue::Unsigned(10);
+        function.facts.truncate(2);
+        unit.identity = omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
+            if saturating {
+                b"saturating-add-fixture"
+            } else {
+                b"wrapping-add-fixture"
+            },
+        );
+        unit
+    }
+
+    pub(crate) fn wrapping_add_unit() -> PsiOptimizationUnit {
+        policy_add_unit(false)
+    }
+
     #[test]
     fn selected_builtin_proposes_one_independently_validated_exact_fold() {
         let unit = exact_add_unit();
@@ -387,7 +594,7 @@ pub(crate) mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        assert_eq!(registry.len(), 3);
+        assert_eq!(registry.len(), 9);
         let mut dispatched = 0usize;
         let mut candidates = Vec::new();
         for rule in registry.iter() {
@@ -407,6 +614,37 @@ pub(crate) mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn wrapping_and_saturating_rules_use_their_exact_declared_policies() {
+        for (unit, saturating) in [(wrapping_add_unit(), false), (policy_add_unit(true), true)] {
+            let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
+            let products = vec![constants];
+            let candidates = if saturating {
+                SaturatingIntegerAddConstantsRule
+                    .propose(&unit, RuleAnalysisView::new(&products))
+                    .unwrap()
+            } else {
+                WrappingIntegerAddConstantsRule
+                    .propose(&unit, RuleAnalysisView::new(&products))
+                    .unwrap()
+            };
+            assert_eq!(candidates.len(), 1);
+            assert_eq!(
+                candidates[0].safety_class(),
+                OptimizationSafetyClass::ExactOperationSemantics
+            );
+            let accepted = validate_integer_evaluation_candidate(&unit, &candidates[0]).unwrap();
+            let expected = if saturating { 255 } else { 4 };
+            assert!(matches!(
+                accepted.unit().functions[0].blocks[0].nodes[2].operation,
+                TerminalAbstractOperation::IntegerConstant {
+                    value: IntegerValue::Unsigned(value),
+                    ..
+                } if value == expected
+            ));
+        }
     }
 
     #[test]
