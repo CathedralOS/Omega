@@ -32,6 +32,19 @@ fn executable_name() -> &'static str {
     }
 }
 
+fn replace_unique_bytes(bytes: &[u8], needle: &[u8], replacement: &[u8]) -> Vec<u8> {
+    assert_eq!(needle.len(), replacement.len());
+    let matches = bytes
+        .windows(needle.len())
+        .enumerate()
+        .filter_map(|(offset, candidate)| (candidate == needle).then_some(offset))
+        .collect::<Vec<_>>();
+    assert_eq!(matches.len(), 1, "fixture byte sequence must be unique");
+    let mut changed = bytes.to_vec();
+    changed[matches[0]..matches[0] + replacement.len()].copy_from_slice(replacement);
+    changed
+}
+
 fn rooted_build_probe_project(label: &str, body: &str) -> (PathBuf, omega_target::TargetProfile) {
     let profile = omega_target::TargetProfile::host();
     let project = std::env::temp_dir().join(format!(
@@ -206,7 +219,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 19);
+    assert_eq!(checked_observations.schema_version(), 20);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -1471,6 +1484,162 @@ fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
             .iter()
             .any(|diagnostic| diagnostic.message.contains("prepared inputs changed")),
         "replay mismatch must identify changed prepared inputs: {diagnostics:?}"
+    );
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn source_open_read_at_close_is_replayed_without_a_filesystem_provider() {
+    let (project, profile) = rooted_build_probe_project(
+        "open-read-at-close-replay",
+        r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 0);
+    self.result = self.filesystem.read_at(self.descriptor, &mut self.buffer, 7, 5);
+    self.code = self.filesystem.close(self.descriptor);"#,
+    );
+    let compilation = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("open/read_at/close source build should compile and replay");
+    let summary = compilation
+        .build_observation_summary()
+        .expect("filesystem build retains observations");
+    assert!(summary.open_read_close_replay_verified());
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 6, 8]
+    );
+    let [_, read, _] = summary.filesystem_operation_attempts() else {
+        panic!("open/read_at/close replay fixture has three events")
+    };
+    assert_eq!(
+        read.scalar_operands()
+            .iter()
+            .map(|operand| (operand.operand_ordinal(), operand.value()))
+            .collect::<Vec<_>>(),
+        vec![
+            (2, BuildFilesystemScalarOperandValue::U64(7)),
+            (3, BuildFilesystemScalarOperandValue::I64(5)),
+        ]
+    );
+    assert_eq!(
+        read.observed_byte_regions()[0].kind(),
+        BuildFilesystemObservedByteRegionKind::PositionedFileRead
+    );
+    assert_eq!(
+        read.observed_bytes(&read.observed_byte_regions()[0]),
+        Some(&b"Main { "[..])
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("verified positioned replay record must encode")
+        .expect("verified positioned replay must publish review-only custody bytes");
+    recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+        .expect("canonical positioned replay record must recover");
+
+    let mut read_attempt_prefix = Vec::new();
+    read_attempt_prefix.extend_from_slice(&6u16.to_le_bytes());
+    read_attempt_prefix.extend_from_slice(&[2, 0]);
+    read_attempt_prefix.extend_from_slice(&7i64.to_le_bytes());
+    read_attempt_prefix.extend_from_slice(&0i32.to_le_bytes());
+    read_attempt_prefix.extend_from_slice(&2u64.to_le_bytes());
+    let mut sequential_tag_prefix = read_attempt_prefix.clone();
+    sequential_tag_prefix[..2].copy_from_slice(&4u16.to_le_bytes());
+    let wrong_operation = replace_unique_bytes(
+        record.canonical_bytes(),
+        &read_attempt_prefix,
+        &sequential_tag_prefix,
+    );
+    assert!(
+        recover_review_only_build_filesystem_replay_record(&wrong_operation, limits).is_err(),
+        "a positioned scalar shape cannot be relabeled as sequential read"
+    );
+
+    let mut positioned_region = Vec::new();
+    positioned_region.extend_from_slice(&1u64.to_le_bytes());
+    positioned_region.extend_from_slice(&[1, 1]);
+    positioned_region.extend_from_slice(&0u64.to_le_bytes());
+    positioned_region.extend_from_slice(&7u64.to_le_bytes());
+    let mut sequential_region = positioned_region.clone();
+    sequential_region[9] = 0;
+    let wrong_region = replace_unique_bytes(
+        record.canonical_bytes(),
+        &positioned_region,
+        &sequential_region,
+    );
+    assert!(
+        recover_review_only_build_filesystem_replay_record(&wrong_region, limits).is_err(),
+        "a positioned read must retain its exact observed-region kind"
+    );
+
+    std::fs::write(project.join("main.omg"), "data Drifted { value: u64; }\n")
+        .expect("change host source after positioned replay capture");
+    let replayed = compile_to_checked_with_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        record.clone(),
+    )
+    .expect("reopened positioned replay should not consult changed host source");
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("reopened positioned replay retains observations");
+    let [_, replayed_read, _] = replayed_summary.filesystem_operation_attempts() else {
+        panic!("reopened positioned replay has three events")
+    };
+    assert_eq!(
+        replayed_read.observed_bytes(&replayed_read.observed_byte_regions()[0]),
+        Some(&b"Main { "[..]),
+        "positioned replay must receive retained bytes, not changed host bytes"
+    );
+
+    let build_path = project.join("build.omg");
+    let original_build = std::fs::read_to_string(&build_path).expect("read build probe");
+    let changed_build = original_build.replace(
+        "self.filesystem.read_at(self.descriptor, &mut self.buffer, 7, 5)",
+        "self.filesystem.read_at(self.descriptor, &mut self.buffer, 7, 6)",
+    );
+    assert_ne!(changed_build, original_build, "fixture must change offset");
+    std::fs::write(&build_path, changed_build).expect("change positioned replay offset");
+    let diagnostics = compile_to_checked_with_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        record,
+    )
+    .expect_err("changed authored positioned offset must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("prepared inputs changed")),
+        "positioned replay mismatch must identify changed prepared inputs: {diagnostics:?}"
+    );
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn failed_source_read_at_does_not_claim_bounded_replay() {
+    let (project, profile) = rooted_build_probe_project(
+        "failed-read-at-no-replay",
+        r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 0);
+    self.result = self.filesystem.read_at(self.descriptor, &mut self.buffer, 1, -1);
+    self.code = self.filesystem.close(self.descriptor);"#,
+    );
+    let compilation = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("failed positioned read remains an ordinary observed build result");
+    let summary = compilation
+        .build_observation_summary()
+        .expect("filesystem build retains observations");
+    assert!(!summary.open_read_close_replay_verified());
+    assert!(
+        capture_verified_build_filesystem_replay_record(
+            summary,
+            BuildFilesystemReplayRecordLimits::default(),
+        )
+        .expect("non-replayed summary is not a codec error")
+        .is_none()
     );
     let _ = std::fs::remove_dir_all(&project);
 }

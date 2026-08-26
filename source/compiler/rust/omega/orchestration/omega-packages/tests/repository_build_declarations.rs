@@ -141,7 +141,7 @@ fn ordinary_canary_projects_declare_canonical_application_roles() {
     collect_build_roots(&canaries, &mut roots);
     assert_eq!(
         roots.len(),
-        1_115,
+        1_117,
         "unexpected canary build-root population"
     );
 
@@ -172,5 +172,5 @@ fn ordinary_canary_projects_declare_canonical_application_roles() {
     }
 
     assert_eq!(exceptions, ROLE_MIGRATION_EXCEPTIONS.len());
-    assert_eq!(applications, 1_110);
+    assert_eq!(applications, 1_112);
 }

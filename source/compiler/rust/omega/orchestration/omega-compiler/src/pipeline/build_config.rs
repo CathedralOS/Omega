@@ -236,7 +236,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 19;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 20;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -981,8 +981,9 @@ impl BuildObservationSummary {
     }
 
     /// Whether the compiler reran this build with no filesystem provider and
-    /// consumed the complete record using the bounded open/read/close replay
-    /// executor. This is a partial replay fact, never a `Receipted` verdict.
+    /// consumed the complete record using the bounded open/read-or-read_at/close
+    /// replay executor. This is a partial replay fact, never a `Receipted`
+    /// verdict.
     pub const fn open_read_close_replay_verified(&self) -> bool {
         self.open_read_close_replay_verified
     }
@@ -2034,11 +2035,12 @@ fn is_source_open_read_close_replay_record(
     let [open, read, close] = observations.filesystem_operation_attempts() else {
         return false;
     };
-    if [
+    let operation_tags = [
         open.operation_tag(),
         read.operation_tag(),
         close.operation_tag(),
-    ] != [2, 4, 8]
+    ];
+    if (operation_tags != [2, 4, 8] && operation_tags != [2, 6, 8])
         || [open.provider(), read.provider(), close.provider()]
             != [
                 psi_checked_interpreter::FilesystemObservationProvider::RealScoped,
@@ -2074,9 +2076,42 @@ fn is_source_open_read_close_replay_record(
     let [close_input] = close.logical_handle_inputs() else {
         return false;
     };
+    let Some(ResultValue::Scalar(read_result)) = read.result() else {
+        return false;
+    };
+    let Ok(read_length) = usize::try_from(read_result) else {
+        return false;
+    };
+    let Ok(read_length_u64) = u64::try_from(read_result) else {
+        return false;
+    };
+    let expected_region_kind = match (read.operation_tag(), read.scalar_operands()) {
+        (4, [count])
+            if count.operand_ordinal() == 2
+                && matches!(count.value(), ScalarValue::U64(requested) if requested >= read_length_u64) =>
+        {
+            psi_checked_interpreter::FilesystemObservedByteRegionKind::SequentialFileRead
+        }
+        (6, [count, offset])
+            if count.operand_ordinal() == 2
+                && matches!(count.value(), ScalarValue::U64(requested) if requested >= read_length_u64)
+                && offset.operand_ordinal() == 3
+                && matches!(offset.value(), ScalarValue::I64(value) if value >= 0) =>
+        {
+            psi_checked_interpreter::FilesystemObservedByteRegionKind::PositionedFileRead
+        }
+        _ => return false,
+    };
+    let [region] = read.observed_byte_regions() else {
+        return false;
+    };
     read_input.operand_ordinal() == 0
         && read_input.kind() == HandleKind::Descriptor
         && read_input.resolution() == InputResolution::Resolved(identity)
+        && region.output_operand_ordinal() == 1
+        && region.kind() == expected_region_kind
+        && region.offset() == 0
+        && region.length() == read_length
         && close_input.operand_ordinal() == 0
         && close_input.kind() == HandleKind::Descriptor
         && close_input.resolution() == InputResolution::Resolved(identity)
