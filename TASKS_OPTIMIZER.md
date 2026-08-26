@@ -57,6 +57,15 @@ These facts constrain the work below.
   reason vocabularies, hard work budgets, candidate verdicts, and canonical
   decision/pass manifest rows. Applied decisions cannot be represented without
   an independent validator identity.
+- `omega-optimization-unit` now deterministically reconstructs explicit blocks,
+  scalar definitions/uses, conservative effect links, structural roots,
+  ownership events, literal facts, source provenance, and separately identified
+  logical-fuel settlements from the clean plan. The independent
+  `omega-optimization-validation` crate rejects malformed CFG, SSA dominance,
+  edge bindings, provenance/fuel, effect chains, place roots, claim frontiers,
+  and cleanup metadata. `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open
+  until verified proof/range evidence and complete path-sensitive place and
+  ownership frontiers survive the Terminal-Psi lowering boundary.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.
