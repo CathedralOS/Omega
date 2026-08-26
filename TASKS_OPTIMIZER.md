@@ -120,6 +120,13 @@ These facts constrain the work below.
   constant marker. Registry coverage remains open until built-in executable
   rules and pass dispatch exist, and semantic analyses remain open for the
   wider proof/effect/ownership vocabulary.
+- Conservative node-effect summaries now distinguish pure scalar work,
+  structural state, internal calls, boundary calls, services, and control.
+  Unknown internal-call crash/suspension/observation behavior remains `May`;
+  only represented facts can narrow it. Fixed-point scalar liveness publishes
+  canonical block and node entry/exit sets and handles cyclic synthetic CFGs,
+  preparing dead-scalar rules without treating the current acyclic Terminal
+  slice as an architectural limitation.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.

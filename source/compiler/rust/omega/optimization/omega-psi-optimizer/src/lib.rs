@@ -12,11 +12,13 @@ mod registry;
 
 pub use analyses::{
     AnalysisManager, AnalysisManagerError, AnalysisProduct, AnalysisRevisionCommit,
-    BlockControlFlow, CallGraphAnalysis, ControlFlowAnalysis, DominatorAnalysis,
-    ExecutableEdgeAnalysis, ExecutableEdgeFact, ExecutableEdgeKnowledge, ExitKind,
-    FunctionControlFlow, LoopAnalysis, LoopRegion, ScalarConstant, ScalarConstantAnalysis,
-    ScalarConstantFact, StronglyConnectedComponentAnalysis, UseDefinitionAnalysis, ValueFactRegion,
-    ValueRangeAnalysis, ValueRangeFact, analysis_dependencies, compute_analysis,
+    BlockControlFlow, CallGraphAnalysis, ControlFlowAnalysis, DominatorAnalysis, EffectClass,
+    EffectKnowledge, EffectSummaryAnalysis, ExecutableEdgeAnalysis, ExecutableEdgeFact,
+    ExecutableEdgeKnowledge, ExitKind, FunctionControlFlow, LoopAnalysis, LoopRegion,
+    NodeEffectSummary, NodeLiveness, ScalarConstant, ScalarConstantAnalysis, ScalarConstantFact,
+    StronglyConnectedComponentAnalysis, UseDefinitionAnalysis, ValueFactRegion,
+    ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
+    analysis_dependencies, compute_analysis,
 };
 pub use registry::{OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError, RuleScheduleKey};
 
@@ -29,13 +31,14 @@ mod tests {
     };
     use omega_optimization_unit::{
         EffectLink, OptimizationBlock, OptimizationFact, OptimizationNode, PsiOptimizationFunction,
-        PsiOptimizationUnit,
+        PsiOptimizationUnit, PsiProvenance, ValueDefinition, ValueDefinitionSite, ValueUse,
     };
     use omega_terminal_abstract_operations::{
         TerminalAbstractOperation as O, TerminalAbstractSuccessor,
     };
     use psi_core::{
-        BlockId, EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, OperationId, ValueId,
+        BlockId, EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, OperationId, ScalarType,
+        ValueId,
     };
     use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -240,6 +243,14 @@ mod tests {
             }),
         );
         let unit = unit(vec![first, second], b"calls");
+        let AnalysisProduct::EffectSummaries(effects) =
+            compute_analysis(&unit, AnalysisKind::EffectSummaries).unwrap()
+        else {
+            unreachable!()
+        };
+        assert_eq!(effects.nodes[0].class, EffectClass::InternalCall);
+        assert_eq!(effects.nodes[0].observable, EffectKnowledge::May);
+        assert_eq!(effects.nodes[0].suspension, EffectKnowledge::May);
         let AnalysisProduct::CallGraph(calls) =
             compute_analysis(&unit, AnalysisKind::CallGraph).unwrap()
         else {
@@ -393,5 +404,67 @@ mod tests {
         assert_eq!(ranges.facts[0].minimum, IntegerValue::Unsigned(7));
         assert_eq!(ranges.facts[0].maximum, IntegerValue::Unsigned(7));
         assert_eq!(ranges.facts[0].support, integer_support);
+    }
+
+    #[test]
+    fn effects_are_conservative_and_liveness_reaches_fixed_point() {
+        let mut function = function(
+            100,
+            1,
+            vec![
+                (1, Terminator::Branch(2, 3)),
+                (2, Terminator::Jump(4)),
+                (3, Terminator::Jump(4)),
+                (4, Terminator::Crash),
+            ],
+        );
+        let condition = id(12, ValueId::new);
+        let support = id(700, OperationId::new);
+        let mut constant = node(O::BooleanConstant {
+            psi_operation: support,
+            result: condition,
+            value: true,
+        });
+        constant.provenance = vec![PsiProvenance::Operation(support)];
+        constant.definitions = vec![ValueDefinition {
+            value: condition,
+            scalar_type: ScalarType::Boolean,
+            site: ValueDefinitionSite::Node {
+                block: id(1, BlockId::new),
+                node: 0,
+            },
+        }];
+        function.blocks[0].nodes.insert(0, constant);
+        function.blocks[0].nodes[1].uses = vec![ValueUse {
+            value: condition,
+            block: id(1, BlockId::new),
+            node: 1,
+        }];
+        let unit = unit(vec![function], b"effects-liveness");
+
+        let AnalysisProduct::EffectSummaries(effects) =
+            compute_analysis(&unit, AnalysisKind::EffectSummaries).unwrap()
+        else {
+            unreachable!()
+        };
+        assert_eq!(effects.nodes[0].class, EffectClass::PureScalar);
+        assert_eq!(effects.nodes[0].observable, EffectKnowledge::No);
+        assert_eq!(
+            effects.nodes[0].support,
+            vec![PsiProvenance::Operation(support)]
+        );
+        let crash = effects.nodes.last().unwrap();
+        assert_eq!(crash.crash, EffectKnowledge::Yes);
+        assert_eq!(crash.observable, EffectKnowledge::Yes);
+
+        let AnalysisProduct::ValueLiveness(liveness) =
+            compute_analysis(&unit, AnalysisKind::ValueLiveness).unwrap()
+        else {
+            unreachable!()
+        };
+        assert!(liveness.blocks[0].entry.is_empty());
+        assert_eq!(liveness.blocks[0].nodes[0].exit, vec![condition]);
+        assert_eq!(liveness.blocks[0].nodes[1].entry, vec![condition]);
+        assert!(liveness.blocks[0].nodes[1].exit.is_empty());
     }
 }

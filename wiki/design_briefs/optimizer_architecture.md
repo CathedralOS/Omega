@@ -265,6 +265,12 @@ conditional edge; absence of such support remains `Unknown`. This same shape
 is the baseline for later verifier-derived range and ownership facts: a useful
 answer without an exact support and validity region is not representable.
 
+Effect summaries use explicit `No`/`May`/`Yes` knowledge. Missing callee,
+boundary, crash, or suspension detail is `May`, never an inferred pure result.
+Scalar liveness is a fixed-point CFG analysis even while the admitted Terminal
+Psi slice remains acyclic, so widening the source vocabulary does not require
+replacing the optimizer's analysis model.
+
 ## Rule and pass model
 
 Squalr's scan-rule architecture supplies a useful small pattern: typed rules

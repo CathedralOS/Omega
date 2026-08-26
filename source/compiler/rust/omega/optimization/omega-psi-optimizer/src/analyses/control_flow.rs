@@ -67,9 +67,10 @@ pub struct CallGraphAnalysis {
 
 pub fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
     match kind {
-        AnalysisKind::ControlFlowGraph | AnalysisKind::CallGraph | AnalysisKind::UseDefinition => {
-            Some(AnalysisSet::default())
-        }
+        AnalysisKind::ControlFlowGraph
+        | AnalysisKind::CallGraph
+        | AnalysisKind::UseDefinition
+        | AnalysisKind::EffectSummaries => Some(AnalysisSet::default()),
         AnalysisKind::Dominators
         | AnalysisKind::PostDominators
         | AnalysisKind::StronglyConnectedComponents => {
@@ -86,6 +87,10 @@ pub fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
             AnalysisKind::ScalarConstants,
         ])),
         AnalysisKind::ValueRanges => Some(AnalysisSet::new([AnalysisKind::ScalarConstants])),
+        AnalysisKind::ValueLiveness => Some(AnalysisSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::UseDefinition,
+        ])),
         _ => None,
     }
 }
@@ -115,6 +120,12 @@ pub fn compute_analysis(unit: &PsiOptimizationUnit, kind: AnalysisKind) -> Optio
         )),
         AnalysisKind::ValueRanges => Some(AnalysisProduct::ValueRanges(
             super::semantic::value_ranges(unit),
+        )),
+        AnalysisKind::EffectSummaries => Some(AnalysisProduct::EffectSummaries(
+            super::semantic::effect_summaries(unit),
+        )),
+        AnalysisKind::ValueLiveness => Some(AnalysisProduct::ValueLiveness(
+            super::semantic::value_liveness(unit),
         )),
         _ => None,
     }
