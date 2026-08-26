@@ -1534,6 +1534,166 @@ fn source_derived_two_root_handoff_returns_exact_inputs_after_lifecycle_substitu
 }
 
 #[test]
+fn source_derived_two_root_snapshots_compose_across_two_live_eras() {
+    let (compiled_directory, exact_bridge, catalog, terminal) =
+        compiled_receiver_free_bridge("two_live_era_coexistence");
+    let requirement_identity = exact_bridge.binding().requirement_identity().to_owned();
+    let entry = EntryStubId::from_normalized_identity(1).expect("entry identity");
+    let mut code = installed_code(entry);
+    let installed_code_identity = code.identity().normalized_identity();
+    let (mut root_ledger, root) =
+        install_program_entry_root(&mut code, entry, &requirement_identity);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("program-local installation ledger");
+    let mut prebindings = installation
+        .prebind(&catalog, &terminal, &root)
+        .expect("source-derived program-storage prebindings");
+    prebindings.sort_by_key(|prebinding| prebinding.source_parameter_position());
+    assert_eq!(prebindings.len(), 2);
+    let mut schema_identities = prebindings
+        .iter()
+        .map(|prebinding| prebinding.identity().schema_identity())
+        .collect::<Vec<_>>();
+    schema_identities.sort_unstable();
+    schema_identities.dedup();
+    assert_eq!(schema_identities.len(), 2);
+
+    let mut lifecycle = lifecycle(installed_code_identity, &requirement_identity);
+    let first_members = prebindings
+        .iter()
+        .enumerate()
+        .map(|(index, prebinding)| {
+            let lease = lifecycle
+                .acquire_program_local_root_epoch_lease(
+                    ProgramLocalRootEpochLeaseId::from_normalized_identity(870 + index as u64)
+                        .expect("epoch-10 lease identity"),
+                    10,
+                    &requirement_identity,
+                )
+                .expect("epoch-10 lease");
+            ProgramLocalRootCohortMember::new(prebinding.identity(), &root, lease)
+        })
+        .collect::<Vec<_>>();
+    let first_cohort = installation
+        .seal_epoch_cohort(&lifecycle, first_members)
+        .expect("source-derived epoch-10 cohort");
+    let first_snapshot = first_cohort.aggregate_snapshot();
+
+    publish_lifecycle_era(
+        &mut lifecycle,
+        20,
+        installed_code_identity,
+        &requirement_identity,
+        120,
+        true,
+    );
+    assert_eq!(lifecycle.current_era(), Some(20));
+    assert_eq!(
+        lifecycle
+            .live_eras()
+            .map(|(epoch, _, _)| epoch)
+            .collect::<Vec<_>>(),
+        vec![10, 20]
+    );
+    let second_members = prebindings
+        .iter()
+        .enumerate()
+        .map(|(index, prebinding)| {
+            let lease = lifecycle
+                .acquire_program_local_root_epoch_lease(
+                    ProgramLocalRootEpochLeaseId::from_normalized_identity(872 + index as u64)
+                        .expect("epoch-20 lease identity"),
+                    20,
+                    &requirement_identity,
+                )
+                .expect("epoch-20 lease");
+            ProgramLocalRootCohortMember::new(prebinding.identity(), &root, lease)
+        })
+        .collect::<Vec<_>>();
+    let second_cohort = installation
+        .seal_epoch_cohort(&lifecycle, second_members)
+        .expect("source-derived epoch-20 cohort");
+    let second_snapshot = second_cohort.aggregate_snapshot();
+
+    let missing = compose_program_local_root_coexistence_report(&lifecycle, [&first_snapshot])
+        .expect_err("one source-derived live era cannot be omitted");
+    assert!(missing.0.contains("omits or adds a live lifecycle epoch"));
+    let duplicate = compose_program_local_root_coexistence_report(
+        &lifecycle,
+        [&first_snapshot, &first_snapshot, &second_snapshot],
+    )
+    .expect_err("one source-derived live era cannot be repeated");
+    assert!(duplicate.0.contains("repeats one lifecycle epoch"));
+
+    let report = compose_program_local_root_coexistence_report(
+        &lifecycle,
+        [&second_snapshot, &first_snapshot],
+    )
+    .expect("both exact source-derived live-era snapshots compose");
+    assert_eq!(report.lifecycle_ledger(), lifecycle.identity());
+    assert_eq!(
+        report
+            .epoch_snapshots()
+            .map(|snapshot| snapshot.identity().lifecycle_epoch())
+            .collect::<Vec<_>>(),
+        vec![10, 20]
+    );
+    let expected_rows = vec![
+        (10, schema_identities[0]),
+        (10, schema_identities[1]),
+        (20, schema_identities[0]),
+        (20, schema_identities[1]),
+    ];
+    assert_eq!(
+        report
+            .aggregates()
+            .map(|(epoch, aggregate)| (epoch, aggregate.schema_identity()))
+            .collect::<Vec<_>>(),
+        expected_rows
+    );
+    for (_, aggregate) in report.aggregates() {
+        let prebinding = prebindings
+            .iter()
+            .find(|prebinding| {
+                prebinding.identity().schema_identity() == aggregate.schema_identity()
+            })
+            .expect("every report row retains one source-derived schema");
+        assert_eq!(aggregate.terminal_psi(), catalog.terminal_psi());
+        assert_eq!(aggregate.argument_index(), prebinding.argument_index());
+        assert_eq!(
+            aggregate.source_parameter_position(),
+            prebinding.source_parameter_position()
+        );
+        assert_eq!(
+            aggregate.qualification_identity(),
+            prebinding.qualification_identity()
+        );
+        assert_eq!(aggregate.carrier_identity(), prebinding.carrier_identity());
+        assert_eq!(aggregate.algebra(), prebinding.algebra());
+        assert_eq!(
+            aggregate.per_occurrence_capacity(),
+            prebinding.per_occurrence_capacity()
+        );
+        assert_eq!(aggregate.cardinality().get(), 1);
+    }
+
+    for occurrence in first_cohort.into_runtime().cancel() {
+        installation
+            .retire(occurrence, &mut lifecycle)
+            .expect("epoch-10 report snapshot carries no retirement authority");
+    }
+    for occurrence in second_cohort.into_runtime().cancel() {
+        installation
+            .retire(occurrence, &mut lifecycle)
+            .expect("epoch-20 report snapshot carries no retirement authority");
+    }
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+    assert_eq!(lifecycle.program_local_root_authority_holds(20), Some(0));
+    fs::remove_dir_all(compiled_directory).expect("remove compiled coexistence fixture");
+}
+
+#[test]
 fn source_derived_one_root_introduction_retains_exact_installation_account_and_origin() {
     let source_directory = temp_directory("source-one-root");
     fs::create_dir_all(&source_directory).expect("create one-root source directory");
