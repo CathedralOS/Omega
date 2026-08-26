@@ -910,7 +910,9 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
                 SignatureContractKind::Requires if runtime_arithmetic_requires_are_terminal => {
                     false
                 }
-                SignatureContractKind::Requires | SignatureContractKind::Ensures => true,
+                SignatureContractKind::Requires
+                | SignatureContractKind::Ensures
+                | SignatureContractKind::EnsuresForResultCase { .. } => true,
             })
     {
         return None;

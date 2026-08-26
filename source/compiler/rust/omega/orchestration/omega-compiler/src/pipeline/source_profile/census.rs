@@ -2,14 +2,14 @@ use super::catalog::{SOURCE_FEATURE_CATALOG, SOURCE_FEATURE_IDS, SOURCE_RESOURCE
 use crate::pipeline::source_inspection::SourceClosureSnapshot;
 use psi_syntax_trees::snapshot::{
     CapabilityContractKindSnapshot, CapabilityContractSnapshot, CapabilityMemberSnapshot,
-    ConformanceBodySnapshot, ConformanceMemberSnapshot, DataMemberSnapshot,
-    DataPropertiesSnapshot, ExpressionSnapshot, ExternalBindingSnapshot, FixedArrayLengthSnapshot,
+    ConformanceBodySnapshot, ConformanceMemberSnapshot, DataMemberSnapshot, DataPropertiesSnapshot,
+    ExpressionSnapshot, ExternalBindingSnapshot, FixedArrayLengthSnapshot,
     GenericConformanceBoundSnapshot, IdentifierSnapshot, ItemSnapshot, OperatorSnapshot,
     ProofFactSnapshot, PropositionBodySnapshot, SatisfiesClauseSnapshot, StateParameterSnapshot,
     StateSignatureSnapshot, StateSnapshot, StatementSnapshot, StaticArgumentSnapshot,
     StructLiteralFieldSnapshot, TargetHostSettingValueSnapshot, TransitionGuardSnapshot,
-    TransitionTargetSnapshot, TypeConstraintSnapshot, TypeParameterSnapshot,
-    TypeReferenceSnapshot, WireDataMemberSnapshot,
+    TransitionTargetSnapshot, TypeConstraintSnapshot, TypeParameterSnapshot, TypeReferenceSnapshot,
+    WireDataMemberSnapshot,
 };
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -861,6 +861,12 @@ impl Census {
         for contract in contracts {
             match &contract.kind {
                 CapabilityContractKindSnapshot::Ensures => self.bump("contract.ensures"),
+                CapabilityContractKindSnapshot::EnsuresForResultCase { result_case } => {
+                    self.bump("contract.ensures");
+                    for member in result_case {
+                        self.identifier(member);
+                    }
+                }
                 CapabilityContractKindSnapshot::Requires => self.bump("contract.requires"),
                 CapabilityContractKindSnapshot::Crashes { cause: _ } => {
                     self.bump("contract.crashes")

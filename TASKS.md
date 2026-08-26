@@ -7503,6 +7503,15 @@ Remaining N6/N8 work:
      signature compatibility, canonical codec identity, derivation provenance,
      and verifier replay without adding runtime operations.
 
+  Stage 1 is live. The parser admits only `Result::Case -> { guarantees }`,
+  gives the group no identity, enforces one exact guarantee per row, and rejects
+  Boolean/case-literal ambiguity, duplicate case groups, and duplicate machine-
+  wide public selectors. Resolution accepts only the declared nominal result
+  sum, stamps its exact data/case symbols after declaration assignment, and
+  rejects non-sum, foreign, or unknown cases. Typed and checked trees retain the
+  guarded rows separately from unconditional facts; exit assignment, caller-arm
+  availability, and Terminal lowering remain fail-closed until stages 2-5 land.
+
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct
   concrete calls may see the stronger merged row set while requirement calls see

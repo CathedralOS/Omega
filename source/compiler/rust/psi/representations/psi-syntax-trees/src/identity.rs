@@ -484,6 +484,14 @@ fn count_contract(
     contract: &crate::item::CapabilityContract,
     counts: &mut AstIdentityStorageCounts,
 ) {
+    if let crate::item::CapabilityContractKind::EnsuresForResultCase { result_case } =
+        &contract.kind
+    {
+        count_identifier_members(
+            syntax_trees.items.identifier_path_members(*result_case),
+            counts,
+        );
+    }
     for fact in syntax_trees.items.proof_facts(contract.facts) {
         count_proof_fact(syntax_trees, fact, counts);
     }

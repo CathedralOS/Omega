@@ -21,3 +21,53 @@ fn parse_typed_trees(source: &str) -> psi_typed_trees::TypedTrees {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
+
+#[test]
+fn outcome_specific_guarantee_reaches_separate_checked_carrier() {
+    let typed = parse_typed_trees(
+        r#"
+        data Outcome { case Success; case Failure; }
+        machine choose() -> Outcome
+        ensures Outcome::Success -> { true; }
+        { Outcome::Success }
+        "#,
+    );
+    let outcome = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Outcome")
+        .expect("Outcome data");
+    let success = typed
+        .data_members(outcome)
+        .iter()
+        .find_map(|member| match member {
+            psi_typed_trees::data::DataMember::Variant(variant)
+                if variant.name.as_str() == "Success" =>
+            {
+                Some(variant)
+            }
+            _ => None,
+        })
+        .expect("Success case");
+    let outcome_symbol = outcome.symbol;
+    let success_symbol = success.symbol;
+    let checked = lower_typed_trees(typed).expect("check guarded declaration stage");
+    let mut rows = checked.facts.proof.outcome_specific_guarantees.iter();
+    let (_, row) = rows.next().expect("one checked outcome-specific guarantee");
+    assert!(
+        rows.next().is_none(),
+        "one checked outcome-specific guarantee"
+    );
+    assert_eq!(row.result_data, outcome_symbol);
+    assert_eq!(row.result_case, success_symbol);
+    assert!(row.public_selector.is_none());
+    assert!(
+        checked
+            .facts
+            .proof
+            .contract_facts
+            .iter()
+            .all(|(_, fact)| { fact.fact != row.fact }),
+        "guarded row must not enter the unconditional contract-fact lane"
+    );
+}

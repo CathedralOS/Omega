@@ -28,8 +28,9 @@ pub(super) fn validate_contract_facts(
             // already prove them, so the selected implementation may demand a
             // subset. Selected postconditions must cover the requirement.
             SignatureContractKind::Requires => actual.iter().all(|fact| required.contains(fact)),
-            SignatureContractKind::Ensures => {
-                required.iter().all(|fact| actual.contains(fact))
+            SignatureContractKind::Ensures => required.iter().all(|fact| actual.contains(fact)),
+            SignatureContractKind::EnsuresForResultCase { .. } => {
+                unreachable!("outcome-specific guarantees are not machine-parameter contracts")
             }
             SignatureContractKind::Crashes { .. } => {
                 unreachable!("crash routes compare separately")
@@ -263,6 +264,7 @@ fn contract_kind_name(kind: &SignatureContractKind) -> &'static str {
     match kind {
         SignatureContractKind::Requires => "requires",
         SignatureContractKind::Ensures => "ensures",
+        SignatureContractKind::EnsuresForResultCase { .. } => "outcome-specific ensures",
         SignatureContractKind::Crashes { .. } => "crashes",
     }
 }

@@ -58,6 +58,8 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     let mut blocks = false;
     let mut contract_start = Handle::invalid();
     let mut contract_count = 0u32;
+    let mut outcome_case_groups = Vec::<String>::new();
+    let mut public_selectors = Vec::<String>::new();
     let mut return_type = psi_syntax_trees::types::TypeReferenceHandle::invalid();
     let mut conformance_bounds = Vec::new();
 
@@ -268,6 +270,46 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 input = input.take_contextual("ensures")?;
                 CapabilityContractKind::Ensures
             };
+            if matches!(kind, CapabilityContractKind::Ensures)
+                && outcome_case_path_followed_by_arrow(input)?
+            {
+                let ((contracts, group_name), rest) =
+                    parse_outcome_specific_ensures_group(syntax_trees, input)?;
+                if outcome_case_groups
+                    .iter()
+                    .any(|existing| existing == &group_name)
+                {
+                    return Err(input.error_here(format!(
+                        "duplicate outcome-specific ensures group for `{group_name}`"
+                    )));
+                }
+                outcome_case_groups.push(group_name);
+                for contract in contracts {
+                    if let Some(binding) = contract.binding.as_ref() {
+                        if public_selectors
+                            .iter()
+                            .any(|existing| existing == binding.as_str())
+                        {
+                            return Err(input.error_here(format!(
+                                "duplicate machine-wide public ensures selector `{binding}`"
+                            )));
+                        }
+                        public_selectors.push(binding.as_str().to_owned());
+                    }
+                    let handle = syntax_trees.items.append_capability_contract(contract);
+                    if contract_count == 0 {
+                        contract_start = handle;
+                    }
+                    contract_count = contract_count
+                        .checked_add(1)
+                        .expect("machine contract span count overflow");
+                }
+                input = rest;
+                continue;
+            }
+            if matches!(kind, CapabilityContractKind::Ensures) {
+                reject_ambiguous_outcome_specific_ensures(input)?;
+            }
             let (binding, fact_input) = if let Ok((binding, after_binding)) =
                 input.take_identifier()
                 && after_binding.at_punctuation(PunctuationKind::Colon)
@@ -313,6 +355,19 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 return Err(fact_input.error_here(
                     "a named requires or ensures clause must contain exactly one proposition",
                 ));
+            }
+            if matches!(kind, CapabilityContractKind::Ensures)
+                && let Some(binding) = binding.as_ref()
+            {
+                if public_selectors
+                    .iter()
+                    .any(|existing| existing == binding.as_str())
+                {
+                    return Err(fact_input.error_here(format!(
+                        "duplicate machine-wide public ensures selector `{binding}`"
+                    )));
+                }
+                public_selectors.push(binding.as_str().to_owned());
             }
             let handle = syntax_trees
                 .items
@@ -411,6 +466,148 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         ),
         input,
     ))
+}
+
+fn outcome_case_path_followed_by_arrow(
+    input: Input<'_, '_>,
+) -> Result<bool, crate::parse_error::ParseError> {
+    if !input.at_name_like() {
+        return Ok(false);
+    }
+    let (_, mut rest) = input.take_identifier()?;
+    let mut member_count = 1usize;
+    while rest.at_punctuation(PunctuationKind::ColonColon) {
+        rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        let (_, next) = rest.take_identifier()?;
+        rest = next;
+        member_count += 1;
+    }
+    Ok(member_count >= 2 && rest.at_punctuation(PunctuationKind::Arrow))
+}
+
+fn reject_ambiguous_outcome_specific_ensures(
+    input: Input<'_, '_>,
+) -> Result<(), crate::parse_error::ParseError> {
+    let Ok((guard, arrow)) = input.split_at_top_level_punctuation(
+        PunctuationKind::Arrow,
+        "outcome-specific ensures requires an arrow",
+    ) else {
+        return Ok(());
+    };
+    let after_arrow = arrow.take_punctuation(PunctuationKind::Arrow, "->")?;
+    if !after_arrow.at_punctuation(PunctuationKind::LeftBrace) {
+        return Ok(());
+    }
+    // Do not let the diagnostic lookahead cross the end of the current
+    // ordinary guarantee and reinterpret a later guarded group. The ordinary
+    // fact parser owns these clause boundaries.
+    if guard.tokens.iter().any(|token| {
+        token.punctuation() == Some(PunctuationKind::Semicolon)
+            || matches!(
+                token.lexeme.as_str(),
+                "requires"
+                    | "ensures"
+                    | "crashes"
+                    | "terminates"
+                    | "decreases"
+                    | "reaches"
+                    | "effects"
+                    | "invokes"
+                    | "suspends"
+                    | "blocks"
+                    | "where"
+                    | "satisfies"
+            )
+    }) {
+        return Ok(());
+    }
+    if guard
+        .tokens
+        .iter()
+        .any(|token| token.punctuation() == Some(PunctuationKind::EqualEqual))
+    {
+        return Err(input.error_here(
+            "outcome-specific ensures rejects Boolean guards; write the exact declared result case as `Result::Case -> { guarantees }`",
+        ));
+    }
+    if guard.tokens.iter().any(|token| {
+        matches!(
+            token.punctuation(),
+            Some(PunctuationKind::LeftParen | PunctuationKind::LeftBrace)
+        )
+    }) {
+        return Err(input.error_here(
+            "outcome-specific ensures rejects case-literal-shaped selectors; write only the exact nominal path `Result::Case -> { guarantees }`",
+        ));
+    }
+    Err(input.error_here(
+        "outcome-specific ensures requires the exact nominal result-case path `Result::Case -> { guarantees }`",
+    ))
+}
+
+fn parse_outcome_specific_ensures_group<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, (Vec<CapabilityContract>, String)> {
+    let (result_case, rest) = parse_path_handle_span(input, |member| {
+        syntax_trees.items.append_identifier_path_member(member)
+    })?;
+    let group_name = syntax_trees
+        .items
+        .identifier_path_members(result_case)
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    let mut input = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
+    input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let mut contracts = Vec::new();
+
+    while !input.at_punctuation(PunctuationKind::RightBrace) {
+        let row_input = input;
+        let (binding, fact_input) = if let Ok((binding, after_binding)) = input.take_identifier()
+            && after_binding.at_punctuation(PunctuationKind::Colon)
+        {
+            (
+                Some(binding),
+                after_binding.take_punctuation(PunctuationKind::Colon, ":")?,
+            )
+        } else {
+            (None, input)
+        };
+        let ((facts, token_count), rest) = crate::parser::proof_fact::parse_proof_facts_until(
+            syntax_trees,
+            fact_input,
+            |input| {
+                input.at_punctuation(PunctuationKind::Semicolon)
+                    || input.at_punctuation(PunctuationKind::RightBrace)
+                    || input.tokens.is_empty()
+            },
+        )?;
+        if facts.count() != 1 {
+            return Err(row_input.error_here(
+                "each outcome-specific ensures row must contain exactly one guarantee",
+            ));
+        }
+        contracts.push(CapabilityContract {
+            kind: CapabilityContractKind::EnsuresForResultCase { result_case },
+            binding,
+            facts,
+            token_count,
+        });
+        input = rest;
+        if input.at_punctuation(PunctuationKind::Semicolon) {
+            input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        } else if !input.at_punctuation(PunctuationKind::RightBrace) {
+            return Err(input.error_here("expected `;` or `}` after outcome-specific ensures row"));
+        }
+    }
+    input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    if contracts.is_empty() {
+        return Err(input
+            .error_here("an outcome-specific ensures group must contain at least one guarantee"));
+    }
+    Ok(((contracts, group_name), input))
 }
 
 pub(in crate::parser) fn parse_generic_conformance_bounds<'tokens, 'source>(

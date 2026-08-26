@@ -3,9 +3,9 @@ use crate::expression::{
 };
 use crate::identifier::Identifier;
 use crate::item::{
-    CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember,
-    ExternalBinding, GenericConformanceBound, Item, ProofFact, PropositionBody, SatisfiesClause,
-    StateParameterNode, StateSignature, WireDataMember,
+    CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, ExternalBinding,
+    GenericConformanceBound, Item, ProofFact, PropositionBody, SatisfiesClause, StateParameterNode,
+    StateSignature, WireDataMember,
 };
 use crate::statement::{
     AssemblyFactKind, StatementNode, TransitionGuardNode, TransitionTargetNode,
@@ -401,8 +401,13 @@ pub struct CapabilityContractSnapshot {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CapabilityContractKindSnapshot {
     Ensures,
+    EnsuresForResultCase {
+        result_case: Vec<IdentifierSnapshot>,
+    },
     Requires,
-    Crashes { cause: &'static str },
+    Crashes {
+        cause: &'static str,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1401,6 +1406,16 @@ fn snapshot_capability_contract(
     CapabilityContractSnapshot {
         kind: match &contract.kind {
             CapabilityContractKind::Ensures => CapabilityContractKindSnapshot::Ensures,
+            CapabilityContractKind::EnsuresForResultCase { result_case } => {
+                CapabilityContractKindSnapshot::EnsuresForResultCase {
+                    result_case: syntax_trees
+                        .items
+                        .identifier_path_members(*result_case)
+                        .iter()
+                        .map(snapshot_identifier)
+                        .collect(),
+                }
+            }
             CapabilityContractKind::Requires => CapabilityContractKindSnapshot::Requires,
             CapabilityContractKind::Crashes { cause } => CapabilityContractKindSnapshot::Crashes {
                 cause: match cause {

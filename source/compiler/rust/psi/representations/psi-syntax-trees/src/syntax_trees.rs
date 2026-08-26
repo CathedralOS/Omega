@@ -6,13 +6,12 @@ use crate::expression::{
 use crate::identifier::Identifier;
 use crate::item::{
     BoundaryMode, BoundaryPolicy, CapabilityContract, CapabilityContractKind, CapabilityDefinition,
-    CapabilityField, CapabilityMember, CapabilityState, DataDefinition,
-    DataField, DataMember, DataVariant, DomainDefinition, Item, ItemHandle, ItemTable, Machine,
-    MeasureDefinition, OperatorDefinition, ProofFact, ProofMembershipFact, State, StateHandle,
-    StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
-    TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TraitDefinition,
-    TypeParameter, UseItem, WireDataDefinition, WireDataField, WireDataMember, WireDataReserved,
-    WireDataVersion,
+    CapabilityField, CapabilityMember, CapabilityState, DataDefinition, DataField, DataMember,
+    DataVariant, DomainDefinition, Item, ItemHandle, ItemTable, Machine, MeasureDefinition,
+    OperatorDefinition, ProofFact, ProofMembershipFact, State, StateHandle, StateParameterHandle,
+    StateParameterNode, StateSignature, StateSignatureHandle, TargetDefinition, TargetHost,
+    TargetHostSetting, TargetHostSettingValue, TraitDefinition, TypeParameter, UseItem,
+    WireDataDefinition, WireDataField, WireDataMember, WireDataReserved, WireDataVersion,
 };
 use crate::statement::{
     StatementHandle, StatementNode, StatementTable, TableAssemblyFact, TableAssignment, TableCall,
@@ -647,6 +646,11 @@ impl SyntaxTrees {
             .map(|contract| CapabilityContract {
                 kind: match &contract.kind {
                     CapabilityContractKind::Ensures => CapabilityContractKind::Ensures,
+                    CapabilityContractKind::EnsuresForResultCase { result_case } => {
+                        CapabilityContractKind::EnsuresForResultCase {
+                            result_case: self.copy_item_identifier_span(other, *result_case),
+                        }
+                    }
                     CapabilityContractKind::Requires => CapabilityContractKind::Requires,
                     CapabilityContractKind::Crashes { cause } => {
                         CapabilityContractKind::Crashes { cause: *cause }
