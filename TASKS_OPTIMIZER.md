@@ -1,0 +1,754 @@
+# Optimizer Tasks
+
+Last audited: 2026-08-25.
+
+This file is the execution queue for Omega optimization. The durable semantic
+model, pass architecture, folder ownership, build hook, verification boundary,
+and ML posture live in
+[`optimizer_architecture.md`](wiki/design_briefs/optimizer_architecture.md).
+The research motivation remains in
+[`verified_gated_ml_optimizer.md`](wiki/design_briefs/verified_gated_ml_optimizer.md).
+
+A task belongs here only when it has a concrete output and acceptance gate.
+Completed implementation history should be removed rather than accumulated.
+
+## Audited starting point
+
+These facts constrain the work below.
+
+- Psi owns Omega source processing and target-neutral meaning through immutable,
+  canonical Terminal Psi. Omega begins at verified Terminal Psi and owns
+  provider installation, optimization, ABI/storage realization, and native
+  lowering.
+- The current development compiler still routes ordinary builds through
+  `CheckedTrees -> StateGraph -> ControlFlowPlan`. `StateGraph` and
+  `ControlFlowPlan` retain checked-tree expression data and are explicitly
+  transitional, so they are not foundations for a new optimizer.
+- The clean lane already decodes and verifies Terminal Psi artifact sections
+  before constructing `TerminalAbstractOperationPlan`. That representation has
+  explicit blocks, typed values, operations, edges, places, claims, cleanup,
+  boundary calls, and stable Psi provenance. It is the seed for the optimizer
+  unit.
+- The legacy state-value planner already contains expression substitution,
+  exact integer/float folding, Boolean simplification, and guarded helper
+  expansion. This is useful behavior to port and test, not a durable pass
+  framework: it consumes `CheckedTrees`, has local fuel/depth caps, and is
+  interwoven with lowering.
+- `omega-target-operations-to-assigned-target-operations` currently assigns
+  computed values by cycling through six x86-64 or nine AArch64 scratch
+  registers. It has no general liveness, interference, spilling, splitting,
+  coalescing, or frame allocation. The clean Terminal assignment lane handles
+  bounded forms but is also not a general allocator.
+- `CompileOptions` contains root, build directory, target, and output policy.
+  `BuildConfig` currently carries subsystem, freestanding, grants, providers,
+  wire demands, and root bindings; there is no optimization setting.
+- Terminal Psi semantics, proof evidence, fuel schedules, installation choices,
+  and debug maps have separate identities. Optimization must preserve that
+  separation and retain source fuel/provenance mappings.
+- Omega float semantics forbid ambient fast math. Exact versus wrapping,
+  saturating, trapping, fused, and unfused behavior is operation identity, not
+  an optimizer preference.
+
+## Squalr pattern audit
+
+`../Squalr` provides the intended small rule-planning pattern:
+
+- rule traits have stable IDs;
+- registries own built-in rules;
+- rules map an input or mutable execution plan to a more efficient plan;
+- dispatch selects a specialized implementation from the planned result; and
+- a debug scalar scan can compare the specialized result against a reference.
+
+Omega should retain the separation of rule, registry, plan, dispatcher, and
+reference validation. Do not copy Squalr's transitional global singleton,
+unsafe initialization, hash-map iteration order, in-place partial mutation, or
+absence of declared analysis invalidation. Omega registries must be explicit,
+ordered values; rules propose atomic patches; a separate validator accepts or
+rejects them. The audit also found registered element-parameter rules without a
+dispatcher call site in the scanned crates; Omega therefore needs a registry
+coverage test proving that every enabled rule phase is actually scheduled.
+
+## Ownership and placement
+
+Final product source:
+
+```text
+source/compiler/omega/omega/optimization/
+  core/
+  psi/{analyses,passes,validation}/
+  lowering/
+  regalloc/
+  machine/
+  policy/
+  cost/
+source/compiler/omega/omega/pipeline/
+```
+
+Rust migration/reference implementation:
+
+```text
+source/compiler/rust/omega/
+  foundation/omega-optimization-core/
+  representations/omega-optimization-unit/
+  optimization/
+    omega-psi-optimizer/
+    omega-lowering-optimizer/
+    omega-regalloc/
+    omega-machine-optimizer/
+    omega-optimization-validation/
+    omega-optimization-policy/
+  orchestration/omega-optimization-pipeline/
+```
+
+Do not create one crate per analysis or pass. Do not place Rust under
+`source/compiler/omega/omega/`. Existing representation crates continue to own
+their data; optimizer/pipeline crates transform them. ISA crates own declarative
+target facts and encodings, not cross-target pass policy.
+
+## Global gates
+
+Every milestone below must maintain all of these gates.
+
+1. **Default-off compatibility.** A package that does not opt in takes the
+   existing pipeline. It does not initialize optimizer registries, load models,
+   emit optimizer-only failures, or change native/interpreter output.
+2. **Fail-closed opt-in.** An opted-in build rejects an unsupported slice,
+   unavailable pass, invalid candidate, incomplete proof, or failed validator.
+   It never silently emits an unoptimized or differently optimized artifact.
+3. **Exact semantics.** No ambient fast math, new suspension point, reordered
+   effect, weakened cleanup, invented provider, hidden trap, or changed logical
+   fuel behavior.
+4. **Determinism.** The same canonical inputs, exact optimization selections,
+   target model, decision log, and compiler produce the same ordered decisions,
+   ledger, and bytes.
+5. **Independent validation.** A rule, allocator, scheduler, model, or search
+   policy cannot accept its own output merely by returning success.
+6. **Provenance.** Every optimized operation and physical interval maps to the
+   exact Terminal Psi operations/edges and semantic fuel charges it realizes.
+7. **Bounded compilation.** Pass groups have explicit work budgets and
+   convergence measures. Exhaustion returns a deterministic diagnostic; it does
+   not hang or commit a partial candidate.
+
+## Execution order
+
+```text
+P0 explicit build selections + disabled-path firewall
+  -> P1 optimization unit, analyses, rule engine
+  -> P2 validation and publication gate
+  -> P3 exact target-neutral passes
+  -> P4 lowering optimization and virtual-register form
+  -> P5 register allocation
+  -> P6 machine optimization
+  -> P7 proof/borrow-aware advanced passes
+  -> P8 offline search/ML seams
+  -> P9 stabilization and possible promotion
+```
+
+Terminal-Psi vertical-slice coverage proceeds in parallel with P0-P2. A pass is
+enabled only for the operation vocabulary its validator understands. Do not
+route new optimization through legacy `StateGraph` merely to avoid that
+dependency.
+
+## P0 — Opt-in and compatibility firewall
+
+- **OPT-SELECTION-VOCABULARY.** Add ordinary, toolchain-provided `Optimization`
+  and `Optimizations` build values. `Optimizations` is empty by default; each
+  `enable` call names one real transformation family. Add
+  `Build.optimizations: Optimizations` to both injected build preludes and
+  project the exact selected set into `BuildConfig`.
+
+  Initial source shape:
+
+  ```omega
+  machine build(builder: &mut Build) {
+      builder.optimizations.enable(Optimization::ControlFlowCleanup);
+      builder.optimizations.enable(
+          Optimization::SparseConditionalConstantPropagation,
+      );
+      builder.optimizations.enable(Optimization::DeadPureScalarElimination);
+  }
+  ```
+
+  Acceptance: absent `build.omg`, an empty build machine, no `enable` calls,
+  dependency build files, and every program compiled through the public API
+  produce an empty selection set. Unknown, duplicate, or conflicting root
+  selections reject. Only the root package can enable optimizations. A
+  provisional program-authored legacy `Build` shape with no optimizations field
+  remains disabled and compatible; an authored field with the wrong nominal
+  type rejects precisely.
+
+- **OPT-NO-BROAD-MODES.** Keep optimization separate from debug information,
+  compiler assertions, diagnostics/report detail, and output packaging.
+
+  Acceptance: no `debug`, `release`, `O1`, `O2`, `O3`, `fast`, `size`, or
+  similarly opaque category selects transformations. A convenience helper may
+  expand to several explicit `enable` calls, but `BuildConfig` and the manifest
+  retain the expanded named set rather than the helper name.
+
+- **OPT-DISABLED-PATH-FIREWALL.** Thread the selected set through orchestration
+  without changing the empty-set control path.
+
+  Acceptance: a test-only tripwire proves that disabled builds do not construct
+  an optimization registry, analysis manager, decision provider, cost model, or
+  optimizer report. Existing check/build canaries produce identical semantic
+  and emitted observations, and native bytes do not change because of an
+  optimization. Any unavoidable build-vocabulary or artifact-schema extension
+  has a canonical disabled value and is reviewed separately from optimizer
+  logic.
+
+- **OPT-SELECTED-FAIL-CLOSED.** Define one central orchestration decision for a
+  nonempty selected-optimization set.
+
+  Acceptance: if a selected entry cannot traverse the verified Terminal Psi
+  lane and every required enabled stage, compilation emits one actionable
+  unsupported-optimizer diagnostic before output installation. No legacy
+  state-graph optimization and no silent O0 fallback occurs.
+
+- **OPT-SELECTION-IDENTITY.** Define canonical identities for the exact selected
+  optimizations, normalized ordered rule set, target cost model, optional
+  decision log, optional workload profile, and transformation ledger.
+
+  Acceptance: cache/rebuild records cannot collide across any differing input.
+  Machine-local paths, allocation addresses, hash-map order, debug formatting,
+  and report emission policy do not enter these identities.
+
+- **OPT-MANIFEST-SCHEMA.** Add a structured optimization manifest and a human
+  report projection.
+
+  Acceptance: opt-in output records source Terminal Psi identity, optimized
+  realization identity, ordered passes/rules, candidate verdicts, consumed
+  facts, validator identities, fuel/provenance map, code-size statistics, and
+  allocator data when applicable. Suppressing the human report changes no
+  decision or executable byte.
+
+- **OPT-API-CONTAINMENT.** Keep optimization opt-in rooted in `build.omg` for
+  this experimental phase.
+
+  Acceptance: `CompileOptions`, CLI shortcuts, environment variables,
+  dependency metadata, and package API callers cannot accidentally enable it.
+  A future explicit embedding API is a separate task with the same disabled
+  default and selection identity rules.
+
+## P1 — Optimization representation and rule engine
+
+- **OPT-CORE-TYPES.** Implement stable
+  optimization-selection/rule/pass/decision identities, safety classes,
+  analysis sets, invalidation sets, candidate verdicts, work budgets, reason
+  codes, and manifest records in `omega-optimization-core`.
+
+  Acceptance: canonical encode/decode and ordering tests cover every identity;
+  malformed/duplicate rule identities reject; no type depends on a frontend
+  syntax or target encoder crate.
+
+- **OPT-UNIT-BUILDER.** Build `PsiOptimizationUnit` from a verified
+  `TerminalAbstractOperationPlan`.
+
+  Acceptance: functions have explicit blocks and edges, typed SSA scalar
+  values, structural places, memory/effect chains, calls, crash/suspension
+  exits, ownership/claim/cleanup frontiers, proof/range fact indices, fuel
+  sites, and complete Psi provenance. No syntax tree or `ExpressionHandle`
+  survives. Rebuilding the same unit is deterministic.
+
+- **OPT-UNIT-VALIDATOR.** Implement a total structural validator independent of
+  pass implementations.
+
+  Acceptance: it rejects undefined/nondominating values, block-argument type or
+  arity mismatch, malformed CFG, invalid place paths, broken memory/effect
+  chains, incomplete provenance, duplicate fuel settlement, invalid
+  ownership/claim frontiers, and cleanup-order changes. Corruption tests mutate
+  each class independently.
+
+- **OPT-ANALYSIS-MANAGER.** Add deterministic revision-keyed analysis caching,
+  dependency declaration, and precise invalidation.
+
+  Acceptance: a test rule that lies about invalidation is detected in the
+  pass-validation configuration; cached and cold analysis runs agree; parallel
+  analysis scheduling has stable ordered output.
+
+- **OPT-CFG-ANALYSES.** Implement reachability, predecessor/successor indices,
+  dominators, post-dominators, loop forest, and SCC/call-graph analysis.
+
+  Acceptance: irreducible loops, recursion, crash-only exits, suspension exits,
+  and disconnected private machines have focused tests.
+
+- **OPT-SEMANTIC-ANALYSES.** Implement constant/executable-edge, value-range,
+  effect/service, crash, suspension, alias/place, escape/address-stability,
+  memory-version, ownership/cleanup, and scalar/place liveness analyses.
+
+  Acceptance: every result names its exact supporting fact identities and
+  validity region. Expired, path-mismatched, wrong-version, or incompatible
+  access facts produce `Unknown`, not a broadened conclusion.
+
+- **OPT-ORDERED-REGISTRY.** Implement explicit ordered built-in registries with
+  duplicate detection and no global singleton.
+
+  Acceptance: insertion/iteration order is canonical, registries are immutable
+  during a run, and two concurrently compiled programs cannot affect each
+  other's rule sets.
+
+- **OPT-RULE-CONTRACT.** Implement immutable-input rule proposal and atomic
+  rewrite patches.
+
+  Acceptance: a candidate declares decision point, affected region, required
+  analyses, invalidations, substitutions, provenance changes, witness, and
+  predicted non-authoritative cost. Rejected validation leaves the unit and all
+  analysis revisions unchanged.
+
+- **OPT-PASS-MANAGER.** Implement analyze/enumerate/choose/validate/commit with
+  named versioned pass groups.
+
+  Acceptance: work budgets, deterministic tie breaks, candidate limits, and
+  fixed-point convergence metrics are enforced. Oscillating synthetic rules
+  terminate with a deterministic diagnostic and no partial commit.
+
+- **OPT-BASELINE-POLICY.** Implement a deterministic model-free decision
+  provider.
+
+  Acceptance: policy sees only legal candidates, cannot override a validator,
+  and emits a replayable ordered decision log. Equal-cost ties use stable
+  candidate identity.
+
+## P2 — Equivalence and publication gate
+
+- **OPT-OBSERVATION-MODEL.** Define the compiler-owned equivalence boundary over
+  live-ins/outs, normal/crash/suspension exits, memory/effect traces,
+  boundary/provider events, ownership/cleanup frontiers, and fuel attribution.
+
+  Acceptance: the model covers every currently executable Terminal Psi
+  operation. Adding a vocabulary operation fails compilation until its
+  observation case and tests land in the same vertical slice.
+
+- **OPT-REWRITE-WITNESS.** Define a canonical local transformation witness over
+  one closed region.
+
+  Acceptance: the verifier reconstructs the pre/post questions from the source
+  unit and patch. The candidate cannot omit an observable live-out, effect
+  token, crash edge, cleanup action, or fuel site by leaving it out of its
+  witness.
+
+- **OPT-LOCAL-VALIDATOR.** Implement bounded validators for CFG identities,
+  constant substitution, copy propagation, dead pure values, and algebraic
+  operations under exact typed semantics.
+
+  Acceptance: each validator is shared by multiple rules where possible and
+  contains no cost/benefit policy. Mutated witnesses and wrong arithmetic
+  domains reject.
+
+- **OPT-PROOF-BRIDGE.** Generate proof-kernel-checkable propositions and
+  derivations for rewrite classes expressible in the current proof vocabulary;
+  identify the minimal new proof rules needed for the rest.
+
+  Acceptance: the optimizer/prover remains untrusted; an independently
+  reconstructed obligation set is checked through the existing admission
+  profile. Unsupported entailment rejects rather than becoming a compiler
+  axiom.
+
+- **OPT-FUEL-MAP.** Preserve exact Terminal Psi logical charges through
+  many-to-one and one-to-many rewrites.
+
+  Acceptance: fixed-work certificates continue to refer to original semantics;
+  dynamically metered optimized execution charges the same executed semantic
+  sites; an optimized native build cannot observe lower fuel merely because it
+  uses fewer instructions.
+
+- **OPT-PUBLICATION-GATE.** Require a complete accepted transformation ledger
+  before optimized native output can be installed.
+
+  Acceptance: missing source regions, unvalidated candidates, unknown rule
+  versions, mismatched selection/decision identity, or incomplete physical
+  provenance prevent publication even when byte emission succeeds.
+
+- **OPT-DIFFERENTIAL-HARNESS.** Generalize the native differential harness to
+  compare interpreter, O0 native, and optimized native observations.
+
+  Acceptance: generated inputs and curated cases compare result, output bytes,
+  crash route, boundary trace, and other exposed observations. A differential
+  pass is evidence and regression coverage, never the publication authority.
+
+## P3 — Initial exact Psi optimizer
+
+- **OPT-CFG-CLEANUP.** Add unreachable-block elimination, empty-block
+  threading, constant conditional folding, redundant jump elimination, and
+  unreachable private-machine pruning.
+
+  Acceptance: operation/edge provenance and fuel mapping remain complete;
+  crash, cleanup, suspension, and boundary-only blocks are never classified as
+  empty.
+
+- **OPT-SCCP.** Implement sparse conditional constant propagation over the
+  closed integer and Boolean Terminal Psi operations.
+
+  Acceptance: folds honor width, signedness, `Exact`/`Wrapping`/`Saturating`/
+  `Trapping` policy, exact casts, shifts, division/remainder obligations, and
+  block parameters. Float support waits for complete per-operation exact
+  semantics and must never use host arithmetic as a shortcut.
+
+- **OPT-COPY-PROPAGATION.** Remove redundant scalar copies and block parameters.
+
+  Acceptance: dominance, call-result materialization, effect chains, proof-term
+  identity, debug provenance, and fuel attribution remain valid.
+
+- **OPT-GVN-CSE.** Add local CSE followed by dominator-based global value
+  numbering for pure, total operations.
+
+  Acceptance: the expression key includes complete type/domain/provider
+  semantics; potentially trapping, effectful, placed, atomic, or observation-
+  dependent work is excluded unless its exact contract proves equivalence.
+
+- **OPT-DEAD-SCALAR-WORK.** Remove unused pure and total scalar operations.
+
+  Acceptance: an unused result is insufficient when the operation may trap,
+  charge a distinct semantic site, produce proof/runtime evidence, or carry an
+  effect/cleanup/boundary event.
+
+- **OPT-PROOF-CHECK-ELISION.** Omit redundant physical checks whose exact
+  obligations were already verified and whose operation semantics permit
+  no-code realization.
+
+  Acceptance: the semantic obligation and source provenance remain in the
+  ledger/report. Elision never converts a `Trapping` operation into an `Exact`
+  one or removes a required runtime policy event.
+
+- **OPT-INITIAL-PIPELINE.** Define the canonical target-neutral schedule for
+  each subset of the initial named optimizations and its bounded repetition
+  rules.
+
+  Acceptance: it reaches a deterministic fixed point, running it again changes
+  neither unit nor ledger, and randomized rule-registration order cannot change
+  output because registry order is canonical.
+
+## P4 — Lowering optimizer and virtual-register form
+
+- **OPT-ABSTRACT-LOWERING-CUT.** Make the clean Terminal-derived optimized plan
+  the true input to abstract-operation lowering.
+
+  Acceptance: no checked-tree expression table, legacy state-value simplifier,
+  or source binding substitution is needed for supported Terminal slices.
+  Unsupported shapes fail at a named boundary.
+
+- **OPT-VIRTUAL-REGISTERS.** Change instruction selection to produce typed
+  virtual registers/classes and explicit register/machine-state uses and defs.
+
+  Acceptance: fixed ABI operands are constraints, not wholesale preassignment;
+  temporary scratch needs are visible to liveness; instruction encoders receive
+  only assigned physical operands later.
+
+- **OPT-TARGET-LEGALIZATION.** Separate target legalization from physical home
+  assignment.
+
+  Acceptance: illegal widths/shapes decompose into target-legal operations with
+  complete provenance; legalization does not allocate registers or select
+  stack offsets.
+
+- **OPT-TARGET-COMBINES.** Add exact immediate folding, addressing-mode folding,
+  compare/branch formation, strength reduction, and target instruction
+  combines.
+
+  Acceptance: rules declare target model dependencies and preserve trap,
+  overflow, flag, memory, and effect behavior. Cross-target tests show that an
+  ISA-specific rule cannot run on another target.
+
+- **OPT-CALL-LOWERING.** Normalize internal, boundary, callback, and tail-call
+  sequences before allocation.
+
+  Acceptance: calling-plan identity, argument/result placement constraints,
+  clobbers, outgoing frame requirements, provider bindings, and cleanup
+  frontiers are explicit allocator inputs.
+
+- **OPT-AGGREGATE-COPY-PLANNING.** Select scalar, vector, loop, or checked
+  provider copy plans from exact size/alignment/overlap/access facts.
+
+  Acceptance: write-only access cannot be observed; overlapping copies choose
+  an overlap-safe plan; affine/linear ownership moves are not modeled as
+  unrestricted byte copies.
+
+## P5 — Register allocation and frame assignment
+
+- **OPT-REGISTER-MODEL.** Publish declarative AArch64 and x86-64 register-unit,
+  class, alias, preservation, reservation, and instruction-constraint models.
+
+  Acceptance: models cover general-purpose, float/vector, flags/predicate, ABI,
+  dispatch, metering, syscall, inline-assembly, and backend-reserved state.
+  Target tests detect overlapping or omitted units.
+
+- **OPT-LIVENESS.** Compute block and instruction liveness, live intervals, use
+  positions, loop weights, call crossings, and fixed constraints.
+
+  Acceptance: conditionals, loops, crash exits, calls, cleanup blocks,
+  suspension frontiers, and disconnected functions have focused tests.
+
+- **OPT-LINEAR-SCAN.** Implement deterministic linear-scan allocation with
+  class constraints and stable tie breaks.
+
+  Acceptance: simple functions use registers without the current modulo scratch
+  cycling; allocation never assigns reserved or incompatible units; repeated
+  builds are identical.
+
+- **OPT-INTERVAL-SPLITTING.** Split live ranges around fixed uses, calls, high-
+  pressure regions, and profitable rematerialization points.
+
+  Acceptance: split copies have complete provenance and are visible to later
+  coalescing/peephole passes. Address-stable values are not illegally split
+  across changing homes.
+
+- **OPT-SPILLS-RELOADS.** Insert typed spills/reloads and rematerialize cheap
+  constants/addresses.
+
+  Acceptance: spill code obeys effect and trap ordering, retains source value
+  identity, and cannot use placed/volatile memory as a private spill location.
+
+- **OPT-STACK-SLOTS.** Assign aligned frame slots with lifetime-based reuse,
+  outgoing-call areas, ABI shadow space/red-zone policy, dynamic restrictions,
+  and deterministic layout.
+
+  Acceptance: overlapping live values never share a slot; stable-address loans
+  keep a stable slot; frame size/alignment and unwind/entry requirements are
+  validated for every target.
+
+- **OPT-COALESCING.** Add conservative copy and phi/block-parameter coalescing.
+
+  Acceptance: coalescing never violates register constraints, merges distinct
+  address identities, or obscures cleanup/debug recovery requirements.
+
+- **OPT-REGALLOC-VERIFIER.** Independently replay liveness, register units,
+  clobbers, spills, stack slots, frame layout, and state footprints.
+
+  Acceptance: targeted corruption tests change one assignment, clobber, spill,
+  slot, or frame field at a time and are rejected before machine emission.
+
+- **OPT-ALLOCATOR-ADAPTERS.** Feed the same allocator core from clean Terminal
+  target operations and, where it avoids duplicated disposable work, the legacy
+  target-operation representation.
+
+  Acceptance: adapters preserve each lane's semantic/provenance roots and
+  contain no allocation policy. Durable Terminal functionality does not depend
+  on the legacy adapter.
+
+## P6 — Machine optimizer
+
+- **OPT-MACHINE-EFFECTS.** Make symbolic machine instructions declare all
+  physical register units, flags, memory effects, traps, barriers, calls,
+  cleanup/fuel provenance, and latency/size alternatives.
+
+  Acceptance: the declaration is sufficient for independent scheduling,
+  peephole, and state-footprint validation. Encoders reject undeclared implicit
+  state.
+
+- **OPT-PRE-RA-MACHINE.** Add machine copy propagation, cheap rematerialization
+  hints, and instruction-alternative selection before allocation.
+
+  Acceptance: these rules operate on virtual registers and produce allocator-
+  visible constraints; they do not assign physical scratch registers.
+
+- **OPT-SCHEDULER.** Implement deterministic dependency- and pressure-aware
+  local scheduling.
+
+  Acceptance: data, flags, memory, effects, traps, fuel, placed/atomic order,
+  and explicit semantic safe-point barriers are preserved. A target without a
+  latency model uses a stable baseline schedule.
+
+- **OPT-POST-RA-PEEPHOLES.** Remove redundant moves/spills/reloads and add small
+  target peephole combines after allocation.
+
+  Acceptance: each rule has a concrete physical-state validator; no rule relies
+  on undefined flags, partial-register folklore, or final branch displacement.
+
+- **OPT-BLOCK-LAYOUT.** Select deterministic function/block layout and
+  fallthrough edges from static or admitted profile weights.
+
+  Acceptance: layout changes no semantic edge identity; profile absence has a
+  deterministic baseline; final short/long encoding remains the encoder's job.
+
+- **OPT-MACHINE-VALIDATOR.** Replay symbolic instruction legality, control-flow
+  targets, state footprints, frame accesses, provenance, and allocator output
+  before encoding.
+
+  Acceptance: no optimized byte sequence is published solely because an ISA
+  encoder accepted it.
+
+## P7 — Proof-, ownership-, and state-aware optimizations
+
+- **OPT-PATH-ALIAS.** Derive exact disjointness and non-interference from loan
+  occurrences, structural paths, proven dynamic-index relations, access modes,
+  and physical footprints.
+
+  Acceptance: authority alone never proves disjointness; proof compatibility
+  never invents missing resource rows; collection-wide mutation remains
+  conservative where the checked summary is collection-wide.
+
+- **OPT-MEMORY-SSA.** Promote ordinary local memory to SSA and model remaining
+  memory with region/path version tokens.
+
+  Acceptance: address escape/stability, placed/external observation, atomics,
+  boundaries, calls, and cleanup partition memory into honest barriers.
+
+- **OPT-LOAD-STORE.** Add load forwarding, redundant-load elimination, dead-
+  store elimination, and store sinking for ordinary memory.
+
+  Acceptance: every rewrite cites exact alias/effect facts; write-only borrows
+  cannot authorize a read; calls with unknown reach block the rewrite.
+
+- **OPT-SROA-MOVE-ELISION.** Add scalar replacement, aggregate promotion,
+  return-place forwarding, copy elision, and in-place transfer.
+
+  Acceptance: field relevance, invariant windows, content conservation,
+  multiplicity, cleanup ownership, and address stability remain correct.
+
+- **OPT-CLEANUP-OPTIMIZATION.** Share identical cleanup suffixes, eliminate
+  checked no-code affine discards from physical code, and sink cleanup only
+  across legal operations.
+
+  Acceptance: semantic cleanup order and exact claim frontier remain in the
+  ledger; a linear value never becomes discardable through optimization.
+
+- **OPT-STATE-MACHINES.** Add state fusion, transition threading, dispatch
+  bypass, acyclic-region direct lowering, and proven unreachable-state removal.
+
+  Acceptance: state/edge provenance, transition arguments, progress facts,
+  safe points, and task activation semantics remain reconstructible.
+
+- **OPT-INLINING-SPECIALIZATION.** Add whole-program inlining, provider
+  devirtualization, constant/type/domain specialization, and tail calls.
+
+  Acceptance: recursion/termination checks, service reach, crash routes,
+  provider installation identity, code-growth budget, and proof dependencies
+  are recomputed. Package/component boundaries honor the separate-compilation
+  contract.
+
+- **OPT-LOOPS.** Add induction analysis, loop-invariant code motion, strength
+  reduction, unrolling, and check hoisting/elision.
+
+  Acceptance: exact arithmetic policy, loop-carried ownership, termination
+  measure, effects, safe points, and code-growth limits are preserved.
+
+- **OPT-VECTORIZATION.** Add proof/alias-aware straight-line and loop
+  vectorization.
+
+  Acceptance: vector lanes reproduce scalar operation semantics including
+  integer policy and exact float rounding; tails are complete; alignment and
+  non-alias facts are explicit; no vectorization crosses an observable ordering
+  or suspension boundary.
+
+## P8 — Search and ML extensibility
+
+- **OPT-DECISION-SCHEMA.** Externalize meaningful heuristic choices as
+  versioned decision points with canonical features and legal action sets.
+
+  Acceptance: baseline output is unchanged when decisions are merely recorded;
+  raw paths, authored names, pointer addresses, arena order, and debug strings
+  are absent from features.
+
+- **OPT-DECISION-REPLAY.** Replay a canonical external decision log.
+
+  Acceptance: mismatched source/selection/target/rule/cost-model identity,
+  missing decisions, duplicate decisions, or illegal actions reject. Replayed
+  candidates still pass every normal validator.
+
+- **OPT-COST-MODEL-INTERFACE.** Define non-authoritative size, latency,
+  throughput, pressure, and target-resource estimates.
+
+  Acceptance: a missing or deliberately wrong cost model can make code slower
+  but cannot make invalid code publish. Model identity and version are retained.
+
+- **OPT-WORKLOAD-PROFILES.** Define bounded, content-addressed workload/profile
+  inputs with explicit build custody.
+
+  Acceptance: profile capture is outside ordinary compilation; replay is
+  deterministic; profile absence is supported; dependency packages cannot
+  smuggle root optimization selections.
+
+- **OPT-TRAINING-RECORDS.** Export decision input, legal candidates, selected
+  action, validator result, realization identity, and measured outcomes.
+
+  Acceptance: the schema is versioned and reproducible, distinguishes rejected
+  candidates from slow valid candidates, and contains no correctness verdict
+  supplied by a model.
+
+- **OPT-OFFLINE-SEARCH.** Build an offline search/autotuning driver that invokes
+  the compiler as a deterministic `decisions -> validated artifact` function.
+
+  Acceptance: search cannot bypass compilation/publication validation; only a
+  fixed accepted decision log enters a build; no search engine or model is a
+  runtime dependency.
+
+- **OPT-LEARNED-POLICY-EXPERIMENT.** Permit a learned policy to rank already
+  legal candidates offline.
+
+  Acceptance: the baseline model-free compiler remains complete and supported;
+  the experiment enables no optimization implicitly and has no TCB role. Arbitrary model-
+  generated rewrites remain fenced until their general equivalence certificates
+  are independently checkable.
+
+## P9 — Test matrix, stabilization, and rollout
+
+- **OPT-DISABLED-CORPUS.** Run every existing pass/fail/run canary and sample
+  without opt-in through the default-off firewall.
+
+  Acceptance: source acceptance, diagnostics, interpreter behavior, native
+  observations, and requested output kind match the pre-optimizer baseline.
+
+- **OPT-CANARY-CORPUS.** Add focused `canaries/pass/optimizer`,
+  `canaries/fail/optimizer`, and executable differential cases. Every opt-in
+  canary owns a `build.omg` enabling the exact optimization(s) it exercises.
+
+  Acceptance: the corpus covers each rule family plus float, trap, atomic,
+  placed-memory, boundary, provider, cleanup, linear/affine, suspension,
+  termination, fuel, and allocator barriers.
+
+- **OPT-METAMORPHIC-CORPUS.** Add deterministic rebuild, idempotence,
+  fixed-point, equivalent-source-shape, pass-order perturbation, and corrupted-
+  ledger tests.
+
+  Acceptance: changes in parallel worker count and auxiliary-report policy do
+  not change decisions or bytes.
+
+- **OPT-TARGET-CORPUS.** Exercise x86-64 and AArch64 ABI, register pressure,
+  calls, syscalls, host boundaries, inline assembly, object/image, and direct
+  execution paths.
+
+  Acceptance: each supported OS/architecture combination has allocator and
+  machine-validation coverage, not merely successful encoding.
+
+- **OPT-BENCHMARKS.** Establish compile-time, peak-memory, code-size, runtime,
+  and spill/frame benchmarks over small kernels and representative applications.
+
+  Acceptance: results are versioned non-authoritative evidence; compile work
+  budgets prevent pathological inputs from producing unbounded optimization
+  time.
+
+- **OPT-EXPERIMENTAL-RELEASE-GATE.** Publish each initially experimental named
+  optimization only when its transformation class has an independent
+  validator, full provenance, deterministic identity, target coverage, and
+  differential corpus.
+
+  Acceptance: experimental release notes state the exact supported Terminal
+  Psi vocabulary and targets. Unsupported inputs fail clearly and install no
+  output.
+
+- **OPT-PROMOTION-DECISION.** Decide separately whether any named optimization
+  should become implicit by default, and only after sustained optimized-path
+  assurance and empty-set compatibility evidence.
+
+  Acceptance: each promotion is an explicit owner decision with that
+  optimization's stable contract, cache/artifact migration plan, rollback
+  strategy, and consumer impact audit. Until a specific promotion closes, no
+  consumer receives that optimization unless its root `build.omg` explicitly
+  enables it. No broad level is promoted.
+
+## Deferred questions that do not block P0-P3
+
+- Whether the first general equivalence backend uses only proof-kernel
+  derivations, a small separately assured translation validator, or both.
+- Whether compile budgets are per named optimization, one orthogonal build
+  resource limit, or compiler-owned fixed bounds.
+- Whether profile-guided specialization is itself a named optimization plus an
+  explicit workload-profile input, or stays an offline fixed decision-log
+  input.
+- When the clean Terminal and legacy backend representations can converge
+  without creating a second portable IR.
+- Which learned policy family, if any, demonstrates enough value to retain
+  after the deterministic decision/replay seam exists.
+
+None of these questions permits ambient fast math, optimizer-selected language
+semantics, a mutable canonical Terminal Psi artifact, or default enablement
+during the experimental phase.
