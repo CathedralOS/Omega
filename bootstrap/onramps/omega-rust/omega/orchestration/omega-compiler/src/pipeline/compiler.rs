@@ -210,10 +210,18 @@ fn extract_external_binding_rows(
     for plan in selected_plans {
         for row in &plan.rows {
             let binding = match &row.binding {
-                ProviderBinding::Import { library, symbol } => ExternalBindingKind::DllImport {
-                    module: library.clone(),
-                    symbol: symbol.clone(),
-                },
+                ProviderBinding::Import { locator } => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "normalized foreign locator 0x{:016x} reached the legacy string-backed ABI bridge; target object planning must consume its atomic bytes before this row can be emitted",
+                        locator.normalized_identity(),
+                    ))]);
+                }
+                ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
+                    ExternalBindingKind::DllImport {
+                        module: library.clone(),
+                        symbol: symbol.clone(),
+                    }
+                }
                 ProviderBinding::Syscall { number } => {
                     ExternalBindingKind::Syscall { number: *number }
                 }
@@ -1358,7 +1366,7 @@ mod tests {
         fixture.plans[0].rows.push(ProviderPlanRow {
             method: METHOD_NAME.to_owned(),
             requirement_identity: fixture.requirement_identity.clone(),
-            binding: ProviderBinding::Import {
+            binding: ProviderBinding::StringBackedImportBootstrap {
                 library: "retained-library".to_owned(),
                 symbol: "retained-symbol".to_owned(),
             },

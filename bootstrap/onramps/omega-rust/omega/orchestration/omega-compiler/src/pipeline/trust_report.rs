@@ -215,7 +215,8 @@ pub(super) fn write_trust_report(
                             subject_projections: premise.subject_projections.clone(),
                         })
                         .collect(),
-                    realization: trust_provider_realization(&row.binding),
+                    realization: trust_provider_realization(&row.binding)
+                        .map_err(|diagnostic| vec![diagnostic])?,
                     provenance: provenance.to_owned(),
                     grant_selectors: grant_selectors.clone(),
                     standing_warning: !granted,
@@ -675,14 +676,22 @@ fn accepted_machine_crash_routes(
 
 fn trust_provider_realization(
     binding: &omega_effects::provider_plan::ProviderBinding,
-) -> TrustProviderRealization {
+) -> Result<TrustProviderRealization, Diagnostic> {
     use omega_effects::provider_plan::ProviderBinding;
 
-    match binding {
-        ProviderBinding::Import { library, symbol } => TrustProviderRealization::Import {
-            library: library.clone(),
-            symbol: symbol.clone(),
-        },
+    let realization = match binding {
+        ProviderBinding::Import { locator } => {
+            return Err(Diagnostic::error(format!(
+                "normalized foreign locator 0x{:016x} reached the legacy string-backed trust report; the trust artifact must carry its atomic locator before this plan can be reported",
+                locator.normalized_identity(),
+            )));
+        }
+        ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
+            TrustProviderRealization::Import {
+                library: library.clone(),
+                symbol: symbol.clone(),
+            }
+        }
         ProviderBinding::Syscall { number } => {
             TrustProviderRealization::Syscall { number: *number }
         }
@@ -711,7 +720,8 @@ fn trust_provider_realization(
             machine_identity: machine_identity.clone(),
             machine_package_identity: *machine_package_identity,
         },
-    }
+    };
+    Ok(realization)
 }
 
 #[cfg(test)]

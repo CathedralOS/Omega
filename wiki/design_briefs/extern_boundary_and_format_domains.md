@@ -124,9 +124,14 @@ The Rust comparator now has the first dependency-light representation rung: a
 sealed target-bound normalized locator for atomic PE-by-name, PE-by-ordinal,
 and versioned-ELF coordinates. It validates target applicability and basic
 coordinate shape and derives a domain-separated, length-prefixed compatibility
-identity. This is not yet the evaluated Omega `Binding` path: the current
-provider import row, exact fixed-array widths, producer closure, evaluator
-receipt, and downstream artifact/report joins remain to migrate together.
+identity. Provider import rows and opaque executable-TCB projections now retain
+that whole normalized locator, and package-review/manifest output preserves its
+target, case, identity, and raw coordinates without rebuilding strings. The
+current source evaluator is visibly segregated as a temporary string-backed
+bootstrap; normalized rows fail closed at unmigrated ABI and trust bridges.
+Exact fixed-array widths, producer closure, evaluator receipt, trust
+realization, calling conventions, object planning, and backend emission remain
+to migrate.
 
 Changing raw foreign bytes changes the normalized binding, forces every final
 artifact whose reachable closure contains it to relink, and requires fresh

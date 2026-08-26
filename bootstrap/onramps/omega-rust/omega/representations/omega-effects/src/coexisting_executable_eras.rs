@@ -523,7 +523,7 @@ mod tests {
             provider_plan_identity: 92,
             method: "decode".into(),
             requirement_identity: "Codec::decode".into(),
-            binding: OpaqueInProcessBinding::Import {
+            binding: OpaqueInProcessBinding::StringBackedImportBootstrap {
                 library: "codec".into(),
                 symbol: "decode".into(),
             },

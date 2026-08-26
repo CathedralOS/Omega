@@ -67,7 +67,7 @@ fn provider_derivation_consumes_typed_external_binding_identity() {
 
     assert_eq!(
         plan.rows[0].binding,
-        ProviderBinding::Import {
+        ProviderBinding::StringBackedImportBootstrap {
             library: "retained-library".to_owned(),
             symbol: "retained-symbol".to_owned(),
         }

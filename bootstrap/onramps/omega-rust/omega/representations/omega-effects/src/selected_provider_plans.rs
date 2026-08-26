@@ -713,9 +713,17 @@ mod tests {
         let checked_wrapper = candidate("CheckedWrapper", "read");
         let mut opaque_leaf = candidate("OpaqueLeaf", "read_raw");
         opaque_leaf.schema.trait_name = "RawStorage".into();
+        opaque_leaf.target = "windows_x64".into();
+        let locator = crate::normalize_foreign_locator(
+            crate::ForeignLocatorCandidate::PeByName {
+                library: b"vendor-storage.dll".to_vec(),
+                export: b"read_raw".to_vec(),
+            },
+            omega_target::TargetProfile::WindowsX64,
+        )
+        .expect("normalized opaque import");
         opaque_leaf.rows[0].binding = ProviderBinding::Import {
-            library: "vendor-storage".into(),
-            symbol: "read_raw".into(),
+            locator: locator.clone(),
         };
         let selected = SelectedProviderPlanFacts::from_selection(
             &[checked_wrapper.clone(), opaque_leaf.clone()],
@@ -733,16 +741,47 @@ mod tests {
             &causes[0],
             crate::IncompleteCause::SelectedOpaqueProvider {
                 provider_plan_identity,
-                binding: crate::OpaqueInProcessBinding::Import { .. },
+                binding: crate::OpaqueInProcessBinding::Import {
+                    locator: retained,
+                },
                 ..
             } if *provider_plan_identity == opaque_leaf.identity_fingerprint()
+                && retained == &locator
         ));
+    }
+
+    #[test]
+    fn selected_plan_identity_changes_with_normalized_import_coordinates() {
+        fn selected(export: &[u8]) -> SelectedProviderPlanFacts {
+            let mut plan = candidate("OpaqueLeaf", "read_raw");
+            plan.target = "windows_x64".into();
+            plan.rows[0].binding = ProviderBinding::Import {
+                locator: crate::normalize_foreign_locator(
+                    crate::ForeignLocatorCandidate::PeByName {
+                        library: b"vendor-storage.dll".to_vec(),
+                        export: export.to_vec(),
+                    },
+                    omega_target::TargetProfile::WindowsX64,
+                )
+                .expect("normalized selected import"),
+            };
+            SelectedProviderPlanFacts::from_selection(
+                std::slice::from_ref(&plan),
+                std::slice::from_ref(&plan.name),
+            )
+            .expect("selected normalized import")
+        }
+
+        assert_ne!(
+            selected(b"read_raw").normalized_identity(),
+            selected(b"write_raw").normalized_identity(),
+        );
     }
 
     #[test]
     fn pinned_opaque_entry_remains_incomplete_without_executable_closure_evidence() {
         let mut opaque = candidate("Opaque", "read");
-        opaque.rows[0].binding = ProviderBinding::Import {
+        opaque.rows[0].binding = ProviderBinding::StringBackedImportBootstrap {
             library: "vendor-storage".into(),
             symbol: "read".into(),
         };
@@ -756,7 +795,7 @@ mod tests {
             provider_plan_identity: plan_identity,
             method: "read".into(),
             requirement_identity: opaque.schema.methods[0].requirement_identity.clone(),
-            binding: crate::OpaqueInProcessBinding::Import {
+            binding: crate::OpaqueInProcessBinding::StringBackedImportBootstrap {
                 library: "vendor-storage".into(),
                 symbol: "read".into(),
             },
@@ -787,7 +826,7 @@ mod tests {
     #[test]
     fn exact_closure_and_containment_receipts_complete_the_opaque_scope() {
         let mut opaque = candidate("Opaque", "read");
-        opaque.rows[0].binding = ProviderBinding::Import {
+        opaque.rows[0].binding = ProviderBinding::StringBackedImportBootstrap {
             library: "platform".into(),
             symbol: "read".into(),
         };
@@ -801,7 +840,7 @@ mod tests {
             provider_plan_identity: plan_identity,
             method: "read".into(),
             requirement_identity: opaque.schema.methods[0].requirement_identity.clone(),
-            binding: crate::OpaqueInProcessBinding::Import {
+            binding: crate::OpaqueInProcessBinding::StringBackedImportBootstrap {
                 library: "platform".into(),
                 symbol: "read".into(),
             },
@@ -841,12 +880,12 @@ mod tests {
     #[test]
     fn exact_closure_evidence_survives_an_unrelated_incomplete_row() {
         let mut closed = candidate("Closed", "read");
-        closed.rows[0].binding = ProviderBinding::Import {
+        closed.rows[0].binding = ProviderBinding::StringBackedImportBootstrap {
             library: "closed-platform".into(),
             symbol: "read".into(),
         };
         let mut open = candidate("Open", "write");
-        open.rows[0].binding = ProviderBinding::Import {
+        open.rows[0].binding = ProviderBinding::StringBackedImportBootstrap {
             library: "open-vendor".into(),
             symbol: "write".into(),
         };
@@ -860,7 +899,7 @@ mod tests {
             provider_plan_identity: closed_identity,
             method: "read".into(),
             requirement_identity: closed.schema.methods[0].requirement_identity.clone(),
-            binding: crate::OpaqueInProcessBinding::Import {
+            binding: crate::OpaqueInProcessBinding::StringBackedImportBootstrap {
                 library: "closed-platform".into(),
                 symbol: "read".into(),
             },
@@ -899,7 +938,7 @@ mod tests {
     #[test]
     fn opaque_admission_rejects_binding_drift_and_duplicate_containment_axes() {
         let mut opaque = candidate("Opaque", "read");
-        opaque.rows[0].binding = ProviderBinding::Import {
+        opaque.rows[0].binding = ProviderBinding::StringBackedImportBootstrap {
             library: "platform".into(),
             symbol: "read".into(),
         };
@@ -913,7 +952,7 @@ mod tests {
             provider_plan_identity: plan_identity,
             method: "read".into(),
             requirement_identity: opaque.schema.methods[0].requirement_identity.clone(),
-            binding: crate::OpaqueInProcessBinding::Import {
+            binding: crate::OpaqueInProcessBinding::StringBackedImportBootstrap {
                 library: "other".into(),
                 symbol: "read".into(),
             },
@@ -932,7 +971,7 @@ mod tests {
         );
 
         let mut candidate = candidate;
-        candidate.binding = crate::OpaqueInProcessBinding::Import {
+        candidate.binding = crate::OpaqueInProcessBinding::StringBackedImportBootstrap {
             library: "platform".into(),
             symbol: "read".into(),
         };

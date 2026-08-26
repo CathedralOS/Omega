@@ -160,10 +160,24 @@ pub enum IncompleteCause {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OpaqueInProcessBinding {
-    Import { library: String, symbol: String },
-    VtableSlot { index: i64 },
-    VtableField { table: String, field: String },
-    TableFunction { table: String, field: String },
+    Import {
+        locator: crate::NormalizedForeignLocator,
+    },
+    StringBackedImportBootstrap {
+        library: String,
+        symbol: String,
+    },
+    VtableSlot {
+        index: i64,
+    },
+    VtableField {
+        table: String,
+        field: String,
+    },
+    TableFunction {
+        table: String,
+        field: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -644,6 +658,7 @@ pub(crate) fn derive_static_manifest(
                     containment: Vec::new(),
                 }),
                 ProviderBinding::Import { .. }
+                | ProviderBinding::StringBackedImportBootstrap { .. }
                 | ProviderBinding::VtableSlot { .. }
                 | ProviderBinding::VtableField { .. }
                 | ProviderBinding::TableFunction { .. } => {
@@ -736,10 +751,15 @@ fn provider_identity(plan: &ProviderPlan) -> ProviderIdentity {
 
 fn opaque_binding(binding: &ProviderBinding) -> Option<OpaqueInProcessBinding> {
     match binding {
-        ProviderBinding::Import { library, symbol } => Some(OpaqueInProcessBinding::Import {
-            library: library.clone(),
-            symbol: symbol.clone(),
+        ProviderBinding::Import { locator } => Some(OpaqueInProcessBinding::Import {
+            locator: locator.clone(),
         }),
+        ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
+            Some(OpaqueInProcessBinding::StringBackedImportBootstrap {
+                library: library.clone(),
+                symbol: symbol.clone(),
+            })
+        }
         ProviderBinding::VtableSlot { index } => {
             Some(OpaqueInProcessBinding::VtableSlot { index: *index })
         }

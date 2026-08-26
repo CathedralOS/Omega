@@ -1463,6 +1463,7 @@ dependencies = [
  "omega-machine-instructions",
  "omega-object-file",
  "omega-state-graph",
+ "omega-target",
  "omega-target-operations",
  "omega-task-plans",
  "psi-arena",

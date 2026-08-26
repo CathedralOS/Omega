@@ -32,4 +32,5 @@ psi-syntax-trees = { path = "../../../psi/representations/psi-syntax-trees" }
 psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
 
 [dev-dependencies]
+omega-target = { path = "../../foundation/omega-target" }
 psi-numerics = { path = "../../../psi/foundation/psi-numerics" }
