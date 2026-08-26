@@ -210,17 +210,36 @@ ABI](https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst).
 Logical slots and relocation requirements grant no address, physical
 GOT/PLT/section index, serialized relocation, placement, or mutation authority.
 
+The next sealed target-template rung consumes that semantic linkage and emits
+only fixed ELF64-LSB `.plt`, `.got.plt`, and `.rela.plt` bytes plus exact zero
+placeholders. Its x86-64 small/medium lazy-binding policy gives GOT[0] the sole
+semantic `_DYNAMIC` fixup, leaves GOT[1]/GOT[2] reserved, and directs each
+import slot to its PLT lazy tail. Its AArch64 standard lazy policy leaves all
+three GOT header words zero/reserved, directs each import slot to PLT0, and
+never assigns `_DYNAMIC` to AArch64 GOT[0]. Typed fixups cover every
+placement-dependent PLT/GOT/RELA field and unresolved source call, with
+explicit signed-displacement, page-delta, low-12 alignment, and branch-range
+constraints. A separate replay validates exact opcodes, relocation symbol/type
+rows, zero mutable fields, nonoverlap, semantic targets, constraints, and
+deterministic identity while preserving the original linkage plan on failure.
+The sequences follow the primary [x86-64 dynamic-linking
+rules](https://gitlab.com/x86-psABIs/x86-64-ABI/-/blob/master/x86-64-ABI/dl.tex)
+and [AArch64 procedure-linkage-table
+rules](https://github.com/ARM-software/abi-aa/blob/main/sysvabi64/sysvabi64.rst#procedure-linkage-table).
+They still grant no address, physical section index, placement, resolved fixup,
+image mutation, or runnable-image authority.
+
 The exact `DT_NEEDED` roster stays typed until all `Elf64_Dyn` tags can be
 planned together; this rung does not claim a partial `.dynamic` payload.
 The final section roster and completed `.shstrtab`, numeric
 `sh_name`/`sh_link`/`e_shstrndx`, section-header serialization, placement,
 `PT_INTERP` program-header placement, `PT_DYNAMIC`, `.dynamic` addresses/tags,
-optional `.gnu.hash`, target GOT/PLT templates and reserved entries,
-address-bearing `.rela.plt` serialization, architecture-specific PLT fixups,
-complete load/program-header layout, image mutation, and independent final-byte
-replay remain open. Validated semantic procedure linkage still grants no
-layout, loader, publication, or runnable-image authority. An owned direct
-`[u8; N]` destination now contextually
+optional `.gnu.hash`, final descriptors and numeric indexes for
+`.plt`/`.got.plt`/`.rela.plt`, address-resolved fixup application and
+`.rela.plt` payloads, complete load/program-header layout, image mutation, and
+independent final-byte replay remain open. Validated target templates still
+grant no layout, loader, publication, or runnable-image authority. An owned
+direct `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte
 or unresolved/mismatched widths reject, and hermetic evaluation observes the
