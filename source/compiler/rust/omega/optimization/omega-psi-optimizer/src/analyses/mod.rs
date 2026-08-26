@@ -9,9 +9,10 @@ pub use control_flow::{
 };
 pub use manager::{AnalysisManager, AnalysisManagerError, AnalysisRevisionCommit};
 pub use semantic::{
-    ExecutableEdgeAnalysis, ExecutableEdgeFact, ExecutableEdgeKnowledge, ScalarConstant,
+    EffectClass, EffectKnowledge, EffectSummaryAnalysis, ExecutableEdgeAnalysis,
+    ExecutableEdgeFact, ExecutableEdgeKnowledge, NodeEffectSummary, NodeLiveness, ScalarConstant,
     ScalarConstantAnalysis, ScalarConstantFact, UseDefinitionAnalysis, ValueFactRegion,
-    ValueRangeAnalysis, ValueRangeFact,
+    ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,6 +27,8 @@ pub enum AnalysisProduct {
     ExecutableEdges(ExecutableEdgeAnalysis),
     ScalarConstants(ScalarConstantAnalysis),
     ValueRanges(ValueRangeAnalysis),
+    EffectSummaries(EffectSummaryAnalysis),
+    ValueLiveness(ValueLivenessAnalysis),
 }
 
 impl AnalysisProduct {
@@ -42,6 +45,8 @@ impl AnalysisProduct {
             Self::ExecutableEdges(_) => AnalysisKind::ExecutableEdges,
             Self::ScalarConstants(_) => AnalysisKind::ScalarConstants,
             Self::ValueRanges(_) => AnalysisKind::ValueRanges,
+            Self::EffectSummaries(_) => AnalysisKind::EffectSummaries,
+            Self::ValueLiveness(_) => AnalysisKind::ValueLiveness,
         }
     }
 }
