@@ -4,10 +4,15 @@ use crate::source::{
     resolve_local_source_snapshot,
 };
 use sha2::{Digest, Sha256};
-use std::fs;
+use std::fs::{self, File, OpenOptions};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 pub const SOURCE_CACHE_POLICY_SCHEMA_VERSION: u32 = 3;
+const DEFAULT_SOURCE_CACHE_POLICY_RECORD_MAXIMUM_BYTES: usize = 1024 * 1024;
+const MAXIMUM_RECORD_STAGE_ATTEMPTS: u64 = 256;
+static NEXT_RECORD_STAGE_ID: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceCacheRequest {
@@ -66,10 +71,44 @@ pub enum SourceCachePolicyRecordParseError {
     UnsupportedSchemaVersion { found: u32, supported: u32 },
 }
 
+/// Resource ceiling for diagnostic source-cache record persistence.
+///
+/// This bounds an internal diagnostic format. It grants no source, package, or
+/// lock authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourceCachePolicyRecordPersistenceLimits {
+    maximum_bytes: usize,
+}
+
+impl SourceCachePolicyRecordPersistenceLimits {
+    pub const fn new(maximum_bytes: usize) -> Self {
+        Self { maximum_bytes }
+    }
+
+    pub const fn maximum_bytes(self) -> usize {
+        self.maximum_bytes
+    }
+}
+
+impl Default for SourceCachePolicyRecordPersistenceLimits {
+    fn default() -> Self {
+        Self::new(DEFAULT_SOURCE_CACHE_POLICY_RECORD_MAXIMUM_BYTES)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceCachePolicyRecordPersistenceError {
     Io { path: PathBuf, message: String },
     Parse(SourceCachePolicyRecordParseError),
+    InvalidDestination { path: PathBuf },
+    NotRegularFile { path: PathBuf },
+    DestinationExists { path: PathBuf },
+    ParentDirectoryChanged { path: PathBuf },
+    ByteLimitExceeded { actual: u64, maximum: usize },
+    LengthOverflow,
+    AllocationFailed,
+    NonCanonicalEncoding,
+    StageNameSpaceExhausted { directory: PathBuf },
 }
 
 impl SourceCachePolicyRecord {
@@ -147,97 +186,522 @@ impl SourceCachePolicyRecord {
     pub fn read_from_path(
         path: impl AsRef<Path>,
     ) -> Result<Self, SourceCachePolicyRecordPersistenceError> {
-        let path = path.as_ref();
-        let contents = fs::read_to_string(path).map_err(|error| {
-            SourceCachePolicyRecordPersistenceError::Io {
-                path: path.to_path_buf(),
-                message: error.to_string(),
-            }
+        Self::read_from_path_with_limits(path, SourceCachePolicyRecordPersistenceLimits::default())
+    }
+
+    pub fn read_from_path_with_limits(
+        path: impl AsRef<Path>,
+        limits: SourceCachePolicyRecordPersistenceLimits,
+    ) -> Result<Self, SourceCachePolicyRecordPersistenceError> {
+        let destination = DiagnosticRecordDestination::resolve(path.as_ref())?;
+        let file = open_record_without_following(&destination.path)?;
+        verify_regular_path_identity(&destination.path, &file)?;
+        let metadata = file
+            .metadata()
+            .map_err(|error| persistence_io_error(&destination.path, error))?;
+        if metadata.len() > u64::try_from(limits.maximum_bytes()).unwrap_or(u64::MAX) {
+            return Err(SourceCachePolicyRecordPersistenceError::ByteLimitExceeded {
+                actual: metadata.len(),
+                maximum: limits.maximum_bytes(),
+            });
+        }
+        let contents = read_record_bytes_bounded(file, &destination.path, limits)?;
+        destination.verify_parent()?;
+        let text = std::str::from_utf8(&contents).map_err(|_| {
+            SourceCachePolicyRecordPersistenceError::Parse(
+                SourceCachePolicyRecordParseError::InvalidJson {
+                    message: "source-cache policy record is not UTF-8".to_owned(),
+                },
+            )
         })?;
-        Self::from_json(&contents).map_err(SourceCachePolicyRecordPersistenceError::Parse)
+        let record =
+            Self::from_json(text).map_err(SourceCachePolicyRecordPersistenceError::Parse)?;
+        let canonical = record.canonical_json_with_limits(limits)?;
+        if canonical.as_bytes() != contents {
+            return Err(SourceCachePolicyRecordPersistenceError::NonCanonicalEncoding);
+        }
+        Ok(record)
     }
 
     pub fn write_to_path(
         &self,
         path: impl AsRef<Path>,
     ) -> Result<(), SourceCachePolicyRecordPersistenceError> {
-        let path = path.as_ref();
-        let temp_path = temporary_source_cache_policy_path(path, self);
-        fs::write(&temp_path, self.to_json()).map_err(|error| {
-            SourceCachePolicyRecordPersistenceError::Io {
-                path: temp_path.clone(),
-                message: error.to_string(),
+        self.write_to_path_with_limits(path, SourceCachePolicyRecordPersistenceLimits::default())
+    }
+
+    pub fn write_to_path_with_limits(
+        &self,
+        path: impl AsRef<Path>,
+        limits: SourceCachePolicyRecordPersistenceLimits,
+    ) -> Result<(), SourceCachePolicyRecordPersistenceError> {
+        let canonical = self.canonical_json_with_limits(limits)?;
+        let recovered =
+            Self::from_json(&canonical).map_err(SourceCachePolicyRecordPersistenceError::Parse)?;
+        if recovered != *self {
+            return Err(SourceCachePolicyRecordPersistenceError::NonCanonicalEncoding);
+        }
+
+        let destination = DiagnosticRecordDestination::resolve(path.as_ref())?;
+        let mut stage = create_exclusive_record_stage(&destination.directory)?;
+        stage
+            .file
+            .write_all(canonical.as_bytes())
+            .map_err(|error| persistence_io_error(&stage.path, error))?;
+        stage
+            .file
+            .sync_all()
+            .map_err(|error| persistence_io_error(&stage.path, error))?;
+        stage
+            .file
+            .seek(SeekFrom::Start(0))
+            .map_err(|error| persistence_io_error(&stage.path, error))?;
+        let staged_bytes = read_record_bytes_bounded(&mut stage.file, &stage.path, limits)?;
+        if staged_bytes != canonical.as_bytes() {
+            return Err(SourceCachePolicyRecordPersistenceError::NonCanonicalEncoding);
+        }
+
+        destination.verify_parent()?;
+        match fs::hard_link(&stage.path, &destination.path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                return Err(SourceCachePolicyRecordPersistenceError::DestinationExists {
+                    path: destination.path,
+                });
             }
-        })?;
-        if let Err(error) = fs::rename(&temp_path, path) {
-            let _ = fs::remove_file(&temp_path);
-            return Err(SourceCachePolicyRecordPersistenceError::Io {
-                path: path.to_path_buf(),
-                message: error.to_string(),
+            Err(error) => return Err(persistence_io_error(&destination.path, error)),
+        }
+        verify_regular_path_identity(&destination.path, &stage.file)?;
+        stage.remove()?;
+        destination.verify_parent()?;
+        sync_record_parent(&destination.parent, &destination.directory)?;
+        destination.verify_parent()?;
+        Ok(())
+    }
+
+    fn canonical_json_with_limits(
+        &self,
+        limits: SourceCachePolicyRecordPersistenceLimits,
+    ) -> Result<String, SourceCachePolicyRecordPersistenceError> {
+        let raw_payload_bytes = self
+            .raw_string_payload_bytes()
+            .ok_or(SourceCachePolicyRecordPersistenceError::LengthOverflow)?;
+        if raw_payload_bytes > limits.maximum_bytes() {
+            return Err(SourceCachePolicyRecordPersistenceError::ByteLimitExceeded {
+                actual: u64::try_from(raw_payload_bytes).unwrap_or(u64::MAX),
+                maximum: limits.maximum_bytes(),
             });
         }
-        Ok(())
+        let mut counter = JsonLengthCounter::default();
+        self.render_json(&mut counter);
+        let encoded_length = counter
+            .length()
+            .ok_or(SourceCachePolicyRecordPersistenceError::LengthOverflow)?;
+        if encoded_length > limits.maximum_bytes() {
+            return Err(SourceCachePolicyRecordPersistenceError::ByteLimitExceeded {
+                actual: u64::try_from(encoded_length).unwrap_or(u64::MAX),
+                maximum: limits.maximum_bytes(),
+            });
+        }
+        let mut json = String::new();
+        json.try_reserve_exact(encoded_length)
+            .map_err(|_| SourceCachePolicyRecordPersistenceError::AllocationFailed)?;
+        self.render_json(&mut json);
+        debug_assert_eq!(json.len(), encoded_length);
+        Ok(json)
+    }
+
+    fn raw_string_payload_bytes(&self) -> Option<usize> {
+        let mut total = 0_usize;
+        for value in [
+            Some(self.source_kind.as_str()),
+            Some(self.locator.as_str()),
+            self.transport_profile.as_deref(),
+            self.requested_rev.as_deref(),
+            self.resolved_commit.as_deref(),
+            self.resolved_tree.as_deref(),
+            self.content_identity.as_deref(),
+            self.cache_path.as_deref(),
+            Some(self.submodule_policy.as_str()),
+            Some(self.path_policy.as_str()),
+            self.rejection.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            total = total.checked_add(value.len())?;
+        }
+        Some(total)
     }
 
     pub fn to_json(&self) -> String {
         let mut json = String::new();
+        self.render_json(&mut json);
+        json
+    }
+
+    fn render_json(&self, json: &mut impl JsonOutput) {
         json.push_str("{\n");
-        push_number_field(&mut json, 1, "schema_version", self.schema_version, true);
-        push_string_field(&mut json, 1, "verdict", self.verdict.as_str(), true);
-        push_string_field(&mut json, 1, "source_kind", &self.source_kind, true);
-        push_string_field(&mut json, 1, "locator", &self.locator, true);
+        push_number_field(json, 1, "schema_version", self.schema_version, true);
+        push_string_field(json, 1, "verdict", self.verdict.as_str(), true);
+        push_string_field(json, 1, "source_kind", &self.source_kind, true);
+        push_string_field(json, 1, "locator", &self.locator, true);
         push_optional_string_field(
-            &mut json,
+            json,
             1,
             "transport_profile",
             self.transport_profile.as_deref(),
             true,
         );
         push_optional_string_field(
-            &mut json,
+            json,
             1,
             "requested_rev",
             self.requested_rev.as_deref(),
             true,
         );
         push_optional_string_field(
-            &mut json,
+            json,
             1,
             "resolved_commit",
             self.resolved_commit.as_deref(),
             true,
         );
         push_optional_string_field(
-            &mut json,
+            json,
             1,
             "resolved_tree",
             self.resolved_tree.as_deref(),
             true,
         );
         push_optional_string_field(
-            &mut json,
+            json,
             1,
             "content_identity",
             self.content_identity.as_deref(),
             true,
         );
-        push_optional_string_field(&mut json, 1, "cache_path", self.cache_path.as_deref(), true);
-        push_optional_usize_field(&mut json, 1, "file_count", self.file_count, true);
-        push_optional_u64_field(&mut json, 1, "byte_count", self.byte_count, true);
-        push_usize_field(&mut json, 1, "max_files", self.max_files, true);
-        push_u64_field(&mut json, 1, "max_bytes", self.max_bytes, true);
-        push_usize_field(&mut json, 1, "max_depth", self.max_depth, true);
-        push_string_field(
-            &mut json,
-            1,
-            "submodule_policy",
-            &self.submodule_policy,
-            true,
-        );
-        push_string_field(&mut json, 1, "path_policy", &self.path_policy, true);
-        push_optional_string_field(&mut json, 1, "rejection", self.rejection.as_deref(), false);
+        push_optional_string_field(json, 1, "cache_path", self.cache_path.as_deref(), true);
+        push_optional_usize_field(json, 1, "file_count", self.file_count, true);
+        push_optional_u64_field(json, 1, "byte_count", self.byte_count, true);
+        push_usize_field(json, 1, "max_files", self.max_files, true);
+        push_u64_field(json, 1, "max_bytes", self.max_bytes, true);
+        push_usize_field(json, 1, "max_depth", self.max_depth, true);
+        push_string_field(json, 1, "submodule_policy", &self.submodule_policy, true);
+        push_string_field(json, 1, "path_policy", &self.path_policy, true);
+        push_optional_string_field(json, 1, "rejection", self.rejection.as_deref(), false);
         json.push_str("}\n");
-        json
+    }
+}
+
+trait JsonOutput {
+    fn push_char(&mut self, value: char);
+    fn push_str(&mut self, value: &str);
+}
+
+impl JsonOutput for String {
+    fn push_char(&mut self, value: char) {
+        self.push(value);
+    }
+
+    fn push_str(&mut self, value: &str) {
+        self.push_str(value);
+    }
+}
+
+#[derive(Default)]
+struct JsonLengthCounter {
+    length: usize,
+    overflowed: bool,
+}
+
+impl JsonLengthCounter {
+    fn length(self) -> Option<usize> {
+        (!self.overflowed).then_some(self.length)
+    }
+}
+
+impl JsonOutput for JsonLengthCounter {
+    fn push_char(&mut self, value: char) {
+        if !self.overflowed {
+            if let Some(length) = self.length.checked_add(value.len_utf8()) {
+                self.length = length;
+            } else {
+                self.overflowed = true;
+            }
+        }
+    }
+
+    fn push_str(&mut self, value: &str) {
+        if !self.overflowed {
+            if let Some(length) = self.length.checked_add(value.len()) {
+                self.length = length;
+            } else {
+                self.overflowed = true;
+            }
+        }
+    }
+}
+
+struct DiagnosticRecordDestination {
+    directory: PathBuf,
+    path: PathBuf,
+    parent: File,
+}
+
+impl DiagnosticRecordDestination {
+    fn resolve(path: &Path) -> Result<Self, SourceCachePolicyRecordPersistenceError> {
+        let Some(file_name) = path.file_name() else {
+            return Err(
+                SourceCachePolicyRecordPersistenceError::InvalidDestination {
+                    path: path.to_path_buf(),
+                },
+            );
+        };
+        let requested_parent = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let directory = fs::canonicalize(requested_parent)
+            .map_err(|error| persistence_io_error(requested_parent, error))?;
+        let parent = open_record_parent(&directory)?;
+        let destination = Self {
+            path: directory.join(file_name),
+            directory,
+            parent,
+        };
+        destination.verify_parent()?;
+        Ok(destination)
+    }
+
+    fn verify_parent(&self) -> Result<(), SourceCachePolicyRecordPersistenceError> {
+        let path_metadata = fs::symlink_metadata(&self.directory)
+            .map_err(|error| persistence_io_error(&self.directory, error))?;
+        let handle_metadata = self
+            .parent
+            .metadata()
+            .map_err(|error| persistence_io_error(&self.directory, error))?;
+        if path_metadata.file_type().is_symlink()
+            || !path_metadata.is_dir()
+            || !handle_metadata.is_dir()
+            || !same_record_file_identity(&path_metadata, &handle_metadata)
+        {
+            return Err(
+                SourceCachePolicyRecordPersistenceError::ParentDirectoryChanged {
+                    path: self.directory.clone(),
+                },
+            );
+        }
+        Ok(())
+    }
+}
+
+struct PendingDiagnosticRecord {
+    path: PathBuf,
+    file: File,
+    removed: bool,
+}
+
+impl PendingDiagnosticRecord {
+    fn remove(&mut self) -> Result<(), SourceCachePolicyRecordPersistenceError> {
+        fs::remove_file(&self.path).map_err(|error| persistence_io_error(&self.path, error))?;
+        self.removed = true;
+        Ok(())
+    }
+}
+
+impl Drop for PendingDiagnosticRecord {
+    fn drop(&mut self) {
+        if !self.removed {
+            let _ = fs::remove_file(&self.path);
+        }
+    }
+}
+
+fn create_exclusive_record_stage(
+    directory: &Path,
+) -> Result<PendingDiagnosticRecord, SourceCachePolicyRecordPersistenceError> {
+    for _ in 0..MAXIMUM_RECORD_STAGE_ATTEMPTS {
+        let stage_id = NEXT_RECORD_STAGE_ID.fetch_add(1, Ordering::Relaxed);
+        let path = directory.join(format!(
+            ".omega-source-cache-record-stage-{}-{stage_id}",
+            std::process::id()
+        ));
+        let mut options = OpenOptions::new();
+        options.read(true).write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        match options.open(&path) {
+            Ok(file) => {
+                return Ok(PendingDiagnosticRecord {
+                    path,
+                    file,
+                    removed: false,
+                });
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(persistence_io_error(&path, error)),
+        }
+    }
+    Err(
+        SourceCachePolicyRecordPersistenceError::StageNameSpaceExhausted {
+            directory: directory.to_path_buf(),
+        },
+    )
+}
+
+fn open_record_without_following(
+    path: &Path,
+) -> Result<File, SourceCachePolicyRecordPersistenceError> {
+    if let Ok(metadata) = fs::symlink_metadata(path)
+        && (metadata.file_type().is_symlink() || !metadata.is_file())
+    {
+        return Err(SourceCachePolicyRecordPersistenceError::NotRegularFile {
+            path: path.to_path_buf(),
+        });
+    }
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(nix::libc::O_NOFOLLOW);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    }
+    options
+        .open(path)
+        .map_err(|error| persistence_io_error(path, error))
+}
+
+fn open_record_parent(path: &Path) -> Result<File, SourceCachePolicyRecordPersistenceError> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+        const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+        options.custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT);
+    }
+    options
+        .open(path)
+        .map_err(|error| persistence_io_error(path, error))
+}
+
+#[cfg(unix)]
+fn sync_record_parent(
+    parent: &File,
+    path: &Path,
+) -> Result<(), SourceCachePolicyRecordPersistenceError> {
+    parent
+        .sync_all()
+        .map_err(|error| persistence_io_error(path, error))
+}
+
+#[cfg(not(unix))]
+fn sync_record_parent(
+    _parent: &File,
+    _path: &Path,
+) -> Result<(), SourceCachePolicyRecordPersistenceError> {
+    Ok(())
+}
+
+fn verify_regular_path_identity(
+    path: &Path,
+    file: &File,
+) -> Result<(), SourceCachePolicyRecordPersistenceError> {
+    let path_metadata =
+        fs::symlink_metadata(path).map_err(|error| persistence_io_error(path, error))?;
+    let handle_metadata = file
+        .metadata()
+        .map_err(|error| persistence_io_error(path, error))?;
+    if path_metadata.file_type().is_symlink()
+        || !path_metadata.is_file()
+        || !handle_metadata.is_file()
+        || !same_record_file_identity(&path_metadata, &handle_metadata)
+    {
+        return Err(SourceCachePolicyRecordPersistenceError::NotRegularFile {
+            path: path.to_path_buf(),
+        });
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn same_record_file_identity(left: &fs::Metadata, right: &fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    left.dev() == right.dev() && left.ino() == right.ino()
+}
+
+#[cfg(windows)]
+fn same_record_file_identity(left: &fs::Metadata, right: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+
+    matches!(
+        (
+            left.volume_serial_number(),
+            left.file_index(),
+            right.volume_serial_number(),
+            right.file_index(),
+        ),
+        (Some(left_volume), Some(left_index), Some(right_volume), Some(right_index))
+            if left_volume == right_volume && left_index == right_index
+    )
+}
+
+#[cfg(not(any(unix, windows)))]
+fn same_record_file_identity(_left: &fs::Metadata, _right: &fs::Metadata) -> bool {
+    false
+}
+
+fn read_record_bytes_bounded(
+    mut reader: impl Read,
+    path: &Path,
+    limits: SourceCachePolicyRecordPersistenceLimits,
+) -> Result<Vec<u8>, SourceCachePolicyRecordPersistenceError> {
+    let mut bytes = Vec::new();
+    let mut chunk = [0_u8; 8192];
+    loop {
+        let count = reader
+            .read(&mut chunk)
+            .map_err(|error| persistence_io_error(path, error))?;
+        if count == 0 {
+            break;
+        }
+        let next_length = bytes
+            .len()
+            .checked_add(count)
+            .ok_or(SourceCachePolicyRecordPersistenceError::LengthOverflow)?;
+        if next_length > limits.maximum_bytes() {
+            return Err(SourceCachePolicyRecordPersistenceError::ByteLimitExceeded {
+                actual: u64::try_from(next_length).unwrap_or(u64::MAX),
+                maximum: limits.maximum_bytes(),
+            });
+        }
+        bytes
+            .try_reserve(count)
+            .map_err(|_| SourceCachePolicyRecordPersistenceError::AllocationFailed)?;
+        bytes.extend_from_slice(&chunk[..count]);
+    }
+    Ok(bytes)
+}
+
+fn persistence_io_error(
+    path: &Path,
+    error: std::io::Error,
+) -> SourceCachePolicyRecordPersistenceError {
+    SourceCachePolicyRecordPersistenceError::Io {
+        path: path.to_path_buf(),
+        message: error.to_string(),
     }
 }
 
@@ -378,16 +842,6 @@ fn optional_usize(
     }
 }
 
-fn temporary_source_cache_policy_path(path: &Path, record: &SourceCachePolicyRecord) -> PathBuf {
-    let mut temp = path.to_path_buf();
-    temp.set_extension(format!(
-        "tmp.{}.{}",
-        std::process::id(),
-        &record.fingerprint()[..12]
-    ));
-    temp
-}
-
 pub fn resolve_source_cache_record(
     request: SourceCacheRequest,
     cache_dir: impl AsRef<Path>,
@@ -512,52 +966,70 @@ fn rejected_record(
     }
 }
 
-fn push_number_field(json: &mut String, indent: usize, name: &str, value: u32, comma: bool) {
+fn push_number_field(
+    json: &mut impl JsonOutput,
+    indent: usize,
+    name: &str,
+    value: u32,
+    comma: bool,
+) {
     push_indent(json, indent);
     push_json_string(json, name);
     json.push_str(": ");
     json.push_str(&value.to_string());
     if comma {
-        json.push(',');
+        json.push_char(',');
     }
-    json.push('\n');
+    json.push_char('\n');
 }
 
-fn push_u64_field(json: &mut String, indent: usize, name: &str, value: u64, comma: bool) {
+fn push_u64_field(json: &mut impl JsonOutput, indent: usize, name: &str, value: u64, comma: bool) {
     push_indent(json, indent);
     push_json_string(json, name);
     json.push_str(": ");
     json.push_str(&value.to_string());
     if comma {
-        json.push(',');
+        json.push_char(',');
     }
-    json.push('\n');
+    json.push_char('\n');
 }
 
-fn push_usize_field(json: &mut String, indent: usize, name: &str, value: usize, comma: bool) {
+fn push_usize_field(
+    json: &mut impl JsonOutput,
+    indent: usize,
+    name: &str,
+    value: usize,
+    comma: bool,
+) {
     push_indent(json, indent);
     push_json_string(json, name);
     json.push_str(": ");
     json.push_str(&value.to_string());
     if comma {
-        json.push(',');
+        json.push_char(',');
     }
-    json.push('\n');
+    json.push_char('\n');
 }
 
-fn push_string_field(json: &mut String, indent: usize, name: &str, value: &str, comma: bool) {
+fn push_string_field(
+    json: &mut impl JsonOutput,
+    indent: usize,
+    name: &str,
+    value: &str,
+    comma: bool,
+) {
     push_indent(json, indent);
     push_json_string(json, name);
     json.push_str(": ");
     push_json_string(json, value);
     if comma {
-        json.push(',');
+        json.push_char(',');
     }
-    json.push('\n');
+    json.push_char('\n');
 }
 
 fn push_optional_string_field(
-    json: &mut String,
+    json: &mut impl JsonOutput,
     indent: usize,
     name: &str,
     value: Option<&str>,
@@ -572,13 +1044,13 @@ fn push_optional_string_field(
         json.push_str("null");
     }
     if comma {
-        json.push(',');
+        json.push_char(',');
     }
-    json.push('\n');
+    json.push_char('\n');
 }
 
 fn push_optional_usize_field(
-    json: &mut String,
+    json: &mut impl JsonOutput,
     indent: usize,
     name: &str,
     value: Option<usize>,
@@ -593,13 +1065,13 @@ fn push_optional_usize_field(
         json.push_str("null");
     }
     if comma {
-        json.push(',');
+        json.push_char(',');
     }
-    json.push('\n');
+    json.push_char('\n');
 }
 
 fn push_optional_u64_field(
-    json: &mut String,
+    json: &mut impl JsonOutput,
     indent: usize,
     name: &str,
     value: Option<u64>,
@@ -614,13 +1086,13 @@ fn push_optional_u64_field(
         json.push_str("null");
     }
     if comma {
-        json.push(',');
+        json.push_char(',');
     }
-    json.push('\n');
+    json.push_char('\n');
 }
 
-fn push_json_string(json: &mut String, value: &str) {
-    json.push('"');
+fn push_json_string(json: &mut impl JsonOutput, value: &str) {
+    json.push_char('"');
     for ch in value.chars() {
         match ch {
             '"' => json.push_str("\\\""),
@@ -629,13 +1101,13 @@ fn push_json_string(json: &mut String, value: &str) {
             '\r' => json.push_str("\\r"),
             '\t' => json.push_str("\\t"),
             ch if ch.is_control() => json.push_str(&format!("\\u{:04x}", ch as u32)),
-            ch => json.push(ch),
+            ch => json.push_char(ch),
         }
     }
-    json.push('"');
+    json.push_char('"');
 }
 
-fn push_indent(json: &mut String, level: usize) {
+fn push_indent(json: &mut impl JsonOutput, level: usize) {
     for _ in 0..level {
         json.push_str("  ");
     }
@@ -682,6 +1154,30 @@ mod tests {
             "git command failed: {}",
             String::from_utf8_lossy(&output.stderr)
         );
+    }
+
+    fn rejected_test_record() -> SourceCachePolicyRecord {
+        SourceCachePolicyRecord {
+            schema_version: SOURCE_CACHE_POLICY_SCHEMA_VERSION,
+            verdict: SourceCacheVerdict::Rejected,
+            source_kind: "local-path".to_owned(),
+            locator: "./missing-package".to_owned(),
+            transport_profile: None,
+            requested_rev: None,
+            resolved_commit: None,
+            resolved_tree: None,
+            content_identity: None,
+            cache_path: None,
+            file_count: None,
+            byte_count: None,
+            max_files: 4096,
+            max_bytes: 268435456,
+            max_depth: 64,
+            submodule_policy: "git-submodules-not-applicable".to_owned(),
+            path_policy: "canonical-root-contained; symlink-escapes-rejected; dot-git-excluded"
+                .to_owned(),
+            rejection: Some("missing source".to_owned()),
+        }
     }
 
     #[test]
@@ -807,27 +1303,7 @@ mod tests {
         let root = temp_root("persist-record");
         std::fs::create_dir_all(&root).expect("create record temp");
         let path = root.join("source-cache-policy.json");
-        let record = SourceCachePolicyRecord {
-            schema_version: SOURCE_CACHE_POLICY_SCHEMA_VERSION,
-            verdict: SourceCacheVerdict::Rejected,
-            source_kind: "local-path".to_owned(),
-            locator: "./missing-package".to_owned(),
-            transport_profile: None,
-            requested_rev: None,
-            resolved_commit: None,
-            resolved_tree: None,
-            content_identity: None,
-            cache_path: None,
-            file_count: None,
-            byte_count: None,
-            max_files: 4096,
-            max_bytes: 268435456,
-            max_depth: 64,
-            submodule_policy: "git-submodules-not-applicable".to_owned(),
-            path_policy: "canonical-root-contained; symlink-escapes-rejected; dot-git-excluded"
-                .to_owned(),
-            rejection: Some("missing source".to_owned()),
-        };
+        let record = rejected_test_record();
 
         record.write_to_path(&path).expect("write policy record");
         let read = SourceCachePolicyRecord::read_from_path(&path).expect("read policy record");
@@ -836,6 +1312,113 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&path).expect("record file"),
             record.to_json()
+        );
+        assert_eq!(
+            std::fs::read_dir(&root).expect("record directory").count(),
+            1,
+            "successful publication removes its exclusive stage"
+        );
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            assert_eq!(
+                std::fs::metadata(&path)
+                    .expect("record metadata")
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn source_cache_policy_record_persistence_is_bounded_and_canonical() {
+        let root = temp_root("bounded-record");
+        std::fs::create_dir_all(&root).expect("create record temp");
+        let write_path = root.join("write.json");
+        let read_path = root.join("read.json");
+        let noncanonical_path = root.join("noncanonical.json");
+        let record = rejected_test_record();
+        let canonical = record.to_json();
+        let insufficient = SourceCachePolicyRecordPersistenceLimits::new(canonical.len() - 1);
+
+        assert!(matches!(
+            record.write_to_path_with_limits(&write_path, insufficient),
+            Err(SourceCachePolicyRecordPersistenceError::ByteLimitExceeded { .. })
+        ));
+        assert!(!write_path.exists());
+
+        std::fs::write(&read_path, &canonical).expect("write read fixture");
+        assert!(matches!(
+            SourceCachePolicyRecord::read_from_path_with_limits(&read_path, insufficient),
+            Err(SourceCachePolicyRecordPersistenceError::ByteLimitExceeded { .. })
+        ));
+
+        let mut noncanonical = canonical;
+        noncanonical.push('\n');
+        std::fs::write(&noncanonical_path, noncanonical).expect("write noncanonical fixture");
+        assert_eq!(
+            SourceCachePolicyRecord::read_from_path(&noncanonical_path),
+            Err(SourceCachePolicyRecordPersistenceError::NonCanonicalEncoding)
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn source_cache_policy_record_publication_never_overwrites_a_destination() {
+        let root = temp_root("existing-record");
+        std::fs::create_dir_all(&root).expect("create record temp");
+        let path = root.join("source-cache-policy.json");
+        std::fs::write(&path, b"existing bytes").expect("write existing destination");
+
+        assert_eq!(
+            rejected_test_record().write_to_path(&path),
+            Err(SourceCachePolicyRecordPersistenceError::DestinationExists {
+                path: path.canonicalize().expect("canonical destination"),
+            })
+        );
+        assert_eq!(
+            std::fs::read(&path).expect("unchanged destination"),
+            b"existing bytes"
+        );
+        assert_eq!(
+            std::fs::read_dir(&root).expect("record directory").count(),
+            1,
+            "failed publication removes its exclusive stage"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn source_cache_policy_record_persistence_rejects_leaf_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_root("symlink-record");
+        std::fs::create_dir_all(&root).expect("create record temp");
+        let target = root.join("target.json");
+        let link = root.join("source-cache-policy.json");
+        std::fs::write(&target, b"target bytes").expect("write symlink target");
+        symlink(&target, &link).expect("create destination symlink");
+
+        assert!(matches!(
+            rejected_test_record().write_to_path(&link),
+            Err(SourceCachePolicyRecordPersistenceError::DestinationExists { .. })
+        ));
+        assert!(matches!(
+            SourceCachePolicyRecord::read_from_path(&link),
+            Err(SourceCachePolicyRecordPersistenceError::NotRegularFile { .. })
+        ));
+        assert_eq!(
+            std::fs::read(&target).expect("unchanged symlink target"),
+            b"target bytes"
         );
 
         let _ = std::fs::remove_dir_all(&root);
