@@ -47,6 +47,27 @@ fn old_remains_an_ordinary_parameter_and_local_identifier() {
 }
 
 #[test]
+fn entry_remains_an_ordinary_machine_name_with_a_generated_internal_entry() {
+    let tokens = Lexer::new("machine entry() {}")
+        .tokenize()
+        .expect("tokenize ordinary entry declaration");
+    let parsed = parse_syntax_trees(&tokens).expect("entry must remain a declaration name");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("ordinary entry machine");
+    assert_eq!(machine.name.as_str(), "entry");
+    let [state_handle] = parsed.items.state_handles(machine.states) else {
+        panic!("ordinary machine must retain one generated internal entry");
+    };
+    let state = parsed.items.state(*state_handle);
+    assert_eq!(state.name.as_str(), "entry");
+}
+
+#[test]
 fn trait_machine_parameter_is_requirement_identity() {
     let tokens = Lexer::new("trait PrivateCallbackSlot<machine Requirement> {}")
         .tokenize()
@@ -1504,6 +1525,60 @@ fn retired_library_block_names_the_boundary_provider_migration() {
         "got: {}",
         error.message
     );
+}
+
+#[test]
+fn retired_capability_entry_names_the_boundary_provider_migration() {
+    let source = r#"
+        capability TestHost {
+            entry host_write(fd: i32, count: u64) -> i32 {
+                requires true;
+                boundary host;
+            }
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize retired capability entry");
+    let error = parse_syntax_trees(&tokens).expect_err("capability entry must be retired");
+    assert!(
+        error
+            .message
+            .contains("legacy `capability { entry ... }` host scaffold")
+            && error.message.contains("is retired")
+            && error.message.contains("`boundary trait`")
+            && error
+                .message
+                .contains("satisfies Trait::requirement via Binding::..."),
+        "got: {}",
+        error.message
+    );
+
+    let current = r#"
+        capability Current {
+            entry: bool;
+            state inspect() {
+                requires true;
+            }
+        }
+    "#;
+    let tokens = Lexer::new(current)
+        .tokenize()
+        .expect("tokenize current capability surface");
+    let syntax = parse_syntax_trees(&tokens)
+        .expect("ordinary `entry` field and capability state must remain accepted");
+    let Some(psi_syntax_trees::item::Item::Capability(capability)) = syntax.root_items().next()
+    else {
+        panic!("expected capability");
+    };
+    let [
+        psi_syntax_trees::item::CapabilityMember::Field(field),
+        psi_syntax_trees::item::CapabilityMember::State(_),
+    ] = syntax.items.capability_members(capability.members)
+    else {
+        panic!("expected ordinary field followed by current state member");
+    };
+    assert_eq!(field.name.as_str(), "entry");
 }
 
 #[test]

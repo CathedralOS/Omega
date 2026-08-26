@@ -20,12 +20,20 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
     let mut member_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        if input.at_keyword(KeywordKind::State) || input.at_keyword(KeywordKind::Entry) {
-            input = if input.at_keyword(KeywordKind::State) {
-                input.take_keyword(KeywordKind::State, "state")?
-            } else {
-                input.take_keyword(KeywordKind::Entry, "entry")?
-            };
+        if input.at_keyword(KeywordKind::Entry) {
+            // `entry` is not globally reserved: an ordinary capability field
+            // may still use that name. Only the callable-shaped member is the
+            // retired host scaffold.
+            let (_, after_entry) = input.take_identifier()?;
+            if !after_entry.at_punctuation(PunctuationKind::Colon) {
+                return Err(input.error_here(
+                    "the legacy `capability { entry ... }` host scaffold is retired; declare a `boundary trait` requirement and realize it with an exact `satisfies Trait::requirement via Binding::...` machine",
+                ));
+            }
+        }
+
+        if input.at_keyword(KeywordKind::State) {
+            input = input.take_keyword(KeywordKind::State, "state")?;
             let (state, rest) = parse_capability_state(syntax_trees, input)?;
             let handle = syntax_trees
                 .items
