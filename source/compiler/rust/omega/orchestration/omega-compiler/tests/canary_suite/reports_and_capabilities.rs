@@ -118,7 +118,7 @@ fn output_only_backend_compile_keeps_primary_image_and_certification() {
 }
 
 #[test]
-fn typed_requested_product_overrides_the_legacy_output_seed_and_rejects_unavailable_routes() {
+fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries() {
     let check_dir = unique_no_output_build_dir();
     let report = omega_compiler::compile(
         CompileRequest::new(CompileOptions {
@@ -138,32 +138,63 @@ fn typed_requested_product_overrides_the_legacy_output_seed_and_rejects_unavaila
     );
     assert!(!check_dir.exists());
 
-    for (product, expected) in [
-        (
-            omega_compiler::RequestedCompileProduct::TerminalArtifact,
-            "terminal-artifact requests",
-        ),
-        (
-            omega_compiler::RequestedCompileProduct::NativeArtifact,
-            "retained native-artifact requests",
-        ),
-    ] {
-        let diagnostics = omega_compiler::compile(
-            CompileRequest::new(CompileOptions {
-                root_path: std::path::PathBuf::from("unread-unavailable-product.omg"),
-                build_dir: None,
-                target_name: None,
-                write_output: false,
-            })
-            .with_requested_product(product),
-        )
-        .expect_err("an unavailable product must fail before source acquisition");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains(expected))
-        );
-    }
+    let native_dir = unique_no_output_build_dir();
+    let native = omega_compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
+            build_dir: Some(native_dir.clone()),
+            target_name: Some("windows_x64".into()),
+            write_output: true,
+        })
+        .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+    )
+    .expect("the retained native product should stop after validated native emission");
+    assert!(!native.wrote_output());
+    assert_eq!(
+        native.output_kind(),
+        omega_compiler::CompileOutputKind::RetainedNativeArtifact
+    );
+    assert!(native.executable_publication().is_none());
+    assert!(native.app_bundle_publication().is_none());
+    assert!(native.terminal_component_deployment().is_none());
+    assert!(native.checked_native_executable_path().is_none());
+    let artifact = native
+        .retained_native_artifact()
+        .expect("native-artifact report must retain exactly one payload");
+    artifact
+        .validate()
+        .expect("retained native payload must independently replay");
+    assert_eq!(artifact.target(), omega_target::NativeTarget::windows_x64());
+    assert_eq!(
+        artifact.emission_plan().encoded_machine_bytes,
+        artifact.text_bytes().len()
+    );
+    assert!(
+        !native_dir.exists(),
+        "output-only retained native compilation must not create a build directory"
+    );
+    native
+        .into_retained_native_artifact()
+        .expect("native artifact custody must leave the report only by value")
+        .validate()
+        .expect("transferred native artifact custody must still replay");
+
+    let diagnostics = omega_compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: std::path::PathBuf::from("unread-unavailable-product.omg"),
+            build_dir: None,
+            target_name: None,
+            write_output: false,
+        })
+        .with_requested_product(omega_compiler::RequestedCompileProduct::TerminalArtifact),
+    )
+    .expect_err("terminal artifact must remain unavailable before source acquisition");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("terminal-artifact requests"))
+    );
 }
 
 #[test]

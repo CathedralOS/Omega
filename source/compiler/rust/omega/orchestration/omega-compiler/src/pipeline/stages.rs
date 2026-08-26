@@ -136,23 +136,6 @@ pub(super) struct BackendPlanningSurface {
     pub(super) plan: omega_backend_plan::BackendPlan,
 }
 
-pub(super) struct EmittedProgram {
-    pub(super) target: NativeTarget,
-    /// PE optional-header Subsystem resolved from the selected target's
-    /// `subsystem <word>` (console 3 by default). The PE writer stamps it into
-    /// the image; the Mach-O output path translates gui (2) into an `.app`
-    /// bundle beside the flat binary; other formats ignore it.
-    pub(super) subsystem: u16,
-    pub(super) planned_text_bytes: usize,
-    pub(super) callback_placement_identity_fingerprint: u64,
-    pub(super) object: omega_object_file::ObjectPlan,
-    pub(super) relocations: omega_object_file::RelocationPlan,
-    pub(super) encoded_machine_code: omega_machine_bytes::EncodedMachineCode,
-    pub(super) encoded_machine_semantics: omega_machine_bytes::EncodedMachineSemanticSummary,
-    pub(super) text_bytes: Vec<u8>,
-    pub(super) data_bytes: Vec<u8>,
-}
-
 pub(super) fn source_files_to_syntax_trees(
     root_path: &Path,
     target_name: Option<&str>,
@@ -1261,13 +1244,19 @@ pub(super) fn backend_plan_to_native_image_payload(
     backend: &BackendPlanningSurface,
     subsystem: u16,
     timings: &mut CompileTimings,
-) -> Result<(omega_artifacts::EmissionPlan, EmittedProgram), Vec<Diagnostic>> {
+) -> Result<
+    (
+        omega_artifacts::EmissionPlan,
+        super::compile_report::EmittedProgram,
+    ),
+    Vec<Diagnostic>,
+> {
     timings.record(BACKEND_PLAN_TO_NATIVE_IMAGE_PAYLOAD, || {
         let emission_plan = plan_emission(&backend.plan);
         ensure_emission_ready(&emission_plan)?;
         let plan = &backend.plan;
         let text_bytes = plan.encoded_machine.code.bytes.storage_slice().to_vec();
-        let emitted = EmittedProgram {
+        let emitted = super::compile_report::EmittedProgram {
             target: plan.target,
             subsystem,
             planned_text_bytes: object_text_size(&plan.object),

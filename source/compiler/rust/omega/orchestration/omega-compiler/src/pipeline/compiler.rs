@@ -541,19 +541,19 @@ impl Compiler {
 
     pub fn compile(self) -> Result<CompileReport, Vec<Diagnostic>> {
         match self.requested_product {
-            RequestedCompileProduct::Check | RequestedCompileProduct::InstalledOutput => {}
+            RequestedCompileProduct::Check
+            | RequestedCompileProduct::NativeArtifact
+            | RequestedCompileProduct::InstalledOutput => {}
             RequestedCompileProduct::TerminalArtifact => {
                 return Err(vec![Diagnostic::error(
                     "terminal-artifact requests are unavailable through the legacy checked-tree compiler route",
                 )]);
             }
-            RequestedCompileProduct::NativeArtifact => {
-                return Err(vec![Diagnostic::error(
-                    "retained native-artifact requests are unavailable through the legacy checked-tree compiler route",
-                )]);
-            }
         }
         let installs_output = self.requested_product.installs_output();
+        let retains_native_artifact =
+            self.requested_product == RequestedCompileProduct::NativeArtifact;
+        let requires_native_backend = installs_output || retains_native_artifact;
         let mut timings = CompileTimings::default();
         let emit_auxiliary_artifacts = self.artifact_policy.emits_auxiliary_artifacts();
 
@@ -907,7 +907,7 @@ impl Compiler {
             &checked.program,
             emit_auxiliary_artifacts,
         )?;
-        let backend_surface = (emit_auxiliary_artifacts && installs_output)
+        let backend_surface = (emit_auxiliary_artifacts && requires_native_backend)
             .then(|| build_backend_surface_report(&checked.program, entry_machine_name.as_deref()));
 
         // A check-only compilation with no selected runtime root ends at
@@ -915,7 +915,7 @@ impl Compiler {
         // frontend artifacts would turn `--check` into implicit execution
         // policy; callers that need native validation either select an exact
         // `ProgramEntry` or use the explicit legacy test-entry seam.
-        if !installs_output
+        if self.requested_product == RequestedCompileProduct::Check
             && (entry_machine_name.is_none() || !build_config.optimizations.is_empty())
         {
             if emit_auxiliary_artifacts {
@@ -936,7 +936,7 @@ impl Compiler {
             .map_err(|message| vec![Diagnostic::error(message)]);
         }
 
-        if installs_output {
+        if requires_native_backend {
             reject_undischarged_build_bound_progress(checked.component_progress.as_deref())?;
         }
 
@@ -1080,7 +1080,7 @@ impl Compiler {
         } else {
             None
         };
-        if installs_output && emit_auxiliary_artifacts {
+        if requires_native_backend && emit_auxiliary_artifacts {
             write_backend_report(
                 &self.options,
                 backend_surface
@@ -1092,6 +1092,31 @@ impl Compiler {
 
         let (emission_plan, emitted) =
             backend_plan_to_native_image_payload(&backend, subsystem, &mut timings)?;
+
+        if retains_native_artifact {
+            let artifact = super::RetainedNativeArtifact::checked(emission_plan, emitted)
+                .map_err(|message| vec![Diagnostic::error(message)])?;
+            if emit_auxiliary_artifacts {
+                if let Some(bridge) = &program_storage_entry_bridge {
+                    write_program_storage_entry_snapshot(&self.options, bridge)?;
+                }
+                write_emission_plan(&self.options, &backend.plan, artifact.emission_plan(), None)?;
+                write_timings(&self.options, timings.as_slice())?;
+                write_pipeline_shell(&self.options)?;
+            }
+            return CompileReport::from_retained_native_artifact(
+                self.options.root_path,
+                source_file_count,
+                artifact,
+                program_storage_entry_bridge
+                    .as_ref()
+                    .map(|bridge| bridge.binding().clone()),
+                program_storage_entry_bridge,
+                build_evaluation_usage,
+                build_observation_summary,
+            )
+            .map_err(|message| vec![Diagnostic::error(message)]);
+        }
 
         let (output_kind, executable_publication, app_bundle_publication) = if installs_output {
             let written_output = write_output(

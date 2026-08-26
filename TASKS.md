@@ -1951,10 +1951,16 @@ Remaining:
   operation; its entry override and worker ceiling cannot enter the production
   request. `RequestedCompileProduct` now makes `Check`, terminal artifact,
   retained native artifact, and installed output explicit. The legacy route
-  currently executes only `Check` and `InstalledOutput`; it honors the typed
-  request over the compatibility Boolean seed and rejects terminal/native
-  artifact requests before source acquisition rather than falling back. The
-  checked/terminal cutover, retained-artifact stopping, and output destination
+  now executes `Check`, retained `NativeArtifact`, and `InstalledOutput`; it
+  honors the typed request over the compatibility Boolean seed and still
+  rejects terminal-artifact requests before source acquisition rather than
+  falling back. The retained-native route runs the existing validated backend
+  through emission planning, then returns one non-clonable report-owned payload
+  before image writing, publication, installation, or runtime custody. Exact
+  target, subsystem, object and relocation plans, encoded semantics/code,
+  text/data bytes, callback identity, and blocker-free emission plan replay as
+  one cardinality-checked artifact; the report owns no output path and reports
+  `wrote_output == false`. The checked/terminal cutover and output destination
   custody remain open.
 
   Restore the driver contract:
