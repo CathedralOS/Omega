@@ -1,8 +1,9 @@
 //! Compiler-derived structural contract expected from a selected quotient
 //! theorem.
 //!
-//! This stage retains the schema only. It neither compares the selected
-//! theorem against it nor grants executable quotient authority.
+//! This stage derives the expected schema only. Its sibling verifier compares
+//! one explicit selection and retains exact fact coordinates; neither stage
+//! alone grants executable quotient authority.
 
 use super::{ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeTelescope};
 use psi_symbols::SymbolHandle;

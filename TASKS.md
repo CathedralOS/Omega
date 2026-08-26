@@ -7819,9 +7819,19 @@ Remaining N6/N8 work:
   fact coordinate for substitution into both applications, and the structural
   conclusion joins those applications through the exact result relation.
   Parameter access, relation, requires coordinate, application mapping, and
-  conclusion mutations remain distinct even when their row counts agree. This
-  carrier performs no theorem comparison, proof admission, or lowering;
-  stages 2-4 remain fail-closed.
+  conclusion mutations remain distinct even when their row counts agree.
+  The selected-theorem-schema verification rung is now live too. Checked
+  planning compares the exact explicitly selected theorem against that derived
+  schema after substituting both closed static applications and retains a
+  certificate pairing every derived parameter, relation premise, legality
+  premise, and conclusion with the selected theorem's exact symbols and
+  machine/state contract-fact coordinates. Extra or missing premises,
+  finer/wrong relations, redirected/duplicated/omitted representative calls,
+  rebound shared arguments, const/attached/mode/type parameter drift, named
+  evidence lanes, result-case/crash lanes, and conclusion drift reject
+  independently. Selection, eligibility, and exact schema verification prove
+  no congruence implication and grant no executable authority; stages 3-4
+  remain fail-closed.
 
   Every request intentionally remains non-executable. Complete admission in
   bounded stages:

@@ -1,13 +1,13 @@
 use super::{
     ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeContractFactLocation,
     RepresentativeContractOwner, RepresentativeRuntimeParameter, RepresentativeStaticApplication,
-    RepresentativeStaticBindingKind, RepresentativeTelescope, complete_single_state_result_flow,
-    complete_state_forwarding_result_flow, derive_define_precondition_correspondence,
-    derive_direct_terminal_plan, derive_exact_representative_static_application,
-    derive_public_precondition_partition, derive_representative_precondition_partition,
-    derive_representative_telescope, derive_selected_theorem_telescope, fallthrough_result_root,
-    immutable_alias_fallthrough_root, pure_representative_effect, substituted_type_matches,
-    unconditional_representative_termination,
+    RepresentativeStaticBinding, RepresentativeStaticBindingKind, RepresentativeTelescope,
+    complete_single_state_result_flow, complete_state_forwarding_result_flow,
+    derive_define_precondition_correspondence, derive_direct_terminal_plan,
+    derive_exact_representative_static_application, derive_public_precondition_partition,
+    derive_representative_precondition_partition, derive_representative_telescope,
+    derive_selected_theorem_telescope, fallthrough_result_root, immutable_alias_fallthrough_root,
+    pure_representative_effect, substituted_type_matches, unconditional_representative_termination,
 };
 use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
@@ -24,17 +24,19 @@ use psi_typed_trees::expression::{
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::name::Identifier;
 use psi_typed_trees::proposition::{
-    PropositionBinder, PropositionBinderKind, PropositionDefinition,
+    PropositionApplication, PropositionBinder, PropositionBinderKind, PropositionDefinition,
 };
 use psi_typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{StatementNode, TableLocalData, TableTransition};
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
+use super::theorem::SelectedTheoremTelescope;
 use super::theorem_schema::{
     TheoremApplicationSide, TheoremContractFactLocation, TheoremContractOwner,
     TheoremParameterRole, derive_expected_theorem_schema,
 };
+use super::theorem_schema_verification::verify_selected_theorem_schema;
 
 fn symbol(index: u32) -> SymbolHandle {
     SymbolHandle::from_arena_index(index)
@@ -777,6 +779,407 @@ fn expected_theorem_schema_retains_each_representative_requires_for_both_calls()
         schema.legality_premises[5].application,
         TheoremApplicationSide::Right
     );
+}
+
+#[derive(Clone, Copy)]
+enum TheoremSchemaMutation {
+    Exact,
+    ExtraPremise,
+    WrongRelation,
+    WrongLegality,
+    RedirectedOperation,
+    DuplicatedLeftApplication,
+    OmittedRightApplication,
+    ReboundSharedArgument,
+    NamedEvidenceLane,
+    ConstParameter,
+    AttachedReceiver,
+    ParameterTypeMismatch,
+    UnexpectedContractKind,
+    MissingConclusion,
+}
+
+fn selected_theorem_schema_fixture(
+    mutation: TheoremSchemaMutation,
+) -> (
+    TypedTrees,
+    RepresentativeTelescope,
+    SelectedTheoremTelescope,
+    super::theorem_schema::ExpectedTheoremSchema,
+) {
+    let mut program = TypedTrees::default();
+    let carrier = carrier_type(&mut program);
+    let ordinary = program.type_reference_table.insert(TypeReferenceNode::Unit);
+    let representative_type_parameter = symbol(849);
+    let theorem_type_parameter = symbol(848);
+    let representative_carrier = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: representative_type_parameter,
+            name: Identifier::generated_static("RepresentativeCarrier"),
+        });
+    let theorem_carrier = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: theorem_type_parameter,
+            name: Identifier::generated_static("TheoremCarrier"),
+        });
+    let mut selected_carrier = static_argument("Carrier");
+    selected_carrier.symbol = symbol(500);
+    let relation_symbol = symbol(850);
+    program.push_proposition(PropositionDefinition {
+        symbol: relation_symbol,
+        name: Identifier::generated_static("ExactRelation"),
+        ..Default::default()
+    });
+
+    let representative_parameter = symbol(851);
+    let representative_shared = symbol(852);
+    let representative_legality = named_argument(
+        &mut program,
+        "representative_value",
+        representative_parameter,
+    );
+    let representative_facts = program
+        .proof_facts
+        .insert_many([ProofFact::Expression(representative_legality)]);
+    let representative_contracts = program.signature_contracts.insert_many([SignatureContract {
+        kind: SignatureContractKind::Requires,
+        facts: representative_facts,
+        ..Default::default()
+    }]);
+    let representative = RepresentativeTelescope {
+        machine_symbol: symbol(853),
+        state_symbol: symbol(854),
+        parameters: vec![
+            RepresentativeRuntimeParameter {
+                symbol: representative_parameter,
+                type_reference: representative_carrier,
+                is_mutable: false,
+                is_self: false,
+            },
+            RepresentativeRuntimeParameter {
+                symbol: representative_shared,
+                type_reference: ordinary,
+                is_mutable: false,
+                is_self: false,
+            },
+        ],
+        return_type: representative_carrier,
+        machine_contracts: representative_contracts,
+        state_contracts: HandleSpan::empty(),
+        static_application: RepresentativeStaticApplication {
+            lifetime_arguments: Vec::new(),
+            bindings: vec![RepresentativeStaticBinding {
+                parameter: representative_type_parameter,
+                kind: RepresentativeStaticBindingKind::Type,
+                argument: selected_carrier.clone(),
+            }],
+        },
+    };
+    let relation = ExactQuotientRelation {
+        quotient_type: carrier,
+        quotient_symbol: symbol(855),
+        relation_symbol,
+    };
+    let expected = derive_expected_theorem_schema(
+        &program,
+        &[
+            InputRelation::Quotient(relation),
+            InputRelation::ExactEquality(ordinary),
+        ],
+        relation,
+        &representative,
+    )
+    .expect("closed direct theorem schema");
+
+    let left_symbol = symbol(856);
+    let right_symbol = symbol(857);
+    let shared_symbol = symbol(858);
+    let left = named_argument(&mut program, "left", left_symbol);
+    let right = named_argument(&mut program, "right", right_symbol);
+    let shared = named_argument(&mut program, "shared", shared_symbol);
+    let relation_arguments = program
+        .expression_table
+        .insert_expression_handles([left, right]);
+    let relation_fact = ProofFact::Proposition(PropositionApplication {
+        proposition: if matches!(mutation, TheoremSchemaMutation::WrongRelation) {
+            symbol(859)
+        } else {
+            relation_symbol
+        },
+        name: Identifier::generated_static("ExactRelation"),
+        binder_arguments: Box::default(),
+        arguments: relation_arguments,
+    });
+    let right_legality = if matches!(mutation, TheoremSchemaMutation::WrongLegality) {
+        left
+    } else {
+        right
+    };
+    let mut requires = vec![
+        relation_fact,
+        ProofFact::Expression(left),
+        ProofFact::Expression(right_legality),
+    ];
+    if matches!(mutation, TheoremSchemaMutation::ExtraPremise) {
+        requires.push(ProofFact::Expression(shared));
+    }
+    let requires = program.proof_facts.insert_many(requires);
+
+    let representative_call = |program: &mut TypedTrees,
+                               first: ExpressionHandle,
+                               shared: ExpressionHandle,
+                               redirected: bool| {
+        let arguments = program
+            .expression_table
+            .insert_expression_handles([first, shared]);
+        program
+            .expression_table
+            .insert(ExpressionNode::Call(TableCallExpression {
+                receiver: ExpressionHandle::invalid(),
+                target_symbol: if redirected {
+                    symbol(860)
+                } else {
+                    representative.state_symbol
+                },
+                target: Identifier::generated_static("representative"),
+                machine_arguments: vec![selected_carrier.clone()].into_boxed_slice(),
+                quotient_operation: None,
+                private_layout_operation: None,
+                arguments,
+                evidence_arguments: Box::default(),
+                operational_acknowledgement: Default::default(),
+            }))
+    };
+    let left_call = representative_call(
+        &mut program,
+        left,
+        shared,
+        matches!(mutation, TheoremSchemaMutation::RedirectedOperation),
+    );
+    let right_first = if matches!(mutation, TheoremSchemaMutation::DuplicatedLeftApplication) {
+        left
+    } else {
+        right
+    };
+    let right_shared = if matches!(mutation, TheoremSchemaMutation::ReboundSharedArgument) {
+        left
+    } else {
+        shared
+    };
+    let right_call = representative_call(&mut program, right_first, right_shared, false);
+    let conclusion_arguments = program.expression_table.insert_expression_handles([
+        left_call,
+        if matches!(mutation, TheoremSchemaMutation::OmittedRightApplication) {
+            right
+        } else {
+            right_call
+        },
+    ]);
+    let conclusion_fact = ProofFact::Proposition(PropositionApplication {
+        proposition: relation_symbol,
+        name: Identifier::generated_static("ExactRelation"),
+        binder_arguments: Box::default(),
+        arguments: conclusion_arguments,
+    });
+    let conclusion = if matches!(mutation, TheoremSchemaMutation::MissingConclusion) {
+        program.proof_facts.insert_many(std::iter::empty())
+    } else {
+        program.proof_facts.insert_many([conclusion_fact])
+    };
+    let theorem_machine_contracts = program.signature_contracts.insert_many([SignatureContract {
+        kind: SignatureContractKind::Requires,
+        binding: matches!(mutation, TheoremSchemaMutation::NamedEvidenceLane)
+            .then(|| Identifier::generated_static("dictionary")),
+        facts: requires,
+        ..Default::default()
+    }]);
+    let theorem_state_contracts = program.signature_contracts.insert_many([SignatureContract {
+        kind: if matches!(mutation, TheoremSchemaMutation::UnexpectedContractKind) {
+            SignatureContractKind::Crashes {
+                cause: psi_typed_trees::signature::CrashCause::Trap,
+            }
+        } else {
+            SignatureContractKind::Ensures
+        },
+        facts: conclusion,
+        ..Default::default()
+    }]);
+    let mut theorem_machine = Machine {
+        symbol: symbol(861),
+        contracts: theorem_machine_contracts,
+        ..Default::default()
+    };
+    let mut theorem_state = State {
+        symbol: symbol(862),
+        return_type: ordinary,
+        contracts: theorem_state_contracts,
+        ..Default::default()
+    };
+    for (position, (parameter_symbol, mut type_reference)) in [
+        (left_symbol, theorem_carrier),
+        (right_symbol, theorem_carrier),
+        (shared_symbol, ordinary),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        if position == 2 && matches!(mutation, TheoremSchemaMutation::ParameterTypeMismatch) {
+            type_reference = theorem_carrier;
+        }
+        program.push_state_parameter(
+            &mut theorem_state,
+            StateParameter {
+                symbol: parameter_symbol,
+                name: Identifier::generated_static(match position {
+                    0 => "left",
+                    1 => "right",
+                    _ => "shared",
+                }),
+                type_reference,
+                is_const: position == 0
+                    && matches!(mutation, TheoremSchemaMutation::ConstParameter),
+                is_self: position == 0
+                    && matches!(mutation, TheoremSchemaMutation::AttachedReceiver),
+                ..Default::default()
+            },
+        );
+    }
+    program.push_machine_state(&mut theorem_machine, theorem_state);
+    program.push_machine(theorem_machine);
+    let theorem = SelectedTheoremTelescope {
+        machine_symbol: symbol(861),
+        state_symbol: symbol(862),
+        parameters: vec![
+            RepresentativeRuntimeParameter {
+                symbol: left_symbol,
+                type_reference: theorem_carrier,
+                is_mutable: false,
+                is_self: false,
+            },
+            RepresentativeRuntimeParameter {
+                symbol: right_symbol,
+                type_reference: theorem_carrier,
+                is_mutable: false,
+                is_self: false,
+            },
+            RepresentativeRuntimeParameter {
+                symbol: shared_symbol,
+                type_reference: ordinary,
+                is_mutable: false,
+                is_self: false,
+            },
+        ],
+        machine_contracts: theorem_machine_contracts,
+        state_contracts: theorem_state_contracts,
+        static_application: RepresentativeStaticApplication {
+            lifetime_arguments: Vec::new(),
+            bindings: vec![RepresentativeStaticBinding {
+                parameter: theorem_type_parameter,
+                kind: RepresentativeStaticBindingKind::Type,
+                argument: selected_carrier,
+            }],
+        },
+    };
+    (program, representative, theorem, expected)
+}
+
+#[test]
+fn selected_theorem_schema_verification_certifies_exact_fact_coordinates() {
+    let (program, representative, theorem, expected) =
+        selected_theorem_schema_fixture(TheoremSchemaMutation::Exact);
+    let certificate =
+        verify_selected_theorem_schema(&program, &representative, &theorem, &expected)
+            .expect("the exact selected theorem schema must be certified");
+
+    assert_eq!(certificate.theorem_machine_symbol, symbol(861));
+    assert_eq!(certificate.theorem_state_symbol, symbol(862));
+    assert_eq!(certificate.parameters.len(), 3);
+    assert_eq!(certificate.relation_premises.len(), 1);
+    assert_eq!(certificate.relation_premises[0].expected_position, 0);
+    assert_eq!(certificate.legality_premises.len(), 2);
+    assert_ne!(
+        certificate.legality_premises[0].actual,
+        certificate.legality_premises[1].actual,
+    );
+    assert_eq!(certificate.conclusion.owner, TheoremContractOwner::State);
+}
+
+#[test]
+fn selected_theorem_schema_verification_rejects_extra_and_wrong_premises() {
+    for (mutation, expected_error) in [
+        (
+            TheoremSchemaMutation::ExtraPremise,
+            RelationPlanError::TheoremSchemaPremiseCountMismatch,
+        ),
+        (
+            TheoremSchemaMutation::WrongRelation,
+            RelationPlanError::TheoremSchemaRelationPremiseMismatch(0),
+        ),
+        (
+            TheoremSchemaMutation::WrongLegality,
+            RelationPlanError::TheoremSchemaLegalityPremiseMismatch(1),
+        ),
+    ] {
+        let (program, representative, theorem, schema) = selected_theorem_schema_fixture(mutation);
+        assert_eq!(
+            verify_selected_theorem_schema(&program, &representative, &theorem, &schema),
+            Err(expected_error),
+        );
+    }
+}
+
+#[test]
+fn selected_theorem_schema_verification_rejects_application_mapping_drift() {
+    for mutation in [
+        TheoremSchemaMutation::RedirectedOperation,
+        TheoremSchemaMutation::DuplicatedLeftApplication,
+        TheoremSchemaMutation::OmittedRightApplication,
+        TheoremSchemaMutation::ReboundSharedArgument,
+    ] {
+        let (program, representative, theorem, schema) = selected_theorem_schema_fixture(mutation);
+        assert_eq!(
+            verify_selected_theorem_schema(&program, &representative, &theorem, &schema),
+            Err(RelationPlanError::TheoremSchemaConclusionMismatch),
+        );
+    }
+}
+
+#[test]
+fn selected_theorem_schema_verification_rejects_runtime_evidence_and_const_parameters() {
+    for (mutation, expected_error) in [
+        (
+            TheoremSchemaMutation::NamedEvidenceLane,
+            RelationPlanError::TheoremSchemaNamedEvidenceLane,
+        ),
+        (
+            TheoremSchemaMutation::ConstParameter,
+            RelationPlanError::TheoremSchemaConstParameter(0),
+        ),
+        (
+            TheoremSchemaMutation::AttachedReceiver,
+            RelationPlanError::TheoremSchemaAttachedReceiver(0),
+        ),
+        (
+            TheoremSchemaMutation::ParameterTypeMismatch,
+            RelationPlanError::TheoremSchemaParameterTypeMismatch(2),
+        ),
+        (
+            TheoremSchemaMutation::UnexpectedContractKind,
+            RelationPlanError::TheoremSchemaUnexpectedContractKind,
+        ),
+        (
+            TheoremSchemaMutation::MissingConclusion,
+            RelationPlanError::TheoremSchemaConclusionCountMismatch,
+        ),
+    ] {
+        let (program, representative, theorem, schema) = selected_theorem_schema_fixture(mutation);
+        assert_eq!(
+            verify_selected_theorem_schema(&program, &representative, &theorem, &schema),
+            Err(expected_error),
+        );
+    }
 }
 
 #[test]
