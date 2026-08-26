@@ -966,8 +966,11 @@ Remaining:
   The existing Terminal unit-call conservation check already rejects an ordinary
   call whose callee would acquire a content claim absent from the caller; the
   routed source canary likewise emits producer schema only on the exact
-  boundary requirement, and an explicit verifier regression rejects a claimed
-  result lineage with no bound entry parent. The generated program-entry handoff
+  boundary requirement. A checked-source `ProgramStorageEntry` satisfier
+  canary now also requires an ordinary direct caller to supply both existing
+  `Granted` inputs; the call cannot reinterpret itself as the installed entry
+  event. An explicit verifier regression rejects a claimed result lineage with
+  no bound entry parent. The generated program-entry handoff
   now preflights both exact positions before cohort establishment and owns the
   resulting account registry beside the installed image/storage Extents. Its
   failure carriers retain the exact subjects, established accounts, or installed
@@ -1011,9 +1014,9 @@ Remaining:
   real source-to-Terminal-to-installation storage handoff cover this
   coexistence-reporting seam.
   Add source, terminal, artifact, and installation canaries for
-  a one-root introduction, a finite multi-instance aggregate, an ordinary-call
-  mint attempt, an unbounded installation shape, cross-origin composition, and
-  stale epoch replay. Source, canonical-codec, and verifier canaries now close
+  a one-root introduction, a finite multi-instance aggregate, an unbounded
+  installation shape, cross-origin composition, and stale epoch replay.
+  Source, canonical-codec, and verifier canaries now close
   coherent understatement of a producer schema against its independent owner
   projection; retain that invariant through the remaining artifact and
   installation work rather than adding a second authored total.

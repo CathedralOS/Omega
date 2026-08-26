@@ -595,6 +595,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "core/extent_reconstruction_does_not_grant",
     "core/extent_no_wrap_lookalike",
     "core/extent_root_adapter_direct_call_does_not_grant",
+    "core/program_storage_entry_ordinary_call_does_not_mint",
     "core/carry_permission_adapter_direct_call_does_not_grant",
     "core/task_parked_continuation_projection_rejected",
     "core/task_parked_continuation_recast_rejected",
