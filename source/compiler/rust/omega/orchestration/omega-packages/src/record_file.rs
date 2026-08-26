@@ -13,6 +13,32 @@ use std::sync::atomic::{AtomicU64, Ordering};
 const MAXIMUM_STAGE_ATTEMPTS: u64 = 256;
 static NEXT_STAGE_ID: AtomicU64 = AtomicU64::new(0);
 
+pub(crate) fn is_portable_record_file_name(value: &str, maximum_bytes: usize) -> bool {
+    !value.is_empty()
+        && value.len() <= maximum_bytes
+        && !value.contains('/')
+        && !value.contains('\\')
+        && !value.bytes().any(|byte| byte.is_ascii_control())
+        && !matches!(value, "." | "..")
+        && !value.ends_with('.')
+        && value.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'-' | b'_')
+        })
+        && !is_windows_reserved_path_component(value)
+}
+
+fn is_windows_reserved_path_component(component: &str) -> bool {
+    let stem = component.split('.').next().unwrap_or(component);
+    let uppercase = stem.to_ascii_uppercase();
+    matches!(uppercase.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || uppercase
+            .strip_prefix("COM")
+            .or_else(|| uppercase.strip_prefix("LPT"))
+            .is_some_and(|suffix| {
+                matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
+            })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RecordFileLimits {
     pub(crate) maximum_bytes: usize,

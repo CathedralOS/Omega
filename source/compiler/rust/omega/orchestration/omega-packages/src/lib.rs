@@ -96,9 +96,11 @@ pub use resolver::{
     SourceCacheRequest, SourceCacheVerdict, resolve_source_cache_record,
 };
 pub use review_baseline::{
-    ReviewOnlyBaselineCapsule, ReviewOnlyBaselineError, ReviewOnlyBaselineLimits,
-    ReviewOnlyBaselinePackage, assemble_update_source_review_from_baseline,
-    compare_review_only_capabilities_from_baseline, triage_review_update_from_baseline,
+    ReviewOnlyBaselineCapsule, ReviewOnlyBaselineDirectory, ReviewOnlyBaselineError,
+    ReviewOnlyBaselineFileError, ReviewOnlyBaselineLimits, ReviewOnlyBaselineName,
+    ReviewOnlyBaselineNameError, ReviewOnlyBaselinePackage,
+    assemble_update_source_review_from_baseline, compare_review_only_capabilities_from_baseline,
+    triage_review_update_from_baseline,
 };
 pub use review_evidence::{
     ReviewOnlyCanonicalRow, ReviewOnlyCompilerExecutableCommitment,
