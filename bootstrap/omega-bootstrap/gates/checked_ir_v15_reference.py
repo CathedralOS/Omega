@@ -11,6 +11,7 @@ import checked_ir_v2_reference as v2
 import checked_ir_v3_reference as v3
 import checked_ir_v4_reference as v4
 import checked_ir_v5_reference as v5
+import checked_ir_v14_reference as v14
 
 
 Ckir15Error = v5.Ckir5Error
@@ -39,6 +40,11 @@ def selected_counts(module: Module) -> dict[int, int]:
     }
 
 
+def selected_arithmetic_counts(module: Module) -> dict[int, int]:
+    """Return the independently selected optional CKIR14 arithmetic rows."""
+    return v14.selected_counts(module)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=("validate", "run"))
@@ -47,12 +53,14 @@ def main() -> None:
     module = decode(args.ckir.read_bytes())
     if args.command == "validate":
         counts = selected_counts(module)
+        arithmetic = selected_arithmetic_counts(module)
         synthetic = sum(block[3] == 1 for block in module.tables["blocks"])
         print(
             "CKIR15 valid: "
             f"{synthetic} recurrent synthetic edges, "
             f"{counts[22]} StaticByteView, {counts[23]} SliceNonEmpty, "
-            f"{counts[24]} SliceHead, {counts[25]} SliceTailOne operations"
+            f"{counts[24]} SliceHead, {counts[25]} SliceTailOne, "
+            f"optional arithmetic {arithmetic}"
         )
     else:
         result = interpret(module)

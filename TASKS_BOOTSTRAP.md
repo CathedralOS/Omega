@@ -289,20 +289,13 @@ evidence stay in
 
 | Open implementation lane | Checkpoint forms to carry generally | Known boundary |
 | --- | --- | --- |
-| compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; the bounded program-static shared-byte-view window (`&[u8]`, nonempty guard, `[0]`, `[1..]`) is closed through OMGRSW4/CKIR12/OMGRFN14 and composes unchanged into CKIR14, while general views and the product source's same-carrier `u64` collection operations remain open |
+| compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; recurrent guarded head/tail over a runtime-capable direct `&[u8]`, with ordered direct-binder pass-through vectors, is closed through CKIR15/OMGRFN17; mutable views, dynamic indexing, computed/effectful siblings, and the product source's same-carrier `u64` collection operations remain open |
 | compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, remaining concrete Trapping arithmetic/casts, and the observed ranking clause | exact widening, canonical leaf-plus-literal addition, and one recursive pure full-width `u32 in Trapping` `+`/`-`/`*` tree are closed through persisted lower-rooted OMGRFN16. Call and CaseDispatch argument vectors are exact when they contain at most one potentially trapping argument and pure/nontrapping siblings; multiple observable trap sites still require the unresolved order ruling. Broader receivers, recursion, and packages remain separate |
 | source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; the product build now uses normative explicit provider selection, but the one-requirement OMGCOMP2 fixture is still only cost evidence for the six-requirement product `Console` closure; do not infer target-default semantics or import general boundary traits into Delta |
 
 The next actions are intentionally capability-shaped. Exact version identities,
 fixture matrices, and byte ceilings remain with their contracts and gates.
 
-- [ ] Finish the generalized shared-view milestone from the closed
-  [`CKIR15` reference contract](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V15.md):
-  runtime-capable direct `&[u8]`, recurrent guarded head/tail use, and the same
-  ordered direct-binder pass-through vector on both arms. Join producer,
-  Rust-free meaning, conservative backend, and independent refinement before
-  reporting the capability closed. Computed/effectful siblings, mutable views,
-  dynamic indexing, and `u64` collection arithmetic remain outside this cut.
 - [ ] Take the next scalar/control slice as direct pure same-carrier `u64 < u64`
   with full-width operands and true-edge range custody. Carry both halves through
   storage, calls/edges where exercised, meaning, emission, and reconstruction;
@@ -312,9 +305,10 @@ fixture matrices, and byte ceilings remain with their contracts and gates.
 - [ ] Add an explicit authoritative build-source identity to the compilation
   envelope, then carry the product build's explicit six-requirement `Console`
   selection through one complete `ProviderPlan`, checked calls, conservative
-  execution, and lower-rooted reconstruction. Product adapter execution also
-  needs the generalized view milestone, its ranking/reach facts, runtime view
-  origin, provider-owned boundary call, and surrounding receiver closure.
+  execution, and lower-rooted reconstruction. The generalized direct-view
+  vector prerequisite is closed; product adapter execution still needs its
+  ranking/reach facts, provider-owned boundary call, and surrounding receiver
+  closure.
   Structural plan completeness may proceed first, but it must not be presented
   as the product adapter or as provider admission.
 

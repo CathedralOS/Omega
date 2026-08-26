@@ -120,17 +120,21 @@ mutable-view operations, dynamic indexing, `u64` collection arithmetic,
 provider/boundary calls, general allocation, pointer identity, public slice
 representation, `reaches`, or a termination-ranking clause.
 
-## 5. Independent evidence and remaining joins
+## 5. Independent evidence and closure boundary
 
 - `../gates/checked_ir_v15_reference.py` selects CKIR15 explicitly over the
   shared independent decoder.
 - `../gates/delta-checked-ir-v15-fixture.py` emits deterministic recurrent,
-  one-byte, and empty carriers with two synthetic edges and ordered values
-  before, between, and after head/tail.
+  one-byte, empty, runtime-parameter/library, and optional-arithmetic carriers
+  with two synthetic edges and ordered values before, between, and after
+  head/tail. The runtime carrier has no literal root or `StaticByteView`; the
+  arithmetic carrier retains the complete CKIR14 Add/Subtract/Multiply family.
 - `../gates/delta-checked-ir-v15-reference.sh` checks deterministic bytes,
   all three runtime paths, responsibility-local malformed relations, and
   resource status 252.
 
-Producer/lowerer, conservative backend, Rust-free meaning, persisted
-lower-rooted reconstruction, and exact product-source admission remain separate
-milestones and are not implied by this reference contract.
+The separate producer/lowerer, conservative backend, Rust-free meaning, and
+persisted lower-rooted OMGRFN17 joins are now closed and retained by precise
+lattice steps. They do not promote this private cost slice to product-source
+admission or final `Ωself`; that later decision still requires the complete
+product source and bridge-cost join.

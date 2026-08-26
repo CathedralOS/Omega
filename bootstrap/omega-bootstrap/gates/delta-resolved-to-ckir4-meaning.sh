@@ -3,6 +3,7 @@
 set -eu
 
 MODE=${1:-v4}
+GAMMA_CEILING=2300000
 case "$MODE" in
   v4) SCHEMA_LABEL=CKIR4; FRAME_COMMAND=pack ;;
   v6) SCHEMA_LABEL=CKIR6; FRAME_COMMAND=pack-v7 ;;
@@ -11,7 +12,8 @@ case "$MODE" in
   v9) SCHEMA_LABEL=CKIR9; FRAME_COMMAND=pack-v10 ;;
   v10) SCHEMA_LABEL=CKIR10; FRAME_COMMAND=pack-v11 ;;
   v11) SCHEMA_LABEL=CKIR11; FRAME_COMMAND=pack-v12 ;;
-  *) echo "usage: delta-resolved-to-ckir4-meaning.sh [v4|v6|v7|v8|v9|v10|v11]" >&2; exit 2 ;;
+  v15) SCHEMA_LABEL=CKIR15; FRAME_COMMAND=pack-v16; GAMMA_CEILING=2800000 ;;
+  *) echo "usage: delta-resolved-to-ckir4-meaning.sh [v4|v6|v7|v8|v9|v10|v11|v15]" >&2; exit 2 ;;
 esac
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -55,6 +57,8 @@ elif [ "$MODE" = v9 ]; then
   REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v9_reference.py"
 elif [ "$MODE" = v10 ]; then
   REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v10_reference.py"
+elif [ "$MODE" = v15 ]; then
+  REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v15_reference.py"
 else
   REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v11_reference.py"
 fi
@@ -88,7 +92,7 @@ build_beta "$OMEGA_PATH_GAMMA/interp.beta" "$T/interp.exe" || {
 # Translate the lowerer exactly once; all accepted/rejected observations below
 # reuse the same persisted-Beta-produced Gamma program.
 python3 -B "$RUNNER" elaborate "$T/elaborate.exe" "$LOWERER" \
-  "$T/lowerer.gamma" "$T/timings.tsv" "resolved-to-$SCHEMA_LABEL meaning" 40 2300000
+  "$T/lowerer.gamma" "$T/timings.tsv" "resolved-to-$SCHEMA_LABEL meaning" 40 "$GAMMA_CEILING"
 
 cargo build -q --manifest-path "$OMEGA_PATH_DELTA_RUST/Cargo.toml"
 DELTA="$OMEGA_PATH_DELTA_RUST/target/debug/delta"
@@ -289,7 +293,7 @@ machine IntegerWidenMeaning::run(&mut self) -> u8 {
 for path, source in zip(sys.argv[1:], (canonical, semantic, resource)):
     Path(path).write_text(source, encoding="ascii")
 PY
-else
+elif [ "$MODE" = v11 ]; then
 python3 - "$T/canonical.omg" "$T/semantic.omg" "$T/resource.omg" <<'PY'
 from pathlib import Path
 import sys
@@ -324,6 +328,35 @@ machine TrappingAddMeaning::run(&mut self) -> u8 {
 for path, source in zip(sys.argv[1:], (canonical, semantic, resource)):
     Path(path).write_text(source, encoding="ascii")
 PY
+else
+python3 - "$T/canonical.omg" "$T/semantic.omg" "$T/resource.omg" <<'PY'
+from pathlib import Path
+import sys
+
+canonical = '''data GuardedViewMeaning { result: u8; }
+machine GuardedViewMeaning::run(&mut self) -> u8 {
+    transition { _ -> inspect("GF", 11) }
+    state inspect(&mut self, view: &[u8], pass: u8) {
+        transition view.len > 0 {
+            true -> emit(view[0], view[1..], pass)
+            false -> finish(pass)
+        }
+    }
+    state emit(&mut self, head: u8, view: &[u8], pass: u8) {
+        self.result = head;
+        transition view.len > 0 {
+            true -> emit(view[0], view[1..], pass)
+            false -> finish(pass)
+        }
+    }
+    state finish(&mut self, pass: u8) { self.result }
+}
+'''
+semantic = canonical.replace("false -> finish(pass)", "false -> finish(70)", 1)
+resource = canonical
+for path, source in zip(sys.argv[1:], (canonical, semantic, resource)):
+    Path(path).write_text(source, encoding="ascii")
+PY
 fi
 
 prepare() { # label owner machine source...
@@ -331,7 +364,15 @@ prepare() { # label owner machine source...
   shift 3
   python3 -B "$FIXTURE" build "$T/$LABEL.omgc" "$OWNER" "$MACHINE" "$@"
   "$T/resolver.native" < "$T/$LABEL.omgc" > "$T/$LABEL.omgrsw"
-  if [ "$MODE" = v6 ] || [ "$MODE" = v7 ] || [ "$MODE" = v8 ] || [ "$MODE" = v9 ] || [ "$MODE" = v10 ] || [ "$MODE" = v11 ]; then
+  if [ "$MODE" = v15 ]; then
+    python3 - "$T/$LABEL.omgrsw" <<'PY'
+from pathlib import Path
+import struct, sys
+raw = Path(sys.argv[1]).read_bytes()
+if len(raw) < 10 or raw[:8] != b"OMGRSW4\0" or struct.unpack_from("<H", raw, 8)[0] != 4:
+    raise SystemExit("CKIR15 meaning carrier did not select exact OMGRSW4")
+PY
+  elif [ "$MODE" = v6 ] || [ "$MODE" = v7 ] || [ "$MODE" = v8 ] || [ "$MODE" = v9 ] || [ "$MODE" = v10 ] || [ "$MODE" = v11 ]; then
     python3 - "$T/$LABEL.omgrsw" <<'PY'
 from pathlib import Path
 import struct, sys
@@ -367,10 +408,25 @@ elif [ "$MODE" = v10 ]; then
 prepare canonical IntegerWidenMeaning run "$T/canonical.omg"
 prepare semantic-251 IntegerWidenMeaning run "$T/semantic.omg"
 prepare resource-252 IntegerWidenMeaning run "$T/resource.omg"
-else
+elif [ "$MODE" = v11 ]; then
 prepare canonical TrappingAddMeaning run "$T/canonical.omg"
 prepare semantic-251 TrappingAddMeaning run "$T/semantic.omg"
 prepare resource-252 TrappingAddMeaning run "$T/resource.omg"
+else
+prepare canonical GuardedViewMeaning run "$T/canonical.omg"
+prepare semantic-251 GuardedViewMeaning run "$T/semantic.omg"
+prepare resource-252 GuardedViewMeaning run "$T/resource.omg"
+# Select the first rejected compilation-component length in the outer frame.
+# The lowerer must choose 252 before trusting or reading the mismatched body.
+python3 - "$T/resource-252.omglow" <<'PY'
+from pathlib import Path
+import struct, sys
+
+path = Path(sys.argv[1])
+raw = bytearray(path.read_bytes())
+struct.pack_into("<I", raw, 20, 267_281)
+path.write_bytes(raw)
+PY
 fi
 : > "$T/empty.expected"
 
@@ -463,9 +519,13 @@ elif sys.argv[3] == "v9":
 elif sys.argv[3] == "v10":
     summary = ("pure exact-u8 IntegerWiden preserves 0/70/255 into canonical u32 Trapping "
                "with result 70; effectful operand=251 and expression-depth-9=252")
-else:
+elif sys.argv[3] == "v11":
     summary = ("canonical u32-in-Trapping leaf-plus-literal Add produces result 70; "
                "nonselected carrier=251 and expression-depth-9=252")
+else:
+    summary = ("two guarded shared-view occurrences preserve exact direct pass vectors, "
+               "execute recurrent head/tail safely, and return 70; non-binder false vector=251 "
+               "and outer component capacity=252")
 print(f"resolved-to-{sys.argv[4]} meaning: {summary}; exact publication through "
       "canonical Gamma; " + " ".join(rows)
       + f" {sys.argv[4]}={Path(sys.argv[2]).stat().st_size}B")
