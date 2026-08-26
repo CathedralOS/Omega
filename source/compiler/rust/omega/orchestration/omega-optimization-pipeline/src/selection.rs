@@ -7,7 +7,10 @@ use omega_terminal_selected_instructions::{
     TerminalSelectedFixedInputConstraint, TerminalSelectedInstructionPlanIdentity,
     TerminalSelectedSelectionConstraints,
 };
-use omega_terminal_target_operations::{TerminalScalarParameterLocation, TerminalTargetOperation};
+use omega_terminal_target_operations::{
+    MachineRegister, TerminalScalarParameterLocation, TerminalTargetIntegerControl,
+    TerminalTargetIntegerExpression, TerminalTargetOperation,
+};
 use omega_terminal_target_operations_to_selected_instructions::{
     SelectedInstructionError, ValidatedTerminalSelectedInstructions, select_terminal_instructions,
     validate_terminal_selected_instructions,
@@ -225,31 +228,80 @@ pub(crate) fn selection_constraints(
     optimized_target: &ValidatedOptimizedTargetOperations,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> TerminalSelectedSelectionConstraints {
-    let fixed_inputs = optimized_target
-        .target_operations()
-        .functions
-        .iter()
-        .filter_map(|function| {
-            let TerminalTargetOperation::ReturnIntegerConditionalControl {
-                condition_source,
-                condition_parameter_index,
-                condition_location: TerminalScalarParameterLocation::Register(register),
+    let mut fixed_inputs = Vec::new();
+    for function in &optimized_target.target_operations().functions {
+        let TerminalTargetOperation::ReturnIntegerConditionalControl {
+            condition_source,
+            condition_parameter_index,
+            condition_location: TerminalScalarParameterLocation::Register(register),
+            when_true,
+            when_false,
+            ..
+        } = &function.operation
+        else {
+            continue;
+        };
+        push_fixed_input(
+            &mut fixed_inputs,
+            environment,
+            function.machine,
+            *condition_source,
+            *condition_parameter_index,
+            *register,
+        );
+        for arm in [when_true, when_false] {
+            let TerminalTargetIntegerControl::Return {
+                expression:
+                    TerminalTargetIntegerExpression::Parameter {
+                        source_value,
+                        parameter_index,
+                        location: TerminalScalarParameterLocation::Register(register),
+                    },
                 ..
-            } = function.operation
+            } = arm.control.as_ref()
             else {
-                return None;
+                continue;
             };
-            Some(TerminalSelectedFixedInputConstraint {
-                machine: function.machine,
-                source_value: condition_source,
-                parameter_index: condition_parameter_index,
-                register,
-                fixed_view: environment.fixed_register_view(register)?,
-            })
-        })
-        .collect();
+            push_fixed_input(
+                &mut fixed_inputs,
+                environment,
+                function.machine,
+                *source_value,
+                *parameter_index,
+                *register,
+            );
+        }
+    }
     TerminalSelectedSelectionConstraints {
         keys: environment.selected_keys(),
         fixed_inputs,
     }
+}
+
+fn push_fixed_input(
+    inputs: &mut Vec<TerminalSelectedFixedInputConstraint>,
+    environment: &ValidatedTargetRegisterEnvironment,
+    machine: MachineId,
+    source_value: psi_core::ValueId,
+    parameter_index: usize,
+    register: MachineRegister,
+) {
+    if inputs.iter().any(|input| {
+        input.machine == machine
+            && input.source_value == source_value
+            && input.parameter_index == parameter_index
+            && input.register == register
+    }) {
+        return;
+    }
+    let Some(fixed_view) = environment.fixed_register_view(register) else {
+        return;
+    };
+    inputs.push(TerminalSelectedFixedInputConstraint {
+        machine,
+        source_value,
+        parameter_index,
+        register,
+        fixed_view,
+    });
 }

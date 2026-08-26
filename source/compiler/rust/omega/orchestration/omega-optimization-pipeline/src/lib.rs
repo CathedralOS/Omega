@@ -20,6 +20,7 @@ use omega_terminal_psi_to_abstract_operations::{
 use psi_proof_admission::AdmissionProfile;
 
 mod assignment;
+mod live_ranges;
 mod liveness;
 mod register_environment;
 mod selection;
@@ -29,6 +30,10 @@ pub use assignment::{
     StagedOptimizedAssignedOperations, StagedOptimizedAssignmentCustodyReceipt,
     stage_optimized_assignment, stage_optimized_assignment_with_provider_executions,
     validate_optimized_assignment_custody,
+};
+pub use live_ranges::{
+    OptimizedLiveRangeCustodyError, StagedOptimizedLiveRangeCustodyReceipt,
+    StagedOptimizedLiveRanges, stage_optimized_live_ranges, validate_optimized_live_range_custody,
 };
 pub use liveness::{
     OptimizedLivenessCustodyError, StagedOptimizedLiveness, StagedOptimizedLivenessCustodyReceipt,
@@ -150,7 +155,10 @@ mod tests {
     use omega_optimization_unit::ValueDefinitionSite;
     use omega_psi_optimizer::{OptimizationRunError, RuleRegistryError};
     use omega_regalloc::{
-        TerminalLivenessError, analyze_terminal_liveness, terminal_liveness_identity,
+        TerminalArchitecturalUnitActionKind, TerminalLiveRangeError, TerminalLiveRangeFragment,
+        TerminalLiveRangePoint, TerminalLivenessError, TerminalVirtualFixedConstraintSite,
+        TerminalVirtualInterference, analyze_terminal_live_ranges, analyze_terminal_liveness,
+        terminal_live_range_identity, terminal_liveness_identity, validate_terminal_live_ranges,
         validate_terminal_liveness,
     };
     use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
@@ -415,6 +423,125 @@ mod tests {
 
     fn staged_conditional(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
         let (semantic, proof) = conditional_immediate_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target =
+            omega_lowering_optimizer::lower_optimized_to_target_operations(optimized, target)
+                .unwrap();
+        stage_optimized_instruction_selection(target).unwrap()
+    }
+
+    fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
+        let machine = MachineId::new(4_001).unwrap();
+        let entry = BlockId::new(4_002).unwrap();
+        let when_true = BlockId::new(4_003).unwrap();
+        let when_false = BlockId::new(4_004).unwrap();
+        let condition = ValueId::new(4_005).unwrap();
+        let forwarded = ValueId::new(4_006).unwrap();
+        let result = ValueId::new(4_007).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                parameters: vec![
+                    declaration(condition, ScalarType::Boolean),
+                    declaration(forwarded, scalar_type),
+                ],
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Scalar(declaration(result, scalar_type)),
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry,
+                blocks: vec![
+                    Block {
+                        id: entry,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Conditional {
+                            condition,
+                            when_true: SuccessorEdge {
+                                edge: EdgeId::new(4_011).unwrap(),
+                                target: when_true,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                            when_false: SuccessorEdge {
+                                edge: EdgeId::new(4_012).unwrap(),
+                                target: when_false,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                        },
+                    },
+                    Block {
+                        id: when_true,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Return {
+                            edge: EdgeId::new(4_013).unwrap(),
+                            value: forwarded,
+                            cleanup_actions: Vec::new(),
+                        },
+                    },
+                    Block {
+                        id: when_false,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Return {
+                            edge: EdgeId::new(4_014).unwrap(),
+                            value: forwarded,
+                            cleanup_actions: Vec::new(),
+                        },
+                    },
+                ],
+                contract: MachineContract {
+                    id: ContractId::new(4_015).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        };
+        let proof = ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: Vec::new(),
+        };
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        )
+    }
+
+    fn staged_forwarded_conditional(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
+        let (semantic, proof) = conditional_forwarded_parameter_artifact();
         let optimized = optimize_artifact_sections(
             &semantic,
             &proof,
@@ -1368,6 +1495,315 @@ mod tests {
                 staged.selected_stage().selected().receipt().identity()
             );
         }
+    }
+
+    #[test]
+    fn forwarded_parameter_conditional_retains_cross_edge_liveness() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let selected = staged_forwarded_conditional(target);
+            let selected_plan = selected.selected().plan();
+            assert_eq!(selected_plan.functions[0].virtual_registers.len(), 2);
+            assert_eq!(
+                selected_plan.functions[0]
+                    .blocks
+                    .iter()
+                    .map(|block| block.instructions.len() + 1)
+                    .sum::<usize>(),
+                4
+            );
+            assert!(
+                selected_plan.functions[0].virtual_registers[0]
+                    .entry_fixed_view
+                    .is_some()
+            );
+            assert!(
+                selected_plan.functions[0].virtual_registers[1]
+                    .entry_fixed_view
+                    .is_some()
+            );
+
+            let staged = stage_optimized_liveness(selected).unwrap();
+            let function = &staged.liveness().plan().functions[0];
+            assert_eq!(
+                function.blocks[0].virtual_live_in,
+                vec![TerminalVirtualRegisterId(0), TerminalVirtualRegisterId(1)]
+            );
+            assert_eq!(
+                function.blocks[0].virtual_live_out,
+                vec![TerminalVirtualRegisterId(1)]
+            );
+            for successor in &function.blocks[0].successors {
+                assert_eq!(successor.virtual_live, vec![TerminalVirtualRegisterId(1)]);
+            }
+            for block in &function.blocks[1..] {
+                assert_eq!(block.virtual_live_in, vec![TerminalVirtualRegisterId(1)]);
+                assert!(block.virtual_live_out.is_empty());
+                assert_eq!(
+                    block.instructions[0].virtual_uses,
+                    vec![TerminalVirtualRegisterId(1)]
+                );
+                assert!(block.instructions[0].virtual_live_out.is_empty());
+                assert!(block.instructions[0].unit_live_out.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn forwarded_parameter_selection_rejects_fixed_input_and_path_corruption() {
+        let staged = staged_forwarded_conditional(NativeTarget::linux_x64());
+        let mut corrupted = staged.selected().plan().clone();
+        corrupted.functions[0].virtual_registers[1].entry_fixed_view = None;
+        assert!(matches!(
+            validate_raw_selection(&staged, corrupted),
+            Err(SelectedInstructionError::VirtualRegisterProjectionMismatch { .. })
+        ));
+
+        let mut corrupted = staged.selected().plan().clone();
+        let TerminalSelectedTerminator::Return { instruction, .. } =
+            &mut corrupted.functions[0].blocks[1].terminator
+        else {
+            unreachable!()
+        };
+        instruction.operands[0].virtual_register = TerminalVirtualRegisterId(0);
+        assert!(matches!(
+            validate_raw_selection(&staged, corrupted),
+            Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn live_ranges_are_block_local_and_interference_is_cfg_exact() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let staged = stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_forwarded_conditional(target)).unwrap(),
+            )
+            .unwrap();
+            let function = &staged.ranges().plan().functions[0];
+            assert_eq!(
+                function
+                    .block_domains
+                    .iter()
+                    .map(|domain| (domain.block.0, domain.start.0, domain.end.0))
+                    .collect::<Vec<_>>(),
+                vec![(0, 0, 4), (1, 4, 6), (2, 6, 8)]
+            );
+            assert_eq!(function.virtual_registers.len(), 2);
+            assert_eq!(
+                function.virtual_registers[0].fragments,
+                vec![TerminalLiveRangeFragment {
+                    block: omega_terminal_selected_instructions::TerminalSelectedBlockId(0),
+                    start: TerminalLiveRangePoint(0),
+                    end: TerminalLiveRangePoint(1),
+                }]
+            );
+            assert_eq!(
+                function.virtual_registers[1]
+                    .fragments
+                    .iter()
+                    .map(|fragment| (fragment.block.0, fragment.start.0, fragment.end.0))
+                    .collect::<Vec<_>>(),
+                vec![(0, 0, 4), (1, 4, 5), (2, 6, 7)]
+            );
+            assert_eq!(
+                function.virtual_registers[1]
+                    .edge_connectors
+                    .iter()
+                    .map(|edge| (edge.polarity_ordinal, edge.psi_edge, edge.target.0))
+                    .collect::<Vec<_>>(),
+                vec![
+                    (0, EdgeId::new(4_011).unwrap(), 1),
+                    (1, EdgeId::new(4_012).unwrap(), 2),
+                ]
+            );
+            assert_eq!(
+                function.interference,
+                vec![TerminalVirtualInterference {
+                    lower: TerminalVirtualRegisterId(0),
+                    higher: TerminalVirtualRegisterId(1),
+                }]
+            );
+            assert_eq!(function.virtual_registers[0].fixed_constraints.len(), 1);
+            assert!(matches!(
+                function.virtual_registers[0].fixed_constraints[0].site,
+                TerminalVirtualFixedConstraintSite::Entry
+            ));
+            assert_eq!(function.virtual_registers[1].fixed_constraints.len(), 3);
+            assert!(matches!(
+                function.virtual_registers[1].fixed_constraints[0].site,
+                TerminalVirtualFixedConstraintSite::Entry
+            ));
+            assert!(
+                function.virtual_registers[1].fixed_constraints[1..]
+                    .iter()
+                    .all(|constraint| matches!(
+                        constraint.site,
+                        TerminalVirtualFixedConstraintSite::Operand { .. }
+                    ))
+            );
+            assert_eq!(staged.custody().interference_count(), 1);
+            assert_eq!(
+                staged.custody().ranges(),
+                staged.ranges().receipt().identity()
+            );
+            assert_eq!(
+                staged.custody().liveness(),
+                staged.liveness_stage().liveness().receipt().identity()
+            );
+
+            let repeated = stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_forwarded_conditional(target)).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(staged.ranges(), repeated.ranges());
+            assert_eq!(staged.custody(), repeated.custody());
+        }
+
+        let constant = stage_optimized_live_ranges(
+            stage_optimized_liveness(staged_conditional(NativeTarget::linux_x64())).unwrap(),
+        )
+        .unwrap();
+        let function = &constant.ranges().plan().functions[0];
+        assert_eq!(
+            function
+                .block_domains
+                .iter()
+                .map(|domain| (domain.block.0, domain.start.0, domain.end.0))
+                .collect::<Vec<_>>(),
+            vec![(0, 0, 4), (1, 4, 8), (2, 8, 12)]
+        );
+        assert_eq!(
+            function
+                .virtual_registers
+                .iter()
+                .flat_map(|range| &range.fragments)
+                .map(|fragment| (fragment.block.0, fragment.start.0, fragment.end.0))
+                .collect::<Vec<_>>(),
+            vec![(0, 0, 1), (1, 5, 7), (2, 9, 11)]
+        );
+        assert!(function.interference.is_empty());
+        assert!(
+            function
+                .virtual_registers
+                .iter()
+                .all(|range| range.edge_connectors.is_empty())
+        );
+    }
+
+    #[test]
+    fn architectural_actions_do_not_inflate_semantic_unit_fragments() {
+        for (target, instruction_pointer) in [
+            (NativeTarget::linux_x64(), "rip"),
+            (NativeTarget::linux_arm64(), "pc"),
+        ] {
+            let staged = stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_forwarded_conditional(target)).unwrap(),
+            )
+            .unwrap();
+            let unit = named_units(staged.liveness_stage(), &[instruction_pointer])[0];
+            let range = staged.ranges().plan().functions[0]
+                .architectural_units
+                .iter()
+                .find(|range| range.unit == unit)
+                .unwrap();
+            assert_eq!(
+                range
+                    .fragments
+                    .iter()
+                    .map(|fragment| (fragment.block.0, fragment.start.0, fragment.end.0))
+                    .collect::<Vec<_>>(),
+                vec![(0, 0, 3)]
+            );
+            assert!(range.actions.iter().any(|action| {
+                action.point == TerminalLiveRangePoint(3)
+                    && action.kind == TerminalArchitecturalUnitActionKind::Def
+            }));
+        }
+    }
+
+    #[test]
+    fn independent_live_range_validation_rejects_corruption_and_detachment() {
+        let staged =
+            stage_optimized_liveness(staged_forwarded_conditional(NativeTarget::linux_x64()))
+                .unwrap();
+        let valid =
+            analyze_terminal_live_ranges(staged.selected_stage().selected(), staged.liveness())
+                .unwrap();
+        let identity = terminal_live_range_identity(valid.plan());
+
+        let mut corrupted = valid.plan().clone();
+        corrupted.functions[0].virtual_registers[1].fragments[0]
+            .end
+            .0 -= 1;
+        assert!(matches!(
+            validate_terminal_live_ranges(
+                staged.selected_stage().selected(),
+                staged.liveness(),
+                corrupted.clone(),
+            ),
+            Err(TerminalLiveRangeError::VirtualRegisterMismatch { .. })
+        ));
+        assert_ne!(terminal_live_range_identity(&corrupted), identity);
+
+        let mut corrupted = valid.plan().clone();
+        corrupted.functions[0].virtual_registers[1].edge_connectors[0].polarity_ordinal = 1;
+        assert!(matches!(
+            validate_terminal_live_ranges(
+                staged.selected_stage().selected(),
+                staged.liveness(),
+                corrupted,
+            ),
+            Err(TerminalLiveRangeError::NonCanonicalRows { .. })
+                | Err(TerminalLiveRangeError::VirtualRegisterMismatch { .. })
+        ));
+
+        let mut corrupted = valid.plan().clone();
+        corrupted.functions[0].interference.clear();
+        assert!(matches!(
+            validate_terminal_live_ranges(
+                staged.selected_stage().selected(),
+                staged.liveness(),
+                corrupted,
+            ),
+            Err(TerminalLiveRangeError::InterferenceMismatch { .. })
+        ));
+
+        let mut corrupted = valid.plan().clone();
+        corrupted.functions[0].virtual_registers[1].fixed_constraints[0]
+            .view
+            .0 += 1;
+        assert!(matches!(
+            validate_terminal_live_ranges(
+                staged.selected_stage().selected(),
+                staged.liveness(),
+                corrupted,
+            ),
+            Err(TerminalLiveRangeError::VirtualRegisterMismatch { .. })
+        ));
+
+        let mut corrupted = valid.plan().clone();
+        corrupted.functions[0].architectural_units[0].actions[0]
+            .point
+            .0 += 1;
+        assert!(matches!(
+            validate_terminal_live_ranges(
+                staged.selected_stage().selected(),
+                staged.liveness(),
+                corrupted,
+            ),
+            Err(TerminalLiveRangeError::ArchitecturalUnitMismatch { .. })
+        ));
+
+        let arm =
+            stage_optimized_liveness(staged_forwarded_conditional(NativeTarget::linux_arm64()))
+                .unwrap();
+        let arm_ranges =
+            analyze_terminal_live_ranges(arm.selected_stage().selected(), arm.liveness()).unwrap();
+        assert!(matches!(
+            validate_optimized_live_range_custody(&staged, &arm_ranges),
+            Err(OptimizedLiveRangeCustodyError::Revalidation(
+                TerminalLiveRangeError::RootMismatch
+            ))
+        ));
     }
 
     #[test]
