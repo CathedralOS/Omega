@@ -1,5 +1,22 @@
 # Bridge refinement reconstruction
 
+The active successor is
+[`OMGRFN17`](OMGCOMP_REFINEMENT_WITNESS_V17.md): `OMGRFNH\0` / version 17 binds
+exact OMGCOMP1 and OMGRSW4 to CKIR15's recurrent guarded shared-byte-view
+relation and conservative artifact. Eight responsibility-local Python owners
+are the exhaustive cheap oracle. Ten smaller persisted-Beta projections give
+representative recurrent, one-byte, and empty carriers actual Alpha/Beta seed
+lineage with native/self fixed assembly and one local rejection per owner; the
+R4 and R5 pairs are split to remain below the tape ceiling. A separate focused
+composite now carries actual native/self resolver/lowerer output and production
+backend artifacts through recurrent, one-byte, empty, and runtime-only entry
+frames. The separately owned Rust-free meaning gate closes exact canonical
+publication plus semantic and resource rejection; product admission remains
+separate, so this is not a complete product closure claim. CKIR15's runtime-parameter
+library carrier proves that
+`StaticByteView` is optional but is not disguised as an entry-bearing OMGRFN17
+frame.
+
 The current successor carrier is [`OMGRFN16`](OMGCOMP_REFINEMENT_WITNESS_V16.md):
 `OMGRFNG\0` / version 16 binds exact OMGCOMP1 and canonical OMGRSW7 to CKIR14's
 recursive full-width trapping-`u32` relation and its exact conservative

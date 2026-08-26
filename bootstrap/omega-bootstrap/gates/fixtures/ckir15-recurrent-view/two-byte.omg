@@ -1,0 +1,19 @@
+data ByteProducer { result: u8; }
+machine ByteProducer::run(&mut self) -> u8 {
+    self.result = 70;
+    transition { _ -> inspect("GF", 11, 13, 12) }
+    state inspect(&mut self, bytes: &[u8], prefix: u8, middle: u8, suffix: u8) {
+        transition bytes.len > 0 {
+            true -> emit(prefix, bytes[0], middle, bytes[1..], suffix)
+            false -> finish(prefix, middle, suffix)
+        }
+    }
+    state emit(&mut self, prefix: u8, byte: u8, middle: u8, bytes: &[u8], suffix: u8) {
+        self.result = byte;
+        transition bytes.len > 0 {
+            true -> emit(prefix, bytes[0], middle, bytes[1..], suffix)
+            false -> finish(prefix, middle, suffix)
+        }
+    }
+    state finish(&mut self, prefix: u8, middle: u8, suffix: u8) { self.result }
+}
