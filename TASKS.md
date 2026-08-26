@@ -1931,11 +1931,12 @@ Remaining:
   `compile_with_artifact_policy` permutation is removed; its differential and
   report canaries construct the typed request too. Package-aware integration
   now does the same, and the callsite-free package and executable-policy
-  permutations are removed. The remaining `compile_with_*` operations are
-  explicit entry/worker harness controls; they cannot enter the production
+  permutations are removed. The five entry/worker permutations are replaced by
+  one explicitly test-only `CompileHarnessRequest` and `compile_harness`
+  operation; its entry override and worker ceiling cannot enter the production
   request. The legacy `compile(CompileOptions)` migration entry,
-  requested-product stopping, the checked/terminal route, output destination
-  custody, and removal of the harness permutations remain open.
+  requested-product stopping, the checked/terminal route, and output
+  destination custody remain open.
 
   Restore the driver contract:
 

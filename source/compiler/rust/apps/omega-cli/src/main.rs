@@ -2,8 +2,8 @@ use std::fmt::Write;
 use std::path::PathBuf;
 
 use omega_compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, compile_request, compile_to_checked,
-    compile_with_worker_count_and_artifact_policy,
+    ArtifactEmissionPolicy, CompileHarnessRequest, CompileOptions, CompileRequest, compile_harness,
+    compile_request, compile_to_checked,
 };
 use omega_core::allocations::CountingAllocator;
 use psi_core::{ServiceId, StructuralTypeId};
@@ -785,17 +785,17 @@ fn refresh_samples(samples_root: &std::path::Path) -> ! {
                         .parent()
                         .expect("main.omg has a sample directory")
                         .join("build");
-                    match compile_with_worker_count_and_artifact_policy(
-                        CompileOptions {
+                    match compile_harness(
+                        CompileHarnessRequest::new(CompileOptions {
                             root_path: main_path.clone(),
                             build_dir: Some(build_dir),
                             target_name: Some(
                                 omega_target::TargetProfile::host().target_name().to_owned(),
                             ),
                             write_output: true,
-                        },
-                        1,
-                        ArtifactEmissionPolicy::OutputOnly,
+                        })
+                        .with_worker_count(1)
+                        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
                     ) {
                         Ok(_) => {
                             built.fetch_add(1, std::sync::atomic::Ordering::SeqCst);

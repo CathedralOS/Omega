@@ -1,9 +1,34 @@
 use omega_compiler::{
-    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileReport, CompileRequest,
-    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, compile as production_compile, compile_request,
-    compile_to_checked, compile_with_test_entry_worker_count_and_artifact_policy,
-    compile_with_worker_count_and_artifact_policy,
+    ArtifactEmissionPolicy, CheckedCompilation, CompileHarnessRequest, CompileOptions,
+    CompileReport, CompileRequest, PROGRAM_STORAGE_INSTALLATION_ARTIFACT,
+    compile as production_compile, compile_harness, compile_request, compile_to_checked,
 };
+
+fn compile_with_test_entry_worker_count_and_artifact_policy(
+    options: CompileOptions,
+    entry_machine_name: impl Into<String>,
+    worker_count: usize,
+    artifact_policy: ArtifactEmissionPolicy,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_harness(
+        CompileHarnessRequest::new(options)
+            .with_test_entry(entry_machine_name)
+            .with_worker_count(worker_count)
+            .with_artifact_policy(artifact_policy),
+    )
+}
+
+fn compile_with_worker_count_and_artifact_policy(
+    options: CompileOptions,
+    worker_count: usize,
+    artifact_policy: ArtifactEmissionPolicy,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_harness(
+        CompileHarnessRequest::new(options)
+            .with_worker_count(worker_count)
+            .with_artifact_policy(artifact_policy),
+    )
+}
 
 fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
     compile_with_test_entry_worker_count_and_artifact_policy(
