@@ -4,9 +4,10 @@
 //! Both judgments accept only direct public parameters and preserve
 //! mutable/borrow mode while matching quotient carriers through the retained
 //! representative static application. Faithful `define` remains declaration-
-//! order preserving; `lift` may explicitly permute unique parameters but may
-//! not duplicate, omit, synthesize, or adapt them. Neither policy infers or
-//! selects a relation, contract proof, or representative operation.
+//! order preserving; `lift` may explicitly select and permute a unique subset
+//! of the public telescope but may not duplicate, synthesize, or adapt it.
+//! Neither policy infers or selects a relation, contract proof, or
+//! representative operation.
 
 use super::{
     ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeStaticBinding,
@@ -112,10 +113,13 @@ fn derive_exact_position_runtime_correspondence(
         .filter(|parameter| !parameter.is_const)
         .collect::<Vec<_>>();
     let arguments = program.expression_table.expression_handles(call.arguments);
-    if public_parameters.len() != arguments.len()
-        || arguments.len() != representative.parameters.len()
-        || input_relations.len() != arguments.len()
-    {
+    let arity_matches = arguments.len() == representative.parameters.len()
+        && input_relations.len() == arguments.len()
+        && match policy {
+            ExactPositionPolicy::Define => public_parameters.len() == arguments.len(),
+            ExactPositionPolicy::DirectLift => public_parameters.len() >= arguments.len(),
+        };
+    if !arity_matches {
         return Err(match policy {
             ExactPositionPolicy::Define => RelationPlanError::DefineRuntimeArityMismatch,
             ExactPositionPolicy::DirectLift => RelationPlanError::DirectLiftRuntimeArityMismatch,
