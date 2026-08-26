@@ -1222,6 +1222,7 @@ fn records_operator_contract_span_for_proof_bridge() {
         &mut operator,
         SignatureContract {
             kind: SignatureContractKind::Requires,
+            keyword_source_span: None,
             binding: None,
             facts: HandleSpan::empty(),
             token_count: 1,

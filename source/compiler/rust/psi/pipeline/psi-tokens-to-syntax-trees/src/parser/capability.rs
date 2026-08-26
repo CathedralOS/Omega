@@ -142,6 +142,7 @@ fn parse_capability_contract<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, CapabilityContract> {
     if input.at_contextual("requires") {
+        let keyword_source_span = Some(input.current_source_span());
         let input = input.take_contextual("requires")?;
         let ((facts, token_count), input) =
             parse_proof_facts_until(syntax_trees, input, capability_contract_terminator)?;
@@ -149,6 +150,7 @@ fn parse_capability_contract<'tokens, 'source>(
         return Ok((
             CapabilityContract {
                 kind: CapabilityContractKind::Requires,
+                keyword_source_span,
                 binding: None,
                 facts,
                 token_count,
@@ -158,6 +160,7 @@ fn parse_capability_contract<'tokens, 'source>(
     }
 
     if input.at_contextual("ensures") {
+        let keyword_source_span = Some(input.current_source_span());
         let input = input.take_contextual("ensures")?;
         let ((facts, token_count), input) =
             parse_proof_facts_until(syntax_trees, input, capability_contract_terminator)?;
@@ -165,6 +168,7 @@ fn parse_capability_contract<'tokens, 'source>(
         return Ok((
             CapabilityContract {
                 kind: CapabilityContractKind::Ensures,
+                keyword_source_span,
                 binding: None,
                 facts,
                 token_count,

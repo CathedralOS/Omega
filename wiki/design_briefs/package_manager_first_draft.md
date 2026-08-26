@@ -428,11 +428,17 @@ fingerprints. Exact nested use sites may be added through their existing
 typed/checked owners and compiler sidecars without creating a report-only
 stage. Public-trait parent requirements are the first implemented carrier.
 Their typed owner already retains the exact authored identifier span, which now travels
-with the trait row under `trait_parent` through sorting, recovery envelope v2,
-and conflict renderer V4. It remains explanatory rather than semantic identity.
-Callable contract/body sites and authored `reaches`/`invokes` members remain
-later rungs; missing spans must be retained before they are erased, never
-recovered by parsing source text in package orchestration.
+with the trait row under `trait_parent` through sorting. Syntax, resolved, and
+typed contracts now retain the exact authored clause keyword independently from
+their semantic facts. Direct machine, public-trait requirement, and public-
+operator contracts carry it under `contract_clause`, and accepted-claim rows
+reuse the callable sidecar. Every projected declaration family recursively
+collects the same anchor from structural static-machine parameter contracts.
+Recovery envelope v3, conflict fingerprint v6, and renderer V5 bind
+the source schema. Coordinates remain explanatory rather than semantic
+identity. Per-fact spans, body sites, and authored `reaches`/`invokes`
+members remain later rungs; missing spans must be retained before they are
+erased, never recovered by parsing source text in package orchestration.
 
 Proposition and named-evidence rows apply that rule as an explicit join. The
 typed application owns the structural proposition declaration, binder

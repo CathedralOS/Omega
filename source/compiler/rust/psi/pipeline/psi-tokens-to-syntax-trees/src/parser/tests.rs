@@ -2049,6 +2049,10 @@ fn parses_guarded_crash_bucket_on_operator_contract() {
     };
     assert_eq!(*cause, psi_syntax_trees::item::CrashCause::Trap);
     assert_eq!(parsed.items.proof_facts(contract.facts).len(), 1);
+    let keyword = contract
+        .keyword_source_span
+        .expect("operator crash keyword span");
+    assert_eq!(&source[keyword.span.start..keyword.span.end], "crashes");
 }
 
 #[test]
@@ -2426,6 +2430,12 @@ fn parses_machine_contract_clauses() {
     ));
     assert!(contracts[0].token_count > 0);
     assert!(contracts[1].token_count > 0);
+    for (contract, keyword) in contracts.iter().zip(["requires", "ensures"]) {
+        let span = contract
+            .keyword_source_span
+            .expect("authored contract keyword span");
+        assert_eq!(&source[span.span.start..span.span.end], keyword);
+    }
     assert_eq!(parsed.items.proof_facts(contracts[0].facts).len(), 1);
     assert_eq!(parsed.items.proof_facts(contracts[1].facts).len(), 1);
 }
@@ -3287,6 +3297,12 @@ fn parses_trait_machine_contract_clauses() {
         .identifier_path_members(signature.service_reaches);
 
     assert_eq!(contracts.len(), 2);
+    for (contract, keyword) in contracts.iter().zip(["requires", "ensures"]) {
+        let span = contract
+            .keyword_source_span
+            .expect("trait contract keyword span");
+        assert_eq!(&source[span.span.start..span.span.end], keyword);
+    }
     assert_eq!(parsed.items.proof_facts(contracts[0].facts).len(), 1);
     assert_eq!(parsed.items.proof_facts(contracts[1].facts).len(), 1);
     assert_eq!(service_reaches.len(), 1);

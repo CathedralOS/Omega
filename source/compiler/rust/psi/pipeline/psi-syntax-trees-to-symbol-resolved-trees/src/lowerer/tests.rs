@@ -3181,6 +3181,12 @@ fn lowers_machine_contract_clauses() {
     assert_eq!(contracts.len(), 2);
     assert!(contracts[0].token_count >= 3);
     assert!(contracts[1].token_count >= 3);
+    for (contract, keyword) in contracts.iter().zip(["requires", "ensures"]) {
+        let span = contract
+            .keyword_source_span
+            .expect("resolved contract keyword span");
+        assert_eq!(&source[span.span.start..span.span.end], keyword);
+    }
     assert_eq!(program.proof_facts(contracts[0].facts).len(), 1);
     assert_eq!(program.proof_facts(contracts[1].facts).len(), 1);
 }

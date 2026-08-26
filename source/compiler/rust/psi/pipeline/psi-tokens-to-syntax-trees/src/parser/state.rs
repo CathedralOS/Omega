@@ -186,6 +186,7 @@ fn parse_state_arrival_contracts<'tokens, 'source>(
     let mut count = 0u32;
 
     while input.at_contextual("requires") {
+        let keyword_source_span = Some(input.current_source_span());
         input = input.take_contextual("requires")?;
         let (binding, fact_input) = if let Ok((binding, after_binding)) = input.take_identifier()
             && after_binding.at_punctuation(PunctuationKind::Colon)
@@ -220,6 +221,7 @@ fn parse_state_arrival_contracts<'tokens, 'source>(
             .items
             .append_capability_contract(CapabilityContract {
                 kind: CapabilityContractKind::Requires,
+                keyword_source_span,
                 binding,
                 facts,
                 token_count,

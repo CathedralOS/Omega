@@ -1156,11 +1156,18 @@ Nested use sites remain incremental provenance carriers in existing Psi stages
 or compiler-internal sidecars, not a reason to create nominal Chi.
 Public-trait composition is the first such carrier: canonical sorting keeps
 each typed parent identifier's exact authored span with its trait row under a
-closed `trait_parent` role. The coordinate remains outside semantic row bytes,
-while recovery envelope v2 and conflict fingerprint/rendering bind what review
-shows. Callable contract/body sites and `reaches`/`invokes` occurrences remain
-incremental; absent late-stage spans must be retained by their earlier owner,
-not reconstructed from source text.
+closed `trait_parent` role. Syntax, resolved, and typed contracts retain the
+exact authored clause-keyword span independently from semantic facts. Direct
+machine, public-trait requirement, and public-operator contracts carry it under
+`contract_clause`; projected declaration families recursively collect the same
+anchor from structural static-machine parameter contracts. This uniformly covers expression, membership, proposition,
+named-evidence, and outcome-group forms. Accepted-claim rows share the callable
+source sidecar and therefore point to the trusted `ensures` clause. These
+coordinates remain outside semantic row bytes,
+while recovery envelope v3 and conflict fingerprint v6/rendering V5 bind what
+review shows. Per-fact spans, body sites, and `reaches`/`invokes` occurrences
+remain incremental; absent late-stage spans must be retained by their earlier
+owner, not reconstructed from source text.
 
 Proposition and named-evidence projection is the concrete model for this
 cross-representation rule. Typed proposition applications own structural

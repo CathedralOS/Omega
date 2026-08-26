@@ -522,6 +522,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("crashes") {
+            let keyword_source_span = Some(input.current_source_span());
             let after_keyword = input.take_contextual("crashes")?;
             let (cause, after_cause) = after_keyword.take_identifier()?;
             let cause = match cause.as_str() {
@@ -556,6 +557,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                 .items
                 .append_capability_contract(CapabilityContract {
                     kind: CapabilityContractKind::Crashes { cause },
+                    keyword_source_span,
                     binding: None,
                     facts,
                     token_count: fact_token_count
@@ -573,6 +575,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("requires") || input.at_contextual("ensures") {
+            let keyword_source_span = Some(input.current_source_span());
             let kind = if input.at_contextual("requires") {
                 input = input.take_contextual("requires")?;
                 CapabilityContractKind::Requires
@@ -616,6 +619,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                 .items
                 .append_capability_contract(CapabilityContract {
                     kind,
+                    keyword_source_span,
                     binding,
                     facts,
                     token_count,
