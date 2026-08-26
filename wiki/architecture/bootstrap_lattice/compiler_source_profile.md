@@ -134,6 +134,16 @@ not “Omega 1”; and an optional self-rebuild creates a better executable of t
 same compiler rather than a new language or rung. O0/O1 are only names for
 already-frozen vertical canaries in the bridge implementation.
 
+- **Delta** is an independent, robust compiler-host language. It may resemble
+  Omega in spelling and shape, but it is not required to be an Omega subset.
+- **`Ωself`** is the Omega product-compiler source profile: a compositional subset
+  of ordinary Omega accepted by `omega-bootstrap`. It introduces no syntax or
+  semantics of its own. It is a feature-and-resource contract, not a whitelist
+  of the current compiler files or a collection of recognized AST shapes.
+- **Full Omega** is the language implemented by the resulting production
+  compiler. A compiler can implement a feature without using that feature in
+  its own source.
+
 Keep these implications one-way:
 
 | Fact | What follows | What does not follow |
@@ -256,14 +266,16 @@ mechanically binds its provisional normalized-syntax/resource admission rules,
 census, canaries, and ceilings; and
 [`profile-000001.md`](../../../source/compiler/omega/source-checkpoints/profile-000001.md)
 explains the evidence and unresolved decisions. The snapshot remains bounded
-evidence for the pinned source it describes. Its manifest, profile,
-Cargo/provider provenance, and extracted
-`source/compiler/omega/source-checkpoints/inputs/build-prelude.omg` are refreshed as one
-coherent closure; the prelude now retains its public build vocabulary and
-package-identity declaration. The fast gate rejects any later source,
-provenance, prelude, feature-partition, or resource drift until the product
-owner reviews and refreshes that complete evidence set again. The published
-evidence is enough to begin evidence-led bridge work for those facilities only.
+evidence for the pinned source it describes, but its fast gate currently
+rejects compiled-source drift in `source/compiler/omega/psi/lex/lexer.omg`,
+`source/compiler/omega/psi/tokens/tokens.omg`, and `omega/language/std/console.omg`, plus
+provenance drift in `Cargo.lock` and
+`source/compiler/rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs`.
+That stages provider also differs from the pinned
+`source/compiler/omega/source-checkpoints/inputs/build-prelude.omg` snapshot. It must not be
+presented as the current coherent product closure until the product owner
+refreshes the manifest and profile together. The published evidence is enough
+to begin evidence-led bridge work for those facilities only.
 It supplies no evidence for
 later parser, checker, terminal-Psi, optimizer, or emitter source needs, and it
 does not settle typed semantics, ABI/layout, lowering, or bridge cost for the
@@ -396,11 +408,10 @@ establishes the implementation and assurance cost.
 | executable termination/ranking clauses | measure | do not conflate ranking evidence used by compiler control flow with the excluded proof surface; checkpoint 000001 already uses one ranking clause |
 | dependent types and proof-indexed data/control | avoid in new compiler source; presumptively exclude | same source-need and total-cost test; implementing these features for user programs is not itself a reason to use them in compiler implementation code |
 | ordinary ownership, linearity, and multiplicity | measure | distinguish routine resource discipline from dependent/proof-indexed typing; retain the ordinary form when avoiding it requires profile exceptions, unsafe encodings, or pervasive manual bookkeeping |
-| concrete literal scalar ranges | measure | checkpoint 000001 uses them for fixed-buffer lengths and indexing without dependent bounds; compare a general full-width representation with narrow checked helpers while keeping authored bounds and unrelated carriers separate |
+| concrete literal scalar ranges | measure | checkpoint 000001 uses them for fixed-buffer lengths and indexing without dependent bounds; the first Delta checker probe closes endpoints through 65,536 but its signed-`i32` carrier explicitly leaves larger `u32` endpoints unsupported; compare full-width representation with narrow checked helpers |
 | explicit exact `u8 as u32 in Trapping` | presumptively retain; selected lower-rooted cost closed | checkpoint 000001 contains 22 pure widening casts; OMGLOWB/CKIR10 and OMGRFN12 close the compositional pure-leaf relation, exact payload preservation, least-OMGRSW1/2/3 production, conservative `movzx` emission, and immutable R1–R5 reconstruction without adding a resolver schema; this does not authorize the checkpoint's direct `u32` uses against `u64` interfaces |
-| concrete `u32 in Trapping` leaf-plus-literal addition | presumptively retain; selected lower-rooted cost closed | checkpoint 000001 has 104 authored additions, of which 78 are direct canonical trapping-u32 leaf-plus-anonymous-literal forms; OMGLOWC/CKIR11 and OMGRFN13 close assignment, guard, call, and transition-argument contexts, least-OMGRSW1/2/3 production, successful near-limit meaning, runtime overflow traps, conservative emission, and immutable R1–R5 reconstruction; CKIR11 itself still stops at 2147483647, and literal-left, nested, other-carrier/policy, and calls with multiple potentially observable arguments remain outside this relation |
-| pure same-carrier full-width `u32 in Trapping` `+`, `-`, and `*` composition | measure from the current CKIR12/OMGRFN14 frontier | the two-, three-, and four-byte UTF-8 decode trees contain exactly nine subtraction, six multiplication, and six addition nodes; six subtraction results feed multiplication and three feed addition. Close these as one bounded recursive relation with ordinary precedence, left association, parentheses, operation-by-operation trapping, and inherited CKIR12 view composition—not as exact-expression or statement-context permutations. Their operands are pure field/literal values, so non-normative sibling evaluation order is unobservable; effectful operands and calls with observably ordered trapping arguments remain excluded |
-| remaining concrete Trapping arithmetic and casts | measure | outside those UTF-8 trees checkpoint 000001 retains six subtraction nodes, other nonselected additions and cursor/scalar arithmetic, plus 12 proof-gated narrowing or other casts; compare complete ordinary rules with narrow checked helpers, and keep implicit widening, heterogeneous comparison, signed conversion, unrelated full-width carriers, and unresolved `u32` index/cursor versus `u64` interfaces outside the closed relations |
+| concrete `u32 in Trapping` leaf-plus-literal addition | presumptively retain; selected lower-rooted cost closed | checkpoint 000001 has 104 authored additions, of which 78 are direct canonical trapping-u32 leaf-plus-anonymous-literal forms; OMGLOWC/CKIR11 and OMGRFN13 close assignment, guard, call, and transition-argument contexts, least-OMGRSW1/2/3 production, successful near-limit meaning, runtime overflow traps, conservative emission, and immutable R1–R5 reconstruction; the bridge carrier currently stops at 2147483647, and literal-left, nested, other-carrier/policy, and calls with multiple potentially observable arguments remain outside this relation |
+| remaining concrete Trapping arithmetic and casts | measure | checkpoint 000001 retains nonselected additions, cursor and UTF-8/scalar arithmetic, plus 12 proof-gated narrowing or other casts; compare complete ordinary rules with narrow checked helpers, and keep implicit widening, heterogeneous comparison, signed conversion, the full public `u32` range, and unresolved `u32` index/cursor versus `u64` interfaces outside the closed relations |
 | same-carrier primitive `<` and `<=` | presumptively retain; selected private-IR cost closed | CKIR1/CKIR3 carry exact unsigned carrier-compatible `u8`/`u32` comparisons and Boolean results; broader operands, `u64`, cross-carrier conversion, and observable operand effects remain separate |
 | exact primitive `==` | presumptively retain; selected lower-rooted cost closed | checkpoint 000001 has 63 authored equality tokens—60 same-carrier `u32`, one same-carrier `u8`, one unresolved `u32`/slice-`u64`, and one payload-free-sum case—plus equality introduced by normalized transition guards; OMGLOW9/CKIR8 and OMGRFN10 close exact `bool` and same-carrier `u8`/`u32` scalar equality without claiming structural, sum, `!=`, `u64`, or cross-carrier equality |
 | same-carrier primitive `>` and `>=` | presumptively retain; selected lower-rooted cost closed | checkpoint 000001 has 34 same-carrier `u32 >=` uses and one same-carrier `u32 >` use; OMGLOWA/CKIR9 and OMGRFN11 close exact unsigned same-carrier `u8`/`u32` authored-order operations, source/CKIR meaning, conservative SETA/SETAE emission, and immutable R1–R5 composition without swapping operands or inventing an upper-bound fact; two slice-length `u64 >` uses, cross-carrier conversion, effectful operands, and general transition-fact refinement remain outside this selected relation |
@@ -411,8 +422,8 @@ establishes the implementation and assurance cost.
 | borrowed slices and byte-string literals | presumptively retain; selected static shared-view cost closed | checkpoint 000001 uses shared `&[u8]`, mutable `&mut [u8]`, `.len`, guarded indexing, tail subslicing, and differently sized keyword literals; OMGRSW4/CKIR12/OMGRFN14 close exact 0–32-byte plain-ASCII literals, immutable descriptor transport, `.len > 0`, `[0]`, and `[1..]` with a deferred nonempty true edge; compare the remaining general facility with fixed-buffer-plus-span duplication while keeping mutable/dynamic views, allocation, UTF-8, general indexing, and the `u32` cursor versus `u64` interface ruling separate |
 | payload-bearing enums/sum data | presumptively retain | compare direct syntax/IR modeling with separate explicit-tag records; splitting is a cost option, not a prior ruling |
 | state machines, state parameters, mutation, calls, and explicit result fields | presumptively retain for the observed finite forms | checkpoint 000001 expresses every lexical loop with this surface; widen from the closed finite call tranches compositionally, while continuing to exclude observable argument-order combinations and implicit branching value results until their separate rules are settled |
-| boundary traits, target-qualified/bodyless machines, `satisfies`, and compiler-intrinsic realizations | measure the exact sealed product forms; one resolution-only cost slice closed | checkpoint 000001 contains one boundary trait, 20 target-qualified machines, 18 `satisfies` clauses, 16 bodyless leaves, and 16 compiler-intrinsic realizations; OMGRSW6 closes one exact public requirement/reach, same-module bodyless realization, target applicability, payload-free intrinsic candidate, and call-to-requirement through independent/native/self/Rust-free resolution evidence, without importing general boundary traits into Delta's separately sealed host interface or establishing complete conformance for the six-requirement product `Console` |
-| static provider path arguments and default selection | measure from checkpoint 000001; exact structural and resolution-only candidate carriers closed | OMGCOMP2 binds exact Linux-x86-64/native-provider custody, while OMGRSW6 resolves its distinct reduced source graph through candidate discovery and an explicit `selection: null`; real `Console` has six requirements, so this cannot prove a complete product plan, and the product's current `Owner::provider_defaults` declaration convention still needs a normative source ruling or refactor to specified `Build::select_provider`; replacement-cohort closure after completed selection is specified, but selection, catalog acceptance, executable realization, lowering, admission, and authority remain open |
+| boundary traits, target-qualified/bodyless machines, `satisfies`, and compiler-intrinsic realizations | measure the exact sealed product forms | checkpoint 000001 contains one boundary trait, 20 target-qualified machines, 18 `satisfies` clauses, 16 bodyless leaves, and 16 compiler-intrinsic realizations; price that product source cluster without importing general boundary traits into Delta's separately sealed host interface; a one-requirement fixture measures the relation but does not establish complete conformance for the six-requirement product `Console` |
+| static provider path arguments and default selection | measure from checkpoint 000001; exact structural carrier closed | OMGCOMP2 binds an exact Linux-x86-64/native-provider two-package, three-source fixture while leaving provider spellings opaque; its reduced `Console` has only `exit_process`, so it cannot prove the complete product provider plan, and the product's current `Owner::provider_defaults` declaration convention still needs a normative source ruling or refactor to the specified `Build::select_provider` form; semantic selection, realization, lowering, admission, and authority remain open, and the checkpoint is not evidence for general generics |
 | basic generic declarations and calls | presumptively retain when used; not yet observed | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication; require a later checkpoint with actual declarations before implementing or admitting the general bridge surface |
 | generated ordinary-Omega data and pinned generators | presumptively retain closure rules | checkpoint 000001 imports generated Unicode range arrays; bind generated source, generator, and external data as deterministic inputs while treating the arrays as ordinary admitted Omega rather than a private compiler exception |
 | concrete domains and domain arithmetic | presumptively retain when used; not yet observed | retain ordinary named domains when a later checkpoint uses them to keep arithmetic or compiler contexts regular; compare unusually broad domain machinery with explicit contexts and narrow operations |
@@ -456,8 +467,7 @@ gates rather than being repeated in this decision document.
 | explicit exact pure-leaf `u8 as u32 in Trapping` | CKIR10 and OMGRFN12 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V10.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V10.md) and [`OMGCOMP_REFINEMENT_WITNESS_V12.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V12.md) |
 | canonical `u32 in Trapping` leaf-plus-anonymous-literal addition | CKIR11 and OMGRFN13 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V11.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V11.md) and [`OMGCOMP_REFINEMENT_WITNESS_V13.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V13.md) |
 | program-static shared byte views with a guarded head and one-byte tail | OMGRSW4, OMGLOWD/CKIR12, conservative backend, and OMGRFN14 R1–R5 | [`OMEGA_BOOTSTRAP_RESOLUTION_V4.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V4.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V12.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V12.md), and [`OMGCOMP_REFINEMENT_WITNESS_V14.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V14.md) |
-| one exact boundary requirement, applicable bodyless intrinsic candidate, and call-to-requirement | OMGCOMP2 custody plus OMGRSW6 independent exact-byte, native/self, negative/resource, and Rust-free resolution evidence; candidate remains unselected | [`OMEGA_BOOTSTRAP_COMPILATION_V2.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V2.md) and [`OMEGA_BOOTSTRAP_RESOLUTION_V6.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V6.md) |
-| generated ordinary-Omega source custody for the exact Unicode tuple | sealed locked/offline two-run reproduction, generic provenance roles, bounded/no-publication teeth, exact OMGCOMP1 source extent, and CKIR3/OMGRFN4 preflight composition | [`OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md); checkpoint 000001 is refreshed, while an explicit bridge-to-checkpoint composition over the same tuple remains open |
+| generated ordinary-Omega source custody for the exact Unicode tuple | sealed locked/offline two-run reproduction, generic provenance roles, bounded/no-publication teeth, exact OMGCOMP1 source extent, and CKIR3/OMGRFN4 preflight composition | [`OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md); the product-owned checkpoint refresh over the same tuple remains open |
 
 Every row is implementation-and-assurance cost evidence for a selected slice.
 No row admits a facility to final `Ωself`, claims general checkpoint coverage,
@@ -474,21 +484,15 @@ None grants source semantics, provider selection, the independently expected
 commitment, or accepted-lock authority; that join remains an external
 compilation-authority dependency rather than an `Ωself` feature.
 
-The distinct OMGRSW6 fixture deliberately reduces `Console` to one requirement.
-It closes a bounded requirement/realization/call-resolution witness while
-retaining candidate and call as separate identities and publishing no selection.
-The real standard-library trait contains six requirements and selection admits
-only a complete candidate, so the fixture cannot establish product provider
-closure by itself. In addition, the language guide specifies explicit
+The OMGCOMP2 provider fixture deliberately reduces `Console` to one requirement.
+It may support a bounded requirement/realization/call-resolution witness, but
+the real standard-library trait contains six requirements and selection admits
+only a complete candidate. The fixture therefore cannot establish product
+provider closure by itself. In addition, the language guide specifies explicit
 `Build::select_provider<Service, Provider>` overrides and target-package
 defaults, but not the current product source's `Owner::provider_defaults`
 declaration convention. Bootstrap work must preserve that distinction instead
 of elevating Rust on-ramp recognition rules into Omega semantics.
-The language guide's replacement-cohort rule does settle what happens after a
-selection: executable conformances and concrete runtime identities pull fused
-consumers into one transitive cohort, while independent replacement crosses an
-independently selected boundary requirement. It does not define this legacy
-default declaration, its target scope, or its precedence.
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,
