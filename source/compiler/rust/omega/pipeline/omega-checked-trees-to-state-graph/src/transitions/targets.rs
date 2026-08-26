@@ -270,7 +270,49 @@ fn is_local_transition_path(
     program: &CheckedTrees,
 ) -> Result<bool, Diagnostic> {
     if path.len() == 1 {
-        return Ok(true);
+        let name = &path[0];
+        let states = program.machine_states(source_machine);
+        let entry_symbol = states.first().map(|state| state.symbol);
+
+        // A free machine's bare self-transition names the machine while its
+        // implicit body state is named `entry`. Preserve that exact loop-back
+        // carrier, including the resolver form that retains the entry-state
+        // symbol as the final coordinate.
+        if machine_targets_own_entry(source_machine, name)
+            && (head_symbol == source_key.machine
+                || target_symbol == source_key.machine
+                || Some(target_symbol) == entry_symbol)
+        {
+            return Ok(true);
+        }
+
+        // Every other one-member transition must identify one state owned by
+        // this machine. A valid foreign target is a call-shaped spelling of a
+        // different machine, not a local jump; leave it non-local so the
+        // unsupported-transition diagnostic rejects it instead of repairing
+        // it through the caller's state namespace.
+        if target_symbol.is_valid() {
+            let mut owned = states
+                .iter()
+                .filter(|state| state.symbol == target_symbol && state.name == *name);
+            let exact = owned.next();
+            if exact.is_none() || owned.next().is_some() {
+                return Ok(false);
+            }
+            let cross_owned = program.machines().iter().any(|candidate| {
+                candidate.symbol != source_machine.symbol
+                    && program
+                        .machine_states(candidate)
+                        .iter()
+                        .any(|state| state.symbol == target_symbol)
+            });
+            return Ok(!cross_owned);
+        }
+
+        // Preserve the legacy invalid-symbol fallback only when the spelling
+        // itself selects one unambiguous local state.
+        let mut named = states.iter().filter(|state| state.name == *name);
+        return Ok(named.next().is_some() && named.next().is_none());
     }
     if path.len() != 2 || path[0].as_str() != "self" {
         return Ok(false);
@@ -700,6 +742,72 @@ mod tests {
                 .expect("exact local call"),
             ),
             transition.segments[1].key
+        );
+    }
+
+    #[test]
+    fn one_member_foreign_free_machine_transition_is_not_repaired_as_local() {
+        const FREE_MACHINE: usize = 5;
+        const FREE_STATE: usize = 6;
+
+        let mut program = CheckedTrees::default();
+        push_machine(
+            &mut program,
+            symbol(FREE_MACHINE),
+            "scan",
+            None,
+            &[(symbol(FREE_STATE), "entry")],
+        );
+        push_machine(
+            &mut program,
+            symbol(SOURCE_MACHINE),
+            "validate",
+            None,
+            &[
+                (symbol(SOURCE_STATE), "entry"),
+                (symbol(TARGET_STATE), "reject"),
+            ],
+        );
+        let segments = vec![
+            segment(SOURCE_MACHINE, SOURCE_STATE, 0, "entry"),
+            segment(SOURCE_MACHINE, TARGET_STATE, 0, "reject"),
+        ];
+        let source_key = segments[0].key;
+        let target = named_target(
+            &mut program,
+            &["scan"],
+            symbol(FREE_MACHINE),
+            symbol(FREE_STATE),
+        );
+
+        let message = error_message(plan_transition_target(
+            source_key, &segments, target, &program,
+        ));
+        assert!(message.contains("unsupported transition target `scan`"));
+        assert!(!message.contains("exact local target state is missing"));
+    }
+
+    #[test]
+    fn invalid_symbol_one_member_transition_keeps_unique_local_name_fallback() {
+        let mut fixture = target_fixture();
+        let target = named_target(
+            &mut fixture.program,
+            &["next"],
+            SymbolHandle::invalid(),
+            SymbolHandle::invalid(),
+        );
+
+        assert_eq!(
+            state_target_key(
+                plan_transition_target(
+                    fixture.source_key,
+                    &fixture.segments,
+                    target,
+                    &fixture.program,
+                )
+                .expect("one unique local spelling remains a local transition"),
+            ),
+            fixture.segments[1].key
         );
     }
 

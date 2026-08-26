@@ -1,0 +1,19 @@
+// A named transition is a jump within the current machine. Calling another
+// free machine requires value-call syntax, including parentheses in a
+// transition arm. Keep the misuse on the hard root so state-graph lowering
+// cannot prune the source machine before diagnosing its target ownership.
+
+target macos_arm64 {
+}
+
+machine scan(value: u64) {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    transition {
+        _ -> scan(1)
+    }
+}

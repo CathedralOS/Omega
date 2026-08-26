@@ -95,7 +95,10 @@ preservation:
   contract, value, boundary, borrow, ownership, effect, operation, and transition summaries.
 - `transitions.rs` assembles graph transition edges, guards, and transition
   expression refs. `transitions/targets.rs` owns transition/call target
-  resolution and continuation segment lookup.
+  resolution and continuation segment lookup. A one-member named transition is
+  local only when its exact symbol is the source machine's entry or one unique
+  source-owned state; a foreign free-machine name is call-shaped and rejects as
+  an unsupported jump instead of entering local-state repair.
 - `contracts.rs`, `borrows.rs`, and `facts.rs` preserve checked evidence in
   graph-shaped summaries; they should not revalidate proof or borrow legality.
   `contracts/summary.rs` owns state-local contract summary construction, while
