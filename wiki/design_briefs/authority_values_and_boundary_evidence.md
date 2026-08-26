@@ -490,6 +490,15 @@ returns every lease on failure. Only the resulting non-clonable cohort may feed
 the later runtime establishment transition; a closure, prebinding, mutable
 count, compact identity, or individually acquired lease cannot do so.
 
+The real source-to-verified-Terminal installation canary now exercises that
+transaction across an epoch change. Two epoch-10 members become stale when
+epoch 20 publishes; sealing returns the exact source-derived prebindings, root
+borrows, and leases without consuming their schemas. After releasing those
+holds, fresh epoch-20 leases seal and complete the handoff. Exactly two lineage
+accounts are established, and both artifact audit origins retain the original
+schema identity with epoch 20. The test does not mint replacement schemas or
+recover lifetime capacity from the retired epoch.
+
 The selected provider schema retains the canonical carrier of each routed
 entry claim separately from both the complete qualified parameter type and the
 domain identity. Installation joins that carrier directly to the verified
