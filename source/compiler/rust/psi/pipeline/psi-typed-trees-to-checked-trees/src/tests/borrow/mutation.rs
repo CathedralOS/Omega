@@ -632,6 +632,124 @@ fn write_only_nested_fixed_byte_element_call_retains_fields_and_exact_index() {
 }
 
 #[test]
+fn write_only_nested_dynamic_byte_call_retains_fields_and_collection_coarse_index() {
+    let source = r#"
+        data Inner {
+            bytes: [u8; 4];
+            spare: u8;
+        }
+
+        data Outer {
+            inner: Inner;
+            other: Inner;
+        }
+
+        machine fill(outer: &write Outer, index: u64 [0..=3]) {
+            outer.inner.bytes[index] = 7;
+        }
+
+        machine forward(outer: &write Outer, index: u64 [0..=3]) {
+            fill(&write outer, index);
+        }
+    "#;
+
+    let tokens = psi_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved =
+        psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let program = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type");
+    let outer = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Outer")
+        .expect("Outer definition");
+    let inner_field_symbol = program
+        .data_members(outer)
+        .iter()
+        .find_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field) if field.name.as_str() == "inner" => {
+                Some(field.symbol)
+            }
+            _ => None,
+        })
+        .expect("Outer.inner field");
+    let inner = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Inner")
+        .expect("Inner definition");
+    let bytes_field_symbol = program
+        .data_members(inner)
+        .iter()
+        .find_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field) if field.name.as_str() == "bytes" => {
+                Some(field.symbol)
+            }
+            _ => None,
+        })
+        .expect("Inner.bytes field");
+    let forward = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward")
+        .expect("forward machine");
+    let forward_state = program
+        .machine_states(forward)
+        .first()
+        .expect("forward entry state");
+    let outer_symbol = program
+        .state_parameters(forward_state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "outer")
+        .map(|parameter| parameter.symbol)
+        .expect("forward outer parameter");
+
+    let facts = build_borrow_facts(&program);
+    let borrow_state = facts
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| state.state_symbol == forward_state.symbol)
+        .expect("forward borrow state");
+    let call = facts
+        .calls
+        .span_or_empty(borrow_state.calls)
+        .first()
+        .expect("forwarding call");
+    let mut cache = StateMutationSummaryCache::default();
+    let places = call_mutated_places(
+        &program,
+        forward.symbol,
+        forward_state.symbol,
+        &facts,
+        call,
+        &mut cache,
+    );
+
+    assert_eq!(places.len(), 1, "nested dynamic callee write: {places:?}");
+    assert_eq!(places[0].root, psi_facts::PlaceRoot::Symbol(outer_symbol));
+    assert_eq!(places[0].segments.len(), 3, "exact nested path: {places:?}");
+    assert_eq!(
+        places[0].segments[..2],
+        [
+            psi_facts::PlaceSegment::Field {
+                symbol: inner_field_symbol,
+            },
+            psi_facts::PlaceSegment::Field {
+                symbol: bytes_field_symbol,
+            },
+        ]
+    );
+    assert!(
+        matches!(places[0].segments[2], psi_facts::PlaceSegment::Index { .. }),
+        "a dynamic nested index must retain its record path and the runtime-index segment that existing overlap/invalidation treats conservatively as the byte collection: {places:?}"
+    );
+}
+
+#[test]
 fn call_mutated_places_include_mutable_attached_data_arguments() {
     let machine_symbol = SymbolHandle::from_arena_index(1);
     let state_symbol = SymbolHandle::from_arena_index(2);

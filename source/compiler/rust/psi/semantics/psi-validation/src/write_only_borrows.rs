@@ -470,14 +470,11 @@ fn write_only_byte_element_assignment_index(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
     };
-    let (collection_type, nested_record_path) =
+    let collection_type =
         if let Some(root) = direct_write_only_root(program, indexed.collection, roots) {
-            (root.referee, false)
+            root.referee
         } else {
-            (
-                write_only_record_field_type(program, indexed.collection, roots)?,
-                true,
-            )
+            write_only_record_field_type(program, indexed.collection, roots)?
         };
     let length = fixed_byte_array_length(program, collection_type)?;
     match program.expression_table.expression(indexed.index) {
@@ -486,8 +483,7 @@ fn write_only_byte_element_assignment_index(
             let index = usize::try_from(index.value_i64()?).ok()?;
             (index < length).then_some(indexed.index)
         }
-        _ if !nested_record_path => Some(indexed.index),
-        _ => None,
+        _ => Some(indexed.index),
     }
 }
 

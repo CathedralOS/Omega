@@ -127,8 +127,8 @@ fn record_path_fixed_byte_array_out_of_bounds_literal_remains_rejected() {
 }
 
 #[test]
-fn record_path_fixed_byte_array_dynamic_element_remains_rejected() {
-    let rendered = rendered_rejection(
+fn record_path_fixed_byte_array_proven_dynamic_element_is_writable() {
+    lower_typed_trees(typed(
         r#"
             data Inner { bytes: [u8; 4]; }
             data Outer { inner: Inner; }
@@ -137,10 +137,46 @@ fn record_path_fixed_byte_array_dynamic_element_remains_rejected() {
                 outer.inner.bytes[index] = 1;
             }
         "#,
+    ))
+    .expect("a proven in-bounds dynamic byte element behind an eligible record path should lower");
+}
+
+#[test]
+fn record_path_fixed_byte_array_unproved_dynamic_element_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner { bytes: [u8; 4]; }
+            data Outer { inner: Inner; }
+
+            machine fill(outer: &write Outer, index: u64) {
+                outer.inner.bytes[index] = 1;
+            }
+        "#,
     );
     assert!(
-        rendered.contains("unsupported write-only projection")
-            && rendered.contains("proven-in-bounds element of a fixed byte array"),
+        rendered.contains("cannot prove index `index` is within length 4"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn record_path_fixed_byte_array_dynamic_index_observation_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner {
+                bytes: [u8; 4];
+                selected: u8 [0..=3];
+            }
+            data Outer { inner: Inner; }
+
+            machine fill(outer: &write Outer) {
+                outer.inner.bytes[outer.inner.selected] = 1;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("reads field `selected` from write-only parameter `outer`")
+            && rendered.contains("never grants observation"),
         "unexpected diagnostic: {rendered}"
     );
 }

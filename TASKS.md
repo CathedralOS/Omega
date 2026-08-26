@@ -5272,11 +5272,14 @@ Owners:
   fixed byte array. The ordinary mutation summary retains the complete exact,
   ordered field-symbol path; nested array replacement introduces no element or
   range segment. Such an eligible record path may additionally end in one
-  in-bounds literal element of a fixed byte-array leaf. Its checked mutation and
-  caller-visible write frame retain the ordered field symbols followed by the
-  exact `FixedIndex`, so sibling elements remain distinct. Dynamic indexes and
-  ranges through a record path remain fenced, while their admitted direct-root
-  behavior is unchanged. Non-byte arrays, constrained or erased fields, and
+  in-bounds literal or ordinarily proven-in-bounds dynamic element of a fixed
+  byte-array leaf. Its checked mutation and caller-visible write frame retain
+  the ordered field symbols followed by the exact `FixedIndex` for a literal or
+  runtime `Index` for a dynamic expression. Literal siblings remain distinct;
+  existing overlap and invalidation conservatively treat the runtime index as
+  the whole byte-array leaf without losing disjoint record siblings. Ranges
+  through a record path remain fenced, while admitted direct-root behavior is
+  unchanged. Non-byte arrays, constrained or erased fields, and
   non-discardable leaves still reject.
   Whole-record replacement still requires an unrestricted/discardable root.
   Observation, readable
