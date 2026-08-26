@@ -491,6 +491,18 @@ their internal call plan remains authoritative for the call bytes. Missing
 instruction spans and root-ceiling mismatches reject with diagnostics; neither
 can silently omit a private fragment or panic during selection.
 
+The first mutable-local version of that adapter remains deliberately narrower
+than general erased storage. One local may be initialized and reassigned by
+exact direct-place casts only when carrier, trait, named conformance, and the
+complete normalized row map are unchanged. Checked facts retain both statement
+versions; checked-to-state replay reconstructs the assignment and prior row
+identity; the forwarded argument selects the latest prior version. Runtime
+lowering then replaces both words in the exact existing local slot with the new
+instance address and unchanged selected-table address. Direct dispatch through
+the rebound local, a changed or inferred conformance, non-cast assignment,
+control-flow joins, aggregate storage, returns, and component crossing gain no
+authority from this rung.
+
 A bare dynamic parameter retains every eligible complete closed conformance as
 an exact candidate map. Call-site specialization selects from those maps by the
 concrete receiver and routes to each row's retained realization symbol. It does

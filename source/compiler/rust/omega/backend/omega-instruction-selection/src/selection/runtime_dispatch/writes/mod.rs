@@ -181,6 +181,19 @@ pub(super) fn select_runtime_storage_write_for_operation(
         return;
     };
 
+    if super::emit_local_dynamic_conformance_rebind(
+        input,
+        dispatch_index,
+        mutation.source_key,
+        mutation.statement_index,
+        &input.state_storage.expressions,
+        mutation.target,
+        mutation.value,
+        selected_instructions,
+    ) {
+        return;
+    }
+
     if aliases.is_empty() {
         if select_runtime_storage_mutation_write_in_table_with_scratch(
             input,

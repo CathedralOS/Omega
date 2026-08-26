@@ -730,9 +730,16 @@ control save/restore envelope. Private function spans still contribute their
 complete prologue, body, result, and return mechanics to the one root footprint
 certificate. A distinct-instance native canary proves that the relocated table
 slot, rather than a static fallback or a same-type decoy, executes under ASLR.
-Mutable or aggregate erased calls, rebinding, storage, joins, escaping, and
-component crossing remain open. Those consumers use the same complete
-normalized maps.
+One mutable local may now be rebound before that pass-through when both its
+initializer and assignment are exact direct-place casts naming the same
+carrier, trait, conformance, and normalized row map. The compiler retains one
+selection per statement, independently replays the assignment against its
+earlier version, selects the latest version at the forwarding call, and
+overwrites both the instance and table words in the existing local slot. Calling
+a requirement directly through the rebound local remains fenced; forward it to
+the exact bare-dynamic parameter instead. Different-conformance or non-cast
+assignments, aggregate erased calls, storage, joins, escaping, and component
+crossing remain open. Those consumers use the same complete normalized maps.
 Each row retains the declaring trait, requirement, exact satisfier machine,
 default instantiation when applicable, normalized contracts, and selected
 conformance identity.

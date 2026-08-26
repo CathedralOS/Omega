@@ -145,6 +145,21 @@ impl DynamicConformanceFacts {
 }
 
 impl DynamicConformanceBindingFacts {
+    pub fn at_statement(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        binding: SymbolHandle,
+        statement_index: usize,
+    ) -> Option<&DynamicConformanceBindingFact> {
+        self.selections.iter().find(|selection| {
+            selection.machine == machine
+                && selection.state == state
+                && selection.binding == binding
+                && selection.statement_index == statement_index
+        })
+    }
+
     pub fn for_binding(
         &self,
         machine: SymbolHandle,

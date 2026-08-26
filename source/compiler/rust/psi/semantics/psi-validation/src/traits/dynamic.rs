@@ -75,15 +75,6 @@ pub fn collect_dynamic_conformance_selections(
                     unreachable!("dynamic_trait_reference returns a dynamic-trait node")
                 };
                 let target_trait = *target_trait;
-                if local.is_mutable
-                    && dynamic_binding_is_reassigned(program, machine, local.symbol, &local.name)
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "local dynamic binding `{}` is reassigned; physical descriptor lowering is required before mutable dynamic bindings can dispatch",
-                        local.name
-                    )));
-                    continue;
-                }
                 let Some(mut source_place) = dynamic_source_place(program, cast.value) else {
                     diagnostics.push(Diagnostic::error(format!(
                         "local dynamic coercion `{}` requires a direct named or member source place",
@@ -240,6 +231,8 @@ pub fn collect_dynamic_conformance_selections(
         }
     }
 
+    collect_same_conformance_dynamic_rebindings(program, &mut selections, &mut diagnostics);
+
     // Validate pass-through only after the complete local-selection catalog is
     // known. A call may use a selection authored earlier in its state; no
     // visible-conformance search or source-order guess may reconstruct it.
@@ -271,6 +264,168 @@ pub fn collect_dynamic_conformance_selections(
     }
 }
 
+fn collect_same_conformance_dynamic_rebindings(
+    program: &TypedTrees,
+    selections: &mut Vec<DynamicConformanceSelection>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let initial_selections = selections.clone();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                let StatementNode::Assignment(assignment) = statement else {
+                    continue;
+                };
+                let Some(target) = dynamic_source_place(program, assignment.target) else {
+                    continue;
+                };
+                if target.path.len() != 1 {
+                    continue;
+                }
+                let Some(target_symbol) = crate::places::declared_place_leaf_symbol(
+                    program,
+                    machine,
+                    Some(state),
+                    statement_index,
+                    assignment.target,
+                ) else {
+                    if initial_selections.iter().any(|selection| {
+                        selection.machine == machine.symbol
+                            && selection.state == state.symbol
+                            && selection.binding_name == target.name
+                    }) {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "dynamic local rebind `{}` has no exact target declaration identity",
+                            target.name
+                        )));
+                    }
+                    continue;
+                };
+                let Some(initial) = initial_selections.iter().find(|selection| {
+                    selection.machine == machine.symbol
+                        && selection.state == state.symbol
+                        && selection.statement_index < statement_index
+                        && selection.binding == target_symbol
+                }) else {
+                    continue;
+                };
+                let mutable = program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .get(initial.statement_index)
+                    .is_some_and(|statement| {
+                        matches!(
+                            statement,
+                            StatementNode::LocalData(local)
+                                if local.symbol == initial.binding && local.is_mutable
+                        )
+                    });
+                if !mutable {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "dynamic local rebind `{}` requires the exact mutable local declaration",
+                        initial.binding_name
+                    )));
+                    continue;
+                }
+                let occurrence = strip_mutable(program, assignment.value);
+                let ExpressionNode::Cast(cast) = program.expression_table.expression(occurrence)
+                else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "dynamic local rebind `{}` requires an exact direct-place named-conformance cast",
+                        initial.binding_name
+                    )));
+                    continue;
+                };
+                let Some(TypeReferenceNode::DynamicTrait {
+                    symbol: target_trait,
+                    conformance,
+                    ..
+                }) = dynamic_trait_reference(program, cast.target_type)
+                else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "dynamic local rebind `{}` lost its dynamic target type",
+                        initial.binding_name
+                    )));
+                    continue;
+                };
+                if *target_trait != initial.target_trait || *conformance != initial.conformance {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "dynamic local rebind `{}` must retain its exact trait and named conformance",
+                        initial.binding_name
+                    )));
+                    continue;
+                }
+                let Some(mut source_place) = dynamic_source_place(program, cast.value) else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "dynamic local rebind `{}` requires a direct named or member source place",
+                        initial.binding_name
+                    )));
+                    continue;
+                };
+                let Some(source_type) = crate::places::declared_place_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    cast.value,
+                ) else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "dynamic local rebind `{}` has no statically resolved source place type",
+                        initial.binding_name
+                    )));
+                    continue;
+                };
+                let Some(source_symbol) = crate::places::declared_place_leaf_symbol(
+                    program,
+                    machine,
+                    Some(state),
+                    statement_index,
+                    cast.value,
+                ) else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "dynamic local rebind `{}` has no exact source declaration identity",
+                        initial.binding_name
+                    )));
+                    continue;
+                };
+                source_place.symbol = source_symbol;
+                let Some((source_data, _)) = nominal_data_type(program, source_type) else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "dynamic local rebind `{}` requires a concrete nominal data source",
+                        initial.binding_name
+                    )));
+                    continue;
+                };
+                if source_data != initial.source_data {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "dynamic local rebind `{}` must retain the exact source carrier for this rung",
+                        initial.binding_name
+                    )));
+                    continue;
+                }
+                selections.push(DynamicConformanceSelection {
+                    occurrence,
+                    binding: initial.binding,
+                    binding_name: initial.binding_name.clone(),
+                    machine: initial.machine,
+                    state: initial.state,
+                    statement_index,
+                    source_symbol: source_place.symbol,
+                    source_name: source_place.name,
+                    source_path: source_place.path,
+                    source_data,
+                    target_trait: initial.target_trait,
+                    conformance: initial.conformance,
+                });
+            }
+        }
+    }
+}
+
 fn validate_dynamic_call_arguments_in_statement(
     program: &TypedTrees,
     machine: &Machine,
@@ -281,6 +436,18 @@ fn validate_dynamic_call_arguments_in_statement(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if let StatementNode::Call(call) = statement {
+        reject_rebound_dynamic_receiver(
+            machine,
+            state,
+            statement_index,
+            call.receiver_symbol,
+            program
+                .statement_table
+                .name_path_members(call.receiver)
+                .last(),
+            selections,
+            diagnostics,
+        );
         validate_dynamic_call_arguments(
             program,
             machine,
@@ -347,6 +514,19 @@ fn validate_dynamic_call_arguments_in_expression(
         }
         ExpressionNode::Cast(cast) => visit!(cast.value),
         ExpressionNode::Call(call) => {
+            if let Some(receiver) = dynamic_source_place(program, call.receiver)
+                && receiver.path.len() == 1
+            {
+                reject_rebound_dynamic_receiver(
+                    machine,
+                    state,
+                    statement_index,
+                    receiver.symbol,
+                    Some(&receiver.name),
+                    selections,
+                    diagnostics,
+                );
+            }
             validate_dynamic_call_arguments(
                 program,
                 machine,
@@ -385,6 +565,37 @@ fn validate_dynamic_call_arguments_in_expression(
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn reject_rebound_dynamic_receiver(
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    binding: psi_symbols::SymbolHandle,
+    binding_name: Option<&Identifier>,
+    selections: &[DynamicConformanceSelection],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let versions = selections
+        .iter()
+        .filter(|selection| {
+            selection.machine == machine.symbol
+                && selection.state == state.symbol
+                && selection.statement_index < statement_index
+                && if binding.is_valid() {
+                    selection.binding == binding
+                } else {
+                    binding_name.is_some_and(|name| selection.binding_name == *name)
+                }
+        })
+        .count();
+    if versions > 1 {
+        diagnostics.push(Diagnostic::error(format!(
+            "direct call through rebound dynamic local `{}` remains fenced; forward the descriptor to an exact bare-dynamic parameter",
+            binding_name.map(Identifier::as_str).unwrap_or("<dynamic>")
+        )));
     }
 }
 
@@ -867,34 +1078,6 @@ fn dynamic_source_place(
         }
         _ => None,
     }
-}
-
-fn dynamic_binding_is_reassigned(
-    program: &TypedTrees,
-    machine: &psi_typed_trees::machine::Machine,
-    binding: psi_symbols::SymbolHandle,
-    binding_name: &Identifier,
-) -> bool {
-    program.machine_states(machine).iter().any(|state| {
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .any(|statement| {
-                let StatementNode::Assignment(assignment) = statement else {
-                    return false;
-                };
-                let Some(target) = dynamic_source_place(program, assignment.target) else {
-                    return false;
-                };
-                target.path.len() == 1
-                    && if binding.is_valid() && target.symbol.is_valid() {
-                        target.symbol == binding
-                    } else {
-                        target.name == *binding_name
-                    }
-            })
-    })
 }
 
 /// Explain why one requirement is absent from a local `dyn Trait` surface.

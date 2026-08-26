@@ -8746,9 +8746,20 @@ checked-result arithmetic decision listed below.
   than panicking or omitting evidence. Mach-O publishes loader rebase opcodes
   for the exact typed data-to-private-function `Absolute64` sites and replays
   their preferred pointers before publication, so a distinct-instance native
-  canary truly executes the relocated table slot under ASLR. Mutable or
-  aggregate erased calls, plus rebound, stored, joined, escaping, or component-
-  crossing descriptors, remain open engineering rungs.
+  canary truly executes the relocated table slot under ASLR. The first mutable
+  rebind rung is now live for one local initialized and reassigned by exact
+  direct-place casts naming the same carrier, trait, conformance, and normalized
+  row map, then forwarded to that bare-dynamic parameter. Selection facts are
+  statement-versioned; recast validation blesses only the exact admitted
+  assignment RHS; checked-to-state replay reconstructs the target, cast, and
+  prior selection; and call planning selects the latest prior version.
+  Instruction selection writes a fresh instance address and the unchanged exact
+  table address into the existing two-word local slot before generic mutation
+  handling. A decoy-to-selected native canary proves that the reassigned
+  instance, not stale initializer state, reaches the indirect slot on both
+  Linux targets. Direct calls through the rebound local, a changed conformance
+  or carrier, non-cast assignments, aggregate erased calls, stored/joined/
+  escaping descriptors, and component crossing remain fail closed.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
   realizations.** Complete hermetic evaluation with crash refinement, target
   capsule, separate result/usage identities, deterministic progress, and
