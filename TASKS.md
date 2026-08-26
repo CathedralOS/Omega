@@ -124,7 +124,13 @@ Remaining:
   hand-edit only the first mismatch. Also replace
   `apps/omega-compiler/build.omg`'s legacy `target ... {}` blocks with the
   ordinary `Build` target-selection form already required by the build/extern
-  design, then publish a new source checkpoint if that changes the closure.
+  design. Resolve the target-package default source convention at the same
+  boundary: the current `Owner::provider_defaults(defaults: &mut Owner)`
+  declarations are recognized by Rust suffix convention but are not specified
+  as general Omega syntax. Either express those defaults through the normative
+  `Build::select_provider<Service, Provider>` surface or publish the exact
+  declaration, receiver, target-scope, and duplicate/default precedence rules.
+  Then publish a new source checkpoint if those changes alter the closure.
 
   The lexical claim is design-blocked at explicit specification conflicts. The
   current Omega-written lexer accepts Unicode XID identifiers despite the
