@@ -20,7 +20,7 @@ not insert another language into this progression:
 Delta compiler source ──[Delta→Gamma + Gamma execution]──▶ delta compiler
 Delta bridge source ──[delta compiler]───────────────────▶ omega-bootstrap (accepts Ωself)
 Ωself source ──[omega-bootstrap]──▶ omega (implements full Ω)
-Ωself source ──[optional omega]───▶ omega (same compiler, optimized binary)
+same Ωself source ──[optional omega]───▶ omega (same compiler, optimized binary)
 ```
 
 The first line is the actual `Gamma → Delta` construction, not merely a
