@@ -991,6 +991,51 @@ fn rejects_direct_mutable_borrow_while_helper_alias_is_active() {
 }
 
 #[test]
+fn accepts_adjacent_mutable_windows_with_one_symbolic_half_open_boundary() {
+    let source = r#"
+        data Main { items: [i32; 4]; }
+
+        machine Main::split(&mut self) -> u64 {
+            let mid: u64 = 2;
+            let cut: u64 = mid;
+            let left: &mut [i32] = self.items[0..cut];
+            let right: &mut [i32] = self.items[mid..4];
+            left.len + right.len
+        }
+    "#;
+
+    check_program(source)
+        .expect("the exact shared symbolic boundary proves half-open window adjacency");
+}
+
+#[test]
+fn changing_symbolic_window_start_to_zero_restores_overlap_rejection() {
+    let source = r#"
+        data Main { items: [i32; 4]; }
+
+        machine Main::split(&mut self) -> u64 {
+            let mid: u64 = 2;
+            let cut: u64 = mid;
+            let left: &mut [i32] = self.items[0..cut];
+            let right: &mut [i32] = self.items[0..4];
+            left.len + right.len
+        }
+    "#;
+
+    let diagnostics = check_program(source)
+        .expect_err("changing the second start from `mid` to `0` makes the windows overlap");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("creates local borrow `right` while local borrow `left` is still active"),
+        "expected the exact symbolic-bound mutation conflict, got:\n{combined}"
+    );
+}
+
+#[test]
 fn rejects_local_borrow_creation_while_prior_alias_is_active() {
     let source = r#"
         data Main {
