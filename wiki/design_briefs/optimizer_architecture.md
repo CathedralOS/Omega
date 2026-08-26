@@ -158,7 +158,10 @@ canonical Terminal Psi semantic + proof sections
          retained ValidatedOptimizedAbstractPlan,
          exact native target }
     -> instruction selection / target combines
-    -> current transitional bounded scratch assignment
+       -> selected CFG liveness, live ranges, physical-view legality
+          -> bounded transition-free physical-home assignment
+             (custody-only branch; stops before emission)
+       -> current transitional bounded scratch assignment
     -> StagedOptimizedAssignedOperations
        { current assigned plan (borrowed access only),
          retained ValidatedOptimizedTargetOperations,
@@ -212,6 +215,23 @@ target/native realization identity. A domain-separated projection identity
 binds all of those fields plus the independent validator identity, so later
 custody and manifest joins cannot name only the optimizer-authored bundle while
 silently losing the translation validator.
+
+The first register-allocation slice follows the same custody discipline. It
+derives exact physical-view candidates from the selected CFG, target register
+environment, reservations, architectural state, and fixed operand sites. Its
+bounded home assigner is deterministic and may run only when every VReg has at
+least one common legal view at every occupied point, no fixed-view transition
+remains, and no spill is needed. It uses exact VReg interference and complete
+storage/write footprints to prevent conflicting homes, while allowing
+mutually-exclusive leaf values to reuse a view. Production and independent
+replay both bind the legality, range, and register-environment identities.
+
+This is not yet the general allocator and grants no copy insertion, splitting,
+spill, frame, emission, or publication authority. An incompatible ABI-entry to
+fixed-return view remains an explicit transition error. The next named
+transformation must materialize copies or splits in the selected CFG, preserve
+their exact provenance and fuel custody, and rerun liveness, ranges, and
+legality before home assignment.
 
 The carrier exposes the projected abstract plan only by borrow while retaining
 the verified input and complete optimization run. A second optimized-only

@@ -63,11 +63,13 @@ and environment roots, reconstructs every occupied unit and candidate set,
 reconstructs transition rows, rejects reordering or empty/superset candidates,
 and recomputes a domain-separated identity.
 
-Virtual interference remains a separate range fact and will constrain the
-allocator's simultaneous choices. General fixed-to-fixed path analysis,
-copy/split insertion, calls, ties, early clobbers, providers, spills, and frame
-assignment remain unsupported. No result from this stage can enter machine
-emission.
+Virtual interference remains a separate range fact and constrains the
+allocator's simultaneous choices. The bounded downstream register-home stage
+consumes this artifact only when every VReg has a shared legal view across all
+of its points and there are no transition requirements. General fixed-to-fixed
+path analysis, copy/split insertion, calls, ties, early clobbers, providers,
+spills, and frame assignment remain unsupported. No result from this stage can
+enter machine emission.
 
 ## Implementation Map
 

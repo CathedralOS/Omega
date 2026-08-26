@@ -6,13 +6,18 @@
 //! by `omega-register-model` and remains re-exported for compatibility. The
 //! production analyses compute and independently validate bounded
 //! selected-instruction liveness, block-local live-range fragments, and
-//! virtual-register interference. They perform no allocation.
+//! virtual-register interference. A later bounded lane assigns deterministic
+//! physical homes only for transition-free, spill-free inputs.
 
 mod allocation_legality_compute;
 mod allocation_legality_identity;
 mod allocation_legality_model;
 mod allocation_legality_validate;
 mod compute;
+mod home_assignment_compute;
+mod home_assignment_identity;
+mod home_assignment_model;
+mod home_assignment_validate;
 mod identity;
 mod live_range_compute;
 mod live_range_identity;
@@ -24,6 +29,9 @@ mod validate;
 pub use allocation_legality_identity::terminal_allocation_legality_identity;
 pub use allocation_legality_model::*;
 pub use allocation_legality_validate::validate_terminal_allocation_legality;
+pub use home_assignment_identity::terminal_register_home_identity;
+pub use home_assignment_model::*;
+pub use home_assignment_validate::validate_terminal_register_homes;
 pub use identity::terminal_liveness_identity;
 pub use live_range_identity::terminal_live_range_identity;
 pub use live_range_model::*;
@@ -77,6 +85,40 @@ pub fn analyze_terminal_allocation_legality(
         selected_keys,
     )?;
     validate_terminal_allocation_legality(
+        ranges,
+        register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+        plan,
+    )
+}
+
+/// Assign deterministic physical views for the bounded transition-free lane.
+/// Unresolved fixed-view transitions and pressure requiring spills reject.
+/// The result grants no instruction-emission or publication authority.
+#[allow(clippy::too_many_arguments)]
+pub fn assign_terminal_register_homes(
+    legality: &ValidatedTerminalAllocationLegality,
+    ranges: &ValidatedTerminalLiveRanges,
+    register_environment: TargetRegisterEnvironmentIdentity,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    reservations: &ValidatedRegisterReservationProfile,
+    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+) -> Result<ValidatedTerminalRegisterHomes, TerminalRegisterHomeError> {
+    let plan = home_assignment_compute::compute_terminal_register_homes(
+        legality,
+        ranges,
+        register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+    )?;
+    validate_terminal_register_homes(
+        legality,
         ranges,
         register_environment,
         physical,
