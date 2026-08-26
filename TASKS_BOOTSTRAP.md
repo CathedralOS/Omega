@@ -243,6 +243,11 @@ declaration graph.
 The language guide specifies exact nominal provider selection and says target
 packages contribute defaults, but it does not specify the product source's
 current `Owner::provider_defaults(defaults: &mut Owner)` declaration convention.
+It now also specifies that runtime-bearing conformance and concrete
+implementation selections close replacement cohorts transitively, while an
+independently replaceable crossing must use an independently selected boundary
+requirement. That settles the cohort effect of a completed selection; it does
+not settle how this product-only default declaration creates or overrides one.
 The Rust on-ramp recognizes that name suffix and scans the body for
 `select_provider`; that implementation convention is not language authority.
 The product owner must either rewrite target defaults into an already-normative
@@ -358,7 +363,7 @@ beside the linked contracts:
 | multi-unit structural custody | closed for generic `OMGCOMP1` and the exact Linux-x86-64/native-provider configuration in `OMGCOMP2`; bounded Delta SHA-256 closes exact raw-envelope hashing through the public ceiling, while source/provider spellings remain opaque and no expected commitment, resolver/lock, or digest authority follows | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md), [`OMEGA_BOOTSTRAP_COMPILATION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V2.md), [`OMEGA_BOOTSTRAP_SHA256.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_SHA256.md) |
 | source resolution | bounded compositional relations are closed for the selected checkpoint facilities; least-version behavior, canonical identities, and refusal/resource boundaries are gated | versioned `OMEGA_BOOTSTRAP_RESOLUTION*.md` contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
 | checked lowering and composition | bounded compositional relations are closed for selected data, control, scalar, and view facilities, with inherited behavior and conservative traps retained across versions | versioned `OMEGA_BOOTSTRAP_CHECKED_IR*.md` and backend contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
-| lower-rooted artifact reconstruction | independent R1–R5 owners reconstruct the currently selected source/checked-IR/artifact relations; each version remains bounded by its own contract | [`omega-bootstrap` refinement status](bootstrap/assurance/refinement/omega-bootstrap/README.md) and its versioned witness contracts |
+| lower-rooted artifact reconstruction | independent persisted-Beta R1–R5 owners reconstruct admitted source/checked-IR/artifact relations through OMGRFN14; OMGRFN15 currently freezes only a non-admitting candidate frame/reference seam | [`omega-bootstrap` refinement status](bootstrap/assurance/refinement/omega-bootstrap/README.md) and its versioned witness contracts |
 | compilation authority | externally gated: recheckable package evidence and accepted-lock schema are ruled, but their bounded accepted-closure projection plus exact envelope SHA-256 join is not yet published | compilation and witness contracts above |
 
 None of these bounded closures admits a source family to final `Ωself` or
@@ -380,7 +385,7 @@ evidence stay in
 | Open implementation lane | Checkpoint forms to carry generally | Known boundary |
 | --- | --- | --- |
 | compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; the bounded program-static shared-byte-view window (`&[u8]`, nonempty guard, `[0]`, `[1..]`) is closed through OMGRSW4/CKIR12/OMGRFN14, while general views remain open and authored `u32` indexes/cursors versus the `u64` `Array`/`Slice` contracts remain language-blocked |
-| compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, concrete Trapping arithmetic, the remaining proof-gated narrowing/other casts, and the observed ranking clause | exact widening and canonical `u32 in Trapping` leaf-plus-literal addition are closed; only argument combinations with multiple potentially observable/trapping computations need the unresolved call-order ruling; broader receivers, recursion, and packages remain separate |
+| compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, concrete Trapping arithmetic, the remaining proof-gated narrowing/other casts, and the observed ranking clause | exact widening and canonical trapping addition have admitted lower-rooted closures; OMGRSW5/CKIR13 closes compiler/backend cost for six direct full-width subtraction forms, while nine nested forms, Rust-free lowering meaning, and persisted-Beta OMGRFN15 R1–R5 remain open; only argument combinations with multiple potentially observable/trapping computations need the unresolved call-order ruling |
 | source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; the one-requirement OMGCOMP2 fixture is cost evidence rather than the six-requirement product `Console` closure, and general target-default selection waits on the product-source spelling ruling; do not import general boundary traits into Delta |
 | generated closure and resource behavior | bridge-side custody is closed for the exact Unicode tuple: generic manifest roles, a sealed locked/offline recipe, two-run reproduction, bounded/no-publication teeth, exact OMGCOMP1 extent, and CKIR3/OMGRFN4 preflight composition | the enclosing checkpoint remains stale and must be refreshed by the product owner over the same tuple; generated files are ordinary source, not hard-coded bridge exceptions |
 
@@ -396,7 +401,14 @@ evidence stay in
   vertical relation at a time. Preserve the CKIR11 rule that a call may contain
   at most one potentially trapping argument while every sibling is
   pure/total/nontrapping; do not describe the still-unruled observable-order
-  combinations as generally supported.
+  combinations as generally supported. OMGRSW5/OMGLOWE/CKIR13 now carry exact
+  full-width `u32 in Trapping` leaf-minus-leaf and leaf-minus-literal
+  subtraction through assignment, guard, call, transition, independent
+  reference meaning, runtime underflow, and conservative artifact emission.
+  This covers six of checkpoint 000001's fifteen subtraction forms. Complete
+  the Rust-free lowering-meaning seam and persisted-Beta OMGRFN15 R1–R5 before
+  calling that slice admitted, then continue the nine UTF-8 subtractions nested
+  inside multiplication/addition rather than widening CKIR13 by implication.
 - [ ] Close the unblocked source-graph/provider forms without waiting on private
   cross-module visibility. OMGCOMP2 now closes structural custody for an exact
   Linux-x86-64/native-provider fixture while keeping provider spellings opaque.
