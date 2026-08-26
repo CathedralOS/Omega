@@ -266,10 +266,12 @@ judgment, a separate proof arena records a zero-premise `Structural` row with
 the exact machine/state/statement formation coordinate, two state-owned loan
 handles, frozen captured places, and normalized relational conclusion. Repeated
 checked-fact validation rebuilds that arena deterministically, and resource
-rejoin rejects changed handles, places, or formation coordinates. This carrier
-does not yet encode Terminal evidence, reconstruct the conclusion
-independently, or admit proposition premises, and it does not alter the loan
-resource rows or admission semantics.
+rejoin rejects changed handles, places, or formation coordinates. A separate
+checked replay now recomputes spatial disjointness, directed containment, and
+access-aware non-interference from those frozen places plus the authoritative
+loan polarities, and requires the zero-premise `Structural` derivation. This
+carrier does not yet encode Terminal evidence or admit proposition premises,
+and it does not alter the loan resource rows or admission semantics.
 
 The row does not serialize "dominates" or "is valid" as trusted claims. The
 verifier reconstructs control-flow dominance and path availability from the
