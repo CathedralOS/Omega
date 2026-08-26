@@ -8,6 +8,9 @@
 use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use psi_typed_trees::TypedTrees;
 
+mod external_binding_rows;
+pub(super) use external_binding_rows::extract_external_binding_rows;
+
 /// Exact selected provider-plan input consumed by external-root construction.
 ///
 /// The schema is retained beside the normalized plan identity so installation
