@@ -10,13 +10,26 @@ pub struct SymbolPlan {
     pub size: usize,
     pub kind: SymbolKind,
     /// For `SymbolKind::Import`: the library the binding named (an authored
-    /// `Binding::DllImport(module, symbol)` leaf or a built-in table).
-    /// Empty means "consult the per-target import catalog" -- the historical
-    /// lookup path -- and is the ZII default for every non-import symbol.
+    /// string-backed bootstrap or a built-in table). Empty means "consult the
+    /// per-target import catalog" and is the ZII default for non-imports.
+    /// Normalized imports instead retain their atomic coordinates in the
+    /// layout's `normalized_imports` side table; this field is never used for
+    /// those rows.
     pub import_library: String,
 }
 
 pub type ObjectSymbolHandle = Handle<SymbolPlan>;
+
+/// Exact atomic locator attached to one unresolved object import symbol.
+///
+/// This side table keeps raw target-package bytes out of object-local symbol
+/// spellings and preserves the complete normalized value through image
+/// construction. It is representation data, not import authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedImportPlan {
+    pub symbol: ObjectSymbolHandle,
+    pub locator: omega_target::NormalizedForeignLocator,
+}
 
 /// Canonical linkage from one lowered function identity to its object symbol.
 ///

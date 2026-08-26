@@ -1,6 +1,6 @@
 use crate::model::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageImport,
-    FinalImageRelocation, FinalImageSymbol,
+    FinalImageImportPlan, FinalImageRelocation, FinalImageSymbol,
 };
 use crate::symbols::{final_image_section, final_image_symbol_handle};
 use omega_object_file::{ObjectPlan, RelocationPlan, SectionKind, SymbolKind, SymbolSection};
@@ -54,7 +54,17 @@ pub(super) fn copy_object_imports(image: &mut FinalImage, object: &ObjectPlan) {
             .filter(|(_, symbol)| symbol.kind == SymbolKind::Import)
             .map(|(symbol_handle, symbol)| FinalImageImport {
                 symbol_handle: final_image_symbol_handle(symbol_handle),
-                library: symbol.import_library.clone(),
+                import: object
+                    .layout
+                    .normalized_imports
+                    .iter()
+                    .find_map(|import| {
+                        (import.symbol == symbol_handle)
+                            .then(|| FinalImageImportPlan::Normalized(import.locator.clone()))
+                    })
+                    .unwrap_or_else(|| FinalImageImportPlan::StringBackedBootstrap {
+                        library: symbol.import_library.clone(),
+                    }),
             }),
     );
 }

@@ -5,8 +5,8 @@ use omega_calling_conventions::{
     StateFootprintEvidence, darwin_import_library,
 };
 use omega_image::{
-    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageLayout,
-    FinalImageSection,
+    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageImportPlan,
+    FinalImageLayout, FinalImageSection,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -85,7 +85,9 @@ fn dylib_ordinal(dylibs: &[MachoDylib], library: &str) -> u8 {
         .unwrap_or(1)
 }
 
-pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<MachoImportThunk> {
+pub(crate) fn install_import_thunks(
+    image: &mut FinalImage,
+) -> Result<Vec<MachoImportThunk>, Diagnostic> {
     // The host-ABI binding catalog registers an import symbol for EVERY binding,
     // but a program calls only a few. Only a REFERENCED import (a host-call `bl`
     // targets its thunk through a relocation) needs a thunk + bind entry; the rest
@@ -107,12 +109,26 @@ pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<MachoImportTh
         .filter_map(|(_, import)| {
             (image.symbol_table.symbols.is_valid(import.symbol_handle)
                 && referenced.contains(&import.symbol_handle))
-            .then_some(import.symbol_handle)
+            .then_some((import.symbol_handle, import.import.clone()))
         })
         .collect::<Vec<_>>();
     let mut thunks = Vec::new();
 
-    for symbol_handle in imports {
+    for (symbol_handle, import) in imports {
+        match &import {
+            FinalImageImportPlan::StringBackedBootstrap { .. } => {}
+            FinalImageImportPlan::Normalized(locator) => {
+                return Err(Diagnostic::error(format!(
+                    "normalized foreign locator 0x{:016x} cannot be reconstructed through Mach-O symbol spellings",
+                    locator.normalized_identity(),
+                )));
+            }
+            FinalImageImportPlan::None => {
+                return Err(Diagnostic::error(
+                    "Mach-O import has no retained string-backed bootstrap plan",
+                ));
+            }
+        }
         let symbol = image.symbol_table.symbols.get(symbol_handle).name.clone();
         let text_offset = image.memory.text.len();
         image
@@ -145,7 +161,7 @@ pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<MachoImportTh
         });
     }
 
-    thunks
+    Ok(thunks)
 }
 
 pub(crate) fn patch_import_thunks(
@@ -336,8 +352,8 @@ mod tests {
     use super::{install_import_thunks, patch_import_thunks, validate_import_thunk_footprints};
     use omega_calling_conventions::MachineRegister;
     use omega_image::{
-        FinalExecutableRegionOrigin, FinalImage, FinalImageImport, FinalImageLayout,
-        FinalImageRelocation, FinalImageSymbol,
+        FinalExecutableRegionOrigin, FinalImage, FinalImageImport, FinalImageImportPlan,
+        FinalImageLayout, FinalImageRelocation, FinalImageSymbol,
     };
     use psi_arena::Handle;
 
@@ -356,7 +372,9 @@ mod tests {
         });
         image.symbol_table.imports.insert(FinalImageImport {
             symbol_handle: symbol,
-            library: "/usr/lib/libSystem.B.dylib".into(),
+            import: FinalImageImportPlan::StringBackedBootstrap {
+                library: "/usr/lib/libSystem.B.dylib".into(),
+            },
         });
         image
             .relocation_table
@@ -385,7 +403,7 @@ mod tests {
     fn installed_import_thunks_enter_the_executable_region_inventory() {
         let mut image = image_with_referenced_import();
 
-        let thunks = install_import_thunks(&mut image);
+        let thunks = install_import_thunks(&mut image).expect("valid bootstrap import");
         patch_test_thunks(&mut image, &thunks);
         validate_import_thunk_footprints(&mut image, &thunks)
             .expect("patched Mach-O thunk bytes should validate");
@@ -412,7 +430,7 @@ mod tests {
     #[test]
     fn mutated_import_thunk_opcode_rejects_final_validation() {
         let mut image = image_with_referenced_import();
-        let thunks = install_import_thunks(&mut image);
+        let thunks = install_import_thunks(&mut image).expect("valid bootstrap import");
         patch_test_thunks(&mut image, &thunks);
         image.memory.text[9] = 0;
 

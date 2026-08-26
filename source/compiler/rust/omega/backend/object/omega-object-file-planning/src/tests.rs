@@ -8,7 +8,8 @@ use omega_layout::{DataLayout, FieldLayout, LayoutPlan, MachineLayout, TypeLayou
 use omega_machine_bytes::{EncodedMachineFunction, EncodedMachinePlan};
 use omega_object_file::{
     FunctionSymbolPlan, SectionKind, SymbolKind, SymbolSection, object_entry_symbol_name,
-    object_function_symbol, private_function_symbol_name, runtime_frame_storage_symbol_name,
+    object_function_symbol, object_symbol_handle_by_foreign_locator, private_function_symbol_name,
+    runtime_frame_storage_symbol_name,
 };
 use omega_target::NativeTarget;
 use omega_target_operations::{TargetDataObject, TargetDataPlan};
@@ -172,7 +173,7 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
         },
         ..retained
     });
-    let diagnostic = build_object_plan(ObjectPlanningInput {
+    let normalized_object = build_object_plan(ObjectPlanningInput {
         target,
         host_abi: &normalized_host_abi,
         layouts: &layouts,
@@ -184,15 +185,162 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
         runtime_frame_size: 8,
         runtime_frame_alignment: 16,
     })
-    .expect_err("string-backed object planning must reject normalized coordinates");
-    assert!(diagnostic.message.contains(&format!(
-        "normalized foreign locator 0x{:016x}",
-        locator.normalized_identity()
-    )));
+    .expect("PE object planning should retain normalized coordinates atomically");
+    assert_eq!(normalized_object.layout.normalized_imports.len(), 1);
+    let normalized_import = normalized_object
+        .layout
+        .normalized_imports
+        .iter()
+        .next()
+        .expect("normalized import row");
+    assert_eq!(normalized_import.locator, locator);
+    assert_eq!(
+        object_symbol_handle_by_foreign_locator(&normalized_object, &locator),
+        normalized_import.symbol,
+    );
+    let symbol = normalized_object
+        .layout
+        .symbols
+        .get(normalized_import.symbol);
+    assert_eq!(symbol.kind, SymbolKind::Import);
+    assert_eq!(symbol.section, SymbolSection::None);
+    assert!(symbol.import_library.is_empty());
+    assert!(
+        !symbol.name.contains("host_write"),
+        "raw export bytes must not become an Omega/object-local symbol spelling"
+    );
+
+    let target_drift = build_object_plan(ObjectPlanningInput {
+        target: NativeTarget::linux_x64(),
+        host_abi: &normalized_host_abi,
+        layouts: &layouts,
+        entry_machine_symbol: machine_symbol,
+        entry_machine_name: "Main",
+        entry_function_identity,
+        encoded_machine: &encoded_machine,
+        data: &data,
+        runtime_frame_size: 8,
+        runtime_frame_alignment: 16,
+    })
+    .expect_err("locator/object target drift must reject");
+    assert!(target_drift.message.contains("but object planning targets"));
+}
+
+#[test]
+fn pe_ordinal_and_name_mutation_remain_distinct_while_versioned_elf_fails_closed() {
+    let target = NativeTarget::windows_x64();
+    let machine_symbol = SymbolHandle::invalid();
+    let entry_function_identity = MachineFunctionIdentity::source(valid_source_key(2));
+    let layouts = layouts_with_entry_machine(machine_symbol);
+    let mut encoded_machine = EncodedMachinePlan::with_capacity(target, 1, 0, 0);
+    encoded_machine.code.byte_count = 8;
+    encoded_machine
+        .code
+        .functions
+        .insert(EncodedMachineFunction {
+            symbol: Arc::from(omega_object_file::entry_symbol_name(target)),
+            identity: entry_function_identity,
+            byte_offset: 0,
+            byte_count: 8,
+            instructions: Default::default(),
+        });
+    let data = TargetDataPlan::with_capacity(0, 0);
+    let retained = build_host_abi_plan(target)
+        .bindings
+        .iter()
+        .next()
+        .map(|(_, binding)| binding.clone())
+        .expect("hosted target binding");
+    let locators = [
+        omega_target::normalize_foreign_locator(
+            omega_target::ForeignLocatorCandidate::PeByOrdinal {
+                library: b"raw\xff.dll".to_vec(),
+                ordinal: 17,
+            },
+            omega_target::TargetProfile::WindowsX64,
+        )
+        .expect("valid ordinal locator"),
+        omega_target::normalize_foreign_locator(
+            omega_target::ForeignLocatorCandidate::PeByName {
+                library: b"raw\xff.dll".to_vec(),
+                export: b"entry_a".to_vec(),
+            },
+            omega_target::TargetProfile::WindowsX64,
+        )
+        .expect("valid name locator"),
+        omega_target::normalize_foreign_locator(
+            omega_target::ForeignLocatorCandidate::PeByName {
+                library: b"raw\xff.dll".to_vec(),
+                export: b"entry_b".to_vec(),
+            },
+            omega_target::TargetProfile::WindowsX64,
+        )
+        .expect("valid mutated name locator"),
+    ];
+    let mut host_abi = empty_host_abi(target);
+    for locator in &locators {
+        host_abi.bindings.insert(HostBinding {
+            mechanism: HostBindingMechanism::Import {
+                locator: HostImportLocator::Normalized(locator.clone()),
+            },
+            ..retained.clone()
+        });
+    }
+    let object = build_object_plan(ObjectPlanningInput {
+        target,
+        host_abi: &host_abi,
+        layouts: &layouts,
+        entry_machine_symbol: machine_symbol,
+        entry_machine_name: "Main",
+        entry_function_identity,
+        encoded_machine: &encoded_machine,
+        data: &data,
+        runtime_frame_size: 0,
+        runtime_frame_alignment: 1,
+    })
+    .expect("both settled PE locator cases should plan");
+    assert_eq!(object.layout.normalized_imports.len(), 3);
+    for locator in &locators {
+        assert!(object_symbol_handle_by_foreign_locator(&object, locator).is_valid());
+    }
+    assert_ne!(
+        locators[1].normalized_identity(),
+        locators[2].normalized_identity()
+    );
+
+    let elf_locator = omega_target::normalize_foreign_locator(
+        omega_target::ForeignLocatorCandidate::ElfVersioned {
+            object: b"libc.so.6".to_vec(),
+            symbol: b"memcpy".to_vec(),
+            version: b"GLIBC_2.14".to_vec(),
+        },
+        omega_target::TargetProfile::LinuxX64,
+    )
+    .expect("valid versioned ELF locator");
+    let mut elf_host_abi = empty_host_abi(NativeTarget::linux_x64());
+    elf_host_abi.bindings.insert(HostBinding {
+        mechanism: HostBindingMechanism::Import {
+            locator: HostImportLocator::Normalized(elf_locator),
+        },
+        ..retained
+    });
+    let diagnostic = build_object_plan(ObjectPlanningInput {
+        target: NativeTarget::linux_x64(),
+        host_abi: &elf_host_abi,
+        layouts: &layouts,
+        entry_machine_symbol: machine_symbol,
+        entry_machine_name: "Main",
+        entry_function_identity,
+        encoded_machine: &encoded_machine,
+        data: &data,
+        runtime_frame_size: 0,
+        runtime_frame_alignment: 1,
+    })
+    .expect_err("versioned ELF must remain fail-closed at its unsettled emitter boundary");
     assert!(
         diagnostic
             .message
-            .contains("object-format planner must consume its atomic")
+            .contains("symbol-version emission semantics")
     );
 }
 
