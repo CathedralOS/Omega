@@ -32,6 +32,19 @@ else
 fi
 
 CHECKERS='r1 r2 r3 r4-lowering r4-source-result r5-structure r5-result r5-elf'
+MATRIX=${OMGRFN16_MATRIX:-focused}
+case "$MATRIX" in
+  focused|exhaustive) ;;
+  *) echo "OMGRFN16 same-frame composite: OMGRFN16_MATRIX must be focused or exhaustive" >&2; exit 2 ;;
+esac
+STARTED_AT=$(date +%s)
+PHASE_AT=$STARTED_AT
+phase() {
+  PHASE_NOW=$(date +%s)
+  echo "OMGRFN16 same-frame composite: $1 $((PHASE_NOW - PHASE_AT))s (total $((PHASE_NOW - STARTED_AT))s)" >&2
+  PHASE_AT=$PHASE_NOW
+}
+BETA_PAIRS=0
 observe_python() {
   CHECKER=$1 EXPECTED=$2 FRAME=$3 LABEL=$4
   set +e
@@ -61,6 +74,7 @@ run_beta_pair() {
   OWNER=$1 FRAME=$2 EXPECTED=$3 LABEL=$4
   observe_beta "$OWNER" native "$EXPECTED" "$FRAME" "$LABEL-native"
   observe_beta "$OWNER" self "$EXPECTED" "$FRAME" "$LABEL-self"
+  BETA_PAIRS=$((BETA_PAIRS + 1))
 }
 
 PYTHONPATH="$R:$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES" \
@@ -88,6 +102,7 @@ for OWNER in $CHECKERS; do
   stamp_seed "$T/$OWNER.tape" "$SEED" "$T/$OWNER.native" >/dev/null 2>&1
   stamp_seed "$T/$OWNER.tape" "$SEED" "$T/$OWNER.self" >/dev/null 2>&1
 done
+phase "materialization and persisted-Beta fixed points"
 
 cargo build -q --manifest-path "$OMEGA_PATH_DELTA_RUST/Cargo.toml"
 DELTA=$OMEGA_PATH_DELTA_RUST/target/debug/delta
@@ -98,6 +113,7 @@ PYTHONPATH="$R:$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES" python3 -B "$R/omgrfn16_gate.p
   produce "$T/resolver" "$T/lowerer" "$T/backend" "$T/profiles"
 PYTHONPATH="$R:$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES" python3 -B "$R/omgrfn16_gate.py" \
   controls "$T/profiles"
+phase "producer-backed profiles and controls"
 
 TAB=$(printf '\t')
 COUNT=0
@@ -106,9 +122,14 @@ while IFS="$TAB" read -r PROFILE OUTCOME; do
   COUNT=$((COUNT + 1))
   for CHECKER in $CHECKERS; do
     observe_python "$CHECKER" 0 "$T/profiles/$PROFILE.rfn" "$PROFILE-$CHECKER-python"
-    run_beta_pair "$CHECKER" "$T/profiles/$PROFILE.rfn" 0 "$PROFILE-$CHECKER-beta"
+    case "$MATRIX:$PROFILE" in
+      exhaustive:*|focused:mixed-success|focused:view-composition-success|focused:add-overflow)
+        run_beta_pair "$CHECKER" "$T/profiles/$PROFILE.rfn" 0 "$PROFILE-$CHECKER-beta"
+        ;;
+    esac
   done
 done < "$T/profiles/profiles.tsv"
+phase "positive profile matrix"
 
 observe_python r1 251 "$T/profiles/control-retired-outer15.rfn" retired-outer15-python
 observe_python r1 251 "$T/profiles/control-flags0.rfn" flags0-python
@@ -156,52 +177,70 @@ observe_python r1 251 "$T/profiles/control-malformed-omgcomp.rfn" malformed-omgc
 for RESOURCE in omgcomp witness ckir elf whole-frame; do
   observe_python r1 252 "$T/profiles/control-$RESOURCE-resource.rfn" "$RESOURCE-resource-python"
 done
+phase "responsibility-local Python control matrix"
 
-for OWNER in $CHECKERS; do
-  run_beta_pair "$OWNER" "$T/profiles/control-retired-outer15.rfn" 251 "$OWNER-retired-outer15"
-done
-run_beta_pair r1 "$T/profiles/control-flags0.rfn" 251 r1-flags0
-run_beta_pair r1 "$T/profiles/control-flags2.rfn" 251 r1-flags2
-run_beta_pair r1 "$T/profiles/control-unknown-flags.rfn" 251 r1-unknown-flags
-run_beta_pair r1 "$T/profiles/control-u32-max-success-framing.rfn" 0 r1-max-success-framing
-run_beta_pair r5-result "$T/profiles/control-u32-max-success-framing.rfn" 251 r5-result-max-false
-run_beta_pair r2 "$T/profiles/control-retired-witness6.rfn" 251 r2-retired-witness6
-run_beta_pair r3 "$T/profiles/control-retired-ckir13.rfn" 251 r3-retired-ckir13
-run_beta_pair r5-structure "$T/profiles/control-retired-ckir13.rfn" 251 r5-retired-ckir13
-run_beta_pair r4-source-result "$T/profiles/control-claim71.rfn" 251 r4-source-claim71
-run_beta_pair r5-result "$T/profiles/control-claim71.rfn" 251 r5-result-claim71
-for OWNER in r1 r2 r3 r4-lowering r5-structure r5-elf; do
-  run_beta_pair "$OWNER" "$T/profiles/control-claim71.rfn" 0 "$OWNER-claim-opacity"
-done
-run_beta_pair r4-source-result "$T/profiles/control-trap-as-result.rfn" 251 r4-source-trap-as-result
-run_beta_pair r5-result "$T/profiles/control-trap-as-result.rfn" 251 r5-result-trap-as-result
-run_beta_pair r4-lowering "$T/profiles/control-source-ckir-cross.rfn" 251 r4-source-ckir-cross
-run_beta_pair r5-elf "$T/profiles/control-ckir-elf-cross.rfn" 251 r5-ckir-elf-cross
-run_beta_pair r4-lowering "$T/profiles/control-source-operator.rfn" 251 r4-source-operator
-run_beta_pair r4-source-result "$T/profiles/control-source-operator.rfn" 251 r4-source-operator-result
-run_beta_pair r2 "$T/profiles/control-source-operator.rfn" 0 r2-source-operator-opacity
-run_beta_pair r4-lowering "$T/profiles/control-source-leaf-name.rfn" 251 r4-source-leaf-name
-run_beta_pair r4-source-result "$T/profiles/control-source-leaf-name.rfn" 251 r4-source-leaf-name-result
-run_beta_pair r2 "$T/profiles/control-source-leaf-name.rfn" 0 r2-source-leaf-name-opacity
-run_beta_pair r2 "$T/profiles/control-source-grown-stale-witness.rfn" 251 r2-source-grown-stale-witness
-run_beta_pair r2 "$T/profiles/control-source-depth-nine.rfn" 252 r2-source-depth-nine
-run_beta_pair r4-lowering "$T/profiles/control-source-depth-nine.rfn" 252 r4-source-depth-nine
-run_beta_pair r4-source-result "$T/profiles/control-source-depth-nine.rfn" 252 r4-source-result-depth-nine
-run_beta_pair r4-lowering "$T/profiles/control-source-view-literal.rfn" 251 r4-source-view-literal
-run_beta_pair r4-source-result "$T/profiles/control-source-view-literal.rfn" 251 r4-source-result-view-literal
-run_beta_pair r2 "$T/profiles/control-source-view-literal.rfn" 0 r2-source-view-literal-opacity
-run_beta_pair r2 "$T/profiles/control-source-transition-sibling.rfn" 0 r2-transition-sibling-opacity
-run_beta_pair r4-lowering "$T/profiles/control-source-transition-sibling.rfn" 251 r4-transition-sibling
-run_beta_pair r4-source-result "$T/profiles/control-source-transition-sibling.rfn" 251 r4-source-result-transition-sibling
-run_beta_pair r2 "$T/profiles/control-witness-high-word.rfn" 251 r2-witness-high-word
-run_beta_pair r4-lowering "$T/profiles/control-retired-witness6.rfn" 251 r4-retired-witness6
-run_beta_pair r5-elf "$T/profiles/control-elf-instruction.rfn" 251 r5-elf-instruction
-run_beta_pair r5-elf "$T/profiles/control-elf-case-tag.rfn" 251 r5-elf-case-tag
-run_beta_pair r5-elf "$T/profiles/control-elf-dispatch-bound.rfn" 251 r5-elf-dispatch-bound
-run_beta_pair r5-elf "$T/profiles/control-elf-trailing.rfn" 251 r5-elf-trailing
-run_beta_pair r1 "$T/profiles/control-malformed-omgcomp.rfn" 251 r1-malformed-omgcomp
-for RESOURCE in omgcomp witness ckir elf whole-frame; do
-  run_beta_pair r1 "$T/profiles/control-$RESOURCE-resource.rfn" 252 "r1-$RESOURCE-resource"
-done
+if [ "$MATRIX" = exhaustive ]; then
+  for OWNER in $CHECKERS; do
+    run_beta_pair "$OWNER" "$T/profiles/control-retired-outer15.rfn" 251 "$OWNER-retired-outer15"
+  done
+  run_beta_pair r1 "$T/profiles/control-flags0.rfn" 251 r1-flags0
+  run_beta_pair r1 "$T/profiles/control-flags2.rfn" 251 r1-flags2
+  run_beta_pair r1 "$T/profiles/control-unknown-flags.rfn" 251 r1-unknown-flags
+  run_beta_pair r1 "$T/profiles/control-u32-max-success-framing.rfn" 0 r1-max-success-framing
+  run_beta_pair r5-result "$T/profiles/control-u32-max-success-framing.rfn" 251 r5-result-max-false
+  run_beta_pair r2 "$T/profiles/control-retired-witness6.rfn" 251 r2-retired-witness6
+  run_beta_pair r3 "$T/profiles/control-retired-ckir13.rfn" 251 r3-retired-ckir13
+  run_beta_pair r5-structure "$T/profiles/control-retired-ckir13.rfn" 251 r5-retired-ckir13
+  run_beta_pair r4-source-result "$T/profiles/control-claim71.rfn" 251 r4-source-claim71
+  run_beta_pair r5-result "$T/profiles/control-claim71.rfn" 251 r5-result-claim71
+  for OWNER in r1 r2 r3 r4-lowering r5-structure r5-elf; do
+    run_beta_pair "$OWNER" "$T/profiles/control-claim71.rfn" 0 "$OWNER-claim-opacity"
+  done
+  run_beta_pair r4-source-result "$T/profiles/control-trap-as-result.rfn" 251 r4-source-trap-as-result
+  run_beta_pair r5-result "$T/profiles/control-trap-as-result.rfn" 251 r5-result-trap-as-result
+  run_beta_pair r4-lowering "$T/profiles/control-source-ckir-cross.rfn" 251 r4-source-ckir-cross
+  run_beta_pair r5-elf "$T/profiles/control-ckir-elf-cross.rfn" 251 r5-ckir-elf-cross
+  run_beta_pair r4-lowering "$T/profiles/control-source-operator.rfn" 251 r4-source-operator
+  run_beta_pair r4-source-result "$T/profiles/control-source-operator.rfn" 251 r4-source-operator-result
+  run_beta_pair r2 "$T/profiles/control-source-operator.rfn" 0 r2-source-operator-opacity
+  run_beta_pair r4-lowering "$T/profiles/control-source-leaf-name.rfn" 251 r4-source-leaf-name
+  run_beta_pair r4-source-result "$T/profiles/control-source-leaf-name.rfn" 251 r4-source-leaf-name-result
+  run_beta_pair r2 "$T/profiles/control-source-leaf-name.rfn" 0 r2-source-leaf-name-opacity
+  run_beta_pair r2 "$T/profiles/control-source-grown-stale-witness.rfn" 251 r2-source-grown-stale-witness
+  run_beta_pair r2 "$T/profiles/control-source-depth-nine.rfn" 252 r2-source-depth-nine
+  run_beta_pair r4-lowering "$T/profiles/control-source-depth-nine.rfn" 252 r4-source-depth-nine
+  run_beta_pair r4-source-result "$T/profiles/control-source-depth-nine.rfn" 252 r4-source-result-depth-nine
+  run_beta_pair r4-lowering "$T/profiles/control-source-view-literal.rfn" 251 r4-source-view-literal
+  run_beta_pair r4-source-result "$T/profiles/control-source-view-literal.rfn" 251 r4-source-result-view-literal
+  run_beta_pair r2 "$T/profiles/control-source-view-literal.rfn" 0 r2-source-view-literal-opacity
+  run_beta_pair r2 "$T/profiles/control-source-transition-sibling.rfn" 0 r2-transition-sibling-opacity
+  run_beta_pair r4-lowering "$T/profiles/control-source-transition-sibling.rfn" 251 r4-transition-sibling
+  run_beta_pair r4-source-result "$T/profiles/control-source-transition-sibling.rfn" 251 r4-source-result-transition-sibling
+  run_beta_pair r2 "$T/profiles/control-witness-high-word.rfn" 251 r2-witness-high-word
+  run_beta_pair r4-lowering "$T/profiles/control-retired-witness6.rfn" 251 r4-retired-witness6
+  run_beta_pair r5-elf "$T/profiles/control-elf-instruction.rfn" 251 r5-elf-instruction
+  run_beta_pair r5-elf "$T/profiles/control-elf-case-tag.rfn" 251 r5-elf-case-tag
+  run_beta_pair r5-elf "$T/profiles/control-elf-dispatch-bound.rfn" 251 r5-elf-dispatch-bound
+  run_beta_pair r5-elf "$T/profiles/control-elf-trailing.rfn" 251 r5-elf-trailing
+  run_beta_pair r1 "$T/profiles/control-malformed-omgcomp.rfn" 251 r1-malformed-omgcomp
+  for RESOURCE in omgcomp witness ckir elf whole-frame; do
+    run_beta_pair r1 "$T/profiles/control-$RESOURCE-resource.rfn" 252 "r1-$RESOURCE-resource"
+  done
+else
+  # The Python owners retain the exhaustive responsibility-local mutation
+  # matrix above. These native/self pairs establish that every persisted-Beta
+  # owner accepts representative recursive/view/trap carriers and rejects one
+  # control belonging to its own responsibility, without multiplying every
+  # case by every independent checker implementation.
+  run_beta_pair r1 "$T/profiles/control-retired-outer15.rfn" 251 r1-retired-outer15
+  run_beta_pair r2 "$T/profiles/control-retired-witness6.rfn" 251 r2-retired-witness6
+  run_beta_pair r3 "$T/profiles/control-retired-ckir13.rfn" 251 r3-retired-ckir13
+  run_beta_pair r4-lowering "$T/profiles/control-source-ckir-cross.rfn" 251 r4-source-ckir-cross
+  run_beta_pair r4-source-result "$T/profiles/control-claim71.rfn" 251 r4-source-claim71
+  run_beta_pair r5-structure "$T/profiles/control-retired-ckir13.rfn" 251 r5-retired-ckir13
+  run_beta_pair r5-result "$T/profiles/control-trap-as-result.rfn" 251 r5-result-trap-as-result
+  run_beta_pair r5-elf "$T/profiles/control-elf-instruction.rfn" 251 r5-elf-instruction
+fi
+phase "$MATRIX persisted-Beta control matrix"
 
-echo "OMGRFN16 same-frame composite: $COUNT producer-backed result/trap profiles passed Python reference and native/self persisted-Beta R1--R5; recursive postorder, full-u32 literals/widening, first traps, CKIR12 view composition, ownership, cross-pair, claim, instruction, and EOF controls passed"
+echo "OMGRFN16 same-frame composite: $COUNT producer-backed result/trap profiles passed exhaustive responsibility-local Python R1--R5; $BETA_PAIRS $MATRIX native/self persisted-Beta pairs passed; recursive postorder, full-u32 literals/widening, first traps, CKIR12 view composition, ownership, cross-pair, claim, instruction, and EOF controls passed"

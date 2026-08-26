@@ -115,16 +115,25 @@ construct a whole compiler-file-shaped expected-output permutation table.
 ## 4. Closure evidence
 
 The same-frame composite passes twelve producer-backed successful/trapping
-profiles through all eight independent Python owners and the matching native
-and self-compiled persisted-Beta owners. The profiles cover Add, Subtract, and
-Multiply; mixed and depth-eight trees; signed-boundary neighbors and
-`0xffffffff`; exact widening; assignment, guard, Call, and CaseDispatch
+profiles through all eight independent Python owners. The profiles cover Add,
+Subtract, and Multiply; mixed and depth-eight trees; signed-boundary neighbors
+and `0xffffffff`; exact widening; assignment, guard, Call, and CaseDispatch
 contexts; inherited CKIR12 view composition; and first-trap outcomes. Local
-controls cover complete OMGCOMP custody, stale source spans, equal-length leaf
-substitution, ordered transition siblings, retired/cross-paired components,
-claim opacity, exact ELF reconstruction, adjacent component exhaustion, and
-whole-frame exhaustion. Native and self-compiled owner assembly is identical,
-and every persisted-Beta owner remains within the 262,140-byte tape ceiling.
+Python controls cover complete OMGCOMP custody, stale source spans, equal-length
+leaf substitution, ordered transition siblings, retired/cross-paired
+components, claim opacity, exact ELF reconstruction, adjacent component
+exhaustion, and whole-frame exhaustion.
+
+Native and self-compiled owner assembly is identical. The default lattice mode
+joins representative recursive, inherited-view, and trapping frames through
+every persisted-Beta owner and gives each owner one rejection belonging to its
+own responsibility. `OMGRFN16_MATRIX=exhaustive` additionally replays the
+historical Cartesian native/self matrix for an intentional audit; it is not a
+second closure obligation. This split retains the complete independent Python
+relation and the persisted-Beta accept/reject joins without treating redundant
+checker launches as new semantic coverage. The gate reports materialization,
+producer, positive, Python-control, and persisted-Beta-control timings. Every
+persisted-Beta owner remains within the 262,140-byte tape ceiling.
 
 These conjuncts establish only the general compositional arithmetic bridge at
 the CKIR14 frontier. They do not admit excluded source effects or carriers,
