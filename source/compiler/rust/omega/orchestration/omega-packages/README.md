@@ -201,13 +201,16 @@ maintenance/GC, and asks the remote to omit every individual blob larger than
 the accepted source-byte ceiling. Lazy object fetching is disabled while the
 parent authenticates and materializes the selected graph. Git's temporary
 promisor configuration is replaced with the resolver-owned canonical bare
-configuration before further processing. A required omitted blob therefore
-rejects without entering resolver custody. Exact object-ID pins re-authenticate
-and reuse an existing cache entry without transport; symbolic selectors still
-refetch. This is a transport floor, not selective package checkout: until the
-resolver has an exact selected member path, every admissible blob in the whole
-authenticated root is still required. Strict transferred-byte and object-store
-quotas still require a hardened execution backend.
+configuration before further processing. Restoration publishes exact
+synchronized bytes from an open handle through a handle-relative atomic rename
+and confirms the resulting pathname identity; it no longer deletes `config`
+before recreating it. A required omitted blob therefore rejects without
+entering resolver custody. Exact object-ID pins re-authenticate and reuse an
+existing cache entry without transport; symbolic selectors still refetch. This
+is a transport floor, not selective package checkout: until the resolver has an
+exact selected member path, every admissible blob in the whole authenticated
+root is still required. Strict transferred-byte and object-store quotas still
+require a hardened execution backend.
 Selected Git objects are not trusted merely because Git named them. Before any
 snapshot stage exists, an exact requested object ID must equal the selected
 commit. The parent recomputes SHA-256 commit and blob IDs, computes SHA-1 with
@@ -230,7 +233,10 @@ walk before and after use. Unix nodes and locks must belong to the effective
 user and reject group/other write authority, replaceable non-sticky ancestry,
 or special kinds. The same walk applies source-scaled, absolutely capped
 logical resident-byte ceilings to accepted Git entries and local publications.
-Those post-helper checks can reject an oversized cache but cannot prevent
+Git lock waiting consumes its ten-minute whole-resolution budget; local
+snapshot publication lock waiting has a separate compiler-owned two-minute
+deadline and rejects explicitly instead of blocking indefinitely. Those
+post-helper checks can reject an oversized cache but cannot prevent
 temporary disk exhaustion during an unconfined fetch. Hostile same-user racing,
 Windows ownership/DACL enforcement, and native isolation remain open.
 Symbolic selectors use a bounded remote advertisement only to choose the

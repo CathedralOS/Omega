@@ -1,6 +1,8 @@
 use crate::identity::{
     GitObjectIdAlgorithm, GitTransport, IdentityError, SourceContentDigest, SourceLineage,
 };
+use crate::record_file::{RecordFileLimits, RecordFileRoot};
+use cap_std::{ambient_authority, fs::Dir as CapabilityDirectory};
 use command_group::{CommandGroup, GroupChild};
 use sha1_checked::Sha1 as CheckedSha1;
 use sha2::{Digest, Sha256};
@@ -50,6 +52,7 @@ const GIT_EXECUTABLE_BYTE_LIMIT: u64 = 256 * 1024 * 1024;
 const GIT_RESOLUTION_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const GIT_FIXED_COMMAND_ALLOWANCE: usize = 64;
 const GIT_COMMAND_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
+const LOCAL_SNAPSHOT_LOCK_TIMEOUT: Duration = Duration::from_secs(120);
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(5);
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -558,6 +561,10 @@ pub enum SourceResolveError {
         path: PathBuf,
         message: String,
     },
+    LocalSnapshotLockTimedOut {
+        path: PathBuf,
+        timeout_millis: u64,
+    },
     LocalSourceChanged {
         path: PathBuf,
     },
@@ -693,6 +700,14 @@ impl fmt::Display for SourceResolveError {
             Self::LocalSnapshotInvalid { path, message } => write!(
                 output,
                 "local snapshot cache entry `{}` is invalid: {message}",
+                path.display()
+            ),
+            Self::LocalSnapshotLockTimedOut {
+                path,
+                timeout_millis,
+            } => write!(
+                output,
+                "local snapshot cache lock `{}` exceeded its {timeout_millis}-millisecond deadline",
                 path.display()
             ),
             Self::LocalSourceChanged { path } => write!(
@@ -1029,19 +1044,36 @@ fn restore_canonical_git_config(
         &config_path,
         "filtered Git fetch replaced the local configuration with a non-regular file",
     )?;
-    std::fs::remove_file(&config_path).map_err(|error| io_error(&config_path, error))?;
-    let mut config = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&config_path)
-        .map_err(|error| io_error(&config_path, error))?;
-    config
-        .write_all(canonical_config)
-        .map_err(|error| io_error(&config_path, error))?;
-    config
-        .sync_all()
-        .map_err(|error| io_error(&config_path, error))?;
-    Ok(())
+    replace_canonical_git_control_file(repository, &config_path, canonical_config)
+}
+
+fn replace_canonical_git_control_file(
+    repository: &Path,
+    config_path: &Path,
+    canonical_config: &[u8],
+) -> Result<(), SourceResolveError> {
+    let directory = CapabilityDirectory::open_ambient_dir(repository, ambient_authority())
+        .map_err(|error| io_error(repository, error))?;
+    let root =
+        RecordFileRoot::from_directory(directory, repository.to_path_buf()).map_err(|error| {
+            cache_invalid(
+                repository,
+                format!("failed to bind Git configuration directory custody: {error:?}"),
+            )
+        })?;
+    root.replace_existing(
+        Path::new("config"),
+        canonical_config,
+        RecordFileLimits {
+            maximum_bytes: GIT_CONFIG_SHA256.len(),
+        },
+    )
+    .map_err(|error| {
+        cache_invalid(
+            config_path,
+            format!("failed to atomically restore canonical Git configuration: {error:?}"),
+        )
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2861,18 +2893,7 @@ fn create_git_cache_entry(
         GitObjectIdAlgorithm::Sha1 => GIT_CONFIG_SHA1,
         GitObjectIdAlgorithm::Sha256 => GIT_CONFIG_SHA256,
     };
-    std::fs::remove_file(&config_path).map_err(|error| io_error(&config_path, error))?;
-    let mut config = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&config_path)
-        .map_err(|error| io_error(&config_path, error))?;
-    config
-        .write_all(canonical_config)
-        .map_err(|error| io_error(&config_path, error))?;
-    config
-        .sync_all()
-        .map_err(|error| io_error(&config_path, error))?;
+    replace_canonical_git_control_file(&repository, &config_path, canonical_config)?;
     std::fs::remove_dir(&empty_template).map_err(|error| io_error(&empty_template, error))?;
 
     let metadata_path = pending.root.join(GIT_CACHE_METADATA);
@@ -3371,6 +3392,13 @@ impl CacheEntryLock {
     }
 
     fn acquire_local(path: &Path) -> Result<Self, SourceResolveError> {
+        Self::acquire_local_with_timeout(path, LOCAL_SNAPSHOT_LOCK_TIMEOUT)
+    }
+
+    fn acquire_local_with_timeout(
+        path: &Path,
+        timeout: Duration,
+    ) -> Result<Self, SourceResolveError> {
         if let Ok(metadata) = std::fs::symlink_metadata(path)
             && (metadata.file_type().is_symlink() || !metadata.is_file())
         {
@@ -3386,9 +3414,37 @@ impl CacheEntryLock {
             .truncate(false)
             .open(path)
             .map_err(|error| io_error(path, error))?;
-        file.lock().map_err(|error| io_error(path, error))?;
+        let started = Instant::now();
+        loop {
+            match file.try_lock() {
+                Ok(()) => break,
+                Err(std::fs::TryLockError::WouldBlock) => {
+                    let Some(remaining) = timeout.checked_sub(started.elapsed()) else {
+                        return Err(local_snapshot_lock_timed_out(path, timeout));
+                    };
+                    if remaining.is_zero() {
+                        return Err(local_snapshot_lock_timed_out(path, timeout));
+                    }
+                    std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
+                }
+                Err(std::fs::TryLockError::Error(error)) => {
+                    return Err(io_error(path, error));
+                }
+            }
+        }
+        if started.elapsed() >= timeout {
+            let _ = file.unlock();
+            return Err(local_snapshot_lock_timed_out(path, timeout));
+        }
         verify_cache_lock_path_identity(CacheCustodyKind::LocalSnapshot, path, &file)?;
         Ok(Self { file })
+    }
+}
+
+fn local_snapshot_lock_timed_out(path: &Path, timeout: Duration) -> SourceResolveError {
+    SourceResolveError::LocalSnapshotLockTimedOut {
+        path: path.to_path_buf(),
+        timeout_millis: u64::try_from(timeout.as_millis()).unwrap_or(u64::MAX),
     }
 }
 
@@ -7589,6 +7645,50 @@ mod tests {
 
         file.unlock().expect("unlock displaced cache entry");
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_cache_lock_wait_has_a_fail_closed_deadline() {
+        let root = temp_root("local-lock-budget");
+        std::fs::create_dir_all(&root).expect("create lock budget root");
+        let lock_path = root.join("entry.lock");
+        let held = CacheEntryLock::acquire_local_with_timeout(&lock_path, Duration::from_secs(1))
+            .expect("hold local cache lock");
+        let timeout = Duration::from_millis(30);
+        let started = Instant::now();
+
+        let result = CacheEntryLock::acquire_local_with_timeout(&lock_path, timeout);
+
+        assert!(matches!(
+            result,
+            Err(SourceResolveError::LocalSnapshotLockTimedOut {
+                ref path,
+                timeout_millis: 30,
+            }) if path == &lock_path
+        ));
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "bounded local cache lock acquisition must not become an indefinite wait"
+        );
+        drop(held);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_cache_lock_acquires_after_the_competing_handle_releases() {
+        let root = temp_root("local-lock-release");
+        std::fs::create_dir_all(&root).expect("create lock release root");
+        let lock_path = root.join("entry.lock");
+        let held = CacheEntryLock::acquire_local_with_timeout(&lock_path, Duration::from_secs(1))
+            .expect("hold local cache lock");
+        drop(held);
+
+        CacheEntryLock::acquire_local_with_timeout(&lock_path, Duration::from_secs(1))
+            .expect("released local cache lock must become available");
+
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[cfg(unix)]

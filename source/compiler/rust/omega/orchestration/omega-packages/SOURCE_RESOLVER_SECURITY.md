@@ -219,9 +219,12 @@ transfer ceilings. A deliberately hostile same-user process can race
 cooperative locks and validation, including the local before/after observation.
 Git no longer stores a cache-local remote origin. Fetch receives the exact
 resolver request directly, and the parent overwrites local repository config
-with one byte-exact SHA-1 or SHA-256 bare-repository file. Before every use the
-parent reads and compares those bytes itself; added settings, includes, remotes,
-or spelling drift reject without asking Git to report its own configuration.
+with one byte-exact SHA-1 or SHA-256 bare-repository file. Replacement uses a
+synchronized stage held open across a handle-relative atomic rename, then
+checks the published pathname, file identity, exact bytes, and parent-directory
+synchronization; there is no delete/recreate gap. Before every use the parent
+reads and compares those bytes itself; added settings, includes, remotes, or
+spelling drift reject without asking Git to report its own configuration.
 Git and local cache custody also receive a separately bounded 65,536-node
 parent traversal before and after use. That traversal sums regular-file and
 symlink logical lengths. Git entries reject above
@@ -233,8 +236,10 @@ parent can reject its output. After acquiring every Git or local publication
 lock, the resolver compares the locked handle with the current lock pathname
 using device/inode identity on Unix or volume/file-index identity on Windows;
 a pathname replacement while opening or waiting cannot split synchronization
-across two lock objects. On Unix each cache entry and lock must be owned by the
-resolver's effective user and not group- or other-writable;
+across two lock objects. Git waits consume the whole-resolution deadline, while
+local publication waits use a separate two-minute compiler-owned deadline and
+reject explicitly on expiry. On Unix each cache entry and lock must be owned by
+the resolver's effective user and not group- or other-writable;
 canonical ancestry must be root/resolver-owned and cannot be replaceable
 through a non-sticky writable directory; unsupported filesystem kinds reject.
 This closes ordinary cross-user

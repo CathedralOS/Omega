@@ -383,6 +383,18 @@ complete.
   handle-relative custody remains open, and no diagnostic record can become the
   future opaque resolver receipt or accepted lock evidence.
 
+  Milestone 2026-08-26: resolver-owned Git configuration replacement no longer
+  removes `repository/config` and recreates it through an exposed pathname
+  gap. A synchronized same-directory stage remains open across a
+  handle-relative atomic rename; the parent then confirms exact bytes, file
+  identity, and directory synchronization. Local/workspace snapshot
+  publication lock acquisition now also polls under a compiler-owned two-minute
+  deadline and returns a typed timeout instead of blocking indefinitely. Git
+  lock waits continue to consume the whole-resolution budget. These close an
+  avoidable control-file race window and one unbounded availability wait; they
+  do not claim hostile same-user exclusion, during-write quotas, Windows DACL
+  custody, or native process confinement.
+
   Audit 2026-08-24: the authenticated object graph, exact-pin check, injective
   source identity, checkout-free materialization, bounded parent process, and
   immutable publication form a coherent portable core. The next strict-boundary
