@@ -122,10 +122,16 @@ These facts constrain the work below.
   constant, and differing values become overdefined. Support retains canonical
   operation and transitive edge sets plus the unit-revision/machine/value
   region; scalar constants now depend on CFG invalidation. Literal facts in a
-  semantically dead block are not published. Derived block-parameter facts are
-  deliberately not yet consumed by rewrite rules: `OPT-SCCP` remains open until
-  candidates bind canonical derivation identities and the independent validator
-  reconstructs every feasible incoming-edge premise. Semantic analyses also
+  semantically dead block are not published. A propagated block-parameter fact
+  now receives a domain-separated identity over the input revision, typed
+  definition, constant, and a canonical machine snapshot containing every
+  block reachability state, exact edge verdict, and scalar lattice state. Thus
+  omitting or changing even an infeasible competing edge changes the identity.
+  The validation crate owns a second coupled fixed-point implementation, built
+  without an optimizer dependency, and reconstructs that snapshot before a
+  propagated fact can authorize a rewrite. A selected-arm block-parameter
+  complement fixture passes this independent gate. `OPT-SCCP` remains open for
+  the rest of the closed Terminal-Psi scalar vocabulary; semantic analyses also
   remain open for the wider proof/effect/ownership vocabulary.
 - Conservative node-effect summaries now distinguish pure scalar work,
   structural state, internal calls, boundary calls, services, and control.
@@ -175,7 +181,7 @@ These facts constrain the work below.
   value, scalar type, exact definition site, constant payload, and literal
   source. Candidate encoding is versioned around those typed identities. The
   independent validation crate reconstructs each identity from its own lookup
-  of the immutable unit before re-reading both supported literal facts,
+  of the immutable unit before re-reading both supported scalar facts,
   evaluates the exact typed operation, constructs the output itself, retains
   Psi provenance/fuel, replaces the consumed obligation reference with the new
   constant fact, and rejects a wrong result without mutating input. Thirty
@@ -204,10 +210,10 @@ These facts constrain the work below.
   that public dispatch. Comparison proposal and validation independently
   reconstruct both operand integer types and delegate ordering to Psi's typed
   comparison semantics; both rule and validator type lookup now covers function
-  parameters, block parameters, and node definitions. Propagated constants
-  deliberately have no witness identity yet and therefore remain unusable by
-  rules. Rules can propose candidates only when their explicit parent selection
-  is present. No build hook admits that still-incomplete selection.
+  parameters, block parameters, and node definitions. Propagated constants are
+  usable only through the independently reconstructed full fixed-point identity
+  described above. Rules can propose candidates only when their explicit parent
+  selection is present. No build hook admits that still-incomplete selection.
 - A verified-session-only pass manager now performs canonical rule dispatch,
   dependency analysis, proposal enumeration, deterministic negative-cost
   choice with candidate-identity tie breaks, independent validation,

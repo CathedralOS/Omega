@@ -556,6 +556,7 @@ mod tests {
             fact.constant,
             ScalarConstant::Integer(IntegerValue::Unsigned(7))
         );
+        assert!(fact.identity.is_some());
         assert_eq!(fact.support.operations, vec![supports[0], supports[1]]);
         assert_eq!(fact.support.edges, vec![edges[0], edges[2]]);
         let AnalysisProduct::ExecutableEdges(executable) =
@@ -593,6 +594,7 @@ mod tests {
             fact.constant,
             ScalarConstant::Integer(IntegerValue::Unsigned(7))
         );
+        assert!(fact.identity.is_some());
         assert_eq!(fact.support.operations, vec![supports[1], supports[2]]);
         assert_eq!(fact.support.edges, edges);
         let AnalysisProduct::ExecutableEdges(executable) =
