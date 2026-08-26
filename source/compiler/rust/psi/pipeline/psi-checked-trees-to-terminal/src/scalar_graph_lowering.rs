@@ -361,7 +361,10 @@ pub(super) fn prepare_scalar_graph_machine(
         )?)
     } else {
         let contract = closed_scalar_contract_plan(checked, machine)?;
-        if !contract.requires().is_empty() || !contract.ensures().is_empty() {
+        if contract.has_outcome_specific_clauses()
+            || !contract.requires().is_empty()
+            || !contract.ensures().is_empty()
+        {
             return unsupported("an all-crash scalar graph cannot declare a value contract");
         }
         None
@@ -1192,7 +1195,9 @@ fn validate_closed_scalar_contract(
     let ([Some(requires)], [Some(ensures)]) = (contract.requires(), contract.ensures()) else {
         return unsupported("machine must have exactly one requires and one ensures clause");
     };
-    if !allow_crash_contracts && contract.has_crash_clauses() {
+    if contract.has_outcome_specific_clauses()
+        || (!allow_crash_contracts && contract.has_crash_clauses())
+    {
         return unsupported("machine must have exactly one requires and one ensures clause");
     }
     let (requires, ensures) = match (result_type, requires, ensures) {

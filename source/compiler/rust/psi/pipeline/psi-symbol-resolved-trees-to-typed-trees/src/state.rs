@@ -64,6 +64,13 @@ pub(crate) fn lower_state(
                     resolved::signature::SignatureContractKind::Ensures => {
                         typed::signature::SignatureContractKind::Ensures
                     }
+                    resolved::signature::SignatureContractKind::EnsuresForResultCase {
+                        result_data,
+                        result_case,
+                    } => typed::signature::SignatureContractKind::EnsuresForResultCase {
+                        result_data: *result_data,
+                        result_case: *result_case,
+                    },
                     resolved::signature::SignatureContractKind::Crashes { cause } => {
                         typed::signature::SignatureContractKind::Crashes {
                             cause: match cause {
@@ -364,6 +371,13 @@ pub(crate) fn lower_state_signature(
                     resolved::signature::SignatureContractKind::Ensures => {
                         typed::signature::SignatureContractKind::Ensures
                     }
+                    resolved::signature::SignatureContractKind::EnsuresForResultCase {
+                        result_data,
+                        result_case,
+                    } => typed::signature::SignatureContractKind::EnsuresForResultCase {
+                        result_data: *result_data,
+                        result_case: *result_case,
+                    },
                     resolved::signature::SignatureContractKind::Crashes { cause } => {
                         typed::signature::SignatureContractKind::Crashes {
                             cause: match cause {

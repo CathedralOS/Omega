@@ -1621,13 +1621,14 @@ fn retired_trailing_boundary_contracts_name_current_boundary_surfaces() {
         let error = parse_syntax_trees(&tokens)
             .expect_err("trailing boundary contract clauses must be retired");
         assert!(
-            error
-                .message
-                .contains("trailing `boundary host` and `boundary Name` contract clauses are retired")
-                && error.message.contains("leading `boundary trait`")
+            error.message.contains(
+                "trailing `boundary host` and `boundary Name` contract clauses are retired"
+            ) && error.message.contains("leading `boundary trait`")
                 && error.message.contains("`boundary machine`")
                 && error.message.contains("`boundary operator`")
-                && error.message.contains("`satisfies Trait::requirement via Binding::...`"),
+                && error
+                    .message
+                    .contains("`satisfies Trait::requirement via Binding::...`"),
             "got for {retired:?}: {}",
             error.message
         );
@@ -2404,6 +2405,78 @@ fn parses_named_machine_contract_evidence_bindings() {
             .iter()
             .all(|contract| parsed.items.proof_facts(contract.facts).len() == 1)
     );
+}
+
+#[test]
+fn parses_outcome_specific_ensures_as_rows_without_group_identity() {
+    let source = r#"
+        data Outcome { case Success; case Failure; }
+        machine choose() -> Outcome
+        ensures Outcome::Success -> {
+            true;
+            selected: true;
+        }
+        { Outcome::Success }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let parsed = parse_syntax_trees(&tokens).expect("outcome-specific ensures parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine");
+    let contracts = parsed.items.capability_contracts(machine.contracts);
+    assert_eq!(contracts.len(), 2);
+    for contract in contracts {
+        let psi_syntax_trees::item::CapabilityContractKind::EnsuresForResultCase { result_case } =
+            &contract.kind
+        else {
+            panic!("guarded guarantee row")
+        };
+        let names = parsed.items.identifier_path_members(*result_case);
+        assert_eq!(names[0].as_str(), "Outcome");
+        assert_eq!(names[1].as_str(), "Success");
+        assert_eq!(parsed.items.proof_facts(contract.facts).len(), 1);
+    }
+    assert!(contracts[0].binding.is_none());
+    assert_eq!(
+        contracts[1].binding.as_ref().map(|name| name.as_str()),
+        Some("selected")
+    );
+}
+
+#[test]
+fn rejects_ambiguous_and_duplicate_outcome_specific_ensures_surfaces() {
+    for (source, expected) in [
+        (
+            "machine choose() ensures result == Outcome::Success -> { true; } -> Outcome {}",
+            "rejects Boolean guards",
+        ),
+        (
+            "machine choose() ensures Outcome::Success() -> { true; } -> Outcome {}",
+            "rejects case-literal-shaped selectors",
+        ),
+        (
+            "machine choose() -> Outcome ensures Outcome::Success -> { true; } ensures Outcome::Success -> { false; } {}",
+            "duplicate outcome-specific ensures group",
+        ),
+        (
+            "machine choose() -> Outcome ensures selected: true; ensures Outcome::Success -> { selected: true; } {}",
+            "duplicate machine-wide public ensures selector",
+        ),
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize invalid group");
+        let error = parse_syntax_trees(&tokens).expect_err("invalid group must reject");
+        assert!(
+            error.message.contains(expected),
+            "expected {expected:?}, got: {}",
+            error.message
+        );
+    }
 }
 
 #[test]

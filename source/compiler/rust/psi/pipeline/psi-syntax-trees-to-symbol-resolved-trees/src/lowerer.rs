@@ -35,6 +35,13 @@ pub(crate) struct PendingConstSelection {
     pub(crate) exposure: AuthoredDeclarationSelectionExposure,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct PendingOutcomeSpecificContract {
+    pub(crate) contract: psi_arena::Handle<psi_symbol_resolved_trees::signature::SignatureContract>,
+    pub(crate) result_data_name: String,
+    pub(crate) result_case_name: String,
+}
+
 pub fn lower_syntax_trees(
     syntax_trees: &SyntaxTrees,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
@@ -81,6 +88,10 @@ pub(crate) struct Lowerer {
     /// must remain available to package-selection admission.
     pub(crate) pending_const_declarations: Vec<PendingConstDeclaration>,
     pub(crate) pending_const_selections: Vec<PendingConstSelection>,
+    /// Outcome paths are validated against the declared result sum during
+    /// lowering, then stamped with exact declaration symbols after the shared
+    /// symbol-assignment pass has minted those handles.
+    pub(crate) pending_outcome_specific_contracts: Vec<PendingOutcomeSpecificContract>,
     pub(crate) current_authored_expression_exposure: Option<AuthoredDeclarationSelectionExposure>,
     sources: Option<Arc<SourceMap>>,
     /// Per-lowering counter that mints unique names for synthetic `let`
@@ -191,6 +202,7 @@ impl Lowerer {
             pending_authored_proof_memberships: Vec::new(),
             pending_const_declarations: Vec::new(),
             pending_const_selections: Vec::new(),
+            pending_outcome_specific_contracts: Vec::new(),
             current_authored_expression_exposure: None,
             sources,
             hoist_counter: 0,
@@ -255,6 +267,11 @@ impl Lowerer {
             self.sources,
             &self.pending_const_declarations,
         );
+        crate::state::finalize_outcome_specific_contract_symbols(
+            &mut self.symbol_resolved_trees,
+            &self.pending_outcome_specific_contracts,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         crate::constant::finalize_const_declarations(
             &mut self.symbol_resolved_trees,
             &self.pending_const_declarations,

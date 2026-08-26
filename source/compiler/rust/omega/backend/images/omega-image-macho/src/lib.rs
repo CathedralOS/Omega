@@ -32,7 +32,7 @@ use plan::plan_macho_image;
 pub fn emit_macho_aarch64_executable(
     mut image: FinalImage,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
-    let import_thunks = install_import_thunks(&mut image);
+    let import_thunks = install_import_thunks(&mut image)?;
     // The ordered set of dylibs to load (libSystem first, then libobjc/etc.); each
     // import binds against its library's ordinal (index + 1).
     let dylibs = macho_dylib_list(&import_thunks);

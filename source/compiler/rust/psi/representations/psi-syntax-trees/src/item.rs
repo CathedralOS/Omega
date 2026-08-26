@@ -284,8 +284,16 @@ impl Default for CapabilityContract {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CapabilityContractKind {
     Ensures,
+    /// Outcome-specific guarantee row. The path is authored syntax only;
+    /// resolution must bind it exclusively against the machine's declared
+    /// result sum. Rows share no source-level group or package identity.
+    EnsuresForResultCase {
+        result_case: HandleSpan<Identifier>,
+    },
     Requires,
-    Crashes { cause: CrashCause },
+    Crashes {
+        cause: CrashCause,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

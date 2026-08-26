@@ -807,6 +807,17 @@ pub fn lower_machine(
     if matches.next().is_some() {
         return Err(LoweringError::AmbiguousMachineName(machine_name.to_owned()));
     }
+    if checked
+        .facts
+        .proof
+        .outcome_specific_guarantees
+        .iter()
+        .any(|(_, guarantee)| guarantee.machine_symbol == selection.machine)
+    {
+        return unsupported(
+            "outcome-specific guarantees require guarded exit and caller-arm lowering",
+        );
+    }
     let mut lowered = lower_selected_machine(checked, selection)?;
     let source_machines = if let Some(plan) = checked
         .facts
@@ -820,6 +831,17 @@ pub fn lower_machine(
     } else {
         vec![selection.machine]
     };
+    if checked
+        .facts
+        .proof
+        .outcome_specific_guarantees
+        .iter()
+        .any(|(_, guarantee)| source_machines.contains(&guarantee.machine_symbol))
+    {
+        return unsupported(
+            "outcome-specific guarantees require guarded exit and caller-arm lowering",
+        );
+    }
     lower_closed_conformance_applications(checked, &source_machines, &mut lowered.semantic_module)?;
     lowered.semantic_module.float_meaning_projections = checked
         .facts

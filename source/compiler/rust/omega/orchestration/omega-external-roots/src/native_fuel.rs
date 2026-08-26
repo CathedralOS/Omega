@@ -1988,6 +1988,166 @@ mod tests {
         assert_eq!(runtime.transfer_code(), &transfer_code);
         assert_eq!(runtime.sponsor_route(), &route);
 
+        let (runtime_demand, _) = opaque_demand(510, 2, 512, 20);
+        let runtime_provision = id(513, FuelProvisionId::from_normalized_identity);
+        let machine = psi_core::MachineId::new(1).expect("machine");
+        let attribution_row = TerminalFuelAttributionEvidence {
+            machine,
+            schedule: schedule(),
+            site: TerminalFuelAttributionSite::Operation(
+                psi_core::OperationId::new(1).expect("operation"),
+            ),
+            units: 1,
+            operation_ordinal: 0,
+            text_offset: 0,
+            byte_count: 4,
+        };
+        let source = TestTerminalArtifact {
+            target: profile.native_target(),
+            rows: vec![attribution_row],
+            bytes: vec![0; 4],
+        };
+        let basis = validate_dynamic_fuel_attribution_basis(plan.clone(), &source)
+            .expect("dynamic attribution basis");
+        let metered_image = TestNativeFuelImage {
+            target: profile.native_target(),
+            policy: x86_target_projection(profile),
+            source: vec![0; 4],
+            metered: vec![9; 64],
+            final_text: vec![9; 64],
+            charges: vec![TerminalNativeFuelChargeEvidence {
+                attribution: attribution_row,
+                charge_text_offset: 0,
+                charge_byte_count: 4,
+                semantic_text_offset: 4,
+                cold_dispatch_text_offset: 40,
+                cold_dispatch_byte_count: 4,
+            }],
+        };
+        let installed_attribution = bind_installed_dynamic_fuel_attribution(
+            basis,
+            &metered_image,
+            sponsor_root.installed_code,
+        )
+        .expect("final metered bytes bind to the installed occurrence");
+
+        let mut dynamic_candidate =
+            crate::tests::candidate_for_code_with_root(entry, sponsor_root.installed_code, 590);
+        dynamic_candidate.logical_fuel.provision = runtime_provision;
+        dynamic_candidate.logical_fuel.ceiling_units = 20;
+        dynamic_candidate.logical_fuel.realization = runtime_demand;
+        let dynamic_root =
+            crate::validate_external_root(dynamic_candidate, &crate::tests::boundary())
+                .expect("dynamic root plan");
+        let dynamic_execution = crate::tests::provider_execution(&dynamic_root);
+        let dynamic_slot = crate::RootSlotAuthority::from_admitted_owner(
+            id(591, crate::RootSlotId::from_normalized_identity),
+            id(592, crate::RootSlotOwnerId::from_normalized_identity),
+        );
+        let dynamic_admission =
+            crate::RootAdmission::from_admitted_provider_with_dynamic_native_fuel(
+                id(593, crate::RootAdmissionId::from_normalized_identity),
+                &dynamic_root,
+                &dynamic_execution,
+                sponsor_root.installed_code,
+                &dynamic_slot,
+                NativeFuelExecutionEnvironment::Hosted {
+                    profile,
+                    interpreter_available: false,
+                },
+                installed_attribution.clone(),
+                runtime.clone(),
+                dynamic_root.candidate().trust_receipts.iter().copied(),
+            )
+            .expect("both sealed installed halves admit the deployed dynamic root");
+        assert_eq!(
+            dynamic_admission.native_fuel.kind(),
+            NativeFuelRealizationKind::DynamicMetering
+        );
+        assert_eq!(
+            dynamic_admission
+                .native_fuel
+                .dynamic_attribution()
+                .expect("retained installed attribution"),
+            &installed_attribution
+        );
+        assert_eq!(
+            dynamic_admission
+                .native_fuel
+                .dynamic_transfer_runtime()
+                .expect("retained executable transfer runtime"),
+            &runtime
+        );
+
+        let default_admission = crate::RootAdmission::from_admitted_provider(
+            id(594, crate::RootAdmissionId::from_normalized_identity),
+            &dynamic_root,
+            &dynamic_execution,
+            sponsor_root.installed_code,
+            &dynamic_slot,
+            dynamic_root.candidate().trust_receipts.iter().copied(),
+        )
+        .expect("the ordinary deployed-root path remains available");
+        assert_eq!(
+            default_admission.native_fuel.kind(),
+            NativeFuelRealizationKind::FixedProvision,
+            "dynamic custody must never change the default root constructor"
+        );
+
+        let mut wrong_attribution = installed_attribution;
+        wrong_attribution.installed_code =
+            InstalledCodeId::from_normalized_identity(595).expect("installed code identity");
+        assert!(
+            crate::RootAdmission::from_admitted_provider_with_dynamic_native_fuel(
+                id(596, crate::RootAdmissionId::from_normalized_identity),
+                &dynamic_root,
+                &dynamic_execution,
+                sponsor_root.installed_code,
+                &dynamic_slot,
+                NativeFuelExecutionEnvironment::Hosted {
+                    profile,
+                    interpreter_available: false,
+                },
+                wrong_attribution,
+                runtime.clone(),
+                dynamic_root.candidate().trust_receipts.iter().copied(),
+            )
+            .expect_err("installed attribution from another code occurrence must reject")
+            .0
+            .contains("exact installed realization")
+        );
+
+        let mut wrong_runtime = runtime;
+        wrong_runtime.plan = DynamicNativeFuelMeterPlan::from_admitted_transfer_plan(
+            x86_transfer_plan(profile),
+            schedule(),
+            id(597, NativeFuelMeterPlanId::from_normalized_identity),
+            installed_root_sponsor_path(54),
+        );
+        assert!(
+            crate::RootAdmission::from_admitted_provider_with_dynamic_native_fuel(
+                id(598, crate::RootAdmissionId::from_normalized_identity),
+                &dynamic_root,
+                &dynamic_execution,
+                sponsor_root.installed_code,
+                &dynamic_slot,
+                NativeFuelExecutionEnvironment::Hosted {
+                    profile,
+                    interpreter_available: false,
+                },
+                dynamic_admission
+                    .native_fuel
+                    .dynamic_attribution()
+                    .expect("retained installed attribution")
+                    .clone(),
+                wrong_runtime,
+                dynamic_root.candidate().trust_receipts.iter().copied(),
+            )
+            .expect_err("a runtime sealed for another dynamic plan must reject")
+            .0
+            .contains("exact plan")
+        );
+
         let mut wrong_coordinate_image = image;
         wrong_coordinate_image.sponsor_text_offset = 17;
         let wrong_coordinate_code = bind_installed_native_fuel_transfer_code(

@@ -109,9 +109,12 @@ The native path runs real programs on macOS ARM64, Windows x64, and Linux
   synthesized structural equality, and plan-generated `compact_binary`
   encoders with byte-exact LEB128 output.
 
-The current implementation queue and its acceptance checks live only in
-[`TASKS.md`](TASKS.md); completed limitations are removed there rather than
-copied into a second status ledger.
+The general implementation queue and its acceptance checks live in
+[`TASKS.md`](TASKS.md). Optimizer architecture and its dedicated execution queue
+live in
+[`optimizer_architecture.md`](wiki/design_briefs/optimizer_architecture.md) and
+[`TASKS_OPTIMIZER.md`](TASKS_OPTIMIZER.md). Completed limitations are removed
+rather than retained as status history.
 
 Targets without a direct image writer fail the executable emission phase instead of falling back to an object-shaped bridge.
 

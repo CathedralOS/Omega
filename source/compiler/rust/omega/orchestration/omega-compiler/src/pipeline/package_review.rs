@@ -5966,6 +5966,7 @@ fn project_contracts(
         let kind = match contract.kind {
             SignatureContractKind::Requires => PackageReviewContractKind::Requires,
             SignatureContractKind::Ensures => PackageReviewContractKind::Ensures,
+            SignatureContractKind::EnsuresForResultCase { .. } => continue,
             SignatureContractKind::Crashes { .. }
                 if policy == ContractProjectionPolicy::PublicOperator =>
             {

@@ -332,6 +332,7 @@ fn collect_contracts(
             kind: match &contract.kind {
                 CapabilityContractKind::Requires => ContractKindSurface::Requires,
                 CapabilityContractKind::Ensures => ContractKindSurface::Ensures,
+                CapabilityContractKind::EnsuresForResultCase { .. } => ContractKindSurface::Ensures,
                 CapabilityContractKind::Crashes { .. } => ContractKindSurface::Crashes,
             },
             fact_count: syntax_trees.items.proof_facts(contract.facts).len(),

@@ -3,9 +3,11 @@ use omega_calling_conventions::{HostBindingMechanism, HostImportLocator};
 use omega_layout::MachineLayout;
 use omega_machine_bytes::EncodedMachineFunction;
 use omega_object_file::{
-    FunctionSymbolPlan, ObjectPlan, SectionKind, SymbolKind, SymbolPlan, SymbolSection,
-    machine_storage_symbol_name, private_function_symbol_name, runtime_frame_storage_symbol_name,
+    FunctionSymbolPlan, NormalizedImportPlan, ObjectPlan, SectionKind, SymbolKind, SymbolPlan,
+    SymbolSection, machine_storage_symbol_name, normalized_foreign_import_symbol_name,
+    private_function_symbol_name, runtime_frame_storage_symbol_name,
 };
+use omega_target::ForeignLocatorCandidate;
 use psi_diagnostics::Diagnostic;
 
 pub(super) fn object_symbol_capacity(input: &ObjectPlanningInput<'_>) -> usize {
@@ -33,23 +35,30 @@ pub(super) fn insert_object_symbols(
     object_plan: &mut ObjectPlan,
 ) -> Result<(), Diagnostic> {
     validate_encoded_function_linkage(input)?;
-    if let Some(locator) =
-        input
-            .host_abi
-            .bindings
-            .iter()
-            .find_map(|(_, binding)| match &binding.mechanism {
-                HostBindingMechanism::Import {
-                    locator: HostImportLocator::Normalized(locator),
-                } => Some(locator),
-                _ => None,
-            })
-    {
-        return Err(Diagnostic::error(format!(
-            "normalized foreign locator 0x{:016x} reached string-backed object symbol planning; the object-format planner must consume its atomic {:?} coordinates before emission",
-            locator.normalized_identity(),
+    for (_, binding) in input.host_abi.bindings.iter() {
+        let HostBindingMechanism::Import {
+            locator: HostImportLocator::Normalized(locator),
+        } = &binding.mechanism
+        else {
+            continue;
+        };
+        if locator.target().native_target() != input.target {
+            return Err(Diagnostic::error(format!(
+                "normalized foreign locator 0x{:016x} targets `{}` but object planning targets {:?}",
+                locator.normalized_identity(),
+                locator.target().target_name(),
+                input.target,
+            )));
+        }
+        if matches!(
             locator.locator(),
-        )));
+            ForeignLocatorCandidate::ElfVersioned { .. }
+        ) {
+            return Err(Diagnostic::error(format!(
+                "versioned ELF foreign locator 0x{:016x} reached object planning before ELF symbol-version emission semantics are implemented",
+                locator.normalized_identity(),
+            )));
+        }
     }
     object_plan.layout.entry_symbol = insert_function_symbol(
         entry_function,
@@ -120,6 +129,38 @@ pub(super) fn insert_object_symbols(
                 | HostBindingMechanism::TableFunction { .. } => None,
             }
         }));
+
+    for (_, binding) in input.host_abi.bindings.iter() {
+        let HostBindingMechanism::Import {
+            locator: HostImportLocator::Normalized(locator),
+        } = &binding.mechanism
+        else {
+            continue;
+        };
+        if object_plan
+            .layout
+            .normalized_imports
+            .iter()
+            .any(|import| &import.locator == locator)
+        {
+            continue;
+        }
+        let symbol = object_plan.layout.symbols.insert(SymbolPlan {
+            name: normalized_foreign_import_symbol_name(locator),
+            section: SymbolSection::None,
+            offset: 0,
+            size: 0,
+            kind: SymbolKind::Import,
+            import_library: String::new(),
+        });
+        object_plan
+            .layout
+            .normalized_imports
+            .push(NormalizedImportPlan {
+                symbol,
+                locator: locator.clone(),
+            });
+    }
 
     object_plan
         .layout

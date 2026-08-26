@@ -9,8 +9,8 @@ data SourceId [copy] {
 }
 
 data Span [copy] {
-    start: u32 in Trapping;
-    end: u32 in Trapping;
+    start: u64 in Trapping;
+    end: u64 in Trapping;
 }
 
 data SourceSpan [copy] {
@@ -21,7 +21,7 @@ data SourceSpan [copy] {
 data SourceUnit {
     id: SourceId;
     bytes: [u8; 65536] in Trapping;
-    length: u32 [0..=65536];
+    length: u64 [0..=65536];
     last_retained: bool;
 }
 
@@ -52,7 +52,7 @@ machine SourceUnit::append(&mut self, byte: u8) {
 // Centralize the backing-array proof. Lexer callers establish their stronger
 // lexical bounds before reading; the NUL fallback makes a violated internal
 // coordinate fail token recognition instead of performing an unchecked read.
-machine SourceUnit::byte_or_nul(&self, index: u32 in Trapping) -> u8 {
+machine SourceUnit::byte_or_nul(&self, index: u64 in Trapping) -> u8 {
     transition index < self.length {
         true -> retain()
         _ -> absent()

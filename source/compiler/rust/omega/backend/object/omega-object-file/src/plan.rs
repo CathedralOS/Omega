@@ -1,4 +1,6 @@
-use crate::{FunctionSymbolPlan, ObjectSymbolHandle, SectionPlan, SymbolPlan};
+use crate::{
+    FunctionSymbolPlan, NormalizedImportPlan, ObjectSymbolHandle, SectionPlan, SymbolPlan,
+};
 use omega_target::NativeTarget;
 use psi_arena::Arena;
 
@@ -7,6 +9,7 @@ pub struct ObjectFileLayout {
     pub sections: Arena<SectionPlan>,
     pub symbols: Arena<SymbolPlan>,
     pub function_symbols: Arena<FunctionSymbolPlan>,
+    pub normalized_imports: Vec<NormalizedImportPlan>,
     pub entry_symbol: ObjectSymbolHandle,
 }
 
@@ -15,12 +18,14 @@ impl ObjectFileLayout {
         sections: Arena<SectionPlan>,
         symbols: Arena<SymbolPlan>,
         function_symbols: Arena<FunctionSymbolPlan>,
+        normalized_imports: Vec<NormalizedImportPlan>,
         entry_symbol: ObjectSymbolHandle,
     ) -> Self {
         Self {
             sections,
             symbols,
             function_symbols,
+            normalized_imports,
             entry_symbol,
         }
     }
@@ -30,6 +35,7 @@ impl ObjectFileLayout {
             Arena::with_capacity(section_capacity),
             Arena::with_capacity(symbol_capacity),
             Arena::new(),
+            Vec::new(),
             ObjectSymbolHandle::invalid(),
         )
     }
@@ -43,6 +49,7 @@ impl ObjectFileLayout {
             Arena::with_capacity(section_capacity),
             Arena::with_capacity(symbol_capacity),
             Arena::with_capacity(function_symbol_capacity),
+            Vec::new(),
             ObjectSymbolHandle::invalid(),
         )
     }
@@ -89,7 +96,10 @@ impl ObjectPlan {
 
 #[cfg(test)]
 mod tests {
-    use crate::{FunctionSymbolPlan, ObjectFileLayout, ObjectPlan, SectionPlan, SymbolPlan};
+    use crate::{
+        FunctionSymbolPlan, NormalizedImportPlan, ObjectFileLayout, ObjectPlan, SectionPlan,
+        SymbolPlan,
+    };
     use omega_target::NativeTarget;
     use psi_arena::{Arena, Handle};
 
@@ -98,18 +108,21 @@ mod tests {
         let sections = Arena::<SectionPlan>::with_capacity(1);
         let symbols = Arena::<SymbolPlan>::with_capacity(2);
         let function_symbols = Arena::<FunctionSymbolPlan>::with_capacity(1);
+        let normalized_imports = Vec::<NormalizedImportPlan>::with_capacity(1);
         let entry_symbol = Handle::invalid();
 
         let layout = ObjectFileLayout::with_roots(
             sections.clone(),
             symbols.clone(),
             function_symbols.clone(),
+            normalized_imports.clone(),
             entry_symbol,
         );
 
         assert_eq!(layout.sections, sections);
         assert_eq!(layout.symbols, symbols);
         assert_eq!(layout.function_symbols, function_symbols);
+        assert_eq!(layout.normalized_imports, normalized_imports);
         assert_eq!(layout.entry_symbol, entry_symbol);
     }
 

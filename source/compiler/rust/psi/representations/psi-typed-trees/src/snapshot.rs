@@ -1645,6 +1645,9 @@ fn signature_contract_snapshot(
     let (kind, crash_cause) = match &contract.kind {
         crate::signature::SignatureContractKind::Requires => ("requires", None),
         crate::signature::SignatureContractKind::Ensures => ("ensures", None),
+        crate::signature::SignatureContractKind::EnsuresForResultCase { .. } => {
+            ("ensures_for_result_case", None)
+        }
         crate::signature::SignatureContractKind::Crashes { cause } => {
             return SignatureContractSnapshot {
                 kind: "crashes",

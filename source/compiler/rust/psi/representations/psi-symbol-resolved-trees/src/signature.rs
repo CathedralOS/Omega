@@ -87,6 +87,10 @@ pub enum SignatureContractKind {
     #[default]
     Requires,
     Ensures,
+    EnsuresForResultCase {
+        result_data: SymbolHandle,
+        result_case: SymbolHandle,
+    },
     Crashes {
         cause: CrashCause,
     },

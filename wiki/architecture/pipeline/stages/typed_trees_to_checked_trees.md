@@ -112,6 +112,15 @@ Must own:
   presentation spelling is never enough. These compiler-private handles feed a
   later package projection and are not a persisted evidence format.
 
+The package projector reads each fact from the earliest coherent compiler-owned
+representation in which that fact is semantically complete, then joins checked
+acceptance only after compilation succeeds. `CheckedTrees` is therefore one
+possible source, not a mandatory collection point. This internal coupling may
+move with the compiler; it does not make private IR a package format or justify
+a nominal `Chi` stage. Add a stage only for a genuine reusable semantic boundary,
+and prefer an existing coherent representation such as `Exact` when it preserves
+the required meaning with less machinery.
+
 Must not own:
 
 - Machine instruction shape, ABI placement, final storage layout, relocation

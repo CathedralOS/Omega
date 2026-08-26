@@ -20,10 +20,10 @@ pub use footprint_certificate::{
 pub use function_linkage::validate_final_image_function_linkage;
 pub use model::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageImport,
-    FinalImageLayout, FinalImageMemory, FinalImageRelocation, FinalImageRelocationTable,
-    FinalImageSection, FinalImageSymbol, FinalImageSymbolHandle, FinalImageSymbolTable,
-    PlacedExecutableGap, PlacedExecutableRegion, PlacedExecutableRegionInventory,
-    bind_compiler_entry_footprint, place_executable_regions,
+    FinalImageImportPlan, FinalImageLayout, FinalImageMemory, FinalImageRelocation,
+    FinalImageRelocationTable, FinalImageSection, FinalImageSymbol, FinalImageSymbolHandle,
+    FinalImageSymbolTable, PlacedExecutableGap, PlacedExecutableRegion,
+    PlacedExecutableRegionInventory, bind_compiler_entry_footprint, place_executable_regions,
     validate_placed_executable_region_inventory,
 };
 pub use output::{
