@@ -223,7 +223,7 @@ pub fn built_in_psi_registry(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use omega_optimization_unit::reconstruct_psi_optimization_unit_seed;
     use omega_optimization_validation::validate_integer_evaluation_candidate;
     use omega_terminal_abstract_operations::{
@@ -243,7 +243,7 @@ mod tests {
         constructor(raw).expect("nonzero test identity")
     }
 
-    fn exact_add_unit() -> PsiOptimizationUnit {
+    pub(crate) fn exact_add_unit() -> PsiOptimizationUnit {
         let machine = id(301, MachineId::new);
         let block = id(302, BlockId::new);
         let left = id(303, ValueId::new);

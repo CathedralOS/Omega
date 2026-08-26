@@ -8,6 +8,7 @@
 //! creating an [`AnalysisManager`].
 
 mod analyses;
+mod pass_manager;
 mod registry;
 mod rules;
 
@@ -20,6 +21,10 @@ pub use analyses::{
     StronglyConnectedComponentAnalysis, UseDefinitionAnalysis, ValueFactRegion,
     ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
     analysis_dependencies, compute_analysis,
+};
+pub use pass_manager::{
+    OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
+    VerifiedPsiOptimizationSession, run_psi_registry,
 };
 pub use registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
