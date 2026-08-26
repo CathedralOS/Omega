@@ -457,8 +457,16 @@ These facts constrain the work below.
   zero-change result transformed the CFG. The v4 canonical codec round-trips
   direct and transformed forms, reconstructs typed target and stage fields,
   and rejects identity tampering, unknown tags, truncation, and trailing bytes.
-  Decoding remains non-authoritative. Final physical/
-  publication and artifact metadata remain open.
+  Decoding remains non-authoritative. A new selected-lowering-only
+  function-relative realization manifest joins the exact full suite and phase
+  subset, mandatory completion, pre-physical/post-allocation manifests, final
+  selected CFG, pre-/post-allocation machine roots, pre-layout encoding,
+  resolved layout, target, named layout policy, and derived function/block/
+  instruction/byte/branch statistics. Its strict v1 codec recomputes identity,
+  closed-vocabulary corruption fails, and custody replay reconstructs every
+  joined artifact. It explicitly marks frame, whole-function exit, emission,
+  sections, symbols, relocations, image, installation, and publication
+  unavailable. Final physical/publication and artifact metadata remain open.
 - `omega-lowering-optimizer` now owns a custody-preserving bridge from a
   completed `OptimizationRun` to a clean `TerminalAbstractOperationPlan`.
   Projection replays every retained candidate declaration through the
@@ -602,6 +610,14 @@ dependency.
   facts, validator identities, fuel/provenance map, code-size statistics, and
   allocator data when applicable. Suppressing the human report changes no
   decision or executable byte.
+
+  Current closure boundary: pre-physical, post-allocation, and selected-
+  lowering function-relative records are structured, content-identified, and
+  independently replayable. The function-relative record supplies truthful
+  code-size statistics while declaring every later authority unavailable. This
+  task remains open for whole-function frame/exit data, emission and relocation
+  custody, final artifact/rebuild metadata, and the suppressible compiler report
+  switch.
 
 ## P1 — Optimization representation and rule engine
 
@@ -806,12 +822,15 @@ dependency.
   separate from the ordered literal-fold ledger, so a verified zero-change run
   truthfully records completion with no invented transformation. The typed
   terminal-component compiler route now dispatches that phase from the retained
-  full suite, while Psi-only requests take direct strict homes; both stop after
-  independently validated post-allocation machine custody. The legacy native
+  full suite. Psi-only requests take direct strict homes and stop after
+  independently validated post-allocation machine custody. Selected-lowering
+  routes continue into a validated function-relative realization manifest
+  binding the machine, encoding, and layout roots plus exact code-size
+  statistics for both changed and verified no-change suites. The legacy native
   compiler firewall remains closed rather than feeding selected builds into its
-  old backend. Remaining to close: bind completion into the function-relative
-  and final realization manifests, broaden selected instruction shapes, and
-  complete emission/publication custody.
+  old backend. Remaining to close: add whole-function exit/frame custody,
+  broaden selected instruction shapes, and complete section/relocation,
+  emission, final-manifest, and publication custody.
 
 ## P4 — Lowering optimizer and virtual-register form
 
@@ -1303,6 +1322,19 @@ dependency.
   successor custody, displacement, and decoded effects. It retains fragments;
   it creates no code section, symbol, object relocation, executable span, or
   publication authority.
+
+  A selected-lowering-only function-relative realization carrier now owns that
+  validated layout together with its strict homes, post-allocation machine, and
+  pre-layout encoding. Its immutable v1 manifest binds the complete named suite,
+  exact selected-lowering subset and completion, pre-physical and post-
+  allocation manifests, final selected CFG, pre-/post-allocation machine roots,
+  both encoding/layout roots, target, and named layout policy. Statistics are
+  derived from the retained layout rather than supplied by callers. Its strict
+  self-authenticating codec and independent custody replay reject detached or
+  corrupted roots. The declared scope is only function-relative fragments;
+  frame, whole-function exit contract, emission, sections, symbols,
+  relocations, executable image, installation, and publication are explicitly
+  unavailable.
 
   x86 short-branch selection is deliberately not hidden inside the baseline.
   A future `X86RelaxConditionalBranchesToRel8V1` suite may monotonically shrink

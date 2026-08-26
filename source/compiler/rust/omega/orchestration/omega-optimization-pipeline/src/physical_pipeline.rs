@@ -8,17 +8,17 @@ use omega_terminal_abstract_operations_to_target_operations::{
 };
 
 use crate::{
-    OptimizedAllocationLegalityCustodyError, OptimizedLiteralFoldCustodyError,
-    OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError,
-    OptimizedPostAllocationMachinePipelineError, OptimizedPostSelectedLoweringHomeCustodyError,
-    OptimizedRegisterHomeCustodyError, OptimizedSelectionPipelineError,
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedRegisterHomes,
-    StagedOptimizedRegisterHomesAfterSelectedLowering, run_selected_lowering_optimizations,
-    stage_optimized_allocation_legality, stage_optimized_instruction_selection,
-    stage_optimized_live_ranges, stage_optimized_liveness,
-    stage_optimized_post_allocation_machine_plan,
-    stage_optimized_post_allocation_machine_plan_after_selected_lowering,
-    stage_optimized_register_homes, stage_optimized_register_homes_after_selected_lowering,
+    FunctionRelativeOptimizationRealizationError, OptimizedAllocationLegalityCustodyError,
+    OptimizedLiteralFoldCustodyError, OptimizedLiveRangeCustodyError,
+    OptimizedLivenessCustodyError, OptimizedPostAllocationMachinePipelineError,
+    OptimizedPostSelectedLoweringHomeCustodyError, OptimizedRegisterHomeCustodyError,
+    OptimizedSelectionPipelineError, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedRegisterHomes, StagedSelectedLoweringFunctionRelativeRealization,
+    run_selected_lowering_optimizations, stage_optimized_allocation_legality,
+    stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_post_allocation_machine_plan, stage_optimized_register_homes,
+    stage_optimized_register_homes_after_selected_lowering,
+    stage_selected_lowering_function_relative_realization,
 };
 
 /// Complete currently admitted physical validation for one explicitly selected
@@ -31,15 +31,24 @@ pub enum StagedOptimizedVerifiedPhysicalPipeline {
         machine: StagedOptimizedPostAllocationMachinePlan,
     },
     SelectedLowering {
-        homes: StagedOptimizedRegisterHomesAfterSelectedLowering,
-        machine: StagedOptimizedPostAllocationMachinePlan,
+        realization: StagedSelectedLoweringFunctionRelativeRealization,
     },
 }
 
 impl StagedOptimizedVerifiedPhysicalPipeline {
     pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
         match self {
-            Self::PsiOnly { machine, .. } | Self::SelectedLowering { machine, .. } => machine,
+            Self::PsiOnly { machine, .. } => machine,
+            Self::SelectedLowering { realization } => realization.machine(),
+        }
+    }
+
+    pub const fn function_relative_realization(
+        &self,
+    ) -> Option<&StagedSelectedLoweringFunctionRelativeRealization> {
+        match self {
+            Self::PsiOnly { .. } => None,
+            Self::SelectedLowering { realization } => Some(realization),
         }
     }
 
@@ -54,9 +63,11 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                 .optimized()
                 .selections()
                 .identity(),
-            Self::SelectedLowering { homes, .. } => {
-                homes.selected_lowering_run().custody().selections()
-            }
+            Self::SelectedLowering { realization } => realization
+                .homes()
+                .selected_lowering_run()
+                .custody()
+                .selections(),
         }
     }
 
@@ -65,9 +76,13 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
     ) -> Option<omega_optimization_core::SelectedLoweringOptimizationCompletionIdentity> {
         match self {
             Self::PsiOnly { .. } => None,
-            Self::SelectedLowering { homes, .. } => {
-                Some(homes.selected_lowering_run().custody().identity())
-            }
+            Self::SelectedLowering { realization } => Some(
+                realization
+                    .homes()
+                    .selected_lowering_run()
+                    .custody()
+                    .identity(),
+            ),
         }
     }
 }
@@ -83,6 +98,7 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     SelectedLowering(OptimizedLiteralFoldCustodyError),
     SelectedLoweringHomes(OptimizedPostSelectedLoweringHomeCustodyError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
+    FunctionRelativeRealization(FunctionRelativeOptimizationRealizationError),
 }
 
 impl std::fmt::Display for OptimizedVerifiedPhysicalPipelineError {
@@ -139,8 +155,8 @@ pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
             .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedLowering)?;
         let homes = stage_optimized_register_homes_after_selected_lowering(run)
             .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedLoweringHomes)?;
-        let machine = stage_optimized_post_allocation_machine_plan_after_selected_lowering(&homes)
-            .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
-        Ok(StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { homes, machine })
+        let realization = stage_selected_lowering_function_relative_realization(homes)
+            .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
+        Ok(StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization })
     }
 }
