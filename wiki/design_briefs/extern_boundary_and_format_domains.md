@@ -139,15 +139,24 @@ target/deployment-supplied interpreter pathname for a Linux x86-64 or AArch64
 profile. It preserves raw non-UTF-8 bytes, rejects paths that are empty,
 relative, or contain NUL bytes, and fingerprints the exact profile and
 length-framed bytes.
-It grants no loader, publication, or admission authority. Runnable dynamic
-emission therefore stays fail closed until an owner joins this input to the
-complete dynamic-link structures. An owned direct `[u8; N]` destination now
-contextually copies a quoted literal into an ordinary raw-byte array only when
-`N` is a resolved integer literal and the source byte count matches exactly;
-non-byte or unresolved/mismatched widths reject, and hermetic evaluation
-observes the array value. Producer closure, evaluator receipt, source `via`
-evaluation, specialized string-only adapters, and complete versioned-ELF
-emission remain to migrate.
+The first ELF-owner join consumes one exact final image beside that input and
+accepts only its nonempty canonical referenced `ElfVersioned` row set under the
+same Linux profile. The non-clone carrier privately retains every symbol
+handle, raw locator, normalized identity, and relocation site. Target drift,
+string-backed or unused interpreter input, and canonical-request failure return
+the original image and interpreter unchanged. These carriers grant no loader,
+section, publication, or admission authority. Runnable dynamic emission stays
+fail closed: `PT_INTERP`/`PT_DYNAMIC`, `.dynstr`, `.dynsym`, the selected symbol
+hash, `.gnu.version`/`.gnu.version_r`, `.dynamic`, the selected GOT/PLT
+arrangement, `.rela.dyn`/`.rela.plt`, architecture-specific relocation
+lowering, complete load/program-header layout, and independent final-byte
+replay remain open. An owned direct `[u8; N]` destination now contextually
+copies a quoted literal into an ordinary raw-byte array only when `N` is a
+resolved integer literal and the source byte count matches exactly; non-byte
+or unresolved/mismatched widths reject, and hermetic evaluation observes the
+array value. Producer closure, evaluator receipt, source `via` evaluation,
+specialized string-only adapters, and complete versioned-ELF emission remain
+to migrate.
 
 Changing raw foreign bytes changes the normalized binding, forces every final
 artifact whose reachable closure contains it to relink, and requires fresh

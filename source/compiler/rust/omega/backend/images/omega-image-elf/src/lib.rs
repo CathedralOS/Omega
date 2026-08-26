@@ -6,6 +6,7 @@ use psi_diagnostics::Diagnostic;
 
 mod bytes;
 mod constants;
+mod dynamic_link;
 mod entry;
 mod headers;
 mod imports;
@@ -13,6 +14,10 @@ mod layout;
 mod sections;
 #[cfg(test)]
 mod tests;
+
+pub use dynamic_link::{
+    ElfDynamicLinkInputPlanningError, PlannedElfDynamicLinkInputs, plan_elf_dynamic_link_inputs,
+};
 
 use entry::elf_entry_address;
 use headers::{write_data_program_header, write_elf_header, write_text_program_header};
