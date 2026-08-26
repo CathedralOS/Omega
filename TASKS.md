@@ -1926,11 +1926,14 @@ Remaining:
   now owns the production compile options, executable-TCB policy, auxiliary
   observation policy, and optional reconciled package graph, and one
   `compile_request` operation constructs the production coordinator. The
-  existing public compatibility wrappers delegate to that operation; test
-  entry overrides and worker ceilings remain on explicitly separate harness
-  paths and cannot enter the production request. Requested-product stopping,
-  the checked/terminal route, output destination custody, and removal of the
-  compatibility wrappers remain open.
+  real `omega` and `omega-run` command-line callers now construct that request
+  directly, including their observation policy. Existing public compatibility
+  wrappers delegate to the same operation and remain only at harness,
+  integration-test, and migration call sites; test entry overrides and worker
+  ceilings stay on explicitly separate harness paths and cannot enter the
+  production request. Requested-product stopping, the checked/terminal route,
+  output destination custody, and removal of those remaining compatibility
+  wrappers remain open.
 
   Restore the driver contract:
 
