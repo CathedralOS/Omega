@@ -5056,9 +5056,13 @@ Remaining:
   transfer/resume encoder with exact `BL` and paired `ADRP`/`ADD` relocation
   sites, physical state evidence, and a 16-byte sponsor-stack peak; scratch,
   transport, profile, slot, alignment, and immediate drift reject. The remaining
-  native slice is to teach the object/image replay owner those three AArch64
-  relocations, emit ELF AArch64, carry transfer evidence through the installation
-  format, and connect the admitted runtime into deployed dynamic roots.
+  AArch64 object/image join is now live: it appends and independently replays
+  exact `Aarch64Branch26`, `Aarch64Page21`, and `Aarch64PageOffset12`
+  relocations, emits through the ELF AArch64 path, and decodes final `BL` plus
+  `ADRP`/`ADD` instructions to require the exact sponsor target and `.text`
+  base. The remaining native slice is to carry transfer evidence through the
+  installation format and connect the admitted runtime into deployed dynamic
+  roots.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof

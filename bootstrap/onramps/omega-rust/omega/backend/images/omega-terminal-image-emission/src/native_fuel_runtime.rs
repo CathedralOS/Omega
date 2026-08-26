@@ -9,6 +9,7 @@ use omega_object_file::{
     ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan,
     RelocationRecord, SectionKind, SymbolKind, SymbolPlan, SymbolSection,
 };
+use omega_target::Architecture;
 use omega_terminal_installation_evidence::{
     NativeFuelRuntimeEntryIdentity, NativeFuelRuntimeTextSpan,
     NativeFuelTransferRuntimePlanProjection,
@@ -16,6 +17,136 @@ use omega_terminal_installation_evidence::{
 use psi_diagnostics::Diagnostic;
 
 use super::ValidatedTerminalNativeFuelArtifact;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum NativeFuelTransferRuntimeEncoding {
+    X86_64(omega_terminal_isa_x86_64::X86NativeFuelTransferRuntimeEncoding),
+    Aarch64(omega_terminal_isa_aarch64::Aarch64NativeFuelTransferRuntimeEncoding),
+}
+
+impl NativeFuelTransferRuntimeEncoding {
+    pub(super) fn transfer_bytes(&self) -> &[u8] {
+        match self {
+            Self::X86_64(encoding) => encoding.transfer_bytes(),
+            Self::Aarch64(encoding) => encoding.transfer_bytes(),
+        }
+    }
+
+    pub(super) fn resume_bytes(&self) -> &[u8] {
+        match self {
+            Self::X86_64(encoding) => encoding.resume_bytes(),
+            Self::Aarch64(encoding) => encoding.resume_bytes(),
+        }
+    }
+
+    pub(super) fn physical_state_footprint(
+        &self,
+    ) -> &omega_calling_conventions::StateFootprintEvidence {
+        match self {
+            Self::X86_64(encoding) => encoding.physical_state_footprint(),
+            Self::Aarch64(encoding) => encoding.physical_state_footprint(),
+        }
+    }
+
+    pub(super) fn realized_sponsor_stack_peak_bytes(&self) -> u64 {
+        match self {
+            Self::X86_64(encoding) => encoding.realized_sponsor_stack_peak_bytes(),
+            Self::Aarch64(encoding) => encoding.realized_sponsor_stack_peak_bytes(),
+        }
+    }
+
+    fn relocation_records(
+        &self,
+        transfer_offset: usize,
+        resume_offset: usize,
+        transfer_symbol: ObjectSymbolHandle,
+        resume_symbol: ObjectSymbolHandle,
+        sponsor_symbol: ObjectSymbolHandle,
+    ) -> Result<Vec<RelocationRecord>, TerminalNativeFuelTransferRuntimeError> {
+        let text_base_addend = i64::try_from(transfer_offset)
+            .ok()
+            .and_then(i64::checked_neg)
+            .ok_or(TerminalNativeFuelTransferRuntimeError::SizeOverflow)?;
+        let materialization = |symbol| RelocationOrigin::Materialization {
+            object_symbol_handle: symbol,
+        };
+        let record = |origin, offset, symbol_handle, addend, kind| RelocationRecord {
+            origin,
+            section: SectionKind::Text,
+            offset,
+            byte_width: 4,
+            symbol_handle,
+            addend,
+            kind,
+        };
+        match self {
+            Self::X86_64(encoding) => Ok(vec![
+                record(
+                    materialization(transfer_symbol),
+                    transfer_offset
+                        .checked_add(encoding.sponsor_call_rel32_field_offset())
+                        .ok_or(TerminalNativeFuelTransferRuntimeError::SizeOverflow)?,
+                    sponsor_symbol,
+                    0,
+                    RelocationKind::X86_64Relative32,
+                ),
+                record(
+                    materialization(resume_symbol),
+                    resume_offset
+                        .checked_add(encoding.retry_text_base_rel32_field_offset())
+                        .ok_or(TerminalNativeFuelTransferRuntimeError::SizeOverflow)?,
+                    transfer_symbol,
+                    text_base_addend,
+                    RelocationKind::X86_64Relative32,
+                ),
+            ]),
+            Self::Aarch64(encoding) => Ok(vec![
+                record(
+                    materialization(transfer_symbol),
+                    transfer_offset
+                        .checked_add(encoding.sponsor_call_branch26_offset())
+                        .ok_or(TerminalNativeFuelTransferRuntimeError::SizeOverflow)?,
+                    sponsor_symbol,
+                    0,
+                    RelocationKind::Aarch64Branch26,
+                ),
+                record(
+                    materialization(resume_symbol),
+                    resume_offset
+                        .checked_add(encoding.retry_text_page21_offset())
+                        .ok_or(TerminalNativeFuelTransferRuntimeError::SizeOverflow)?,
+                    transfer_symbol,
+                    text_base_addend,
+                    RelocationKind::Aarch64Page21,
+                ),
+                record(
+                    materialization(resume_symbol),
+                    resume_offset
+                        .checked_add(encoding.retry_text_page_offset12_offset())
+                        .ok_or(TerminalNativeFuelTransferRuntimeError::SizeOverflow)?,
+                    transfer_symbol,
+                    text_base_addend,
+                    RelocationKind::Aarch64PageOffset12,
+                ),
+            ]),
+        }
+    }
+}
+
+fn encode_transfer_runtime(
+    plan: &NativeFuelTransferRuntimePlanProjection,
+) -> Result<NativeFuelTransferRuntimeEncoding, Diagnostic> {
+    match plan.target().architecture {
+        Architecture::X86_64 => {
+            omega_terminal_isa_x86_64::encode_native_fuel_transfer_runtime(plan)
+                .map(NativeFuelTransferRuntimeEncoding::X86_64)
+        }
+        Architecture::Aarch64 => {
+            omega_terminal_isa_aarch64::encode_native_fuel_transfer_runtime(plan)
+                .map(NativeFuelTransferRuntimeEncoding::Aarch64)
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TerminalNativeFuelRuntimeEntryBinding {
@@ -116,11 +247,9 @@ pub fn bind_terminal_native_fuel_transfer_runtime(
     {
         return Err(TerminalNativeFuelTransferRuntimeError::TargetPlanMismatch);
     }
-    let encoding = omega_terminal_isa_x86_64::encode_native_fuel_transfer_runtime(&plan).map_err(
-        |diagnostic| {
-            TerminalNativeFuelTransferRuntimeError::UnsupportedTarget(diagnostic.to_string())
-        },
-    )?;
+    let encoding = encode_transfer_runtime(&plan).map_err(|diagnostic| {
+        TerminalNativeFuelTransferRuntimeError::UnsupportedTarget(diagnostic.to_string())
+    })?;
 
     let mut object = metered_artifact.object().clone();
     if !object.layout.symbols.is_valid(sponsor_symbol) {
@@ -185,39 +314,16 @@ pub fn bind_terminal_native_fuel_transfer_runtime(
         .ok_or(TerminalNativeFuelTransferRuntimeError::SizeOverflow)?;
     object.layout.sections.get_mut(text_section).size = text_bytes.len();
 
-    let sponsor_call_offset = transfer_offset
-        .checked_add(encoding.sponsor_call_rel32_field_offset())
-        .ok_or(TerminalNativeFuelTransferRuntimeError::SizeOverflow)?;
-    let retry_base_offset = resume_offset
-        .checked_add(encoding.retry_text_base_rel32_field_offset())
-        .ok_or(TerminalNativeFuelTransferRuntimeError::SizeOverflow)?;
-    let text_base_addend = i64::try_from(transfer_offset)
-        .ok()
-        .and_then(i64::checked_neg)
-        .ok_or(TerminalNativeFuelTransferRuntimeError::SizeOverflow)?;
     let mut relocations = metered_artifact.relocations().clone();
-    relocations.push_record(RelocationRecord {
-        origin: RelocationOrigin::Materialization {
-            object_symbol_handle: transfer_symbol,
-        },
-        section: SectionKind::Text,
-        offset: sponsor_call_offset,
-        byte_width: 4,
-        symbol_handle: sponsor_symbol,
-        addend: 0,
-        kind: RelocationKind::X86_64Relative32,
-    });
-    relocations.push_record(RelocationRecord {
-        origin: RelocationOrigin::Materialization {
-            object_symbol_handle: resume_symbol,
-        },
-        section: SectionKind::Text,
-        offset: retry_base_offset,
-        byte_width: 4,
-        symbol_handle: transfer_symbol,
-        addend: text_base_addend,
-        kind: RelocationKind::X86_64Relative32,
-    });
+    for record in encoding.relocation_records(
+        transfer_offset,
+        resume_offset,
+        transfer_symbol,
+        resume_symbol,
+        sponsor_symbol,
+    )? {
+        relocations.push_record(record);
+    }
 
     Ok(ValidatedTerminalNativeFuelTransferRuntimeArtifact {
         metered_artifact: metered_artifact.clone(),
@@ -248,7 +354,7 @@ fn runtime_symbol_name(kind: &str, identity: NativeFuelRuntimeEntryIdentity) -> 
 
 pub(super) fn replay_terminal_native_fuel_transfer_runtime_artifact(
     artifact: &ValidatedTerminalNativeFuelTransferRuntimeArtifact,
-) -> Result<omega_terminal_isa_x86_64::X86NativeFuelTransferRuntimeEncoding, Diagnostic> {
+) -> Result<NativeFuelTransferRuntimeEncoding, Diagnostic> {
     let base = artifact.metered_artifact();
     artifact
         .plan()
@@ -256,7 +362,7 @@ pub(super) fn replay_terminal_native_fuel_transfer_runtime_artifact(
         .map_err(|error| {
             Diagnostic::error(format!("native fuel runtime target-plan drift: {error}"))
         })?;
-    let encoding = omega_terminal_isa_x86_64::encode_native_fuel_transfer_runtime(artifact.plan())?;
+    let encoding = encode_transfer_runtime(artifact.plan())?;
     if artifact.object.target != base.object().target
         || artifact.relocations.target != base.relocations().target
         || artifact.text_bytes().len()
@@ -381,57 +487,27 @@ pub(super) fn replay_terminal_native_fuel_transfer_runtime_artifact(
             ));
         }
     }
+    let expected_relocations = encoding
+        .relocation_records(
+            artifact.transfer.span.text_offset,
+            artifact.resume.span.text_offset,
+            artifact.transfer.symbol,
+            artifact.resume.symbol,
+            artifact.sponsor_symbol,
+        )
+        .map_err(|error| Diagnostic::error(error.to_string()))?;
     let expected_relocation_count = base
         .relocations()
         .record_count()
-        .checked_add(2)
+        .checked_add(expected_relocations.len())
         .ok_or_else(|| Diagnostic::error("native fuel runtime relocation count overflows"))?;
     if artifact.relocations.record_count() != expected_relocation_count {
-        return Err(Diagnostic::error(
-            "native fuel runtime artifact must append exactly two relocations",
-        ));
+        return Err(Diagnostic::error(format!(
+            "native fuel runtime artifact must append exactly {} target relocations",
+            expected_relocations.len()
+        )));
     }
-    let transfer_field = artifact
-        .transfer
-        .span
-        .text_offset
-        .checked_add(encoding.sponsor_call_rel32_field_offset())
-        .ok_or_else(|| Diagnostic::error("native fuel runtime transfer field overflows"))?;
-    let resume_field = artifact
-        .resume
-        .span
-        .text_offset
-        .checked_add(encoding.retry_text_base_rel32_field_offset())
-        .ok_or_else(|| Diagnostic::error("native fuel runtime resume field overflows"))?;
-    let text_base_addend = i64::try_from(artifact.transfer.span.text_offset)
-        .ok()
-        .and_then(i64::checked_neg)
-        .ok_or_else(|| Diagnostic::error("native fuel runtime text-base addend overflows"))?;
-    let expected = [
-        RelocationRecord {
-            origin: RelocationOrigin::Materialization {
-                object_symbol_handle: artifact.transfer.symbol,
-            },
-            section: SectionKind::Text,
-            offset: transfer_field,
-            byte_width: 4,
-            symbol_handle: artifact.sponsor_symbol,
-            addend: 0,
-            kind: RelocationKind::X86_64Relative32,
-        },
-        RelocationRecord {
-            origin: RelocationOrigin::Materialization {
-                object_symbol_handle: artifact.resume.symbol,
-            },
-            section: SectionKind::Text,
-            offset: resume_field,
-            byte_width: 4,
-            symbol_handle: artifact.transfer.symbol,
-            addend: text_base_addend,
-            kind: RelocationKind::X86_64Relative32,
-        },
-    ];
-    for expected in expected {
+    for expected in expected_relocations {
         if artifact
             .relocations
             .records()
@@ -567,6 +643,74 @@ mod tests {
         .expect("structural runtime plan")
     }
 
+    fn aarch64_transfer_plan() -> NativeFuelTransferRuntimePlanProjection {
+        let state = MachineStateSet::new([
+            MachineState::InstructionPointer,
+            MachineState::StackPointer,
+            MachineState::GeneralRegisters,
+            MachineState::VectorRegisters,
+            MachineState::Flags,
+        ]);
+        NativeFuelTransferRuntimePlanProjection::new(
+            TargetProfile::LinuxArm64,
+            TargetProfile::LinuxArm64.native_target(),
+            SponsorContextTransport::ReservedNonvolatileRegister {
+                register: MachineRegister::Aarch64X(28),
+            },
+            NativeFuelContextLayout {
+                byte_size: 112,
+                alignment: 16,
+                remaining_units_offset: 0,
+                unpaid_site_kind_offset: 8,
+                unpaid_site_identity_offset: 16,
+                required_units_offset: 24,
+                transfer_entry_offset: 32,
+                retry_code_offset_offset: 40,
+                sponsor_stack_top_offset: 48,
+                activation_state_offset: 64,
+                activation_state_byte_count: 40,
+            },
+            vec![
+                NativeFuelActivationStateSlot {
+                    value: NativeFuelSavedValue::Register(MachineRegister::Aarch64X(0)),
+                    context_offset: 64,
+                    byte_count: 8,
+                },
+                NativeFuelActivationStateSlot {
+                    value: NativeFuelSavedValue::Flags,
+                    context_offset: 72,
+                    byte_count: 8,
+                },
+                NativeFuelActivationStateSlot {
+                    value: NativeFuelSavedValue::Register(MachineRegister::Aarch64V(0)),
+                    context_offset: 80,
+                    byte_count: 16,
+                },
+                NativeFuelActivationStateSlot {
+                    value: NativeFuelSavedValue::StackPointer,
+                    context_offset: 96,
+                    byte_count: 8,
+                },
+            ],
+            NativeFuelSponsorStackPlan {
+                alignment: 16,
+                byte_ceiling: 256,
+            },
+            state,
+            state,
+            state,
+            NativeFuelRuntimeEntryIdentity {
+                section_identity: 21,
+                symbol_identity: 22,
+            },
+            NativeFuelRuntimeEntryIdentity {
+                section_identity: 21,
+                symbol_identity: 23,
+            },
+        )
+        .expect("structural AArch64 runtime plan")
+    }
+
     fn policy(plan: &NativeFuelTransferRuntimePlanProjection) -> NativeFuelTargetPlanProjection {
         NativeFuelTargetPlanProjection {
             profile: plan.profile(),
@@ -596,7 +740,10 @@ mod tests {
                     operations: vec![operation],
                     edges: Vec::new(),
                 },
-                bytes: vec![0xc3],
+                bytes: match plan.target().architecture {
+                    Architecture::X86_64 => vec![0xc3],
+                    Architecture::Aarch64 => 0xd65f_03c0_u32.to_le_bytes().to_vec(),
+                },
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -633,6 +780,14 @@ mod tests {
         let sponsor = metered.semantic_artifact().entry_function().symbol;
         bind_terminal_native_fuel_transfer_runtime(&metered, plan, sponsor)
             .expect("runtime binding")
+    }
+
+    fn bound_aarch64_artifact() -> ValidatedTerminalNativeFuelTransferRuntimeArtifact {
+        let plan = aarch64_transfer_plan();
+        let metered = metered_artifact(&plan);
+        let sponsor = metered.semantic_artifact().entry_function().symbol;
+        bind_terminal_native_fuel_transfer_runtime(&metered, plan, sponsor)
+            .expect("AArch64 runtime binding")
     }
 
     #[test]
@@ -701,5 +856,96 @@ mod tests {
             .get_mut(handle)
             .addend += 1;
         assert!(replay_terminal_native_fuel_transfer_runtime_artifact(&relocation_drift).is_err());
+    }
+
+    #[test]
+    fn aarch64_binding_appends_and_replays_exact_typed_relocations() {
+        let artifact = bound_aarch64_artifact();
+        let base_relocations = artifact.metered_artifact().relocations().record_count();
+        let appended = artifact
+            .relocations()
+            .records()
+            .skip(base_relocations)
+            .map(|(_, relocation)| relocation.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(appended.len(), 3);
+        assert_eq!(appended[0].kind, RelocationKind::Aarch64Branch26);
+        assert_eq!(appended[0].symbol_handle, artifact.sponsor_symbol());
+        assert_eq!(
+            appended[0].offset,
+            artifact.transfer().span().text_offset + 40
+        );
+        assert_eq!(appended[1].kind, RelocationKind::Aarch64Page21);
+        assert_eq!(appended[1].symbol_handle, artifact.transfer().symbol());
+        assert_eq!(appended[1].offset, artifact.resume().span().text_offset);
+        assert_eq!(appended[2].kind, RelocationKind::Aarch64PageOffset12);
+        assert_eq!(appended[2].symbol_handle, artifact.transfer().symbol());
+        assert_eq!(appended[2].offset, artifact.resume().span().text_offset + 4);
+        assert_eq!(appended[1].addend, appended[2].addend);
+        assert_eq!(
+            appended[1].addend,
+            -i64::try_from(artifact.transfer().span().text_offset).unwrap()
+        );
+
+        let replayed = replay_terminal_native_fuel_transfer_runtime_artifact(&artifact)
+            .expect("AArch64 object replay");
+        assert!(matches!(
+            replayed,
+            NativeFuelTransferRuntimeEncoding::Aarch64(_)
+        ));
+
+        let mut kind_drift = artifact.clone();
+        let handle = kind_drift
+            .relocations
+            .records()
+            .last()
+            .expect("PageOffset12 relocation")
+            .0;
+        kind_drift
+            .relocations
+            .record_set
+            .records
+            .get_mut(handle)
+            .kind = RelocationKind::Aarch64Page21;
+        assert!(replay_terminal_native_fuel_transfer_runtime_artifact(&kind_drift).is_err());
+    }
+
+    #[test]
+    fn aarch64_elf_image_replays_targets_and_physical_evidence() {
+        let artifact = bound_aarch64_artifact();
+        let image =
+            crate::emit_terminal_native_fuel_transfer_runtime_executable_image(&artifact, 0)
+                .expect("AArch64 transfer runtime image");
+        let evidence = image.transfer_runtime_evidence();
+
+        assert_eq!(image.output().format, "elf64-aarch64-executable");
+        assert_eq!(image.output().final_image_relocations, 3);
+        assert_eq!(
+            image
+                .output()
+                .compiler_text_validation
+                .as_ref()
+                .expect("relocation envelope")
+                .text_relocation_count,
+            3
+        );
+        assert_eq!(evidence.plan(), artifact.plan());
+        assert_eq!(evidence.sponsor_stack_peak_bytes(), 16);
+        assert_eq!(
+            evidence.physical_state_footprint().machine_state(),
+            MachineStateSet::new([
+                MachineState::GeneralRegisters,
+                MachineState::VectorRegisters,
+                MachineState::Flags,
+                MachineState::InstructionPointer,
+                MachineState::StackPointer,
+            ])
+        );
+        assert_ne!(
+            evidence.transfer_text().unrelocated_bytes(),
+            evidence.transfer_text().final_bytes(),
+            "the Branch26 sponsor call must be materialized"
+        );
+        assert_ne!(evidence.fingerprint(), 0);
     }
 }
