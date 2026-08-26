@@ -967,6 +967,154 @@ pub struct InterruptAcknowledgement {
     qualifications: Vec<AdmittedEntryQualification>,
 }
 
+/// Sealed installation evidence for one provider-completed interrupt
+/// acknowledgement operation.
+///
+/// The selected reach row is descriptive, not authority. Construction joins
+/// it back to the exact installed root, provider execution, acknowledgement
+/// policy, invocation, and linear acknowledgement occurrence before a provider
+/// receipt can settle the token.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledInterruptCompletionRoute {
+    root: ExternalRootId,
+    normalized_root_identity: u64,
+    entry_provider_plan: ProviderPlanId,
+    provider_execution: ProviderExecutionId,
+    provider_execution_fingerprint: u64,
+    completion_requirement_identity: String,
+    resolution: omega_effects::InstallationReachResolution,
+    entry_receipt: InterruptEntryReceiptId,
+    invocation: InterruptInvocationId,
+    policy: AcknowledgementPolicyId,
+    acknowledgement: InterruptAcknowledgementId,
+}
+
+impl InstalledInterruptCompletionRoute {
+    fn from_provider_operation(
+        acknowledgement: &InterruptAcknowledgement,
+        completion_requirement_identity: &str,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        if completion_requirement_identity.is_empty() {
+            return Err(ExternalRootDiagnostic(
+                "interrupt acknowledgement completion requirement identity cannot be empty".into(),
+            ));
+        }
+        let installed = &acknowledgement.invocation_evidence.installed_root;
+        let root = &installed.root;
+        if !installed.provider_execution.matches_root(root)
+            || installed.provider_execution.identity != acknowledgement.provider_execution
+        {
+            return Err(ExternalRootDiagnostic(
+                "interrupt acknowledgement completion does not retain the exact installed provider execution"
+                    .into(),
+            ));
+        }
+        let mut matches = root
+            .candidate
+            .service_reach
+            .resolutions()
+            .iter()
+            .filter(|resolution| {
+                resolution.requirement_identity == completion_requirement_identity
+            });
+        let Some(resolution) = matches.next() else {
+            return Err(ExternalRootDiagnostic(format!(
+                "interrupt acknowledgement completion requirement `{completion_requirement_identity}` is absent from the exact installed reach"
+            )));
+        };
+        if matches.next().is_some()
+            || !root
+                .candidate
+                .service_reach
+                .installation_requirements()
+                .iter()
+                .any(|requirement| requirement == completion_requirement_identity)
+        {
+            return Err(ExternalRootDiagnostic(format!(
+                "interrupt acknowledgement completion requirement `{completion_requirement_identity}` does not have one exact installed reach resolution"
+            )));
+        }
+        Ok(Self {
+            root: acknowledgement.root,
+            normalized_root_identity: root.normalized_identity,
+            entry_provider_plan: installed.provider_execution.provider_plan,
+            provider_execution: acknowledgement.provider_execution,
+            provider_execution_fingerprint: installed.provider_execution.normalized_identity,
+            completion_requirement_identity: completion_requirement_identity.into(),
+            resolution: resolution.clone(),
+            entry_receipt: acknowledgement.invocation_evidence.entry_receipt,
+            invocation: acknowledgement.invocation,
+            policy: acknowledgement.policy,
+            acknowledgement: acknowledgement.identity,
+        })
+    }
+
+    fn matches_acknowledgement(&self, acknowledgement: &InterruptAcknowledgement) -> bool {
+        let installed = &acknowledgement.invocation_evidence.installed_root;
+        let root = &installed.root;
+        let replayed_resolution =
+            root.candidate
+                .service_reach
+                .resolutions()
+                .iter()
+                .find(|resolution| {
+                    resolution.requirement_identity == self.completion_requirement_identity
+                });
+        installed.provider_execution.matches_root(root)
+            && self.root == acknowledgement.root
+            && self.normalized_root_identity == root.normalized_identity
+            && self.entry_provider_plan == installed.provider_execution.provider_plan
+            && self.provider_execution == acknowledgement.provider_execution
+            && self.provider_execution == installed.provider_execution.identity
+            && self.provider_execution_fingerprint
+                == installed.provider_execution.normalized_identity
+            && self.completion_requirement_identity == self.resolution.requirement_identity
+            && replayed_resolution == Some(&self.resolution)
+            && root
+                .candidate
+                .service_reach
+                .installation_requirements()
+                .iter()
+                .any(|requirement| requirement == &self.completion_requirement_identity)
+            && self.entry_receipt == acknowledgement.invocation_evidence.entry_receipt
+            && self.invocation == acknowledgement.invocation
+            && self.policy == acknowledgement.policy
+            && self.acknowledgement == acknowledgement.identity
+            && acknowledgement.invocation_evidence.invocation == acknowledgement.invocation
+            && acknowledgement.invocation_evidence.acknowledgement_policy
+                == Some(acknowledgement.policy)
+            && acknowledgement.invocation_evidence.acknowledgement == Some(acknowledgement.identity)
+    }
+
+    pub const fn entry_provider_plan(&self) -> ProviderPlanId {
+        self.entry_provider_plan
+    }
+
+    pub const fn provider_execution(&self) -> ProviderExecutionId {
+        self.provider_execution
+    }
+
+    pub fn completion_requirement_identity(&self) -> &str {
+        &self.completion_requirement_identity
+    }
+
+    pub const fn resolution(&self) -> &omega_effects::InstallationReachResolution {
+        &self.resolution
+    }
+
+    pub const fn invocation(&self) -> InterruptInvocationId {
+        self.invocation
+    }
+
+    pub const fn policy(&self) -> AcknowledgementPolicyId {
+        self.policy
+    }
+
+    pub const fn acknowledgement(&self) -> InterruptAcknowledgementId {
+        self.acknowledgement
+    }
+}
+
 impl InterruptAcknowledgement {
     pub const fn identity(&self) -> InterruptAcknowledgementId {
         self.identity
@@ -1021,7 +1169,7 @@ impl InterruptAcknowledgement {
             && receipt.invocation == self.invocation
             && receipt.policy == self.policy
             && receipt.acknowledgement == self.identity
-            && receipt.source_acknowledged;
+            && receipt.route.matches_acknowledgement(&self);
         if !matches {
             return Err(Box::new(InterruptAcknowledgementError {
                 acknowledgement: self,
@@ -1053,16 +1201,20 @@ pub struct InterruptAcknowledgementReceipt {
     invocation: InterruptInvocationId,
     policy: AcknowledgementPolicyId,
     acknowledgement: InterruptAcknowledgementId,
-    source_acknowledged: bool,
+    route: InstalledInterruptCompletionRoute,
 }
 
 impl InterruptAcknowledgementReceipt {
     pub fn from_provider(
         identity: InterruptAcknowledgementReceiptId,
         acknowledgement: &InterruptAcknowledgement,
-        source_acknowledged: bool,
-    ) -> Self {
-        Self {
+        completion_requirement_identity: &str,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        let route = InstalledInterruptCompletionRoute::from_provider_operation(
+            acknowledgement,
+            completion_requirement_identity,
+        )?;
+        Ok(Self {
             identity,
             invocation_evidence: acknowledgement.invocation_evidence.clone(),
             root: acknowledgement.root,
@@ -1070,8 +1222,12 @@ impl InterruptAcknowledgementReceipt {
             invocation: acknowledgement.invocation,
             policy: acknowledgement.policy,
             acknowledgement: acknowledgement.identity,
-            source_acknowledged,
-        }
+            route,
+        })
+    }
+
+    pub const fn route(&self) -> &InstalledInterruptCompletionRoute {
+        &self.route
     }
 }
 

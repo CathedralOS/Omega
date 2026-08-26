@@ -7457,8 +7457,13 @@ state through a raw address.
     `satisfies Trait::requirement` surface selects trait/operator requirements;
     no approved source form yet binds a provider to a top-level requirement
     path. Until that is settled, provider selection cannot close the new
-    top-level dependency, and `InterruptAcknowledgement::complete` must retain
-    its fixed `PortIo` row.
+    top-level dependency, so the public source declaration for
+    `InterruptAcknowledgement::complete` must retain its fixed `PortIo` row.
+    Installation settlement no longer depends on that placeholder: its sealed
+    completion route replays the exact installed reach resolution and binds the
+    selected provider plan/execution, entry receipt, acknowledgement policy,
+    invocation, and token. PIC and LAPIC canaries retain distinct `PortIo` and
+    `MachineControl` rows, and coordinate drift returns retry custody.
   - **Constraints:** `+` is union. Do not infer one shared row from equal sets or
     add negation, subtraction, lower bounds, exclusive-or, named row variables,
     or cross-requirement correlation.
@@ -7471,9 +7476,11 @@ state through a raw address.
   coherence is represented would make checked PIC implementations appear to
   reach the full conservative union. Bind entry/completion coherence through
   the exact installed provider execution, acknowledgement policy, operation,
-  and token lineage rather than row equality, then migrate completion to its
-  distinct bound. PIC completion resolves to `PortIo`; LAPIC/x2APIC completion
-  resolves to `MachineControl`. Checked and terminal artifacts retain the
+  and token lineage rather than row equality. That installation-only route is
+  now sealed and replayed at acknowledgement settlement; migrating the public
+  completion declaration to its distinct bound remains Q10-blocked. PIC
+  completion resolves to `PortIo`; LAPIC/x2APIC completion resolves to
+  `MachineControl`. Checked and terminal artifacts retain the
   selected provider, operation, bound, resolved row, and refinement evidence
   without granting authority from reach.
 

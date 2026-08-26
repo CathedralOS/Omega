@@ -532,11 +532,16 @@ pub(crate) fn candidate_for_code_with_root(
     }
 }
 
-fn selected_interrupt_completion() -> omega_effects::SelectedProviderPlanFacts {
+fn selected_interrupt_completion_for(
+    name: &str,
+    provider_type: &str,
+    machine_identity: &str,
+    resolved_row: &[&str],
+) -> omega_effects::SelectedProviderPlanFacts {
     let requirement_identity = "InterruptCompletion::complete".to_owned();
     let plan = ProviderPlan {
-        name: "LegacyPic".into(),
-        provider_type: "LegacyPicController".into(),
+        name: name.into(),
+        provider_type: provider_type.into(),
         provider_type_package_identity: None,
         target: "x86_64-unknown-none".into(),
         schema: ServiceSchema {
@@ -566,7 +571,7 @@ fn selected_interrupt_completion() -> omega_effects::SelectedProviderPlanFacts {
             method: "complete".into(),
             requirement_identity: requirement_identity.clone(),
             binding: ProviderBinding::CheckedAdapter {
-                machine_identity: "LegacyPicController::complete".into(),
+                machine_identity: machine_identity.into(),
                 machine_package_identity: None,
             },
         }],
@@ -583,9 +588,21 @@ fn selected_interrupt_completion() -> omega_effects::SelectedProviderPlanFacts {
         requirement_identity,
         provider_plan_identity: identity,
         upper_bound: vec!["PortIo".into(), "MachineControl".into()],
-        resolved_row: vec!["PortIo".into()],
+        resolved_row: resolved_row
+            .iter()
+            .map(|service| (*service).to_owned())
+            .collect(),
     }])
-    .expect("PIC reach refines the interrupt completion bound")
+    .expect("provider reach refines the interrupt completion bound")
+}
+
+fn selected_interrupt_completion() -> omega_effects::SelectedProviderPlanFacts {
+    selected_interrupt_completion_for(
+        "LegacyPic",
+        "LegacyPicController",
+        "LegacyPicController::complete",
+        &["PortIo"],
+    )
 }
 
 #[test]
@@ -3250,6 +3267,15 @@ fn interrupt_candidate(entry: EntryStubId) -> ExternalRootCandidate {
 }
 
 fn interrupt_candidate_for_code(entry: EntryStubId, code: &InstalledCode) -> ExternalRootCandidate {
+    let selected_completion = selected_interrupt_completion();
+    interrupt_candidate_for_code_with_completion(entry, code, &selected_completion)
+}
+
+fn interrupt_candidate_for_code_with_completion(
+    entry: EntryStubId,
+    code: &InstalledCode,
+    selected_completion: &SelectedProviderPlanFacts,
+) -> ExternalRootCandidate {
     let mut candidate = candidate_for_code(entry, code);
     candidate.requirement_identity = "TimerRoot::tick".into();
     candidate.entry_claims = vec![ExternalRootEntryClaim {
@@ -3264,6 +3290,12 @@ fn interrupt_candidate_for_code(entry: EntryStubId, code: &InstalledCode) -> Ext
         domain: "InterruptMaskGuard::Active".into(),
         effective_carry: psi_language_semantics::CarryPolicy::STRICT,
     });
+    candidate.service_reach = ResolvedRootServiceReach::from_selected_provider_closure(
+        Vec::new(),
+        vec!["InterruptCompletion::complete".into()],
+        selected_completion,
+    )
+    .expect("selected completion closes the installed interrupt reach");
     let boundary = interrupt_boundary();
     candidate.stack.realization = stack_demand(
         candidate.identity,
@@ -3556,8 +3588,9 @@ fn interrupt_entry_mints_exact_linear_obligations_and_requires_settlement() {
             InterruptAcknowledgementReceiptId::from_normalized_identity,
         ),
         &acknowledgement,
-        true,
-    );
+        "InterruptCompletion::complete",
+    )
+    .expect("exact installed completion route");
     let completed_acknowledgement = acknowledgement
         .complete(acknowledgement_receipt)
         .expect("exact acknowledgement completion");
@@ -3576,6 +3609,242 @@ fn interrupt_entry_mints_exact_linear_obligations_and_requires_settlement() {
             InterruptAcknowledgementReceiptId::from_normalized_identity
         ))
     );
+}
+
+#[test]
+fn interrupt_completion_route_retains_pic_and_lapic_selected_rows() {
+    let providers = [
+        (
+            0x4100,
+            selected_interrupt_completion_for(
+                "LegacyPic",
+                "LegacyPicController",
+                "LegacyPicController::complete",
+                &["PortIo"],
+            ),
+            vec!["PortIo".to_owned()],
+        ),
+        (
+            0x4200,
+            selected_interrupt_completion_for(
+                "LocalApic",
+                "LocalApicController",
+                "LocalApicController::complete",
+                &["MachineControl"],
+            ),
+            vec!["MachineControl".to_owned()],
+        ),
+    ];
+
+    for (seed, selected, expected_row) in providers {
+        let entry = entry_id(seed + 1);
+        let mut code = installed_code(seed + 2, entry);
+        let boundary = interrupt_boundary();
+        let candidate = interrupt_candidate_for_code_with_completion(entry, &code, &selected);
+        let expected_resolution = candidate.service_reach.resolutions()[0].clone();
+        let validated = validate_external_root(candidate, &boundary)
+            .expect("provider-shaped interrupt root plan");
+        let authority = slot();
+        let execution = provider_execution(&validated);
+        let expected_entry_plan = execution.provider_plan();
+        let expected_execution = execution.identity();
+        let admission = RootAdmission::from_admitted_provider(
+            root_id(seed + 3, RootAdmissionId::from_normalized_identity),
+            &validated,
+            &execution,
+            &code,
+            &authority,
+            validated.candidate().trust_receipts.iter().copied(),
+        )
+        .expect("root admission");
+        let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
+        let installed = ledger
+            .install(&code, validated, authority, admission)
+            .expect("installed interrupt root");
+        let invocation = seed + 4;
+        let acknowledgement_identity = seed + 5;
+        let obligations = ledger
+            .begin_interrupt_entry(
+                &installed,
+                interrupt_entry_receipt(
+                    &installed,
+                    invocation,
+                    Some(7),
+                    Some(acknowledgement_identity),
+                ),
+            )
+            .expect("admitted interrupt entry");
+        let (pending, control, acknowledgement) = obligations.into_parts();
+        let acknowledgement = acknowledgement.expect("policy mints acknowledgement");
+        let receipt = InterruptAcknowledgementReceipt::from_provider(
+            root_id(
+                seed + 6,
+                InterruptAcknowledgementReceiptId::from_normalized_identity,
+            ),
+            &acknowledgement,
+            "InterruptCompletion::complete",
+        )
+        .expect("provider completion binds exact installed route");
+
+        assert_eq!(receipt.route().entry_provider_plan(), expected_entry_plan);
+        assert_eq!(receipt.route().provider_execution(), expected_execution);
+        assert_eq!(
+            receipt.route().completion_requirement_identity(),
+            "InterruptCompletion::complete"
+        );
+        assert_eq!(receipt.route().resolution(), &expected_resolution);
+        assert_eq!(receipt.route().resolution().resolved_row, expected_row);
+        assert_eq!(
+            receipt.route().invocation(),
+            root_id(invocation, InterruptInvocationId::from_normalized_identity)
+        );
+        assert_eq!(
+            receipt.route().policy(),
+            root_id(7, AcknowledgementPolicyId::from_normalized_identity)
+        );
+        assert_eq!(
+            receipt.route().acknowledgement(),
+            root_id(
+                acknowledgement_identity,
+                InterruptAcknowledgementId::from_normalized_identity
+            )
+        );
+
+        let completed = acknowledgement
+            .complete(receipt)
+            .expect("exact provider-shaped completion route settles token");
+        ledger
+            .finish_interrupt_entry(pending, control, Some(completed))
+            .expect("exact provider-shaped completion permits interrupt exit");
+    }
+}
+
+#[test]
+fn interrupt_completion_route_rejects_every_coordinate_drift_and_returns_retry_custody() {
+    let entry = entry_id(0x4301);
+    let mut code = installed_code(0x4302, entry);
+    let boundary = interrupt_boundary();
+    let validated = validate_external_root(interrupt_candidate_for_code(entry, &code), &boundary)
+        .expect("interrupt root plan");
+    let authority = slot();
+    let execution = provider_execution(&validated);
+    let admission = RootAdmission::from_admitted_provider(
+        root_id(0x4303, RootAdmissionId::from_normalized_identity),
+        &validated,
+        &execution,
+        &code,
+        &authority,
+        validated.candidate().trust_receipts.iter().copied(),
+    )
+    .expect("root admission");
+    let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
+    let installed = ledger
+        .install(&code, validated, authority, admission)
+        .expect("installed interrupt root");
+    let obligations = ledger
+        .begin_interrupt_entry(
+            &installed,
+            interrupt_entry_receipt(&installed, 0x4304, Some(7), Some(0x4305)),
+        )
+        .expect("admitted interrupt entry");
+    let (pending, control, acknowledgement) = obligations.into_parts();
+    let acknowledgement = acknowledgement.expect("policy mints acknowledgement");
+    let missing = InterruptAcknowledgementReceipt::from_provider(
+        root_id(
+            0x4306,
+            InterruptAcknowledgementReceiptId::from_normalized_identity,
+        ),
+        &acknowledgement,
+        "LookalikeCompletion::complete",
+    )
+    .expect_err("a lookalike requirement has no exact installed resolution");
+    assert!(missing.0.contains("absent from the exact installed reach"));
+
+    let mut receipt = InterruptAcknowledgementReceipt::from_provider(
+        root_id(
+            0x4307,
+            InterruptAcknowledgementReceiptId::from_normalized_identity,
+        ),
+        &acknowledgement,
+        "InterruptCompletion::complete",
+    )
+    .expect("exact installed completion route");
+    let exact_route = receipt.route.clone();
+    let acknowledgement_identity = acknowledgement.identity();
+
+    receipt.route.completion_requirement_identity = "LookalikeCompletion::complete".into();
+    let error = acknowledgement
+        .complete(receipt)
+        .expect_err("completion requirement drift must reject");
+    assert!(error.diagnostic().0.contains("exact invocation"));
+    let (acknowledgement, mut receipt) = (*error).into_parts();
+    assert_eq!(acknowledgement.identity(), acknowledgement_identity);
+    receipt.route = exact_route.clone();
+
+    receipt.route.resolution.provider_plan_identity ^= 1;
+    let error = acknowledgement
+        .complete(receipt)
+        .expect_err("completion provider-plan drift must reject");
+    let (acknowledgement, mut receipt) = (*error).into_parts();
+    assert_eq!(acknowledgement.identity(), acknowledgement_identity);
+    receipt.route = exact_route.clone();
+
+    receipt.route.provider_execution =
+        root_id(0x4308, ProviderExecutionId::from_normalized_identity);
+    let error = acknowledgement
+        .complete(receipt)
+        .expect_err("provider-execution drift must reject");
+    let (acknowledgement, mut receipt) = (*error).into_parts();
+    assert_eq!(acknowledgement.identity(), acknowledgement_identity);
+    receipt.route = exact_route.clone();
+
+    receipt.route.policy = root_id(8, AcknowledgementPolicyId::from_normalized_identity);
+    let error = acknowledgement
+        .complete(receipt)
+        .expect_err("acknowledgement-policy drift must reject");
+    let (acknowledgement, mut receipt) = (*error).into_parts();
+    assert_eq!(acknowledgement.identity(), acknowledgement_identity);
+    receipt.route = exact_route.clone();
+
+    receipt.route.invocation = root_id(0x4309, InterruptInvocationId::from_normalized_identity);
+    let error = acknowledgement
+        .complete(receipt)
+        .expect_err("invocation-lineage drift must reject");
+    let (acknowledgement, mut receipt) = (*error).into_parts();
+    assert_eq!(acknowledgement.identity(), acknowledgement_identity);
+    receipt.route = exact_route.clone();
+
+    receipt.route.acknowledgement =
+        root_id(0x430a, InterruptAcknowledgementId::from_normalized_identity);
+    let error = acknowledgement
+        .complete(receipt)
+        .expect_err("token-lineage drift must reject");
+    let (acknowledgement, mut receipt) = (*error).into_parts();
+    assert_eq!(acknowledgement.identity(), acknowledgement_identity);
+    receipt.route = exact_route.clone();
+
+    receipt.route.resolution.upper_bound = vec!["PortIo".into()];
+    let error = acknowledgement
+        .complete(receipt)
+        .expect_err("completion bound drift must reject");
+    let (acknowledgement, mut receipt) = (*error).into_parts();
+    assert_eq!(acknowledgement.identity(), acknowledgement_identity);
+    receipt.route = exact_route.clone();
+
+    receipt.route.resolution.resolved_row = vec!["MachineControl".into()];
+    let error = acknowledgement
+        .complete(receipt)
+        .expect_err("completion row drift must reject");
+    let (acknowledgement, mut receipt) = (*error).into_parts();
+    assert_eq!(acknowledgement.identity(), acknowledgement_identity);
+    receipt.route = exact_route;
+
+    let completed = acknowledgement
+        .complete(receipt)
+        .expect("returned acknowledgement and receipt retry on the exact route");
+    ledger
+        .finish_interrupt_entry(pending, control, Some(completed))
+        .expect("retried exact completion permits interrupt exit");
 }
 
 #[test]
@@ -3652,8 +3921,9 @@ fn interrupt_entry_rejects_policy_drift_replay_and_unsettled_exit() {
             InterruptAcknowledgementReceiptId::from_normalized_identity,
         ),
         &acknowledgement,
-        true,
-    );
+        "InterruptCompletion::complete",
+    )
+    .expect("exact installed completion route");
     let completed = acknowledgement
         .complete(acknowledgement_receipt)
         .expect("exact acknowledgement");
@@ -3875,8 +4145,9 @@ fn interrupt_obligation_receipts_retain_exact_invocation_evidence() {
             InterruptAcknowledgementReceiptId::from_normalized_identity,
         ),
         &second_acknowledgement,
-        true,
-    );
+        "InterruptCompletion::complete",
+    )
+    .expect("second exact installed completion route");
     let acknowledgement_error = first_acknowledgement
         .complete(substituted_ack_receipt)
         .expect_err("acknowledgement receipt cannot cross exact invocation evidence");
