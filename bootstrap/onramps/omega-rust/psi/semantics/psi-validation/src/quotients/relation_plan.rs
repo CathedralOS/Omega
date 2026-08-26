@@ -21,6 +21,7 @@ mod representative;
 mod result_flow;
 mod runtime_correspondence;
 mod static_application;
+mod theorem;
 
 use precondition::{
     DefinePreconditionCorrespondence, RepresentativePreconditionPartition,
@@ -39,6 +40,9 @@ use representative::{
 #[cfg(test)]
 use runtime_correspondence::DefineRuntimePosition;
 use runtime_correspondence::{DefineRuntimeCorrespondence, derive_define_runtime_correspondence};
+#[cfg(test)]
+use theorem::derive_selected_theorem_telescope;
+use theorem::{SelectedTheoremPurity, SelectedTheoremTelescope, SelectedTheoremTermination};
 
 #[cfg(test)]
 use result_flow::{
@@ -77,6 +81,12 @@ pub(super) struct DirectTerminalRelationPlan {
     pub(super) result_relation: ExactQuotientRelation,
     pub(super) representative: RepresentativeTelescope,
     pub(super) representative_termination: Option<RepresentativeTermination>,
+    /// Exact explicitly selected resultless theorem-machine application. Its
+    /// contract schema remains unproved in this first selection rung.
+    pub(super) selected_theorem: SelectedTheoremTelescope,
+    pub(super) selected_theorem_termination: Option<SelectedTheoremTermination>,
+    pub(super) selected_theorem_purity: Option<SelectedTheoremPurity>,
+    pub(super) selected_theorem_crash_free: bool,
     pub(super) define_correspondence: Option<DefineRuntimeCorrespondence>,
     pub(super) public_precondition: Option<RepresentativePreconditionPartition>,
     pub(super) representative_precondition: Option<RepresentativePreconditionPartition>,
@@ -116,6 +126,10 @@ pub(super) enum RelationPlanError {
     RepresentativeStaticArgumentIsOpen(usize),
     RepresentativeLifetimeApplicationRequiresElision,
     RepresentativePropositionApplicationUnsupported(usize),
+    TheoremEntryDoesNotResolveExactly,
+    TheoremMustBeCheckedBody,
+    TheoremMustBeResultless,
+    TheoremStaticApplicationInvalid,
     DefineOwnerRequiresSubstitution,
     DefineRuntimeArityMismatch,
     DefineParameterIdentityNotUnique,
@@ -167,6 +181,18 @@ impl fmt::Display for RelationPlanError {
             Self::RepresentativePropositionApplicationUnsupported(position) => write!(
                 formatter,
                 "representative proposition argument {position} has no closed application boundary yet"
+            ),
+            Self::TheoremEntryDoesNotResolveExactly => formatter.write_str(
+                "the selected theorem does not resolve to one exact machine entry",
+            ),
+            Self::TheoremMustBeCheckedBody => formatter.write_str(
+                "the selected theorem must be one bodyful checked machine; boundary, accepted, and external proof sources cannot license quotient substitution",
+            ),
+            Self::TheoremMustBeResultless => formatter.write_str(
+                "the selected theorem must return Unit; a result-bearing machine is not proof-static authority",
+            ),
+            Self::TheoremStaticApplicationInvalid => formatter.write_str(
+                "the selected theorem's complete static application is open, mismatched, or otherwise unresolved",
             ),
             Self::DefineOwnerRequiresSubstitution => formatter.write_str(
                 "the quotient-facing definition is generic and requires exact owner-telescope substitution",
@@ -243,6 +269,21 @@ pub(super) fn derive_direct_terminal_plan(
     let representative = derive_representative_telescope(program, request)?;
     let representative_termination =
         unconditional_representative_termination(program, &representative);
+    let selected_theorem = theorem::derive_selected_theorem_telescope(program, request)?;
+    let selected_theorem_termination =
+        theorem::unconditional_selected_theorem_termination(program, &selected_theorem);
+    let theorem_operational = psi_effects::infer_operational_may(program);
+    let theorem_reaches = psi_effects::infer_service_reaches(program, &theorem_operational);
+    let selected_theorem_purity = theorem::pure_selected_theorem_effect(
+        &selected_theorem,
+        &theorem_operational,
+        &theorem_reaches,
+    );
+    let selected_theorem_crash_free = crate::denotational_calls::has_no_crash_routes(
+        program,
+        selected_theorem.machine_symbol,
+        &theorem_operational,
+    );
     let define_correspondence = (request.kind == QuotientOperationKind::Define)
         .then(|| {
             derive_define_runtime_correspondence(
@@ -289,6 +330,10 @@ pub(super) fn derive_direct_terminal_plan(
         result_relation,
         representative,
         representative_termination,
+        selected_theorem,
+        selected_theorem_termination,
+        selected_theorem_purity,
+        selected_theorem_crash_free,
         define_correspondence,
         public_precondition,
         representative_precondition,
@@ -392,6 +437,24 @@ impl DirectTerminalRelationPlan {
                 termination.state_symbol.arena_index(),
             )
         })
+    }
+
+    pub(super) fn render_selected_theorem(&self, program: &TypedTrees) -> String {
+        let parameters = self
+            .selected_theorem
+            .parameters
+            .iter()
+            .map(|parameter| {
+                program.display_type_reference_with_constraints(parameter.type_reference)
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "theorem#{}:state#{}({parameters})[static-bindings:{}]",
+            self.selected_theorem.machine_symbol.arena_index(),
+            self.selected_theorem.state_symbol.arena_index(),
+            self.selected_theorem.static_application.bindings.len(),
+        )
     }
 
     pub(super) fn render_define_correspondence(&self) -> Option<String> {

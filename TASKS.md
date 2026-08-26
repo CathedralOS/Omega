@@ -7495,7 +7495,13 @@ Remaining N6/N8 work:
   one explicit closed `Equivalence<C, R>` conformance and checks its sealed
   Reflexive/Symmetric/Transitive rows plus transitive anti-axiom provenance.
   Typed lift/define requests retain their exact operation kind, representative
-  entry, and theorem application. Checked planning derives the exact relation
+  entry, and theorem application. The typed boundary now rejects a conformance
+  or structurally discovered proof in the theorem slot; relation planning
+  resolves one exact bodyful checked resultless theorem entry, closes and
+  retains its complete static application, ordinary telescope, and contract
+  rows, and records its termination, purity, and crash-route eligibility. This
+  is selection and eligibility only: it proves no congruence schema and grants
+  no executable authority. Checked planning derives the exact relation
   at every quotient-bearing runtime position, one shared occurrence at every
   ordinary pass-through position, and the exact result relation; attached
   `self` is position zero and proof-static binders are excluded. It closes

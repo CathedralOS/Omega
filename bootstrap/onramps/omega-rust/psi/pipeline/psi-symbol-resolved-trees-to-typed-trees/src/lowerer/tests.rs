@@ -1167,12 +1167,11 @@ fn proposition_type_and_const_arguments_forward_through_machine_binders() {
 fn retains_exact_sealed_quotient_operation_request_without_admitting_it() {
     let source = r#"
         data Representative { value: i32; }
-        trait Respects {}
-        RepresentativeRespect: Representative satisfies Respects {}
 
         machine representative(value: Representative) -> Representative { value }
+        machine representative_respects(left: Representative, right: Representative) {}
         machine wrapper(value: Representative) -> Representative {
-            Quotient::lift<representative, RepresentativeRespect>(value)
+            Quotient::lift<representative, representative_respects>(value)
         }
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -1211,35 +1210,38 @@ fn retains_exact_sealed_quotient_operation_request_without_admitting_it() {
         psi_symbols::SymbolKind::State
     );
     assert_eq!(
-        typed.symbols.name(request.respect_conformance.symbol),
-        "RepresentativeRespect"
+        typed
+            .symbols
+            .name(typed.symbols.get(request.selected_theorem.symbol).parent,),
+        "representative_respects"
     );
     assert_eq!(
-        typed.symbols.get(request.respect_conformance.symbol).kind,
-        psi_symbols::SymbolKind::Conformance
+        typed.symbols.get(request.selected_theorem.symbol).kind,
+        psi_symbols::SymbolKind::State
     );
 }
 
 #[test]
-fn sealed_quotient_request_rejects_structural_proof_machine_discovery() {
+fn sealed_quotient_request_rejects_conformance_shaped_proof_discovery() {
     let source = r#"
         data Representative { value: i32; }
+        trait Respects {}
+        RepresentativeRespect: Representative satisfies Respects {}
         machine representative(value: Representative) -> Representative { value }
-        machine looks_like_respect() {}
         machine wrapper(value: Representative) -> Representative {
-            Quotient::define<representative, looks_like_respect>(value)
+            Quotient::define<representative, RepresentativeRespect>(value)
         }
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let diagnostic = lower_symbol_resolved_trees(&resolved)
-        .expect_err("a structural proof machine must not select Respect");
+        .expect_err("a conformance must not stand in for an exact theorem machine");
 
     assert!(
         diagnostic
             .message
-            .contains("must resolve exactly to one named conformance"),
+            .contains("must resolve exactly to one resultless theorem machine entry"),
         "unexpected diagnostic: {}",
         diagnostic.message
     );

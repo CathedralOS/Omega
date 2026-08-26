@@ -216,6 +216,22 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     let purity = representative_purity
                         .map(|_| " plus checked pure representative effect summary")
                         .unwrap_or_default();
+                    let theorem = format!(
+                        " plus exact {}",
+                        plan.render_selected_theorem(program)
+                    );
+                    let theorem_termination = plan
+                        .selected_theorem_termination
+                        .map(|_| " plus checked theorem termination summary")
+                        .unwrap_or_default();
+                    let theorem_purity = plan
+                        .selected_theorem_purity
+                        .map(|_| " plus checked pure theorem effect summary")
+                        .unwrap_or_default();
+                    let theorem_crash = plan
+                        .selected_theorem_crash_free
+                        .then_some(" plus checked crash-free theorem routes")
+                        .unwrap_or_default();
                     let result_path = if result_root.alias_count == 0 {
                         "the exact result root".to_owned()
                     } else {
@@ -243,7 +259,7 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     };
                     let mut remaining = vec![
                         "complete operation/static correspondence",
-                        "the selected `Respects` contract",
+                        "the exact selected theorem schema",
                     ];
                     if representative_purity.is_none() {
                         remaining.push("the effect fence");
@@ -251,11 +267,20 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     if termination.is_empty() {
                         remaining.push("the termination fence");
                     }
+                    if plan.selected_theorem_termination.is_none() {
+                        remaining.push("the selected theorem termination fence");
+                    }
+                    if plan.selected_theorem_purity.is_none() {
+                        remaining.push("the selected theorem effect fence");
+                    }
+                    if !plan.selected_theorem_crash_free {
+                        remaining.push("the selected theorem crash fence");
+                    }
                     if complete_result_flow.is_none() && complete_forwarded_result_flow.is_none() {
                         remaining.push("all normalized result exits");
                     }
                     diagnostics.push(Diagnostic::error(format!(
-                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{termination}{purity}{correspondence}{public_precondition}{precondition}{precondition_correspondence} and {result_flow}, but executable quotient operations are not admitted until {} are independently checked",
+                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{termination}{purity}{theorem}{theorem_termination}{theorem_purity}{theorem_crash}{correspondence}{public_precondition}{precondition}{precondition_correspondence} and {result_flow}, but executable quotient operations are not admitted until {} are independently checked",
                         plan.render_ra(program),
                         plan.render_rr(program),
                         plan.render_representative_telescope(program),
@@ -263,7 +288,7 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     )))
                 }
                 Err(reason) => diagnostics.push(Diagnostic::error(format!(
-                    "`Quotient::{operation}` retains its exact representative operation and named conformance, but its direct-terminal relation plan is unresolved ({reason}); executable quotient operations are not admitted",
+                    "`Quotient::{operation}` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved ({reason}); executable quotient operations are not admitted",
                 ))),
             }
         }
@@ -282,7 +307,7 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
         if !planned_requests.contains(&handle) {
             let operation = operation_name(request.kind);
             diagnostics.push(Diagnostic::error(format!(
-                "`Quotient::{operation}` retains its exact representative operation and named conformance, but executable quotient operations are not admitted until quotient formation, correspondence, and result-flow obligations are independently checked",
+                "`Quotient::{operation}` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked",
             )));
         }
     }
@@ -1250,7 +1275,7 @@ mod tests {
                 quotient_operation: Some(QuotientOperationRequest {
                     kind: QuotientOperationKind::Lift,
                     representative_operation: static_argument("representative"),
-                    respect_conformance: static_argument("ExactRespect"),
+                    selected_theorem: static_argument("ExactRespect"),
                 }),
                 arguments,
                 evidence_arguments: Box::default(),

@@ -238,7 +238,7 @@ pub(super) fn derive_exact_representative_static_application(
     )
 }
 
-fn validate_static_application(
+pub(super) fn validate_static_application(
     program: &TypedTrees,
     lifetime_parameters: &[Identifier],
     parameters: &[TypeParameter],

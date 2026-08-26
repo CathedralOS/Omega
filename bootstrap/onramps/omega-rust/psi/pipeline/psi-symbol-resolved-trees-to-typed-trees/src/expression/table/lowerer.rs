@@ -408,10 +408,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 "the sealed `Quotient` operation namespace cannot be shadowed by an authored declaration",
             ));
         }
-        let [representative_operation, respect_conformance] = call.machine_arguments.as_ref()
-        else {
+        let [representative_operation, selected_theorem] = call.machine_arguments.as_ref() else {
             return Err(Diagnostic::error(format!(
-                "`Quotient::{}` requires exactly two static arguments: one representative operation and one exact named conformance",
+                "`Quotient::{}` requires exactly two static arguments: one representative operation and one exact resultless theorem machine",
                 call.target,
             )));
         };
@@ -426,14 +425,13 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 call.target,
             )));
         }
-        if respect_conformance.const_literal.is_some()
-            || respect_conformance.evidence_projection.is_some()
-            || !respect_conformance.symbol.is_valid()
-            || program.symbols.get(respect_conformance.symbol).kind
-                != psi_symbols::SymbolKind::Conformance
+        if selected_theorem.const_literal.is_some()
+            || selected_theorem.evidence_projection.is_some()
+            || !selected_theorem.symbol.is_valid()
+            || program.symbols.get(selected_theorem.symbol).kind != psi_symbols::SymbolKind::State
         {
             return Err(Diagnostic::error(format!(
-                "the second static argument to `Quotient::{}` must resolve exactly to one named conformance; structural proof-machine discovery is not permitted",
+                "the second static argument to `Quotient::{}` must resolve exactly to one resultless theorem machine entry; conformance or structural proof discovery is not permitted",
                 call.target,
             )));
         }
@@ -443,9 +441,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             representative_operation: crate::expression::lower_static_machine_argument(
                 representative_operation,
             ),
-            respect_conformance: crate::expression::lower_static_machine_argument(
-                respect_conformance,
-            ),
+            selected_theorem: crate::expression::lower_static_machine_argument(selected_theorem),
         }))
     }
 
