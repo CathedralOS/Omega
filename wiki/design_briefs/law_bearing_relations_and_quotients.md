@@ -835,7 +835,13 @@ evidence without evaluating computed leaves. A direct depth-three Boolean
 tensor may likewise feed only its exact literal-width
 `[[[bool; K]; M]; N]` target. Every plane and row is a direct exact-width array
 literal and every leaf is a Boolean literal. Plane/row boundaries, ordered
-values, and normalized outer identity remain evidence. Exact
+values, and normalized outer identity remain evidence. Remaining exact
+primitive fixed-array literals now close recursively: depth-three canonical-
+byte, non-`u8` integer, and float arrays plus every exact primitive array at
+depth four or greater retain every container boundary and the already-settled
+leaf evidence in one recursive tree with normalized outer identity. Existing
+flat, matrix, and depth-three Boolean owners retain priority; this fallback
+neither reclassifies their evidence nor admits data aggregates. Exact
 structural substitution can match a dependent representative `P` fact that
 mentions a literal-fed parameter only when public `Q` contains the identical
 post-substitution fact. Boolean value, integer spelling, landed type and
@@ -847,9 +853,9 @@ otherwise constrained byte-string targets, raw strings not already
 context-landed for a bare fixed array, noncanonical or heterogeneous
 byte/Boolean arrays, mismatched or out-of-range integer arrays, mismatched or
 computed float arrays, noncanonical byte matrices, mismatched, out-of-range,
-or computed integer matrices, mismatched or computed float matrices, ragged
-arrays or arrays deeper than three, other data nested arrays, other aggregates,
-zero-value,
+or computed integer matrices, mismatched or computed float matrices,
+noncanonical or mismatched recursive primitive arrays, ragged arrays, other
+data nested arrays, other aggregates, zero-value,
 casts, calls, computations,
 constrained/generic
 targets, mutable/attached targets, and every literal supplied to `define`

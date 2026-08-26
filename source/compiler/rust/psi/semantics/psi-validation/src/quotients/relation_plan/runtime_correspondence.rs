@@ -10,7 +10,8 @@
 //! target-derived format, immutable-image byte string to its exact shared byte
 //! view or bounded value-domain buffer, or a canonically context-landed byte
 //! array, direct Boolean-literal array, exact depth-two byte/Boolean/integer/
-//! float-literal array, an exact depth-three Boolean tensor, or exactly landed
+//! float-literal array, an exact depth-three Boolean tensor, any remaining
+//! recursively nested exact primitive fixed-array literal, or exactly landed
 //! integer/float-literal array to its exact fixed-array representative
 //! position.
 //! Neither policy infers or selects a relation, contract proof, or
@@ -54,6 +55,15 @@ pub(super) struct ClosedFloatArrayElement {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum ClosedRecursiveArrayElement {
+    Boolean(bool),
+    Byte(u8),
+    Integer(ClosedIntegerArrayElement),
+    Float(ClosedFloatArrayElement),
+    Array(std::sync::Arc<[ClosedRecursiveArrayElement]>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum ClosedLiftLiteral {
     Boolean(bool),
     Integer {
@@ -94,6 +104,10 @@ pub(super) enum ClosedLiftLiteral {
     },
     BooleanTensor3 {
         planes: std::sync::Arc<[std::sync::Arc<[std::sync::Arc<[bool]>]>]>,
+        target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
+    },
+    RecursivePrimitiveArray {
+        elements: std::sync::Arc<[ClosedRecursiveArrayElement]>,
         target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
     },
     IntegerArray {
@@ -351,10 +365,8 @@ pub(super) fn closed_lift_literal_for_representative(
                 element_type: leaf_type,
                 length: psi_typed_trees::types::FixedArrayLength::Literal(row_width),
             } = program.type_reference_table.type_reference(*row_type)
+            && exact_primitive_type(program, *leaf_type) == Some(PrimitiveType::Bool)
         {
-            if exact_primitive_type(program, *leaf_type) != Some(PrimitiveType::Bool) {
-                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
-            }
             let planes = elements
                 .iter()
                 .map(|plane| {
@@ -398,6 +410,28 @@ pub(super) fn closed_lift_literal_for_representative(
                 .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
             return Ok(Some(ClosedLiftLiteral::BooleanTensor3 {
                 planes: planes.into(),
+                target_type: program.normalized_type_identity(representative_type),
+            }));
+        }
+        if let Some((depth, leaf_type, leaf_primitive)) =
+            literal_fixed_array_leaf(program, representative_type)
+            && depth >= 3
+        {
+            let values = elements
+                .iter()
+                .map(|element| {
+                    closed_recursive_array_element(
+                        program,
+                        *element,
+                        *element_type,
+                        leaf_type,
+                        leaf_primitive,
+                        position,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            return Ok(Some(ClosedLiftLiteral::RecursivePrimitiveArray {
+                elements: values.into(),
                 target_type: program.normalized_type_identity(representative_type),
             }));
         }
@@ -741,6 +775,112 @@ fn exact_primitive_type(
         return None;
     };
     PrimitiveType::from_name(name.as_str()).filter(|primitive| name.as_str() == primitive.name())
+}
+
+fn literal_fixed_array_leaf(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<(usize, TypeReferenceHandle, PrimitiveType)> {
+    let mut depth = 0;
+    let mut current = type_reference;
+    loop {
+        match program.type_reference_table.type_reference(current) {
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: psi_typed_trees::types::FixedArrayLength::Literal(_),
+            } => {
+                depth += 1;
+                current = *element_type;
+            }
+            TypeReferenceNode::FixedArray { .. } => return None,
+            _ => return exact_primitive_type(program, current).map(|leaf| (depth, current, leaf)),
+        }
+    }
+}
+
+fn closed_recursive_array_element(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    target_type: TypeReferenceHandle,
+    leaf_type: TypeReferenceHandle,
+    leaf_primitive: PrimitiveType,
+    position: usize,
+) -> Result<ClosedRecursiveArrayElement, RelationPlanError> {
+    match program.type_reference_table.type_reference(target_type) {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: psi_typed_trees::types::FixedArrayLength::Literal(width),
+        } => {
+            let ExpressionNode::ArrayLiteral(elements) =
+                program.expression_table.expression(expression)
+            else {
+                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+            };
+            let elements = program.expression_table.expression_handles(*elements);
+            if elements.len() != *width {
+                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+            }
+            elements
+                .iter()
+                .map(|element| {
+                    closed_recursive_array_element(
+                        program,
+                        *element,
+                        *element_type,
+                        leaf_type,
+                        leaf_primitive,
+                        position,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .map(std::sync::Arc::from)
+                .map(ClosedRecursiveArrayElement::Array)
+        }
+        _ if target_type == leaf_type
+            && exact_primitive_type(program, target_type) == Some(leaf_primitive) =>
+        {
+            match (
+                leaf_primitive,
+                program.expression_table.expression(expression),
+            ) {
+                (PrimitiveType::Bool, ExpressionNode::Boolean(value)) => {
+                    Ok(ClosedRecursiveArrayElement::Boolean(*value))
+                }
+                (PrimitiveType::U8, ExpressionNode::Integer(_)) => {
+                    let byte = canonical_fixed_bytes(program, std::slice::from_ref(&expression))
+                        .and_then(|bytes| bytes.into_iter().next())
+                        .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
+                    Ok(ClosedRecursiveArrayElement::Byte(byte))
+                }
+                (primitive, ExpressionNode::Integer(literal))
+                    if integer_primitive_landing(primitive).is_some() =>
+                {
+                    let landing =
+                        exact_integer_landing(program, target_type, primitive, literal, position)?;
+                    Ok(ClosedRecursiveArrayElement::Integer(
+                        ClosedIntegerArrayElement {
+                            spelling: literal.text().to_owned(),
+                            landing,
+                        },
+                    ))
+                }
+                (
+                    primitive @ (PrimitiveType::F32 | PrimitiveType::F64),
+                    ExpressionNode::Float(literal),
+                ) => {
+                    let landing = exact_float_landing(primitive, literal, position)?;
+                    Ok(ClosedRecursiveArrayElement::Float(
+                        ClosedFloatArrayElement {
+                            spelling: literal.text().to_owned(),
+                            landing,
+                        },
+                    ))
+                }
+                _ => Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
+            }
+        }
+        _ => Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
+    }
 }
 
 fn canonical_fixed_bytes(program: &TypedTrees, elements: &[ExpressionHandle]) -> Option<Vec<u8>> {

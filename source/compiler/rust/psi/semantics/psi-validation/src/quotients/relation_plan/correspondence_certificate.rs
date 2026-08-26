@@ -168,6 +168,15 @@ pub(super) fn derive_direct_lift_precondition_implication(
                     planes,
                 )),
                 DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::RecursivePrimitiveArray {
+                        elements,
+                        ..
+                    },
+                ) => representative_values.push(ProofValueSubstitution::recursive_primitive_array(
+                    position.representative_parameter,
+                    elements,
+                )),
+                DirectLiftArgumentSource::Literal(
                     super::runtime_correspondence::ClosedLiftLiteral::IntegerArray {
                         elements, ..
                     },
