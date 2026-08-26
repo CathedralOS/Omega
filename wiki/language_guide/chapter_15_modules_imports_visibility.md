@@ -15,13 +15,18 @@ needs a different reach-set is, by that fact, a different package.
 location** and do **not** re-declare it. There is no per-file `package X` line.
 One directory = one package = one `build.omg`.
 
-The package declares its human name once through ordinary build vocabulary:
+The package declares its human name once through ordinary build vocabulary, on
+the same `Build` surface that carries dependencies and provider selection:
 
 ```omega
-const PACKAGE: Package = Package {
-    name: "arithmetic-kernels"
-};
+machine build(builder: &mut Build) {
+    builder.package("arithmetic-kernels");
+}
 ```
+
+Every `build.omg` states its kind explicitly — `builder.package` for a package,
+`builder.member` for a workspace root, `builder.application` for an
+application. No role is inferred from an absent declaration.
 
 The compiler evaluates this declaration hermetically before dependency
 resolution or build execution. The directory and repository names do not
