@@ -76,13 +76,14 @@ pub enum PackageReviewMachineParameterContract {
         trait_identity: PackageReviewNominalIdentity,
         requirement_identity: PackageReviewNominalIdentity,
     },
+    RequirementIdentity,
 }
 
 impl PackageReviewMachineParameterContract {
     pub const fn structural(&self) -> Option<&PackageReviewMachineParameterSignature> {
         match self {
             Self::Structural(signature) => Some(signature),
-            Self::Nominal { .. } => None,
+            Self::Nominal { .. } | Self::RequirementIdentity => None,
         }
     }
 
@@ -90,7 +91,7 @@ impl PackageReviewMachineParameterContract {
         &self,
     ) -> Option<(&PackageReviewNominalIdentity, &PackageReviewNominalIdentity)> {
         match self {
-            Self::Structural(_) => None,
+            Self::Structural(_) | Self::RequirementIdentity => None,
             Self::Nominal {
                 trait_identity,
                 requirement_identity,
@@ -4807,9 +4808,7 @@ fn project_machine_parameter_contract(
 ) -> Result<PackageReviewMachineParameterContract, Vec<Diagnostic>> {
     match contract {
         psi_typed_trees::data::MachineParameterContract::RequirementIdentity => {
-            Err(vec![Diagnostic::error(format!(
-                "public {declaration_kind} `{declaration_path}` exposes a trait requirement-identity parameter, but package review does not yet publish that closed parameter kind",
-            ))])
+            Ok(PackageReviewMachineParameterContract::RequirementIdentity)
         }
         psi_typed_trees::data::MachineParameterContract::Structural(signature) => {
             if signature.spelling.is_some() || signature.is_default {

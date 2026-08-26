@@ -688,6 +688,11 @@ referenced `PublicTrait` row owns the law text. Canonical recovery and
 fixed-vocabulary conflict rendering recognize `public_conformance`. Unsupported
 lifetime-parameterized target traits, inherited lifetime substitutions, and
 proof-static trait parameters reject review rather than yielding partial rows.
+Review v56 and canonical row v16 additionally admit a trait's
+requirement-identity machine parameter as a closed, payload-free contract kind.
+It is distinct from structural callable contracts and nominal trait-requirement
+pairs, and therefore cannot be reinterpreted as either during compatibility
+review.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`
@@ -782,7 +787,7 @@ compiler-issued review object. Review may carry candidate bytes in the same
 vocabulary, but a consumer must regenerate the total row set from exact source
 and compare it exactly before those bytes can participate in accepted evidence.
 Source, certificates, proof routes, compiler observations, and local decisions
-remain separately bound. The current incomplete review-v55 projection therefore
+remain separately bound. The current incomplete review-v56 projection therefore
 does not become a package artifact or `PackageInstance` by renaming it.
 
 ## Target command surface
