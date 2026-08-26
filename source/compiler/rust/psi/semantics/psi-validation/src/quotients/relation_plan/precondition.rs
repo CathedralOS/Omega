@@ -8,9 +8,10 @@
 //! its certificate owner. General entailment remains a separate obligation.
 
 use super::proof_fact_identity::{ProofFactIdentityContext, proof_facts_match};
+use super::runtime_correspondence::DirectLiftArgumentSource;
 use super::{
-    DefineRuntimeCorrespondence, DefineRuntimePosition, InputRelation, RelationPlanError,
-    RepresentativeStaticBinding, RepresentativeTelescope,
+    DefineRuntimeCorrespondence, DefineRuntimePosition, DirectLiftRuntimeCorrespondence,
+    InputRelation, RelationPlanError, RepresentativeStaticBinding, RepresentativeTelescope,
 };
 use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
@@ -62,25 +63,70 @@ pub(super) fn derive_public_precondition_partition(
     input_relations: &[InputRelation],
     runtime_positions: &[DefineRuntimePosition],
 ) -> Result<RepresentativePreconditionPartition, RelationPlanError> {
+    derive_public_precondition_partition_from_positions(
+        program,
+        machine,
+        state,
+        input_relations,
+        &runtime_positions
+            .iter()
+            .map(|position| Some(position.public_parameter))
+            .collect::<Vec<_>>(),
+        RelationPlanError::DefineRuntimeArityMismatch,
+    )
+}
+
+pub(super) fn derive_direct_lift_public_precondition_partition(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    input_relations: &[InputRelation],
+    runtime: &DirectLiftRuntimeCorrespondence,
+) -> Result<RepresentativePreconditionPartition, RelationPlanError> {
+    derive_public_precondition_partition_from_positions(
+        program,
+        machine,
+        state,
+        input_relations,
+        &runtime
+            .positions
+            .iter()
+            .map(|position| match &position.source {
+                DirectLiftArgumentSource::PublicParameter(symbol) => Some(*symbol),
+                DirectLiftArgumentSource::ClosedScalarLiteral(_) => None,
+            })
+            .collect::<Vec<_>>(),
+        RelationPlanError::DirectLiftRuntimeArityMismatch,
+    )
+}
+
+fn derive_public_precondition_partition_from_positions(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    input_relations: &[InputRelation],
+    public_positions: &[Option<SymbolHandle>],
+    arity_error: RelationPlanError,
+) -> Result<RepresentativePreconditionPartition, RelationPlanError> {
     let public_parameters = program
         .state_parameters(state)
         .iter()
         .filter(|parameter| !parameter.is_const)
         .collect::<Vec<_>>();
-    if runtime_positions.len() != input_relations.len() {
-        return Err(RelationPlanError::DefineRuntimeArityMismatch);
+    if public_positions.len() != input_relations.len() {
+        return Err(arity_error);
     }
     let mut varying_parameters = input_relations
         .iter()
-        .zip(runtime_positions)
+        .zip(public_positions)
         .filter_map(|(relation, position)| {
-            matches!(relation, InputRelation::Quotient(_)).then_some(position.public_parameter)
+            matches!(relation, InputRelation::Quotient(_))
+                .then_some(*position)
+                .flatten()
         })
         .collect::<Vec<_>>();
     for parameter in public_parameters {
-        if !runtime_positions
-            .iter()
-            .any(|position| position.public_parameter == parameter.symbol)
+        if !public_positions.contains(&Some(parameter.symbol))
             && super::super::quotient_for_type(program, parameter.type_reference).is_some()
         {
             varying_parameters.push(parameter.symbol);
@@ -282,7 +328,7 @@ pub(super) fn precondition_fact_at(
         .get(location.fact_position)
 }
 
-fn proof_fact_depends_on_any(
+pub(super) fn proof_fact_depends_on_any(
     program: &TypedTrees,
     fact: &ProofFact,
     parameters: &[SymbolHandle],

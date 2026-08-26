@@ -7,14 +7,16 @@ use super::{
     RepresentativeStaticBinding, RepresentativeStaticBindingKind, RepresentativeTelescope,
     complete_single_state_result_flow, complete_state_forwarding_result_flow,
     derive_define_precondition_correspondence, derive_define_runtime_correspondence,
-    derive_direct_lift_precondition_implication, derive_direct_lift_runtime_correspondence,
-    derive_direct_terminal_plan, derive_exact_representative_static_application,
-    derive_public_precondition_partition, derive_representative_precondition_partition,
-    derive_representative_telescope, derive_selected_theorem_telescope, fallthrough_result_root,
-    immutable_alias_fallthrough_root, pure_representative_effect, substituted_type_matches,
-    unconditional_representative_termination,
+    derive_direct_lift_precondition_implication, derive_direct_lift_public_precondition_partition,
+    derive_direct_lift_runtime_correspondence, derive_direct_terminal_plan,
+    derive_exact_representative_static_application, derive_public_precondition_partition,
+    derive_representative_precondition_partition, derive_representative_telescope,
+    derive_selected_theorem_telescope, fallthrough_result_root, immutable_alias_fallthrough_root,
+    pure_representative_effect, substituted_type_matches, unconditional_representative_termination,
 };
 use psi_arena::HandleSpan;
+use psi_numerics::arithmetic::ArithmeticDomain;
+use psi_numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{
@@ -35,6 +37,7 @@ use psi_typed_trees::signature::{SignatureContract, SignatureContractKind, State
 use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{StatementNode, TableLocalData, TableTransition};
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use std::sync::Arc;
 
 use super::theorem::SelectedTheoremTelescope;
 use super::theorem_schema::{
@@ -108,6 +111,15 @@ fn carrier_type(program: &mut TypedTrees) -> TypeReferenceHandle {
         .insert(TypeReferenceNode::Named {
             symbol: symbol(500),
             name: Identifier::generated_static("Carrier"),
+        })
+}
+
+fn primitive_type(program: &mut TypedTrees, name: &'static str) -> TypeReferenceHandle {
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::generated_static(name),
         })
 }
 
@@ -1279,22 +1291,22 @@ fn direct_lift_implication_fixture(
     ];
     let runtime = super::DirectLiftRuntimeCorrespondence {
         positions: vec![
-            super::DefineRuntimePosition {
-                public_parameter: public_value_symbol,
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::PublicParameter(public_value_symbol),
                 representative_parameter: representative.parameters[0].symbol,
             },
-            super::DefineRuntimePosition {
-                public_parameter: public_shared_symbol,
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::PublicParameter(public_shared_symbol),
                 representative_parameter: representative.parameters[1].symbol,
             },
         ],
     };
-    let public_partition = derive_public_precondition_partition(
+    let public_partition = derive_direct_lift_public_precondition_partition(
         &program,
         &public_machine,
         &public_state,
         &input_relations,
-        &runtime.positions,
+        &runtime,
     )
     .expect("exact public fact identities");
     let representative_partition =
@@ -1405,6 +1417,51 @@ fn direct_lift_q_implies_p_rejects_missing_identity_and_theorem_coordinate_tampe
             &super::DirectLiftPreconditionImplication { rows: Vec::new() },
         )
         .is_none()
+    );
+}
+
+#[test]
+fn direct_lift_literal_stays_fixed_and_cannot_enter_dependent_representative_p() {
+    let fixture = direct_lift_implication_fixture(true);
+    let literal = super::runtime_correspondence::ClosedScalarLiteral::Boolean(true);
+
+    let mut fixed_literal = fixture.runtime.clone();
+    fixed_literal.positions[1].source =
+        super::DirectLiftArgumentSource::ClosedScalarLiteral(literal.clone());
+    assert!(
+        derive_direct_lift_precondition_implication(
+            &fixture.program,
+            &fixture.public_machine,
+            &fixture.public_state,
+            &fixture.representative,
+            &fixture.public_partition,
+            &fixture.representative_partition,
+            &fixed_literal,
+            &fixture.expected_theorem,
+            &fixture.verified_theorem,
+        )
+        .is_ok(),
+        "a literal-fed ordinary position remains a fixed call obligation"
+    );
+
+    let mut dependent_literal = fixture.runtime.clone();
+    dependent_literal.positions[0].source =
+        super::DirectLiftArgumentSource::ClosedScalarLiteral(literal);
+    assert_eq!(
+        derive_direct_lift_precondition_implication(
+            &fixture.program,
+            &fixture.public_machine,
+            &fixture.public_state,
+            &fixture.representative,
+            &fixture.public_partition,
+            &fixture.representative_partition,
+            &dependent_literal,
+            &fixture.expected_theorem,
+            &fixture.verified_theorem,
+        ),
+        Err(RelationPlanError::DirectLiftLiteralInDependentPrecondition(
+            0
+        )),
     );
 }
 
@@ -1520,22 +1577,22 @@ fn direct_lift_duplication_shares_each_side_value_without_collapsing_legality_co
     ];
     let runtime = super::DirectLiftRuntimeCorrespondence {
         positions: vec![
-            super::DefineRuntimePosition {
-                public_parameter: public_symbol,
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::PublicParameter(public_symbol),
                 representative_parameter: representative_left,
             },
-            super::DefineRuntimePosition {
-                public_parameter: public_symbol,
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::PublicParameter(public_symbol),
                 representative_parameter: representative_right,
             },
         ],
     };
-    let public_partition = derive_public_precondition_partition(
+    let public_partition = derive_direct_lift_public_precondition_partition(
         &program,
         &public_machine,
         &public_state,
         &input_relations,
-        &runtime.positions,
+        &runtime,
     )
     .expect("duplicated and omitted quotient parameters remain dependent Q");
     let representative_partition =
@@ -1623,7 +1680,8 @@ fn direct_lift_duplication_shares_each_side_value_without_collapsing_legality_co
     assert_ne!(implication.rows[4].theorem, implication.rows[5].theorem);
 
     let mut tampered_runtime = runtime.clone();
-    tampered_runtime.positions[1].public_parameter = unused_public_symbol;
+    tampered_runtime.positions[1].source =
+        super::DirectLiftArgumentSource::PublicParameter(unused_public_symbol);
     assert_eq!(
         derive_direct_lift_precondition_implication(
             &program,
@@ -1749,12 +1807,12 @@ fn direct_lift_runtime_rung_accepts_subsets_permutations_and_duplicates_but_reje
     assert_eq!(
         reordered.positions,
         [
-            super::DefineRuntimePosition {
-                public_parameter: right_symbol,
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::PublicParameter(right_symbol),
                 representative_parameter: representative.parameters[0].symbol,
             },
-            super::DefineRuntimePosition {
-                public_parameter: left_symbol,
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::PublicParameter(left_symbol),
                 representative_parameter: representative.parameters[1].symbol,
             },
         ]
@@ -1771,12 +1829,12 @@ fn direct_lift_runtime_rung_accepts_subsets_permutations_and_duplicates_but_reje
     assert_eq!(
         duplicated.positions,
         [
-            super::DefineRuntimePosition {
-                public_parameter: left_symbol,
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::PublicParameter(left_symbol),
                 representative_parameter: representative.parameters[0].symbol,
             },
-            super::DefineRuntimePosition {
-                public_parameter: left_symbol,
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::PublicParameter(left_symbol),
                 representative_parameter: representative.parameters[1].symbol,
             },
         ]
@@ -1790,7 +1848,7 @@ fn direct_lift_runtime_rung_accepts_subsets_permutations_and_duplicates_but_reje
                 InputRelation::Quotient(right_relation),
             ],
         ),
-        Err(RelationPlanError::DirectLiftArgumentIsNotPublicParameter(1)),
+        Err(RelationPlanError::DirectLiftLiteralTargetMismatch(1)),
     );
     assert_eq!(
         derive(
@@ -1823,6 +1881,346 @@ fn direct_lift_runtime_rung_accepts_subsets_permutations_and_duplicates_but_reje
         ),
         Err(RelationPlanError::DefineRuntimeArityMismatch),
         "define may not omit a public parameter"
+    );
+}
+
+#[test]
+fn direct_lift_runtime_accepts_only_closed_exact_scalar_literals() {
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(
+        &mut program,
+        symbol(920),
+        "LiteralQ",
+        symbol(921),
+        "LiteralR",
+    );
+    let carrier = carrier_type(&mut program);
+    let bool_type = primitive_type(&mut program, "bool");
+    let i8_type = primitive_type(&mut program, "i8");
+    let boolean = program
+        .expression_table
+        .insert(ExpressionNode::Boolean(true));
+    let integer = program.expression_table.insert(ExpressionNode::Integer(
+        IntegerLiteral::from_value(7).with_landing(IntegerLanding {
+            landed_type: LandedIntegerType::I8,
+            domain: ArithmeticDomain::Exact,
+        }),
+    ));
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([boolean, integer]);
+    let call = call_with_arguments(arguments);
+    let state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    let request = push_representative(
+        &mut program,
+        &[(bool_type, false, false), (i8_type, false, false)],
+        carrier,
+    );
+
+    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
+        .expect("closed booleans and explicitly landed integers have exact representative types");
+    assert_eq!(
+        plan.input_relations,
+        [
+            InputRelation::ExactEquality(bool_type),
+            InputRelation::ExactEquality(i8_type),
+        ]
+    );
+    assert_eq!(plan.expected_theorem_schema.parameters.len(), 2);
+    assert_eq!(
+        plan.expected_theorem_schema.left_application.arguments,
+        [0, 1]
+    );
+    assert_eq!(
+        plan.expected_theorem_schema.right_application.arguments,
+        [0, 1]
+    );
+    let runtime = plan
+        .direct_lift_correspondence
+        .expect("literal runtime correspondence");
+    assert_eq!(
+        runtime.positions,
+        [
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::ClosedScalarLiteral(
+                    super::runtime_correspondence::ClosedScalarLiteral::Boolean(true),
+                ),
+                representative_parameter: symbol(100),
+            },
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::ClosedScalarLiteral(
+                    super::runtime_correspondence::ClosedScalarLiteral::Integer {
+                        spelling: "7".to_owned(),
+                        landing: IntegerLanding {
+                            landed_type: LandedIntegerType::I8,
+                            domain: ArithmeticDomain::Exact,
+                        },
+                    },
+                ),
+                representative_parameter: symbol(101),
+            },
+        ]
+    );
+    let mut spelling_drift = runtime.clone();
+    spelling_drift.positions[1].source = super::DirectLiftArgumentSource::ClosedScalarLiteral(
+        super::runtime_correspondence::ClosedScalarLiteral::Integer {
+            spelling: "0x7".to_owned(),
+            landing: IntegerLanding {
+                landed_type: LandedIntegerType::I8,
+                domain: ArithmeticDomain::Exact,
+            },
+        },
+    );
+    assert_ne!(
+        runtime, spelling_drift,
+        "literal spelling is retained identity"
+    );
+    let mut landing_drift = runtime.clone();
+    landing_drift.positions[1].source = super::DirectLiftArgumentSource::ClosedScalarLiteral(
+        super::runtime_correspondence::ClosedScalarLiteral::Integer {
+            spelling: "7".to_owned(),
+            landing: IntegerLanding {
+                landed_type: LandedIntegerType::I8,
+                domain: ArithmeticDomain::Wrapping,
+            },
+        },
+    );
+    assert_ne!(
+        runtime, landing_drift,
+        "literal landing is retained identity"
+    );
+}
+
+#[test]
+fn direct_lift_literal_fences_anonymous_mismatched_and_non_scalar_values() {
+    let mut program = TypedTrees::default();
+    let i8_type = primitive_type(&mut program, "i8");
+    let bool_type = primitive_type(&mut program, "bool");
+    let unit_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
+    let cases = [
+        (
+            program
+                .expression_table
+                .insert(ExpressionNode::Integer(IntegerLiteral::from_value(7))),
+            i8_type,
+            RelationPlanError::DirectLiftLiteralTargetMismatch(0),
+        ),
+        (
+            program.expression_table.insert(ExpressionNode::Integer(
+                IntegerLiteral::from_value(7).with_landing(IntegerLanding {
+                    landed_type: LandedIntegerType::I16,
+                    domain: ArithmeticDomain::Exact,
+                }),
+            )),
+            i8_type,
+            RelationPlanError::DirectLiftLiteralTargetMismatch(1),
+        ),
+        (
+            program.expression_table.insert(ExpressionNode::Integer(
+                IntegerLiteral::from_value(128).with_landing(IntegerLanding {
+                    landed_type: LandedIntegerType::I8,
+                    domain: ArithmeticDomain::Exact,
+                }),
+            )),
+            i8_type,
+            RelationPlanError::DirectLiftLiteralTargetMismatch(2),
+        ),
+        (
+            program.expression_table.insert(ExpressionNode::Integer(
+                IntegerLiteral::from_value(7).with_landing(IntegerLanding {
+                    landed_type: LandedIntegerType::I8,
+                    domain: ArithmeticDomain::Wrapping,
+                }),
+            )),
+            i8_type,
+            RelationPlanError::DirectLiftLiteralTargetMismatch(3),
+        ),
+        (
+            program
+                .expression_table
+                .insert(ExpressionNode::Boolean(true)),
+            i8_type,
+            RelationPlanError::DirectLiftLiteralTargetMismatch(4),
+        ),
+        (
+            program
+                .expression_table
+                .insert(ExpressionNode::Boolean(true)),
+            unit_type,
+            RelationPlanError::DirectLiftLiteralTargetMismatch(5),
+        ),
+    ];
+    for (position, (expression, target, expected)) in cases.iter().copied().enumerate() {
+        assert_eq!(
+            super::closed_scalar_literal_for_representative(&program, expression, target, position,),
+            Err(expected),
+        );
+    }
+    let float = program
+        .expression_table
+        .insert(ExpressionNode::Float(Default::default()));
+    let zero = program
+        .expression_table
+        .insert(ExpressionNode::ZeroValue(bool_type));
+    let string = program
+        .expression_table
+        .insert(ExpressionNode::String(Arc::from(&b"value"[..])));
+    let array_values = program
+        .expression_table
+        .insert_expression_handles(std::iter::empty());
+    let array = program
+        .expression_table
+        .insert(ExpressionNode::ArrayLiteral(array_values));
+    let computed = program
+        .expression_table
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: cases[4].0,
+            operator: BinaryOperator::Equal,
+            right: cases[4].0,
+        }));
+    let call_arguments = program
+        .expression_table
+        .insert_expression_handles(std::iter::empty());
+    let call = program
+        .expression_table
+        .insert(ExpressionNode::Call(call_with_arguments(call_arguments)));
+    for (position, (expression, target)) in [
+        (float, i8_type),
+        (zero, bool_type),
+        (string, bool_type),
+        (array, bool_type),
+        (computed, bool_type),
+        (call, bool_type),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_eq!(
+            super::closed_scalar_literal_for_representative(
+                &program,
+                expression,
+                target,
+                position + 6,
+            ),
+            Ok(None),
+        );
+    }
+
+    let constrained = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Constrained {
+            base_type: bool_type,
+            constraints: HandleSpan::empty(),
+        });
+    let generic = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Generic {
+            base_symbol: SymbolHandle::invalid(),
+            base_name: Identifier::generated_static("Box"),
+            lifetime_arguments: Vec::new(),
+            arguments: HandleSpan::empty(),
+        });
+    for (position, target) in [(12, constrained), (13, generic)] {
+        assert_eq!(
+            super::closed_scalar_literal_for_representative(&program, cases[4].0, target, position,),
+            Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
+        );
+    }
+}
+
+#[test]
+fn direct_lift_literal_rejects_mutable_or_attached_representative_destinations() {
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(
+        &mut program,
+        symbol(922),
+        "LiteralQ",
+        symbol(923),
+        "LiteralR",
+    );
+    let carrier = carrier_type(&mut program);
+    let bool_type = primitive_type(&mut program, "bool");
+    let boolean = program
+        .expression_table
+        .insert(ExpressionNode::Boolean(true));
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([boolean]);
+    let call = call_with_arguments(arguments);
+    let relation = ExactQuotientRelation {
+        quotient_type: quotient,
+        quotient_symbol: symbol(922),
+        relation_symbol: symbol(923),
+    };
+    let state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    for (is_mutable, is_self) in [(true, false), (false, true)] {
+        let representative = RepresentativeTelescope {
+            machine_symbol: symbol(924),
+            state_symbol: symbol(925),
+            parameters: vec![RepresentativeRuntimeParameter {
+                symbol: symbol(926),
+                type_reference: bool_type,
+                is_mutable,
+                is_self,
+            }],
+            return_type: carrier,
+            machine_contracts: HandleSpan::empty(),
+            state_contracts: HandleSpan::empty(),
+            static_application: RepresentativeStaticApplication {
+                lifetime_arguments: Vec::new(),
+                bindings: Vec::new(),
+            },
+        };
+        assert_eq!(
+            derive_direct_lift_runtime_correspondence(
+                &program,
+                &Machine::default(),
+                &state,
+                &call,
+                &[InputRelation::ExactEquality(bool_type)],
+                relation,
+                &representative,
+            ),
+            Err(RelationPlanError::DirectLiftParameterModeMismatch(0)),
+        );
+    }
+}
+
+#[test]
+fn define_does_not_admit_closed_scalar_literal_arguments() {
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(
+        &mut program,
+        symbol(927),
+        "LiteralQ",
+        symbol(928),
+        "LiteralR",
+    );
+    let carrier = carrier_type(&mut program);
+    let bool_type = primitive_type(&mut program, "bool");
+    let boolean = program
+        .expression_table
+        .insert(ExpressionNode::Boolean(true));
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([boolean]);
+    let call = call_with_arguments(arguments);
+    let state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    let mut request = push_representative(&mut program, &[(bool_type, false, false)], carrier);
+    request.kind = QuotientOperationKind::Define;
+
+    assert_eq!(
+        derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request,),
+        Err(RelationPlanError::UnresolvedArgumentType(0)),
     );
 }
 
@@ -1906,12 +2304,8 @@ fn direct_lift_runtime_duplication_can_exceed_public_arity_without_granting_muta
     )
     .expect("two representative positions may consume one public parameter");
     assert_eq!(runtime.positions.len(), 2);
-    assert!(
-        runtime
-            .positions
-            .iter()
-            .all(|position| position.public_parameter == public_symbol)
-    );
+    assert!(runtime.positions.iter().all(|position| position.source
+        == super::DirectLiftArgumentSource::PublicParameter(public_symbol)));
     assert_eq!(
         derive_define_runtime_correspondence(
             &program,

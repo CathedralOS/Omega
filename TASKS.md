@@ -7947,8 +7947,9 @@ Remaining N6/N8 work:
   independently. Selection, eligibility, and exact schema verification prove
   no congruence implication and grant no executable authority.
 
-  The first bounded stage-3 correspondence rung is now live. For `lift`
-  requests whose authored runtime arguments directly name public parameters,
+  The bounded stage-3 correspondence rung is now live. For `lift`
+  requests whose authored runtime arguments directly name public parameters
+  or are contract-separable closed scalar literals,
   checked planning proves structural `Q => P` inclusion independently for the
   selected theorem's left and right representative applications. `lift` may
   explicitly omit, permute, and repeat those parameters: every occurrence row
@@ -7965,10 +7966,19 @@ Remaining N6/N8 work:
   permitted. Each row retains exact public, representative, and
   verified-theorem contract-fact coordinates, and the plan composes them with
   the verified theorem and exact runtime correspondence into a non-executable
-  certificate. `define` remains strictly position-preserving at exact public
+  certificate. Closed booleans and explicitly landed, in-range integers may
+  feed an immutable non-receiver representative parameter only when its exact
+  concrete primitive type and arithmetic domain agree. Their value, canonical
+  spelling, and landing ride the occurrence identity; their input relation is
+  exact equality. A dependent representative `P` fact may not mention a
+  literal-fed position, while literal-only facts remain fixed ordinary call
+  obligations. Unsuffixed integers, floats, strings, aggregates, zero-value,
+  casts, calls, computed expressions, constrained/generic targets, mutable or
+  attached targets, and literal arguments to `define` remain fail-closed.
+  `define` remains strictly position-preserving at exact public
   arity and retains its exact `Q <=> P` bijection. Fixed representative facts
   remain ordinary call obligations; generic owner substitution,
-  constant/adapted lift arguments, general logical implication, and canonical
+  general adapted lift arguments, general logical implication, and canonical
   Terminal replay remain fail-closed, so stage 3 is not complete and stage 4
   remains open.
 

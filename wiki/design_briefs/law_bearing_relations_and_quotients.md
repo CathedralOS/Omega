@@ -766,9 +766,10 @@ certificate adds no runtime dictionary and grants no executable authority;
 general `lift` implication/correspondence and canonical Terminal retention with
 independent replay remain fail closed.
 
-The first bounded `lift` correspondence certificate is also live for direct
-public parameters, including explicit omission, permutation, and repeated
-occurrences. Each occurrence row retains the actual public symbol at its
+The bounded `lift` correspondence certificate is also live for direct public
+parameters, including explicit omission, permutation, and repeated
+occurrences, plus contract-separable closed scalar literals. Each public
+occurrence row retains the actual public symbol at its
 distinct representative position, and public `Q` dependency partitioning
 consumes that map rather than declaration order. Repeated occurrences share one
 exact instantiated value per theorem side without collapsing positional theorem
@@ -781,10 +782,20 @@ right representative substitutions, permits additional public `Q` facts and
 reuse of one exact `Q` coordinate for multiple distinct `P` rows, and retains
 the exact public, representative, and verified-theorem legality coordinate for
 every included row. The non-executable certificate composes those rows with the
-exact runtime correspondence and verified theorem. `define` remains strictly
+exact runtime correspondence and verified theorem. A closed boolean or an
+explicitly landed, in-range integer may feed an immutable non-receiver
+representative position when its exact concrete primitive type and arithmetic
+domain agree. Exact equality relates that ordinary input position; the literal
+value, integer spelling, and landing remain runtime-evidence identity. Any
+dependent representative `P` fact that mentions a literal-fed parameter
+rejects rather than claiming general implication, while literal-only facts stay
+fixed ordinary call obligations. Unsuffixed integers, floats, strings,
+aggregates, zero-value, casts, calls, computations, constrained/generic
+targets, mutable/attached targets, and every literal supplied to `define`
+remain fail-closed. `define` remains strictly
 position-preserving at exact public arity and continues to use its exact `Q <=>
 P` bijection. Fixed representative facts remain ordinary call obligations,
-while generic owner substitution, adapted/constant arguments, general logical
+while generic owner substitution, general adapted arguments, general logical
 implication, and canonical Terminal replay remain fail closed.
 
 The representation-observer fence is explicit at resolved-to-typed lowering.
@@ -811,8 +822,9 @@ relation.
 Exact quotient type identity is retained so two quotients over the same carrier
 cannot collapse. Indexed relation applications wait for the fully instantiated
 representative-operation telescope rather than guessing independently
-quantified binders from the quotient type. Untyped or adapted arguments and
-nested result flow likewise remain unresolved and fail closed;
+quantified binders from the quotient type. Except for the bounded closed-scalar
+`lift` lane above, untyped or adapted arguments and nested result flow remain
+unresolved and fail closed;
 even a complete direct-terminal relation plan is rejected until operation
 correspondence, the selected theorem contract, and normalized result flow
 are independently checked and retained in checked/terminal identity.
@@ -826,8 +838,8 @@ static-machine bindings; an immutable structural substitution judgment applies
 those bindings to representative runtime parameter and result types without
 rewriting the checked type arena. This substitution judgment does not itself
 substitute contract facts or validate the selected theorem; the separate exact
-schema verifier consumes both closed applications. Runtime positional
-correspondence is derived only for the direct `define` shape below.
+schema verifier consumes both closed applications. Faithful `define` runtime
+correspondence remains the stricter direct shape below.
 
 For the same direct `define` shape with a monomorphic quotient-facing owner,
 validation now also derives a

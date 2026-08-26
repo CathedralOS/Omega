@@ -5,7 +5,8 @@
 //! mutable/borrow mode while matching quotient carriers through the retained
 //! representative static application. Faithful `define` remains declaration-
 //! order preserving; `lift` may explicitly select, permute, and repeat direct
-//! members of the public telescope but may not synthesize or adapt them.
+//! members of the public telescope or supply a closed boolean / explicitly
+//! landed integer to an exact immutable scalar representative position.
 //! Neither policy infers or selects a relation, contract proof, or
 //! representative operation.
 
@@ -13,12 +14,13 @@ use super::{
     ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeStaticBinding,
     RepresentativeTelescope,
 };
+use psi_numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
-use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 use super::static_application::substituted_type_matches;
 
@@ -34,14 +36,29 @@ pub(in crate::quotients) struct DefineRuntimeCorrespondence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::quotients) struct DirectLiftRuntimeCorrespondence {
-    pub(super) positions: Vec<DefineRuntimePosition>,
+pub(super) enum ClosedScalarLiteral {
+    Boolean(bool),
+    Integer {
+        spelling: String,
+        landing: IntegerLanding,
+    },
 }
 
-#[derive(Clone, Copy)]
-enum ExactPositionPolicy {
-    Define,
-    DirectLift,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum DirectLiftArgumentSource {
+    PublicParameter(SymbolHandle),
+    ClosedScalarLiteral(ClosedScalarLiteral),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct DirectLiftRuntimePosition {
+    pub(super) source: DirectLiftArgumentSource,
+    pub(super) representative_parameter: SymbolHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::quotients) struct DirectLiftRuntimeCorrespondence {
+    pub(super) positions: Vec<DirectLiftRuntimePosition>,
 }
 
 pub(super) fn derive_define_runtime_correspondence(
@@ -53,7 +70,7 @@ pub(super) fn derive_define_runtime_correspondence(
     result_relation: ExactQuotientRelation,
     representative: &RepresentativeTelescope,
 ) -> Result<DefineRuntimeCorrespondence, RelationPlanError> {
-    derive_exact_position_runtime_correspondence(
+    derive_define_position_runtime_correspondence(
         program,
         machine,
         state,
@@ -61,7 +78,6 @@ pub(super) fn derive_define_runtime_correspondence(
         input_relations,
         result_relation,
         representative,
-        ExactPositionPolicy::Define,
     )
     .map(|positions| DefineRuntimeCorrespondence { positions })
 }
@@ -75,37 +91,8 @@ pub(super) fn derive_direct_lift_runtime_correspondence(
     result_relation: ExactQuotientRelation,
     representative: &RepresentativeTelescope,
 ) -> Result<DirectLiftRuntimeCorrespondence, RelationPlanError> {
-    derive_exact_position_runtime_correspondence(
-        program,
-        machine,
-        state,
-        call,
-        input_relations,
-        result_relation,
-        representative,
-        ExactPositionPolicy::DirectLift,
-    )
-    .map(|positions| DirectLiftRuntimeCorrespondence { positions })
-}
-
-#[allow(clippy::too_many_arguments)]
-fn derive_exact_position_runtime_correspondence(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    call: &TableCallExpression,
-    input_relations: &[InputRelation],
-    result_relation: ExactQuotientRelation,
-    representative: &RepresentativeTelescope,
-    policy: ExactPositionPolicy,
-) -> Result<Vec<DefineRuntimePosition>, RelationPlanError> {
     if !program.machine_type_parameters(machine).is_empty() {
-        return Err(match policy {
-            ExactPositionPolicy::Define => RelationPlanError::DefineOwnerRequiresSubstitution,
-            ExactPositionPolicy::DirectLift => {
-                RelationPlanError::DirectLiftOwnerRequiresSubstitution
-            }
-        });
+        return Err(RelationPlanError::DirectLiftOwnerRequiresSubstitution);
     }
     let public_parameters = program
         .state_parameters(state)
@@ -113,17 +100,10 @@ fn derive_exact_position_runtime_correspondence(
         .filter(|parameter| !parameter.is_const)
         .collect::<Vec<_>>();
     let arguments = program.expression_table.expression_handles(call.arguments);
-    let arity_matches = arguments.len() == representative.parameters.len()
-        && input_relations.len() == arguments.len()
-        && match policy {
-            ExactPositionPolicy::Define => public_parameters.len() == arguments.len(),
-            ExactPositionPolicy::DirectLift => true,
-        };
-    if !arity_matches {
-        return Err(match policy {
-            ExactPositionPolicy::Define => RelationPlanError::DefineRuntimeArityMismatch,
-            ExactPositionPolicy::DirectLift => RelationPlanError::DirectLiftRuntimeArityMismatch,
-        });
+    if arguments.len() != representative.parameters.len()
+        || input_relations.len() != arguments.len()
+    {
+        return Err(RelationPlanError::DirectLiftRuntimeArityMismatch);
     }
     if has_duplicate_parameter_symbols(public_parameters.iter().map(|parameter| parameter.symbol))
         || has_duplicate_parameter_symbols(
@@ -133,12 +113,7 @@ fn derive_exact_position_runtime_correspondence(
                 .map(|parameter| parameter.symbol),
         )
     {
-        return Err(match policy {
-            ExactPositionPolicy::Define => RelationPlanError::DefineParameterIdentityNotUnique,
-            ExactPositionPolicy::DirectLift => {
-                RelationPlanError::DirectLiftParameterIdentityNotUnique
-            }
-        });
+        return Err(RelationPlanError::DirectLiftParameterIdentityNotUnique);
     }
 
     let mut positions = Vec::with_capacity(arguments.len());
@@ -148,40 +123,116 @@ fn derive_exact_position_runtime_correspondence(
         .zip(&representative.parameters)
         .enumerate()
     {
-        let argument_symbol =
-            direct_public_parameter_symbol(program, *argument).ok_or(match policy {
-                ExactPositionPolicy::Define => {
-                    RelationPlanError::DefineArgumentIsNotPublicParameter(position)
-                }
-                ExactPositionPolicy::DirectLift => {
-                    RelationPlanError::DirectLiftArgumentIsNotPublicParameter(position)
-                }
-            })?;
-        let public = match policy {
-            ExactPositionPolicy::Define => {
-                let public = public_parameters[position];
-                if argument_symbol != public.symbol {
-                    return Err(RelationPlanError::DefineArgumentOrderMismatch(position));
-                }
-                public
-            }
-            ExactPositionPolicy::DirectLift => public_parameters
+        let source = if let Some(argument_symbol) =
+            direct_public_parameter_symbol(program, *argument)
+        {
+            let public = public_parameters
                 .iter()
                 .copied()
                 .find(|parameter| parameter.symbol == argument_symbol)
                 .ok_or(RelationPlanError::DirectLiftArgumentIsNotPublicParameter(
                     position,
-                ))?,
+                ))?;
+            if public.is_mutable != representative_parameter.is_mutable {
+                return Err(RelationPlanError::DirectLiftParameterModeMismatch(position));
+            }
+            if !input_relation_matches_public_type(program, *relation, public.type_reference)
+                || !input_relation_matches_representative_type(
+                    program,
+                    *relation,
+                    representative_parameter.type_reference,
+                    &representative.static_application.bindings,
+                )
+            {
+                return Err(RelationPlanError::DirectLiftParameterTypeMismatch(position));
+            }
+            DirectLiftArgumentSource::PublicParameter(public.symbol)
+        } else {
+            if representative_parameter.is_mutable || representative_parameter.is_self {
+                return Err(RelationPlanError::DirectLiftParameterModeMismatch(position));
+            }
+            let literal = closed_scalar_literal_for_representative(
+                program,
+                *argument,
+                representative_parameter.type_reference,
+                position,
+            )?
+            .ok_or(RelationPlanError::DirectLiftArgumentIsNotPublicParameter(
+                position,
+            ))?;
+            if *relation != InputRelation::ExactEquality(representative_parameter.type_reference) {
+                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+            }
+            DirectLiftArgumentSource::ClosedScalarLiteral(literal)
         };
+        positions.push(DirectLiftRuntimePosition {
+            source,
+            representative_parameter: representative_parameter.symbol,
+        });
+    }
+    if !quotient_carrier_matches_type(
+        program,
+        result_relation,
+        representative.return_type,
+        &representative.static_application.bindings,
+    ) {
+        return Err(RelationPlanError::DirectLiftResultTypeMismatch);
+    }
+    Ok(DirectLiftRuntimeCorrespondence { positions })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn derive_define_position_runtime_correspondence(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    call: &TableCallExpression,
+    input_relations: &[InputRelation],
+    result_relation: ExactQuotientRelation,
+    representative: &RepresentativeTelescope,
+) -> Result<Vec<DefineRuntimePosition>, RelationPlanError> {
+    if !program.machine_type_parameters(machine).is_empty() {
+        return Err(RelationPlanError::DefineOwnerRequiresSubstitution);
+    }
+    let public_parameters = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_const)
+        .collect::<Vec<_>>();
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    let arity_matches = arguments.len() == representative.parameters.len()
+        && input_relations.len() == arguments.len()
+        && public_parameters.len() == arguments.len();
+    if !arity_matches {
+        return Err(RelationPlanError::DefineRuntimeArityMismatch);
+    }
+    if has_duplicate_parameter_symbols(public_parameters.iter().map(|parameter| parameter.symbol))
+        || has_duplicate_parameter_symbols(
+            representative
+                .parameters
+                .iter()
+                .map(|parameter| parameter.symbol),
+        )
+    {
+        return Err(RelationPlanError::DefineParameterIdentityNotUnique);
+    }
+
+    let mut positions = Vec::with_capacity(arguments.len());
+    for (position, ((argument, relation), representative_parameter)) in arguments
+        .iter()
+        .zip(input_relations)
+        .zip(&representative.parameters)
+        .enumerate()
+    {
+        let argument_symbol = direct_public_parameter_symbol(program, *argument).ok_or(
+            RelationPlanError::DefineArgumentIsNotPublicParameter(position),
+        )?;
+        let public = public_parameters[position];
+        if argument_symbol != public.symbol {
+            return Err(RelationPlanError::DefineArgumentOrderMismatch(position));
+        }
         if public.is_mutable != representative_parameter.is_mutable {
-            return Err(match policy {
-                ExactPositionPolicy::Define => {
-                    RelationPlanError::DefineParameterModeMismatch(position)
-                }
-                ExactPositionPolicy::DirectLift => {
-                    RelationPlanError::DirectLiftParameterModeMismatch(position)
-                }
-            });
+            return Err(RelationPlanError::DefineParameterModeMismatch(position));
         }
         if !input_relation_matches_public_type(program, *relation, public.type_reference)
             || !input_relation_matches_representative_type(
@@ -191,14 +242,7 @@ fn derive_exact_position_runtime_correspondence(
                 &representative.static_application.bindings,
             )
         {
-            return Err(match policy {
-                ExactPositionPolicy::Define => {
-                    RelationPlanError::DefineParameterTypeMismatch(position)
-                }
-                ExactPositionPolicy::DirectLift => {
-                    RelationPlanError::DirectLiftParameterTypeMismatch(position)
-                }
-            });
+            return Err(RelationPlanError::DefineParameterTypeMismatch(position));
         }
         positions.push(DefineRuntimePosition {
             public_parameter: public.symbol,
@@ -211,12 +255,103 @@ fn derive_exact_position_runtime_correspondence(
         representative.return_type,
         &representative.static_application.bindings,
     ) {
-        return Err(match policy {
-            ExactPositionPolicy::Define => RelationPlanError::DefineResultTypeMismatch,
-            ExactPositionPolicy::DirectLift => RelationPlanError::DirectLiftResultTypeMismatch,
-        });
+        return Err(RelationPlanError::DefineResultTypeMismatch);
     }
     Ok(positions)
+}
+
+pub(super) fn closed_scalar_literal_for_representative(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    representative_type: TypeReferenceHandle,
+    position: usize,
+) -> Result<Option<ClosedScalarLiteral>, RelationPlanError> {
+    let TypeReferenceNode::Named { name, .. } = program
+        .type_reference_table
+        .type_reference(representative_type)
+    else {
+        return match program.expression_table.expression(expression) {
+            ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) => {
+                Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position))
+            }
+            _ => Ok(None),
+        };
+    };
+    let Some(primitive) = PrimitiveType::from_name(name.as_str()) else {
+        return match program.expression_table.expression(expression) {
+            ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) => {
+                Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position))
+            }
+            _ => Ok(None),
+        };
+    };
+    // Atomic aliases also report an underlying primitive. This rung accepts
+    // only the exact scalar spelling, never an adapted wrapper.
+    if name.as_str() != primitive.name() {
+        return match program.expression_table.expression(expression) {
+            ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) => {
+                Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position))
+            }
+            _ => Ok(None),
+        };
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Boolean(value) if primitive == PrimitiveType::Bool => {
+            Ok(Some(ClosedScalarLiteral::Boolean(*value)))
+        }
+        ExpressionNode::Boolean(_) => {
+            Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position))
+        }
+        ExpressionNode::Integer(literal) => {
+            let landing = literal
+                .landing()
+                .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
+            if landed_primitive(landing.landed_type) != primitive
+                || landing.domain
+                    != program.arithmetic_domain_for_type_reference(representative_type)
+                || !integer_literal_fits(literal, landing.landed_type)
+            {
+                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+            }
+            Ok(Some(ClosedScalarLiteral::Integer {
+                spelling: literal.text().to_owned(),
+                landing,
+            }))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn landed_primitive(landed: LandedIntegerType) -> PrimitiveType {
+    match landed {
+        LandedIntegerType::I8 => PrimitiveType::I8,
+        LandedIntegerType::I16 => PrimitiveType::I16,
+        LandedIntegerType::I32 => PrimitiveType::I32,
+        LandedIntegerType::I64 => PrimitiveType::I64,
+        LandedIntegerType::U8 => PrimitiveType::U8,
+        LandedIntegerType::U16 => PrimitiveType::U16,
+        LandedIntegerType::U32 => PrimitiveType::U32,
+        LandedIntegerType::U64 => PrimitiveType::U64,
+        LandedIntegerType::Addr => PrimitiveType::Addr,
+    }
+}
+
+fn integer_literal_fits(literal: &IntegerLiteral, landed: LandedIntegerType) -> bool {
+    let width = landed.bit_width();
+    if landed.is_signed() {
+        literal.value_i64().is_some_and(|value| {
+            width == 64 || {
+                let minimum = -(1i64 << (width - 1));
+                let maximum = (1i64 << (width - 1)) - 1;
+                (minimum..=maximum).contains(&value)
+            }
+        })
+    } else {
+        !literal.text().starts_with('-')
+            && literal
+                .value_u64()
+                .is_some_and(|value| width == 64 || value <= (1u64 << width) - 1)
+    }
 }
 
 fn has_duplicate_parameter_symbols(symbols: impl IntoIterator<Item = SymbolHandle>) -> bool {
