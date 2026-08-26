@@ -466,6 +466,50 @@ impl RootAdmission {
         )
     }
 
+    /// Admit one explicitly selected deployed dynamic-fuel root. The ordinary
+    /// constructor remains fixed-only; this path exists only when final
+    /// metered-image attribution and executable transfer-runtime custody have
+    /// already been sealed against the same installed-code occurrence.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_admitted_provider_with_dynamic_native_fuel(
+        identity: RootAdmissionId,
+        root: &ValidatedExternalRoot,
+        execution: &ProviderExecution,
+        installed_code: &InstalledCode,
+        slot: &RootSlotAuthority,
+        environment: NativeFuelExecutionEnvironment,
+        dynamic_attribution: InstalledDynamicFuelAttributionPlan,
+        dynamic_transfer_runtime: InstalledNativeFuelTransferRuntime,
+        trust_receipts: impl IntoIterator<Item = TrustReceiptId>,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        let fuel = &root.candidate.logical_fuel;
+        let selected = admit_native_fuel_realization(
+            &fuel.realization,
+            fuel.provision,
+            fuel.ceiling_units,
+            environment,
+            NativeFuelRealizationRequest::Dynamic(dynamic_attribution.plan()),
+        )?;
+        let native_fuel = bind_installed_native_fuel_realization(
+            selected,
+            &fuel.realization,
+            fuel.provision,
+            fuel.ceiling_units,
+            installed_code,
+            Some(dynamic_attribution),
+            Some(dynamic_transfer_runtime),
+        )?;
+        Self::from_admitted_provider_with_native_fuel(
+            identity,
+            root,
+            execution,
+            installed_code,
+            slot,
+            native_fuel,
+            trust_receipts,
+        )
+    }
+
     pub fn from_admitted_provider_with_native_fuel(
         identity: RootAdmissionId,
         root: &ValidatedExternalRoot,
