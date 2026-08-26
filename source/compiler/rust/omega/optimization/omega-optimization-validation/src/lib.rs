@@ -583,9 +583,11 @@ fn validate_fact_index(
             O::IntegerConstant {
                 psi_operation,
                 result,
+                value,
                 ..
             } => expected.push(OptimizationFact::IntegerConstant {
                 value: *result,
+                constant: *value,
                 support: *psi_operation,
             }),
             _ => {}

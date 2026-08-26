@@ -8,13 +8,17 @@
 //! creating an [`AnalysisManager`].
 
 mod analyses;
+mod registry;
 
 pub use analyses::{
     AnalysisManager, AnalysisManagerError, AnalysisProduct, AnalysisRevisionCommit,
-    BlockControlFlow, CallGraphAnalysis, ControlFlowAnalysis, DominatorAnalysis, ExitKind,
-    FunctionControlFlow, LoopAnalysis, LoopRegion, StronglyConnectedComponentAnalysis,
-    analysis_dependencies, compute_analysis,
+    BlockControlFlow, CallGraphAnalysis, ControlFlowAnalysis, DominatorAnalysis,
+    ExecutableEdgeAnalysis, ExecutableEdgeFact, ExecutableEdgeKnowledge, ExitKind,
+    FunctionControlFlow, LoopAnalysis, LoopRegion, ScalarConstant, ScalarConstantAnalysis,
+    ScalarConstantFact, StronglyConnectedComponentAnalysis, UseDefinitionAnalysis, ValueFactRegion,
+    ValueRangeAnalysis, ValueRangeFact, analysis_dependencies, compute_analysis,
 };
+pub use registry::{OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError, RuleScheduleKey};
 
 #[cfg(test)]
 mod tests {
@@ -24,13 +28,15 @@ mod tests {
         AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationUnitIdentity,
     };
     use omega_optimization_unit::{
-        EffectLink, OptimizationBlock, OptimizationNode, PsiOptimizationFunction,
+        EffectLink, OptimizationBlock, OptimizationFact, OptimizationNode, PsiOptimizationFunction,
         PsiOptimizationUnit,
     };
     use omega_terminal_abstract_operations::{
         TerminalAbstractOperation as O, TerminalAbstractSuccessor,
     };
-    use psi_core::{BlockId, EdgeId, FuelScheduleIdentity, MachineId, ValueId};
+    use psi_core::{
+        BlockId, EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, OperationId, ValueId,
+    };
     use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
     use super::*;
@@ -313,5 +319,79 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>();
         assert_eq!(cached, cold);
+    }
+
+    #[test]
+    fn literal_semantic_facts_keep_support_and_revision_regions() {
+        let mut function = function(
+            100,
+            1,
+            vec![
+                (1, Terminator::Branch(2, 3)),
+                (2, Terminator::Return),
+                (3, Terminator::Crash),
+            ],
+        );
+        let condition = id(12, ValueId::new);
+        let integer = id(99, ValueId::new);
+        let boolean_support = id(600, OperationId::new);
+        let integer_support = id(601, OperationId::new);
+        function.facts = vec![
+            OptimizationFact::BooleanConstant {
+                value: condition,
+                constant: true,
+                support: boolean_support,
+            },
+            OptimizationFact::IntegerConstant {
+                value: integer,
+                constant: IntegerValue::Unsigned(7),
+                support: integer_support,
+            },
+        ];
+        let unit = unit(vec![function], b"semantic-facts");
+
+        let AnalysisProduct::ScalarConstants(constants) =
+            compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap()
+        else {
+            unreachable!()
+        };
+        assert!(constants.facts.iter().all(|fact| {
+            fact.valid_in.revision == unit.identity
+                && fact.valid_in.machine == unit.entry
+                && fact.valid_in.value == fact.value
+        }));
+
+        let AnalysisProduct::ExecutableEdges(edges) =
+            compute_analysis(&unit, AnalysisKind::ExecutableEdges).unwrap()
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            edges
+                .edges
+                .iter()
+                .map(|edge| (edge.knowledge, edge.support.clone()))
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    ExecutableEdgeKnowledge::KnownExecutable,
+                    vec![boolean_support]
+                ),
+                (
+                    ExecutableEdgeKnowledge::KnownInexecutable,
+                    vec![boolean_support]
+                ),
+            ]
+        );
+
+        let AnalysisProduct::ValueRanges(ranges) =
+            compute_analysis(&unit, AnalysisKind::ValueRanges).unwrap()
+        else {
+            unreachable!()
+        };
+        assert_eq!(ranges.facts.len(), 1);
+        assert_eq!(ranges.facts[0].minimum, IntegerValue::Unsigned(7));
+        assert_eq!(ranges.facts[0].maximum, IntegerValue::Unsigned(7));
+        assert_eq!(ranges.facts[0].support, integer_support);
     }
 }

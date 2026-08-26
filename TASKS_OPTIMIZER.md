@@ -109,6 +109,17 @@ These facts constrain the work below.
   and CFG tasks remain open until rewrite rules exercise this audit, mutable
   unit revision identity is recomputable, and suspension/richer call exits are
   present in the optimization representation.
+- The Psi optimizer now also has immutable compilation-local rule registries.
+  They preserve the pass manager's explicit schedule (never hash-sort it),
+  reject duplicate rule identities, bind the exact order into a rule-set
+  identity, and share no global mutable registry state. Initial semantic
+  products cover use/definition rows, literal scalar constants, literal-backed
+  exact integer ranges, and executable/inexecutable conditional edges. Every
+  derived fact retains its exact supporting operation and unit-revision/value
+  region; integer facts now retain the literal payload rather than a lossy
+  constant marker. Registry coverage remains open until built-in executable
+  rules and pass dispatch exist, and semantic analyses remain open for the
+  wider proof/effect/ownership vocabulary.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.

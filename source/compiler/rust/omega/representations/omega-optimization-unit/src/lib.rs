@@ -16,8 +16,8 @@ use omega_terminal_abstract_operations::{
     TerminalAbstractSuccessor, TerminalValueBinding,
 };
 use psi_core::{
-    BlockId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, ObligationId, OperationId, PlaceId,
-    ScalarType, ValueId,
+    BlockId, ClaimId, EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, ObligationId,
+    OperationId, PlaceId, ScalarType, ValueId,
 };
 use psi_terminal::{
     StructuralParameterDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
@@ -104,6 +104,7 @@ pub enum OptimizationFact {
     },
     IntegerConstant {
         value: ValueId,
+        constant: IntegerValue,
         support: OperationId,
     },
 }
@@ -671,9 +672,11 @@ fn collect_fact(operation: &TerminalAbstractOperation, facts: &mut Vec<Optimizat
         TerminalAbstractOperation::IntegerConstant {
             psi_operation,
             result,
+            value,
             ..
         } => facts.push(OptimizationFact::IntegerConstant {
             value: *result,
+            constant: *value,
             support: *psi_operation,
         }),
         _ => {}
