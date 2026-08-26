@@ -2013,7 +2013,8 @@ identities. One execution verifies and runs the compiler's current Psi
 vocabulary.
 
 `psi-terminal-verifier` is the current Rust implementation of the artifact-aware
-judgment and `psi-proof-admission` checks its per-artifact proofs. The deployment-
+judgment and `psi-proof-admission` applies product-local checking and admission
+policy to its per-artifact proofs. The deployment-
 authoritative endpoint is a **canonical semantic-ledger generator**: one total
 low-rung definition that consumes the canonical terminal-Psi bytes themselves,
 rejects malformed structure, and emits the exact ordered goals and premise

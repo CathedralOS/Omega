@@ -71,10 +71,9 @@ Current roots:
 - `semantics/psi-validation`: target-neutral cross-semantic source validation;
 - `semantics/psi-proof`: source proof-surface collection, obligation planning,
   and checking;
-- `semantics/psi-proof-admission`: currently named product-local admission and
-  judgment checking (rename tracked in
-  [`TASKS.md`](../../../../TASKS.md)), explicit proof checking, evidence
-  envelopes, and sealed admission validation;
+- `semantics/psi-proof-admission`: product-local Psi judgment and admission
+  checking, explicit proof checking, evidence envelopes, and sealed admission
+  validation; it is distinct from the generic bootstrap proof kernel;
 - `semantics/psi-checked-interpreter`: build-time and differential reference
   execution of checked/source-shaped semantics not yet represented in terminal
   Psi;
