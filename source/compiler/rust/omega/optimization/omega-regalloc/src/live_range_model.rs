@@ -18,6 +18,10 @@ pub struct TerminalLiveRangePoint(pub u32);
 pub struct TerminalLiveRangeIdentity(pub(crate) [u8; 32]);
 
 impl TerminalLiveRangeIdentity {
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
     pub const fn bytes(self) -> [u8; 32] {
         self.0
     }

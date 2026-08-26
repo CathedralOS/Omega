@@ -261,6 +261,16 @@ storage/write footprints to prevent conflicting homes, while allowing
 mutually-exclusive leaf values to reuse a view. Production and independent
 replay both bind the legality, range, and register-environment identities.
 
+The resulting register-home plan has its own versioned canonical artifact
+codec. It carries those three roots plus the exact ordered machine, VReg,
+register-class, and physical-view assignments, and recomputes a stored content
+identity during decode. Malformed framing, invalid semantic machine IDs,
+identity changes, truncation, and trailing bytes fail closed. As with the
+pre-physical manifest codec, decode returns a plain record rather than a
+validated carrier; the independent home validator must replay the retained
+legality, range, environment, constraint, physical-model, and reservation
+inputs before downstream custody accepts it.
+
 The direct home path is still not the general allocator and grants no copy
 insertion, splitting, spill, frame, emission, or publication authority. An
 incompatible ABI-entry to fixed-return view remains an explicit transition
