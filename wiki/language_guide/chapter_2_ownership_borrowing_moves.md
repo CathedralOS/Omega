@@ -148,7 +148,9 @@ storage containing no live `T` is a separate feature.
 > or proven-in-bounds dynamic byte elements, replace a fixed byte range with a
 > same-width array literal when both bounds normalize statically, replace an
 > unrestricted primitive leaf through a finite path of relevant unconstrained
-> common fields in plain invariant-free records, and forward the loan explicitly.
+> common fields in plain invariant-free records, read a literal fixed-array
+> length as static metadata through the same eligible record paths, and forward
+> the loan explicitly. Record-held slice descriptors remain content-bearing.
 > General symbolic or open-ended range projection, sum projection,
 > opaque providers, executable Terminal writes, runtime realization, and native
 > ABI lowering remain gated. Forwarding-only structural parameters and calls do
