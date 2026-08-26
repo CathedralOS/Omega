@@ -183,9 +183,8 @@ These facts constrain the work below.
   operation-obligation ownership, and frontier coverage for every retained Psi
   provenance site. It also independently rebuilds the accepted-obligation
   projection and initial unit identity from the immutable verifier carrier.
-  The unit tasks remain open for ordered block-parameter
-  reconstruction, full signatures/effects, total CFG coverage, and projecting
-  these capabilities into region-indexed rule facts.
+  The unit tasks remain open for full effect summaries and projecting these
+  capabilities into region-indexed rule facts.
 - The clean abstract-operation plan now retains every block's scalar
   declarations in exact Terminal-Psi order instead of attempting to infer them
   from incoming edges. The unit validator independently re-derives operation
@@ -197,8 +196,17 @@ These facts constrain the work below.
   accepted-fact attachment, rewrite validation, projection replay, and analysis
   admission reject a stale identity. Equal accepted content therefore has one
   unit identity independent of rewrite history; the transformation ledger
-  retains that history separately. The unit tasks remain open for complete
-  function/module signatures and region-indexed semantic facts.
+  retains that history separately. Exact module structural-type, boundary, and
+  provider catalogs now survive into the unit, as do every function's nominal
+  attachment, scalar/structural parameters, result shape, full ordered entry
+  claims, and published service ceiling. Content identity v3 encodes these
+  rows exhaustively; the independent validator compares them with the verified
+  source on initial and transformed revisions, and optimized-plan projection
+  consumes the unit-held rows before independently checking the round trip.
+  Bare validation also rejects a detached entry-claim index or a normal return
+  whose kind/identity/type contradicts the retained result signature. The unit
+  tasks remain open for region-indexed semantic facts, complete effect/call
+  summaries, and the broader path-sensitive place/ownership vocabulary.
 - `omega-psi-optimizer` now owns the first deterministic analysis slice:
   predecessor/successor and reachability indices, normal/crash exits,
   dominators, post-dominators, block SCCs, reducible/irreducible loop regions,

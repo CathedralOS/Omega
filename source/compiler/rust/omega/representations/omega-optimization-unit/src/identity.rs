@@ -1,21 +1,25 @@
 use omega_optimization_core::OptimizationUnitIdentity;
 use omega_terminal_abstract_operations::{
-    TerminalAbstractOperation, TerminalAbstractSuccessor, TerminalCompletionClaimSource,
-    TerminalValueBinding,
+    TerminalAbstractFunctionResult, TerminalAbstractOperation, TerminalAbstractSuccessor,
+    TerminalCompletionClaimSource, TerminalValueBinding,
 };
 use psi_core::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, ContentAlgebra,
-    ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion, ContentStructuralPlace,
-    ContentTerm, IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, IntegerSign,
-    IntegerType, IntegerValue, Proposition, PsiSemanticId, ScalarTerm, ScalarType,
-    StructuralCaseSubject, StructuralPlaceKind,
+    ContentAlgebraKind, ContentConservation, ContentPlaceSegment, ContentPlaceVersion,
+    ContentProjectionExpression, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
+    IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, IntegerSign, IntegerType,
+    IntegerValue, Proposition, PsiSemanticId, ScalarTerm, ScalarType, StructuralCaseSubject,
+    StructuralPlaceKind,
 };
 use psi_terminal::{
-    BindingRelevance, ByteSequenceCarrier, ClaimContentProjection, CrashCause, CrashPredicateTerm,
-    EntryClaim, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
+    BindingRelevance, BoundaryMachineDeclaration, ByteSequenceCarrier, ClaimContentProjection,
+    ContentConservationGuarantee, CrashCause, CrashPredicateTerm, EntryClaim,
+    ProgramLocalRootIntroductionSchema, ProviderCandidateConformance, StructuralAccess,
+    StructuralArgument, StructuralDomainRequirement, StructuralFieldDeclaration,
     StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction,
 };
 
 use crate::{
@@ -24,7 +28,7 @@ use crate::{
     ValueDefinition, ValueDefinitionSite, ValueUse,
 };
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v2\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v3\0";
 
 pub fn recompute_psi_optimization_unit_identity(
     unit: &PsiOptimizationUnit,
@@ -35,6 +39,9 @@ pub fn recompute_psi_optimization_unit_identity(
     bytes.bytes(unit.terminal_psi.program_fingerprint.as_bytes());
     bytes.u32(unit.fuel_schedule.marker());
     bytes.id(unit.entry);
+    bytes.slice(&unit.structural_types, encode_structural_type);
+    bytes.slice(&unit.boundary_machines, encode_boundary_machine);
+    bytes.slice(&unit.provider_candidates, encode_provider_candidate);
     bytes.slice(&unit.accepted_obligation_facts, encode_accepted_fact);
     bytes.slice(&unit.functions, encode_function);
     OptimizationUnitIdentity::from_canonical_bytes(&bytes.finish())
@@ -111,17 +118,23 @@ fn encode_accepted_fact(bytes: &mut CanonicalBytes, fact: &AcceptedObligationFac
 
 fn encode_function(bytes: &mut CanonicalBytes, function: &PsiOptimizationFunction) {
     bytes.id(function.machine);
+    encode_optional(bytes, function.attachment.as_ref(), |bytes, attachment| {
+        bytes.id(*attachment)
+    });
     bytes.id(function.entry);
     bytes.slice(&function.parameters, encode_definition);
     bytes.slice(&function.structural_parameters, encode_structural_parameter);
+    encode_function_result(bytes, &function.result);
     bytes.len(function.declared_places.len());
     for place in &function.declared_places {
         bytes.id(*place);
     }
+    bytes.slice(&function.entry_claim_declarations, encode_entry_claim);
     bytes.len(function.entry_claims.len());
     for claim in &function.entry_claims {
         bytes.id(*claim);
     }
+    encode_ids(bytes, &function.published_service_ceiling);
     bytes.slice(&function.facts, encode_fact);
     bytes.len(function.blocks.len());
     for block in &function.blocks {
@@ -129,6 +142,27 @@ fn encode_function(bytes: &mut CanonicalBytes, function: &PsiOptimizationFunctio
         bytes.slice(&block.parameters, encode_definition);
         bytes.slice(&block.nodes, encode_node);
     }
+}
+
+fn encode_function_result(bytes: &mut CanonicalBytes, result: &TerminalAbstractFunctionResult) {
+    match result {
+        TerminalAbstractFunctionResult::Unit => bytes.u8(1),
+        TerminalAbstractFunctionResult::Scalar(result) => {
+            bytes.u8(2);
+            encode_abstract_result(bytes, *result);
+        }
+        TerminalAbstractFunctionResult::Structural(result) => {
+            bytes.u8(3);
+            encode_structural_result(bytes, result);
+        }
+    }
+}
+
+fn encode_structural_result(bytes: &mut CanonicalBytes, result: &StructuralResultDeclaration) {
+    bytes.id(result.place);
+    bytes.id(result.structural_type);
+    encode_multiplicity(bytes, result.multiplicity);
+    encode_ids(bytes, &result.qualifications);
 }
 
 fn encode_node(bytes: &mut CanonicalBytes, node: &OptimizationNode) {
@@ -1203,6 +1237,159 @@ fn encode_place_declaration(bytes: &mut CanonicalBytes, place: StructuralPlaceDe
             bytes.id(structural_type);
         }
     }
+}
+
+fn encode_boundary_machine(bytes: &mut CanonicalBytes, declaration: &BoundaryMachineDeclaration) {
+    bytes.id(declaration.id);
+    bytes.string(&declaration.identity);
+    encode_optional(
+        bytes,
+        declaration.attachment.as_ref(),
+        |bytes, attachment| bytes.id(*attachment),
+    );
+    bytes.slice(&declaration.scalar_parameters, |bytes, parameter| {
+        encode_scalar_type(bytes, *parameter)
+    });
+    bytes.slice(
+        &declaration.structural_parameters,
+        encode_structural_parameter,
+    );
+    encode_optional(bytes, declaration.result.as_ref(), |bytes, result| {
+        encode_scalar_type(bytes, *result)
+    });
+    bytes.slice(&declaration.requires, encode_domain_requirement);
+    bytes.slice(
+        &declaration.program_local_root_introductions,
+        encode_program_local_root_introduction,
+    );
+    bytes.slice(
+        &declaration.content_guarantees,
+        encode_content_conservation_guarantee,
+    );
+    encode_ids(bytes, &declaration.published_service_ceiling);
+}
+
+fn encode_domain_requirement(
+    bytes: &mut CanonicalBytes,
+    requirement: &StructuralDomainRequirement,
+) {
+    bytes.u32(requirement.argument_index);
+    bytes.id(requirement.domain);
+}
+
+fn encode_program_local_root_introduction(
+    bytes: &mut CanonicalBytes,
+    schema: &ProgramLocalRootIntroductionSchema,
+) {
+    bytes.u32(schema.argument_index);
+    bytes.u32(schema.source_parameter_position);
+    bytes.id(schema.qualification);
+    bytes.id(schema.carrier);
+    bytes.id(schema.projection.domain);
+    bytes.u64(schema.projection.projection_fingerprint);
+    encode_content_algebra(bytes, &schema.algebra);
+    encode_content_projection_expression(bytes, &schema.capacity);
+    bytes.u64(schema.identity);
+}
+
+fn encode_content_projection_expression(
+    bytes: &mut CanonicalBytes,
+    expression: &ContentProjectionExpression,
+) {
+    match expression {
+        ContentProjectionExpression::IntervalSet(members) => {
+            bytes.u8(1);
+            bytes.len(members.len());
+            for (start, end) in members {
+                encode_content_projection_scalar(bytes, start);
+                encode_content_projection_scalar(bytes, end);
+            }
+        }
+        ContentProjectionExpression::CountedQuantity(magnitude) => {
+            bytes.u8(2);
+            encode_content_projection_scalar(bytes, magnitude);
+        }
+    }
+}
+
+fn encode_content_projection_scalar(bytes: &mut CanonicalBytes, scalar: &ContentProjectionScalar) {
+    match scalar {
+        ContentProjectionScalar::SubjectField(path)
+        | ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
+            bytes.u8(
+                if matches!(scalar, ContentProjectionScalar::SubjectField(_)) {
+                    1
+                } else {
+                    2
+                },
+            );
+            bytes.slice(path, |bytes, segment| bytes.string(segment));
+        }
+        ContentProjectionScalar::Natural(value) => {
+            bytes.u8(3);
+            bytes.string(value);
+        }
+        ContentProjectionScalar::Successor(inner) => {
+            bytes.u8(4);
+            encode_content_projection_scalar(bytes, inner);
+        }
+        ContentProjectionScalar::Add(left, right)
+        | ContentProjectionScalar::Subtract(left, right)
+        | ContentProjectionScalar::Multiply(left, right) => {
+            bytes.u8(match scalar {
+                ContentProjectionScalar::Add(_, _) => 5,
+                ContentProjectionScalar::Subtract(_, _) => 6,
+                ContentProjectionScalar::Multiply(_, _) => 7,
+                _ => unreachable!(),
+            });
+            encode_content_projection_scalar(bytes, left);
+            encode_content_projection_scalar(bytes, right);
+        }
+    }
+}
+
+fn encode_content_conservation_guarantee(
+    bytes: &mut CanonicalBytes,
+    guarantee: &ContentConservationGuarantee,
+) {
+    bytes.u64(guarantee.fingerprint);
+    bytes.slice(&guarantee.structural_places, |bytes, place| {
+        encode_place_declaration(bytes, *place)
+    });
+    encode_content_conservation(bytes, &guarantee.conservation);
+}
+
+fn encode_content_conservation(bytes: &mut CanonicalBytes, conservation: &ContentConservation) {
+    encode_content_algebra(bytes, conservation.algebra());
+    encode_content_term(bytes, conservation.left());
+    encode_content_term(bytes, conservation.right());
+}
+
+fn encode_provider_candidate(bytes: &mut CanonicalBytes, candidate: &ProviderCandidateConformance) {
+    bytes.id(candidate.boundary);
+    bytes.string(&candidate.requirement_identity);
+    bytes.string(&candidate.provider_identity);
+    bytes.string(&candidate.candidate_identity);
+    bytes.id(candidate.candidate);
+    bytes.slice(&candidate.signature.parameters, |bytes, parameter| {
+        bytes.u32(parameter.position);
+        bytes.boolean(parameter.is_self);
+        bytes.id(parameter.structural_type);
+        encode_multiplicity(bytes, parameter.multiplicity);
+        encode_ids(bytes, &parameter.qualifications);
+    });
+    bytes.slice(
+        &candidate.refinement.positional_parameters,
+        |bytes, parameter| {
+            bytes.u32(parameter.boundary_index);
+            bytes.u32(parameter.candidate_index);
+        },
+    );
+    bytes.slice(
+        &candidate.refinement.required_domains,
+        encode_domain_requirement,
+    );
+    encode_ids(bytes, &candidate.refinement.realized_service_ceiling);
 }
 
 fn encode_structural_type(bytes: &mut CanonicalBytes, declaration: &StructuralTypeDeclaration) {

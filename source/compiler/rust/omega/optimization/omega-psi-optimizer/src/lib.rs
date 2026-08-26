@@ -137,11 +137,15 @@ mod tests {
     ) -> PsiOptimizationFunction {
         PsiOptimizationFunction {
             machine: id(machine, MachineId::new),
+            attachment: None,
             entry: id(entry, BlockId::new),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
+            result: omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Unit,
             declared_places: BTreeSet::new(),
+            entry_claim_declarations: Vec::new(),
             entry_claims: BTreeSet::new(),
+            published_service_ceiling: Vec::new(),
             facts: Vec::new(),
             blocks: blocks
                 .into_iter()
@@ -165,6 +169,9 @@ mod tests {
             },
             fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
             entry: functions[0].machine,
+            structural_types: Vec::new(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
             accepted_obligation_facts: Vec::new(),
             functions,
         };
