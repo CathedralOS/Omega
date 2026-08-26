@@ -1,0 +1,15 @@
+[package]
+name = "omega-terminal-component-candidate"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_terminal_component_candidate"
+path = "src/lib.rs"
+
+[dependencies]
+omega-effects = { path = "../../representations/omega-effects" }
+omega-target = { path = "../../foundation/omega-target" }
+omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-image-emission" }
+omega-terminal-installation-evidence = { path = "../../representations/omega-terminal-installation-evidence" }
