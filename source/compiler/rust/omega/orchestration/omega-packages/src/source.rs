@@ -832,8 +832,9 @@ pub fn resolve_git_source(
         let entry_root = cache_dir.join(format!("git-{cache_identity}"));
         let lock_path = cache_dir.join(format!("git-{cache_identity}.lock"));
         let _entry_lock = CacheEntryLock::acquire_with_git_budget(&lock_path, &executor)?;
+        let cache_entry_existed = entry_root.exists();
 
-        if entry_root.exists() {
+        if cache_entry_existed {
             if let Err(error) = verify_git_cache_entry(
                 &entry_root,
                 locator_identity,
@@ -866,6 +867,7 @@ pub fn resolve_git_source(
             requested_rev,
             execution_transport,
             limits,
+            !cache_entry_existed || !is_object_id(requested_rev),
         );
         match result {
             Ok(resolved) => {
@@ -891,6 +893,7 @@ fn resolve_verified_git_cache_entry(
     requested_rev: &str,
     execution_transport: GitExecutionTransport,
     limits: LocalSourceLimits,
+    fetch_remote: bool,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
     verify_git_cache_entry(
         entry_root,
@@ -901,20 +904,12 @@ fn resolve_verified_git_cache_entry(
     )?;
     let repository = entry_root.join(GIT_CACHE_REPOSITORY);
 
-    run_git(
-        executor,
-        &repository,
-        [
-            OsStr::new("fetch"),
-            OsStr::new("--quiet"),
-            OsStr::new("--depth=1"),
-            OsStr::new("--no-tags"),
-            OsStr::new("--no-recurse-submodules"),
-            OsStr::new("--"),
-            OsStr::new(fetch_locator),
-            OsStr::new(requested_rev),
-        ],
-    )?;
+    if fetch_remote {
+        let canonical_config = read_canonical_git_config(&repository)?;
+        let arguments = bounded_git_fetch_arguments(fetch_locator, requested_rev, limits);
+        run_git(executor, &repository, arguments.iter())?;
+        restore_canonical_git_config(&repository, &canonical_config)?;
+    }
     verify_git_cache_entry(
         entry_root,
         locator_identity,
@@ -923,13 +918,18 @@ fn resolve_verified_git_cache_entry(
         limits,
     )?;
 
+    let selected_revision = if fetch_remote {
+        "FETCH_HEAD"
+    } else {
+        requested_rev
+    };
     let commit = run_git_stdout(
         executor,
         &repository,
         [
             OsStr::new("rev-parse"),
             OsStr::new("--verify"),
-            OsStr::new("FETCH_HEAD^{commit}"),
+            OsStr::new(&format!("{selected_revision}^{{commit}}")),
         ],
     )?;
     let commit = commit.trim().to_owned();
@@ -977,6 +977,71 @@ fn resolve_verified_git_cache_entry(
             .as_ref()
             .map(|executable| executable.identity.clone()),
     })
+}
+
+fn bounded_git_fetch_arguments(
+    fetch_locator: &str,
+    requested_rev: &str,
+    limits: LocalSourceLimits,
+) -> Vec<OsString> {
+    let first_inadmissible_blob_size = limits
+        .max_bytes
+        .checked_add(1)
+        .expect("compiler-owned Git source byte ceiling leaves room for one sentinel byte");
+    vec![
+        OsString::from("fetch"),
+        OsString::from("--quiet"),
+        OsString::from("--depth=1"),
+        OsString::from("--no-tags"),
+        OsString::from("--no-recurse-submodules"),
+        OsString::from(format!(
+            "--filter=blob:limit={first_inadmissible_blob_size}"
+        )),
+        OsString::from("--"),
+        OsString::from(fetch_locator),
+        OsString::from(requested_rev),
+    ]
+}
+
+fn read_canonical_git_config(repository: &Path) -> Result<Vec<u8>, SourceResolveError> {
+    let config_path = repository.join("config");
+    require_regular_file(
+        &config_path,
+        "local Git configuration is not a regular file",
+    )?;
+    let config = std::fs::read(&config_path).map_err(|error| io_error(&config_path, error))?;
+    if config.as_slice() != GIT_CONFIG_SHA1 && config.as_slice() != GIT_CONFIG_SHA256 {
+        return Err(cache_invalid(
+            &config_path,
+            "local Git configuration is not the exact resolver-owned canonical file",
+        ));
+    }
+    Ok(config)
+}
+
+fn restore_canonical_git_config(
+    repository: &Path,
+    canonical_config: &[u8],
+) -> Result<(), SourceResolveError> {
+    debug_assert!(canonical_config == GIT_CONFIG_SHA1 || canonical_config == GIT_CONFIG_SHA256);
+    let config_path = repository.join("config");
+    require_regular_file(
+        &config_path,
+        "filtered Git fetch replaced the local configuration with a non-regular file",
+    )?;
+    std::fs::remove_file(&config_path).map_err(|error| io_error(&config_path, error))?;
+    let mut config = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&config_path)
+        .map_err(|error| io_error(&config_path, error))?;
+    config
+        .write_all(canonical_config)
+        .map_err(|error| io_error(&config_path, error))?;
+    config
+        .sync_all()
+        .map_err(|error| io_error(&config_path, error))?;
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -5094,6 +5159,7 @@ fn sealed_git_command(
         .env("GIT_CONFIG_GLOBAL", null_device())
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_LFS_SKIP_SMUDGE", "1")
+        .env("GIT_NO_LAZY_FETCH", "1")
         .env("GIT_PROTOCOL_FROM_USER", "0")
         .env("GIT_TERMINAL_PROMPT", "0")
         .arg("--no-replace-objects")
@@ -6937,6 +7003,192 @@ mod tests {
     }
 
     #[test]
+    fn git_fetch_request_is_depth_one_and_omits_individually_inadmissible_blobs() {
+        let arguments = bounded_git_fetch_arguments(
+            "https://example.invalid/package.git",
+            "0123456789012345678901234567890123456789",
+            LocalSourceLimits {
+                max_bytes: 4096,
+                ..LocalSourceLimits::default()
+            },
+        );
+        let arguments = arguments
+            .iter()
+            .map(|argument| argument.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            arguments,
+            [
+                "fetch",
+                "--quiet",
+                "--depth=1",
+                "--no-tags",
+                "--no-recurse-submodules",
+                "--filter=blob:limit=4097",
+                "--",
+                "https://example.invalid/package.git",
+                "0123456789012345678901234567890123456789",
+            ]
+        );
+    }
+
+    #[test]
+    fn git_fetch_omits_a_blob_above_the_source_byte_ceiling_and_rejects() {
+        let (repo, _) = create_git_source("git-filtered-oversized-blob");
+        std::fs::write(repo.join("oversized.bin"), vec![0x5a; 4096]).expect("write oversized blob");
+        run_test_git(&repo, ["add", "oversized.bin"]);
+        run_test_git(&repo, ["commit", "--quiet", "-m", "add oversized blob"]);
+        run_test_git(&repo, ["config", "uploadpack.allowFilter", "true"]);
+        let commit = run_test_git_with_input(&repo, ["rev-parse", "HEAD"], b"");
+        let oversized_blob =
+            run_test_git_with_input(&repo, ["rev-parse", "HEAD:oversized.bin"], b"");
+        let cache = temp_root("git-filtered-oversized-blob-cache");
+        let mut request = local_git_request(&repo, &commit);
+        request.fetch_locator = format!("file://{}", repo.display());
+
+        let limits = LocalSourceLimits {
+            max_bytes: 1024,
+            ..LocalSourceLimits::default()
+        }
+        .compiler_bounded();
+        std::fs::create_dir_all(&cache).expect("create resolver cache");
+        let canonical_cache = cache.canonicalize().expect("canonical resolver cache");
+        verify_git_cache_root_custody(&canonical_cache).expect("verify resolver cache custody");
+        let execution_transport = request.execution_transport();
+        let executor = GitExecutor::system(execution_transport).expect("select test Git executor");
+        let cache_identity = git_cache_identity(
+            request.locator_identity(),
+            request.requested_revision(),
+            execution_transport,
+        );
+        let entry_root = canonical_cache.join(format!("git-{cache_identity}"));
+        create_git_cache_entry(
+            &executor,
+            &canonical_cache,
+            &entry_root,
+            &cache_identity,
+            request.locator_identity(),
+            request.fetch_locator(),
+            request.requested_revision(),
+            execution_transport,
+            limits,
+        )
+        .expect("create quarantined Git cache entry");
+        let error = resolve_verified_git_cache_entry(
+            &executor,
+            &entry_root,
+            request.locator_identity(),
+            request.fetch_locator(),
+            request.requested_revision(),
+            execution_transport,
+            limits,
+            true,
+        )
+        .expect_err("a required blob above the source ceiling must not be acquired");
+
+        assert!(matches!(error, SourceResolveError::GitTreeInvalid { .. }));
+        let repository = entry_root.join(GIT_CACHE_REPOSITORY);
+        let output = Command::new("git")
+            .env("GIT_NO_LAZY_FETCH", "1")
+            .arg("-C")
+            .arg(&repository)
+            .args(["cat-file", "-e", &oversized_blob])
+            .output()
+            .expect("inspect quarantined object store");
+        assert!(
+            !output.status.success(),
+            "the inadmissible blob must remain absent from resolver custody"
+        );
+        assert!(entry_root.join(GIT_CACHE_METADATA).exists());
+        assert!(!entry_root.join(GIT_CACHE_SNAPSHOTS).exists());
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn exact_git_revision_reuses_authenticated_objects_without_transport() {
+        let (repo, commit) = create_git_source("git-exact-offline-reuse");
+        let cache = temp_root("git-exact-offline-reuse-cache");
+        let request = local_git_request(&repo, &commit);
+        let first = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect("resolve exact revision");
+        let offline_repo = repo.with_extension("offline");
+        std::fs::rename(&repo, &offline_repo).expect("make source transport unavailable");
+
+        let second = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect("reuse exact resolver custody without transport");
+
+        assert_eq!(second.commit, first.commit);
+        assert_eq!(second.tree, first.tree);
+        assert_eq!(second.snapshot_root, first.snapshot_root);
+        assert_eq!(second.local, first.local);
+
+        let _ = std::fs::remove_dir_all(&offline_repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn exact_git_revision_offline_reuse_still_enforces_source_limits() {
+        let (repo, commit) = create_git_source("git-exact-offline-limits");
+        let cache = temp_root("git-exact-offline-limits-cache");
+        let request = local_git_request(&repo, &commit);
+        resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect("resolve exact revision");
+        let offline_repo = repo.with_extension("offline");
+        std::fs::rename(&repo, &offline_repo).expect("make source transport unavailable");
+
+        let error = resolve_git_source(
+            &request,
+            &cache,
+            LocalSourceLimits {
+                max_bytes: 0,
+                ..LocalSourceLimits::default()
+            },
+        )
+        .expect_err("cached exact source must remain subject to current limits");
+
+        assert_eq!(error, SourceResolveError::TooManyBytes { limit: 0 });
+
+        let _ = std::fs::remove_dir_all(&offline_repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn symbolic_git_revision_still_refetches_and_observes_movement() {
+        let (repo, first_commit) = create_git_source("git-symbolic-refresh");
+        let cache = temp_root("git-symbolic-refresh-cache");
+        let request = local_git_request(&repo, "HEAD");
+        let first = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect("resolve initial symbolic revision");
+        assert_eq!(first.commit, first_commit);
+
+        std::fs::write(repo.join("main.omg"), "machine Main::changed() {}\n")
+            .expect("change source");
+        run_test_git(&repo, ["add", "main.omg"]);
+        run_test_git(&repo, ["commit", "--quiet", "-m", "move symbolic revision"]);
+        let second_commit = run_test_git_with_input(&repo, ["rev-parse", "HEAD"], b"");
+
+        let second = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect("refresh symbolic revision");
+
+        assert_eq!(second.commit, second_commit);
+        assert_ne!(second.commit, first.commit);
+        assert_eq!(
+            std::fs::read(second.snapshot_root.join("main.omg")).expect("read refreshed source"),
+            b"machine Main::changed() {}\n"
+        );
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
     fn git_tree_rejects_traversal_metadata_and_nonportable_paths_before_materialization() {
         let repository = temp_root("git-tree-path-validation");
         let oid = "0123456789012345678901234567890123456789";
@@ -7656,6 +7908,10 @@ mod tests {
             ),
             (
                 OsString::from("GIT_LFS_SKIP_SMUDGE"),
+                Some(OsString::from("1")),
+            ),
+            (
+                OsString::from("GIT_NO_LAZY_FETCH"),
                 Some(OsString::from("1")),
             ),
             (

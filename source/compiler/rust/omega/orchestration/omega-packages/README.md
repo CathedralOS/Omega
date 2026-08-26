@@ -190,10 +190,18 @@ source identity, nested `build` directories remain source, and immutable Git
 materialization remains an exact selected-tree check. Local directory listings
 are bounded before sorting, and Git paths/symlink targets receive a
 host-independent Windows portability preflight before materialization. Git
-fetch requests only
-the selected revision at depth one and disables automatic maintenance/GC;
-strict transferred-byte and object-store quotas still require a hardened
-execution backend.
+fetch requests only the selected revision at depth one, disables automatic
+maintenance/GC, and asks the remote to omit every individual blob larger than
+the accepted source-byte ceiling. Lazy object fetching is disabled while the
+parent authenticates and materializes the selected graph. Git's temporary
+promisor configuration is replaced with the resolver-owned canonical bare
+configuration before further processing. A required omitted blob therefore
+rejects without entering resolver custody. Exact object-ID pins re-authenticate
+and reuse an existing cache entry without transport; symbolic selectors still
+refetch. This is a transport floor, not selective package checkout: until the
+resolver has an exact selected member path, every admissible blob in the whole
+authenticated root is still required. Strict transferred-byte and object-store
+quotas still require a hardened execution backend.
 Selected Git objects are not trusted merely because Git named them. Before any
 snapshot stage exists, an exact requested object ID must equal the selected
 commit. The parent recomputes SHA-256 commit and blob IDs, computes SHA-1 with

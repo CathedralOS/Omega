@@ -1,6 +1,6 @@
 # Source resolver security boundary
 
-Status: engineering contract, revised 2026-08-25. This document refines
+Status: engineering contract, revised 2026-08-26. This document refines
 `HARDEN-SOURCE-RESOLVER`; it does not define package or Omega language syntax.
 
 ## Boundary
@@ -185,10 +185,18 @@ initializing a cache for a symbolic selector, one bounded `ls-remote` request
 asks only for `HEAD` and that selector and rejects absent, malformed, or mixed
 object formats. The discovered SHA-1/SHA-256 format controls quarantine setup
 but is not evidence; parent-owned object authentication still decides whether
-the selected graph is coherent. Fetch
-requests only the selected revision at depth one and disables automatic
-maintenance and garbage collection, so selecting one package revision does not
-traverse its unrelated reachable history. A whole-resolution budget now caps
+the selected graph is coherent. Fetch requests only the selected revision at
+depth one, disables automatic maintenance and garbage collection, and requests
+`blob:limit=<source-byte-ceiling + 1>`. Lazy object fetching is disabled during
+all later Git commands, and the parent restores its byte-exact canonical bare
+configuration after a successful filtered fetch before authenticating objects.
+A required individual blob above the accepted source ceiling therefore remains
+absent and causes fail-closed tree authentication. Exact object-ID pins reuse
+and re-authenticate existing cache custody without transport; symbolic selectors
+still refetch. This bounds unrelated history and individually impossible blobs,
+not the admissible bytes of a still-whole selected root. Selective subtree
+acquisition remains dependent on an exact member-path selector. A whole-
+resolution budget now caps
 launches at 64, independent of package file count, and limits ordinary elapsed execution to ten
 minutes; each command receives only the smaller remaining interval. One exactly
 framed `cat-file --batch` launch reads all validated blobs in tree order. Each
