@@ -48,7 +48,7 @@ data Main {
     pns_base: i32; pne_base: i32; pmi_base: i32; ppidx_base: i32;
     fns_base: i32; fne_base: i32;
     sns_base: i32; sne_base: i32; smi_base: i32; ssi_base: i32; dig_base: i32;
-    typed_backing: [i32; 19992];
+    typed_backing: [i32; 21528];
     byte_backing: [u8; 524288];
 }
 
@@ -56,8 +56,8 @@ machine Main::reserve_typed(&mut self, count: i32, align: i32) {
     self.alloc_ok = 0;
     transition count < 0 { true -> fail() false -> align_check() }
     state align_check() { transition align <= 0 { true -> fail() false -> pad() } }
-    state pad() { self.alloc_pad = (align - (self.typed_cursor % align)) % align; transition self.alloc_pad <= 19992 - self.typed_cursor { true -> count_check() false -> fail() } }
-    state count_check() { transition count <= 19992 - (self.typed_cursor + self.alloc_pad) { true -> commit() false -> fail() } }
+    state pad() { self.alloc_pad = (align - (self.typed_cursor % align)) % align; transition self.alloc_pad <= 21528 - self.typed_cursor { true -> count_check() false -> fail() } }
+    state count_check() { transition count <= 21528 - (self.typed_cursor + self.alloc_pad) { true -> commit() false -> fail() } }
     state commit() { self.alloc_base = self.typed_cursor + self.alloc_pad; self.typed_cursor = self.alloc_base + count; self.alloc_ok = 1; }
     state fail() { self.storage_ok = 0; }
 }
@@ -74,15 +74,18 @@ machine Main::reserve_byte(&mut self, count: i32, align: i32) {
 
 machine Main::init_storage(&mut self) {
     self.byte_cursor = 0; self.typed_cursor = 0; self.storage_ok = 1; self.source_base = 0;
-    self.reserve_typed(19992,1); self.storage_ok = self.alloc_ok;
+    self.reserve_typed(21528,1); self.storage_ok = self.alloc_ok;
     self.opaop_base=self.alloc_base;
     self.opcc_base=self.opaop_base+16;
     self.opprec_base=self.opcc_base+16;
     self.foffs_base=self.opprec_base+16;
-    self.fcnt_base=self.foffs_base+256;
-    self.feb_base=self.fcnt_base+256;
-    self.fdom_base=self.feb_base+256;
-    self.lns_base=self.fdom_base+256;
+    // Every field-metadata column has the same checked 512-row capacity.
+    // Keeping the columns disjoint matters once a compiler host exceeds the
+    // former 256-field implementation accident.
+    self.fcnt_base=self.foffs_base+512;
+    self.feb_base=self.fcnt_base+512;
+    self.fdom_base=self.feb_base+512;
+    self.lns_base=self.fdom_base+512;
     self.lne_base=self.lns_base+32;
     self.lmi_base=self.lne_base+32;
     self.plidx_base=self.lmi_base+32;
@@ -108,8 +111,8 @@ machine Main::init_storage(&mut self) {
     self.pmi_base=self.pne_base+512;
     self.ppidx_base=self.pmi_base+512;
     self.fns_base=self.ppidx_base+512;
-    self.fne_base=self.fns_base+256;
-    self.sns_base=self.fne_base+256;
+    self.fne_base=self.fns_base+512;
+    self.sns_base=self.fne_base+512;
     self.sne_base=self.sns_base+3072;
     self.smi_base=self.sne_base+3072;
     self.ssi_base=self.smi_base+3072;
@@ -762,7 +765,9 @@ machine Main::main(&mut self) {
     state ckdomw(){ self.typed_backing[self.fdom_base + self.nf - 1] = 1; transition 0 { _ -> sk() } }
     state ckdoms(){ transition self.byte_backing[self.source_base + self.start] == 83 { true -> ckdomsat()  false -> sk() } }       // 'S'
     state ckdomsat(){ self.typed_backing[self.fdom_base + self.nf - 1] = 2; transition 0 { _ -> sk() } }
-    state ckcase()  { self.w = self.is_case(self.start, self.pos); transition self.w == 1 { true -> casev0()  false -> addF() } }   // 'case X;' enum variant, else a normal field
+    state ckcase()  { self.w = self.is_case(self.start, self.pos); transition self.w == 1 { true -> casev0()  false -> field_capacity() } }   // 'case X;' enum variant, else a normal field
+    state field_capacity() { transition self.nf < 512 { true -> addF() false -> field_exhausted() } }
+    state field_exhausted() { self.console.exit_process(3) }
     state casev0()  { transition self.byte_backing[self.source_base + self.pos] <= 32 { true -> casev0a()  false -> casev1() } }   // skip ws after 'case'
     state casev0a() { self.pos = self.pos + 1; transition 0 { _ -> casev0() } }
     state casev1()  { self.qa = self.pos; transition 0 { _ -> casevr() } }                              // variant name start

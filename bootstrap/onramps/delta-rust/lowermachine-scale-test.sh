@@ -1,9 +1,11 @@
 #!/usr/bin/env sh
-# Regression for lowermachine's aggregate machine-parameter tables.  The D0
+# Regression for lowermachine's aggregate machine-parameter and field tables. The D0
 # calling profile permits four value parameters per free machine and three per
 # self method; with 128 machines, the four parallel metadata columns therefore
-# need 512 checked rows.  A former 64-row partition let parameter 65 overwrite
+# need 512 checked rows. A former 64-row partition let parameter 65 overwrite
 # the first field-name row even though every individual signature was valid.
+# Field columns likewise have one explicit 512-row bound and reject the
+# adjacent declaration before publishing assembly.
 set -eu
 
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -27,6 +29,9 @@ trap 'rm -rf "$T"' EXIT HUP INT TERM
 cd "$HERE"
 cargo build --quiet
 DELTA_ARCH=aarch64 "$BIN" "$SAMPLES/lowermachine.alp" "$T/lowermachine" >/dev/null
+"$T/lowermachine" < "$SAMPLES/lowermachine.alp" > "$T/lowermachine.self.s"
+clang -arch arm64 -o "$T/lowermachine.self" "$T/lowermachine.self.s"
+codesign -f -s - "$T/lowermachine.self" >/dev/null 2>&1
 
 make_aggregate_parameter_source() {
   output=$1
@@ -93,4 +98,46 @@ if [ "$too_many_status" -ne 3 ] || [ -s "$T/too-many.s" ]; then
   exit 1
 fi
 
-echo "LOWERMACHINE SCALE ✓ — parameter 65 stays disjoint; contextual machine/data identifiers remain non-declarations; D0 signature bounds fail closed"
+make_field_count_source() {
+  field_count=$1
+  field_output=$2
+  printf '%s' 'boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; ' > "$field_output"
+  # Reserve the final two admitted rows for a domain scalar and an array so
+  # the exact-bound case reads all six widened metadata columns.
+  scalar_count=$((field_count - 3))
+  scalar_index=0
+  while [ "$scalar_index" -lt "$scalar_count" ]; do
+    printf 'f%s: i32; ' "$scalar_index" >> "$field_output"
+    scalar_index=$((scalar_index + 1))
+  done
+  printf '%s' 'domain_value: i32 in Saturating; array_value: [i32; 2]; } machine Main::main(&mut self) { self.domain_value = 37; self.array_value[1] = self.domain_value; self.console.exit_process(self.array_value[1]); }' >> "$field_output"
+}
+
+make_field_count_source 512 "$T/fields-512.alp"
+make_field_count_source 513 "$T/fields-513.alp"
+DELTA_ARCH=aarch64 "$BIN" "$T/fields-512.alp" "$T/fields-512.reference" >/dev/null
+"$T/lowermachine" < "$T/fields-512.alp" > "$T/fields-512.native.s"
+"$T/lowermachine.self" < "$T/fields-512.alp" > "$T/fields-512.self.s"
+cmp "$T/fields-512.reference.s" "$T/fields-512.native.s" >/dev/null
+cmp "$T/fields-512.native.s" "$T/fields-512.self.s" >/dev/null
+clang -arch arm64 -o "$T/fields-512" "$T/fields-512.native.s"
+codesign -f -s - "$T/fields-512" >/dev/null 2>&1
+set +e
+"$T/fields-512" >/dev/null 2>&1
+fields_512_status=$?
+"$T/lowermachine" < "$T/fields-513.alp" > "$T/fields-513.native.s" 2>/dev/null
+fields_513_native=$?
+"$T/lowermachine.self" < "$T/fields-513.alp" > "$T/fields-513.self.s" 2>/dev/null
+fields_513_self=$?
+set -e
+if [ "$fields_512_status" -ne 37 ]; then
+  echo "lowermachine field-bound FAIL — 512-field artifact status=$fields_512_status, expected 37"
+  exit 1
+fi
+if [ "$fields_513_native" -ne 3 ] || [ "$fields_513_self" -ne 3 ] \
+    || [ -s "$T/fields-513.native.s" ] || [ -s "$T/fields-513.self.s" ]; then
+  echo "lowermachine field-bound FAIL — 513 fields native=$fields_513_native self=$fields_513_self, expected 3/3 with no output"
+  exit 1
+fi
+
+echo "LOWERMACHINE SCALE ✓ — parameter 65 and 512 fields stay disjoint; adjacent field and D0 signature bounds fail closed"
