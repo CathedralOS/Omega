@@ -1986,6 +1986,74 @@ fn source_derived_one_root_introduction_retains_exact_installation_account_and_o
     assert_eq!(origin.entry_invocation(), 1900);
     assert_eq!(origin.subject_place(), 1901);
 
+    let local_snapshot = (
+        extent.origin(),
+        extent.lineage_root(),
+        extent.base(),
+        extent.length(),
+        extent.address_space(),
+        extent.rights().clone(),
+        extent.provenance(),
+        extent.era(),
+    );
+    let admitted_provider = extent_provider_issuance(27);
+    let provider_extent = ExtentRootGrant::from_admitted_provider(
+        admitted_provider,
+        extent.lineage_root(),
+        extent.address_space(),
+        extent.rights().clone(),
+        extent.provenance(),
+        extent.era(),
+    )
+    .mint(extent.base() + extent.length(), 0x100)
+    .expect("adjacent provider Extent with deliberately matching numeric custody");
+    let provider_snapshot = (
+        provider_extent.origin(),
+        provider_extent.lineage_root(),
+        provider_extent.base(),
+        provider_extent.length(),
+        provider_extent.address_space(),
+        provider_extent.rights().clone(),
+        provider_extent.provenance(),
+        provider_extent.era(),
+    );
+    let rejected = extent
+        .merge(provider_extent)
+        .expect_err("numeric adjacency cannot erase program-local/provider origin separation");
+    assert!(rejected.diagnostic().0.contains("exact root-origin"));
+    let (extent, provider_extent) = (*rejected).into_extents();
+    assert_eq!(
+        (
+            extent.origin(),
+            extent.lineage_root(),
+            extent.base(),
+            extent.length(),
+            extent.address_space(),
+            extent.rights().clone(),
+            extent.provenance(),
+            extent.era(),
+        ),
+        local_snapshot,
+        "cross-origin rejection must return the exact source-derived Extent"
+    );
+    assert_eq!(
+        (
+            provider_extent.origin(),
+            provider_extent.lineage_root(),
+            provider_extent.base(),
+            provider_extent.length(),
+            provider_extent.address_space(),
+            provider_extent.rights().clone(),
+            provider_extent.provenance(),
+            provider_extent.era(),
+        ),
+        provider_snapshot,
+        "cross-origin rejection must return the exact provider-issued Extent"
+    );
+    assert_eq!(extent.program_local_origin(), Some(origin));
+    assert_eq!(provider_extent.provider_issuance(), Some(admitted_provider));
+    assert_eq!(registry.held_accounts(), 1);
+
     let retired = registry
         .retire(extent, &mut installation, &mut lifecycle)
         .expect("the exact one-root Extent releases its retained account");
