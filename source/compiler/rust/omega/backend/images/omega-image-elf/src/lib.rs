@@ -20,6 +20,7 @@ mod entry;
 mod headers;
 mod imports;
 mod layout;
+mod section_name_table;
 mod sections;
 #[cfg(test)]
 mod tests;
@@ -60,6 +61,9 @@ pub use dynamic_tag_bytes::{
 };
 pub use dynamic_tags::{
     ElfDynamicTagPlanningError, ValidatedElfDynamicTagPlan, plan_elf_dynamic_tags,
+};
+pub use section_name_table::{
+    ElfSectionNameTablePlanningError, ValidatedElfSectionNameTablePlan, plan_elf_section_name_table,
 };
 
 use entry::elf_entry_address;

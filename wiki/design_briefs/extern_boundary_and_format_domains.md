@@ -269,13 +269,20 @@ writable/allocated flags, exact payload size, alignment eight, entry size
 sixteen, a typed `.dynstr` link, and no info relationship. Independent replay
 checks the complete 102-byte seed, raw name, unique semantic link, every field,
 identity, and payload custody. No final numeric `sh_name`/`sh_link`, section
-index, address, or placement is assigned.
+index, address, or placement is assigned. The section-name-table carrier then
+adopts the unchanged exact 102-byte seed as the complete `.shstrtab` payload.
+The name reserved once at offset 59 remains unique, `.dynamic\0` ends the table
+at byte 102, and the semantic descriptor records `SHT_STRTAB`, no flags, size
+102, alignment one, zero entry size, and no link/info relationship. Independent
+bounded replay walks every contiguous NUL-framed name and checks every byte,
+field, identity, and exact `.dynamic`-descriptor custody. It assigns no numeric
+section index, `e_shstrndx`, address, or placement.
 
-The final section roster and completed `.shstrtab`, numeric
-`sh_name`/`sh_link`/`e_shstrndx`, section-header serialization, placement,
+The final section roster, numeric `sh_name`/`sh_link`/`e_shstrndx`, section-
+header serialization, placement,
 `PT_INTERP` program-header placement, `PT_DYNAMIC`, `.dynamic` address
-resolution, optional `.gnu.hash`, the final descriptor for `.shstrtab`,
-numeric indexes for `.plt`/`.got.plt`/`.rela.plt`, address-resolved fixup
+resolution, optional `.gnu.hash`, numeric indexes for
+`.plt`/`.got.plt`/`.rela.plt`, address-resolved fixup
 application, complete load/program-header layout, image mutation, and
 independent final-byte replay remain open. Validated semantic tags still
 grant no layout, loader, publication, or runnable-image authority. An owned
