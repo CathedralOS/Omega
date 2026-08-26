@@ -47,12 +47,12 @@ pub use observation::{
 
 pub use rewrite::{
     BlockParameterIncomingBinding, BooleanConstantRewrite, ConstantConditionalRewrite,
-    IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, ProvenanceDisposition,
-    ProvenanceRewrite, PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch,
-    RedundantBlockParameterRewrite, RedundantBlockParameterWitness, ScalarConstantValue,
-    ScalarEvaluationWitness, ScalarSubstitution, SccpBlockRow, SccpEdgeRow, SccpEdgeState,
-    SccpMachineSnapshot, SccpValueRow, SccpValueState, derived_sccp_scalar_constant_fact_identity,
-    literal_scalar_constant_fact_identity,
+    IntegerConstantRewrite, IntegerEvaluationWitness, LinearEmptyBlockRewrite, NodeLocation,
+    ProvenanceDisposition, ProvenanceRewrite, PsiRewriteCandidate, PsiRewriteCandidateError,
+    PsiRewritePatch, RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
+    ScalarConstantValue, ScalarEvaluationWitness, ScalarSubstitution, SccpBlockRow, SccpEdgeRow,
+    SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState,
+    derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
 };
 
 /// The exact immutable Terminal Psi semantic site realized by one unit node.
@@ -144,7 +144,11 @@ pub enum OptimizationFact {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizationNode {
     pub operation: TerminalAbstractOperation,
+    /// Ordered logical source custody. Normally this is the operation's exact
+    /// source roster. A validator-authorized unconditional Jump fusion keeps
+    /// its own edge first and may append only co-executed inherited edges.
     pub provenance: Vec<PsiProvenance>,
+    /// One ordered settlement per provenance source, in the same order.
     pub fuel: Vec<FuelSettlement>,
     pub effect: EffectLink,
     pub definitions: Vec<ValueDefinition>,

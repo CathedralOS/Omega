@@ -1,4 +1,7 @@
-use std::{collections::BTreeSet, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use omega_optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, Optimization, OptimizationExecutionPhase,
@@ -7,9 +10,10 @@ use omega_optimization_core::{
 };
 use omega_optimization_unit::{
     BlockParameterIncomingBinding, BooleanConstantRewrite, ConstantConditionalRewrite,
-    IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationFact,
-    ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit, PsiRewriteCandidate,
-    RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
+    IntegerConstantRewrite, IntegerEvaluationWitness, LinearEmptyBlockRewrite, NodeLocation,
+    OptimizationFact, OwnershipFrontierSite, ProvenanceDisposition, ProvenanceRewrite,
+    PsiOptimizationUnit, PsiRewriteCandidate, RedundantBlockParameterRewrite,
+    RedundantBlockParameterWitness,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{BlockId, IntegerValue, MachineId, OperationId, ValueId};
@@ -20,7 +24,7 @@ use crate::{
 };
 
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v1";
-const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v3";
+const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v4";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -30,10 +34,10 @@ impl ConstantConditionalFoldRule {
     pub fn contract() -> OptimizationRuleContract {
         OptimizationRuleContract::new(
             OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.constant-conditional-fold.v3",
+                b"omega.psi-rule.constant-conditional-fold.v4",
             ),
             OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-            3,
+            4,
             AnalysisSet::new([
                 AnalysisKind::ControlFlowGraph,
                 AnalysisKind::ScalarConstants,
@@ -47,6 +51,173 @@ impl ConstantConditionalFoldRule {
             OptimizationSafetyClass::ExactOperationSemantics,
         )
         .expect("built-in rule has nonzero version")
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LinearEmptyBlockThreadRule;
+
+impl LinearEmptyBlockThreadRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.linear-empty-block-thread.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
+            1,
+            AnalysisSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::OwnershipFrontiers,
+            ]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::StructuralIdentity,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for LinearEmptyBlockThreadRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        if analyses.get(AnalysisKind::ControlFlowGraph).is_none() {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::ControlFlowGraph,
+            ));
+        }
+        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
+            analyses.get(AnalysisKind::UseDefinition)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::UseDefinition,
+            ));
+        };
+        let Some(AnalysisProduct::OwnershipFrontiers(frontiers)) =
+            analyses.get(AnalysisKind::OwnershipFrontiers)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::OwnershipFrontiers,
+            ));
+        };
+
+        let mut candidates = Vec::new();
+        for function in &unit.functions {
+            for empty in &function.blocks {
+                if empty.id == function.entry || empty.nodes.len() != 1 {
+                    continue;
+                }
+                let O::Jump {
+                    psi_edge: outgoing_edge,
+                    target,
+                    bindings: outgoing_bindings,
+                } = &empty.nodes[0].operation
+                else {
+                    continue;
+                };
+                let incoming = function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| {
+                        block
+                            .nodes
+                            .iter()
+                            .enumerate()
+                            .filter_map(move |(node, candidate)| {
+                                candidate
+                                    .successors
+                                    .iter()
+                                    .any(|edge| edge.target == empty.id)
+                                    .then_some((block, node, candidate))
+                            })
+                    })
+                    .collect::<Vec<_>>();
+                let [(predecessor_block, predecessor_node_index, predecessor_node)] =
+                    incoming.as_slice()
+                else {
+                    continue;
+                };
+                let O::Jump {
+                    psi_edge: incoming_edge,
+                    target: predecessor_target,
+                    bindings: incoming_bindings,
+                } = &predecessor_node.operation
+                else {
+                    continue;
+                };
+                if *predecessor_target != empty.id
+                    || empty.parameters.iter().any(|parameter| {
+                        use_definitions.uses.iter().any(|(machine, use_site)| {
+                            *machine == function.machine
+                                && use_site.value == parameter.value
+                                && (use_site.block != empty.id || use_site.node != 0)
+                        })
+                    })
+                    || !linear_thread_ownership_is_identity(
+                        unit,
+                        function,
+                        frontiers,
+                        *incoming_edge,
+                        empty.id,
+                        *outgoing_edge,
+                        *target,
+                    )
+                {
+                    continue;
+                }
+                let Some(_) = compose_linear_thread_bindings(
+                    &empty.parameters,
+                    incoming_bindings,
+                    outgoing_bindings,
+                ) else {
+                    continue;
+                };
+                let predecessor = NodeLocation {
+                    machine: function.machine,
+                    block: predecessor_block.id,
+                    node: u32::try_from(*predecessor_node_index)
+                        .expect("optimization node indices are u32"),
+                };
+                let empty_location = NodeLocation {
+                    machine: function.machine,
+                    block: empty.id,
+                    node: 0,
+                };
+                let Some((affected_blocks, provenance)) =
+                    linear_thread_accounting(function, predecessor, empty_location)
+                else {
+                    continue;
+                };
+                candidates.push(
+                    PsiRewriteCandidate::new_linear_empty_block(
+                        unit.identity,
+                        Self::contract(),
+                        affected_blocks,
+                        provenance,
+                        -3,
+                        LinearEmptyBlockRewrite {
+                            predecessor,
+                            incoming_edge: *incoming_edge,
+                            empty: empty_location,
+                            outgoing_edge: *outgoing_edge,
+                            target: *target,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+        Ok(candidates)
     }
 }
 
@@ -245,6 +416,129 @@ fn conditional_fold_accounting(
     realized.sort_by_key(|row| row.disposition.location());
     unreachable.sort_by_key(|row| row.disposition.location());
     realized.extend(unreachable);
+    Some((affected.into_iter().collect(), realized))
+}
+
+fn compose_linear_thread_bindings(
+    parameters: &[omega_optimization_unit::ValueDefinition],
+    incoming: &[omega_terminal_abstract_operations::TerminalValueBinding],
+    outgoing: &[omega_terminal_abstract_operations::TerminalValueBinding],
+) -> Option<Vec<omega_terminal_abstract_operations::TerminalValueBinding>> {
+    if parameters.len() != incoming.len() {
+        return None;
+    }
+    let replacements = parameters
+        .iter()
+        .zip(incoming)
+        .map(|(parameter, binding)| {
+            (binding.parameter == parameter.value && binding.scalar_type == parameter.scalar_type)
+                .then_some((parameter.value, (binding.argument, binding.scalar_type)))
+        })
+        .collect::<Option<BTreeMap<_, _>>>()?;
+    Some(
+        outgoing
+            .iter()
+            .map(|binding| {
+                replacements
+                    .get(&binding.argument)
+                    .map_or(*binding, |(argument, scalar_type)| {
+                        omega_terminal_abstract_operations::TerminalValueBinding {
+                            parameter: binding.parameter,
+                            argument: *argument,
+                            scalar_type: *scalar_type,
+                        }
+                    })
+            })
+            .collect(),
+    )
+}
+
+fn linear_thread_ownership_is_identity(
+    unit: &PsiOptimizationUnit,
+    function: &omega_optimization_unit::PsiOptimizationFunction,
+    frontiers: &crate::OwnershipFrontierAnalysis,
+    incoming: psi_core::EdgeId,
+    empty: BlockId,
+    outgoing: psi_core::EdgeId,
+    target: BlockId,
+) -> bool {
+    let sites = [
+        OwnershipFrontierSite::EdgeEntry(incoming),
+        OwnershipFrontierSite::EdgeExit(incoming),
+        OwnershipFrontierSite::BlockEntry(empty),
+        OwnershipFrontierSite::EdgeEntry(outgoing),
+        OwnershipFrontierSite::EdgeExit(outgoing),
+        OwnershipFrontierSite::BlockEntry(target),
+    ];
+    let facts = sites.map(|site| frontiers.fact(function.machine, site));
+    if facts.iter().all(Option::is_none) {
+        return function.structural_parameters.is_empty()
+            && function.entry_claim_declarations.is_empty()
+            && function.declared_places.is_empty();
+    }
+    facts.iter().all(|fact| {
+        fact.is_some_and(|fact| fact.revision == unit.identity && fact.machine == function.machine)
+    }) && facts
+        .windows(2)
+        .all(|pair| pair[0].unwrap().snapshot == pair[1].unwrap().snapshot)
+}
+
+fn linear_thread_accounting(
+    function: &omega_optimization_unit::PsiOptimizationFunction,
+    predecessor: NodeLocation,
+    empty: NodeLocation,
+) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
+    let predecessor_node = function
+        .blocks
+        .iter()
+        .find(|block| block.id == predecessor.block)?
+        .nodes
+        .get(usize::try_from(predecessor.node).ok()?)?;
+    let empty_node = function
+        .blocks
+        .iter()
+        .find(|block| block.id == empty.block)?
+        .nodes
+        .get(usize::try_from(empty.node).ok()?)?;
+    let mut sources = predecessor_node.provenance.clone();
+    sources.extend_from_slice(&empty_node.provenance);
+    let mut fuel = predecessor_node.fuel.clone();
+    fuel.extend_from_slice(&empty_node.fuel);
+    if sources.iter().copied().collect::<BTreeSet<_>>().len() != sources.len() {
+        return None;
+    }
+
+    let mut affected = BTreeSet::from([predecessor.block, empty.block]);
+    let mut realized = vec![ProvenanceRewrite {
+        disposition: ProvenanceDisposition::RealizedAt(predecessor),
+        sources,
+        fuel,
+    }];
+    let mut expected_effect = 0u64;
+    for block in &function.blocks {
+        if block.id == empty.block {
+            continue;
+        }
+        for (node_index, node) in block.nodes.iter().enumerate() {
+            let location = NodeLocation {
+                machine: function.machine,
+                block: block.id,
+                node: u32::try_from(node_index).ok()?,
+            };
+            let effect_changes = node.effect.input != expected_effect
+                || node.effect.output != expected_effect.checked_add(1)?;
+            if effect_changes && location != predecessor {
+                affected.insert(block.id);
+                realized.push(ProvenanceRewrite {
+                    disposition: ProvenanceDisposition::RealizedAt(location),
+                    sources: node.provenance.clone(),
+                    fuel: node.fuel.clone(),
+                });
+            }
+            expected_effect = expected_effect.checked_add(1)?;
+        }
+    }
+    realized.sort_by_key(|row| row.disposition.location());
     Some((affected.into_iter().collect(), realized))
 }
 
@@ -820,6 +1114,8 @@ fn propose_integer_unary_constants(
                 let Some((operand_value, operand_fact)) =
                     integer_constant(constants, function.machine, operand)
                 else {
+                    #[cfg(test)]
+                    eprintln!("linear thread refused accounting");
                     continue;
                 };
                 let constant = match kind {
@@ -1851,6 +2147,7 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
     }
     if optimization == Optimization::ControlFlowCleanup {
         register!(0, ConstantConditionalFoldRule);
+        register!(1, LinearEmptyBlockThreadRule);
     }
     if optimization == Optimization::CopyPropagation {
         register!(0, RedundantBlockParameterRule);
@@ -1885,7 +2182,7 @@ pub(crate) mod tests {
     use omega_optimization_validation::{
         OptimizationUnitValidationError, validate_boolean_evaluation_candidate,
         validate_constant_conditional_candidate, validate_integer_evaluation_candidate,
-        validate_redundant_block_parameter_candidate,
+        validate_linear_empty_block_candidate, validate_redundant_block_parameter_candidate,
     };
     use omega_terminal_abstract_operations::{
         TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
@@ -2166,6 +2463,97 @@ pub(crate) mod tests {
                             result,
                             value: result,
                             scalar_type,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    pub(crate) fn linear_empty_block_unit() -> PsiOptimizationUnit {
+        let machine = id(901, MachineId::new);
+        let entry = id(902, BlockId::new);
+        let empty = id(903, BlockId::new);
+        let target = id(904, BlockId::new);
+        let left = id(905, ValueId::new);
+        let right = id(906, ValueId::new);
+        let first = id(907, ValueId::new);
+        let second = id(908, ValueId::new);
+        let target_first = id(909, ValueId::new);
+        let target_second = id(910, ValueId::new);
+        let scalar_type = ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 8).expect("valid fixture integer"),
+        );
+        let parameter = |value| TerminalAbstractParameter { value, scalar_type };
+        let binding = |parameter, argument| TerminalValueBinding {
+            parameter,
+            argument,
+            scalar_type,
+        };
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([31; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry,
+                    parameters: vec![
+                        TerminalAbstractParameter {
+                            value: left,
+                            scalar_type,
+                        },
+                        TerminalAbstractParameter {
+                            value: right,
+                            scalar_type,
+                        },
+                    ],
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![
+                        TerminalAbstractBlockEntry {
+                            block: entry,
+                            parameters: Vec::new(),
+                            operation_offset: 0,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: empty,
+                            parameters: vec![parameter(first), parameter(second)],
+                            operation_offset: 1,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: target,
+                            parameters: vec![parameter(target_first), parameter(target_second)],
+                            operation_offset: 2,
+                        },
+                    ],
+                    operations: vec![
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(911, EdgeId::new),
+                            target: empty,
+                            bindings: vec![binding(first, left), binding(second, right)],
+                        },
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(912, EdgeId::new),
+                            target,
+                            bindings: vec![
+                                binding(target_first, second),
+                                binding(target_second, first),
+                            ],
+                        },
+                        TerminalAbstractOperation::ReturnUnit {
+                            psi_edge: id(913, EdgeId::new),
                             cleanup_actions: Vec::new(),
                         },
                     ],
@@ -3307,7 +3695,7 @@ pub(crate) mod tests {
             ))
         );
         let cleanup = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
-        assert_eq!(built_in_psi_registry(&cleanup).unwrap().len(), 1);
+        assert_eq!(built_in_psi_registry(&cleanup).unwrap().len(), 2);
         let copy = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
         assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
         let unsupported_combination = OptimizationSelections::new([
@@ -3539,6 +3927,112 @@ pub(crate) mod tests {
         assert_eq!(output.functions[0].facts.len(), 2);
         assert_eq!(output.functions[0].blocks[1].nodes[0].effect.input, 2);
         assert_eq!(output.functions[0].blocks[2].nodes[1].effect.output, 6);
+    }
+
+    #[test]
+    fn linear_empty_block_thread_composes_bindings_and_realizes_both_edges() {
+        let unit = linear_empty_block_unit();
+        let contract = LinearEmptyBlockThreadRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let candidate = LinearEmptyBlockThreadRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .pop()
+            .expect("linear jump block is threadable");
+        assert_eq!(
+            candidate.affected_blocks(),
+            [
+                id(902, BlockId::new),
+                id(903, BlockId::new),
+                id(904, BlockId::new),
+            ]
+        );
+        assert_eq!(candidate.provenance().len(), 2);
+        assert!(
+            candidate
+                .provenance()
+                .iter()
+                .all(|row| row.disposition.is_realized())
+        );
+        assert_eq!(candidate.provenance()[0].sources.len(), 2);
+
+        let accepted = validate_linear_empty_block_candidate(&unit, &candidate).unwrap();
+        assert_eq!(
+            accepted.validator(),
+            omega_optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
+                b"omega.validator.linear-empty-block-thread.v1"
+            )
+        );
+        let output = accepted.unit();
+        assert_eq!(
+            output.functions[0]
+                .blocks
+                .iter()
+                .map(|block| block.id)
+                .collect::<Vec<_>>(),
+            [id(902, BlockId::new), id(904, BlockId::new)]
+        );
+        let O::Jump {
+            psi_edge,
+            target,
+            bindings,
+        } = &output.functions[0].blocks[0].nodes[0].operation
+        else {
+            unreachable!()
+        };
+        assert_eq!(*psi_edge, id(911, EdgeId::new));
+        assert_eq!(*target, id(904, BlockId::new));
+        assert_eq!(bindings[0].argument, id(906, ValueId::new));
+        assert_eq!(bindings[1].argument, id(905, ValueId::new));
+        assert_eq!(output.functions[0].blocks[0].nodes[0].provenance.len(), 2);
+        assert_eq!(output.functions[0].blocks[0].nodes[0].fuel.len(), 2);
+        assert_eq!(output.functions[0].blocks[1].nodes[0].effect.input, 1);
+        assert_eq!(output.functions[0].blocks[1].nodes[0].effect.output, 2);
+    }
+
+    #[test]
+    fn linear_empty_block_validator_rejects_incomplete_fused_custody() {
+        let unit = linear_empty_block_unit();
+        let contract = LinearEmptyBlockThreadRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let candidate = LinearEmptyBlockThreadRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .pop()
+            .unwrap();
+        let omega_optimization_unit::PsiRewritePatch::ThreadLinearEmptyBlock(patch) =
+            candidate.patch()
+        else {
+            unreachable!()
+        };
+        let mut provenance = candidate.provenance().to_vec();
+        provenance[0].sources.pop();
+        provenance[0].fuel.pop();
+        let incomplete = PsiRewriteCandidate::new_linear_empty_block(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            provenance,
+            -3,
+            patch,
+        )
+        .unwrap();
+        assert!(matches!(
+            validate_linear_empty_block_candidate(&unit, &incomplete),
+            Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
+        ));
     }
 
     #[test]

@@ -902,6 +902,38 @@ suspension, call, and boundary-only blocks are never classified as empty: they
 may disappear only when the fresh structural traversal proves them unreachable,
 with every removed source site tombstoned and independently validated.
 
+The second `ControlFlowCleanup` rule is the deliberately narrower
+`linear-empty-block-thread.v1`. A non-entry block may be bypassed only when it
+contains exactly one unconditional jump, has exactly one incoming edge, and
+that incoming edge belongs to another unconditional jump. The validator
+independently composes the removed block's typed parameters and outgoing
+bindings and requires the verifier-owned snapshots at incoming-edge entry and
+exit, removed-block entry, outgoing-edge entry and exit, and target entry to be
+identical. Synthetic units without frontier facts are eligible only when the
+function has no structural parameters, entry claims, or declared places.
+
+The two jumps always execute together, so this linear case is an exact
+many-to-one realization: the retained jump keeps its own edge identity and
+stores its existing provenance/fuel followed by the removed jump's complete
+provenance/fuel. No source is called unreachable. Candidate accounting realizes
+that fused row at the predecessor and realizes every later surviving node whose
+dense effect link shifts. The independent validator deletes the block, rebuilds
+effects, facts, and declared places, recomputes identity, and totally validates
+the result. Candidate v9, optimization-unit content identity v5,
+`ControlFlowCleanup` v4, and optimized-plan projection validation v4 bind this
+new admission meaning; ledger v2 remains sufficient because each source still
+has exactly one final occurrence.
+
+This does not authorize general empty-block threading. If several edges enter
+the removed block, its outgoing source must fan out into mutually exclusive
+output paths; if a conditional owns an incoming edge, charging that source at
+the whole node would also charge the untaken arm. The general rule therefore
+waits for an edge-qualified occurrence relation that can represent many-to-one
+and one-to-many realization, replay those occurrences through later rewrites,
+and feed the same path guards into selected/native fuel custody. Marking the
+reachable outgoing source `ProvenUnreachableAt` is never an acceptable
+shortcut.
+
 Baseline choice lives in `omega-optimization-policy`, outside rule and
 validator crates. The pass manager first obtains independently constructed
 outputs, projects only their candidate identities and non-authoritative cost
