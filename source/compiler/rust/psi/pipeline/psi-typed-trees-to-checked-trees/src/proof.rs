@@ -43,6 +43,8 @@ pub(crate) fn build_proof_facts_with_operators(
     }
 
     for machine in program.machines() {
+        append_machine_contract_facts(program, machine, &mut contract_facts, &mut evidence_terms);
+        let mut guarded_lane_position = 0usize;
         for contract in program.machine_contracts(machine) {
             let psi_typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
                 result_data,
@@ -52,6 +54,41 @@ pub(crate) fn build_proof_facts_with_operators(
                 continue;
             };
             for fact in fact_handles(contract.facts) {
+                let evidence_term = contract.binding.as_ref().map(|binding| {
+                    let psi_typed_trees::domain::ProofFact::Proposition(application) =
+                        program.proof_facts.get(fact)
+                    else {
+                        unreachable!("validated named guarded guarantee must bind a proposition")
+                    };
+                    let normalized = program
+                        .normalize_nominal_proposition_application(application)
+                        .expect("validated named guarded guarantee must have a nominal endpoint");
+                    let (evidence_type, evidence_interface) = match &normalized.classification {
+                        psi_typed_trees::proposition::PropositionEvidenceClassification::Witness {
+                            evidence,
+                            interface,
+                        } => (
+                            evidence.clone(),
+                            interface.as_ref().map(lower_checked_evidence_interface),
+                        ),
+                        psi_typed_trees::proposition::PropositionEvidenceClassification::FactOnly => {
+                            unreachable!("validated named guarded guarantee must bind witness evidence")
+                        }
+                    };
+                    let term = evidence_terms.append(CheckedEvidenceTerm {
+                        name: binding.as_str().to_owned(),
+                        owner: ContractProofFactOwner::Machine {
+                            machine_symbol: machine.symbol,
+                        },
+                        kind: ContractProofFactKind::Ensures,
+                        lane_position: guarded_lane_position,
+                        proposition: lower_checked_proposition_application(normalized),
+                        evidence_type,
+                        evidence_interface,
+                    });
+                    guarded_lane_position += 1;
+                    term
+                });
                 outcome_specific_guarantees.append(
                     psi_checked_trees::OutcomeSpecificGuaranteeFact {
                         machine_symbol: machine.symbol,
@@ -62,11 +99,11 @@ pub(crate) fn build_proof_facts_with_operators(
                             .as_ref()
                             .map(|binding| binding.as_str().to_owned()),
                         fact,
+                        evidence_term,
                     },
                 );
             }
         }
-        append_machine_contract_facts(program, machine, &mut contract_facts, &mut evidence_terms);
         for state in program.machine_states(machine) {
             append_state_contract_facts(
                 program,
@@ -225,10 +262,14 @@ pub(crate) fn bind_evidence_forwarding_facts(
             continue;
         };
         let output_term = proof.evidence_terms.get(output);
+        let guarded_output = proof
+            .outcome_specific_guarantees
+            .iter()
+            .any(|(_, row)| row.evidence_term == Some(output));
         let source = if let Some(source) = source {
             let source_term = proof.evidence_terms.get(source);
-            if output_term.proposition != source_term.proposition
-                || output_term.evidence_interface != source_term.evidence_interface
+            if output_term.evidence_interface != source_term.evidence_interface
+                || (!guarded_output && output_term.proposition != source_term.proposition)
             {
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "cannot forward evidence term `{}` into `{}` because their proposition identities differ",
@@ -351,7 +392,11 @@ pub(crate) fn bind_proof_output_call_facts(
                     && term.owner
                         == (ContractProofFactOwner::Machine {
                             machine_symbol: target_machine.symbol,
-                        }))
+                        })
+                    && !proof
+                        .outcome_specific_guarantees
+                        .iter()
+                        .any(|(_, row)| row.evidence_term == Some(handle)))
                 .then_some(handle)
             })
             .collect::<Vec<_>>();
@@ -1001,12 +1046,22 @@ fn validate_evidence_forwarding_definite_assignment(
     proof: &ProofFacts,
 ) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
     use psi_typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
-    use std::collections::{BTreeSet, VecDeque};
+    use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
     let mut diagnostic_messages = BTreeSet::new();
 
     for machine in program.machines() {
-        let outputs = proof
+        let guarded_output_handles = proof
+            .outcome_specific_guarantees
+            .iter()
+            .filter_map(|(_, row)| {
+                (row.machine_symbol == machine.symbol)
+                    .then_some(row.evidence_term)
+                    .flatten()
+            })
+            .map(|handle| handle.arena_index())
+            .collect::<BTreeSet<_>>();
+        let unconditional_outputs = proof
             .evidence_terms
             .iter()
             .filter_map(|(handle, term)| {
@@ -1016,22 +1071,41 @@ fn validate_evidence_forwarding_definite_assignment(
                     })
                     && term.kind == ContractProofFactKind::Ensures)
                     .then_some(handle)
+                    .filter(|handle| !guarded_output_handles.contains(&handle.arena_index()))
             })
             .collect::<Vec<_>>();
-        if outputs.is_empty() {
+        let has_guarded_rows = proof
+            .outcome_specific_guarantees
+            .iter()
+            .any(|(_, row)| row.machine_symbol == machine.symbol);
+        if unconditional_outputs.is_empty() && !has_guarded_rows {
             continue;
         }
         let states = program.machine_states(machine);
         let Some(entry) = states.first() else {
             continue;
         };
-        let mut work = VecDeque::from([(entry.symbol, BTreeSet::<u32>::new())]);
+        let initial_known = contract_proposition_labels(
+            program,
+            program.machine_contracts(machine),
+            psi_typed_trees::signature::SignatureContractKind::Requires,
+            &[],
+        );
+        let mut work = VecDeque::from([(
+            entry.symbol,
+            BTreeMap::<u32, Option<psi_arena::Handle<CheckedEvidenceTerm>>>::new(),
+            initial_known,
+        )]);
         let mut seen = BTreeSet::new();
 
-        while let Some((state_symbol, mut assigned)) = work.pop_front() {
+        while let Some((state_symbol, mut assigned, mut known)) = work.pop_front() {
             let key = (
                 state_symbol.arena_index(),
-                assigned.iter().copied().collect::<Vec<_>>(),
+                assigned
+                    .iter()
+                    .map(|(output, source)| (*output, source.map(|source| source.arena_index())))
+                    .collect::<Vec<_>>(),
+                known.iter().cloned().collect::<Vec<_>>(),
             );
             if !seen.insert(key) {
                 continue;
@@ -1039,6 +1113,12 @@ fn validate_evidence_forwarding_definite_assignment(
             let Some(state) = states.iter().find(|state| state.symbol == state_symbol) else {
                 continue;
             };
+            known.extend(contract_proposition_labels(
+                program,
+                program.state_contracts(state),
+                psi_typed_trees::signature::SignatureContractKind::Requires,
+                &[],
+            ));
 
             let assignments = proof
                 .evidence_forwardings
@@ -1063,11 +1143,29 @@ fn validate_evidence_forwarding_definite_assignment(
 
             let mut stops_fallthrough = false;
             for statement_index in 0..=statements.len() {
+                intake_checked_proof_output_propositions(
+                    proof,
+                    machine.symbol,
+                    state.symbol,
+                    statement_index,
+                    &mut known,
+                );
                 for forwarding in assignments
                     .iter()
                     .filter(|forwarding| forwarding.statement_index == statement_index)
                 {
-                    if !assigned.insert(forwarding.output.arena_index()) {
+                    let source = match &forwarding.source {
+                        psi_checked_trees::EvidenceAssignmentSource::Forwarded { term } => {
+                            Some(*term)
+                        }
+                        psi_checked_trees::EvidenceAssignmentSource::ProducerConformance {
+                            ..
+                        } => None,
+                    };
+                    if assigned
+                        .insert(forwarding.output.arena_index(), source)
+                        .is_some()
+                    {
                         let term = proof.evidence_terms.get(forwarding.output);
                         diagnostic_messages.insert(format!(
                             "named ensures evidence `{}` is assigned more than once on a reachable path through {}::{}",
@@ -1076,8 +1174,13 @@ fn validate_evidence_forwarding_definite_assignment(
                     }
                 }
 
-                let Some(StatementNode::Transition(transition)) = statements.get(statement_index)
-                else {
+                let Some(statement) = statements.get(statement_index) else {
+                    continue;
+                };
+                if let StatementNode::Call(call) = statement {
+                    intake_call_ensures_propositions(program, call, &mut known);
+                }
+                let StatementNode::Transition(transition) = statement else {
                     continue;
                 };
                 if transition.exit == TransitionExit::Ordinary {
@@ -1093,28 +1196,38 @@ fn validate_evidence_forwarding_definite_assignment(
                                     path.symbol
                                 };
                                 if states.iter().any(|state| state.symbol == target) {
-                                    work.push_back((target, assigned.clone()));
+                                    work.push_back((target, assigned.clone(), known.clone()));
                                 } else {
                                     append_missing_evidence_diagnostics(
+                                        program,
                                         proof,
                                         machine,
                                         state,
-                                        &outputs,
+                                        &unconditional_outputs,
                                         &assigned,
+                                        None,
+                                        &known,
                                         &mut diagnostic_messages,
                                     );
                                 }
                             }
                             TransitionTargetNode::SelfTarget => {
-                                work.push_back((entry.symbol, assigned.clone()));
+                                work.push_back((entry.symbol, assigned.clone(), known.clone()));
                             }
                             TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {
                                 append_missing_evidence_diagnostics(
+                                    program,
                                     proof,
                                     machine,
                                     state,
-                                    &outputs,
+                                    &unconditional_outputs,
                                     &assigned,
+                                    match program.statement_table.transition_target(target_handle) {
+                                        TransitionTargetNode::Value(value) => Some(*value),
+                                        TransitionTargetNode::Terminal => None,
+                                        _ => unreachable!(),
+                                    },
+                                    &known,
                                     &mut diagnostic_messages,
                                 );
                             }
@@ -1145,11 +1258,17 @@ fn validate_evidence_forwarding_definite_assignment(
 
             if !stops_fallthrough {
                 append_missing_evidence_diagnostics(
+                    program,
                     proof,
                     machine,
                     state,
-                    &outputs,
+                    &unconditional_outputs,
                     &assigned,
+                    statements.last().and_then(|statement| match statement {
+                        StatementNode::Expression(expression) => Some(*expression),
+                        _ => None,
+                    }),
+                    &known,
                     &mut diagnostic_messages,
                 );
             }
@@ -1167,15 +1286,18 @@ fn validate_evidence_forwarding_definite_assignment(
 }
 
 fn append_missing_evidence_diagnostics(
+    program: &psi_typed_trees::TypedTrees,
     proof: &ProofFacts,
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
     outputs: &[psi_arena::Handle<CheckedEvidenceTerm>],
-    assigned: &std::collections::BTreeSet<u32>,
+    assigned: &std::collections::BTreeMap<u32, Option<psi_arena::Handle<CheckedEvidenceTerm>>>,
+    result: Option<psi_typed_trees::expression::ExpressionHandle>,
+    known: &std::collections::BTreeSet<String>,
     messages: &mut std::collections::BTreeSet<String>,
 ) {
     for output in outputs {
-        if !assigned.contains(&output.arena_index()) {
+        if !assigned.contains_key(&output.arena_index()) {
             messages.insert(format!(
                 "named ensures evidence `{}` is not definitely assigned on the ordinary exit through {}::{}",
                 proof.evidence_terms.get(*output).name,
@@ -1184,6 +1306,313 @@ fn append_missing_evidence_diagnostics(
             ));
         }
     }
+
+    let guarded_rows = proof
+        .outcome_specific_guarantees
+        .iter()
+        .filter_map(|(_, row)| (row.machine_symbol == machine.symbol).then_some(row))
+        .collect::<Vec<_>>();
+    if guarded_rows.is_empty() {
+        return;
+    }
+    let Some((result_data, result_case)) =
+        result.and_then(|result| exact_result_case(program, result))
+    else {
+        messages.insert(format!(
+            "cannot classify the ordinary result case on exit through {}::{}; outcome-specific guarantees require an exact nominal result constructor",
+            machine.name, state.name
+        ));
+        return;
+    };
+    for row in guarded_rows {
+        if row.result_data != result_data {
+            messages.insert(format!(
+                "ordinary exit through {}::{} produces a result outside the declared outcome-specific result sum",
+                machine.name, state.name
+            ));
+            continue;
+        }
+        let Some(output) = row.evidence_term else {
+            if row.result_case == result_case
+                && !outcome_specific_fact_is_proved(program, row.fact, result, known)
+            {
+                messages.insert(format!(
+                    "cannot prove outcome-specific guarantee on the matching ordinary exit through {}::{} after substituting its concrete result",
+                    machine.name, state.name
+                ));
+            }
+            continue;
+        };
+        let term = proof.evidence_terms.get(output);
+        let assigned_source = assigned.get(&output.arena_index());
+        let is_assigned = assigned_source.is_some();
+        if row.result_case == result_case && !is_assigned {
+            messages.insert(format!(
+                "outcome-specific evidence `{}` is not definitely assigned on the matching ordinary exit through {}::{}",
+                term.name, machine.name, state.name
+            ));
+        } else if row.result_case == result_case {
+            if let Some(Some(source)) = assigned_source
+                && !outcome_specific_assignment_matches_result(
+                    program, proof, row.fact, result, *source,
+                )
+            {
+                messages.insert(format!(
+                    "outcome-specific evidence `{}` does not inhabit its guarantee after substituting the concrete result on exit through {}::{}",
+                    term.name, machine.name, state.name
+                ));
+            }
+        } else if is_assigned {
+            messages.insert(format!(
+                "outcome-specific evidence `{}` is assigned on a nonmatching ordinary exit through {}::{}",
+                term.name, machine.name, state.name
+            ));
+        }
+    }
+}
+
+fn exact_result_case(
+    program: &psi_typed_trees::TypedTrees,
+    result: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<(SymbolHandle, SymbolHandle)> {
+    use psi_typed_trees::expression::ExpressionNode;
+    let (data_symbol, case_symbol) = match program.expression_table.expression(result) {
+        ExpressionNode::Name(path) if path.head_symbol.is_valid() && path.symbol.is_valid() => {
+            (path.head_symbol, path.symbol)
+        }
+        ExpressionNode::StructLiteral(literal) => (literal.type_symbol, literal.case_symbol?),
+        _ => return None,
+    };
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == data_symbol)?;
+    program
+        .data_members(data)
+        .iter()
+        .any(|member| {
+            matches!(
+                member,
+                psi_typed_trees::data::DataMember::Variant(variant)
+                    if variant.symbol == case_symbol
+            )
+        })
+        .then_some((data_symbol, case_symbol))
+}
+
+fn outcome_specific_fact_is_proved(
+    program: &psi_typed_trees::TypedTrees,
+    fact: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    result: Option<psi_typed_trees::expression::ExpressionHandle>,
+    known: &std::collections::BTreeSet<String>,
+) -> bool {
+    use psi_typed_trees::domain::ProofFact;
+    use psi_typed_trees::expression::ExpressionNode;
+
+    let Some(result) = result else {
+        return false;
+    };
+    let result_label = program.render_proof_expression_with_parameters(result, &[]);
+    let substitutions = [(SymbolHandle::invalid(), "result".to_owned(), result_label)];
+    match program.proof_facts.get(fact) {
+        ProofFact::Expression(expression) => {
+            matches!(
+                program.expression_table.expression(*expression),
+                ExpressionNode::Boolean(true)
+            ) || known.contains(&format!(
+                "boolean:{}",
+                program.render_proof_expression_with_parameters(*expression, &substitutions)
+            ))
+        }
+        ProofFact::Proposition(application) => {
+            proposition_application_label(program, application, &substitutions)
+                .is_some_and(|goal| known.contains(&goal))
+        }
+        ProofFact::Membership(_) => false,
+    }
+}
+
+fn outcome_specific_assignment_matches_result(
+    program: &psi_typed_trees::TypedTrees,
+    proof: &ProofFacts,
+    fact: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    result: Option<psi_typed_trees::expression::ExpressionHandle>,
+    source: psi_arena::Handle<CheckedEvidenceTerm>,
+) -> bool {
+    let Some(result) = result else {
+        return false;
+    };
+    let psi_typed_trees::domain::ProofFact::Proposition(application) =
+        program.proof_facts.get(fact)
+    else {
+        return false;
+    };
+    let result_label = program.render_proof_expression_with_parameters(result, &[]);
+    let substitutions = [(SymbolHandle::invalid(), "result".to_owned(), result_label)];
+    let binder_labels = application
+        .binder_arguments
+        .iter()
+        .map(|argument| {
+            substitutions
+                .iter()
+                .find(|(symbol, _, _)| *symbol == argument.symbol)
+                .map(|(_, _, replacement)| replacement.clone())
+                .unwrap_or_else(|| argument.display_name())
+        })
+        .collect::<Vec<_>>();
+    let argument_labels = program
+        .expression_table
+        .expression_handles(application.arguments)
+        .iter()
+        .map(|argument| program.render_proof_expression_with_parameters(*argument, &substitutions))
+        .collect::<Vec<_>>();
+    program
+        .normalize_nominal_proposition_application_with_labels(
+            application,
+            &binder_labels,
+            &argument_labels,
+        )
+        .map(lower_checked_proposition_application)
+        .is_some_and(|expected| proof.evidence_terms.get(source).proposition == expected)
+}
+
+fn contract_proposition_labels(
+    program: &psi_typed_trees::TypedTrees,
+    contracts: &[psi_typed_trees::signature::SignatureContract],
+    kind: psi_typed_trees::signature::SignatureContractKind,
+    substitutions: &[(SymbolHandle, String, String)],
+) -> std::collections::BTreeSet<String> {
+    use psi_typed_trees::domain::ProofFact;
+
+    contracts
+        .iter()
+        .filter(|contract| contract.kind == kind)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .filter_map(|fact| match fact {
+            ProofFact::Expression(expression) => Some(format!(
+                "boolean:{}",
+                program.render_proof_expression_with_parameters(*expression, substitutions)
+            )),
+            ProofFact::Proposition(application) => {
+                proposition_application_label(program, application, substitutions)
+            }
+            ProofFact::Membership(_) => None,
+        })
+        .collect()
+}
+
+fn proposition_application_label(
+    program: &psi_typed_trees::TypedTrees,
+    application: &psi_typed_trees::proposition::PropositionApplication,
+    substitutions: &[(SymbolHandle, String, String)],
+) -> Option<String> {
+    let binder_labels = application
+        .binder_arguments
+        .iter()
+        .map(|argument| {
+            substitutions
+                .iter()
+                .find(|(symbol, _, _)| *symbol == argument.symbol)
+                .map(|(_, _, replacement)| replacement.clone())
+                .unwrap_or_else(|| argument.display_name())
+        })
+        .collect::<Vec<_>>();
+    let argument_labels = program
+        .expression_table
+        .expression_handles(application.arguments)
+        .iter()
+        .map(|argument| program.render_proof_expression_with_parameters(*argument, substitutions))
+        .collect::<Vec<_>>();
+    program
+        .normalize_proposition_application_with_labels(
+            application,
+            &binder_labels,
+            &argument_labels,
+        )
+        .map(|formula| formula.identity_label())
+}
+
+fn intake_checked_proof_output_propositions(
+    proof: &ProofFacts,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    known: &mut std::collections::BTreeSet<String>,
+) {
+    for (_, invocation) in proof.proof_output_calls.iter() {
+        if invocation.caller_machine_symbol == machine_symbol
+            && invocation.caller_state_symbol == state_symbol
+            && invocation.statement_index == statement_index
+        {
+            known.extend(
+                invocation
+                    .outputs
+                    .iter()
+                    .map(|output| output.instantiated_identity.clone()),
+            );
+        }
+    }
+}
+
+fn intake_call_ensures_propositions(
+    program: &psi_typed_trees::TypedTrees,
+    call: &psi_typed_trees::statement::TableCall,
+    known: &mut std::collections::BTreeSet<String>,
+) {
+    let Some((callee, state)) = program.machines().iter().find_map(|machine| {
+        if machine.symbol == call.target_symbol {
+            return program
+                .machine_states(machine)
+                .first()
+                .map(|state| (machine, state));
+        }
+        program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == call.target_symbol)
+            .map(|state| (machine, state))
+    }) else {
+        return;
+    };
+    let parameters = program.state_parameters(state);
+    let arguments = program.statement_table.expression_handles(call.arguments);
+    let receiver = psi_typed_trees::expression::display_name_path(
+        program.statement_table.name_path_members(call.receiver),
+        "::",
+    );
+    let mut argument_index = 0usize;
+    let substitutions = parameters
+        .iter()
+        .map(|parameter| {
+            let replacement = if parameter.is_self {
+                receiver.clone()
+            } else {
+                let label = arguments
+                    .get(argument_index)
+                    .map(|argument| program.render_proof_expression_with_parameters(*argument, &[]))
+                    .unwrap_or_else(|| parameter.name.as_str().to_owned());
+                argument_index = argument_index.saturating_add(1);
+                label
+            };
+            (
+                parameter.symbol,
+                parameter.name.as_str().to_owned(),
+                replacement,
+            )
+        })
+        .collect::<Vec<_>>();
+    known.extend(contract_proposition_labels(
+        program,
+        program.machine_contracts(callee),
+        psi_typed_trees::signature::SignatureContractKind::Ensures,
+        &substitutions,
+    ));
+    known.extend(contract_proposition_labels(
+        program,
+        program.state_contracts(state),
+        psi_typed_trees::signature::SignatureContractKind::Ensures,
+        &substitutions,
+    ));
 }
 
 fn evidence_term_named(
