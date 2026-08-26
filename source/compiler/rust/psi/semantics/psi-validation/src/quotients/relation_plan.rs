@@ -34,8 +34,8 @@ use correspondence_certificate::{
 };
 use precondition::{
     DefinePreconditionCorrespondence, RepresentativePreconditionPartition,
-    derive_define_precondition_correspondence, derive_public_precondition_partition,
-    derive_representative_precondition_partition,
+    derive_define_precondition_correspondence, derive_direct_lift_public_precondition_partition,
+    derive_public_precondition_partition, derive_representative_precondition_partition,
 };
 #[cfg(test)]
 use precondition::{RepresentativeContractFactLocation, RepresentativeContractOwner};
@@ -49,8 +49,11 @@ use representative::{
 use runtime_correspondence::DefineRuntimePosition;
 use runtime_correspondence::{
     DefineRuntimeCorrespondence, DirectLiftRuntimeCorrespondence,
-    derive_define_runtime_correspondence, derive_direct_lift_runtime_correspondence,
+    closed_scalar_literal_for_representative, derive_define_runtime_correspondence,
+    derive_direct_lift_runtime_correspondence,
 };
+#[cfg(test)]
+use runtime_correspondence::{DirectLiftArgumentSource, DirectLiftRuntimePosition};
 #[cfg(test)]
 use theorem::derive_selected_theorem_telescope;
 use theorem::{SelectedTheoremPurity, SelectedTheoremTelescope, SelectedTheoremTermination};
@@ -174,6 +177,8 @@ pub(super) enum RelationPlanError {
     DirectLiftArgumentIsNotPublicParameter(usize),
     DirectLiftParameterModeMismatch(usize),
     DirectLiftParameterTypeMismatch(usize),
+    DirectLiftLiteralTargetMismatch(usize),
+    DirectLiftLiteralInDependentPrecondition(usize),
     DirectLiftResultTypeMismatch,
     DirectLiftLeftPreconditionNotImplied(usize),
     DirectLiftRightPreconditionNotImplied(usize),
@@ -298,7 +303,7 @@ impl fmt::Display for RelationPlanError {
             ),
             Self::DirectLiftArgumentIsNotPublicParameter(position) => write!(
                 formatter,
-                "direct-lift argument {position} is adapted or constant; this bounded rung accepts only direct public parameters"
+                "direct-lift argument {position} is neither a direct public parameter nor an admitted closed scalar literal"
             ),
             Self::DirectLiftParameterModeMismatch(position) => write!(
                 formatter,
@@ -307,6 +312,14 @@ impl fmt::Display for RelationPlanError {
             Self::DirectLiftParameterTypeMismatch(position) => write!(
                 formatter,
                 "direct-lift parameter {position} does not map its exact quotient carrier or ordinary type to the representative parameter"
+            ),
+            Self::DirectLiftLiteralTargetMismatch(position) => write!(
+                formatter,
+                "direct-lift literal {position} is not a closed boolean or explicitly landed, in-range integer of the representative parameter's exact primitive type and arithmetic domain"
+            ),
+            Self::DirectLiftLiteralInDependentPrecondition(position) => write!(
+                formatter,
+                "direct-lift dependent representative precondition {position} mentions a literal-fed parameter and requires a general implication judgment"
             ),
             Self::DirectLiftResultTypeMismatch => formatter.write_str(
                 "the direct-lift result quotient carrier does not match the representative result",
@@ -367,6 +380,7 @@ pub(super) fn derive_direct_terminal_plan(
     call: &TableCallExpression,
     request: &QuotientOperationRequest,
 ) -> Result<DirectTerminalRelationPlan, RelationPlanError> {
+    let mut representative = None;
     let mut input_relations = Vec::new();
     for (position, argument) in program
         .expression_table
@@ -375,8 +389,40 @@ pub(super) fn derive_direct_terminal_plan(
         .enumerate()
     {
         let argument_type =
-            crate::places::declared_place_type_raw(program, machine, Some(state), *argument)
-                .ok_or(RelationPlanError::UnresolvedArgumentType(position))?;
+            crate::places::declared_place_type_raw(program, machine, Some(state), *argument);
+        let Some(argument_type) = argument_type else {
+            let is_closed_scalar_candidate = match program.expression_table.expression(*argument) {
+                psi_typed_trees::expression::ExpressionNode::Boolean(_) => true,
+                psi_typed_trees::expression::ExpressionNode::Integer(literal) => {
+                    literal.landing().is_some()
+                }
+                _ => false,
+            };
+            if request.kind == QuotientOperationKind::Lift && is_closed_scalar_candidate {
+                if representative.is_none() {
+                    representative = Some(derive_representative_telescope(program, request)?);
+                }
+                if let Some(parameter) = representative
+                    .as_ref()
+                    .and_then(|representative| representative.parameters.get(position))
+                {
+                    match closed_scalar_literal_for_representative(
+                        program,
+                        *argument,
+                        parameter.type_reference,
+                        position,
+                    )? {
+                        Some(_) => {
+                            input_relations
+                                .push(InputRelation::ExactEquality(parameter.type_reference));
+                            continue;
+                        }
+                        None => {}
+                    }
+                }
+            }
+            return Err(RelationPlanError::UnresolvedArgumentType(position));
+        };
         input_relations.push(match exact_quotient_relation(program, argument_type) {
             ExactRelationLookup::NotQuotient => InputRelation::ExactEquality(argument_type),
             ExactRelationLookup::Exact(relation) => InputRelation::Quotient(relation),
@@ -394,7 +440,10 @@ pub(super) fn derive_direct_terminal_plan(
             return Err(RelationPlanError::UnresolvedResultRelationApplication);
         }
     };
-    let representative = derive_representative_telescope(program, request)?;
+    let representative = match representative {
+        Some(representative) => representative,
+        None => derive_representative_telescope(program, request)?,
+    };
     let representative_termination =
         unconditional_representative_termination(program, &representative);
     let selected_theorem = theorem::derive_selected_theorem_telescope(program, request)?;
@@ -450,31 +499,33 @@ pub(super) fn derive_direct_terminal_plan(
             )
         })
         .transpose()?;
-    let runtime_positions = direct_lift_correspondence
-        .as_ref()
-        .map(|runtime| runtime.positions.as_slice())
-        .or_else(|| {
-            define_correspondence
-                .as_ref()
-                .map(|runtime| runtime.positions.as_slice())
-        });
-    let representative_precondition = runtime_positions
-        .is_some()
+    let has_runtime_correspondence =
+        direct_lift_correspondence.is_some() || define_correspondence.is_some();
+    let representative_precondition = has_runtime_correspondence
         .then(|| {
             derive_representative_precondition_partition(program, &input_relations, &representative)
         })
         .transpose()?;
-    let public_precondition = runtime_positions
-        .map(|runtime_positions| {
-            derive_public_precondition_partition(
-                program,
-                machine,
-                state,
-                &input_relations,
-                runtime_positions,
-            )
-        })
-        .transpose()?;
+    let public_precondition = match (
+        direct_lift_correspondence.as_ref(),
+        define_correspondence.as_ref(),
+    ) {
+        (Some(runtime), None) => Some(derive_direct_lift_public_precondition_partition(
+            program,
+            machine,
+            state,
+            &input_relations,
+            runtime,
+        )?),
+        (None, Some(runtime)) => Some(derive_public_precondition_partition(
+            program,
+            machine,
+            state,
+            &input_relations,
+            &runtime.positions,
+        )?),
+        _ => None,
+    };
     let define_precondition_correspondence = match (
         define_correspondence.as_ref(),
         public_precondition.as_ref(),
