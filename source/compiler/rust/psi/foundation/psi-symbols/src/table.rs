@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use psi_arena::{Arena, HandleSpan, HierarchyArena, HierarchyArenaBuilder, HierarchyChildHandles};
 use psi_core::PackageKeyIdentity;
-use psi_source::{SourceFile, SourceMap, SourceOrigin, SourceSpan};
+use psi_source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan};
 
 use super::builtin::BUILTIN_TYPE_COUNT;
 use super::{
@@ -16,6 +16,7 @@ pub struct SymbolTable {
     names: Arena<SymbolName>,
     path_members: Arena<SymbolHandle>,
     sources: Option<Arc<SourceMap>>,
+    source_scoped_top_level_bindings: Vec<SourceScopedTopLevelBinding>,
     root: SymbolHandle,
 }
 
@@ -24,7 +25,34 @@ pub struct SymbolTableBuilder {
     symbols: HierarchyArenaBuilder<Symbol>,
     names: Arena<SymbolName>,
     sources: Option<Arc<SourceMap>>,
+    source_scoped_top_level_bindings: Vec<SourceScopedTopLevelBinding>,
     root: SymbolHandle,
+}
+
+/// One compiler-owned top-level vocabulary binding for an exact source.
+///
+/// The authored spelling remains unchanged. Only references originating in
+/// `reference_source` select the same-spelled declaration authored in
+/// `declaration_source`; every other source retains ordinary lookup.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceScopedTopLevelBinding {
+    reference_source: SourceId,
+    declaration_source: SourceId,
+    name: Arc<str>,
+}
+
+impl SourceScopedTopLevelBinding {
+    pub fn new(
+        reference_source: SourceId,
+        declaration_source: SourceId,
+        name: impl Into<Arc<str>>,
+    ) -> Self {
+        Self {
+            reference_source,
+            declaration_source,
+            name: name.into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -43,6 +71,17 @@ impl SymbolTableBuilder {
     pub fn with_sources(sources: Option<Arc<SourceMap>>) -> Self {
         Self {
             sources,
+            ..Self::default()
+        }
+    }
+
+    pub fn with_sources_and_top_level_bindings(
+        sources: Option<Arc<SourceMap>>,
+        source_scoped_top_level_bindings: Vec<SourceScopedTopLevelBinding>,
+    ) -> Self {
+        Self {
+            sources,
+            source_scoped_top_level_bindings,
             ..Self::default()
         }
     }
@@ -93,6 +132,7 @@ impl SymbolTableBuilder {
             names: self.names,
             path_members: Arena::new(),
             sources: self.sources,
+            source_scoped_top_level_bindings: self.source_scoped_top_level_bindings,
             root: self.root,
         }
     }
@@ -310,6 +350,72 @@ impl SymbolTable {
 
         self.symbols.find_child(parent, |symbol, symbol_data| {
             symbol_data.kind == kind && self.name(symbol) == name
+        })
+    }
+
+    /// Resolve one source-backed top-level reference without turning a
+    /// presentation spelling into global authority.
+    pub fn find_top_level_by_name_and_kinds_from_source(
+        &self,
+        name: &str,
+        kinds: &[SymbolKind],
+        reference: SourceSpan,
+    ) -> Option<SymbolHandle> {
+        let children = self.child_handles(self.root)?;
+        let candidates = children
+            .filter(|symbol| kinds.contains(&self.get(*symbol).kind) && self.name(*symbol) == name)
+            .collect::<Vec<_>>();
+
+        let reference_is_source_backed = reference.span.start != reference.span.end;
+        if !reference_is_source_backed {
+            return candidates.first().copied();
+        }
+
+        if let Some(binding) = self
+            .source_scoped_top_level_bindings
+            .iter()
+            .find(|binding| {
+                binding.reference_source == reference.source_id && binding.name.as_ref() == name
+            })
+        {
+            let mut targets = candidates.iter().copied().filter(|symbol| {
+                self.symbol_source_span(*symbol)
+                    .is_some_and(|span| span.source_id == binding.declaration_source)
+            });
+            let target = targets.next()?;
+            return targets.next().is_none().then_some(target);
+        }
+
+        candidates
+            .iter()
+            .copied()
+            .find(|symbol| {
+                self.symbol_source_span(*symbol)
+                    .is_some_and(|span| span.source_id == reference.source_id)
+            })
+            .or_else(|| candidates.first().copied())
+    }
+
+    /// Whether two same-spelled declarations intentionally occupy separate
+    /// source-resolution contexts established by an explicit binding.
+    pub fn source_scopes_separate(&self, left: SymbolHandle, right: SymbolHandle) -> bool {
+        let name = self.name(left);
+        if name != self.name(right) {
+            return false;
+        }
+        let (Some(left_span), Some(right_span)) = (
+            self.symbol_source_span(left),
+            self.symbol_source_span(right),
+        ) else {
+            return false;
+        };
+        if left_span.source_id == right_span.source_id {
+            return false;
+        }
+        self.source_scoped_top_level_bindings.iter().any(|binding| {
+            binding.name.as_ref() == name
+                && (binding.declaration_source == left_span.source_id
+                    || binding.declaration_source == right_span.source_id)
         })
     }
 

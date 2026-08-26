@@ -54,10 +54,13 @@ impl<'program> TopLevelSymbols<'program> {
         symbols.types.reserve(data_definition_count + trait_count);
 
         for data_definition in program.data_definitions() {
-            if symbols
-                .data_definition_symbol(data_definition.name.as_str())
-                .is_valid()
-            {
+            let conflicts = symbols.data_definitions.iter().any(|previous| {
+                previous.name == data_definition.name.as_str()
+                    && !program
+                        .symbols
+                        .source_scopes_separate(previous.symbol, data_definition.symbol)
+            });
+            if conflicts {
                 diagnostics.push(Diagnostic::error(format!(
                     "duplicate data `{}`",
                     data_definition.name
@@ -66,11 +69,11 @@ impl<'program> TopLevelSymbols<'program> {
 
             symbols.data_definitions.push(DataDefinitionSymbol {
                 name: data_definition.name.as_str(),
-                symbol: top_level_symbol(program, data_definition.name.as_str()),
+                symbol: data_definition.symbol,
             });
             symbols.types.push(TypeSymbol {
                 name: data_definition.name.as_str(),
-                symbol: top_level_symbol(program, data_definition.name.as_str()),
+                symbol: data_definition.symbol,
             });
         }
 

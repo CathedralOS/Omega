@@ -2554,6 +2554,17 @@ standard library by path.
       entry instead of rediscovering the root signature. Compiler enforcement
       remains deliberately pending on the Q4 compatibility lane and the
       source-specific toolchain-vocabulary resolution above.
+
+      Milestone 2026-08-26: the exact build source now receives one explicit
+      compiler-owned top-level binding from its authored `Build` spelling to
+      the injected toolchain declaration. Same-spelled declarations in
+      ordinary program source retain their own nominal identity; no global
+      name preference or synthetic outward spelling is used. The former
+      main-source `Build` collision canary now declares its application role,
+      still calls its ordinary runtime `Maker::build`, and passes. The corpus
+      therefore has 1,105 explicit canary applications and ten exceptions:
+      the wrong-arity root, five Q4-scoped roots, and four target-only
+      fragments.
 - [x] **Record the bundled-core decision** in
       `wiki/design_briefs/build_and_package_model.md`: core is welded to the
       compiler because it is the language, not because nobody wrote a manifest.

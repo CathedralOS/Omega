@@ -48,7 +48,6 @@ const ROLE_MIGRATION_EXCEPTIONS: &[&str] = &[
     "fail/build/build-effects-undeclared",
     "fail/build/build-machine-wrong-arity",
     "fail/build/build-service-name-spoof",
-    "pass/build/runtime-main-source-builder-is-ordinary-exit",
     "pass/filesystem/cross-linux-value-syscalls",
     "pass/float/runtime-total-order-satisfiers-exit",
     "pass/providers/component-owner-provider-override-compile",
@@ -178,5 +177,5 @@ fn ordinary_canary_projects_declare_canonical_application_roles() {
     }
 
     assert_eq!(exceptions, ROLE_MIGRATION_EXCEPTIONS.len());
-    assert_eq!(applications, 1_104);
+    assert_eq!(applications, 1_105);
 }

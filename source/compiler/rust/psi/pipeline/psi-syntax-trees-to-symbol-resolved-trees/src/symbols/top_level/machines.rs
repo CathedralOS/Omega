@@ -3,7 +3,7 @@ use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::expressions::assign_expression_table_symbols;
-use crate::symbols::lookup::top_level_symbol;
+use crate::symbols::lookup::{top_level_symbol, top_level_symbol_for_source};
 use crate::symbols::scope::MachineScope;
 use crate::symbols::top_level::{assign_machine_parameter_signature_symbols, next_child_of_kind};
 use crate::symbols::type_references::{
@@ -94,7 +94,7 @@ pub(super) fn assign_machine_symbols(
         machine.attached_data_symbol = machine
             .attached_data
             .as_ref()
-            .map(|attached| top_level_symbol(symbols, SymbolKind::Data, attached.as_str()))
+            .map(|attached| top_level_symbol_for_source(symbols, SymbolKind::Data, attached))
             .unwrap_or_else(SymbolHandle::invalid);
         let machine_symbol = machine.symbol;
         let mut machine_children = symbols.child_handles(machine_symbol).into_iter().flatten();

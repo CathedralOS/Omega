@@ -1812,11 +1812,23 @@ fn is_exact_toolchain_build_prelude_data(
 fn optimization_build_vocabulary(
     typed: &TypedTrees,
 ) -> Result<OptimizationBuildVocabulary, Vec<Diagnostic>> {
-    let builds = typed
+    let named_builds = typed
         .data_definitions()
         .iter()
         .filter(|definition| definition.name.as_str() == "Build")
         .collect::<Vec<_>>();
+    let toolchain_builds = named_builds
+        .iter()
+        .copied()
+        .filter(|definition| {
+            is_exact_toolchain_build_prelude_data(typed, definition.symbol, "Build")
+        })
+        .collect::<Vec<_>>();
+    let builds = if toolchain_builds.is_empty() {
+        &named_builds
+    } else {
+        &toolchain_builds
+    };
     let [build] = builds.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
             "build-machine evaluation requires exactly one `Build` data declaration, found {}",

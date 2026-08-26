@@ -45,23 +45,32 @@ pub(crate) struct PendingOutcomeSpecificContract {
 pub fn lower_syntax_trees(
     syntax_trees: &SyntaxTrees,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    lower_syntax_trees_with_optional_sources(syntax_trees, None)
+    lower_syntax_trees_with_optional_sources(syntax_trees, None, Vec::new())
 }
 
 pub fn lower_syntax_trees_with_sources(
     syntax_trees: &SyntaxTrees,
     sources: Arc<SourceMap>,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    lower_syntax_trees_with_optional_sources(syntax_trees, Some(sources))
+    lower_syntax_trees_with_optional_sources(syntax_trees, Some(sources), Vec::new())
+}
+
+pub fn lower_syntax_trees_with_sources_and_top_level_bindings(
+    syntax_trees: &SyntaxTrees,
+    sources: Arc<SourceMap>,
+    bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
+) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+    lower_syntax_trees_with_optional_sources(syntax_trees, Some(sources), bindings)
 }
 
 fn lower_syntax_trees_with_optional_sources(
     syntax_trees: &SyntaxTrees,
     sources: Option<Arc<SourceMap>>,
+    source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     let mut syntax_trees = syntax_trees.clone();
     crate::trait_defaults::synthesize_trait_defaults(&mut syntax_trees)?;
-    let mut lowerer = Lowerer::new(sources);
+    let mut lowerer = Lowerer::new(sources, source_scoped_top_level_bindings);
 
     for item in syntax_trees.root_items() {
         lower_item(&mut lowerer, &syntax_trees, item).map_err(|diagnostic| vec![diagnostic])?;
@@ -94,6 +103,7 @@ pub(crate) struct Lowerer {
     pub(crate) pending_outcome_specific_contracts: Vec<PendingOutcomeSpecificContract>,
     pub(crate) current_authored_expression_exposure: Option<AuthoredDeclarationSelectionExposure>,
     sources: Option<Arc<SourceMap>>,
+    source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
     /// Per-lowering counter that mints unique names for synthetic `let`
     /// temporaries hoisted out of operand-position indexed reads (see
     /// `statement::hoist_indexed_operands`). `__hoist_` prefixed so the
@@ -193,7 +203,10 @@ pub(crate) struct SynthesizedTransitionArgumentState {
 }
 
 impl Lowerer {
-    fn new(sources: Option<Arc<SourceMap>>) -> Self {
+    fn new(
+        sources: Option<Arc<SourceMap>>,
+        source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
+    ) -> Self {
         Self {
             symbol_resolved_trees: SymbolResolvedTrees::default(),
             pending_machine_service_reaches: Vec::new(),
@@ -205,6 +218,7 @@ impl Lowerer {
             pending_outcome_specific_contracts: Vec::new(),
             current_authored_expression_exposure: None,
             sources,
+            source_scoped_top_level_bindings,
             hoist_counter: 0,
             reference_struct_parameters: Vec::new(),
             current_state_parameter_names: Vec::new(),
@@ -265,6 +279,7 @@ impl Lowerer {
         crate::symbols::assign_symbols(
             &mut self.symbol_resolved_trees,
             self.sources,
+            self.source_scoped_top_level_bindings,
             &self.pending_const_declarations,
         );
         crate::state::finalize_outcome_specific_contract_symbols(

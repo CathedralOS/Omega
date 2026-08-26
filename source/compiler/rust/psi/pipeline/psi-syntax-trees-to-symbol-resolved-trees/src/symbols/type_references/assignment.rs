@@ -2,7 +2,7 @@ use psi_arena::{Arena, Handle, HandleSpan};
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
-use crate::symbols::lookup::top_level_type_symbol;
+use crate::symbols::lookup::top_level_type_symbol_for_source;
 use crate::symbols::targets::resolve_free_machine_entry_state_symbol;
 
 pub(in crate::symbols) fn assign_type_reference_symbols(
@@ -723,5 +723,5 @@ fn resolve_type_symbol(
         .iter()
         .find(|parameter| parameter.name.as_str() == name.as_str())
         .map(|parameter| parameter.symbol)
-        .unwrap_or_else(|| top_level_type_symbol(symbols, name.as_str()))
+        .unwrap_or_else(|| top_level_type_symbol_for_source(symbols, name))
 }
