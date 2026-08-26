@@ -17,100 +17,134 @@ use crate::{
     RuleRegistryError, ScalarConstant, ScalarConstantAnalysis,
 };
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ExactIntegerConstantEvaluationRule;
+const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v1";
 
-impl ExactIntegerConstantEvaluationRule {
-    pub fn contract() -> OptimizationRuleContract {
-        OptimizationRuleContract::new(
-            OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.exact-integer-constant-evaluation.v1",
-            ),
-            OptimizationPassIdentity::from_canonical_bytes(
-                b"omega.psi-pass.sparse-conditional-constant-propagation.v1",
-            ),
-            1,
-            AnalysisSet::new([AnalysisKind::ScalarConstants]),
-            AnalysisInvalidationSet::new([AnalysisKind::UseDefinition]),
-            OptimizationSafetyClass::ProofCertified,
-        )
-        .expect("built-in rule has nonzero version")
-    }
+fn exact_integer_contract(rule_name: &[u8]) -> OptimizationRuleContract {
+    OptimizationRuleContract::new(
+        OptimizationRuleIdentity::from_canonical_bytes(rule_name),
+        OptimizationPassIdentity::from_canonical_bytes(SCCP_PASS_NAME),
+        1,
+        AnalysisSet::new([AnalysisKind::ScalarConstants]),
+        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition]),
+        OptimizationSafetyClass::ProofCertified,
+    )
+    .expect("built-in rule has nonzero version")
 }
 
-impl PsiOptimizationRule for ExactIntegerConstantEvaluationRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
+macro_rules! exact_integer_rule {
+    ($name:ident, $rule_name:literal, $kind:expr) => {
+        #[derive(Debug, Clone, Copy, Default)]
+        pub struct $name;
 
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        let Some(AnalysisProduct::ScalarConstants(constants)) =
-            analyses.get(AnalysisKind::ScalarConstants)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::ScalarConstants,
-            ));
-        };
-        let mut candidates = Vec::new();
-        for function in &unit.functions {
-            for block in &function.blocks {
-                for (node_index, node) in block.nodes.iter().enumerate() {
-                    let Some(shape) = exact_binary_shape(&node.operation) else {
-                        continue;
-                    };
-                    let Some((left_value, left_support)) =
-                        integer_constant(constants, function.machine, shape.left)
-                    else {
-                        continue;
-                    };
-                    let Some((right_value, right_support)) =
-                        integer_constant(constants, function.machine, shape.right)
-                    else {
-                        continue;
-                    };
-                    let Some(constant) = shape.evaluate(left_value, right_value) else {
-                        continue;
-                    };
-                    let location = NodeLocation {
-                        machine: function.machine,
-                        block: block.id,
-                        node: u32::try_from(node_index).expect("optimization node indices are u32"),
-                    };
-                    candidates.push(
-                        PsiRewriteCandidate::new_integer_evaluation(
-                            unit.identity,
-                            Self::contract(),
-                            vec![block.id],
-                            Vec::new(),
-                            vec![ProvenanceRewrite {
-                                output: location,
-                                sources: node.provenance.clone(),
-                                fuel: node.fuel.clone(),
-                            }],
-                            IntegerEvaluationWitness {
-                                left_support,
-                                right_support,
-                            },
-                            -1,
-                            IntegerConstantRewrite {
-                                location,
-                                source_operation: shape.source,
-                                result: shape.result,
-                                scalar_type: shape.scalar_type,
-                                constant,
-                            },
-                        )
-                        .map_err(RuleProposalError::InvalidCandidate)?,
-                    );
-                }
+        impl $name {
+            pub fn contract() -> OptimizationRuleContract {
+                exact_integer_contract($rule_name)
             }
         }
-        Ok(candidates)
+
+        impl PsiOptimizationRule for $name {
+            fn contract(&self) -> OptimizationRuleContract {
+                Self::contract()
+            }
+
+            fn propose(
+                &self,
+                unit: &PsiOptimizationUnit,
+                analyses: RuleAnalysisView<'_>,
+            ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+                propose_exact_integer_constants(unit, analyses, Self::contract(), $kind)
+            }
+        }
+    };
+}
+
+exact_integer_rule!(
+    ExactIntegerAddConstantsRule,
+    b"omega.psi-rule.exact-integer-add-constants.v1",
+    ExactBinaryKind::Add
+);
+exact_integer_rule!(
+    ExactIntegerSubtractConstantsRule,
+    b"omega.psi-rule.exact-integer-subtract-constants.v1",
+    ExactBinaryKind::Subtract
+);
+exact_integer_rule!(
+    ExactIntegerMultiplyConstantsRule,
+    b"omega.psi-rule.exact-integer-multiply-constants.v1",
+    ExactBinaryKind::Multiply
+);
+
+fn propose_exact_integer_constants(
+    unit: &PsiOptimizationUnit,
+    analyses: RuleAnalysisView<'_>,
+    contract: OptimizationRuleContract,
+    kind: ExactBinaryKind,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+    let Some(AnalysisProduct::ScalarConstants(constants)) =
+        analyses.get(AnalysisKind::ScalarConstants)
+    else {
+        return Err(RuleProposalError::MissingAnalysis(
+            AnalysisKind::ScalarConstants,
+        ));
+    };
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let Some(shape) = exact_binary_shape(&node.operation) else {
+                    continue;
+                };
+                if shape.kind != kind {
+                    continue;
+                }
+                let Some((left_value, left_support)) =
+                    integer_constant(constants, function.machine, shape.left)
+                else {
+                    continue;
+                };
+                let Some((right_value, right_support)) =
+                    integer_constant(constants, function.machine, shape.right)
+                else {
+                    continue;
+                };
+                let Some(constant) = shape.evaluate(left_value, right_value) else {
+                    continue;
+                };
+                let location = NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: u32::try_from(node_index).expect("optimization node indices are u32"),
+                };
+                candidates.push(
+                    PsiRewriteCandidate::new_integer_evaluation(
+                        unit.identity,
+                        contract,
+                        vec![block.id],
+                        Vec::new(),
+                        vec![ProvenanceRewrite {
+                            output: location,
+                            sources: node.provenance.clone(),
+                            fuel: node.fuel.clone(),
+                        }],
+                        IntegerEvaluationWitness {
+                            left_support,
+                            right_support,
+                        },
+                        -1,
+                        IntegerConstantRewrite {
+                            location,
+                            source_operation: shape.source,
+                            result: shape.result,
+                            scalar_type: shape.scalar_type,
+                            constant,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
     }
+    Ok(candidates)
 }
 
 struct ExactBinaryShape {
@@ -122,6 +156,7 @@ struct ExactBinaryShape {
     kind: ExactBinaryKind,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ExactBinaryKind {
     Add,
     Subtract,
@@ -217,7 +252,9 @@ pub fn built_in_psi_registry(
 ) -> Result<OrderedRuleRegistry, RuleRegistryError> {
     let mut rules = Vec::<Arc<dyn PsiOptimizationRule>>::new();
     if selections.contains(Optimization::SparseConditionalConstantPropagation) {
-        rules.push(Arc::new(ExactIntegerConstantEvaluationRule));
+        rules.push(Arc::new(ExactIntegerAddConstantsRule));
+        rules.push(Arc::new(ExactIntegerSubtractConstantsRule));
+        rules.push(Arc::new(ExactIntegerMultiplyConstantsRule));
     }
     OrderedRuleRegistry::new(rules)
 }
@@ -244,12 +281,61 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn exact_add_unit() -> PsiOptimizationUnit {
+        exact_chain_unit(false)
+    }
+
+    pub(crate) fn dependent_exact_chain_unit() -> PsiOptimizationUnit {
+        exact_chain_unit(true)
+    }
+
+    fn exact_chain_unit(include_multiply: bool) -> PsiOptimizationUnit {
         let machine = id(301, MachineId::new);
         let block = id(302, BlockId::new);
         let left = id(303, ValueId::new);
         let right = id(304, ValueId::new);
-        let result = id(305, ValueId::new);
+        let sum = id(305, ValueId::new);
+        let product = id(311, ValueId::new);
+        let result = if include_multiply { product } else { sum };
         let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let mut operations = vec![
+            TerminalAbstractOperation::IntegerConstant {
+                psi_operation: id(306, OperationId::new),
+                result: left,
+                scalar_type: ScalarType::Integer(integer),
+                value: IntegerValue::Unsigned(7),
+            },
+            TerminalAbstractOperation::IntegerConstant {
+                psi_operation: id(307, OperationId::new),
+                result: right,
+                scalar_type: ScalarType::Integer(integer),
+                value: IntegerValue::Unsigned(8),
+            },
+            TerminalAbstractOperation::ExactIntegerAdd {
+                psi_operation: id(308, OperationId::new),
+                obligation: id(309, ObligationId::new),
+                result: sum,
+                scalar_type: integer,
+                left,
+                right,
+            },
+        ];
+        if include_multiply {
+            operations.push(TerminalAbstractOperation::ExactIntegerMultiply {
+                psi_operation: id(312, OperationId::new),
+                obligation: id(313, ObligationId::new),
+                result: product,
+                scalar_type: integer,
+                left: sum,
+                right,
+            });
+        }
+        operations.push(TerminalAbstractOperation::Return {
+            psi_edge: id(310, EdgeId::new),
+            result,
+            value: result,
+            scalar_type: ScalarType::Integer(integer),
+            cleanup_actions: Vec::new(),
+        });
         reconstruct_psi_optimization_unit_seed(
             &TerminalAbstractOperationPlan {
                 terminal_psi: TerminalPsiIdentity {
@@ -277,35 +363,7 @@ pub(crate) mod tests {
                         parameters: Vec::new(),
                         operation_offset: 0,
                     }],
-                    operations: vec![
-                        TerminalAbstractOperation::IntegerConstant {
-                            psi_operation: id(306, OperationId::new),
-                            result: left,
-                            scalar_type: ScalarType::Integer(integer),
-                            value: IntegerValue::Unsigned(7),
-                        },
-                        TerminalAbstractOperation::IntegerConstant {
-                            psi_operation: id(307, OperationId::new),
-                            result: right,
-                            scalar_type: ScalarType::Integer(integer),
-                            value: IntegerValue::Unsigned(8),
-                        },
-                        TerminalAbstractOperation::ExactIntegerAdd {
-                            psi_operation: id(308, OperationId::new),
-                            obligation: id(309, ObligationId::new),
-                            result,
-                            scalar_type: integer,
-                            left,
-                            right,
-                        },
-                        TerminalAbstractOperation::Return {
-                            psi_edge: id(310, EdgeId::new),
-                            result,
-                            value: result,
-                            scalar_type: ScalarType::Integer(integer),
-                            cleanup_actions: Vec::new(),
-                        },
-                    ],
+                    operations,
                 }],
             },
             FuelScheduleIdentity::new(1).unwrap(),
@@ -322,7 +380,7 @@ pub(crate) mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        assert_eq!(registry.len(), 1);
+        assert_eq!(registry.len(), 3);
         let mut dispatched = 0usize;
         let mut candidates = Vec::new();
         for rule in registry.iter() {
@@ -353,7 +411,7 @@ pub(crate) mod tests {
                 .is_empty()
         );
         assert_eq!(
-            ExactIntegerConstantEvaluationRule.propose(&unit, RuleAnalysisView::new(&[])),
+            ExactIntegerAddConstantsRule.propose(&unit, RuleAnalysisView::new(&[])),
             Err(RuleProposalError::MissingAnalysis(
                 AnalysisKind::ScalarConstants
             ))

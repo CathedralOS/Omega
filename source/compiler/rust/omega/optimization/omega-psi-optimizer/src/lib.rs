@@ -30,7 +30,10 @@ pub use registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
     RuleRegistryError, RuleScheduleKey,
 };
-pub use rules::{ExactIntegerConstantEvaluationRule, built_in_psi_registry};
+pub use rules::{
+    ExactIntegerAddConstantsRule, ExactIntegerMultiplyConstantsRule,
+    ExactIntegerSubtractConstantsRule, built_in_psi_registry,
+};
 
 #[cfg(test)]
 mod tests {

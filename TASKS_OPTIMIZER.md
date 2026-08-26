@@ -135,9 +135,11 @@ These facts constrain the work below.
   The independent validation crate re-reads both supported literal facts,
   evaluates the exact typed operation, constructs the output itself, retains
   Psi provenance/fuel, replaces the consumed obligation reference with the new
-  constant fact, and rejects a wrong result without mutating input. A built-in
-  rule can propose this candidate only when its explicit parent selection is
-  present, but no build hook admits that still-incomplete optimization suite.
+  constant fact, and rejects a wrong result without mutating input. Separate
+  built-in add, subtract, and multiply rules share that validator, have distinct
+  stable rule identities under one ordered SCCP pass group, and can propose
+  candidates only when their explicit parent selection is present. No build
+  hook admits that still-incomplete optimization suite.
 - A verified-session-only pass manager now performs canonical rule dispatch,
   dependency analysis, proposal enumeration, deterministic negative-cost
   choice with candidate-identity tie breaks, independent validation,
@@ -145,19 +147,21 @@ These facts constrain the work below.
   accounting for rule evaluations, candidates, validation steps, commits, and
   iterations. Budget exhaustion returns no output, every registered rule is
   covered before successful convergence, and the verifier-owned optimizer
-  context remains attached to the resulting unit. `OPT-PASS-MANAGER` remains
-  open for multi-rule fixed-point schedules and synthetic oscillation
-  coverage. A separate `omega-optimization-policy` crate now receives only
-  independently validated candidate summaries, chooses improving work by exact
-  cost then stable candidate identity, cannot select outside that admitted set,
-  and emits a canonical decision log whose codec rejects identity tamper and
-  trailing bytes. A real canonically encoded Terminal-Psi artifact containing
-  literal exact addition now passes proof admission, enters through the public
-  verified optimizer carrier, folds to its exact constant, and retains the
-  admitted obligation fact. Each rule registry is one named pass group (mixed
-  pass identities reject), and successful runs emit a canonical pass-manifest
-  row binding input/output revisions, ordered rules, work usage, validator-backed
-  applied decisions, and validator-backed deterministic skips. Duplicate
+  context remains attached to the resulting unit. A dependent add-then-
+  multiply fixture proves the ordered three-rule group reaches a deterministic
+  fixed point across revisions. `OPT-PASS-MANAGER` remains open for synthetic
+  oscillation coverage. A separate `omega-optimization-policy` crate now
+  receives only independently validated candidate summaries, chooses improving
+  work by exact cost then stable candidate identity, cannot select outside that
+  admitted set, and emits a canonical decision log whose codec rejects identity
+  tamper and trailing bytes. A real canonically encoded Terminal-Psi artifact
+  containing literal exact addition now passes proof admission, enters through
+  the public verified optimizer carrier, folds to its exact constant, and
+  retains the admitted obligation fact. Each rule registry is one named pass
+  group (mixed pass identities reject), and successful runs emit a canonical
+  pass-manifest row binding input/output revisions, ordered rules, work usage,
+  validator-backed applied decisions, and validator-backed deterministic
+  skips. Duplicate
   candidate identities fail closed. The compiler build firewall remains
   unchanged; the top-level manifest/report remains open for selection,
   provenance/fuel, realization, code-size, and later allocator records.
