@@ -28,7 +28,7 @@ fn compile(
 }
 
 use psi_core::PackageKeyIdentity;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn executable_name() -> &'static str {
@@ -37,6 +37,16 @@ fn executable_name() -> &'static str {
     } else {
         "omega-program"
     }
+}
+
+#[cfg(unix)]
+fn create_directory_symlink(target: &Path, link: &Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
+}
+
+#[cfg(windows)]
+fn create_directory_symlink(target: &Path, link: &Path) -> std::io::Result<()> {
+    std::os::windows::fs::symlink_dir(target, link)
 }
 
 fn replace_unique_bytes(bytes: &[u8], needle: &[u8], replacement: &[u8]) -> Vec<u8> {
@@ -2438,6 +2448,116 @@ fn canonical_source_root_cannot_be_used_for_writes() {
     );
     assert!(!project.join("blocked.bin").exists());
     let _ = std::fs::remove_dir_all(&project);
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn source_root_follow_rejects_a_symlink_escape_before_the_requested_operation() {
+    let (project, profile) = rooted_build_probe_project(
+        "source-symlink-escape",
+        r#"    let path: &[u8] in Path = builder.source.resolve("escape/input.bin");
+    self.descriptor = self.filesystem.open(path, 0);"#,
+    );
+    let outside = project.with_file_name(format!(
+        "omega-rooted-build-probe-source-symlink-escape-outside-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&outside);
+    std::fs::create_dir(&outside).expect("create outside source directory");
+    std::fs::write(outside.join("input.bin"), b"outside source\n").expect("seed outside source");
+    create_directory_symlink(&outside, &project.join("escape"))
+        .expect("create escaping source directory symlink; Windows requires symlink privilege");
+
+    let checked = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("a denied source symlink escape remains an observed build result");
+    let observations = checked
+        .build_observation_summary()
+        .expect("source symlink denial remains observable");
+    let [open] = observations.filesystem_operation_attempts() else {
+        panic!("source symlink escape must retain one attempted open")
+    };
+    assert_eq!(open.result(), BuildFilesystemOperationResult::Scalar(-1));
+    assert_eq!(open.post_error(), 13);
+    assert!(open.authorized_paths().is_empty());
+    let [rooted] = open.rooted_path_operand_resolutions() else {
+        panic!("source symlink escape must retain its rooted operand")
+    };
+    assert_eq!(rooted.root(), BuildFilesystemRoot::Source);
+    assert_eq!(rooted.relative_path(), b"escape/input.bin");
+    let [refusal] = open.grant_refusals() else {
+        panic!("source symlink escape must retain its refused path")
+    };
+    assert_eq!(refusal.operand_ordinal(), 0);
+    assert_eq!(refusal.access(), BuildFilesystemGrantAccess::Read);
+    assert_eq!(
+        refusal.reason(),
+        BuildFilesystemGrantRefusalReason::OutsideGrantedRoots
+    );
+    assert_eq!(
+        std::fs::read(outside.join("input.bin")).expect("read outside source after denial"),
+        b"outside source\n"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(&outside);
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn output_root_follow_rejects_a_symlink_escape_before_the_requested_operation() {
+    let (project, profile) = rooted_build_probe_project(
+        "output-symlink-escape",
+        r#"    let path: &[u8] in Path = builder.output.resolve("escape/new.bin");
+    self.descriptor = self.filesystem.create(path, 438);"#,
+    );
+    let build_dir = project.join("build");
+    std::fs::create_dir(&build_dir).expect("create output root");
+    let outside = project.with_file_name(format!(
+        "omega-rooted-build-probe-output-symlink-escape-outside-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&outside);
+    std::fs::create_dir(&outside).expect("create outside output directory");
+    create_directory_symlink(&outside, &build_dir.join("escape"))
+        .expect("create escaping output directory symlink; Windows requires symlink privilege");
+
+    let report = compile(CompileOptions {
+        root_path: project.join("main.omg"),
+        build_dir: Some(build_dir),
+        target_name: Some(profile.target_name().to_owned()),
+        write_output: false,
+    })
+    .expect("a denied output symlink escape remains an observed build result");
+    let observations = report
+        .build_observation_summary
+        .expect("output symlink denial remains observable");
+    let [create] = observations.filesystem_operation_attempts() else {
+        panic!("output symlink escape must retain one attempted create")
+    };
+    assert_eq!(create.result(), BuildFilesystemOperationResult::Scalar(-1));
+    assert_eq!(create.post_error(), 13);
+    assert!(create.authorized_paths().is_empty());
+    let [rooted] = create.rooted_path_operand_resolutions() else {
+        panic!("output symlink escape must retain its rooted operand")
+    };
+    assert_eq!(rooted.root(), BuildFilesystemRoot::Output);
+    assert_eq!(rooted.relative_path(), b"escape/new.bin");
+    let [refusal] = create.grant_refusals() else {
+        panic!("output symlink escape must retain its refused path")
+    };
+    assert_eq!(refusal.operand_ordinal(), 0);
+    assert_eq!(refusal.access(), BuildFilesystemGrantAccess::Write);
+    assert_eq!(
+        refusal.reason(),
+        BuildFilesystemGrantRefusalReason::OutsideGrantedRoots
+    );
+    assert!(
+        !outside.join("new.bin").exists(),
+        "the denied create must not create a file through the escaping parent"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(&outside);
 }
 
 #[test]
