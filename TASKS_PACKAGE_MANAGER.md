@@ -369,6 +369,20 @@ complete.
   loaded image or TLS implementation, bind certificate stores or endpoints,
   inspect macOS ACLs or Windows DACLs, or replace native confinement.
 
+  Milestone 2026-08-25: legacy source-cache policy records now recover only
+  from bounded, byte-identical canonical tool-owned encoding. Persistence
+  resolves one existing canonical parent as the operation root, rejects
+  non-regular or symlink leaves on read, creates a fresh same-directory stage
+  exclusively with private Unix mode, synchronizes and re-reads the staged
+  bytes, publishes without overwriting through one atomic hard-link creation,
+  removes the stage, and synchronizes the parent directory on Unix. Existing
+  destinations reject unchanged, including symlinks; stale predictable
+  temporary names no longer exist. Parent identity is checked around the
+  operation. This hardens diagnostic file behavior only: schema-v3 free strings
+  and mutable cache paths remain non-authoritative, hostile same-user
+  handle-relative custody remains open, and no diagnostic record can become the
+  future opaque resolver receipt or accepted lock evidence.
+
   Audit 2026-08-24: the authenticated object graph, exact-pin check, injective
   source identity, checkout-free materialization, bounded parent process, and
   immutable publication form a coherent portable core. The next strict-boundary

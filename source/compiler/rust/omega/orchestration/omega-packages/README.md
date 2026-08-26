@@ -170,6 +170,13 @@ accepted-lock path remain incomplete.
 
 The crate now contains reviewed building blocks for immutable Git/local
 snapshots, hermetic package-name extraction, and typed package/source identity.
+Legacy source-cache policy files remain diagnostics rather than receipts, but
+their persistence is now bounded and canonical. Reads reject symlink or
+non-regular leaves and noncanonical bytes; writes use one checked canonical
+parent, an exclusive private same-directory stage, synchronized byte
+revalidation, no-overwrite atomic publication, cleanup, and parent-directory
+synchronization on Unix. This does not give their free strings or mutable cache paths
+admission standing.
 Mutable local-package snapshots omit only `.git` metadata and the reserved
 root-level `build/` compiler output; package-authored ignore files do not control
 source identity, nested `build` directories remain source, and immutable Git

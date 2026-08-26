@@ -89,8 +89,8 @@ pub use package_source::{
 };
 pub use resolver::{
     SourceCachePolicyRecord, SourceCachePolicyRecordParseError,
-    SourceCachePolicyRecordPersistenceError, SourceCacheRequest, SourceCacheVerdict,
-    resolve_source_cache_record,
+    SourceCachePolicyRecordPersistenceError, SourceCachePolicyRecordPersistenceLimits,
+    SourceCacheRequest, SourceCacheVerdict, resolve_source_cache_record,
 };
 pub use review_baseline::{
     ReviewOnlyBaselineCapsule, ReviewOnlyBaselineError, ReviewOnlyBaselineLimits,

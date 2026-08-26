@@ -81,7 +81,14 @@ required row.
 
 The current `SourceCachePolicyRecord` remains diagnostic scaffolding. Its free
 strings and mutable paths are not this receipt and cannot enter an accepted
-lock.
+lock. Its persistence path is nevertheless bounded and canonical: reads reject
+symlink/non-regular leaves and noncanonical encodings, while writes use an
+exclusive private same-directory stage, synchronized byte revalidation,
+no-overwrite atomic publication, stage cleanup, and parent-directory
+synchronization on Unix. The operation resolves and rechecks one canonical
+parent, but
+does not claim hostile same-user handle-relative custody or give the record
+authority.
 
 ## Current engineering delta
 
