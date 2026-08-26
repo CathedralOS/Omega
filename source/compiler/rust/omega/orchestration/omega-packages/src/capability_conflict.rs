@@ -20,10 +20,10 @@ use std::cmp::Ordering;
 use std::fmt;
 
 const CONFLICT_FINGERPRINT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CAPABILITY-CONFLICT\0";
-const CONFLICT_FINGERPRINT_VERSION: u16 = 4;
+const CONFLICT_FINGERPRINT_VERSION: u16 = 5;
 const CANDIDATE_CLOSURE_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CANDIDATE-CLOSURE\0";
 const CANDIDATE_CLOSURE_VERSION: u16 = 2;
-const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V3\n";
+const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V4\n";
 
 /// Resource ceilings for exact review-row comparison.
 ///
@@ -1634,6 +1634,7 @@ const fn source_location_role_tag(role: PackageReviewSourceLocationRole) -> u8 {
         PackageReviewSourceLocationRole::SemanticDependencyConsumer => 8,
         PackageReviewSourceLocationRole::SemanticDependencyDeclaration => 9,
         PackageReviewSourceLocationRole::ProviderRequirementDeclaration => 10,
+        PackageReviewSourceLocationRole::TraitParent => 11,
     }
 }
 
@@ -1656,6 +1657,7 @@ const fn source_location_role_token(role: PackageReviewSourceLocationRole) -> &'
         PackageReviewSourceLocationRole::SemanticDependencyDeclaration => {
             "semantic_dependency_declaration"
         }
+        PackageReviewSourceLocationRole::TraitParent => "trait_parent",
     }
 }
 

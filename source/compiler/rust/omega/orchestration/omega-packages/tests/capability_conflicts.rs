@@ -820,7 +820,7 @@ end_root_policy_resolution\n",
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render bounded conflict evidence");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V3\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V4\n"));
     assert!(rendered.contains("change added\nkind public_proposition\nrisk blocking\n"));
     assert!(rendered.contains("candidate_location declaration package "));
     assert!(rendered.contains(" \"main.omg\"\n"));
@@ -1424,6 +1424,79 @@ pub Choice: First satisfies Marker<{argument}> {{ }}
             .expect("render public conformance conflict")
             .contains("change changed\nkind public_conformance\nrisk blocking\n")
     );
+
+    let _ = std::fs::remove_dir_all(live);
+    let _ = std::fs::remove_dir_all(baseline_cache);
+    let _ = std::fs::remove_dir_all(candidate_cache);
+    let _ = std::fs::remove_dir_all(build_root);
+}
+
+#[test]
+fn public_trait_parent_changes_render_exact_nested_review_locations() {
+    let live = temp_root("public-trait-parent-live");
+    let baseline_cache = temp_root("public-trait-parent-baseline");
+    let candidate_cache = temp_root("public-trait-parent-candidate");
+    let build_root = temp_root("public-trait-parent-build");
+    let context = ExternalSourceContext::derive(b"public-trait-parent-conflict-test");
+
+    let source = |parent: &str| {
+        format!(
+            r#"pub trait First {{ }}
+pub trait Second {{ }}
+pub trait Child: {parent} {{ }}
+"#
+        )
+    };
+    write_package(&live, &source("First"));
+    let baseline_sources = resolve_external_local_package_closure(
+        &live,
+        context.clone(),
+        &baseline_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve public-trait baseline");
+    let baseline_reviews =
+        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+            .expect("compile public-trait baseline");
+
+    write_package(&live, &source("Second"));
+    let candidate_sources = resolve_external_local_package_closure(
+        &live,
+        context,
+        &candidate_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve public-trait candidate");
+    let candidate_reviews =
+        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+            .expect("compile public-trait candidate");
+
+    let conflicts = compare_review_only_capabilities(
+        &baseline_reviews,
+        &candidate_reviews,
+        &candidate_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare public-trait compatibility");
+    let conflict = conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| package.conflicts())
+        .find(|conflict| conflict.kind() == PackageReviewCanonicalRowKind::PublicTrait)
+        .expect("changed public-trait row");
+    assert_eq!(conflict.risk(), PackageReviewCanonicalRowRisk::Blocking);
+    assert_eq!(
+        conflict.change(),
+        ReviewOnlyCapabilityConflictChange::Changed
+    );
+    let rendered = conflicts
+        .render_bounded(1024 * 1024)
+        .expect("render public-trait conflict");
+    assert!(rendered.contains("change changed\nkind public_trait\nrisk blocking\n"));
+    assert!(rendered.contains("baseline_location trait_parent package "));
+    assert!(rendered.contains("candidate_location trait_parent package "));
 
     let _ = std::fs::remove_dir_all(live);
     let _ = std::fs::remove_dir_all(baseline_cache);
