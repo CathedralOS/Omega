@@ -4476,6 +4476,7 @@ fn verify_git_transport_invocation_node_custody(
             message: "transport invocation entry is owned by an unrelated user".to_owned(),
         });
     }
+    verify_macos_extended_acl_custody(path, false)?;
     Ok(())
 }
 
@@ -4532,6 +4533,7 @@ fn verify_git_executable_custody(path: &Path) -> Result<(), SourceResolveError> 
             message: "resolver executable has no executable mode bit".to_owned(),
         });
     }
+    verify_macos_extended_acl_custody(path, true)?;
 
     verify_git_executable_ancestry(path)
 }
@@ -4577,7 +4579,43 @@ fn verify_git_executable_ancestry(path: &Path) -> Result<(), SourceResolveError>
                         .to_owned(),
             });
         }
+        verify_macos_extended_acl_custody(ancestor, true)?;
     }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn verify_macos_extended_acl_custody(
+    path: &Path,
+    follow_symbolic_link: bool,
+) -> Result<(), SourceResolveError> {
+    let symbolic_link_behavior = if follow_symbolic_link {
+        omega_platform_custody::SymbolicLinkBehavior::Follow
+    } else {
+        omega_platform_custody::SymbolicLinkBehavior::InspectLink
+    };
+    let has_allow_entry =
+        omega_platform_custody::extended_acl_has_allow_entry(path, symbolic_link_behavior)
+            .map_err(|error| SourceResolveError::GitExecutableInvalid {
+                path: path.to_path_buf(),
+                message: format!(
+                    "could not inspect resolver executable extended ACL custody: {error}"
+                ),
+            })?;
+    if has_allow_entry {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "resolver executable custody contains an extended ACL allow entry".to_owned(),
+        });
+    }
+    Ok(())
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn verify_macos_extended_acl_custody(
+    _path: &Path,
+    _follow_symbolic_link: bool,
+) -> Result<(), SourceResolveError> {
     Ok(())
 }
 
@@ -8298,6 +8336,80 @@ mod tests {
         std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
             .expect("restore executable custody root");
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn git_executor_rejects_extended_acl_allow_entries_on_executable_and_ancestry() {
+        use std::os::unix::fs::PermissionsExt;
+
+        fn change_acl(path: &Path, arguments: &[&str]) {
+            let status = Command::new("/bin/chmod")
+                .args(arguments)
+                .arg(path)
+                .status()
+                .expect("run the concrete macOS ACL editor");
+            assert!(
+                status.success(),
+                "macOS ACL edit failed for {}",
+                path.display()
+            );
+        }
+
+        let root = temp_root("git-executable-acl-custody");
+        std::fs::create_dir_all(&root).expect("create executable ACL custody root");
+        let root = root
+            .canonicalize()
+            .expect("canonicalize executable ACL custody root");
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
+            .expect("make executable ACL custody root private");
+        let fake_git = root.join("git");
+        std::fs::write(&fake_git, b"#!/bin/sh\nexit 0\n").expect("write fake Git executable");
+        std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
+            .expect("make fake Git executable private");
+
+        let executor = GitExecutor::open(&fake_git).expect("capture ACL-free Git executable");
+        change_acl(&fake_git, &["+a", "everyone allow write"]);
+        let executable_acl_error = executor
+            .verify()
+            .expect_err("extended ACL allow on executable must reject");
+        assert!(
+            matches!(
+                &executable_acl_error,
+                SourceResolveError::GitExecutableInvalid { path, message }
+                    if path == &fake_git && message.contains("extended ACL allow")
+            ),
+            "unexpected executable ACL error: {executable_acl_error:?}"
+        );
+        change_acl(&fake_git, &["-N"]);
+        executor
+            .verify()
+            .expect("removing executable ACL should restore custody");
+        change_acl(&fake_git, &["+a", "everyone deny write"]);
+        executor
+            .verify()
+            .expect("deny-only executable ACL does not broaden custody");
+        change_acl(&fake_git, &["-N"]);
+
+        change_acl(&root, &["+a", "everyone allow write"]);
+        let ancestry_acl_error = executor
+            .verify()
+            .expect_err("extended ACL allow on ancestry must reject");
+        assert!(
+            matches!(
+                &ancestry_acl_error,
+                SourceResolveError::GitExecutableInvalid { path, message }
+                    if path == &root && message.contains("extended ACL allow")
+            ),
+            "unexpected ancestry ACL error: {ancestry_acl_error:?}"
+        );
+        change_acl(&root, &["-N"]);
+        executor
+            .verify()
+            .expect("removing ancestry ACL should restore custody");
+
+        std::fs::remove_file(&fake_git).expect("remove fake Git executable");
+        std::fs::remove_dir(&root).expect("remove executable ACL custody root");
     }
 
     #[cfg(target_os = "macos")]
