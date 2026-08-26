@@ -1093,8 +1093,7 @@ pub(super) fn validate_compiler_planned_import_relocations(
     instruction_byte_offset: usize,
     call_site: usize,
     address_sites: &[(usize, OutboundCallRelocationTarget)],
-    expected_library: &str,
-    expected_symbol: &str,
+    expected_locator: &omega_calling_conventions::HostImportLocator,
 ) -> Result<(), Diagnostic> {
     let mut actual = relocations
         .records()
@@ -1152,11 +1151,10 @@ pub(super) fn validate_compiler_planned_import_relocations(
             .all(|(relocation, (offset, kind, width, target))| {
                 let target_matches = target.map_or_else(
                     || {
-                        compiler_import_symbol_matches(
+                        compiler_import_locator_matches(
                             object,
                             relocation.symbol_handle,
-                            expected_library,
-                            expected_symbol,
+                            expected_locator,
                         )
                     },
                     |target| match target {
@@ -1484,6 +1482,22 @@ fn compiler_import_symbol_matches(
         && object.layout.symbols.get(symbol_handle).import_library == expected_library
 }
 
+fn compiler_import_locator_matches(
+    object: &omega_object_file::ObjectPlan,
+    symbol_handle: omega_object_file::ObjectSymbolHandle,
+    locator: &omega_calling_conventions::HostImportLocator,
+) -> bool {
+    match locator {
+        omega_calling_conventions::HostImportLocator::StringBackedBootstrap { library, symbol } => {
+            compiler_import_symbol_matches(object, symbol_handle, library, symbol)
+        }
+        omega_calling_conventions::HostImportLocator::Normalized(locator) => {
+            omega_object_file::object_symbol_handle_by_foreign_locator(object, locator)
+                == symbol_handle
+        }
+    }
+}
+
 pub(super) fn compiler_storage_symbol_matches(
     object: &omega_object_file::ObjectPlan,
     symbol_handle: omega_object_file::ObjectSymbolHandle,
@@ -1641,10 +1655,12 @@ mod internal_call_tests {
     use super::*;
     use omega_control_flow::{MachineFunctionIdentity, StateKey};
     use omega_object_file::{
-        FunctionSymbolPlan, ObjectPlan, RelocationOrigin, RelocationRecord, SymbolKind, SymbolPlan,
-        SymbolSection,
+        FunctionSymbolPlan, NormalizedImportPlan, ObjectPlan, RelocationOrigin, RelocationRecord,
+        SymbolKind, SymbolPlan, SymbolSection,
     };
-    use omega_target::NativeTarget;
+    use omega_target::{
+        ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator,
+    };
     use psi_symbols::SymbolHandle;
 
     fn identity(state: u32) -> MachineFunctionIdentity {
@@ -1784,5 +1800,99 @@ mod internal_call_tests {
             0,
             &[],
         ));
+    }
+
+    #[test]
+    fn planned_import_replay_joins_the_exact_normalized_locator_atomically() {
+        let target = NativeTarget::windows_x64();
+        let locator = normalize_foreign_locator(
+            ForeignLocatorCandidate::PeByOrdinal {
+                library: b"raw\xff.dll".to_vec(),
+                ordinal: 17,
+            },
+            TargetProfile::WindowsX64,
+        )
+        .expect("valid PE locator");
+        let mutated = normalize_foreign_locator(
+            ForeignLocatorCandidate::PeByOrdinal {
+                library: b"raw\xff.dll".to_vec(),
+                ordinal: 18,
+            },
+            TargetProfile::WindowsX64,
+        )
+        .expect("valid mutated PE locator");
+        let mut object = ObjectPlan::with_capacity(target, 0, 1);
+        let symbol = object.layout.symbols.insert(SymbolPlan {
+            name: "diagnostic-only".into(),
+            section: SymbolSection::None,
+            offset: 0,
+            size: 0,
+            kind: SymbolKind::Import,
+            import_library: String::new(),
+        });
+        object.layout.normalized_imports.push(NormalizedImportPlan {
+            symbol,
+            locator: locator.clone(),
+        });
+        let mut relocations = RelocationPlan::with_target(target);
+        relocations.push_record(RelocationRecord {
+            origin: RelocationOrigin::Instruction {
+                function_symbol_handle: symbol,
+                selected_instruction_index: 7,
+            },
+            section: SectionKind::Text,
+            offset: 13,
+            byte_width: 4,
+            symbol_handle: symbol,
+            addend: 0,
+            kind: RelocationKind::X86_64Relative32,
+        });
+
+        validate_compiler_planned_import_relocations(
+            Architecture::X86_64,
+            &object,
+            &relocations,
+            7,
+            12,
+            1,
+            &[],
+            &omega_calling_conventions::HostImportLocator::Normalized(locator.clone()),
+        )
+        .expect("exact normalized relocation join");
+        let error = validate_compiler_planned_import_relocations(
+            Architecture::X86_64,
+            &object,
+            &relocations,
+            7,
+            12,
+            1,
+            &[],
+            &omega_calling_conventions::HostImportLocator::Normalized(mutated),
+        )
+        .expect_err("ordinal mutation must reject");
+        assert!(
+            error
+                .message
+                .contains("exact call/data/storage relocation set")
+        );
+
+        object.layout.normalized_imports.push(NormalizedImportPlan {
+            symbol,
+            locator: locator.clone(),
+        });
+        assert!(
+            validate_compiler_planned_import_relocations(
+                Architecture::X86_64,
+                &object,
+                &relocations,
+                7,
+                12,
+                1,
+                &[],
+                &omega_calling_conventions::HostImportLocator::Normalized(locator),
+            )
+            .is_err(),
+            "ambiguous object locator rows must fail closed"
+        );
     }
 }

@@ -155,8 +155,10 @@ pub(super) fn expected_outbound_call_spec(
                             CompilerInstructionRelocationRecipe::PlannedImport {
                                 call_site,
                                 address_sites,
-                                library,
-                                symbol,
+                                locator: omega_calling_conventions::HostImportLocator::StringBackedBootstrap {
+                                    library,
+                                    symbol,
+                                },
                             },
                         )
                     }
@@ -191,8 +193,10 @@ pub(super) fn expected_outbound_call_spec(
                             CompilerInstructionRelocationRecipe::PlannedImport {
                                 call_site,
                                 address_sites,
-                                library,
-                                symbol,
+                                locator: omega_calling_conventions::HostImportLocator::StringBackedBootstrap {
+                                    library,
+                                    symbol,
+                                },
                             },
                         )
                     }
@@ -200,8 +204,7 @@ pub(super) fn expected_outbound_call_spec(
                         operation_key,
                         operands,
                         data_symbols,
-                        library,
-                        symbol,
+                        locator,
                         plan,
                     } => {
                         let (bytes, call_site, address_sites) = encode_scalar_parameter_import(
@@ -218,8 +221,7 @@ pub(super) fn expected_outbound_call_spec(
                             CompilerInstructionRelocationRecipe::PlannedImport {
                                 call_site,
                                 address_sites,
-                                library,
-                                symbol,
+                                locator,
                             },
                         )
                     }
@@ -227,8 +229,7 @@ pub(super) fn expected_outbound_call_spec(
                         operation_key,
                         operands,
                         data_symbols,
-                        library,
-                        symbol,
+                        locator,
                         plan,
                     } => {
                         let (bytes, call_site, address_sites) = encode_scalar_parameter_import(
@@ -252,8 +253,7 @@ pub(super) fn expected_outbound_call_spec(
                             CompilerInstructionRelocationRecipe::PlannedImport {
                                 call_site,
                                 address_sites,
-                                library,
-                                symbol,
+                                locator,
                             },
                         )
                     }
@@ -261,8 +261,7 @@ pub(super) fn expected_outbound_call_spec(
                         operation_key,
                         operands,
                         data_symbols,
-                        library,
-                        symbol,
+                        locator,
                         plan,
                     } => {
                         let (bytes, call_site, address_sites) = encode_scalar_parameter_import(
@@ -279,8 +278,7 @@ pub(super) fn expected_outbound_call_spec(
                             CompilerInstructionRelocationRecipe::PlannedImport {
                                 call_site,
                                 address_sites,
-                                library,
-                                symbol,
+                                locator,
                             },
                         )
                     }
@@ -288,8 +286,7 @@ pub(super) fn expected_outbound_call_spec(
                         operation_key,
                         operands,
                         data_symbols,
-                        library,
-                        symbol,
+                        locator,
                         plan,
                     } => {
                         let (bytes, call_site, address_sites) = encode_scalar_parameter_import(
@@ -313,8 +310,7 @@ pub(super) fn expected_outbound_call_spec(
                             CompilerInstructionRelocationRecipe::PlannedImport {
                                 call_site,
                                 address_sites,
-                                library,
-                                symbol,
+                                locator,
                             },
                         )
                     }
@@ -322,8 +318,7 @@ pub(super) fn expected_outbound_call_spec(
                         operation_key,
                         operands,
                         data_symbols,
-                        library,
-                        symbol,
+                        locator,
                         plan,
                     } => {
                         let (bytes, call_site, address_sites) = encode_scalar_parameter_import(
@@ -340,8 +335,7 @@ pub(super) fn expected_outbound_call_spec(
                             CompilerInstructionRelocationRecipe::PlannedImport {
                                 call_site,
                                 address_sites,
-                                library,
-                                symbol,
+                                locator,
                             },
                         )
                     }
@@ -349,8 +343,7 @@ pub(super) fn expected_outbound_call_spec(
                         operation_key,
                         operands,
                         data_symbols,
-                        library,
-                        symbol,
+                        locator,
                         plan,
                     } => {
                         let (bytes, call_site, address_sites) = encode_scalar_parameter_import(
@@ -367,8 +360,7 @@ pub(super) fn expected_outbound_call_spec(
                             CompilerInstructionRelocationRecipe::PlannedImport {
                                 call_site,
                                 address_sites,
-                                library,
-                                symbol,
+                                locator,
                             },
                         )
                     }
@@ -376,8 +368,7 @@ pub(super) fn expected_outbound_call_spec(
                         operation_key,
                         operands,
                         data_symbols,
-                        library,
-                        symbol,
+                        locator,
                         plan,
                     } => {
                         let (bytes, call_site, address_sites) =
@@ -395,8 +386,7 @@ pub(super) fn expected_outbound_call_spec(
                             CompilerInstructionRelocationRecipe::PlannedImport {
                                 call_site,
                                 address_sites,
-                                library,
-                                symbol,
+                                locator,
                             },
                         )
                     }
@@ -444,8 +434,10 @@ pub(super) fn expected_outbound_call_spec(
                             CompilerInstructionRelocationRecipe::PlannedImport {
                                 call_site,
                                 address_sites,
-                                library,
-                                symbol,
+                                locator: omega_calling_conventions::HostImportLocator::StringBackedBootstrap {
+                                    library,
+                                    symbol,
+                                },
                             },
                         )
                     }
