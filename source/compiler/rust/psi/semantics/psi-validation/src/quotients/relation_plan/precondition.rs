@@ -95,7 +95,7 @@ pub(super) fn derive_direct_lift_public_precondition_partition(
             .iter()
             .map(|position| match &position.source {
                 DirectLiftArgumentSource::PublicParameter(symbol) => Some(*symbol),
-                DirectLiftArgumentSource::ClosedScalarLiteral(_) => None,
+                DirectLiftArgumentSource::Literal(_) => None,
             })
             .collect::<Vec<_>>(),
         RelationPlanError::DirectLiftRuntimeArityMismatch,

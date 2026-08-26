@@ -49,7 +49,7 @@ use representative::{
 use runtime_correspondence::DefineRuntimePosition;
 use runtime_correspondence::{
     DefineRuntimeCorrespondence, DirectLiftRuntimeCorrespondence,
-    closed_scalar_literal_for_representative, derive_define_runtime_correspondence,
+    closed_lift_literal_for_representative, derive_define_runtime_correspondence,
     derive_direct_lift_runtime_correspondence,
 };
 #[cfg(test)]
@@ -386,13 +386,14 @@ pub(super) fn derive_direct_terminal_plan(
         let argument_type =
             crate::places::declared_place_type_raw(program, machine, Some(state), *argument);
         let Some(argument_type) = argument_type else {
-            let is_closed_scalar_candidate = match program.expression_table.expression(*argument) {
+            let is_closed_literal_candidate = match program.expression_table.expression(*argument) {
                 psi_typed_trees::expression::ExpressionNode::Boolean(_) => true,
                 psi_typed_trees::expression::ExpressionNode::Integer(_) => true,
                 psi_typed_trees::expression::ExpressionNode::Float(_) => true,
+                psi_typed_trees::expression::ExpressionNode::String(_) => true,
                 _ => false,
             };
-            if request.kind == QuotientOperationKind::Lift && is_closed_scalar_candidate {
+            if request.kind == QuotientOperationKind::Lift && is_closed_literal_candidate {
                 if representative.is_none() {
                     representative = Some(derive_representative_telescope(program, request)?);
                 }
@@ -400,7 +401,7 @@ pub(super) fn derive_direct_terminal_plan(
                     .as_ref()
                     .and_then(|representative| representative.parameters.get(position))
                 {
-                    match closed_scalar_literal_for_representative(
+                    match closed_lift_literal_for_representative(
                         program,
                         *argument,
                         parameter.type_reference,

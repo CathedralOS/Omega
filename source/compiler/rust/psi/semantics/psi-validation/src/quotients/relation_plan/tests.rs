@@ -125,6 +125,23 @@ fn primitive_type(program: &mut TypedTrees, name: &'static str) -> TypeReference
         })
 }
 
+fn byte_slice_reference_type(
+    program: &mut TypedTrees,
+    access: psi_language_core::ReferenceAccess,
+) -> TypeReferenceHandle {
+    let element_type = primitive_type(program, "u8");
+    let slice = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Slice { element_type });
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::Reference {
+            referee: slice,
+            access,
+            lifetime: None,
+        })
+}
+
 fn named_argument(
     program: &mut TypedTrees,
     name: &'static str,
@@ -1425,11 +1442,10 @@ fn direct_lift_q_implies_p_rejects_missing_identity_and_theorem_coordinate_tampe
 #[test]
 fn direct_lift_literal_stays_fixed_and_dependent_use_requires_an_exact_public_fact() {
     let fixture = direct_lift_implication_fixture(true);
-    let literal = super::runtime_correspondence::ClosedScalarLiteral::Boolean(true);
+    let literal = super::runtime_correspondence::ClosedLiftLiteral::Boolean(true);
 
     let mut fixed_literal = fixture.runtime.clone();
-    fixed_literal.positions[1].source =
-        super::DirectLiftArgumentSource::ClosedScalarLiteral(literal.clone());
+    fixed_literal.positions[1].source = super::DirectLiftArgumentSource::Literal(literal.clone());
     assert!(
         derive_direct_lift_precondition_implication(
             &fixture.program,
@@ -1447,8 +1463,7 @@ fn direct_lift_literal_stays_fixed_and_dependent_use_requires_an_exact_public_fa
     );
 
     let mut dependent_literal = fixture.runtime.clone();
-    dependent_literal.positions[0].source =
-        super::DirectLiftArgumentSource::ClosedScalarLiteral(literal);
+    dependent_literal.positions[0].source = super::DirectLiftArgumentSource::Literal(literal);
     assert_eq!(
         derive_direct_lift_precondition_implication(
             &fixture.program,
@@ -1578,8 +1593,8 @@ fn direct_lift_literal_substitutes_exactly_inside_dependent_representative_p() {
                 representative_parameter: representative_quotient,
             },
             super::DirectLiftRuntimePosition {
-                source: super::DirectLiftArgumentSource::ClosedScalarLiteral(
-                    super::runtime_correspondence::ClosedScalarLiteral::Integer {
+                source: super::DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::Integer {
                         spelling: "7".to_owned(),
                         landing: IntegerLanding {
                             landed_type: LandedIntegerType::I32,
@@ -1684,8 +1699,8 @@ fn direct_lift_literal_substitutes_exactly_inside_dependent_representative_p() {
     assert_ne!(implication.rows[0].theorem, implication.rows[1].theorem);
 
     let mut drifted = runtime.clone();
-    drifted.positions[1].source = super::DirectLiftArgumentSource::ClosedScalarLiteral(
-        super::runtime_correspondence::ClosedScalarLiteral::Integer {
+    drifted.positions[1].source = super::DirectLiftArgumentSource::Literal(
+        super::runtime_correspondence::ClosedLiftLiteral::Integer {
             spelling: "8".to_owned(),
             landing: IntegerLanding {
                 landed_type: LandedIntegerType::I32,
@@ -1855,6 +1870,33 @@ fn proof_fact_literal_substitution_retains_value_landing_and_recursive_fact_shap
         &ProofFact::Expression(float_name),
         &ProofFact::Expression(other_f32_literal),
         context(&float_value),
+        context(&no_values),
+    ));
+
+    let string_parameter = symbol(955);
+    let string_name = named_argument(&mut program, "label", string_parameter);
+    let string_literal = program
+        .expression_table
+        .insert(ExpressionNode::String(Arc::from(&b"value"[..])));
+    let other_string_literal = program
+        .expression_table
+        .insert(ExpressionNode::String(Arc::from(&b"other"[..])));
+    let string_value = vec![ProofValueSubstitution::byte_string(
+        string_parameter,
+        b"value",
+    )];
+    assert!(proof_facts_match(
+        &program,
+        &ProofFact::Expression(string_name),
+        &ProofFact::Expression(string_literal),
+        context(&string_value),
+        context(&no_values),
+    ));
+    assert!(!proof_facts_match(
+        &program,
+        &ProofFact::Expression(string_name),
+        &ProofFact::Expression(other_string_literal),
+        context(&string_value),
         context(&no_values),
     ));
 }
@@ -2336,14 +2378,14 @@ fn direct_lift_runtime_accepts_only_closed_exact_scalar_literals() {
         runtime.positions,
         [
             super::DirectLiftRuntimePosition {
-                source: super::DirectLiftArgumentSource::ClosedScalarLiteral(
-                    super::runtime_correspondence::ClosedScalarLiteral::Boolean(true),
+                source: super::DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::Boolean(true),
                 ),
                 representative_parameter: symbol(100),
             },
             super::DirectLiftRuntimePosition {
-                source: super::DirectLiftArgumentSource::ClosedScalarLiteral(
-                    super::runtime_correspondence::ClosedScalarLiteral::Integer {
+                source: super::DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::Integer {
                         spelling: "7".to_owned(),
                         landing: IntegerLanding {
                             landed_type: LandedIntegerType::I8,
@@ -2356,8 +2398,8 @@ fn direct_lift_runtime_accepts_only_closed_exact_scalar_literals() {
         ]
     );
     let mut spelling_drift = runtime.clone();
-    spelling_drift.positions[1].source = super::DirectLiftArgumentSource::ClosedScalarLiteral(
-        super::runtime_correspondence::ClosedScalarLiteral::Integer {
+    spelling_drift.positions[1].source = super::DirectLiftArgumentSource::Literal(
+        super::runtime_correspondence::ClosedLiftLiteral::Integer {
             spelling: "0x7".to_owned(),
             landing: IntegerLanding {
                 landed_type: LandedIntegerType::I8,
@@ -2370,8 +2412,8 @@ fn direct_lift_runtime_accepts_only_closed_exact_scalar_literals() {
         "literal spelling is retained identity"
     );
     let mut landing_drift = runtime.clone();
-    landing_drift.positions[1].source = super::DirectLiftArgumentSource::ClosedScalarLiteral(
-        super::runtime_correspondence::ClosedScalarLiteral::Integer {
+    landing_drift.positions[1].source = super::DirectLiftArgumentSource::Literal(
+        super::runtime_correspondence::ClosedLiftLiteral::Integer {
             spelling: "7".to_owned(),
             landing: IntegerLanding {
                 landed_type: LandedIntegerType::I8,
@@ -2434,8 +2476,8 @@ fn direct_lift_runtime_accepts_explicit_and_target_landed_float_literals() {
         runtime.positions,
         [
             super::DirectLiftRuntimePosition {
-                source: super::DirectLiftArgumentSource::ClosedScalarLiteral(
-                    super::runtime_correspondence::ClosedScalarLiteral::Float {
+                source: super::DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::Float {
                         spelling: "1.25".to_owned(),
                         landing: FloatFormat::F32,
                     },
@@ -2443,8 +2485,8 @@ fn direct_lift_runtime_accepts_explicit_and_target_landed_float_literals() {
                 representative_parameter: symbol(100),
             },
             super::DirectLiftRuntimePosition {
-                source: super::DirectLiftArgumentSource::ClosedScalarLiteral(
-                    super::runtime_correspondence::ClosedScalarLiteral::Float {
+                source: super::DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::Float {
                         spelling: "1.25".to_owned(),
                         landing: FloatFormat::F64,
                     },
@@ -2458,8 +2500,8 @@ fn direct_lift_runtime_accepts_explicit_and_target_landed_float_literals() {
         "float format landing remains runtime-evidence identity"
     );
     let mut spelling_drift = runtime.clone();
-    spelling_drift.positions[0].source = super::DirectLiftArgumentSource::ClosedScalarLiteral(
-        super::runtime_correspondence::ClosedScalarLiteral::Float {
+    spelling_drift.positions[0].source = super::DirectLiftArgumentSource::Literal(
+        super::runtime_correspondence::ClosedLiftLiteral::Float {
             spelling: "1.5".to_owned(),
             landing: FloatFormat::F32,
         },
@@ -2467,6 +2509,61 @@ fn direct_lift_runtime_accepts_explicit_and_target_landed_float_literals() {
     assert_ne!(
         runtime, spelling_drift,
         "float spelling remains runtime-evidence identity"
+    );
+}
+
+#[test]
+fn direct_lift_runtime_accepts_exact_shared_byte_string_literals() {
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(
+        &mut program,
+        symbol(972),
+        "ByteStringLiteralQ",
+        symbol(973),
+        "ByteStringLiteralR",
+    );
+    let carrier = carrier_type(&mut program);
+    let byte_view =
+        byte_slice_reference_type(&mut program, psi_language_core::ReferenceAccess::Shared);
+    let literal_bytes: Arc<[u8]> = Arc::from(&b"value"[..]);
+    let literal = program
+        .expression_table
+        .insert(ExpressionNode::String(literal_bytes.clone()));
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([literal]);
+    let call = call_with_arguments(arguments);
+    let state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    let request = push_representative(&mut program, &[(byte_view, false, false)], carrier);
+
+    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
+        .expect("an immutable-image byte string has the exact shared byte-view type");
+    assert_eq!(
+        plan.input_relations,
+        [InputRelation::ExactEquality(byte_view)]
+    );
+    let runtime = plan
+        .direct_lift_correspondence
+        .expect("byte-string literal runtime correspondence");
+    assert_eq!(
+        runtime.positions,
+        [super::DirectLiftRuntimePosition {
+            source: super::DirectLiftArgumentSource::Literal(
+                super::runtime_correspondence::ClosedLiftLiteral::ByteString(literal_bytes),
+            ),
+            representative_parameter: symbol(100),
+        }]
+    );
+    let mut bytes_drift = runtime.clone();
+    bytes_drift.positions[0].source = super::DirectLiftArgumentSource::Literal(
+        super::runtime_correspondence::ClosedLiftLiteral::ByteString(Arc::from(&b"other"[..])),
+    );
+    assert_ne!(
+        runtime, bytes_drift,
+        "exact bytes remain occurrence identity"
     );
 }
 
@@ -2618,7 +2715,7 @@ fn direct_lift_literal_fences_mismatched_and_non_scalar_values() {
     ];
     for (position, (expression, target, expected)) in cases.iter().copied().enumerate() {
         assert_eq!(
-            super::closed_scalar_literal_for_representative(&program, expression, target, position,),
+            super::closed_lift_literal_for_representative(&program, expression, target, position,),
             Err(expected),
         );
     }
@@ -2630,7 +2727,7 @@ fn direct_lift_literal_fences_mismatched_and_non_scalar_values() {
         .enumerate()
     {
         assert_eq!(
-            super::closed_scalar_literal_for_representative(
+            super::closed_lift_literal_for_representative(
                 &program,
                 expression,
                 target,
@@ -2647,6 +2744,14 @@ fn direct_lift_literal_fences_mismatched_and_non_scalar_values() {
     let string = program
         .expression_table
         .insert(ExpressionNode::String(Arc::from(&b"value"[..])));
+    let mutable_byte_view =
+        byte_slice_reference_type(&mut program, psi_language_core::ReferenceAccess::Mutable);
+    for (position, target) in [(8, bool_type), (9, mutable_byte_view)] {
+        assert_eq!(
+            super::closed_lift_literal_for_representative(&program, string, target, position),
+            Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
+        );
+    }
     let array_values = program
         .expression_table
         .insert_expression_handles(std::iter::empty());
@@ -2668,7 +2773,6 @@ fn direct_lift_literal_fences_mismatched_and_non_scalar_values() {
         .insert(ExpressionNode::Call(call_with_arguments(call_arguments)));
     for (position, (expression, target)) in [
         (zero, bool_type),
-        (string, bool_type),
         (array, bool_type),
         (computed, bool_type),
         (call, bool_type),
@@ -2677,11 +2781,11 @@ fn direct_lift_literal_fences_mismatched_and_non_scalar_values() {
     .enumerate()
     {
         assert_eq!(
-            super::closed_scalar_literal_for_representative(
+            super::closed_lift_literal_for_representative(
                 &program,
                 expression,
                 target,
-                position + 8,
+                position + 10,
             ),
             Ok(None),
         );
@@ -2701,9 +2805,9 @@ fn direct_lift_literal_fences_mismatched_and_non_scalar_values() {
             lifetime_arguments: Vec::new(),
             arguments: HandleSpan::empty(),
         });
-    for (position, target) in [(12, constrained), (13, generic)] {
+    for (position, target) in [(14, constrained), (15, generic)] {
         assert_eq!(
-            super::closed_scalar_literal_for_representative(&program, cases[4].0, target, position,),
+            super::closed_lift_literal_for_representative(&program, cases[4].0, target, position,),
             Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
         );
     }
@@ -2771,7 +2875,7 @@ fn direct_lift_literal_rejects_mutable_or_attached_representative_destinations()
 }
 
 #[test]
-fn define_does_not_admit_closed_scalar_literal_arguments() {
+fn define_does_not_admit_closed_literal_arguments() {
     let mut program = TypedTrees::default();
     let quotient = quotient_type(
         &mut program,

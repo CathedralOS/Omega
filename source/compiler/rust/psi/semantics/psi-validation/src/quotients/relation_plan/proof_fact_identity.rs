@@ -59,6 +59,14 @@ impl ProofValueSubstitution {
         }
     }
 
+    pub(super) fn byte_string(symbol: SymbolHandle, bytes: &[u8]) -> Self {
+        Self {
+            symbol,
+            rendered: format!("{bytes:?}"),
+            trace: byte_string_trace(bytes),
+        }
+    }
+
     pub(super) fn rebound(&self, symbol: SymbolHandle) -> Self {
         Self {
             symbol,
@@ -220,7 +228,7 @@ fn expression_symbol_trace(
             |landing| integer_trace(value.text(), landing),
         ),
         ExpressionNode::Float(value) => float_trace(value.text(), value.landing()),
-        ExpressionNode::String(_) => String::new(),
+        ExpressionNode::String(value) => byte_string_trace(value),
     }
 }
 
@@ -241,6 +249,10 @@ fn float_trace(spelling: &str, landing: Option<psi_numerics::literals::FloatForm
         || format!("float:{spelling}:unlanded"),
         |landing| format!("float:{spelling}:{}", landing.name()),
     )
+}
+
+fn byte_string_trace(bytes: &[u8]) -> String {
+    format!("byte-string:{bytes:?}")
 }
 
 pub(super) fn static_type_identities(

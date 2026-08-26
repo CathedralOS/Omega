@@ -99,28 +99,31 @@ pub(super) fn derive_direct_lift_precondition_implication(
                         });
                     representative_values.push(value.rebound(position.representative_parameter));
                 }
-                DirectLiftArgumentSource::ClosedScalarLiteral(
-                    super::runtime_correspondence::ClosedScalarLiteral::Boolean(value),
+                DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::Boolean(value),
                 ) => representative_values.push(ProofValueSubstitution::boolean(
                     position.representative_parameter,
                     *value,
                 )),
-                DirectLiftArgumentSource::ClosedScalarLiteral(
-                    super::runtime_correspondence::ClosedScalarLiteral::Integer {
-                        spelling,
-                        landing,
-                    },
+                DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::Integer { spelling, landing },
                 ) => representative_values.push(ProofValueSubstitution::integer(
                     position.representative_parameter,
                     spelling,
                     *landing,
                 )),
-                DirectLiftArgumentSource::ClosedScalarLiteral(
-                    super::runtime_correspondence::ClosedScalarLiteral::Float { spelling, landing },
+                DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::Float { spelling, landing },
                 ) => representative_values.push(ProofValueSubstitution::float(
                     position.representative_parameter,
                     spelling,
                     *landing,
+                )),
+                DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::ByteString(bytes),
+                ) => representative_values.push(ProofValueSubstitution::byte_string(
+                    position.representative_parameter,
+                    bytes,
                 )),
             }
         }

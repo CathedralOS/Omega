@@ -768,7 +768,7 @@ independent replay remain fail closed.
 
 The bounded `lift` correspondence certificate is also live for direct public
 parameters, including explicit omission, permutation, and repeated
-occurrences, plus contract-separable closed scalar literals. Each public
+occurrences, plus contract-separable closed literals. Each public
 occurrence row retains the actual public symbol at its
 distinct representative position, and public `Q` dependency partitioning
 consumes that map rather than declaration order. Repeated occurrences share one
@@ -790,15 +790,19 @@ position when its primitive type and arithmetic domain or format agree. An
 anonymous numeric scalar lands once at that exact target; the certificate
 retains the derived integer width, signedness, and domain or float format. Exact
 equality relates that ordinary input position; the literal value, spelling, and
-landing remain runtime-evidence identity. Exact
+landing remain runtime-evidence identity. A quoted raw-byte literal may also
+feed only an exact shared `&[u8]` representative position. The certificate
+retains its immutable-image bytes exactly and infers no encoding domain,
+mutable view, fixed array, or owned-buffer conversion. Exact
 structural substitution can match a dependent representative `P` fact that
 mentions a literal-fed parameter only when public `Q` contains the identical
 post-substitution fact. Boolean value, integer spelling, landed type and
 arithmetic domain, and float spelling and format remain proof-value identity
 even where rendering is equal; there is no evaluation or inferred implication.
 Literal-only facts stay fixed ordinary call obligations. Mismatched or
-out-of-range integers, mismatched floats, strings,
-aggregates, zero-value, casts, calls, computations, constrained/generic
+out-of-range integers, mismatched floats, constrained/mutable or owned
+byte-string targets, aggregates, zero-value, casts, calls, computations,
+constrained/generic
 targets, mutable/attached targets, and every literal supplied to `define`
 remain fail-closed. `define` remains strictly
 position-preserving at exact public arity and continues to use its exact `Q <=>
