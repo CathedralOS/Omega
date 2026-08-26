@@ -961,8 +961,9 @@ impl Census {
         for argument in &bound.arguments {
             self.type_reference(argument);
         }
-        if let Some(conformance) = &bound.conformance {
-            self.identifier(conformance);
+        if let Some(selected) = &bound.selected_conformance {
+            self.static_arguments(std::slice::from_ref(selected));
+            self.maximum("conformance_bound.selected_application", 1);
         }
     }
 

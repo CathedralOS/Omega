@@ -2,6 +2,7 @@ use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::lookup::top_level_symbol;
+use crate::symbols::targets::assign_static_argument_symbols;
 use crate::symbols::top_level::{
     assign_machine_parameter_signature_symbols, assign_proposition_parameter_signature_symbols,
     next_child_of_kind,
@@ -153,12 +154,10 @@ pub(super) fn assign_trait_symbols(
                 .find(|parameter| parameter.name == bound.subject_name)
                 .map(|parameter| parameter.symbol)
                 .unwrap_or_else(SymbolHandle::invalid);
-            if let Some(conformance_name) = &bound.conformance_name {
+            if let Some(selected) = &mut bound.selected_conformance {
                 bound.carrier =
                     top_level_symbol(symbols, SymbolKind::Data, bound.carrier_name.as_str());
-                let selected =
-                    top_level_symbol(symbols, SymbolKind::Conformance, conformance_name.as_str());
-                bound.conformance = selected.is_valid().then_some(selected);
+                assign_static_argument_symbols(symbols, trait_symbol, selected, true);
             } else {
                 bound.carrier =
                     top_level_symbol(symbols, SymbolKind::Trait, bound.carrier_name.as_str());
@@ -171,7 +170,7 @@ pub(super) fn assign_trait_symbols(
                 trait_symbol,
                 bound.arguments,
             );
-            if bound.conformance_name.is_none()
+            if bound.selected_conformance.is_none()
                 && let Some((_, proposition_slots)) = trait_proposition_slots
                     .iter()
                     .find(|(name, _)| name == bound.carrier_name.as_str())
@@ -184,7 +183,7 @@ pub(super) fn assign_trait_symbols(
                     proposition_slots,
                 );
             }
-            if bound.conformance_name.is_none()
+            if bound.selected_conformance.is_none()
                 && let Some((_, machine_slots)) = trait_machine_identity_slots
                     .iter()
                     .find(|(name, _)| name == bound.carrier_name.as_str())

@@ -475,7 +475,7 @@ impl SyntaxTrees {
                     subject: bound.subject.clone(),
                     carrier: bound.carrier.clone(),
                     arguments: self.copy_type_reference_handle_span(other, bound.arguments),
-                    conformance: bound.conformance.clone(),
+                    selected_conformance: bound.selected_conformance.clone(),
                 })
                 .collect(),
             terminates_guarantee: machine.terminates_guarantee,
@@ -517,7 +517,7 @@ impl SyntaxTrees {
                     subject: bound.subject.clone(),
                     carrier: bound.carrier.clone(),
                     arguments: self.copy_type_reference_handle_span(other, bound.arguments),
-                    conformance: bound.conformance.clone(),
+                    selected_conformance: bound.selected_conformance.clone(),
                 })
                 .collect(),
             parents: self.copy_type_reference_handle_span(other, trait_definition.parents),

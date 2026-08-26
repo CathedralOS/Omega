@@ -489,9 +489,9 @@ pub struct GenericConformanceBoundSnapshot {
     pub carrier_symbol: u32,
     pub arguments: Vec<TypeReferenceSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub conformance: Option<String>,
+    pub selected_conformance: Option<StaticArgumentSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub conformance_symbol: Option<u32>,
+    pub selected_conformance_symbol: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1106,8 +1106,14 @@ fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> Machine
                     .iter()
                     .map(|argument| type_reference_snapshot(program, argument))
                     .collect(),
-                conformance: bound.conformance_name.as_ref().map(ToString::to_string),
-                conformance_symbol: bound.conformance.map(|symbol| symbol.arena_index()),
+                selected_conformance: bound
+                    .selected_conformance
+                    .as_ref()
+                    .map(snapshot_static_argument),
+                selected_conformance_symbol: bound
+                    .selected_conformance
+                    .as_ref()
+                    .map(|selected| selected.symbol.arena_index()),
             })
             .collect(),
         supply: machine_supply_snapshot(machine.supply_mode),
@@ -1249,8 +1255,14 @@ fn trait_definition_snapshot(
                     .iter()
                     .map(|argument| type_reference_snapshot(program, argument))
                     .collect(),
-                conformance: bound.conformance_name.as_ref().map(ToString::to_string),
-                conformance_symbol: bound.conformance.map(|symbol| symbol.arena_index()),
+                selected_conformance: bound
+                    .selected_conformance
+                    .as_ref()
+                    .map(snapshot_static_argument),
+                selected_conformance_symbol: bound
+                    .selected_conformance
+                    .as_ref()
+                    .map(|selected| selected.symbol.arena_index()),
             })
             .collect(),
         requires: program

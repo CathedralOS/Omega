@@ -79,9 +79,9 @@ pub struct GenericConformanceBound {
     pub carrier: SymbolHandle,
     pub carrier_name: DiagnosticName,
     pub arguments: HandleSpan<TypeReference>,
-    /// Exact child conformance symbol for a qualified path.
-    pub conformance: Option<SymbolHandle>,
-    pub conformance_name: Option<DiagnosticName>,
+    /// Exact selected declaration and its complete declaration-owned
+    /// application telescope.
+    pub selected_conformance: Option<crate::expression::StaticMachineArgument>,
 }
 
 impl Deref for Machine {

@@ -622,11 +622,24 @@ pub(in crate::parser) fn parse_generic_conformance_bounds<'tokens, 'source>(
         let rest = rest.take_contextual("satisfies")?;
         let (carrier, rest) = rest.take_identifier()?;
         let (arguments, mut rest) = parse_optional_satisfies_type_arguments(syntax_trees, rest)?;
-        let conformance = if rest.at_punctuation(PunctuationKind::ColonColon) {
+        let selected_conformance = if rest.at_punctuation(PunctuationKind::ColonColon) {
             rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
             let (name, next) = rest.take_identifier()?;
             rest = next;
-            Some(name)
+            let application = if let Some((application, next)) =
+                crate::parser::expression::try_parse_static_symbol_application(rest)?
+            {
+                rest = next;
+                Some(application)
+            } else {
+                None
+            };
+            Some(psi_syntax_trees::expression::StaticMachineArgument {
+                path: vec![name].into_boxed_slice(),
+                application,
+                const_literal: None,
+                evidence_projection: None,
+            })
         } else {
             None
         };
@@ -635,7 +648,7 @@ pub(in crate::parser) fn parse_generic_conformance_bounds<'tokens, 'source>(
             subject,
             carrier,
             arguments,
-            conformance,
+            selected_conformance,
         });
 
         if !rest.at_punctuation(PunctuationKind::Comma) {

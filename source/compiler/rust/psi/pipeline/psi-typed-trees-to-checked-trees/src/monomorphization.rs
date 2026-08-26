@@ -37,6 +37,7 @@ struct Candidate {
     evidence_parameters: Vec<psi_typed_trees::machine::GenericConformanceBound>,
     evidence_bindings: Vec<Option<StaticMachineArgument>>,
     inferred_conformance_arguments: Vec<SymbolHandle>,
+    selected_bound_applications: Vec<psi_typed_trees::typed_trees::ClosedConformanceApplication>,
     conflicted: bool,
 }
 
@@ -177,6 +178,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
             machine_parameters,
             evidence_parameters,
             inferred_conformance_arguments: Vec::new(),
+            selected_bound_applications: Vec::new(),
             conflicted: false,
         });
     }
@@ -1568,6 +1570,7 @@ fn validate_candidate_conformance_bounds(
     candidate: &mut Candidate,
 ) -> Result<(), Vec<Diagnostic>> {
     candidate.inferred_conformance_arguments.clear();
+    candidate.selected_bound_applications.clear();
     let mut diagnostics = Vec::new();
     for bound in &candidate.conformance_bounds {
         let Some(parameter_index) = candidate
@@ -1669,39 +1672,29 @@ fn validate_candidate_conformance_bounds(
             continue;
         }
 
-        if let Some(conformance_symbol) = bound.conformance {
-            let selected_carrier = program
-                .conformances()
-                .iter()
-                .find(|conformance| conformance.symbol == conformance_symbol)
-                .and_then(|conformance| conformance.carrier_name())
-                .map(|carrier| carrier.as_str());
-            if selected_carrier != Some(bound.carrier_name.as_str()) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "generic machine `{}` names conformance `{}::{}`, but that declaration belongs to `{}`",
-                    candidate.template_name,
-                    bound.carrier_name,
-                    bound
-                        .conformance_name
-                        .as_ref()
-                        .map_or("<missing>", |name| name.as_str()),
-                    selected_carrier.unwrap_or("a carrierless evidence package"),
-                )));
-                continue;
-            }
-            if type_name != bound.carrier_name.as_str() {
+        if let Some(selected) = &bound.selected_conformance {
+            let application = match close_candidate_bound_application(program, candidate, selected)
+            {
+                Ok(application) => application,
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    continue;
+                }
+            };
+            if application.subject_identity.as_deref() != Some(type_identity.as_str()) {
                 diagnostics.push(Diagnostic::error(format!(
                     "generic machine `{}` binds `{}` to `{type_name}`, but named conformance `{}::{}` belongs to `{}`",
                     candidate.template_name,
                     bound.subject_name,
                     bound.carrier_name,
                     bound
-                        .conformance_name
-                        .as_ref()
+                        .selected_conformance_name()
                         .map_or("<missing>", |name| name.as_str()),
-                    bound.carrier_name,
+                    application.subject_identity.as_deref().unwrap_or("<subjectless>"),
                 )));
+                continue;
             }
+            candidate.selected_bound_applications.push(application);
             continue;
         }
 
@@ -1738,6 +1731,17 @@ fn validate_candidate_conformance_bounds(
     } else {
         Err(diagnostics)
     }
+}
+
+fn close_candidate_bound_application(
+    program: &TypedTrees,
+    candidate: &Candidate,
+    selected: &StaticMachineArgument,
+) -> Result<psi_typed_trees::typed_trees::ClosedConformanceApplication, Diagnostic> {
+    let rewrites = forwarded_static_argument_rewrites(program, candidate);
+    let mut applications = [selected.clone()];
+    substitute_forwarded_machine_arguments(&mut applications, &rewrites, &[]);
+    crate::conformance_applications::close_conformance_application(program, &applications[0])
 }
 
 fn concrete_data_type_name(program: &TypedTrees, handle: TypeReferenceHandle) -> Option<&str> {
@@ -1973,6 +1977,18 @@ fn candidate_conformance_fingerprint_arguments(
             .inferred_conformance_arguments
             .iter()
             .map(|symbol| conformance_symbol_identity(program, *symbol)),
+    );
+    arguments.extend(
+        candidate
+            .selected_bound_applications
+            .iter()
+            .map(|application| {
+                format!(
+                    "{}#{:016x}",
+                    conformance_symbol_identity(program, application.declaration),
+                    application.fingerprint
+                )
+            }),
     );
     arguments
 }
@@ -2332,6 +2348,7 @@ fn clone_specialized_machine(
                     )
                     .expect("validated closed conformance application")
                 })
+                .chain(candidate.selected_bound_applications.iter().cloned())
                 .collect(),
             template_contract_fingerprint,
             accepted_template_commitment,
@@ -2965,6 +2982,18 @@ fn forwarded_static_argument_rewrites(
                         })
                 }),
         )
+        .chain(
+            candidate
+                .machine_parameters
+                .iter()
+                .zip(candidate.machine_bindings.iter())
+                .filter_map(|((parameter, _, _), binding)| {
+                    binding
+                        .as_ref()
+                        .cloned()
+                        .map(|binding| (*parameter, binding))
+                }),
+        )
         .collect()
 }
 
@@ -3555,6 +3584,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             )
             .expect("validated closed conformance application")
         })
+        .chain(candidate.selected_bound_applications.iter().cloned())
         .collect();
     let fingerprint = specialization_fingerprint(
         &candidate.template_name,
@@ -3910,6 +3940,61 @@ fn resolve_specialized_receiver_calls(
     }
 }
 
+fn encode_bound_static_argument(
+    program: &TypedTrees,
+    argument: &StaticMachineArgument,
+    lifetime_binders: &[(String, String)],
+    static_binders: &[(SymbolHandle, String)],
+    bytes: &mut Vec<u8>,
+) {
+    if let Some(literal) = &argument.const_literal {
+        bytes.push(1);
+        let text = literal.text();
+        bytes.extend((text.len() as u64).to_le_bytes());
+        bytes.extend(text.as_bytes());
+        return;
+    }
+    if let Some(projection) = &argument.evidence_projection {
+        bytes.push(2);
+        bytes.extend(projection.term.as_str().as_bytes());
+        bytes.push(0);
+        bytes.extend(projection.member.as_str().as_bytes());
+        return;
+    }
+
+    bytes.push(3);
+    if let Some((_, identity)) = static_binders
+        .iter()
+        .find(|(symbol, _)| *symbol == argument.symbol)
+    {
+        bytes.extend(identity.as_bytes());
+    } else if argument.symbol.is_valid()
+        && matches!(
+            program.symbols.get(argument.symbol).kind,
+            SymbolKind::Conformance
+        )
+    {
+        bytes.extend(conformance_symbol_identity(program, argument.symbol).as_bytes());
+    } else {
+        bytes.extend(argument.display_name().as_bytes());
+    }
+    let Some(application) = &argument.application else {
+        bytes.push(0);
+        return;
+    };
+    bytes.push(1);
+    bytes.extend((application.lifetime_arguments.len() as u64).to_le_bytes());
+    for lifetime in &application.lifetime_arguments {
+        encode_normalized_text(&format!("'{}", lifetime.as_str()), lifetime_binders, bytes);
+        bytes.push(0);
+    }
+    bytes.extend((application.arguments.len() as u64).to_le_bytes());
+    for nested in &application.arguments {
+        encode_bound_static_argument(program, nested, lifetime_binders, static_binders, bytes);
+        bytes.push(0xfe);
+    }
+}
+
 /// MP5's pre-specialization template identity. The in-place specialization
 /// pass necessarily consumes generic declarations, so the universal contract
 /// must be captured before substitution. This encoding is binder-positional:
@@ -4037,13 +4122,15 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
         if bound.binder.is_some() {
             encoded.push(3);
             encoded.extend(bound.carrier_name.as_str().as_bytes());
-        } else if bound.conformance.is_some() {
+        } else if let Some(selected) = &bound.selected_conformance {
             encoded.push(2);
             encoded.extend(bound.carrier_name.as_str().as_bytes());
             encoded.push(0);
-            if let Some(name) = &bound.conformance_name {
+            if let Some(name) = bound.selected_conformance_name() {
                 encoded.extend(name.as_str().as_bytes());
             }
+            encoded.push(0);
+            encode_bound_static_argument(program, selected, &binders, &type_binders, &mut encoded);
         } else {
             encoded.push(1);
             encoded.extend(bound.carrier_name.as_str().as_bytes());

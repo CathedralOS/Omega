@@ -857,7 +857,35 @@ fn try_parse_static_argument<'tokens, 'source>(
         input = rest;
     }
 
-    let application = if input.at_punctuation(PunctuationKind::Less) {
+    let application = if let Some((application, rest)) = try_parse_static_symbol_application(input)?
+    {
+        input = rest;
+        Some(application)
+    } else {
+        None
+    };
+
+    Ok(Some((
+        StaticMachineArgument {
+            path: path.into_boxed_slice(),
+            application,
+            const_literal: None,
+            evidence_projection: None,
+        },
+        input,
+    )))
+}
+
+pub(in crate::parser) fn try_parse_static_symbol_application<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> Result<
+    Option<(
+        Box<psi_syntax_trees::expression::StaticSymbolApplication>,
+        Input<'tokens, 'source>,
+    )>,
+    ParseError,
+> {
+    if input.at_punctuation(PunctuationKind::Less) {
         let mut cursor = input.take_punctuation(PunctuationKind::Less, "<")?;
         let mut lifetime_arguments = Vec::new();
         let mut arguments = Vec::new();
@@ -890,26 +918,15 @@ fn try_parse_static_argument<'tokens, 'source>(
                 return Ok(None);
             }
             cursor = cursor.take_punctuation(PunctuationKind::Greater, ">")?;
-            input = cursor;
-            break;
+            break Ok(Some((
+                Box::new(psi_syntax_trees::expression::StaticSymbolApplication {
+                    lifetime_arguments: lifetime_arguments.into_boxed_slice(),
+                    arguments: arguments.into_boxed_slice(),
+                }),
+                cursor,
+            )));
         }
-        Some(Box::new(
-            psi_syntax_trees::expression::StaticSymbolApplication {
-                lifetime_arguments: lifetime_arguments.into_boxed_slice(),
-                arguments: arguments.into_boxed_slice(),
-            },
-        ))
     } else {
-        None
-    };
-
-    Ok(Some((
-        StaticMachineArgument {
-            path: path.into_boxed_slice(),
-            application,
-            const_literal: None,
-            evidence_projection: None,
-        },
-        input,
-    )))
+        Ok(None)
+    }
 }

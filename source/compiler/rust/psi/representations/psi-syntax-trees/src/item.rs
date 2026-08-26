@@ -717,7 +717,9 @@ pub struct GenericConformanceBound {
     pub subject: Identifier,
     pub carrier: Identifier,
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
-    pub conformance: Option<Identifier>,
+    /// Exact named conformance selection, including its declaration-owned
+    /// lifetime and static telescope. `None` denotes an ordinary trait bound.
+    pub selected_conformance: Option<crate::expression::StaticMachineArgument>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1173,10 +1173,10 @@ renaming a binder is stable while changing a borrow relationship changes
 evidence. Generic conformance requirements retain an optional alpha-normalized
 evidence-binder ordinal, exact subject ordinal, package-qualified public trait
 identity, and structural type arguments. Binder-free `where T satisfies Trait`
-does not fabricate evidence. Non-generic selected conformances retain exact
-package-qualified conformance, carrier, and underlying public-trait identities
-plus carrier/trait applications; the semantic declaration owns exact carrier
-and trait symbols. Public trait requirements retain named and unnamed
+does not fabricate evidence. Selected conformances retain exact
+package-qualified declaration, complete alpha-normalized application,
+instantiated subject, and underlying public-trait application; the semantic
+declaration owns exact conformance, subject, and trait symbols. Public trait requirements retain named and unnamed
 `requires` and `ensures` through the same closed structural fact/expression and
 evidence vocabulary as public callables, joined to their exact checked
 state-signature owner. Named inputs retain ordered proposition and evidence-
@@ -1184,9 +1184,9 @@ interface identity while treating their source aliases as local. Named outputs
 also retain their public selector identity. Their
 abstract published crash ceilings come from exactly one checked capsule keyed
 by the trait and requirement symbols and retain canonical causes and guards;
-they do not fabricate realized body sites or calls. Generic selected-conformance
-telescopes and unsupported expression forms reject until complete canonical
-rows exist. Trailing `boundary host` / `boundary Name`
+they do not fabricate realized body sites or calls. Proposition/evidence
+arguments in selected conformance applications and unsupported expression forms
+reject rather than producing partial canonical rows. Trailing `boundary host` / `boundary Name`
 clauses and trait `invariant` clauses are retired rather than awaiting package
 rows. Trait requirement witnesses remain ordinary explicit contracts rather
 than package-only evidence syntax.
@@ -1507,8 +1507,10 @@ signature, proof/crash contracts, reach, invocation, suspension, blocking, and
 termination envelope. A nominal contract retains its exact public trait and
 requirement identities. Checked proof/crash rows are keyed to each structural
 binder, including nested binders; missing custody, excessive nesting, and
-private nominal contracts reject. Proposition parameters and static-machine or
-proposition arguments in selected conformance applications remain fail-closed.
+private nominal contracts reject. Proposition parameters and
+proposition/evidence arguments in selected conformance applications remain
+fail-closed. Selected type, const, and machine arguments use the same
+categorized static-argument vocabulary.
 Review v44 and canonical row v4 extend contract-call rows with static-machine
 arguments. Each retains either the exact caller machine-binder ordinal or the
 exact concrete machine entry identity.
@@ -1587,6 +1589,16 @@ binders or changing private realization bodies is stable; selecting another
 lifetime ordinal changes canonical identity. Targeting a lifetime-parameterized
 trait remains fail-closed until Omega settles and retains that declaration-site
 lifetime application.
+Review v63 and canonical row v21 admit selected generic-conformance
+applications in public generic bounds. The row retains the exact
+package-qualified conformance declaration, alpha-normalized lifetime
+arguments, categorized type/const/machine arguments, instantiated subject, and
+the exact public trait with its instantiated type arguments. Checked closure
+first validates the complete declaration telescope; review independently
+rejoins its semantic declarations and never uses display strings as identity.
+Binder renames are stable, while changing any selected application argument
+changes canonical evidence. Proposition/evidence arguments and non-public
+selections remain fail-closed.
 Review v52 and canonical row v12 add blocking standalone public-proposition
 shape. Every package-owned `pub proposition` is retained whether used or not;
 primitive publication records only vocabulary, while witness and transparent
@@ -1658,8 +1670,8 @@ already coherent bare generic-machine selection and call-target use such as
 `Schema<Selected>(...)`.
 Other non-public, external, operator, or lifetime-parameterized trait
 realizations likewise remain fail-closed; binder-free generic requirements,
-explicit evidence binders, and non-generic selected conformances use the same
-canonical row as public traits. Checked
+explicit evidence binders, and selected conformances with representable
+complete applications use the same canonical row as public traits. Checked
 realizations of public, ordinary, lifetime-free traits retain exact package-qualified trait and requirement
 identities, alpha-normalized arguments, and any explicit conformance alias.
 Public callable `requires` and `ensures` retain exact structural rows for the

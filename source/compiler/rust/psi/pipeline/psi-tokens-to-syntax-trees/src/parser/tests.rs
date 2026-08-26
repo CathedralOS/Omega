@@ -1236,14 +1236,73 @@ fn retains_generic_and_named_conformance_bounds() {
     };
     assert_eq!(ordinary.subject.as_str(), "T");
     assert_eq!(ordinary.carrier.as_str(), "Converter");
-    assert!(ordinary.conformance.is_none());
+    assert!(ordinary.selected_conformance.is_none());
     assert_eq!(ordinary.arguments.len(), 1);
     assert_eq!(named.subject.as_str(), "Message");
     assert_eq!(named.carrier.as_str(), "Card");
     assert_eq!(
-        named.conformance.as_ref().map(|name| name.as_str()),
+        named
+            .selected_conformance
+            .as_ref()
+            .and_then(|selected| selected.path.last())
+            .map(|name| name.as_str()),
         Some("PowerOrder")
     );
+}
+
+#[test]
+fn retains_complete_selected_conformance_application_in_bound() {
+    let source = r#"
+        trait Encodes<Output> {}
+        data Card {}
+        data Message {}
+
+        machine rank(value: &Card) -> u64 { 0 }
+
+        FullEncoding<'scope, Element, Output, const Rank: u64, machine TieBreak>:
+            Element satisfies Encodes<Output>
+        where machine TieBreak(value: &Element) -> u64;
+        {}
+
+        machine inspect<'view, Element>(value: &'view Element)
+        where Element satisfies Card::FullEncoding<'view, Card, Message, 7, rank>
+        {}
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let parsed = parse_syntax_trees(&tokens).expect("selected application should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str() == "inspect" =>
+            {
+                Some(machine)
+            }
+            _ => None,
+        })
+        .expect("inspect machine");
+    let [bound] = machine.conformance_bounds.as_slice() else {
+        panic!("one selected conformance bound");
+    };
+    let selected = bound
+        .selected_conformance
+        .as_ref()
+        .expect("selected conformance");
+    assert_eq!(selected.path[0].as_str(), "FullEncoding");
+    let application = selected.application.as_ref().expect("complete application");
+    assert_eq!(application.lifetime_arguments[0].as_str(), "view");
+    assert_eq!(application.arguments.len(), 4);
+    assert_eq!(application.arguments[0].path[0].as_str(), "Card");
+    assert_eq!(application.arguments[1].path[0].as_str(), "Message");
+    assert_eq!(
+        application.arguments[2]
+            .const_literal
+            .as_ref()
+            .map(|literal| literal.text()),
+        Some("7")
+    );
+    assert_eq!(application.arguments[3].path[0].as_str(), "rank");
 }
 
 #[test]
@@ -1277,7 +1336,7 @@ fn parses_explicit_conformance_binder_in_machine_telescope() {
     );
     assert_eq!(bound.subject.as_str(), "Element");
     assert_eq!(bound.carrier.as_str(), "Ranked");
-    assert!(bound.conformance.is_none());
+    assert!(bound.selected_conformance.is_none());
 }
 
 #[test]

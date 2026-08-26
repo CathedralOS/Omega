@@ -125,8 +125,10 @@ pub(crate) fn lower_machine(
                 carrier: bound.carrier,
                 carrier_name: crate::name::lower_name(&bound.carrier_name),
                 arguments,
-                conformance: bound.conformance,
-                conformance_name: bound.conformance_name.as_ref().map(crate::name::lower_name),
+                selected_conformance: bound
+                    .selected_conformance
+                    .as_ref()
+                    .map(crate::expression::lower_static_machine_argument),
             });
     }
 

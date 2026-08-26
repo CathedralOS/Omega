@@ -650,8 +650,11 @@ source aliases as local; named outputs additionally retain their public selector
 identity. Abstract trait-requirement crash
 ceilings retain canonical cause-and-guard routes from exactly one checked
 trait/requirement capsule without inventing realized body sites or calls.
-Generic selected-conformance telescopes, boundary clauses, and unsupported
-expression forms fail closed until complete rows land.
+Selected generic-conformance applications retain their exact declaration,
+complete alpha-normalized lifetime/static telescope, instantiated subject, and
+underlying public-trait application. Proposition/evidence application
+arguments, boundary clauses, and unsupported expression forms remain
+fail-closed.
 Trait `invariant` clauses are retired rather than awaiting a package row.
 Requirements also retain whether their checked declaration
 supplies a default realization; implementation bodies remain checked source

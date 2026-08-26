@@ -79,8 +79,23 @@ pub struct GenericConformanceBound {
     pub carrier: SymbolHandle,
     pub carrier_name: Identifier,
     pub arguments: Vec<TypeReferenceHandle>,
-    pub conformance: Option<SymbolHandle>,
-    pub conformance_name: Option<Identifier>,
+    /// Exact selected declaration and its recursively delimited application.
+    /// The selected symbol is never reconstructed from subject/trait shape.
+    pub selected_conformance: Option<crate::expression::StaticMachineArgument>,
+}
+
+impl GenericConformanceBound {
+    pub fn selected_conformance_symbol(&self) -> Option<SymbolHandle> {
+        self.selected_conformance
+            .as_ref()
+            .map(|selected| selected.symbol)
+    }
+
+    pub fn selected_conformance_name(&self) -> Option<&Identifier> {
+        self.selected_conformance
+            .as_ref()
+            .and_then(|selected| selected.path.last())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

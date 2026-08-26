@@ -82,7 +82,7 @@ pub(crate) fn generic_bound_requirement_call<'program>(
     let mut trait_names = Vec::new();
     let mut requirements = Vec::new();
     for bound in &bounds {
-        let trait_definition = if let Some(selected) = bound.conformance {
+        let trait_definition = if let Some(selected) = bound.selected_conformance_symbol() {
             let declaration = program
                 .conformances()
                 .iter()
@@ -93,8 +93,7 @@ pub(crate) fn generic_bound_requirement_call<'program>(
                         machine.name,
                         bound.carrier_name,
                         bound
-                            .conformance_name
-                            .as_ref()
+                            .selected_conformance_name()
                             .map_or("<missing>", |name| name.as_str())
                     )
                 })?;
@@ -492,7 +491,7 @@ fn validate_conformance_bounds(
             continue;
         }
 
-        if let Some(selected) = bound.conformance {
+        if let Some(selected) = bound.selected_conformance_symbol() {
             let Some(declaration) = program
                 .conformances()
                 .iter()
@@ -502,19 +501,21 @@ fn validate_conformance_bounds(
                     "{owner_kind} `{owner_name}` conformance bound selects unknown conformance `{}::{}`",
                     bound.carrier_name,
                     bound
-                        .conformance_name
-                        .as_ref()
+                        .selected_conformance_name()
                         .map_or("<missing>", |name| name.as_str())
                 )));
                 continue;
             };
-            if declaration.carrier_symbol != bound.carrier {
+            let carrier_is_application_parameter = program
+                .conformance_type_parameters(declaration)
+                .iter()
+                .any(|parameter| parameter.symbol == declaration.carrier_symbol);
+            if declaration.carrier_symbol != bound.carrier && !carrier_is_application_parameter {
                 diagnostics.push(Diagnostic::error(format!(
-                    "{owner_kind} `{owner_name}` conformance bound selection `{}::{}` does not belong to carrier `{}`",
+                    "{owner_kind} `{owner_name}` names conformance `{}::{}`, but that declaration belongs to `{}`",
                     bound.carrier_name,
                     bound
-                        .conformance_name
-                        .as_ref()
+                        .selected_conformance_name()
                         .map_or("<missing>", |name| name.as_str()),
                     declaration
                         .carrier_name()
@@ -524,13 +525,12 @@ fn validate_conformance_bounds(
             continue;
         }
 
-        if bound.conformance_name.is_some() {
+        if bound.selected_conformance.is_some() {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner_kind} `{owner_name}` conformance bound selects unknown conformance `{}::{}`",
                 bound.carrier_name,
                 bound
-                    .conformance_name
-                    .as_ref()
+                    .selected_conformance_name()
                     .map_or("<missing>", |name| name.as_str())
             )));
             continue;
@@ -613,7 +613,7 @@ pub(super) fn validate_trait_application_obligations(
         };
         let actual_subject = applied_arguments[subject_index];
 
-        if let Some(selected) = obligation.conformance {
+        if let Some(selected) = obligation.selected_conformance_symbol() {
             let Some(declaration) = program
                 .conformances()
                 .iter()
@@ -626,7 +626,8 @@ pub(super) fn validate_trait_application_obligations(
                 generic_argument_symbol(program, actual_subject).is_some_and(|subject_symbol| {
                     available_bounds.iter().any(|candidate| {
                         candidate.subject == subject_symbol
-                            && candidate.conformance == Some(selected)
+                            && candidate.selected_conformance_symbol() == Some(selected)
+                            && candidate.selected_conformance == obligation.selected_conformance
                     })
                 }) || declaration.carrier_name().is_some_and(|carrier| {
                     concrete_data_type_name(program, actual_subject) == Some(carrier.as_str())
@@ -638,8 +639,7 @@ pub(super) fn validate_trait_application_obligations(
                     obligation.subject_name,
                     obligation.carrier_name,
                     obligation
-                        .conformance_name
-                        .as_ref()
+                        .selected_conformance_name()
                         .map_or("<missing>", |name| name.as_str()),
                     program.display_type_reference(actual_subject),
                     declaration
@@ -1035,7 +1035,7 @@ fn bound_proves_trait_application(
     applied_trait: &TraitDefinition,
     applied_arguments: &[TypeReferenceHandle],
 ) -> bool {
-    if let Some(selected) = bound.conformance {
+    if let Some(selected) = bound.selected_conformance_symbol() {
         return program
             .conformances()
             .iter()

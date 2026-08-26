@@ -678,6 +678,74 @@ fn retains_callable_conformance_bound_declarations_with_owner_exposure() {
 }
 
 #[test]
+fn resolves_every_selected_conformance_bound_application_lane() {
+    let source = r#"
+        trait Encodes<Output> {}
+        data Card {}
+        data Message {}
+        machine rank(value: &Card) -> u64 { 0 }
+
+        FullEncoding<'scope, Element, Output, const Rank: u64, machine TieBreak>:
+            Element satisfies Encodes<Output>
+        where machine TieBreak(value: &Element) -> u64;
+        {}
+
+        machine inspect<'view, Element>(value: &'view Element)
+        where Element satisfies Card::FullEncoding<'view, Card, Message, 7, rank>
+        {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "inspect")
+        .expect("inspect machine");
+    let [bound] = machine.conformance_bounds.as_slice() else {
+        panic!("one selected conformance bound");
+    };
+    let selected = bound
+        .selected_conformance
+        .as_ref()
+        .expect("selected conformance");
+    assert!(matches!(
+        program.symbols.get(selected.symbol).kind,
+        psi_symbols::SymbolKind::Conformance
+    ));
+    let application = selected.application.as_ref().expect("complete application");
+    assert_eq!(application.lifetime_arguments[0].as_str(), "view");
+    assert!(matches!(
+        program.symbols.get(application.arguments[0].symbol).kind,
+        psi_symbols::SymbolKind::Data
+    ));
+    assert!(matches!(
+        program.symbols.get(application.arguments[1].symbol).kind,
+        psi_symbols::SymbolKind::Data
+    ));
+    assert!(application.arguments[2].const_literal.is_some());
+    assert!(matches!(
+        program.symbols.get(application.arguments[3].symbol).kind,
+        psi_symbols::SymbolKind::State
+    ));
+    for expected in [
+        application.arguments[0].symbol,
+        application.arguments[1].symbol,
+        application.arguments[3].symbol,
+    ] {
+        assert!(program.authored_declaration_selections().iter().any(|selection| {
+            selection.exposure()
+                == psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+                && matches!(
+                    selection.target(),
+                    psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                        if target.selected_symbol() == expected
+                )
+        }));
+    }
+}
+
+#[test]
 fn lowers_closed_conformance_rows_to_exact_machine_states() {
     let source = r#"
         trait Ranked {

@@ -566,6 +566,65 @@ fn retains_typed_explicit_conformance_binder_identity() {
 }
 
 #[test]
+fn retains_typed_selected_conformance_bound_application() {
+    let source = r#"
+        trait Encodes<Output> {}
+        data Card {}
+        data Message {}
+        machine rank(value: &Card) -> u64 { 0 }
+
+        FullEncoding<'scope, Element, Output, const Rank: u64, machine TieBreak>:
+            Element satisfies Encodes<Output>
+        where machine TieBreak(value: &Element) -> u64;
+        {}
+
+        machine inspect<'view, Element>(value: &'view Element)
+        where Element satisfies Card::FullEncoding<'view, Card, Message, 7, rank>
+        {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "inspect")
+        .expect("inspect machine");
+    let [bound] = machine.conformance_bounds.as_slice() else {
+        panic!("one selected conformance bound");
+    };
+    let selected = bound
+        .selected_conformance
+        .as_ref()
+        .expect("selected conformance");
+    assert_eq!(bound.selected_conformance_symbol(), Some(selected.symbol));
+    assert_eq!(
+        bound.selected_conformance_name().map(|name| name.as_str()),
+        Some("FullEncoding")
+    );
+    let application = selected.application.as_ref().expect("complete application");
+    assert_eq!(application.lifetime_arguments[0].as_str(), "view");
+    assert_eq!(application.arguments.len(), 4);
+    assert!(application.arguments[2].const_literal.is_some());
+    assert!(
+        application
+            .arguments
+            .iter()
+            .all(|argument| { argument.const_literal.is_some() || argument.symbol.is_valid() })
+    );
+
+    let snapshot = typed.snapshot();
+    assert!(snapshot.roots.machines.iter().any(|machine| {
+        machine.name == "inspect"
+            && machine.conformance_bounds[0].selected_conformance.is_some()
+            && machine.conformance_bounds[0]
+                .selected_conformance_symbol
+                .is_some()
+    }));
+}
+
+#[test]
 fn retains_proof_static_evidence_projection_through_resolved_and_typed_trees() {
     let source = r#"
         trait Evidence {

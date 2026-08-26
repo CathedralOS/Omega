@@ -199,6 +199,7 @@ fn conformance_bound_candidates(program: &SymbolResolvedTrees) -> Vec<Unattached
     let mut candidates = Vec::new();
     for machine in program.machines.iter() {
         collect_conformance_bound_candidates(
+            program,
             &machine.conformance_bounds,
             if machine.is_public {
                 Exposure::PublicInterface
@@ -210,6 +211,7 @@ fn conformance_bound_candidates(program: &SymbolResolvedTrees) -> Vec<Unattached
     }
     for trait_definition in program.traits.iter() {
         collect_conformance_bound_candidates(
+            program,
             &trait_definition.conformance_bounds,
             if trait_definition.is_public {
                 Exposure::PublicInterface
@@ -245,6 +247,7 @@ fn conformance_bound_candidates(program: &SymbolResolvedTrees) -> Vec<Unattached
 }
 
 fn collect_conformance_bound_candidates(
+    program: &SymbolResolvedTrees,
     bounds: &[psi_symbol_resolved_trees::machine::GenericConformanceBound],
     exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     candidates: &mut Vec<UnattachedCandidate>,
@@ -258,18 +261,55 @@ fn collect_conformance_bound_candidates(
                 target: resolved_or_late(bound.carrier, LateBinding::CheckedStaticPathSegment),
             });
         }
-        if let Some(conformance_name) = &bound.conformance_name
-            && conformance_name.is_source_backed()
-        {
+        if let Some(selected) = &bound.selected_conformance {
+            let fallback_span = bound.carrier_name.source_span();
+            let source_span = path_span(&selected.path, fallback_span);
             candidates.push(UnattachedCandidate {
-                source_span: conformance_name.source_span(),
+                source_span,
                 exposure,
                 kind: Kind::Conformance,
-                target: resolved_or_late(
-                    bound.conformance.unwrap_or_else(SymbolHandle::invalid),
-                    LateBinding::CheckedConformance,
-                ),
+                target: resolved_or_late(selected.symbol, LateBinding::CheckedConformance),
             });
+            if let Some(application) = &selected.application {
+                collect_bound_static_argument_candidates(
+                    program,
+                    &application.arguments,
+                    exposure,
+                    source_span,
+                    candidates,
+                );
+            }
+        }
+    }
+}
+
+fn collect_bound_static_argument_candidates(
+    program: &SymbolResolvedTrees,
+    arguments: &[psi_symbol_resolved_trees::expression::StaticMachineArgument],
+    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    fallback_span: SourceSpan,
+    candidates: &mut Vec<UnattachedCandidate>,
+) {
+    for argument in arguments {
+        if argument.path.iter().any(|member| member.is_source_backed())
+            && (!argument.symbol.is_valid()
+                || is_selectable_declaration_symbol(program, argument.symbol))
+        {
+            candidates.push(UnattachedCandidate {
+                source_span: path_span(&argument.path, fallback_span),
+                exposure,
+                kind: static_argument_kind(program, argument.symbol),
+                target: resolved_or_late(argument.symbol, LateBinding::CheckedStaticArgument),
+            });
+        }
+        if let Some(application) = &argument.application {
+            collect_bound_static_argument_candidates(
+                program,
+                &application.arguments,
+                exposure,
+                fallback_span,
+                candidates,
+            );
         }
     }
 }

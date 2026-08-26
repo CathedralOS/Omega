@@ -23,6 +23,13 @@ pub(crate) fn validate_conformance_applications(
         }
     }
     for machine in program.machines() {
+        validate_bound_applications(
+            program,
+            "machine",
+            machine.name.as_str(),
+            &machine.conformance_bounds,
+            &mut diagnostics,
+        );
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let StatementNode::Call(call) = statement {
@@ -31,10 +38,54 @@ pub(crate) fn validate_conformance_applications(
             }
         }
     }
+    for trait_definition in program.traits() {
+        validate_bound_applications(
+            program,
+            "trait",
+            trait_definition.name.as_str(),
+            &trait_definition.conformance_bounds,
+            &mut diagnostics,
+        );
+    }
     if diagnostics.is_empty() {
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn validate_bound_applications(
+    program: &TypedTrees,
+    owner_kind: &str,
+    owner_name: &str,
+    bounds: &[psi_typed_trees::machine::GenericConformanceBound],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for bound in bounds {
+        let Some(selected) = &bound.selected_conformance else {
+            continue;
+        };
+        match close_conformance_application(program, selected) {
+            Ok(application)
+                if application.subject_identity.as_deref() != Some(bound.carrier_name.as_str())
+                    && application.subject_identity.as_deref()
+                        != Some(bound.subject_name.as_str()) =>
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner_kind} `{owner_name}` names conformance `{}::{}`, but that declaration belongs to `{}`",
+                    bound.carrier_name,
+                    bound
+                        .selected_conformance_name()
+                        .map_or("<missing>", |name| name.as_str()),
+                    application.subject_identity.as_deref().unwrap_or("<subjectless>"),
+                )));
+            }
+            Ok(_) => {}
+            Err(diagnostic) => diagnostics.push(diagnostic),
+        }
+        if let Some(application) = &selected.application {
+            validate_arguments(program, &application.arguments, diagnostics);
+        }
     }
 }
 
