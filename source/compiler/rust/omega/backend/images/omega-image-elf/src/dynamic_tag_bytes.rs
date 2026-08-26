@@ -59,7 +59,6 @@ impl ValidatedElfDynamicTablePayload {
         self.payload_identity
     }
 
-    #[allow(dead_code)]
     pub(crate) const fn contents(&self) -> &ElfDynamicTablePayloadContents {
         &self.contents
     }

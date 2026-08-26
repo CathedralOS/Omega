@@ -293,11 +293,22 @@ virtual addresses. An independent bounded decoder rejects truncated or
 trailing bytes and replays every field and row, exact fixup order and
 coordinate, zero placeholder, bounds and non-overlap, identity, and roster
 custody. The carrier grants no placement or `e_shoff` authority.
+A following indexed-payload carrier consumes those templates and binds every
+numeric row to its exact already-owned bytes: null, the six base payloads,
+PLT/GOT.PLT/RELA.PLT, `.dynamic`, and `.shstrtab`. Row bytes replay against
+their upstream serializers and lengths replay against numeric `sh_size`.
+Procedure-linkage and source-text obligations remain a distinct typed fixup
+family, while the seven `.dynamic` obligations remain another; both map their
+storage and semantic targets to exact numeric section rows without resolving an
+address. Source text stays an explicit non-section storage domain, and the
+twenty-one section-header placement fixups are not duplicated. Independent
+replay checks all rows, bytes, sizes, fixups, mutable masks, zero placeholders,
+constraints, storage bounds and targets, identity, and exact header-template
+custody. The carrier grants no address or placement authority.
 
 Section-header placement and fixup resolution,
 `PT_INTERP` program-header placement, `PT_DYNAMIC`, `.dynamic` address
-resolution, optional `.gnu.hash`, numeric indexes for
-`.plt`/`.got.plt`/`.rela.plt`, address-resolved fixup
+resolution, optional `.gnu.hash`, address-resolved fixup
 application, complete load/program-header layout, image mutation, and
 independent final-byte replay remain open. Validated semantic tags still
 grant no layout, loader, publication, or runnable-image authority. An owned
