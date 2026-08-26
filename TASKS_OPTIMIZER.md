@@ -177,12 +177,20 @@ These facts constrain the work below.
   logical-fuel settlements from the clean plan. The independent
   `omega-optimization-validation` crate rejects malformed CFG, SSA dominance,
   edge bindings, provenance/fuel, effect chains, place roots, claim frontiers,
-  and cleanup metadata. The verified builder additionally attaches a canonical
-  immutable catalog of verifier-owned block-entry, operation-entry/exit, and
-  edge-entry/available-edge-exit ownership snapshots. `OPT-UNIT-BUILDER` and
-  `OPT-UNIT-VALIDATOR` remain open until verified proof/range evidence and the
-  complete current-place/effect/call vocabulary survive the Terminal-Psi
-  lowering boundary.
+  and cleanup metadata. It now also independently re-derives every scalar
+  operation contract: literal domains, Boolean and integer operand types,
+  cast/widen legality, fixed-carrier requirements, conditional and return
+  types, and complete scalar arity/type/result signatures for internal and
+  boundary calls. Function and boundary catalogs reject duplicate identities.
+  Corruption tests refresh derived node metadata, fact indices, and the unit
+  identity before validation, proving that self-consistent but semantically
+  ill-typed units still fail closed. The verified builder additionally attaches
+  a canonical immutable catalog of verifier-owned block-entry,
+  operation-entry/exit, and edge-entry/available-edge-exit ownership snapshots.
+  `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
+  proof/range evidence and the complete structural place/path,
+  structural-call/result, claim-transfer, boundary-completion, and effect
+  vocabulary survive the Terminal-Psi lowering boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
   division, and remainder now retain their exact obligation identities through
   Terminal abstract, target, and assigned-target operations. Exact add,
@@ -685,7 +693,11 @@ dependency.
   arity mismatch, malformed CFG, invalid place paths, broken memory/effect
   chains, incomplete provenance, duplicate fuel settlement, invalid
   ownership/claim frontiers, and cleanup-order changes. Corruption tests mutate
-  each class independently.
+  each class independently. Current scalar slice is total and wildcard-free:
+  operation/result/operand contracts and cross-function/boundary scalar
+  signatures are independently reconstructed even when all cached metadata and
+  content identities have been refreshed. Structural call/place/claim
+  contracts remain open under this task.
 
 - **OPT-ANALYSIS-MANAGER.** Add deterministic revision-keyed analysis caching,
   dependency declaration, and precise invalidation.

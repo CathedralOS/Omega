@@ -619,7 +619,16 @@ Block parameters retain Terminal-Psi declaration order as explicit input data;
 they are never reconstructed by sorting parameter identities or by observing
 only the incoming edges that happen to survive. Cached definition/use rows are
 convenience indices, not authority: the independent representation validator
-re-derives them from operation semantics. It also rechecks the complete current
+re-derives them from operation semantics. Re-derived metadata is still not a
+semantic type proof: the validator separately checks the closed, wildcard-free
+scalar operation vocabulary, including literal domains, operand/result types,
+cast and carrier legality, control and return types, and exact scalar signatures
+for internal and boundary calls against complete duplicate-free catalogs. Thus
+a malformed pass cannot make an ill-typed operation acceptable merely by
+refreshing its definitions, uses, fact index, and content identity. Structural
+paths, structural results, claim transfers, and boundary-completion custody are
+a distinct unfinished validator layer rather than an implicit exception. It
+also rechecks the complete current
 Terminal-Psi CFG contract—parameter-free entry, closed edges, total
 reachability, and acyclicity—before any rule may inspect the unit. When Terminal
 Psi later admits wider cyclic control flow, that expansion must arrive as an
@@ -1440,6 +1449,12 @@ Optimization is initially enabled only by the root package's authoritative
 `build.omg`. There are no `debug`/`release` compiler modes and no `O1`/`O2`/`O3`
 intensity levels. Debug information, compiler assertions, diagnostic/report
 detail, and optimization selection are independent axes.
+
+Named suites are only readable expansion helpers over exact transformation
+names. They are not compiler modes, cannot carry hidden intensity semantics,
+and have no identity apart from their canonical expanded selection and ordered
+rule schedule. Build reports and cache/replay identities always expose that
+expanded set.
 
 The toolchain-provided zero-initializable build vocabulary grows an empty-by-
 default optimization selection value. Each opt-in names the actual
