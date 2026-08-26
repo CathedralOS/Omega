@@ -7773,6 +7773,19 @@ Remaining N6/N8 work:
   terminating. Unsupported, adapted, open, ambiguous, cyclic, conditional, or
   representation-observing shapes reject.
 
+  The expected-theorem-schema rung is also live. The relation plan now derives
+  exact ordinary theorem parameters from every representative position:
+  quotient-bearing inputs produce left/right binders plus their exact nominal
+  relation, while ordinary inputs produce one shared binder. Structural
+  application vectors retain both exact representative calls. Every machine-
+  and state-level representative `requires` fact is retained by owner/contract/
+  fact coordinate for substitution into both applications, and the structural
+  conclusion joins those applications through the exact result relation.
+  Parameter access, relation, requires coordinate, application mapping, and
+  conclusion mutations remain distinct even when their row counts agree. This
+  carrier performs no theorem comparison, proof admission, or lowering;
+  stages 2-4 remain fail-closed.
+
   Every request intentionally remains non-executable. Complete admission in
   bounded stages:
 

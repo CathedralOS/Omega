@@ -220,6 +220,10 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         " plus exact {}",
                         plan.render_selected_theorem(program)
                     );
+                    let theorem_schema = format!(
+                        " plus exact {}",
+                        plan.render_expected_theorem_schema()
+                    );
                     let theorem_termination = plan
                         .selected_theorem_termination
                         .map(|_| " plus checked theorem termination summary")
@@ -259,7 +263,7 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     };
                     let mut remaining = vec![
                         "complete operation/static correspondence",
-                        "the exact selected theorem schema",
+                        "exact selected theorem schema verification",
                     ];
                     if representative_purity.is_none() {
                         remaining.push("the effect fence");
@@ -280,7 +284,7 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         remaining.push("all normalized result exits");
                     }
                     diagnostics.push(Diagnostic::error(format!(
-                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{termination}{purity}{theorem}{theorem_termination}{theorem_purity}{theorem_crash}{correspondence}{public_precondition}{precondition}{precondition_correspondence} and {result_flow}, but executable quotient operations are not admitted until {} are independently checked",
+                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{termination}{purity}{theorem}{theorem_schema}{theorem_termination}{theorem_purity}{theorem_crash}{correspondence}{public_precondition}{precondition}{precondition_correspondence} and {result_flow}, but executable quotient operations are not admitted until {} are independently checked",
                         plan.render_ra(program),
                         plan.render_rr(program),
                         plan.render_representative_telescope(program),
