@@ -640,9 +640,12 @@ Remaining:
   The legacy library block is also retired end to end: its dedicated parser,
   syntax/snapshot/identity nodes, report/profile rows, visualization handling,
   and former pass canary are gone, and a directed failure names boundary traits
-  plus exact `satisfies ... via Binding::DllImport` as the migration. Capability
-  entry, explicit machine-member entry, and trailing boundary-level retirement
-  remain open.
+  plus exact `satisfies ... via Binding::DllImport` as the migration. The
+  callable-shaped `capability { entry ... }` scaffold now likewise rejects with
+  directed boundary-trait and exact `satisfies ... via` guidance, while `state`,
+  ordinary fields named `entry`, an ordinary machine named `entry`, and the
+  compiler-generated internal entry remain live and pinned. Explicit
+  machine-member entry and trailing boundary-level retirement remain open.
 
   Acceptance: the former passing library-block fixture becomes a directed
   `library_block_retired` failure canary; separate failure canaries reject
@@ -7447,6 +7450,16 @@ reach or trust, and private proof improvements do not change public identity.
   claiming convergence from duplicated leaves, then complete the WCSU,
   `StackPlan`, lease, preservation, cancellation, transfer, park/resume, and
   suspension-safe-loan work above.
+
+  The task-plan foundation now projects a sealed fixed-stack shape only from
+  `ComposedTaskStackDemand`, retaining the exact composition/root, byte count,
+  alignment, frame validations, admitted same-stack contributions, and selected
+  `StackRepresentationId`. WCSU-specific activation validation rejects forged
+  projection identities and shape or representation substitution, and folds
+  the projection identity into the activation identity. The compiler's legacy
+  locally constructed `StackPlan` remains explicitly unbound (`None`) rather
+  than being mislabeled as WCSU evidence. Compiler whole-call-graph collection,
+  lease provisioning, and the remaining lifecycle joins stay open.
 
   Complete external-root `StackPlan` production depends on implementing
   `EXTERNAL-ENTRY-STACK-EPOCHS`, not on an owner decision. Zero-byte internal

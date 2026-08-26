@@ -1,0 +1,11 @@
+capability LegacyHost {
+    entry host_write(fd: i32, count: u64) -> i32 {
+        requires true;
+        ensures result >= 0;
+        boundary host;
+    }
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

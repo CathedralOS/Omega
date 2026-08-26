@@ -1163,7 +1163,7 @@ mod tests {
     fn boundary_report_collects_targets_contracts_and_operators() {
         let source = r#"
             capability Core {
-                entry index() {
+                state index() {
                     requires true;
                     ensures true;
                     boundary compiler_slice;
