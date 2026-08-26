@@ -995,20 +995,7 @@ fn compiler_instruction_validation_kind(
                 return Ok(None);
             };
             if let omega_calling_conventions::HostBindingMechanism::Import {
-                locator: omega_calling_conventions::HostImportLocator::Normalized(locator),
-            } = &binding.mechanism
-            {
-                return Err(Diagnostic::error(format!(
-                    "normalized foreign locator 0x{:016x} reached string-backed outbound-call machine emission",
-                    locator.normalized_identity(),
-                )));
-            }
-            if let omega_calling_conventions::HostBindingMechanism::Import {
-                locator:
-                    omega_calling_conventions::HostImportLocator::StringBackedBootstrap {
-                        library,
-                        symbol,
-                    },
+                locator,
             } = &binding.mechanism
             {
                 let operands = emission_context
@@ -1026,6 +1013,15 @@ fn compiler_instruction_validation_kind(
                         )
                     )
                 {
+                    let omega_calling_conventions::HostImportLocator::StringBackedBootstrap {
+                        library,
+                        symbol,
+                    } = locator
+                    else {
+                        return Err(Diagnostic::error(
+                            "normalized foreign locator reached the string-backed AArch64 open/create adapter",
+                        ));
+                    };
                     let Some([result, path, flags, mode]) = <&[_; 4]>::try_from(operands).ok()
                     else {
                         return Ok(None);
@@ -1124,8 +1120,7 @@ fn compiler_instruction_validation_kind(
                                 operation_key: *operation_key,
                                 operands: operands.to_vec(),
                                 data_symbols,
-                                library: std::sync::Arc::clone(library),
-                                symbol: std::sync::Arc::clone(symbol),
+                                locator: locator.clone(),
                                 plan: binding.call_plan().clone(),
                             }
                         }
@@ -1134,8 +1129,7 @@ fn compiler_instruction_validation_kind(
                                 operation_key: *operation_key,
                                 operands: operands.to_vec(),
                                 data_symbols,
-                                library: std::sync::Arc::clone(library),
-                                symbol: std::sync::Arc::clone(symbol),
+                                locator: locator.clone(),
                                 plan: binding.call_plan().clone(),
                             }
                         }
@@ -1144,8 +1138,7 @@ fn compiler_instruction_validation_kind(
                                 operation_key: *operation_key,
                                 operands: operands.to_vec(),
                                 data_symbols,
-                                library: std::sync::Arc::clone(library),
-                                symbol: std::sync::Arc::clone(symbol),
+                                locator: locator.clone(),
                                 plan: binding.call_plan().clone(),
                             }
                         }
@@ -1154,8 +1147,7 @@ fn compiler_instruction_validation_kind(
                                 operation_key: *operation_key,
                                 operands: operands.to_vec(),
                                 data_symbols,
-                                library: std::sync::Arc::clone(library),
-                                symbol: std::sync::Arc::clone(symbol),
+                                locator: locator.clone(),
                                 plan: binding.call_plan().clone(),
                             }
                         }
@@ -1171,8 +1163,7 @@ fn compiler_instruction_validation_kind(
                                 operation_key: *operation_key,
                                 operands: operands.to_vec(),
                                 data_symbols,
-                                library: std::sync::Arc::clone(library),
-                                symbol: std::sync::Arc::clone(symbol),
+                                locator: locator.clone(),
                                 plan: binding.call_plan().clone(),
                             }
                         }
@@ -1198,8 +1189,7 @@ fn compiler_instruction_validation_kind(
                                 operation_key: *operation_key,
                                 operands: operands.to_vec(),
                                 data_symbols,
-                                library: std::sync::Arc::clone(library),
-                                symbol: std::sync::Arc::clone(symbol),
+                                locator: locator.clone(),
                                 plan: binding.call_plan().clone(),
                             }
                         }
@@ -1219,8 +1209,7 @@ fn compiler_instruction_validation_kind(
                                 operation_key: *operation_key,
                                 operands: operands.to_vec(),
                                 data_symbols,
-                                library: std::sync::Arc::clone(library),
-                                symbol: std::sync::Arc::clone(symbol),
+                                locator: locator.clone(),
                                 plan: binding.call_plan().clone(),
                             }
                         }
@@ -1239,8 +1228,7 @@ fn compiler_instruction_validation_kind(
                                 operation_key: *operation_key,
                                 operands: operands.to_vec(),
                                 data_symbols,
-                                library: std::sync::Arc::clone(library),
-                                symbol: std::sync::Arc::clone(symbol),
+                                locator: locator.clone(),
                                 plan: binding.call_plan().clone(),
                             }
                         }
@@ -1260,8 +1248,7 @@ fn compiler_instruction_validation_kind(
                                 operation_key: *operation_key,
                                 operands: operands.to_vec(),
                                 data_symbols,
-                                library: std::sync::Arc::clone(library),
-                                symbol: std::sync::Arc::clone(symbol),
+                                locator: locator.clone(),
                                 plan: binding.call_plan().clone(),
                             }
                         }
@@ -1269,6 +1256,19 @@ fn compiler_instruction_validation_kind(
                     };
                     return Ok(Some(validation));
                 }
+                let omega_calling_conventions::HostImportLocator::StringBackedBootstrap {
+                    library,
+                    symbol,
+                } = locator
+                else {
+                    return Err(Diagnostic::error(format!(
+                        "normalized foreign locator 0x{:016x} reached a specialized string-backed outbound-call adapter",
+                        match locator {
+                            omega_calling_conventions::HostImportLocator::Normalized(locator) => locator.normalized_identity(),
+                            omega_calling_conventions::HostImportLocator::StringBackedBootstrap { .. } => unreachable!(),
+                        },
+                    )));
+                };
                 if operation_key.dereferences_result() {
                     if !binding.call_plan().parameters.is_empty()
                         || !binding.call_plan().result.as_ref().is_some_and(|result| {

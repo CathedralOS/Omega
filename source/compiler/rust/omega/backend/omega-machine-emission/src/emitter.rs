@@ -30,9 +30,11 @@ pub fn emit_machine_bytes(
 mod tests {
     use super::{MachineEmissionInput, emit_machine_bytes};
     use omega_assigned_target_operations::{AssignedTargetOperationPlan, SelectedInstructionKind};
-    use omega_calling_conventions::build_host_abi_plan;
     use omega_calling_conventions::{
-        MachineRegister, MachineStateSet, RegisterSet, StateFootprintEvidence,
+        CallSignature, CallingPolicy, HostAbiPlan, HostBinding, HostBindingMechanism,
+        HostImportLocator, HostOperationKey, MachineRegister, MachineStateSet, RegisterSet,
+        StateFootprintEvidence, ValueShape, build_host_abi_plan,
+        evaluate_ordinary_boundary_entry_plan,
     };
     use omega_control_flow::{MachineFunctionIdentity, StateKey};
     use omega_machine_instructions::{
@@ -40,9 +42,109 @@ mod tests {
         BoundaryFootprintFragmentOrigin, MachineInstruction, MachineInstructionFunction,
         MachineInstructionKind, MachineInstructionPlan,
     };
-    use omega_target::NativeTarget;
-    use psi_arena::HandleSpan;
+    use omega_target::{
+        ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator,
+    };
+    use psi_arena::{Arena, HandleSpan};
     use psi_symbols::SymbolHandle;
+
+    #[test]
+    fn normalized_authored_import_reaches_machine_validation_without_text_reconstruction() {
+        let target = NativeTarget::windows_x64();
+        let operation_key = HostOperationKey::from_names("ForeignProbe", "invoke");
+        let locator = normalize_foreign_locator(
+            ForeignLocatorCandidate::PeByName {
+                library: b"raw\xff.dll".to_vec(),
+                export: b"entry\xfe".to_vec(),
+            },
+            TargetProfile::WindowsX64,
+        )
+        .expect("valid PE locator");
+        let boundary_entry_plan = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8)],
+                result: Some(ValueShape::integer(8, 8)),
+            },
+        )
+        .expect("valid one-parameter boundary plan")
+        .plan()
+        .clone();
+        let mut host_abi = HostAbiPlan {
+            target,
+            bindings: Arena::new(),
+            host_operations: Arena::new(),
+            platform_call_lowerings: Arena::new(),
+            boundary_policies: Arena::new(),
+        };
+        host_abi.bindings.insert(HostBinding {
+            operation_key,
+            mechanism: HostBindingMechanism::Import {
+                locator: HostImportLocator::Normalized(locator.clone()),
+            },
+            boundary_policy: "test".into(),
+            boundary_entry_plan,
+        });
+        let mut assigned_target_operations =
+            AssignedTargetOperationPlan::with_capacity(target, 0, 0, 1, 0, 0);
+        let operands = assigned_target_operations.code.operands.insert_many([
+            omega_target_operations::InstructionOperand {
+                kind: omega_target_operations::InstructionOperandKind::RuntimeScalarInteger {
+                    region: omega_target_operations::RuntimeStorageRegion::Machine,
+                    byte_offset: 0,
+                    byte_count: 8,
+                },
+            },
+            omega_target_operations::InstructionOperand::default(),
+        ]);
+        let data = omega_target_operations::TargetDataPlan::default();
+        let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 1);
+        let instructions =
+            machine_instructions
+                .code
+                .instructions
+                .insert_many([MachineInstruction {
+                    selected_instruction_index: 0,
+                    source_kind: SelectedInstructionKind::HostOperation {
+                        operation_key,
+                        operands,
+                    },
+                    kind: MachineInstructionKind::HostCallSequence,
+                }]);
+        machine_instructions
+            .code
+            .functions
+            .insert(MachineInstructionFunction {
+                symbol: "caller".into(),
+                identity: MachineFunctionIdentity::source(StateKey {
+                    machine: SymbolHandle::from_arena_index(1),
+                    state: SymbolHandle::from_arena_index(2),
+                    segment_index: 0,
+                }),
+                instructions,
+            });
+
+        let encoded = emit_machine_bytes(MachineEmissionInput {
+            target,
+            assigned_target_operations: &assigned_target_operations,
+            machine_instructions: &machine_instructions,
+            host_abi: &host_abi,
+            data: &data,
+            terminal_dispatch_index: 0,
+        })
+        .expect("normalized authored import machine emission");
+        let instruction = encoded.code.instructions.iter().next().unwrap().1;
+        let Some(
+            omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundAuthoredImportResult {
+                locator: retained,
+                ..
+            },
+        ) = &instruction.compiler_validation_kind
+        else {
+            panic!("expected authored import validation record");
+        };
+        assert_eq!(retained, &HostImportLocator::Normalized(locator));
+    }
 
     #[test]
     fn emits_exact_identity_internal_call_placeholders_for_both_architectures() {

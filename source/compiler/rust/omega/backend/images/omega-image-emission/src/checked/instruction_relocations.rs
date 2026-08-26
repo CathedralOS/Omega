@@ -26,8 +26,7 @@ pub(super) enum CompilerInstructionRelocationRecipe {
     PlannedImport {
         call_site: usize,
         address_sites: Vec<(usize, OutboundCallRelocationTarget)>,
-        library: std::sync::Arc<str>,
-        symbol: std::sync::Arc<str>,
+        locator: omega_calling_conventions::HostImportLocator,
     },
     RuntimeTextBoundary {
         call_sites: Vec<(usize, std::sync::Arc<str>, std::sync::Arc<str>)>,
@@ -305,8 +304,7 @@ pub(super) fn validate_compiler_instruction_relocation_recipe(
         CompilerInstructionRelocationRecipe::PlannedImport {
             call_site,
             address_sites,
-            library,
-            symbol,
+            locator,
         } => {
             validate_compiler_planned_import_relocations(
                 architecture,
@@ -316,8 +314,7 @@ pub(super) fn validate_compiler_instruction_relocation_recipe(
                 instruction_byte_offset,
                 call_site,
                 &address_sites,
-                &library,
-                &symbol,
+                &locator,
             )?;
             encoded_instruction_bytes == expected_bytes
                 && compiler_instruction_import_non_relocation_bits_match(

@@ -7895,13 +7895,17 @@ boundary without its corresponding checked law.
   UTF-8 reconstruction and emits `PeByOrdinal` through the ordinal flag in both
   lookup tables; malformed coordinates, duplicate rows, and target drift reject
   before mutation. Versioned ELF and Mach-O normalized rows remain explicit
-  fail-closed boundaries rather than being reconstructed as text. Production
-  machine emission and runtime replay likewise remain string-backed and fail
-  closed on normalized rows.
+  fail-closed boundaries rather than being reconstructed as text. Ordinary
+  authored outbound machine emission now retains the complete `HostImportLocator`
+  in all seven scalar/float/aggregate validation variants, and final instruction
+  replay joins normalized calls to the exact object-side locator handle. Raw
+  non-UTF-8 coordinates are never reconstructed as text; locator mutation or an
+  ambiguous side-table row rejects. Specialized open/create and runtime-I/O
+  adapters remain explicitly string-backed and fail closed on normalized rows.
   The existing source evaluator is isolated behind an explicitly temporary
   `StringBackedImportBootstrap` variant. Source `via` evaluation, exact fixed-
-  array widths, normalized outbound-call machine emission/runtime replay, and
-  versioned-ELF symbol-version planning/emission remain engineering joins.
+  array widths, and versioned-ELF symbol-version planning/emission remain
+  engineering joins.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no
