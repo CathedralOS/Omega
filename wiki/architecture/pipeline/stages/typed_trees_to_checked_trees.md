@@ -111,6 +111,12 @@ Must own:
   cleanup. Cleanup machine selection joins the exact attached nominal symbol;
   presentation spelling is never enough. These compiler-private handles feed a
   later package projection and are not a persisted evidence format.
+- Producer-side custody for each outcome-specific guarantee, separate from the
+  unconditional contract-fact lane. The checked row retains exact machine,
+  result-data, result-case, public-selector, proof-fact, and optional evidence-
+  term identity. Package review may rejoin that internal row after successful
+  checking, but must not infer guarded publication from source text or install
+  it as an unconditional postcondition.
 
 The package projector reads each fact from the earliest coherent compiler-owned
 representation in which that fact is semantically complete, then joins checked

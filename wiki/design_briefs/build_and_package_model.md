@@ -1606,6 +1606,14 @@ bytes, source spelling, or a checker verdict. Proposition-local type binders
 receive exact symbols before typed lowering; binder renames are stable, while a
 different observed type changes the row. Quotient targets remain rejected by
 the settled representation-observer fence before package review.
+Review v65 and canonical row v23 admit outcome-specific `ensures` without
+collapsing them into unconditional postconditions. Each row carries the exact
+package-qualified result-data and result-case identities, its public selector
+when named, its checked evidence-lane position, and the ordinary canonical fact.
+Projection rejoins exactly one producer-side checked guarded-guarantee carrier;
+missing, duplicate, or mismatched custody rejects. Authored group/row ordering
+is irrelevant, while moving a fact between cases or renaming a public selector
+changes canonical identity.
 Review v52 and canonical row v12 add blocking standalone public-proposition
 shape. Every package-owned `pub proposition` is retained whether used or not;
 primitive publication records only vocabulary, while witness and transparent

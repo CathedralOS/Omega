@@ -1208,6 +1208,14 @@ complete.
   arguments before typed lowering. Binder renames are stable, while changing
   the observed type changes canonical evidence. Quotient targets continue to
   reject at the existing representation-observer fence before review.
+  Review v65 and canonical row v23 close outcome-specific `ensures` custody.
+  Every public guarded guarantee remains an `ensures` fact and additionally
+  retains its exact package-qualified result-data/result-case coordinate,
+  public selector when named, and checked evidence-lane position. Projection
+  requires exactly one matching producer-side checked guarded-guarantee row;
+  missing, duplicate, or selector/case-mismatched carriers reject. Group and
+  row ordering are canonicalized, while moving a fact to another case or
+  renaming a named selector changes review identity.
   Review v43 and
   canonical row v3 represent static-machine parameters directly. Structural
   contracts retain their complete alpha-normalized nested telescope, value
