@@ -9,8 +9,8 @@
 //! explicit or exact target-derived landing, float with an explicit or exact
 //! target-derived format, immutable-image byte string to its exact shared byte
 //! view or bounded value-domain buffer, or a canonically context-landed byte
-//! array or direct Boolean-literal array to its exact fixed-array
-//! representative position.
+//! array, direct Boolean-literal array, or exactly landed integer-literal array
+//! to its exact fixed-array representative position.
 //! Neither policy infers or selects a relation, contract proof, or
 //! representative operation.
 
@@ -40,6 +40,12 @@ pub(in crate::quotients) struct DefineRuntimeCorrespondence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ClosedIntegerArrayElement {
+    pub(super) spelling: String,
+    pub(super) landing: IntegerLanding,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum ClosedLiftLiteral {
     Boolean(bool),
     Integer {
@@ -60,6 +66,10 @@ pub(super) enum ClosedLiftLiteral {
     },
     BooleanArray {
         values: std::sync::Arc<[bool]>,
+        target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
+    },
+    IntegerArray {
+        elements: std::sync::Arc<[ClosedIntegerArrayElement]>,
         target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
     },
 }
@@ -301,7 +311,9 @@ pub(super) fn closed_lift_literal_for_representative(
         if elements.len() != *width {
             return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
         }
-        if program.primitive_type_reference(*element_type) == Some(PrimitiveType::Bool) {
+        let element_primitive = exact_primitive_type(program, *element_type)
+            .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
+        if element_primitive == PrimitiveType::Bool {
             let values = elements
                 .iter()
                 .map(|element| {
@@ -319,29 +331,42 @@ pub(super) fn closed_lift_literal_for_representative(
                 target_type: program.normalized_type_identity(representative_type),
             }));
         }
-        if program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8) {
-            return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+        if element_primitive == PrimitiveType::U8
+            && let Some(bytes) = canonical_fixed_bytes(program, elements)
+        {
+            return Ok(Some(ClosedLiftLiteral::FixedByteArray {
+                bytes: bytes.into(),
+                target_type: program.normalized_type_identity(representative_type),
+            }));
         }
-        let bytes = elements
-            .iter()
-            .map(|element| {
-                let ExpressionNode::Integer(literal) =
-                    program.expression_table.expression(*element)
-                else {
-                    return None;
-                };
-                let value = literal
-                    .value_u64()
-                    .and_then(|value| u8::try_from(value).ok())?;
-                (literal.landing().is_none() && literal.text() == value.to_string())
-                    .then_some(value)
-            })
-            .collect::<Option<Vec<_>>>()
-            .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
-        return Ok(Some(ClosedLiftLiteral::FixedByteArray {
-            bytes: bytes.into(),
-            target_type: program.normalized_type_identity(representative_type),
-        }));
+        if integer_primitive_landing(element_primitive).is_some() {
+            let elements = elements
+                .iter()
+                .map(|element| {
+                    let ExpressionNode::Integer(literal) =
+                        program.expression_table.expression(*element)
+                    else {
+                        return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+                    };
+                    let landing = exact_integer_landing(
+                        program,
+                        *element_type,
+                        element_primitive,
+                        literal,
+                        position,
+                    )?;
+                    Ok(ClosedIntegerArrayElement {
+                        spelling: literal.text().to_owned(),
+                        landing,
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            return Ok(Some(ClosedLiftLiteral::IntegerArray {
+                elements: elements.into(),
+                target_type: program.normalized_type_identity(representative_type),
+            }));
+        }
+        return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
     }
     if let ExpressionNode::String(bytes) = program.expression_table.expression(expression) {
         let exact_target = exact_shared_byte_slice(program, representative_type)
@@ -392,21 +417,8 @@ pub(super) fn closed_lift_literal_for_representative(
             Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position))
         }
         ExpressionNode::Integer(literal) => {
-            let target_domain = program.arithmetic_domain_for_type_reference(representative_type);
-            let landing = match literal.landing() {
-                Some(landing) => landing,
-                None => IntegerLanding {
-                    landed_type: integer_primitive_landing(primitive)
-                        .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?,
-                    domain: target_domain,
-                },
-            };
-            if landed_primitive(landing.landed_type) != primitive
-                || landing.domain != target_domain
-                || !integer_literal_fits(literal, landing.landed_type)
-            {
-                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
-            }
+            let landing =
+                exact_integer_landing(program, representative_type, primitive, literal, position)?;
             Ok(Some(ClosedLiftLiteral::Integer {
                 spelling: literal.text().to_owned(),
                 landing,
@@ -454,6 +466,59 @@ fn exact_shared_byte_slice(program: &TypedTrees, type_reference: TypeReferenceHa
             .type_reference(*element_type),
         TypeReferenceNode::Named { name, .. } if name.as_str() == PrimitiveType::U8.name()
     )
+}
+
+fn exact_primitive_type(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
+    let TypeReferenceNode::Named { name, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    PrimitiveType::from_name(name.as_str()).filter(|primitive| name.as_str() == primitive.name())
+}
+
+fn canonical_fixed_bytes(program: &TypedTrees, elements: &[ExpressionHandle]) -> Option<Vec<u8>> {
+    elements
+        .iter()
+        .map(|element| {
+            let ExpressionNode::Integer(literal) = program.expression_table.expression(*element)
+            else {
+                return None;
+            };
+            let value = literal
+                .value_u64()
+                .and_then(|value| u8::try_from(value).ok())?;
+            (literal.landing().is_none() && literal.text() == value.to_string()).then_some(value)
+        })
+        .collect()
+}
+
+fn exact_integer_landing(
+    program: &TypedTrees,
+    target_type: TypeReferenceHandle,
+    primitive: PrimitiveType,
+    literal: &IntegerLiteral,
+    position: usize,
+) -> Result<IntegerLanding, RelationPlanError> {
+    let target_domain = program.arithmetic_domain_for_type_reference(target_type);
+    let landing = match literal.landing() {
+        Some(landing) => landing,
+        None => IntegerLanding {
+            landed_type: integer_primitive_landing(primitive)
+                .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?,
+            domain: target_domain,
+        },
+    };
+    if landed_primitive(landing.landed_type) != primitive
+        || landing.domain != target_domain
+        || !integer_literal_fits(literal, landing.landed_type)
+    {
+        return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+    }
+    Ok(landing)
 }
 
 fn landed_primitive(landed: LandedIntegerType) -> PrimitiveType {
