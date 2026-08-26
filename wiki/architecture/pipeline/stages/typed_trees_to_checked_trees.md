@@ -232,6 +232,16 @@ Current ownership is:
   precede the child's weakening, so those later lifecycle claims require a
   distinct flow carrier rather than comparing the current endpoints. Neither
   resource arena supplies Terminal authority.
+  The exact parent and child weakening handles now also close one checked-only
+  lexical end-status join. Its three outcomes say only that the parent retired
+  before the child, retired at the same boundary, or remained lexically live
+  past it. Replay orders `LastUseExpired` before statement entry,
+  `LocalReassigned` after the right-hand side, and `StateExit` after the state;
+  arena insertion order is not semantic. Exact handles, child/parent/resource
+  identity, and the derived status all replay transactionally. This does not
+  establish suspension containment, authority return/reactivation, cascade
+  through retired parent carriers, completed restoration, or Terminal
+  authority.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
   owns call-site borrow-check coordination,
   `checks/borrows/calls/conflicts.rs` owns call-site access/access and

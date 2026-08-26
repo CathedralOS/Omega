@@ -372,6 +372,16 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
             resource.parent_suspension.source,
             resource.activation_source
         );
+        assert_eq!(resource.parent_end_status.child_loan, resource.loan);
+        assert_eq!(resource.parent_end_status.parent_loan, resource.parent_loan);
+        assert_eq!(
+            resource.parent_end_status.parent_resource,
+            resource.parent_resource
+        );
+        assert_eq!(
+            resource.parent_end_status.status,
+            psi_checked_trees::ParentLexicalStatusAtChildEnd::RetiredBeforeChild
+        );
         assert_eq!(
             checked
                 .facts
@@ -381,6 +391,26 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
                 .get(resource.parent_suspension.child_activation)
                 .loan,
             resource.loan
+        );
+        assert_eq!(
+            checked
+                .facts
+                .flow
+                .borrow_lifetimes
+                .weakenings
+                .get(resource.parent_end_status.child_weakening)
+                .loan,
+            resource.loan
+        );
+        assert_eq!(
+            checked
+                .facts
+                .flow
+                .borrow_lifetimes
+                .weakenings
+                .get(resource.parent_end_status.parent_weakening)
+                .loan,
+            resource.parent_loan
         );
         assert_eq!(
             checked
@@ -508,6 +538,10 @@ fn retains_projected_direct_reborrow_parent() {
     assert_eq!(resource.parent_loan, loans[0].0);
     assert_eq!(resource.parent_suspension.parent_loan, loans[0].0);
     assert_eq!(
+        resource.parent_end_status.status,
+        psi_checked_trees::ParentLexicalStatusAtChildEnd::RetiredBeforeChild
+    );
+    assert_eq!(
         checked
             .facts
             .flow
@@ -555,6 +589,10 @@ fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_chil
         child.parent_resource
     );
     assert_eq!(
+        child.parent_end_status.status,
+        psi_checked_trees::ParentLexicalStatusAtChildEnd::LivePastChild
+    );
+    assert_eq!(
         checked
             .facts
             .flow
@@ -590,8 +628,100 @@ fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_chil
 }
 
 #[test]
+fn retains_parent_and_child_retirement_at_the_same_state_exit_boundary() {
+    let checked = lower(
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.cell;
+            let child: &mut Cell = &mut parent;
+        }
+        "#,
+    );
+    let (_, child) = checked
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .iter()
+        .next()
+        .expect("direct child resource");
+    assert_eq!(
+        child.parent_end_status.status,
+        psi_checked_trees::ParentLexicalStatusAtChildEnd::RetiredWithChild
+    );
+    let parent = checked
+        .facts
+        .flow
+        .borrow_lifetimes
+        .weakenings
+        .get(child.parent_end_status.parent_weakening);
+    let child_end = checked
+        .facts
+        .flow
+        .borrow_lifetimes
+        .weakenings
+        .get(child.parent_end_status.child_weakening);
+    assert_eq!(parent.source, child_end.source);
+    assert_eq!(
+        parent.reason,
+        psi_checked_trees::FlowBorrowWeakeningReason::StateExit
+    );
+    assert_eq!(parent.reason, child_end.reason);
+}
+
+#[test]
+fn orders_same_statement_expiry_before_reassignment_semantically() {
+    let checked = lower(
+        r#"
+        data Cell { value: i32; }
+        data Main { left: Cell; right: Cell; }
+        machine write(value: &mut Cell) { value.value = 1; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.left;
+            let mut child: &mut Cell = &mut parent;
+            child = &mut self.right;
+            write(child);
+        }
+        "#,
+    );
+    let (_, child) = checked
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .iter()
+        .next()
+        .expect("reassigned child resource");
+    let parent_end = checked
+        .facts
+        .flow
+        .borrow_lifetimes
+        .weakenings
+        .get(child.parent_end_status.parent_weakening);
+    let child_end = checked
+        .facts
+        .flow
+        .borrow_lifetimes
+        .weakenings
+        .get(child.parent_end_status.child_weakening);
+    assert_eq!(parent_end.source, child_end.source);
+    assert_eq!(
+        parent_end.reason,
+        psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+    );
+    assert_eq!(
+        child_end.reason,
+        psi_checked_trees::FlowBorrowWeakeningReason::LocalReassigned
+    );
+    assert_eq!(
+        child.parent_end_status.status,
+        psi_checked_trees::ParentLexicalStatusAtChildEnd::RetiredBeforeChild
+    );
+}
+
+#[test]
 fn rejects_each_reborrow_resource_identity_parent_and_restoration_drift_transactionally() {
-    for axis in 0..26 {
+    for axis in 0..32 {
         let mut checked = direct_reborrow_chain();
         let direct_before = checked.facts.borrow.direct_loan_resources.clone();
         let wrong_direct = checked
@@ -715,6 +845,20 @@ fn rejects_each_reborrow_resource_identity_parent_and_restoration_drift_transact
                     psi_checked_trees::FlowInvalidationSource::Statement {
                         statement_index: usize::MAX,
                     }
+            }
+            26 => resource.parent_end_status.child_loan = psi_arena::Handle::invalid(),
+            27 => resource.parent_end_status.parent_loan = psi_arena::Handle::invalid(),
+            28 => {
+                resource.parent_end_status.parent_resource =
+                    psi_checked_trees::CheckedParentBorrowResource::DirectRoot {
+                        resource: wrong_direct,
+                    }
+            }
+            29 => resource.parent_end_status.child_weakening = psi_arena::Handle::invalid(),
+            30 => resource.parent_end_status.parent_weakening = psi_arena::Handle::invalid(),
+            31 => {
+                resource.parent_end_status.status =
+                    psi_checked_trees::ParentLexicalStatusAtChildEnd::LivePastChild
             }
             _ => unreachable!(),
         }
