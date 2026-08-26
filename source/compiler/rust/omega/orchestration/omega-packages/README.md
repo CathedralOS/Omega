@@ -886,11 +886,26 @@ parameter names/modes, package-qualified lifetime-sensitive parameter types,
 and result type. Checked realizations of public, ordinary, lifetime-free traits
 retain exact package-qualified trait/requirement identities, alpha-normalized
 arguments, and aliases. Callable conformance bounds, static-machine/proposition
-arguments in selected conformance applications, and non-public, external,
-operator, or lifetime-parameterized realizations fail closed until complete
-rows land, except that binder-free
-generic requirements, explicit evidence binders, and non-generic selected
-conformances use the canonical public-trait row. Public callable `requires`
+arguments in selected conformance applications and non-public or lifetime-
+parameterized trait realizations fail closed until complete rows land, except
+that binder-free generic requirements, explicit evidence binders, and non-
+generic selected conformances use the canonical public-trait row. Review
+v71/canonical row v29 additionally retains an exact public ordinary named,
+nongeneric, lifetime-free operator coordinate for each unaliased checked-body realization,
+after checked lowering retains and projection exactly rederives the selected
+machine/operator symbols, conformance/admission form, normalized overload
+shape plus exact lifetime-bearing type nodes, both full canonical contract sets, and exact typed semantic snapshots of
+their contract graphs. Projection then reruns exact selection and the equality/
+`&&` `requires`/`ensures` operator-contract judgment. Operators with outcome-
+specific or crash contracts, and providers with any nonempty checked crash
+behavior, reject until their refinement rules land. The
+association is a retained compiler-private checked baseline, not a hash,
+persisted package format, or defense against a trusted component rewriting both
+typed state and checked facts. Private, generic/lifetime-parameterized, aliased, bodyless, and
+operator-bound external realizations still fail closed. Boundary and fixed-token
+operator realizations remain outside this first lane pending positive selected-
+provider and spelling canaries; trait-bound external
+supply remains the separately represented executable-supply lane. Public callable `requires`
 and `ensures` retain exact structural rows for the closed
 boolean/integer expression subset over parameter ordinals, `result`, generic
 binders, and package-qualified nominals. Domain-membership rows retain the exact

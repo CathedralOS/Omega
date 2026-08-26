@@ -1537,9 +1537,35 @@ complete.
   alias. Binder-free generic requirements, explicit conformance evidence
   binders, and selected conformances with representable complete applications
   on reviewed callables use the same canonical row as public traits. Selected
-  proposition/evidence application arguments and non-public, external,
-  operator, or lifetime-parameterized realizations reject until their complete
-  rows exist rather than disappearing from review.
+  proposition/evidence application arguments, non-public or lifetime-
+  parameterized trait realizations, and operator realizations outside the
+  checked public nongeneric lane reject until their complete rows exist rather
+  than disappearing from review.
+
+  Milestone 2026-08-26: review v71/canonical row v29 retains every public
+  checked-body callable's exact unaliased realization of a public ordinary
+  named, nongeneric, lifetime-free operator. Checked lowering retains the exact machine/operator
+  symbols, conformance/admission form, normalized overload shape plus exact
+  lifetime-bearing type nodes, both complete
+  canonical contract sets, and exact typed semantic snapshots of the contract
+  graphs in full, not as a hash. Projection requires exact equality with a
+  fresh derivation, then reruns the compiler's signature-directed resolver and
+  equality/`&&` `requires`/`ensures` contract-coverage judgment before
+  joining the selected declaration's existing package-qualified overload
+  coordinate into the callable value. Post-check redirection and coordinated
+  mutation of the provider contract therefore both reject. Changing only a
+  valid selected operator changes only that callable row. Private, generic/
+  lifetime-parameterized, aliased, bodyless, and externally supplied operator
+  realizations remain explicit fail-closed forms. Boundary and fixed-token
+  realizations also remain outside this first lane until their selected-provider
+  and spelling semantics have positive package-review canaries; operator-bound external
+  supply needs its own trust-bearing association. This is compiler-private
+  retained checked baseline, not a persisted review row or a reason for nominal
+  Chi. Trusted compiler components remain inside the TCB; this comparison does
+  not claim to resist a component that rewrites both typed state and checked
+  facts. Operators with outcome-specific or crash contracts, and providers with
+  any nonempty checked crash behavior, reject until checked operator refinement
+  covers those clauses.
   Public callable `requires` and `ensures` retain exact structural rows for the
   closed boolean/integer expression subset over
   parameter ordinals, `result`, generic binders, and package-qualified

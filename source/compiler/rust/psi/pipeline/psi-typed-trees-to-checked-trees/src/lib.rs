@@ -57,6 +57,16 @@ pub fn derive_checked_operator_crash_contracts(
     operators::derive_checked_operator_crash_contracts(program)
 }
 
+/// Rederive every checked machine-to-operator realization together with the
+/// complete canonical contracts on both sides. Package review compares this
+/// against the retained checked baseline before publishing the selected
+/// operator.
+pub fn derive_checked_operator_realization_contracts(
+    program: &TypedTrees,
+) -> Vec<psi_checked_trees::CheckedOperatorRealizationContract> {
+    operators::derive_checked_operator_realization_contracts(program)
+}
+
 #[cfg(test)]
 pub(crate) use lowerer::lower_typed_trees_for_crash_fact_inspection;
 

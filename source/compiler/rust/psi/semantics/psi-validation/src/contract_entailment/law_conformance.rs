@@ -1,5 +1,167 @@
 use super::*;
 
+pub(crate) fn checked_operator_contract_snapshot(
+    program: &TypedTrees,
+    contracts: &[psi_typed_trees::signature::SignatureContract],
+) -> Vec<u8> {
+    use psi_typed_trees::expression::ExpressionNode;
+    use std::collections::HashSet;
+    use std::fmt::Debug;
+
+    fn append_debug(value: &impl Debug, output: &mut Vec<u8>) {
+        let bytes = format!("{value:?}").into_bytes();
+        output.extend_from_slice(
+            &u64::try_from(bytes.len())
+                .expect("checked operator contract snapshot length fits u64")
+                .to_le_bytes(),
+        );
+        output.extend(bytes);
+    }
+
+    fn append_expression(
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+        visited: &mut HashSet<(u32, u32)>,
+        output: &mut Vec<u8>,
+    ) {
+        append_debug(&expression, output);
+        if !expression.is_valid()
+            || !visited.insert((expression.arena_index(), expression.generation()))
+        {
+            return;
+        }
+        let node = program.expression_table.expression(expression);
+        append_debug(node, output);
+        match node {
+            ExpressionNode::Atomic(atomic) => {
+                append_expression(program, atomic.value, visited, output);
+                append_expression(program, atomic.result, visited, output);
+            }
+            ExpressionNode::Binary(binary) => {
+                append_expression(program, binary.left, visited, output);
+                append_expression(program, binary.right, visited, output);
+            }
+            ExpressionNode::Unary(unary) => {
+                append_expression(program, unary.operand, visited, output);
+            }
+            ExpressionNode::Cast(cast) => {
+                append_debug(
+                    &program
+                        .expression_table
+                        .name_path_members(cast.target_label),
+                    output,
+                );
+                append_debug(
+                    &program
+                        .expression_table
+                        .name_path_members(cast.semantic_domain),
+                    output,
+                );
+                append_debug(
+                    &program
+                        .package_qualified_type_identity(cast.target_type)
+                        .into_string(),
+                    output,
+                );
+                for argument in program
+                    .type_reference_table
+                    .type_reference_handles(cast.semantic_domain_arguments)
+                {
+                    append_debug(
+                        &program
+                            .package_qualified_type_identity(*argument)
+                            .into_string(),
+                        output,
+                    );
+                }
+                append_expression(program, cast.value, visited, output);
+            }
+            ExpressionNode::Call(call) => {
+                append_expression(program, call.receiver, visited, output);
+                for argument in program.expression_table.expression_handles(call.arguments) {
+                    append_expression(program, *argument, visited, output);
+                }
+            }
+            ExpressionNode::Indexed(indexed) => {
+                append_expression(program, indexed.collection, visited, output);
+                append_expression(program, indexed.index, visited, output);
+            }
+            ExpressionNode::Member(member) => {
+                append_expression(program, member.receiver, visited, output);
+            }
+            ExpressionNode::Borrow(inner) => {
+                append_expression(program, inner.target, visited, output);
+            }
+            ExpressionNode::Name(path) => {
+                append_debug(
+                    &program.expression_table.name_path_members(path.members),
+                    output,
+                );
+                append_debug(
+                    &program
+                        .expression_table
+                        .name_path_member_symbols(path.member_symbols),
+                    output,
+                );
+            }
+            ExpressionNode::Range(range) => {
+                append_expression(program, range.start, visited, output);
+                append_expression(program, range.end, visited, output);
+            }
+            ExpressionNode::ArrayLiteral(items) => {
+                for item in program.expression_table.expression_handles(*items) {
+                    append_expression(program, *item, visited, output);
+                }
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    append_debug(field, output);
+                    append_expression(program, field.value, visited, output);
+                }
+            }
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::String(_) => {}
+            ExpressionNode::ZeroValue(type_reference) => {
+                append_debug(
+                    &program
+                        .package_qualified_type_identity(*type_reference)
+                        .into_string(),
+                    output,
+                );
+            }
+        }
+    }
+
+    let mut output = Vec::new();
+    let mut visited = HashSet::new();
+    for contract in contracts {
+        append_debug(contract, &mut output);
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            append_debug(fact, &mut output);
+            match fact {
+                ProofFact::Expression(expression) => {
+                    append_expression(program, *expression, &mut visited, &mut output);
+                }
+                ProofFact::Membership(membership) => {
+                    append_expression(program, membership.value, &mut visited, &mut output);
+                    append_debug(&program.domain_path_members(membership.domain), &mut output);
+                }
+                ProofFact::Proposition(application) => {
+                    for argument in program
+                        .expression_table
+                        .expression_handles(application.arguments)
+                    {
+                        append_expression(program, *argument, &mut visited, &mut output);
+                    }
+                }
+            }
+        }
+    }
+    output
+}
+
 /// A checked Omega body satisfying an ordinary or boundary operator is a
 /// software provider, not an accepted leaf. Its own machine contract is proved
 /// by the ordinary entailment pass above; this gate then checks that the proved

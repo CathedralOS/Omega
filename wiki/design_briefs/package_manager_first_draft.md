@@ -780,11 +780,27 @@ stable; changing a parameter, result, generic bound, or borrow relationship is
 not. Checked realizations of public, ordinary, lifetime-free traits retain exact
 package-qualified trait and requirement identities, alpha-normalized arguments,
 and any explicit conformance alias. Callable conformance bounds, static
-machine/proposition parameters, and non-public, external, operator, or
-lifetime-parameterized realizations reject until their complete canonical forms
-are represented, except that generic binder-free requirements, explicit
-evidence binders, and selected conformances with representable complete
-applications use the same canonical conformance row as public traits. The projection never substitutes an overload
+machine/proposition parameters, and non-public or lifetime-parameterized trait
+realizations reject until their complete canonical forms are represented,
+except that generic binder-free requirements, explicit evidence binders, and
+selected conformances with representable complete applications use the same
+canonical conformance row as public traits. Review v71/canonical row v29 also
+binds an unaliased checked-body realization to the exact package-qualified
+coordinate of one public ordinary named, nongeneric, lifetime-free operator. Checked lowering
+retains the exact machine/operator symbols, conformance/admission form,
+normalized overload shape plus exact lifetime-bearing type nodes, both complete canonical contract sets, and exact
+typed semantic snapshots of their contract graphs in full; projection requires
+exact rederivation before rerunning the checked signature resolver and equality/
+`&&` `requires`/`ensures` contract judgment. Post-check
+redirection and coordinated provider-contract mutation both reject. This
+retained compiler-private baseline is neither a hash nor persisted package
+evidence, and trusted compiler components remain inside the TCB. Operators with
+outcome-specific or crash contracts, and providers with any nonempty checked
+crash behavior, reject until their refinement rules exist.
+Private, generic/lifetime-parameterized, aliased, bodyless, and operator-bound
+external realizations remain fail-closed. Boundary and fixed-token realizations
+remain outside this first lane pending positive selected-provider and spelling
+canaries. The projection never substitutes an overload
 display name or a runtime-layout-only
 type identity for this contract surface.
 
@@ -1305,7 +1321,7 @@ Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
 observations, and local decisions remain separately bound. Current incomplete
-review-v70/canonical-row-v28 bytes cannot be promoted merely because the future
+review-v71/canonical-row-v29 bytes cannot be promoted merely because the future
 artifact reuses their row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in

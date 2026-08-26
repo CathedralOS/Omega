@@ -343,6 +343,75 @@ pub struct CheckedOperatorFacts {
     pub named_uses: Arena<CheckedNamedOperatorUseFact>,
     pub candidates: Arena<CheckedOperatorCandidateFact>,
     pub operator_crash_contracts: Vec<CheckedOperatorCrashContract>,
+    pub operator_realization_contracts: Vec<CheckedOperatorRealizationContract>,
+}
+
+/// Retained checked baseline for one machine-to-operator realization.
+///
+/// Admission shape, canonical contract encodings, and exact typed semantic
+/// snapshots are retained in full rather than represented by a hash. Package
+/// review can therefore rederive the association from the final typed graph and
+/// require exact equality without relying only on mutable proof-fact handles or
+/// a collision-prone digest. Trusted compiler components remain inside the TCB.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedOperatorRealizationContract {
+    machine_symbol: SymbolHandle,
+    operator_symbol: SymbolHandle,
+    provider_contracts: Vec<Vec<u8>>,
+    requirement_contracts: Vec<Vec<u8>>,
+    provider_contract_snapshot: Vec<u8>,
+    requirement_contract_snapshot: Vec<u8>,
+    admission_snapshot: Vec<u8>,
+}
+
+impl CheckedOperatorRealizationContract {
+    pub fn new(
+        machine_symbol: SymbolHandle,
+        operator_symbol: SymbolHandle,
+        provider_contracts: Vec<Vec<u8>>,
+        requirement_contracts: Vec<Vec<u8>>,
+        provider_contract_snapshot: Vec<u8>,
+        requirement_contract_snapshot: Vec<u8>,
+        admission_snapshot: Vec<u8>,
+    ) -> Self {
+        Self {
+            machine_symbol,
+            operator_symbol,
+            provider_contracts,
+            requirement_contracts,
+            provider_contract_snapshot,
+            requirement_contract_snapshot,
+            admission_snapshot,
+        }
+    }
+
+    pub const fn machine_symbol(&self) -> SymbolHandle {
+        self.machine_symbol
+    }
+
+    pub const fn operator_symbol(&self) -> SymbolHandle {
+        self.operator_symbol
+    }
+
+    pub fn provider_contracts(&self) -> &[Vec<u8>] {
+        &self.provider_contracts
+    }
+
+    pub fn requirement_contracts(&self) -> &[Vec<u8>] {
+        &self.requirement_contracts
+    }
+
+    pub fn provider_contract_snapshot(&self) -> &[u8] {
+        &self.provider_contract_snapshot
+    }
+
+    pub fn requirement_contract_snapshot(&self) -> &[u8] {
+        &self.requirement_contract_snapshot
+    }
+
+    pub fn admission_snapshot(&self) -> &[u8] {
+        &self.admission_snapshot
+    }
 }
 
 impl CheckedOperatorFacts {
@@ -356,6 +425,7 @@ impl CheckedOperatorFacts {
             named_uses,
             candidates,
             operator_crash_contracts: Vec::new(),
+            operator_realization_contracts: Vec::new(),
         }
     }
 
@@ -364,6 +434,14 @@ impl CheckedOperatorFacts {
         operator_crash_contracts: Vec<CheckedOperatorCrashContract>,
     ) -> Self {
         self.operator_crash_contracts = operator_crash_contracts;
+        self
+    }
+
+    pub fn with_operator_realization_contracts(
+        mut self,
+        operator_realization_contracts: Vec<CheckedOperatorRealizationContract>,
+    ) -> Self {
+        self.operator_realization_contracts = operator_realization_contracts;
         self
     }
 
