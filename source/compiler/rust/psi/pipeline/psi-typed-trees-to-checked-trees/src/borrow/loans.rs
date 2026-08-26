@@ -24,7 +24,15 @@ pub(super) struct StatementBorrowLoan {
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
     pub(super) place: accesses::BorrowAccessPlace,
     pub(super) source_owner_symbol: SymbolHandle,
+    pub(super) lineage: psi_checked_trees::BorrowLoanLineage,
     pub(super) kind: psi_checked_trees::BorrowAccessKind,
+}
+
+struct RebasedBorrowPlace {
+    place: accesses::BorrowAccessPlace,
+    source_owner_symbol: SymbolHandle,
+    parent_loan: Handle<psi_checked_trees::BorrowLoanFact>,
+    parent_lineage_is_retained: bool,
 }
 
 /// The initializer expressions that supply the references structurally carried
@@ -86,6 +94,7 @@ pub(super) fn statement_borrow_loans(
                 machine_symbol,
                 local_data,
                 loan_trackers,
+                true,
             )
         }
         StatementNode::AssemblyFact(_)
@@ -160,6 +169,7 @@ fn assignment_borrow_loans(
             machine_symbol,
             &synthetic_local,
             loan_trackers,
+            false,
         )
     } else {
         borrow_carrying_data_loans(
@@ -186,8 +196,22 @@ fn reference_local_borrow_loans(
     machine_symbol: SymbolHandle,
     local_data: &psi_checked_trees::statement::TableLocalData,
     loan_trackers: &[StateLoanTracker],
+    allow_direct_reborrow_lineage: bool,
 ) -> Vec<StatementBorrowLoan> {
     let local_is_mutable_reference = is_mutable_reference_type(program, local_data.type_reference);
+    let is_explicit_reborrow = matches!(
+        program
+            .expression_table
+            .expression(local_data.initial_value),
+        psi_checked_trees::expression::ExpressionNode::Borrow(_)
+    );
+    let force_unretained = matches!(
+        program
+            .expression_table
+            .expression(local_data.initial_value),
+        psi_checked_trees::expression::ExpressionNode::Call(_)
+            | psi_checked_trees::expression::ExpressionNode::Cast(_)
+    );
     let Some(place) = (match program
         .expression_table
         .expression(local_data.initial_value)
@@ -242,14 +266,21 @@ fn reference_local_borrow_loans(
         return Vec::new();
     };
 
-    rebase_borrow_places_through_local_loans(program, place, loan_trackers)
-        .into_iter()
-        .map(|(place, source_owner_symbol)| StatementBorrowLoan {
+    let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
+    rebased
+        .iter()
+        .map(|source| StatementBorrowLoan {
             owner_symbol: local_data.symbol,
             owner_name: local_data.name.clone(),
             owner_path: Vec::new(),
-            place,
-            source_owner_symbol,
+            place: source.place.clone(),
+            source_owner_symbol: source.source_owner_symbol,
+            lineage: retained_reference_lineage(
+                source,
+                &rebased,
+                allow_direct_reborrow_lineage && is_explicit_reborrow,
+                force_unretained,
+            ),
             kind: if local_is_mutable_reference {
                 psi_checked_trees::BorrowAccessKind::Mutable
             } else {
@@ -381,12 +412,13 @@ fn borrowed_initializer_loans(
             };
             rebase_borrow_places_through_local_loans(program, place, loan_trackers)
                 .into_iter()
-                .map(|(place, source_owner_symbol)| StatementBorrowLoan {
+                .map(|source| StatementBorrowLoan {
                     owner_symbol: local_data.symbol,
                     owner_name: local_data.name.clone(),
                     owner_path: initializer.owner_path.clone(),
-                    place,
-                    source_owner_symbol,
+                    place: source.place,
+                    source_owner_symbol: source.source_owner_symbol,
+                    lineage: psi_checked_trees::BorrowLoanLineage::UnretainedDerived,
                     kind: if is_mutable {
                         psi_checked_trees::BorrowAccessKind::Mutable
                     } else {
@@ -448,12 +480,13 @@ fn aggregate_expression_borrow_loans(
             };
             rebase_borrow_places_through_local_loans(program, place, loan_trackers)
                 .into_iter()
-                .map(|(place, source_owner_symbol)| StatementBorrowLoan {
+                .map(|source| StatementBorrowLoan {
                     owner_symbol: local_data.symbol,
                     owner_name: local_data.name.clone(),
                     owner_path: owner_path_prefix.to_vec(),
-                    place,
-                    source_owner_symbol,
+                    place: source.place,
+                    source_owner_symbol: source.source_owner_symbol,
+                    lineage: psi_checked_trees::BorrowLoanLineage::UnretainedDerived,
                     kind: if is_mutably_borrow_carrying_data(program, type_reference) {
                         psi_checked_trees::BorrowAccessKind::Mutable
                     } else {
@@ -545,15 +578,16 @@ fn helper_call_aggregate_borrow_loans(
             };
             rebase_borrow_places_through_local_loans(program, place, loan_trackers)
                 .into_iter()
-                .map(|(place, source_owner_symbol)| {
+                .map(|source| {
                     let mut owner_path = owner_path_prefix.to_vec();
                     owner_path.extend(field.owner_path.iter().copied());
                     StatementBorrowLoan {
                         owner_symbol: local_data.symbol,
                         owner_name: local_data.name.clone(),
                         owner_path,
-                        place,
-                        source_owner_symbol,
+                        place: source.place,
+                        source_owner_symbol: source.source_owner_symbol,
+                        lineage: psi_checked_trees::BorrowLoanLineage::UnretainedDerived,
                         kind: field.kind.clone(),
                     }
                 })
@@ -596,6 +630,7 @@ fn transferred_aggregate_loans(
                 owner_path: prefixed_owner_path,
                 place: loan.place.clone(),
                 source_owner_symbol: loan.owner_symbol,
+                lineage: psi_checked_trees::BorrowLoanLineage::UnretainedDerived,
                 kind: loan.kind.clone(),
             })
         })
@@ -743,7 +778,7 @@ fn rebase_borrow_places_through_local_loans(
     program: &psi_typed_trees::TypedTrees,
     place: accesses::BorrowAccessPlace,
     loan_trackers: &[StateLoanTracker],
-) -> Vec<(accesses::BorrowAccessPlace, SymbolHandle)> {
+) -> Vec<RebasedBorrowPlace> {
     let source_loans: Vec<&StateLoanTracker> = loan_trackers
         .iter()
         .rev()
@@ -753,7 +788,12 @@ fn rebase_borrow_places_through_local_loans(
         })
         .collect();
     if source_loans.is_empty() {
-        return vec![(place, SymbolHandle::invalid())];
+        return vec![RebasedBorrowPlace {
+            place,
+            source_owner_symbol: SymbolHandle::invalid(),
+            parent_loan: Handle::invalid(),
+            parent_lineage_is_retained: false,
+        }];
     }
 
     source_loans
@@ -770,13 +810,42 @@ fn rebase_borrow_places_through_local_loans(
             rebased_segments.extend(source_loan.place.segments.iter().copied());
             rebased_segments.extend(remainder.iter().copied());
 
-            (
-                accesses::BorrowAccessPlace {
+            RebasedBorrowPlace {
+                place: accesses::BorrowAccessPlace {
                     root_symbol: source_loan.place.root_symbol,
                     segments: rebased_segments,
                 },
-                source_loan.owner_symbol,
-            )
+                source_owner_symbol: source_loan.owner_symbol,
+                parent_loan: source_loan.handle,
+                parent_lineage_is_retained: source_loan.lineage
+                    != psi_checked_trees::BorrowLoanLineage::UnretainedDerived,
+            }
         })
         .collect()
+}
+
+fn retained_reference_lineage(
+    source: &RebasedBorrowPlace,
+    rebased: &[RebasedBorrowPlace],
+    is_explicit_reborrow: bool,
+    force_unretained: bool,
+) -> psi_checked_trees::BorrowLoanLineage {
+    if force_unretained {
+        return psi_checked_trees::BorrowLoanLineage::UnretainedDerived;
+    }
+    if !source.source_owner_symbol.is_valid() {
+        return psi_checked_trees::BorrowLoanLineage::DirectRoot;
+    }
+    let parent_is_unique = rebased.len() == 1;
+    if is_explicit_reborrow
+        && source.parent_loan.is_valid()
+        && source.parent_lineage_is_retained
+        && parent_is_unique
+    {
+        psi_checked_trees::BorrowLoanLineage::Reborrow {
+            parent_loan: source.parent_loan,
+        }
+    } else {
+        psi_checked_trees::BorrowLoanLineage::UnretainedDerived
+    }
 }

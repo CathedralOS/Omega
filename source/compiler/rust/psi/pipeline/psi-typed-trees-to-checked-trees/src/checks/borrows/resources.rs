@@ -1,16 +1,20 @@
 use psi_checked_trees::{
-    BorrowFacts, CheckFacts, CheckedDirectBorrowLoanResource, CheckedDirectBorrowParentLifetime,
-    CheckedDirectBorrowRestorationObligation, FlowFacts, FlowInvalidationSource,
+    BorrowFacts, BorrowLoanFact, BorrowLoanLineage, CheckFacts, CheckedDirectBorrowLoanResource,
+    CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation, FlowFacts,
+    FlowInvalidationSource,
 };
 use psi_diagnostics::Diagnostic;
 
 /// Populate the checked-only direct-root resource closure before ordinary
-/// checked-fact replay. This carrier is deliberately absent for reborrows and
-/// borrow-carrying transfers, whose exact parent/source occurrence is not yet
-/// retained by `BorrowLoanFact`.
+/// checked-fact replay. Reborrow parent identity is replayed here too, but this
+/// resource carrier remains deliberately absent for reborrows and
+/// borrow-carrying transfers until their complete lifetime/restoration closure
+/// is represented.
 pub(super) fn initialize_checked_direct_borrow_resources(
+    program: &psi_typed_trees::TypedTrees,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    replay_checked_direct_reborrow_lineage(program, &facts.borrow)?;
     let resources = reconstruct_direct_borrow_resources(&facts.borrow, &facts.flow)?;
     facts.borrow.direct_loan_resources.reset_retain_capacity();
     facts.borrow.direct_loan_resources.insert_many(resources);
@@ -21,8 +25,10 @@ pub(super) fn initialize_checked_direct_borrow_resources(
 /// authoritative loan and flow-lifetime ledgers, then rebuild it
 /// deterministically. The row itself never participates in borrow admission.
 pub(super) fn replay_checked_direct_borrow_resources(
+    program: &psi_typed_trees::TypedTrees,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    replay_checked_direct_reborrow_lineage(program, &facts.borrow)?;
     let expected = reconstruct_direct_borrow_resources(&facts.borrow, &facts.flow)?;
     let retained = facts
         .borrow
@@ -65,11 +71,11 @@ fn reconstruct_direct_borrow_resources(
             .iter()
             .filter(|(handle, _)| borrow.state_owns_loan(state, *handle))
         {
-            // A valid symbol here means this loan was rebased or transferred
-            // through another owner. The existing row does not retain an exact
-            // source occurrence handle, so this first carrier must fail closed
-            // by omitting it.
-            if loan.source_owner_symbol.is_valid() {
+            // Parent identity is now retained for the narrow direct-reborrow
+            // case, but its complete lifetime/restoration resource is not.
+            // Every derived occurrence therefore remains outside this first
+            // direct-root closure.
+            if loan.lineage != BorrowLoanLineage::DirectRoot {
                 continue;
             }
 
@@ -140,4 +146,216 @@ fn reconstruct_direct_borrow_resources(
     } else {
         Err(diagnostics)
     }
+}
+
+fn replay_checked_direct_reborrow_lineage(
+    program: &psi_typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    for (_, state) in borrow.states.iter() {
+        let Some(typed_state) = crate::semantic_calls::find_state_in_machine(
+            program,
+            state.machine_symbol,
+            state.state_symbol,
+        ) else {
+            return Err(vec![Diagnostic::error(
+                "checked borrow loan lineage has no exact typed state owner",
+            )]);
+        };
+        for (loan_handle, loan) in borrow
+            .loans
+            .iter()
+            .filter(|(handle, _)| borrow.state_owns_loan(state, *handle))
+        {
+            let expected =
+                expected_loan_lineage(program, typed_state, borrow, state, loan_handle, loan);
+            if loan.lineage != expected {
+                return Err(vec![Diagnostic::error(
+                    "checked borrow loan lineage drifted from independent direct-reborrow replay",
+                )]);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn expected_loan_lineage(
+    program: &psi_typed_trees::TypedTrees,
+    typed_state: &psi_typed_trees::state::State,
+    borrow: &BorrowFacts,
+    state: &psi_checked_trees::StateBorrowFact,
+    loan_handle: psi_arena::Handle<BorrowLoanFact>,
+    loan: &BorrowLoanFact,
+) -> BorrowLoanLineage {
+    let Some(statement) = program
+        .statement_table
+        .statements(typed_state.statement_nodes)
+        .get(loan.statement_index)
+    else {
+        return if loan.source_owner_symbol.is_valid() {
+            BorrowLoanLineage::UnretainedDerived
+        } else {
+            BorrowLoanLineage::DirectRoot
+        };
+    };
+    let psi_checked_trees::statement::StatementNode::LocalData(local) = statement else {
+        if let psi_checked_trees::statement::StatementNode::Assignment(assignment) = statement
+            && matches!(
+                program.expression_table.expression(assignment.value),
+                psi_checked_trees::expression::ExpressionNode::Call(_)
+                    | psi_checked_trees::expression::ExpressionNode::Cast(_)
+                    | psi_checked_trees::expression::ExpressionNode::ArrayLiteral(_)
+                    | psi_checked_trees::expression::ExpressionNode::StructLiteral(_)
+            )
+        {
+            return BorrowLoanLineage::UnretainedDerived;
+        }
+        return if loan.source_owner_symbol.is_valid() {
+            BorrowLoanLineage::UnretainedDerived
+        } else {
+            BorrowLoanLineage::DirectRoot
+        };
+    };
+    if local.symbol != loan.owner_symbol {
+        return BorrowLoanLineage::UnretainedDerived;
+    }
+
+    match program.expression_table.expression(local.initial_value) {
+        psi_checked_trees::expression::ExpressionNode::Borrow(reborrow) => {
+            expected_explicit_reborrow_parent(
+                program,
+                typed_state,
+                borrow,
+                state,
+                loan_handle,
+                loan,
+                reborrow.target,
+            )
+            .map(|parent_loan| BorrowLoanLineage::Reborrow { parent_loan })
+            .unwrap_or_else(|| {
+                if loan.source_owner_symbol.is_valid() {
+                    BorrowLoanLineage::UnretainedDerived
+                } else {
+                    BorrowLoanLineage::DirectRoot
+                }
+            })
+        }
+        psi_checked_trees::expression::ExpressionNode::Call(_)
+        | psi_checked_trees::expression::ExpressionNode::Cast(_)
+        | psi_checked_trees::expression::ExpressionNode::ArrayLiteral(_)
+        | psi_checked_trees::expression::ExpressionNode::StructLiteral(_) => {
+            BorrowLoanLineage::UnretainedDerived
+        }
+        _ if loan.source_owner_symbol.is_valid() => BorrowLoanLineage::UnretainedDerived,
+        _ => BorrowLoanLineage::DirectRoot,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn expected_explicit_reborrow_parent(
+    program: &psi_typed_trees::TypedTrees,
+    typed_state: &psi_typed_trees::state::State,
+    borrow: &BorrowFacts,
+    state: &psi_checked_trees::StateBorrowFact,
+    child_handle: psi_arena::Handle<BorrowLoanFact>,
+    child: &BorrowLoanFact,
+    source_expression: psi_checked_trees::expression::ExpressionHandle,
+) -> Option<psi_arena::Handle<BorrowLoanFact>> {
+    let source = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        typed_state.symbol,
+        child.statement_index,
+        source_expression,
+    )?;
+    let psi_facts::PlaceRoot::Symbol(source_root) = source.root else {
+        return None;
+    };
+    let mut candidates = borrow
+        .loans
+        .iter()
+        .filter(|(parent_handle, parent)| {
+            *parent_handle != child_handle
+                && borrow.state_owns_loan(state, *parent_handle)
+                && parent.statement_index < child.statement_index
+                && parent.lineage != BorrowLoanLineage::UnretainedDerived
+                && parent.owner_symbol == source_root
+                && owner_path_matches_source(
+                    program,
+                    borrow.loan_owner_path(parent),
+                    &source.segments,
+                )
+                && child.source_owner_symbol == parent.owner_symbol
+        })
+        .map(|(handle, parent)| (handle, parent));
+    let (parent_handle, parent) = candidates.next()?;
+    if candidates.next().is_some()
+        || !child_place_replays_from_parent(borrow, parent, &source.segments, child)
+    {
+        return None;
+    }
+    Some(parent_handle)
+}
+
+fn child_place_replays_from_parent(
+    borrow: &BorrowFacts,
+    parent: &BorrowLoanFact,
+    source_segments: &[psi_facts::PlaceSegment],
+    child: &BorrowLoanFact,
+) -> bool {
+    let parent_owner_path = borrow.loan_owner_path(parent);
+    let Some(remainder) = source_segments.get(parent_owner_path.len()..) else {
+        return false;
+    };
+    child.root_symbol == parent.root_symbol
+        && borrow.loan_segments(child).len() == borrow.loan_segments(parent).len() + remainder.len()
+        && borrow
+            .loan_segments(child)
+            .iter()
+            .eq(borrow.loan_segments(parent).iter().chain(remainder))
+}
+
+fn owner_path_matches_source(
+    program: &psi_typed_trees::TypedTrees,
+    owner_path: &[psi_checked_trees::BorrowLoanOwnerSegment],
+    source_segments: &[psi_facts::PlaceSegment],
+) -> bool {
+    owner_path.len() <= source_segments.len()
+        && owner_path
+            .iter()
+            .zip(source_segments)
+            .all(|(owner, source)| match (owner, source) {
+                (
+                    psi_checked_trees::BorrowLoanOwnerSegment::Field(owner_symbol),
+                    psi_facts::PlaceSegment::Field {
+                        symbol: source_symbol,
+                    },
+                ) => !source_symbol.is_valid() || owner_symbol == source_symbol,
+                (
+                    psi_checked_trees::BorrowLoanOwnerSegment::Case(owner_variant),
+                    psi_facts::PlaceSegment::Case {
+                        variant: source_variant,
+                    },
+                ) => owner_variant == source_variant,
+                (
+                    psi_checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner_index),
+                    psi_facts::PlaceSegment::FixedIndex {
+                        index: source_index,
+                    },
+                ) => owner_index == source_index,
+                (
+                    psi_checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner_index),
+                    psi_facts::PlaceSegment::Index { expression },
+                ) => program
+                    .expression_table
+                    .constant_integer_value(*expression)
+                    .and_then(|value| usize::try_from(value).ok())
+                    .is_none_or(|source_index| *owner_index == source_index),
+                (
+                    psi_checked_trees::BorrowLoanOwnerSegment::DynamicIndex,
+                    psi_facts::PlaceSegment::FixedIndex { .. }
+                    | psi_facts::PlaceSegment::FixedRange { .. }
+                    | psi_facts::PlaceSegment::Index { .. },
+                ) => true,
+                _ => false,
+            })
 }

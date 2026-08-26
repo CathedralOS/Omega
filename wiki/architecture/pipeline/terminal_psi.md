@@ -281,6 +281,17 @@ loan polarities, and requires the zero-premise `Structural` derivation. This
 carrier does not yet encode Terminal evidence or admit proposition premises,
 and it does not alter the loan resource rows or admission semantics.
 
+Checked loan formation also retains one narrow parent-lineage prerequisite.
+Every loan is classified as a direct root, a direct reborrow naming one exact
+parent loan, or an unretained derived occurrence. Only an explicit
+reference-local reborrow with exactly one prior matching state-owned loan may
+name a parent; checked replay reconstructs that source occurrence, owner path,
+formation order, and rebased captured place. Multihop chains name immediate
+parents. Aggregate and helper transfers, ambiguous or reassigned aliases, and
+write-only local loans remain fenced. This checked-only parent identity does
+not close a reborrow resource row, establish restoration, or supply Terminal
+authority.
+
 The row does not serialize "dominates" or "is valid" as trusted claims. The
 verifier reconstructs control-flow dominance and path availability from the
 premises' establishment points, checks their exact value/place versions and

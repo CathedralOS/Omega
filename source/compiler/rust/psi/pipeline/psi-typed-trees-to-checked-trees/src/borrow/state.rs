@@ -65,6 +65,7 @@ pub(super) fn append_state_borrow_facts(
                     owner_symbol: pending.owner_symbol,
                     owner_path,
                     source_owner_symbol: pending.source_owner_symbol,
+                    lineage: pending.lineage.clone(),
                     root_symbol: pending.place.root_symbol,
                     segments: loan_segments,
                     kind: pending.kind.clone(),
@@ -75,6 +76,7 @@ pub(super) fn append_state_borrow_facts(
                 owner_symbol: pending.owner_symbol,
                 owner_name: pending.owner_name,
                 kind: pending.kind,
+                lineage: pending.lineage,
                 owner_path: pending.owner_path,
                 place: pending.place,
             });

@@ -49,6 +49,32 @@ fn direct_read_and_mutable_modes() -> psi_checked_trees::CheckedTrees {
     )
 }
 
+fn direct_reborrow_chain() -> psi_checked_trees::CheckedTrees {
+    lower(
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; other: Cell; }
+        data Sibling { cell: Cell; }
+
+        machine write_cell(cell: &mut Cell) { cell.value = 2; }
+
+        machine Main::exercise(&mut self) {
+            let unrelated: &mut Cell = &mut self.other;
+            write_cell(unrelated);
+            let first: &mut Cell = &mut self.cell;
+            let second: &mut Cell = &mut first;
+            let third: &mut Cell = &mut second;
+            write_cell(third);
+        }
+
+        machine Sibling::exercise(&mut self) {
+            let sibling: &mut Cell = &mut self.cell;
+            write_cell(sibling);
+        }
+        "#,
+    )
+}
+
 #[test]
 fn retains_exact_direct_root_lifetime_and_restoration_closure() {
     let mut checked = symbolic_adjacency();
@@ -182,6 +208,263 @@ fn keeps_write_only_local_loan_outside_this_checked_only_carrier() {
             .message
             .contains("local data `write` uses `&write` outside the checked whole-scalar parameter")
     }));
+}
+
+#[test]
+fn retains_exact_immediate_parent_for_multihop_direct_reborrows() {
+    let mut checked = direct_reborrow_chain();
+    let main_state = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| checked.facts.borrow.loans.span_or_empty(state.loans).len() == 4)
+        .expect("main reborrow state");
+    let loans = checked
+        .facts
+        .borrow
+        .loans
+        .iter()
+        .filter(|(handle, _)| checked.facts.borrow.state_owns_loan(main_state, *handle))
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    assert_eq!(loans.len(), 4);
+    assert_eq!(
+        checked.facts.borrow.loans.get(loans[0]).lineage,
+        psi_checked_trees::BorrowLoanLineage::DirectRoot
+    );
+    assert_eq!(
+        checked.facts.borrow.loans.get(loans[1]).lineage,
+        psi_checked_trees::BorrowLoanLineage::DirectRoot
+    );
+    assert_eq!(
+        checked.facts.borrow.loans.get(loans[2]).lineage,
+        psi_checked_trees::BorrowLoanLineage::Reborrow {
+            parent_loan: loans[1]
+        }
+    );
+    assert_eq!(
+        checked.facts.borrow.loans.get(loans[3]).lineage,
+        psi_checked_trees::BorrowLoanLineage::Reborrow {
+            parent_loan: loans[2]
+        }
+    );
+
+    let before = checked
+        .facts
+        .borrow
+        .loans
+        .iter()
+        .map(|(_, loan)| loan.lineage.clone())
+        .collect::<Vec<_>>();
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("direct-reborrow lineage replay is deterministic");
+    assert_eq!(
+        checked
+            .facts
+            .borrow
+            .loans
+            .iter()
+            .map(|(_, loan)| loan.lineage.clone())
+            .collect::<Vec<_>>(),
+        before
+    );
+}
+
+#[test]
+fn retains_projected_direct_reborrow_parent() {
+    let checked = lower(
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine set(value: &mut i32) { value = 3; }
+        machine Main::exercise(&mut self) {
+            let first: &mut Cell = &mut self.cell;
+            let projected: &mut i32 = &mut first.value;
+            set(projected);
+        }
+        "#,
+    );
+    let loans = checked
+        .facts
+        .borrow
+        .loans
+        .iter()
+        .map(|(handle, loan)| (handle, loan))
+        .collect::<Vec<_>>();
+    assert_eq!(loans.len(), 2);
+    assert_eq!(
+        loans[1].1.lineage,
+        psi_checked_trees::BorrowLoanLineage::Reborrow {
+            parent_loan: loans[0].0
+        }
+    );
+    assert!(
+        checked.facts.borrow.loan_segments(loans[1].1).len()
+            > checked.facts.borrow.loan_segments(loans[0].1).len()
+    );
+}
+
+#[test]
+fn rejects_parent_substitution_and_lineage_tag_drift() {
+    for axis in 0..9 {
+        let mut checked = direct_reborrow_chain();
+        let states = checked
+            .facts
+            .borrow
+            .states
+            .iter()
+            .map(|(_, state)| state.clone())
+            .collect::<Vec<_>>();
+        let main = states
+            .iter()
+            .find(|state| checked.facts.borrow.loans.span_or_empty(state.loans).len() == 4)
+            .expect("main state");
+        let sibling = states
+            .iter()
+            .find(|state| checked.facts.borrow.loans.span_or_empty(state.loans).len() == 1)
+            .expect("sibling state");
+        let main_loans = checked
+            .facts
+            .borrow
+            .loans
+            .iter()
+            .filter(|(handle, _)| checked.facts.borrow.state_owns_loan(main, *handle))
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        let sibling_loan = checked
+            .facts
+            .borrow
+            .loans
+            .iter()
+            .find(|(handle, _)| checked.facts.borrow.state_owns_loan(sibling, *handle))
+            .map(|(handle, _)| handle)
+            .expect("sibling loan");
+        let child = main_loans[2];
+        match axis {
+            0 => {
+                checked.facts.borrow.loans.get_mut(child).lineage =
+                    psi_checked_trees::BorrowLoanLineage::Reborrow {
+                        parent_loan: psi_arena::Handle::invalid(),
+                    }
+            }
+            1 => {
+                checked.facts.borrow.loans.get_mut(child).lineage =
+                    psi_checked_trees::BorrowLoanLineage::Reborrow { parent_loan: child }
+            }
+            2 => {
+                checked.facts.borrow.loans.get_mut(child).lineage =
+                    psi_checked_trees::BorrowLoanLineage::Reborrow {
+                        parent_loan: main_loans[3],
+                    }
+            }
+            3 => {
+                checked.facts.borrow.loans.get_mut(child).lineage =
+                    psi_checked_trees::BorrowLoanLineage::Reborrow {
+                        parent_loan: sibling_loan,
+                    }
+            }
+            4 => {
+                checked.facts.borrow.loans.get_mut(child).lineage =
+                    psi_checked_trees::BorrowLoanLineage::Reborrow {
+                        parent_loan: main_loans[0],
+                    }
+            }
+            5 => {
+                checked.facts.borrow.loans.get_mut(child).lineage =
+                    psi_checked_trees::BorrowLoanLineage::DirectRoot
+            }
+            6 => {
+                checked.facts.borrow.loans.get_mut(child).lineage =
+                    psi_checked_trees::BorrowLoanLineage::UnretainedDerived
+            }
+            7 => {
+                checked
+                    .facts
+                    .borrow
+                    .loans
+                    .get_mut(child)
+                    .source_owner_symbol = psi_symbols::SymbolHandle::invalid()
+            }
+            8 => {
+                checked.facts.borrow.loans.get_mut(child).root_symbol =
+                    psi_symbols::SymbolHandle::invalid()
+            }
+            _ => unreachable!(),
+        }
+        let diagnostics =
+            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+                .expect_err("each parent or lineage-tag substitution must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("loan lineage drifted"))
+        );
+    }
+}
+
+#[test]
+fn keeps_distinct_prior_alias_origins_and_derived_transfers_unretained() {
+    let ambiguous = lower(
+        r#"
+        data Cell { value: i32; }
+        data Main { left: Cell; right: Cell; }
+        machine write_cell(cell: &mut Cell) { cell.value = 2; }
+        machine Main::exercise(&mut self) {
+            let mut alias: &mut Cell = &mut self.left;
+            alias = &mut self.right;
+            let child: &mut Cell = &mut alias;
+            write_cell(child);
+        }
+        "#,
+    );
+    let child_loans = ambiguous
+        .facts
+        .borrow
+        .loans
+        .iter()
+        .filter(|(_, loan)| loan.statement_index == 2)
+        .map(|(_, loan)| loan)
+        .collect::<Vec<_>>();
+    assert_eq!(child_loans.len(), 2);
+    assert!(
+        child_loans.iter().all(|loan| {
+            loan.lineage == psi_checked_trees::BorrowLoanLineage::UnretainedDerived
+        })
+    );
+    assert_ne!(child_loans[0].root_symbol, child_loans[1].root_symbol);
+
+    let derived = lower(
+        r#"
+        data Cell { value: i32; }
+        data Holder<'a> { cell: &'a mut Cell; }
+        data Main { helper_cell: Cell; holder_cell: Cell; }
+        machine pass(value: &mut Cell) -> &mut Cell { value }
+        machine Main::exercise(&mut self) {
+            let helper_source: &mut Cell = &mut self.helper_cell;
+            let from_helper: &mut Cell = pass(helper_source);
+            let helper_reborrow: &mut Cell = &mut from_helper;
+            let holder_source: &mut Cell = &mut self.holder_cell;
+            let holder: Holder = Holder { cell: holder_source };
+            helper_reborrow.value = holder.cell.value;
+        }
+        "#,
+    );
+    let derived_rows = derived
+        .facts
+        .borrow
+        .loans
+        .iter()
+        .filter(|(_, loan)| loan.source_owner_symbol.is_valid())
+        .map(|(_, loan)| loan)
+        .collect::<Vec<_>>();
+    assert!(derived_rows.len() >= 2);
+    assert!(
+        derived_rows.iter().all(|loan| {
+            loan.lineage == psi_checked_trees::BorrowLoanLineage::UnretainedDerived
+        })
+    );
 }
 
 #[test]

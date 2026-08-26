@@ -149,9 +149,30 @@ pub struct BorrowLoanFact {
     /// the whole owner; dynamic indexes conservatively overlap every element.
     pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
     pub source_owner_symbol: SymbolHandle,
+    /// Checked formation lineage for this loan occurrence.
+    ///
+    /// Only an explicit reference-local reborrow with one exact prior source
+    /// occurrence names a parent. Aggregate/helper transfers and ambiguous
+    /// source aliases remain deliberately unretained.
+    pub lineage: BorrowLoanLineage,
     pub root_symbol: SymbolHandle,
     pub segments: HandleSpan<psi_facts::PlaceSegment>,
     pub kind: BorrowAccessKind,
+}
+
+/// Checked-only formation lineage for one loan occurrence.
+///
+/// This classification does not grant authority or change borrow admission.
+/// In particular, `UnretainedDerived` is a fence rather than an inferred
+/// parent relation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum BorrowLoanLineage {
+    #[default]
+    DirectRoot,
+    Reborrow {
+        parent_loan: Handle<BorrowLoanFact>,
+    },
+    UnretainedDerived,
 }
 
 /// Exact state-invocation parent lifetime for one direct-root loan.
@@ -182,9 +203,10 @@ pub struct CheckedDirectBorrowRestorationObligation {
 /// from a root authority occurrence.
 ///
 /// Reborrows and borrow-carrying transfers deliberately have no row in this
-/// first prerequisite: `source_owner_symbol` must be invalid. Compatibility
-/// certificates remain a separate proof ledger and cannot manufacture one of
-/// these resources.
+/// first prerequisite: `lineage` must be `DirectRoot`. A separately replayed
+/// direct-reborrow lineage may name its exact parent loan, but does not yet
+/// close the child's lifetime/restoration resource. Compatibility certificates
+/// remain a separate proof ledger and cannot manufacture one of these rows.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedDirectBorrowLoanResource {
     pub loan: Handle<BorrowLoanFact>,
@@ -223,8 +245,9 @@ pub struct BorrowFacts {
     /// admission. This is a separate proof ledger from the loan resource rows.
     pub compatibility_certificates: Arena<CheckedBorrowCompatibilityCertificate>,
     /// Non-authorizing direct-root resource closures reconstructed from the
-    /// exact loan activation/weakening ledger. Reborrow and transfer lineage
-    /// remain fenced from this first checked-only carrier.
+    /// exact loan activation/weakening ledger. Reborrow parent identity is
+    /// retained separately; reborrow and transfer resource closure remains
+    /// fenced from this first checked-only carrier.
     pub direct_loan_resources: Arena<CheckedDirectBorrowLoanResource>,
 }
 
@@ -324,7 +347,7 @@ impl BorrowFacts {
         loan: &BorrowLoanFact,
         place: &CapturedPlace,
     ) -> bool {
-        if loan.source_owner_symbol.is_valid() {
+        if loan.lineage != BorrowLoanLineage::DirectRoot {
             return place.root_symbol == loan.root_symbol
                 && place.segments == self.loan_segments(loan);
         }
@@ -346,7 +369,7 @@ impl BorrowFacts {
         handle: Handle<BorrowLoanFact>,
         loan: &'a BorrowLoanFact,
     ) -> Option<&'a BorrowAccessKind> {
-        if loan.source_owner_symbol.is_valid() {
+        if loan.lineage != BorrowLoanLineage::DirectRoot {
             return Some(&loan.kind);
         }
         let mut matches = self

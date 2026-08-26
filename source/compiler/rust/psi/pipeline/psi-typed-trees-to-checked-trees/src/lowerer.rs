@@ -61,7 +61,7 @@ fn lower_typed_trees_with_crash_admission(
         &validated.validation_facts,
         nominal_machine_uses,
     )?;
-    checks::initialize_checked_direct_borrow_resources(&mut facts)?;
+    checks::initialize_checked_direct_borrow_resources(&program, &mut facts)?;
 
     // MP5: specialization selection happens before checked contract plans
     // exist. Bind the selected machines' normalized contract identities now,
