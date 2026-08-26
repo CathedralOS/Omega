@@ -753,6 +753,27 @@ The binding remains address-free and grants no target operand, physical offset,
 object relocation, runtime storage, address, registration authority, or
 callback lifetime.
 
+The following target-closed placement recipe now binds that exact argument to
+the outbound registrar `CallPlan` parameter's `ValuePlacement`. For the current
+production `Field` form it also retains exactly one authoritative native-layout
+demand row, including layout, slot, requirement, data symbol, offset, pointer
+extent, and alignment. The offset remains layout evidence and never becomes a
+materialization identity. Replay rechecks the complete prior catalogs, formal
+ordinal and native parameter, target architecture, pointer-sized ABI placement,
+unique layout row, data-layout bounds, and alignment. The current layout
+closure publishes one terminal private slot, so zero- or multi-segment physical
+paths reject until a composable target-layout path carrier exists; this is an
+engineering gap, not a new source design decision. Direct parameter placement
+is covered only by synthetic compiler tests pending Q13. The recipe grants no
+selected or assigned operation, object symbol, relocation, bytes, runtime
+address, registration authority, or callback lifetime.
+
+The next relocation prerequisite is an exact selected/assigned registrar
+operand binding. Target `HostOperation` presently carries an operation key and
+operand span but not the source host-call occurrence, operation ordinal, or an
+exact formal/native-parameter-to-operand handle map. Neither operand position
+nor coarse source coordinates may substitute for that missing identity.
+
 The checked identity spine is live. Admission records the exact statement or
 expression handle, argument ordinal, registration operation, selected machine
 and entry, unique satisfaction trait/requirement pair, and canonical overload

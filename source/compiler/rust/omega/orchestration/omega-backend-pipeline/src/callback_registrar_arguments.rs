@@ -124,4 +124,4 @@ fn span_handle<T>(span: HandleSpan<T>, offset: usize) -> Option<Handle<T>> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

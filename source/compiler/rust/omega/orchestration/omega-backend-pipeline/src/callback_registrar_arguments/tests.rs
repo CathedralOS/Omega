@@ -12,10 +12,18 @@ use std::sync::Arc;
 
 const REQUIREMENT: &str = "package::Registrar::register#exact";
 
-fn exact_surface(
+pub(crate) fn exact_surface(
     placement: &BoundNominalCallbackPlacement,
 ) -> (HostCallPlan, AbstractBoundarySummary) {
     let requirement: Arc<str> = Arc::from(REQUIREMENT);
+    let formal_count = placement
+        .private_materialization
+        .as_ref()
+        .expect("private materialization")
+        .registrar_boundary_entry_plan
+        .call
+        .parameters
+        .len();
     let mut host_calls = HostCallPlan::default();
     let mut call = HostCall {
         source_site: Some(placement.site),
@@ -35,7 +43,7 @@ fn exact_surface(
     host_calls
         .arguments
         .append_to_span(&mut call.arguments, HostCallArgument::default());
-    for formal_ordinal in 0..2 {
+    for formal_ordinal in 0..u32::try_from(formal_count).unwrap() {
         host_calls.arguments.append_to_span(
             &mut call.arguments,
             HostCallArgument {
@@ -51,7 +59,7 @@ fn exact_surface(
 
     let mut boundaries = AbstractBoundarySummary::default();
     let mut arguments = HandleSpan::empty();
-    for formal_ordinal in 0..2 {
+    for formal_ordinal in 0..u32::try_from(formal_count).unwrap() {
         boundaries.host_call_arguments.append_to_span(
             &mut arguments,
             AbstractHostCallNativeArgument {
@@ -87,7 +95,7 @@ fn abstract_site(site: NominalMachineUseSite) -> AbstractHostCallSourceSite {
     }
 }
 
-fn exact_catalog(
+pub(crate) fn exact_catalog(
     destination: NativePlace,
 ) -> (
     Vec<BoundNominalCallbackPlacement>,
@@ -110,7 +118,7 @@ fn exact_catalog(
     )
 }
 
-fn field_destination(slot_names: &[u64]) -> NativePlace {
+pub(crate) fn field_destination(slot_names: &[u64]) -> NativePlace {
     NativePlace::Field {
         parameter: callback_native_parameter_id(REQUIREMENT, 1),
         layout: LayoutPlanId::new(41).unwrap(),

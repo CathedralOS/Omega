@@ -104,7 +104,16 @@ pub(super) mod tests {
             &signature,
         )
         .unwrap();
-        let mut registrar_plan = inbound.plan().clone();
+        let registrar_signature = CallSignature {
+            parameters: vec![omega_calling_conventions::ValueShape::integer(8, 8); 5],
+            result: None,
+        };
+        let registrar_base = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::MicrosoftX64,
+            &registrar_signature,
+        )
+        .unwrap();
+        let mut registrar_plan = registrar_base.plan().clone();
         registrar_plan.call.callback_materializations = vec![
             CallbackMaterialization {
                 binder,
@@ -117,7 +126,7 @@ pub(super) mod tests {
         ];
         let registrar = validate_boundary_entry_plan_with_callback_materializations(
             registrar_plan,
-            &signature,
+            &registrar_signature,
             &context,
         )
         .expect("target-closed registrar plan");
