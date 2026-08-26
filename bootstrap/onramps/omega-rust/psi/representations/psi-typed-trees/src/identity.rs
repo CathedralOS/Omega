@@ -589,6 +589,9 @@ fn count_expression_node(
             for argument in &call.machine_arguments {
                 count_static_argument(argument, counts);
             }
+            if let Some(operation) = &call.private_layout_operation {
+                count_static_argument(&operation.selected_slot, counts);
+            }
             if call.receiver.is_valid() {
                 count_expression_handle(table, call.receiver, counts);
             }

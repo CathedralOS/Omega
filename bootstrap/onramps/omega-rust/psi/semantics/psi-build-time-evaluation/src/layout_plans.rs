@@ -13,6 +13,7 @@ use psi_layout_plans::{
 };
 #[allow(unused_imports)]
 pub use psi_layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
+pub use psi_layout_plans::{NativeLayoutPlanReport, PrivateCallbackLayoutDemandReport};
 use psi_typed_trees::TypedTrees;
 
 use crate::BuildTimeAdmissionPlan;
@@ -40,7 +41,19 @@ pub fn compute_layout_plan(
     policy_machine: &str,
     schema_data: &str,
 ) -> Result<LayoutPlanReport, String> {
-    compute_layout_plan_with_optional_authority(typed, policy_machine, schema_data, None, None)
+    let report = compute_native_layout_plan_with_optional_authority(
+        typed,
+        policy_machine,
+        schema_data,
+        None,
+        None,
+    )?;
+    if !report.private_callback_demands.is_empty() {
+        return Err(format!(
+            "policy `{policy_machine}` produced private native-layout demands; consume it through the native layout-plan path so those demands cannot be discarded"
+        ));
+    }
+    Ok(report.layout)
 }
 
 pub fn compute_layout_plan_with_authority(
@@ -50,7 +63,47 @@ pub fn compute_layout_plan_with_authority(
     selection_authority: std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>,
     custody: crate::BuildTimeInvocationCustody,
 ) -> Result<LayoutPlanReport, String> {
-    compute_layout_plan_with_optional_authority(
+    let report = compute_native_layout_plan_with_optional_authority(
+        typed,
+        policy_machine,
+        schema_data,
+        Some(selection_authority),
+        Some(custody),
+    )?;
+    if !report.private_callback_demands.is_empty() {
+        return Err(format!(
+            "policy `{policy_machine}` produced private native-layout demands; consume it through the native layout-plan path so those demands cannot be discarded"
+        ));
+    }
+    Ok(report.layout)
+}
+
+/// Evaluate one native layout policy while retaining source-authored private
+/// callback destinations. The demands are target-neutral here: the selected
+/// calling-plan realization later supplies callback-address size/alignment and
+/// proves final bounds/non-overlap.
+pub fn compute_native_layout_plan(
+    typed: &TypedTrees,
+    policy_machine: &str,
+    schema_data: &str,
+) -> Result<NativeLayoutPlanReport, String> {
+    compute_native_layout_plan_with_optional_authority(
+        typed,
+        policy_machine,
+        schema_data,
+        None,
+        None,
+    )
+}
+
+pub fn compute_native_layout_plan_with_authority(
+    typed: &TypedTrees,
+    policy_machine: &str,
+    schema_data: &str,
+    selection_authority: std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>,
+    custody: crate::BuildTimeInvocationCustody,
+) -> Result<NativeLayoutPlanReport, String> {
+    compute_native_layout_plan_with_optional_authority(
         typed,
         policy_machine,
         schema_data,
@@ -59,13 +112,13 @@ pub fn compute_layout_plan_with_authority(
     )
 }
 
-fn compute_layout_plan_with_optional_authority(
+fn compute_native_layout_plan_with_optional_authority(
     typed: &TypedTrees,
     policy_machine: &str,
     schema_data: &str,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     custody: Option<crate::BuildTimeInvocationCustody>,
-) -> Result<LayoutPlanReport, String> {
+) -> Result<NativeLayoutPlanReport, String> {
     let (schema_fields, schema_identity) = schema_fields(typed, schema_data)?;
     let schema_value = build_schema_value(typed, schema_data, &schema_fields)?;
 
@@ -81,14 +134,203 @@ fn compute_layout_plan_with_optional_authority(
         None => admission.require_common_floor(typed, machine)?,
     }
 
-    let plan = psi_checked_interpreter::evaluate_build_time_machine(
+    let evaluation = psi_checked_interpreter::evaluate_build_time_machine_with_operation_receipts(
         typed,
         policy_machine,
         vec![schema_value],
     )
     .map_err(|reason| format!("build-time evaluation of `{policy_machine}` failed: {reason}"))?;
 
-    validate_plan(&plan, &schema_fields, schema_identity, policy_machine)
+    let layout = validate_plan(
+        evaluation.value(),
+        &schema_fields,
+        schema_identity,
+        policy_machine,
+    )?;
+    let private_callback_demands = normalize_private_callback_demands(
+        typed,
+        machine,
+        evaluation.private_layout_placements(),
+        policy_machine,
+    )?;
+    Ok(NativeLayoutPlanReport {
+        layout,
+        private_callback_demands,
+    })
+}
+
+fn normalize_private_callback_demands(
+    typed: &TypedTrees,
+    policy_machine: &psi_typed_trees::machine::Machine,
+    receipts: &[psi_checked_interpreter::PrivateLayoutPlacementReceipt],
+    policy_name: &str,
+) -> Result<Vec<PrivateCallbackLayoutDemandReport>, String> {
+    let mut normalized = Vec::with_capacity(receipts.len());
+    for receipt in receipts {
+        let selected = &receipt.selected_slot;
+        if selected.const_literal.is_some()
+            || selected.evidence_projection.is_some()
+            || !selected.symbol.is_valid()
+            || typed.symbols.get(selected.symbol).kind != psi_symbols::SymbolKind::Conformance
+        {
+            return Err(format!(
+                "policy `{policy_name}` selected a private layout slot that is not one exact named conformance"
+            ));
+        }
+        let conformance = typed
+            .conformances()
+            .iter()
+            .find(|candidate| candidate.symbol == selected.symbol)
+            .ok_or_else(|| {
+                format!(
+                    "policy `{policy_name}` selected private layout conformance `{}` whose declaration was not retained",
+                    selected.display_name()
+                )
+            })?;
+        if conformance.carrier_symbol != policy_machine.attached_data_symbol {
+            return Err(format!(
+                "policy `{policy_name}` selected private slot `{}` for layout `{}`, but the active layout producer is attached to `{}`",
+                selected.display_name(),
+                conformance
+                    .carrier_name()
+                    .map_or("<subjectless>", |name| name.as_str()),
+                typed.symbols.name(policy_machine.attached_data_symbol),
+            ));
+        }
+        let trait_definition = typed
+            .traits()
+            .iter()
+            .find(|candidate| candidate.symbol == conformance.trait_symbol)
+            .ok_or_else(|| {
+                format!(
+                    "private layout conformance `{}` lost its exact trait declaration",
+                    selected.display_name()
+                )
+            })?;
+        if trait_definition.name.as_str() != "PrivateCallbackSlot"
+            || typed.symbols.symbol_source_origin(trait_definition.symbol)
+                != Some(psi_source::SourceOrigin::Toolchain)
+        {
+            return Err(format!(
+                "private layout conformance `{}` must implement core `PrivateCallbackSlot<Requirement>`",
+                selected.display_name()
+            ));
+        }
+        let arguments = typed
+            .type_reference_table
+            .type_reference_handles(conformance.arguments);
+        let [requirement_argument] = arguments else {
+            return Err(format!(
+                "private layout conformance `{}` must carry exactly one callback-requirement argument",
+                selected.display_name()
+            ));
+        };
+        let psi_typed_trees::types::TypeReferenceNode::Named {
+            symbol: requirement,
+            ..
+        } = typed
+            .type_reference_table
+            .type_reference(*requirement_argument)
+        else {
+            return Err(format!(
+                "private layout conformance `{}` callback argument is not one exact requirement declaration",
+                selected.display_name()
+            ));
+        };
+        if !requirement.is_valid()
+            || typed.symbols.get(*requirement).kind != psi_symbols::SymbolKind::State
+        {
+            return Err(format!(
+                "private layout conformance `{}` callback argument is not one exact trait requirement",
+                selected.display_name()
+            ));
+        }
+        let requirement_parent = typed.symbols.get(*requirement).parent;
+        if !requirement_parent.is_valid()
+            || typed.symbols.get(requirement_parent).kind != psi_symbols::SymbolKind::Trait
+            || !typed
+                .traits()
+                .iter()
+                .any(|owner| owner.symbol == requirement_parent && owner.is_boundary)
+        {
+            return Err(format!(
+                "private layout conformance `{}` must name one exact boundary-trait callback requirement",
+                selected.display_name()
+            ));
+        }
+        let requirement_trait = typed
+            .traits()
+            .iter()
+            .find(|owner| owner.symbol == requirement_parent)
+            .expect("boundary callback owner was found above");
+        let requirement_row = typed
+            .trait_machine_signatures(requirement_trait)
+            .iter()
+            .find(|row| row.symbol == *requirement)
+            .ok_or_else(|| {
+                format!(
+                    "private layout conformance `{}` callback requirement was not retained in its declaring trait",
+                    selected.display_name()
+                )
+            })?;
+
+        let closed_application =
+            psi_typed_trees_to_checked_trees::close_conformance_application(typed, selected)
+                .map_err(|diagnostic| diagnostic.to_string())?;
+        let slot_identity = format!(
+            "{}#{:016x}",
+            normalized_symbol_identity(typed, selected.symbol)?,
+            closed_application.fingerprint,
+        );
+        if normalized
+            .iter()
+            .any(|existing: &PrivateCallbackLayoutDemandReport| {
+                existing.slot_identity == slot_identity
+            })
+        {
+            return Err(format!(
+                "policy `{policy_name}` places private callback slot `{}` more than once",
+                selected.display_name()
+            ));
+        }
+        normalized.push(PrivateCallbackLayoutDemandReport {
+            slot_identity,
+            layout_subject_identity: normalized_symbol_identity(typed, conformance.carrier_symbol)?,
+            callback_requirement_identity: typed
+                .normalized_trait_requirement_overload_identity(requirement_trait, requirement_row)
+                .identity(),
+            offset: receipt.offset,
+        });
+    }
+    normalized.sort_unstable_by(|left, right| left.slot_identity.cmp(&right.slot_identity));
+    Ok(normalized)
+}
+
+fn normalized_symbol_identity(
+    typed: &TypedTrees,
+    symbol: psi_symbols::SymbolHandle,
+) -> Result<String, String> {
+    if !symbol.is_valid() {
+        return Err("a private layout identity contains an unresolved declaration".to_owned());
+    }
+    let path = typed.symbols.display_path(symbol, "::");
+    if let Some(package) = typed.symbols.symbol_package_identity(symbol) {
+        let mut owner = String::with_capacity(64);
+        use std::fmt::Write as _;
+        for byte in package.digest() {
+            let _ = write!(owner, "{byte:02x}");
+        }
+        return Ok(format!("package:{owner}::{path}"));
+    }
+    match typed.symbols.symbol_source_origin(symbol) {
+        Some(psi_source::SourceOrigin::Toolchain) => Ok(format!("toolchain::{path}")),
+        Some(origin) => Err(format!(
+            "private layout identity `{path}` has non-hermetic source origin `{origin:?}`"
+        )),
+        None => Err(format!(
+            "private layout identity `{path}` has no retained source/package provenance"
+        )),
+    }
 }
 
 /// Materializes one compiler-checked, source-owned record through a normalized

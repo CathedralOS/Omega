@@ -1,0 +1,42 @@
+// COMPILE CANARY. A plan-laid native layout may reserve a semantic-field-free
+// callback destination by explicitly citing one exact named conformance. The
+// sealed plan operation returns the ordinary Plan unchanged; the compiler
+// retains the private demand beside the validated semantic geometry.
+use omega::language::core::layout;
+
+boundary trait WindowProcedure {
+    machine call(message: u64) -> u64;
+}
+
+data Spread {
+    entries: [FieldEntry; 64];
+}
+
+WndClassWindowProcedureSlot:
+    Spread satisfies PrivateCallbackSlot<WindowProcedure::call>;
+
+machine Spread::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    let plan: Plan = Plan {
+        entries: self.entries,
+        entry_count: 1,
+        size_fixed: 16,
+        size_is_dynamic: false,
+        align: 8,
+    };
+    Plan::place_private<WndClassWindowProcedureSlot>(plan, 8)
+}
+
+data ForeignRecord {
+    payload: u64;
+}
+
+data Main {
+    value: Spread<ForeignRecord>;
+}
+
+machine Main::main(&mut self) {
+}

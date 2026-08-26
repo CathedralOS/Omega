@@ -315,6 +315,37 @@ impl<'program> Evaluator<'program> {
         if let Some(value) = self.try_build_output_include_source_value_call(call, frame)? {
             return Ok(value);
         }
+        if let Some(request) = &call.private_layout_operation {
+            let arguments = self
+                .program
+                .expression_table
+                .expression_handles(call.arguments);
+            let [plan, offset] = arguments else {
+                return trap(
+                    "compiler-known `Plan::place_private` requires one Plan and one u64 offset",
+                );
+            };
+            let plan = self.eval_expression(*plan, frame)?;
+            let offset = match self.eval_expression(*offset, frame)? {
+                Value::Int(offset) => u64::try_from(offset).map_err(|_| {
+                    Halt::Trap(format!(
+                        "compiler-known `Plan::place_private` offset `{offset}` is outside the u64 range"
+                    ))
+                })?,
+                other => {
+                    return trap(format!(
+                        "compiler-known `Plan::place_private` offset is not an integer: {other:?}"
+                    ));
+                }
+            };
+            self.private_layout_placements
+                .push(crate::PrivateLayoutPlacementReceipt {
+                    operation_expression: handle,
+                    selected_slot: request.selected_slot.clone(),
+                    offset,
+                });
+            return Ok(plan);
+        }
         // CH10 root grant marker (see the statement-call twin): a no-op.
         if target.starts_with("accept_boundary#")
             || target == "select_provider"

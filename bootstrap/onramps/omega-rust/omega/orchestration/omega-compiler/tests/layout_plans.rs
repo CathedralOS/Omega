@@ -10,14 +10,16 @@
 use omega_compiler::{
     AggregateFieldSchema, AggregateFieldValue, BuildTimeValue, ByteOrder, ConsumptionInstant,
     EntryStubId, IntegerInterpretation, LayoutPlacementReport, MaterializationAction,
-    MaterializationContext, RelocationTarget, ScalarFieldSchema, ScalarFieldValue,
-    SymbolicFieldValue, compile_to_checked, compute_layout_plan, decode_scalar_layout,
+    MaterializationContext, PackageCompilationInputs, PackageSourceBinding, RelocationTarget,
+    ScalarFieldSchema, ScalarFieldValue, SymbolicFieldValue, compile_to_checked,
+    compile_to_checked_with_packages, compute_layout_plan, decode_scalar_layout,
     derive_symbolic_materialization, evaluate_and_materialize_typed_owned_layout_into,
     materialize_aggregate_layout_into, materialize_scalar_layout_into,
     materialize_typed_owned_layout_into,
 };
 use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
+use psi_core::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -28,6 +30,21 @@ fn write_program(name: &str, source: &str) -> PathBuf {
     let main_path = dir.join("main.omg");
     fs::write(&main_path, source).expect("write layout program");
     main_path
+}
+
+fn package_inputs_for_source(source: &Path, digest_byte: u8) -> PackageCompilationInputs {
+    let package = PackageKeyIdentity::from_digest([digest_byte; 32])
+        .expect("test package identity should be nonzero");
+    PackageCompilationInputs::new(
+        package,
+        vec![PackageSourceBinding::new(
+            package,
+            "layout-plan-canary",
+            source.parent().expect("source parent").to_owned(),
+        )],
+        Vec::new(),
+    )
+    .expect("test package inputs should validate")
 }
 
 /// The vocabulary (mirrors omega/language/core/layout.omg) + the CLayout
@@ -357,6 +374,139 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
             .message
             .contains("plan-laid data `Main` changed its exact field identity inventory")
     );
+}
+
+#[test]
+fn plan_laid_private_callback_slot_retains_exact_target_neutral_demand() {
+    let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(6)
+        .expect("compiler crate should live under bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler")
+        .join("canaries/pass/layouts/private_callback_slot_demand_compile/main.omg");
+    let checked =
+        compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x51))
+            .expect("private callback-slot layout canary should compile");
+
+    let recorded = checked
+        .typed
+        .plan_laid_layouts
+        .iter()
+        .find(|layout| layout.data_name == "Spread<ForeignRecord>")
+        .expect("the plan-laid layout should be retained");
+    assert_eq!(recorded.offsets, vec![0]);
+    assert_eq!(recorded.validated_layout.size, Some(16));
+    assert_eq!(recorded.validated_layout.align, 8);
+
+    let [demand] = recorded.private_callback_demands.as_slice() else {
+        panic!("the exact private callback demand should be retained");
+    };
+    assert!(demand.slot_identity.contains("WndClassWindowProcedureSlot"));
+    assert!(demand.layout_subject_identity.ends_with("::Spread"));
+    assert!(
+        demand
+            .callback_requirement_identity
+            .contains("WindowProcedure")
+    );
+    assert!(demand.callback_requirement_identity.contains("call"));
+    assert_eq!(demand.offset, 8);
+
+    let native = psi_layout_plans::NativeLayoutPlanReport {
+        layout: recorded.validated_layout.clone(),
+        private_callback_demands: recorded.private_callback_demands.clone(),
+    };
+    let first = psi_layout_plans::normalized_native_layout_plan_fingerprint(&native);
+    let mut moved = native;
+    moved.private_callback_demands[0].offset = 9;
+    assert_ne!(
+        first,
+        psi_layout_plans::normalized_native_layout_plan_fingerprint(&moved),
+        "private placement must participate in native layout identity"
+    );
+}
+
+#[test]
+fn private_callback_slot_rejects_a_different_layout_subject() {
+    let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(6)
+        .expect("compiler crate should live under bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler")
+        .join("canaries/fail/layouts/private_callback_slot_wrong_layout/main.omg");
+    let diagnostics =
+        compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x52))
+            .expect_err("a private slot for another layout must reject");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("but the active layout producer is attached to"),
+        "unexpected diagnostics:\n{combined}"
+    );
+}
+
+#[test]
+fn private_callback_slot_rejects_duplicate_placement() {
+    let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(6)
+        .expect("compiler crate should live under bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler")
+        .join("canaries/fail/layouts/private_callback_slot_duplicate/main.omg");
+    let diagnostics =
+        compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x53))
+            .expect_err("placing one exact private slot twice must reject");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("places private callback slot") && combined.contains("more than once"),
+        "unexpected diagnostics:\n{combined}"
+    );
+}
+
+#[test]
+fn authored_place_private_lookalike_cannot_mint_a_receipt() {
+    let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(6)
+        .expect("compiler crate should live under bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler")
+        .join("canaries/fail/layouts/private_callback_slot_authored_lookalike/main.omg");
+    let diagnostics =
+        compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x54))
+            .expect_err("an authored Plan::place_private lookalike must reject");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("sealed to core `Plan::place_private`")
+            && combined.contains("authored lookalike"),
+        "unexpected diagnostics:\n{combined}"
+    );
+}
+
+#[test]
+fn untaken_private_callback_slot_branch_emits_no_receipt() {
+    let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(6)
+        .expect("compiler crate should live under bootstrap/onramps/omega-rust/omega/orchestration/omega-compiler")
+        .join("canaries/pass/layouts/private_callback_slot_untaken_compile/main.omg");
+    let checked =
+        compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x55))
+            .expect("the policy with an untaken private-placement branch should compile");
+    let recorded = checked
+        .typed
+        .plan_laid_layouts
+        .iter()
+        .find(|layout| layout.data_name == "Spread<ForeignRecord>")
+        .expect("the plan-laid layout should be retained");
+    assert_eq!(recorded.offsets, vec![0]);
+    assert_eq!(recorded.validated_layout.size, Some(8));
+    assert!(recorded.private_callback_demands.is_empty());
 }
 
 #[test]

@@ -2136,6 +2136,7 @@ fn resolve_leaf_call_expression_handle(
                     target: call.target,
                     machine_arguments: call.machine_arguments,
                     quotient_operation: call.quotient_operation,
+                    private_layout_operation: call.private_layout_operation,
                     arguments: copied_arguments,
                     evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,

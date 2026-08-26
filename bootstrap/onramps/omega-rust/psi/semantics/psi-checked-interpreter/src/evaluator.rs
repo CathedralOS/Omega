@@ -1,12 +1,13 @@
 use crate::{
-    BuildMachineEvaluationFailure, BuildMachineEvaluationFailureKind, EvaluationObservations,
-    EvaluationUsage, FilesystemAccess, FilesystemEvaluationHaltKind, FilesystemGrantAccess,
-    FilesystemGrantRefusal, FilesystemGrantRefusalReason, FilesystemLogicalHandleInput,
-    FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
-    FilesystemLogicalHandleOutput, FilesystemLogicalHandleOutputSource, FilesystemMetadataLayout,
-    FilesystemObservationProvider, FilesystemOperationAttempt, FilesystemOperationAttemptOutcome,
-    FilesystemOperationResult, InterpretOptions, InterpretOutcome, MeasuredBuildMachineEvaluation,
-    MeasuredEvaluation,
+    BuildMachineEvaluationFailure, BuildMachineEvaluationFailureKind, BuildTimeOperationEvaluation,
+    EvaluationObservations, EvaluationUsage, FilesystemAccess, FilesystemEvaluationHaltKind,
+    FilesystemGrantAccess, FilesystemGrantRefusal, FilesystemGrantRefusalReason,
+    FilesystemLogicalHandleInput, FilesystemLogicalHandleInputResolution,
+    FilesystemLogicalHandleKind, FilesystemLogicalHandleOutput,
+    FilesystemLogicalHandleOutputSource, FilesystemMetadataLayout, FilesystemObservationProvider,
+    FilesystemOperationAttempt, FilesystemOperationAttemptOutcome, FilesystemOperationResult,
+    InterpretOptions, InterpretOutcome, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
+    PrivateLayoutPlacementReceipt,
 };
 
 mod filesystem_host_operation;
@@ -243,6 +244,19 @@ pub(crate) fn run_build_time_machine(
     machine_name: &str,
     arguments: Vec<crate::build_time::BuildTimeValue>,
 ) -> Result<MeasuredEvaluation<crate::build_time::BuildTimeValue>, String> {
+    run_build_time_machine_with_operation_receipts(program, machine_name, arguments).map(
+        |evaluation| {
+            let (value, usage, _) = evaluation.into_parts();
+            MeasuredEvaluation::new(value, usage)
+        },
+    )
+}
+
+pub(crate) fn run_build_time_machine_with_operation_receipts(
+    program: &TypedTrees,
+    machine_name: &str,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+) -> Result<BuildTimeOperationEvaluation<crate::build_time::BuildTimeValue>, String> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
@@ -257,7 +271,11 @@ pub(crate) fn run_build_time_machine(
                             "build-time evaluator result-cell count overflowed".to_owned()
                         })?;
                         usage.record_result_cells(result_cells);
-                        Ok(MeasuredEvaluation::new(value, usage))
+                        Ok(BuildTimeOperationEvaluation::new(
+                            value,
+                            usage,
+                            evaluator.private_layout_placements,
+                        ))
                     }
                     Err(Halt::Exit(code)) => Err(format!(
                         "the machine attempted to exit the process (code {code}) instead of returning a value"
@@ -827,6 +845,10 @@ struct Evaluator<'program> {
     /// Stack of call-start indices used to attach nested provider-side facts to
     /// the exact active operation attempt.
     filesystem_operation_attempt_stack: Vec<usize>,
+    /// Compiler-only receipts from executed `Plan::place_private` calls. The
+    /// values are returned beside build-time evaluation and never enter the
+    /// interpreted store.
+    private_layout_placements: Vec<PrivateLayoutPlacementReceipt>,
     usage: EvaluationUsage,
     /// Total step allowance for this run. Full-program interpretation uses
     /// `STEP_BUDGET`; const evaluation uses the much smaller

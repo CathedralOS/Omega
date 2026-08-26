@@ -93,6 +93,7 @@ pub fn infer_machine_termination_summary(
     ))
 }
 
+pub use conformance_applications::close_conformance_application;
 pub use monomorphization::{
     generic_machine_template_fingerprint, refresh_closed_domain_instance_identities,
 };

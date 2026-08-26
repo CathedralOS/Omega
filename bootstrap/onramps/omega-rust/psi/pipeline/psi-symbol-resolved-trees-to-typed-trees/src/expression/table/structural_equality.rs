@@ -214,6 +214,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         target: typed::name::Identifier::generated_static("equals"),
                         machine_arguments: Box::default(),
                         quotient_operation: None,
+                        private_layout_operation: None,
                         arguments,
                         evidence_arguments: Box::default(),
                         operational_acknowledgement:

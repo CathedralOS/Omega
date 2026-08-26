@@ -928,6 +928,8 @@ pub enum ExpressionSnapshot {
         receiver: Option<Box<ExpressionSnapshot>>,
         target: String,
         machine_arguments: Vec<StaticArgumentSnapshot>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        private_layout_slot: Option<StaticArgumentSnapshot>,
         arguments: Vec<ExpressionSnapshot>,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         evidence_arguments: Vec<String>,
@@ -1877,6 +1879,10 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
                 .iter()
                 .map(snapshot_static_argument)
                 .collect(),
+            private_layout_slot: call
+                .private_layout_operation
+                .as_ref()
+                .map(|operation| snapshot_static_argument(&operation.selected_slot)),
             arguments: expression_span_snapshot(program, call.arguments),
             evidence_arguments: call
                 .evidence_arguments

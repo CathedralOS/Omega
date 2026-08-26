@@ -202,8 +202,20 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     return Ok(lowered);
                 }
                 let quotient_operation = self.lower_quotient_operation_request(call)?;
+                let private_layout_operation = self.lower_private_layout_operation_request(call)?;
                 let receiver = self.lower_optional(call.receiver)?;
                 let arguments = self.lower_expression_handle_span(call.arguments)?;
+                let machine_arguments = if private_layout_operation.is_some() {
+                    // `Slot` is a sealed proof-static selector, not an
+                    // ordinary generic parameter of the identity operation.
+                    Box::default()
+                } else {
+                    call.machine_arguments
+                        .iter()
+                        .map(crate::expression::lower_static_machine_argument)
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice()
+                };
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::Call(
@@ -211,13 +223,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             receiver,
                             target_symbol: call.target_symbol,
                             target: lower_name(&call.target),
-                            machine_arguments: call
-                                .machine_arguments
-                                .iter()
-                                .map(crate::expression::lower_static_machine_argument)
-                                .collect::<Vec<_>>()
-                                .into_boxed_slice(),
+                            machine_arguments,
                             quotient_operation,
+                            private_layout_operation,
                             arguments,
                             evidence_arguments: call
                                 .evidence_arguments
@@ -442,6 +450,82 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 representative_operation,
             ),
             selected_theorem: crate::expression::lower_static_machine_argument(selected_theorem),
+        }))
+    }
+
+    fn lower_private_layout_operation_request(
+        &self,
+        call: &resolved::expression::TableCallExpression,
+    ) -> Result<Option<typed::expression::PrivateLayoutOperationRequest>, Diagnostic> {
+        if call.target.as_str() != "place_private" || !call.receiver.is_valid() {
+            return Ok(None);
+        }
+        let resolved::expression::ExpressionNode::Name(receiver) =
+            self.source.expression(call.receiver)
+        else {
+            return Ok(None);
+        };
+        let [namespace] = self.source.name_path_members(receiver.members) else {
+            return Ok(None);
+        };
+        if namespace.as_str() != "Plan" {
+            return Ok(None);
+        }
+        let Some(program) = self.program else {
+            return Err(Diagnostic::error(
+                "a private layout placement requires a complete resolved program",
+            ));
+        };
+        let [selected_slot] = call.machine_arguments.as_ref() else {
+            return Err(Diagnostic::error(
+                "`Plan::place_private` requires exactly one static argument naming one exact conformance",
+            ));
+        };
+        if selected_slot.const_literal.is_some()
+            || selected_slot.evidence_projection.is_some()
+            || !selected_slot.symbol.is_valid()
+            || program.symbols.get(selected_slot.symbol).kind
+                != psi_symbols::SymbolKind::Conformance
+        {
+            return Err(Diagnostic::error(
+                "the static argument to `Plan::place_private` must resolve exactly to one named conformance; slot discovery is not permitted",
+            ));
+        }
+        if !call.target_symbol.is_valid()
+            || program.symbols.get(call.target_symbol).kind != psi_symbols::SymbolKind::State
+        {
+            return Err(Diagnostic::error(
+                "`Plan::place_private` must resolve to its exact compiler-known Plan operation",
+            ));
+        }
+        let exact_owner = program.machines.iter().find(|machine| {
+            machine.attached_data_symbol.is_valid()
+                && program.symbols.name(machine.attached_data_symbol) == "Plan"
+                && program
+                    .machine_state_handles(machine.states)
+                    .iter()
+                    .any(|state| program.machine_state(*state).symbol == call.target_symbol)
+        });
+        let Some(exact_owner) = exact_owner else {
+            return Err(Diagnostic::error(
+                "`Plan::place_private` must be the Plan-owned compiler-known operation",
+            ));
+        };
+        if receiver.symbol != exact_owner.attached_data_symbol
+            || program.symbols.symbol_source_origin(call.target_symbol)
+                != Some(psi_source::SourceOrigin::Toolchain)
+            || program
+                .symbols
+                .symbol_source_origin(exact_owner.attached_data_symbol)
+                != Some(psi_source::SourceOrigin::Toolchain)
+        {
+            return Err(Diagnostic::error(
+                "the private-layout operation is sealed to core `Plan::place_private`; an authored lookalike cannot mint a placement receipt",
+            ));
+        }
+
+        Ok(Some(typed::expression::PrivateLayoutOperationRequest {
+            selected_slot: crate::expression::lower_static_machine_argument(selected_slot),
         }))
     }
 

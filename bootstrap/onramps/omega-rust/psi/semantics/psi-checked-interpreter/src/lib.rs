@@ -1676,6 +1676,54 @@ impl<T> MeasuredEvaluation<T> {
     }
 }
 
+/// One executed compiler-known private layout placement. The static
+/// conformance application is retained exactly; semantic validation, not the
+/// evaluator, decides whether it is the declared slot for the active layout.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateLayoutPlacementReceipt {
+    pub operation_expression: psi_typed_trees::expression::ExpressionHandle,
+    pub selected_slot: psi_typed_trees::expression::StaticMachineArgument,
+    pub offset: u64,
+}
+
+/// Structured evaluation plus compiler-only operation receipts. Receipts are
+/// not Omega values and cannot be observed or fabricated by evaluated code.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildTimeOperationEvaluation<T> {
+    measured: MeasuredEvaluation<T>,
+    private_layout_placements: Vec<PrivateLayoutPlacementReceipt>,
+}
+
+impl<T> BuildTimeOperationEvaluation<T> {
+    fn new(
+        value: T,
+        usage: EvaluationUsage,
+        private_layout_placements: Vec<PrivateLayoutPlacementReceipt>,
+    ) -> Self {
+        Self {
+            measured: MeasuredEvaluation::new(value, usage),
+            private_layout_placements,
+        }
+    }
+
+    pub const fn value(&self) -> &T {
+        self.measured.value()
+    }
+
+    pub const fn usage(&self) -> EvaluationUsage {
+        self.measured.usage()
+    }
+
+    pub fn private_layout_placements(&self) -> &[PrivateLayoutPlacementReceipt] {
+        &self.private_layout_placements
+    }
+
+    pub fn into_parts(self) -> (T, EvaluationUsage, Vec<PrivateLayoutPlacementReceipt>) {
+        let (value, usage) = self.measured.into_parts();
+        (value, usage, self.private_layout_placements)
+    }
+}
+
 /// A granted build-machine result keeps host observations beside, but
 /// distinct from, deterministic evaluator work.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1908,6 +1956,18 @@ pub fn evaluate_build_time_machine_measured(
     arguments: Vec<BuildTimeValue>,
 ) -> Result<MeasuredEvaluation<BuildTimeValue>, String> {
     evaluator::run_build_time_machine(program, machine_name, arguments)
+}
+
+/// Evaluate one build-time machine while retaining compiler-known operation
+/// receipts beside the ordinary result. This is the authoritative entry for
+/// native layout policies containing `Plan::place_private`; callers that do
+/// not consume such receipts may continue using [`evaluate_build_time_machine`].
+pub fn evaluate_build_time_machine_with_operation_receipts(
+    program: &psi_typed_trees::TypedTrees,
+    machine_name: &str,
+    arguments: Vec<BuildTimeValue>,
+) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, String> {
+    evaluator::run_build_time_machine_with_operation_receipts(program, machine_name, arguments)
 }
 
 /// The AUGMENTING-MACHINE build-time entry (build_and_package_model.md): run

@@ -265,8 +265,8 @@ Rules:
   machine parameter uses that same judgment. Specialization first replaces
   `Schema` and `Selected`, then continues to a fixed point until the nested
   call is direct and contains no runtime callable representation.
-- Every machine parameter must have an authored contract at its declaration.
-  The structural form is `where machine M(...)`; the nominal form is
+- Every **callable** machine parameter must have an authored contract at its
+  declaration. The structural form is `where machine M(...)`; the nominal form is
   `where machine M satisfies Trait::requirement`. The nominal requirement
   supplies its complete parameter/result shape, contracts, operational
   ceilings, and any boundary calling/entry plan, so its signature is not
@@ -276,6 +276,19 @@ Rules:
   instantiation. Missing or ambiguous contracts reject. If exactly one
   implementation is intended, call that concrete machine instead of declaring
   a generic.
+- A trait may instead bind a machine as declaration identity only, without a
+  `where machine` clause:
+
+  ```omega
+  trait PrivateCallbackSlot<machine Requirement> { }
+  ```
+
+  Such a binder has no callable signature and cannot be invoked by a default,
+  law, or consumer. An application must supply one exact free-machine or
+  signature-free trait-requirement declaration; an ordinary type, conformance,
+  runtime value, or overloaded requirement family rejects. This form exists for
+  proof-interface relationships whose identity includes another declaration,
+  not as inference for a missing callable contract.
 - Type and result parameters may be inferred from the selected machine and
   ordinary arguments. For example, `map<Card::power>(cards)` specializes
   `map<T, U, machine F>` with `T = Card`, `U = u64`, and every `F(value)` call
@@ -306,13 +319,14 @@ Rules:
   its thunk/relocation privately without producing a general runtime machine
   value.
 - When a public package surface contains a static machine parameter, package
-  review retains the authored contract rather than only the `machine` kind.
+  review retains its category rather than only the `machine` kind.
   Structural contracts include the complete recursively alpha-normalized
   signature and operational envelope; nominal contracts include the exact
-  public trait and requirement identities. Renaming machine binders is not an
-  API change, while changing any nested contract shape or authority is. A
-  private nominal requirement or missing checked contract evidence rejects
-  package review.
+  public trait and requirement identities; declaration-identity binders retain
+  their non-callable category and every closed application retains the exact
+  selected declaration. Renaming machine binders is not an API change, while
+  changing any nested contract shape or authority is. A private nominal
+  requirement or missing checked contract evidence rejects package review.
 - Accepted generic axioms are granted once at the normalized template
   statement, including its machine-parameter contract. Each instantiation
   records that template receipt and the selected machine-contract identities

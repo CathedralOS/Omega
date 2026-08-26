@@ -5290,12 +5290,9 @@ Owners:
   target-requirement overload. It retains each opaque identity beside the
   exact parameter, trait, requirement, and ordinal symbols on the boundary
   realization, rejects invalid or duplicate retained rows, and publishes the
-  bounded catalog to calling policy. The remaining slice is to publish the
-  native-layout demand catalog, derive its half of the validation context from
-  the exact registrar layout, admit the evaluated catalog through the
-  context-bound path, and join it to each checked callback use before private
-  relocation emission. The source prerequisite for the compiler-known slot
-  trait is now explicit: trait declarations accept proof-static `machine`
+  bounded catalog to calling policy. The source prerequisite for the
+  compiler-known slot trait is now explicit: trait declarations accept
+  proof-static `machine`
   parameters as requirement-identity binders, conformance arguments retain a
   source-backed qualified path, and resolution accepts exactly one
   signature-free `Trait::requirement` declaration while rejecting ordinary
@@ -5307,6 +5304,20 @@ Owners:
   `PrivateCallbackSlot<machine Requirement>` declaration, and package review
   retains an explicitly named public conformance with its exact toolchain-owned
   trait and requirement-identity argument. No ambient lookup is introduced.
+  Native layout evaluation now publishes
+  the target-neutral half of the other catalog: an executed sealed
+  `Plan::place_private<Conformance>` call returns the ordinary `Plan` unchanged
+  while recording the exact closed conformance, active layout subject,
+  canonical signature-free callback requirement overload, and authored
+  offset. Plan-laid layouts retain those rows beside semantic geometry;
+  ordinary layout consumers reject rather than silently discard them, and
+  native layout identity includes them. The remaining slice is to close each
+  row with the selected target's function-pointer extent/alignment, prove fixed
+  bounds and semantic/private and private/private non-overlap, publish the
+  resulting demand catalog to `BoundarySignature`, derive the layout half of
+  `CallbackMaterializationContext`, admit the outbound plan through that
+  context, and retain the same context through later callback-placement
+  revalidation before private relocation emission.
   The declaration shape is now settled. A target package declares one stable
   typed slot as an explicitly named
   `Layout satisfies PrivateCallbackSlot<Trait::requirement>` conformance, and
@@ -5314,10 +5325,13 @@ Owners:
   `Plan::place_private` vocabulary. The conformance is inert until cited; no
   ambient lookup or owner-only exception exists. Its subject and static
   argument derive layout/requirement identity, while the evaluated plan derives
-  target-closed placement and `LayoutSlotId`. The authoritative layout may
-  author or compute the physical offset, but neither the slot identity nor the
-  calling plan contains a repeated raw offset. Implement that source ABI and
-  publish its exact catalog to the existing closure validator.
+  the physical offset. The authoritative layout may author or compute that
+  offset, but neither the slot identity nor the calling plan contains a
+  repeated raw offset. The source ABI, non-callable requirement-identity binder,
+  sealed evaluator receipt, exact wrong-layout/overload/duplicate checks, and
+  target-neutral catalog are implemented. Target closure mints `LayoutPlanId`
+  and `LayoutSlotId` and publishes the exact catalog to the existing closure
+  validator in the next rung.
   Checked-only compilation exposes those rows and native compilation retains
   them on `BackendPlan`, so no later thunk pass may replace the recipe with a
   convention oracle or silently discard it. Native backend planning now also
@@ -6983,6 +6997,18 @@ Owners:
   conformance, and unresolved forms. Retain the fixed registrar fingerprint
   separately from per-use selected-machine/thunk identity and join them only
   during private relocation emission.
+
+  The first vertical rung is complete. Traits can bind one non-callable exact
+  machine declaration identity; conformance applications retain and validate
+  the exact free-machine or signature-free trait-requirement symbol. Core owns
+  `PrivateCallbackSlot<machine Requirement>` and the sealed
+  `Plan::place_private<Conformance>` operation. Evaluator receipts are emitted
+  only for executed calls, normalized without ambient lookup, retained on
+  `PlanLaidLayout`, and included in native-layout fingerprints. Authored
+  lookalikes, wrong layout subjects, duplicate placement, wrong static
+  categories, and ambiguous requirement overloads reject. The next rung is
+  target closure and the outbound-plan join described above; private
+  relocation/emission remains subsequent.
 
   Add pass canaries for direct parameters, one nested slot, multiple explicitly
   named slots, an inert uncited third-party conformance, and the same

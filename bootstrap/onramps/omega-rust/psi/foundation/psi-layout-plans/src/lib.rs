@@ -58,6 +58,26 @@ pub struct LayoutPlanReport {
     pub align: u64,
 }
 
+/// One normalized semantic-field-free callback destination in a native
+/// layout. Declaration identities are exact canonical strings rather than
+/// authored ordinals or arena handles. The authoritative layout policy owns
+/// `offset`, but callback-address size/alignment close later with the selected
+/// target calling plan and are deliberately absent here.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateCallbackLayoutDemandReport {
+    pub slot_identity: String,
+    pub layout_subject_identity: String,
+    pub callback_requirement_identity: String,
+    pub offset: u64,
+}
+
+/// One validated native layout and its compiler-private demand catalog.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeLayoutPlanReport {
+    pub layout: LayoutPlanReport,
+    pub private_callback_demands: Vec<PrivateCallbackLayoutDemandReport>,
+}
+
 /// Deterministic semantic identity of one validated layout plan.
 ///
 /// Compiler-issued field keys, numbered-member source names, and authored entry
@@ -137,6 +157,41 @@ pub fn normalized_layout_plan_fingerprint(layout: &LayoutPlanReport) -> u64 {
                 }
             }
         }
+    }
+    if hash == 0 { 1 } else { hash }
+}
+
+/// Canonical identity of a native layout including its private demands. The
+/// base layout remains independently reusable by semantic projection; private
+/// placement participates only in native-layout identity.
+pub fn normalized_native_layout_plan_fingerprint(layout: &NativeLayoutPlanReport) -> u64 {
+    let mut demands = layout.private_callback_demands.iter().collect::<Vec<_>>();
+    demands.sort_unstable_by(|left, right| {
+        left.slot_identity
+            .cmp(&right.slot_identity)
+            .then_with(|| {
+                left.callback_requirement_identity
+                    .cmp(&right.callback_requirement_identity)
+            })
+            .then_with(|| left.offset.cmp(&right.offset))
+    });
+    let mut hash = 0xcbf29ce484222325u64;
+    hash_fingerprint_bytes(&mut hash, b"omega.native-layout-plan.v1");
+    hash_fingerprint_u64(
+        &mut hash,
+        normalized_layout_plan_fingerprint(&layout.layout),
+    );
+    hash_fingerprint_u64(&mut hash, demands.len() as u64);
+    for demand in demands {
+        for identity in [
+            demand.slot_identity.as_bytes(),
+            demand.layout_subject_identity.as_bytes(),
+            demand.callback_requirement_identity.as_bytes(),
+        ] {
+            hash_fingerprint_u64(&mut hash, identity.len() as u64);
+            hash_fingerprint_bytes(&mut hash, identity);
+        }
+        hash_fingerprint_u64(&mut hash, demand.offset);
     }
     if hash == 0 { 1 } else { hash }
 }

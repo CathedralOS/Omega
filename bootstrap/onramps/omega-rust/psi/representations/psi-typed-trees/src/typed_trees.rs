@@ -286,6 +286,11 @@ pub struct PlanLaidLayout {
     /// Exact validated target-neutral geometry from which the host-sized
     /// consumer projections below were derived.
     pub validated_layout: psi_layout_plans::LayoutPlanReport,
+    /// Source-authored semantic-field-free callback destinations. These rows
+    /// intentionally stop at exact declaration identity plus offset; the
+    /// selected target calling plan supplies pointer extent and completes
+    /// bounds/non-overlap validation before materialization.
+    pub private_callback_demands: Vec<psi_layout_plans::PrivateCallbackLayoutDemandReport>,
     /// Byte offset of each field, in declaration order.
     pub offsets: Vec<usize>,
     /// Fragmented scalar fields keyed by declaration-order field index.

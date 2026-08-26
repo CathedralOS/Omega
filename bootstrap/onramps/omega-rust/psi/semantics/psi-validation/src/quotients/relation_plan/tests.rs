@@ -127,6 +127,7 @@ fn call_with_arguments(
         target: Identifier::generated_static("lift"),
         machine_arguments: Box::default(),
         quotient_operation: None,
+        private_layout_operation: None,
         arguments,
         evidence_arguments: Box::default(),
         operational_acknowledgement: Default::default(),

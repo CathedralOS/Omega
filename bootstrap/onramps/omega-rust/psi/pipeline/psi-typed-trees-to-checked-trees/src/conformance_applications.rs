@@ -57,7 +57,7 @@ fn validate_arguments(
     }
 }
 
-pub(crate) fn close_conformance_application(
+pub fn close_conformance_application(
     program: &TypedTrees,
     selected: &StaticMachineArgument,
 ) -> Result<ClosedConformanceApplication, Diagnostic> {
@@ -215,10 +215,24 @@ pub(crate) fn close_conformance_application(
             )
         })
         .collect::<Vec<_>>();
-    let Some(rows) = program.closed_conformance_rows(conformance) else {
-        return Err(Diagnostic::error(format!(
-            "conformance `{declaration_name}` is not one complete closed requirement map"
-        )));
+    let rows = match program.closed_conformance_rows(conformance) {
+        Some(rows) => rows,
+        None if program
+            .trait_machine_signatures(trait_definition)
+            .is_empty()
+            && program.trait_requirements(trait_definition).is_empty() =>
+        {
+            // A bodyless conformance to a true marker trait is already a
+            // complete empty map. This is the ordinary source form used by
+            // typed declaration relationships such as PrivateCallbackSlot;
+            // no realization row exists to discover or synthesize.
+            &[]
+        }
+        None => {
+            return Err(Diagnostic::error(format!(
+                "conformance `{declaration_name}` is not one complete closed requirement map"
+            )));
+        }
     };
     let row_identities = rows
         .iter()
