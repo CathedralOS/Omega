@@ -403,6 +403,20 @@ These facts constrain the work below.
   shared-merge preservation, block/effect/fact reconstruction, incomplete
   region and tombstone corruption, projection/report custody, and a second
   fixed-point sweep.
+- `ControlFlowCleanup` now also registers `linear-empty-block-thread.v1` as
+  its second exact rule. This intentionally handles only a non-entry block
+  containing one unconditional jump, with exactly one incoming edge owned by
+  another unconditional jump. The rule composes typed block bindings, proves
+  verifier-frontier identity across the bypass, and realizes both co-executed
+  edge/fuel sources at the retained predecessor rather than falsely declaring
+  the removed jump unreachable. The independent validator reconstructs the
+  one-predecessor shape, bindings, frontier snapshots, exact affected roster,
+  fused provenance/fuel, dense effects, facts, places, and output identity.
+  Candidate v9, optimization-unit identity v5, the v4 pass, and the v4
+  optimized-plan projection identity bind the broadened but still flat fused-
+  jump custody. General multi-predecessor or conditional-predecessor threading
+  remains unavailable: it needs edge-qualified source occurrences so the
+  removed edge is charged only on the path that actually executes it.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds its input
   revision, rule contract, decision point, affected region, required analyses
@@ -847,9 +861,13 @@ dependency.
   node and its original scheduled fuel as independently proven unreachable and
   uncharged. Candidate v8, ledger v2, prephysical manifest v3, and the
   projection-wide source-custody partition bind that distinction and the
-  changed block roster. Empty-block threading, redundant jumps, general
-  unreachable cleanup not caused by this fold, and private-machine pruning
-  remain open.
+  changed block roster. The v4 pass also includes exact linear empty-jump
+  threading for one unconditional predecessor: typed bindings are composed,
+  both co-executed edge charges remain realized at the retained jump, ownership
+  frontiers must be identical across the bypass, and effects/facts/places are
+  independently rebuilt. General path-dependent empty-block threading,
+  redundant jumps, unreachable cleanup not caused by the conditional fold,
+  and private-machine pruning remain open.
 
 - **OPT-SCCP.** Implement sparse conditional constant propagation over the
   closed integer and Boolean Terminal Psi operations.
