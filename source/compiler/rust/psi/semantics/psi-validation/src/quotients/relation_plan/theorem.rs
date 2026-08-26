@@ -1,8 +1,8 @@
 //! Exact selected resultless theorem identity for quotient-operation planning.
 //!
-//! This first rung selects and fences the theorem machine application. It does
-//! not yet derive or prove the expected congruence schema and therefore grants
-//! no executable quotient authority.
+//! This owner selects and fences the theorem machine application. Structural
+//! schema verification is separate and neither operation proves congruence or
+//! grants executable quotient authority.
 
 use super::representative::RepresentativeRuntimeParameter;
 use super::static_application::validate_static_application;

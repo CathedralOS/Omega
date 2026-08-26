@@ -23,6 +23,7 @@ mod runtime_correspondence;
 mod static_application;
 mod theorem;
 mod theorem_schema;
+mod theorem_schema_verification;
 
 use precondition::{
     DefinePreconditionCorrespondence, RepresentativePreconditionPartition,
@@ -45,6 +46,7 @@ use runtime_correspondence::{DefineRuntimeCorrespondence, derive_define_runtime_
 use theorem::derive_selected_theorem_telescope;
 use theorem::{SelectedTheoremPurity, SelectedTheoremTelescope, SelectedTheoremTermination};
 use theorem_schema::{ExpectedTheoremSchema, derive_expected_theorem_schema};
+use theorem_schema_verification::{VerifiedTheoremSchema, verify_selected_theorem_schema};
 
 #[cfg(test)]
 use result_flow::{
@@ -83,15 +85,18 @@ pub(super) struct DirectTerminalRelationPlan {
     pub(super) result_relation: ExactQuotientRelation,
     pub(super) representative: RepresentativeTelescope,
     pub(super) representative_termination: Option<RepresentativeTermination>,
-    /// Exact explicitly selected resultless theorem-machine application. Its
-    /// contract schema remains unproved in this first selection rung.
+    /// Exact explicitly selected resultless theorem-machine application.
     pub(super) selected_theorem: SelectedTheoremTelescope,
     pub(super) selected_theorem_termination: Option<SelectedTheoremTermination>,
     pub(super) selected_theorem_purity: Option<SelectedTheoremPurity>,
     pub(super) selected_theorem_crash_free: bool,
     /// Exact compiler-derived contract expected from the selected theorem.
-    /// Selection verification remains a later fail-closed stage.
     expected_theorem_schema: ExpectedTheoremSchema,
+    /// Structural verification pairs every expected row with one exact
+    /// selected-theorem row. An error remains diagnostic planning state only;
+    /// stages 3/4 must consume the certificate and cannot infer authority from
+    /// the expected schema alone.
+    pub(super) theorem_schema_verification: Result<VerifiedTheoremSchema, RelationPlanError>,
     pub(super) define_correspondence: Option<DefineRuntimeCorrespondence>,
     pub(super) public_precondition: Option<RepresentativePreconditionPartition>,
     pub(super) representative_precondition: Option<RepresentativePreconditionPartition>,
@@ -136,6 +141,18 @@ pub(super) enum RelationPlanError {
     TheoremMustBeResultless,
     TheoremStaticApplicationInvalid,
     TheoremSchemaRuntimeArityMismatch,
+    TheoremSchemaParameterArityMismatch,
+    TheoremSchemaConstParameter(usize),
+    TheoremSchemaAttachedReceiver(usize),
+    TheoremSchemaParameterModeMismatch(usize),
+    TheoremSchemaParameterTypeMismatch(usize),
+    TheoremSchemaNamedEvidenceLane,
+    TheoremSchemaUnexpectedContractKind,
+    TheoremSchemaPremiseCountMismatch,
+    TheoremSchemaRelationPremiseMismatch(usize),
+    TheoremSchemaLegalityPremiseMismatch(usize),
+    TheoremSchemaConclusionCountMismatch,
+    TheoremSchemaConclusionMismatch,
     DefineOwnerRequiresSubstitution,
     DefineRuntimeArityMismatch,
     DefineParameterIdentityNotUnique,
@@ -202,6 +219,48 @@ impl fmt::Display for RelationPlanError {
             ),
             Self::TheoremSchemaRuntimeArityMismatch => formatter.write_str(
                 "the representative runtime telescope does not match the quotient operation argument telescope",
+            ),
+            Self::TheoremSchemaParameterArityMismatch => formatter.write_str(
+                "the selected theorem's ordinary parameter arity does not exactly match the derived theorem schema",
+            ),
+            Self::TheoremSchemaConstParameter(position) => write!(
+                formatter,
+                "selected theorem parameter {position} is const; theorem-schema parameters must all be ordinary proof-static values"
+            ),
+            Self::TheoremSchemaAttachedReceiver(position) => write!(
+                formatter,
+                "selected theorem parameter {position} is an attached receiver; theorem-schema parameters must all be ordinary explicit values"
+            ),
+            Self::TheoremSchemaParameterModeMismatch(position) => write!(
+                formatter,
+                "selected theorem parameter {position} changes the derived representative access mode"
+            ),
+            Self::TheoremSchemaParameterTypeMismatch(position) => write!(
+                formatter,
+                "selected theorem parameter {position} does not have the exact derived type after both static applications are substituted"
+            ),
+            Self::TheoremSchemaNamedEvidenceLane => formatter.write_str(
+                "the selected theorem schema contains a named contract binding and would expose a runtime evidence lane",
+            ),
+            Self::TheoremSchemaUnexpectedContractKind => formatter.write_str(
+                "the selected theorem schema contains a result-case or crash contract outside the exact requires/ensures theorem shape",
+            ),
+            Self::TheoremSchemaPremiseCountMismatch => formatter.write_str(
+                "the selected theorem's requires fact count does not exactly match all relation and representative-legality premises",
+            ),
+            Self::TheoremSchemaRelationPremiseMismatch(position) => write!(
+                formatter,
+                "selected theorem relation premise {position} is missing, duplicated, finer, or names a different relation"
+            ),
+            Self::TheoremSchemaLegalityPremiseMismatch(position) => write!(
+                formatter,
+                "selected theorem representative-legality premise {position} does not exactly match its substituted representative requires fact"
+            ),
+            Self::TheoremSchemaConclusionCountMismatch => formatter.write_str(
+                "the selected theorem must have exactly one ordinary ensures fact and no other conclusion lane",
+            ),
+            Self::TheoremSchemaConclusionMismatch => formatter.write_str(
+                "the selected theorem conclusion is not the exact result relation over the two exact representative applications",
             ),
             Self::DefineOwnerRequiresSubstitution => formatter.write_str(
                 "the quotient-facing definition is generic and requires exact owner-telescope substitution",
@@ -299,6 +358,12 @@ pub(super) fn derive_direct_terminal_plan(
         result_relation,
         &representative,
     )?;
+    let theorem_schema_verification = verify_selected_theorem_schema(
+        program,
+        &representative,
+        &selected_theorem,
+        &expected_theorem_schema,
+    );
     let define_correspondence = (request.kind == QuotientOperationKind::Define)
         .then(|| {
             derive_define_runtime_correspondence(
@@ -350,6 +415,7 @@ pub(super) fn derive_direct_terminal_plan(
         selected_theorem_purity,
         selected_theorem_crash_free,
         expected_theorem_schema,
+        theorem_schema_verification,
         define_correspondence,
         public_precondition,
         representative_precondition,

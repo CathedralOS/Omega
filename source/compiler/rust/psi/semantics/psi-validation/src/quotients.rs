@@ -220,10 +220,16 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         " plus exact {}",
                         plan.render_selected_theorem(program)
                     );
-                    let theorem_schema = format!(
-                        " plus exact {}",
-                        plan.render_expected_theorem_schema()
-                    );
+                    let theorem_schema = match &plan.theorem_schema_verification {
+                        Ok(_) => format!(
+                            " plus verified exact {}",
+                            plan.render_expected_theorem_schema()
+                        ),
+                        Err(reason) => format!(
+                            " plus expected exact {} (verification failed: {reason})",
+                            plan.render_expected_theorem_schema()
+                        ),
+                    };
                     let theorem_termination = plan
                         .selected_theorem_termination
                         .map(|_| " plus checked theorem termination summary")
@@ -261,27 +267,27 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     } else {
                         "immutable-alias fallthrough"
                     };
-                    let mut remaining = vec![
-                        "complete operation/static correspondence",
-                        "exact selected theorem schema verification",
-                    ];
+                    let mut remaining = vec!["complete operation/static correspondence".to_owned()];
+                    if plan.theorem_schema_verification.is_err() {
+                        remaining.push("exact selected theorem schema verification".to_owned());
+                    }
                     if representative_purity.is_none() {
-                        remaining.push("the effect fence");
+                        remaining.push("the effect fence".to_owned());
                     }
                     if termination.is_empty() {
-                        remaining.push("the termination fence");
+                        remaining.push("the termination fence".to_owned());
                     }
                     if plan.selected_theorem_termination.is_none() {
-                        remaining.push("the selected theorem termination fence");
+                        remaining.push("the selected theorem termination fence".to_owned());
                     }
                     if plan.selected_theorem_purity.is_none() {
-                        remaining.push("the selected theorem effect fence");
+                        remaining.push("the selected theorem effect fence".to_owned());
                     }
                     if !plan.selected_theorem_crash_free {
-                        remaining.push("the selected theorem crash fence");
+                        remaining.push("the selected theorem crash fence".to_owned());
                     }
                     if complete_result_flow.is_none() && complete_forwarded_result_flow.is_none() {
-                        remaining.push("all normalized result exits");
+                        remaining.push("all normalized result exits".to_owned());
                     }
                     diagnostics.push(Diagnostic::error(format!(
                         "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{termination}{purity}{theorem}{theorem_schema}{theorem_termination}{theorem_purity}{theorem_crash}{correspondence}{public_precondition}{precondition}{precondition_correspondence} and {result_flow}, but executable quotient operations are not admitted until {} are independently checked",

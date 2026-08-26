@@ -754,13 +754,17 @@ operation is emitted until compiler-derived relations, correspondence, and
 contracts are independently validated. The retired bare call pilot cannot
 recover authority through structural proof-machine discovery.
 
-Executable admission is currently blocked on validating and retaining the
-explicitly selected theorem machine. The implementation must derive its exact
-expected ordinary parameter, `requires`, and `ensures` schema from the closed
-representative application and relation plan, reject extra premises or altered
-argument correspondence, and retain the proof-static selection without adding
-a runtime dictionary. It must not recover authority from the structurally
-similar theorem already accepted by the implicit-lift rejection canaries.
+The selected-theorem-schema verification rung is live. Planning derives the
+exact expected ordinary parameter, `requires`, and `ensures` schema from the
+closed representative application and relation plan, compares the explicitly
+selected theorem after both closed static substitutions, and retains exact
+machine/state contract-fact coordinates for every matched row. Extra or
+missing premises, a finer or different relation, redirected or duplicated
+representative calls, rebound shared arguments, parameter drift, named evidence
+lanes, result-case/crash lanes, and conclusion drift reject independently. The
+certificate adds no runtime dictionary and grants no executable authority;
+general `lift` implication/correspondence and canonical Terminal retention with
+independent replay remain fail closed.
 
 The representation-observer fence is explicit at resolved-to-typed lowering.
 A quotient cannot declare `Equatable`, participate as a field in synthesized
@@ -799,9 +803,10 @@ exact result and machine/state contract spans. Open generic/static applications
 fail closed. A closed application retains its exact type, literal-`const`, and
 static-machine bindings; an immutable structural substitution judgment applies
 those bindings to representative runtime parameter and result types without
-rewriting the checked type arena. This does not substitute contract facts or
-validate the selected theorem; runtime positional correspondence is derived
-only for the direct `define` shape below.
+rewriting the checked type arena. This substitution judgment does not itself
+substitute contract facts or validate the selected theorem; the separate exact
+schema verifier consumes both closed applications. Runtime positional
+correspondence is derived only for the direct `define` shape below.
 
 For the same direct `define` shape with a monomorphic quotient-facing owner,
 validation now also derives a
@@ -845,7 +850,7 @@ aggregate, indexing, and nested-call positions are traversed without
 short-circuiting validation, and an unresolved value identity rejects the plan
 rather than being classified as ambient. Exact side/owner/contract/fact
 coordinates are retained. General proposition/static substitution, semantic
-`Q <-> P` entailment, and the selected theorem clauses remain later
+`Q <-> P` entailment, and executable certificate composition remain later
 obligations.
 
 The first exact `define` equivalence rung now consumes those partitions. It
@@ -864,9 +869,9 @@ matching, and representative static-substitution judgment likewise live in a
 separate runtime-correspondence module rather than the coordinator. Exact entry
 lookup, runtime telescope identity, and the shared-summary purity and
 unconditional-termination certificates live in a third representative module;
-it performs no local effect inference. General
-logical implication/equivalence and the selected theorem clauses remain
-unresolved, so this evidence still cannot admit execution.
+it performs no local effect inference. General logical implication/equivalence
+and executable certificate composition remain unresolved, so this evidence
+still cannot admit execution.
 
 The direct planning boundary recognizes a result root when the sealed request
 is the call at the exact root of the state's last expression statement. It also
