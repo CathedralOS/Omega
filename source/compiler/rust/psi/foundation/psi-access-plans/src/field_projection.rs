@@ -253,6 +253,16 @@ impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
         ))
     }
 
+    pub fn atomic_compare_exchange_once<'access>(
+        &'access self,
+        success: MemoryOrdering,
+        failure: MemoryOrdering,
+    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        self.authorize(AccessOperation::Atomic(
+            AtomicAccessOperation::CompareExchangeOnce { success, failure },
+        ))
+    }
+
     fn validate_authority_binding(&self) -> Result<(), AccessPlanDiagnostic> {
         let authority = self._authority;
         let placement = authority.placement_plan();
