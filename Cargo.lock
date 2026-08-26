@@ -1146,6 +1146,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-psi-optimizer"
+version = "0.1.0"
+dependencies = [
+ "omega-optimization-core",
+ "omega-optimization-unit",
+ "omega-terminal-abstract-operations",
+ "psi-core",
+ "psi-terminal",
+]
+
+[[package]]
 name = "omega-relocations"
 version = "0.1.0"
 dependencies = [

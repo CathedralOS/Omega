@@ -1,0 +1,16 @@
+[package]
+name = "omega-psi-optimizer"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_psi_optimizer"
+path = "src/lib.rs"
+
+[dependencies]
+omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
+omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
+omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }
