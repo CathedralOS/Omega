@@ -431,8 +431,11 @@ These facts constrain the work below.
   assignment, distinct-view, interference, and zero-transition counts. It may
   state that spills were not required for that validated home plan, but marks
   frame, emission, and publication unavailable. Its human renderer is again a
-  projection of the content-identified record. Final physical/publication and
-  artifact metadata remain open.
+  projection of the content-identified record. A versioned canonical codec
+  round-trips both direct and post-copy forms, reconstructs typed target and
+  stage fields, and rejects identity tampering, unknown tags, truncation, and
+  trailing bytes. Decoding remains non-authoritative. Final physical/
+  publication and artifact metadata remain open.
 - `omega-lowering-optimizer` now owns a custody-preserving bridge from a
   completed `OptimizationRun` to a clean `TerminalAbstractOperationPlan`.
   Projection replays every retained candidate declaration through the

@@ -14,6 +14,9 @@ use crate::{
     ValidatedTerminalLiveRanges, ValidatedTerminalRegisterHomes,
 };
 
+const POST_ALLOCATION_MANIFEST_MAGIC: &[u8; 8] = b"OMGPAO\0\0";
+const POST_ALLOCATION_MANIFEST_VERSION: u32 = 1;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostAllocationManifestStage {
     ValidatedRegisterHomes,
@@ -64,36 +67,96 @@ impl PostAllocationOptimizationManifest {
     pub fn recomputed_identity(&self) -> PostAllocationOptimizationManifestIdentity {
         let mut canonical = Vec::new();
         canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v1\0");
-        canonical.push(match self.stage {
-            PostAllocationManifestStage::ValidatedRegisterHomes => 1,
-        });
-        canonical.extend_from_slice(&self.pre_physical.bytes());
-        encode_target(&mut canonical, self.target);
-        canonical.extend_from_slice(&self.selected.bytes());
-        match self.fixed_view_copy {
-            None => canonical.push(0),
-            Some(identity) => {
-                canonical.push(1);
-                canonical.extend_from_slice(&identity.bytes());
-            }
-        }
-        canonical.extend_from_slice(&self.liveness.bytes());
-        canonical.extend_from_slice(&self.ranges.bytes());
-        canonical.extend_from_slice(&self.legality.bytes());
-        canonical.extend_from_slice(&self.register_environment.bytes());
-        canonical.extend_from_slice(&self.homes.bytes());
-        canonical.push(match self.spills {
-            PostAllocationSpillStatus::NotRequiredForValidatedHomePlan => 1,
-        });
-        for unavailable in [self.frame, self.emission, self.publication] {
-            canonical.push(match unavailable {
-                PostAllocationUnavailableData::Unavailable => 1,
-            });
-        }
-        for value in statistics_values(self.statistics) {
-            canonical.extend_from_slice(&value.to_le_bytes());
-        }
+        canonical.extend_from_slice(&encode_manifest_content(self));
         PostAllocationOptimizationManifestIdentity::from_canonical_bytes(&canonical)
+    }
+
+    /// Canonical artifact form. Decoding returns a plain record; independent
+    /// post-allocation validation remains mandatory before custody accepts it.
+    pub fn encode(&self) -> Vec<u8> {
+        let content = encode_manifest_content(self);
+        let mut encoded = Vec::with_capacity(44 + content.len());
+        encoded.extend_from_slice(POST_ALLOCATION_MANIFEST_MAGIC);
+        encoded.extend_from_slice(&POST_ALLOCATION_MANIFEST_VERSION.to_le_bytes());
+        encoded.extend_from_slice(&self.identity.bytes());
+        encoded.extend_from_slice(&content);
+        encoded
+    }
+
+    pub fn decode(encoded: &[u8]) -> Result<Self, PostAllocationOptimizationManifestDecodeError> {
+        let mut cursor = PostAllocationManifestCursor::new(encoded);
+        if cursor.take(POST_ALLOCATION_MANIFEST_MAGIC.len())? != POST_ALLOCATION_MANIFEST_MAGIC {
+            return Err(PostAllocationOptimizationManifestDecodeError::WrongMagic);
+        }
+        let version = u32::from_le_bytes(cursor.array()?);
+        if version != POST_ALLOCATION_MANIFEST_VERSION {
+            return Err(PostAllocationOptimizationManifestDecodeError::UnsupportedVersion(version));
+        }
+        let identity = PostAllocationOptimizationManifestIdentity::from_bytes(cursor.array()?);
+        let stage = match cursor.byte()? {
+            1 => PostAllocationManifestStage::ValidatedRegisterHomes,
+            tag => {
+                return Err(PostAllocationOptimizationManifestDecodeError::UnknownStage(
+                    tag,
+                ));
+            }
+        };
+        let pre_physical = PrePhysicalOptimizationManifestIdentity::from_bytes(cursor.array()?);
+        let target = decode_target(&mut cursor)?;
+        let selected = TerminalSelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
+        let fixed_view_copy = match cursor.byte()? {
+            0 => None,
+            1 => Some(TerminalFixedViewCopyIdentity::from_bytes(cursor.array()?)),
+            tag => {
+                return Err(PostAllocationOptimizationManifestDecodeError::UnknownOptionalTag(tag));
+            }
+        };
+        let liveness = TerminalLivenessIdentity::from_bytes(cursor.array()?);
+        let ranges = TerminalLiveRangeIdentity::from_bytes(cursor.array()?);
+        let legality = TerminalAllocationLegalityIdentity::from_bytes(cursor.array()?);
+        let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
+        let homes = TerminalRegisterHomeIdentity::from_bytes(cursor.array()?);
+        let spills = match cursor.byte()? {
+            1 => PostAllocationSpillStatus::NotRequiredForValidatedHomePlan,
+            tag => {
+                return Err(PostAllocationOptimizationManifestDecodeError::UnknownSpillStatus(tag));
+            }
+        };
+        let frame = decode_unavailable(&mut cursor)?;
+        let emission = decode_unavailable(&mut cursor)?;
+        let publication = decode_unavailable(&mut cursor)?;
+        let statistics = PostAllocationStatistics {
+            functions: u64::from_le_bytes(cursor.array()?),
+            assignments: u64::from_le_bytes(cursor.array()?),
+            distinct_physical_views: u64::from_le_bytes(cursor.array()?),
+            virtual_interferences: u64::from_le_bytes(cursor.array()?),
+            fixed_view_transitions: u64::from_le_bytes(cursor.array()?),
+        };
+        if cursor.remaining() != 0 {
+            return Err(PostAllocationOptimizationManifestDecodeError::TrailingBytes);
+        }
+        let manifest = Self {
+            identity,
+            stage,
+            pre_physical,
+            target,
+            selected,
+            fixed_view_copy,
+            liveness,
+            ranges,
+            legality,
+            register_environment,
+            homes,
+            spills,
+            frame,
+            emission,
+            publication,
+            statistics,
+        };
+        if manifest.identity != manifest.recomputed_identity() {
+            return Err(PostAllocationOptimizationManifestDecodeError::IdentityMismatch);
+        }
+        Ok(manifest)
     }
 
     pub fn render_text(&self) -> String {
@@ -181,6 +244,33 @@ impl std::fmt::Display for PostAllocationOptimizationManifestError {
 }
 
 impl std::error::Error for PostAllocationOptimizationManifestError {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PostAllocationOptimizationManifestDecodeError {
+    Truncated,
+    WrongMagic,
+    UnsupportedVersion(u32),
+    UnknownStage(u8),
+    UnknownArchitecture(u8),
+    UnknownObjectFormat(u8),
+    TargetLayoutOverflow,
+    UnknownOptionalTag(u8),
+    UnknownSpillStatus(u8),
+    UnknownUnavailableStatus(u8),
+    IdentityMismatch,
+    TrailingBytes,
+}
+
+impl std::fmt::Display for PostAllocationOptimizationManifestDecodeError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "invalid post-allocation manifest encoding: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for PostAllocationOptimizationManifestDecodeError {}
 
 pub fn project_post_allocation_optimization_manifest(
     pre_physical: PrePhysicalOptimizationManifestIdentity,
@@ -296,6 +386,40 @@ fn statistics_values(statistics: PostAllocationStatistics) -> [u64; 5] {
     ]
 }
 
+fn encode_manifest_content(manifest: &PostAllocationOptimizationManifest) -> Vec<u8> {
+    let mut canonical = Vec::new();
+    canonical.push(match manifest.stage {
+        PostAllocationManifestStage::ValidatedRegisterHomes => 1,
+    });
+    canonical.extend_from_slice(&manifest.pre_physical.bytes());
+    encode_target(&mut canonical, manifest.target);
+    canonical.extend_from_slice(&manifest.selected.bytes());
+    match manifest.fixed_view_copy {
+        None => canonical.push(0),
+        Some(identity) => {
+            canonical.push(1);
+            canonical.extend_from_slice(&identity.bytes());
+        }
+    }
+    canonical.extend_from_slice(&manifest.liveness.bytes());
+    canonical.extend_from_slice(&manifest.ranges.bytes());
+    canonical.extend_from_slice(&manifest.legality.bytes());
+    canonical.extend_from_slice(&manifest.register_environment.bytes());
+    canonical.extend_from_slice(&manifest.homes.bytes());
+    canonical.push(match manifest.spills {
+        PostAllocationSpillStatus::NotRequiredForValidatedHomePlan => 1,
+    });
+    for unavailable in [manifest.frame, manifest.emission, manifest.publication] {
+        canonical.push(match unavailable {
+            PostAllocationUnavailableData::Unavailable => 1,
+        });
+    }
+    for value in statistics_values(manifest.statistics) {
+        canonical.extend_from_slice(&value.to_le_bytes());
+    }
+    canonical
+}
+
 fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
     bytes.push(match target.architecture {
         Architecture::Aarch64 => 1,
@@ -316,6 +440,88 @@ fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
             .expect("target pointer alignment fits u64")
             .to_le_bytes(),
     );
+}
+
+fn decode_target(
+    cursor: &mut PostAllocationManifestCursor<'_>,
+) -> Result<NativeTarget, PostAllocationOptimizationManifestDecodeError> {
+    let architecture = match cursor.byte()? {
+        1 => Architecture::Aarch64,
+        2 => Architecture::X86_64,
+        tag => {
+            return Err(PostAllocationOptimizationManifestDecodeError::UnknownArchitecture(tag));
+        }
+    };
+    let object_format = match cursor.byte()? {
+        1 => ObjectFormat::Elf,
+        2 => ObjectFormat::MachO,
+        3 => ObjectFormat::Coff,
+        tag => {
+            return Err(PostAllocationOptimizationManifestDecodeError::UnknownObjectFormat(tag));
+        }
+    };
+    let pointer_size = usize::try_from(u64::from_le_bytes(cursor.array()?))
+        .map_err(|_| PostAllocationOptimizationManifestDecodeError::TargetLayoutOverflow)?;
+    let pointer_alignment = usize::try_from(u64::from_le_bytes(cursor.array()?))
+        .map_err(|_| PostAllocationOptimizationManifestDecodeError::TargetLayoutOverflow)?;
+    Ok(NativeTarget {
+        architecture,
+        object_format,
+        pointer_size,
+        pointer_alignment,
+    })
+}
+
+fn decode_unavailable(
+    cursor: &mut PostAllocationManifestCursor<'_>,
+) -> Result<PostAllocationUnavailableData, PostAllocationOptimizationManifestDecodeError> {
+    match cursor.byte()? {
+        1 => Ok(PostAllocationUnavailableData::Unavailable),
+        tag => Err(PostAllocationOptimizationManifestDecodeError::UnknownUnavailableStatus(tag)),
+    }
+}
+
+struct PostAllocationManifestCursor<'encoded> {
+    encoded: &'encoded [u8],
+    offset: usize,
+}
+
+impl<'encoded> PostAllocationManifestCursor<'encoded> {
+    const fn new(encoded: &'encoded [u8]) -> Self {
+        Self { encoded, offset: 0 }
+    }
+
+    fn take(
+        &mut self,
+        length: usize,
+    ) -> Result<&'encoded [u8], PostAllocationOptimizationManifestDecodeError> {
+        let end = self
+            .offset
+            .checked_add(length)
+            .ok_or(PostAllocationOptimizationManifestDecodeError::Truncated)?;
+        let value = self
+            .encoded
+            .get(self.offset..end)
+            .ok_or(PostAllocationOptimizationManifestDecodeError::Truncated)?;
+        self.offset = end;
+        Ok(value)
+    }
+
+    fn array<const N: usize>(
+        &mut self,
+    ) -> Result<[u8; N], PostAllocationOptimizationManifestDecodeError> {
+        self.take(N)?
+            .try_into()
+            .map_err(|_| PostAllocationOptimizationManifestDecodeError::Truncated)
+    }
+
+    fn byte(&mut self) -> Result<u8, PostAllocationOptimizationManifestDecodeError> {
+        Ok(self.array::<1>()?[0])
+    }
+
+    fn remaining(&self) -> usize {
+        self.encoded.len() - self.offset
+    }
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -405,5 +611,66 @@ mod tests {
         let text = baseline.render_text();
         assert!(text.contains("spills: not required"));
         assert!(text.contains("publication: unavailable"));
+    }
+
+    #[test]
+    fn canonical_codec_round_trips_both_routes_and_rejects_corruption() {
+        let direct = record();
+        let encoded = direct.encode();
+        assert_eq!(
+            PostAllocationOptimizationManifest::decode(&encoded),
+            Ok(direct)
+        );
+
+        let mut post_copy = record();
+        post_copy.fixed_view_copy = Some(TerminalFixedViewCopyIdentity([12; 32]));
+        post_copy.identity = post_copy.recomputed_identity();
+        assert_eq!(
+            PostAllocationOptimizationManifest::decode(&post_copy.encode()),
+            Ok(post_copy)
+        );
+
+        let mut identity_tamper = encoded.clone();
+        identity_tamper[12] ^= 1;
+        assert_eq!(
+            PostAllocationOptimizationManifest::decode(&identity_tamper),
+            Err(PostAllocationOptimizationManifestDecodeError::IdentityMismatch)
+        );
+        let mut trailing = encoded.clone();
+        trailing.push(0);
+        assert_eq!(
+            PostAllocationOptimizationManifest::decode(&trailing),
+            Err(PostAllocationOptimizationManifestDecodeError::TrailingBytes)
+        );
+        assert_eq!(
+            PostAllocationOptimizationManifest::decode(&encoded[..encoded.len() - 1]),
+            Err(PostAllocationOptimizationManifestDecodeError::Truncated)
+        );
+        let mut wrong_magic = encoded.clone();
+        wrong_magic[0] ^= 1;
+        assert_eq!(
+            PostAllocationOptimizationManifest::decode(&wrong_magic),
+            Err(PostAllocationOptimizationManifestDecodeError::WrongMagic)
+        );
+        let mut wrong_version = encoded.clone();
+        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        assert_eq!(
+            PostAllocationOptimizationManifest::decode(&wrong_version),
+            Err(PostAllocationOptimizationManifestDecodeError::UnsupportedVersion(2))
+        );
+        let content_offset = 8 + 4 + 32;
+        let mut unknown_architecture = encoded.clone();
+        unknown_architecture[content_offset + 1 + 32] = 9;
+        assert_eq!(
+            PostAllocationOptimizationManifest::decode(&unknown_architecture),
+            Err(PostAllocationOptimizationManifestDecodeError::UnknownArchitecture(9))
+        );
+        let mut unknown_optional = encoded;
+        let optional_offset = content_offset + 1 + 32 + 18 + 32;
+        unknown_optional[optional_offset] = 9;
+        assert_eq!(
+            PostAllocationOptimizationManifest::decode(&unknown_optional),
+            Err(PostAllocationOptimizationManifestDecodeError::UnknownOptionalTag(9))
+        );
     }
 }
