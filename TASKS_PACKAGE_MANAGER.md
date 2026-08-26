@@ -250,8 +250,8 @@ complete.
   - on Unix the selected Git executable now has resolver/root ownership,
     non-writable/non-set-id executable mode, and safe owned ancestry checks;
     macOS ACL custody, Windows executable ownership/DACL custody, provenance,
-    the already loaded image, and executables Git may launch from the fixed
-    helper path remain;
+    the already loaded image, and fixed-path executables Git may launch other
+    than the separately observed SSH client remain;
   - the Git subprocess has no OS sandbox or CPU/memory/process/transfer
     ceilings; process-container cleanup contains ordinary descendants but not a
     hostile Unix process that deliberately changes session; cleanup has its own
@@ -260,9 +260,10 @@ complete.
     memory, during-write object-store, or transfer-work budget; the post-helper
     logical resident ceiling can reject an oversized cache but cannot prevent
     temporary disk exhaustion while Git is running;
-  - SSH uses an absolute client with user configuration disabled, batch mode,
-    zero password prompts, and strict host-key checking, but still consumes the
-    user's default known-host and key files without explicit credential custody;
+  - SSH uses a content-observed absolute client with Unix custody checks, user
+    configuration disabled, batch mode, zero password prompts, and strict
+    host-key checking, but still consumes the user's default known-host and key
+    files without explicit credential custody;
   - resolver process/network/filesystem authority is not yet represented by a
     hardened execution boundary and receipt.
 
@@ -336,8 +337,18 @@ complete.
   created under the former HTTPS/SSH/file union. Resolved-source observations,
   source-audit output, and diagnostic cache-policy schema v3 retain the selected
   profile rather than showing only transport-neutral hosted lineage. This
-  closes cross-protocol authority and cache reuse, not effective endpoint, TLS, known-host,
-  credential, transport-helper, or native-network custody.
+  closes cross-protocol authority and cache reuse, not effective endpoint, TLS,
+  known-host, credential, transport-helper, or native-network custody.
+
+  Milestone 2026-08-25: SSH execution now resolves one exact client path,
+  applies the same canonical-file/content/metadata and Unix ownership/mode/
+  ancestry checks as the parent Git executable, rechecks it around every Git
+  launch, re-hashes it at resolution completion, and retains the observation on
+  `ResolvedGitSource`. HTTPS and test-file commands no longer receive latent SSH
+  configuration. Cache policy v11 prevents reuse of entries predating this
+  floor. This observes the selected client; it does not prove its loaded image,
+  confine it, or replace explicit known-host, key, credential-provider,
+  endpoint, macOS ACL, or Windows DACL custody.
 
   Audit 2026-08-24: the authenticated object graph, exact-pin check, injective
   source identity, checkout-free materialization, bounded parent process, and
