@@ -362,7 +362,68 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
             resource.restoration.child_weakening_reason,
             resource.weakening_reason
         );
+        assert_eq!(resource.parent_suspension.child_loan, resource.loan);
+        assert_eq!(resource.parent_suspension.parent_loan, resource.parent_loan);
+        assert_eq!(
+            resource.parent_suspension.parent_resource,
+            resource.parent_resource
+        );
+        assert_eq!(
+            resource.parent_suspension.source,
+            resource.activation_source
+        );
+        assert_eq!(
+            checked
+                .facts
+                .flow
+                .borrow_lifetimes
+                .activations
+                .get(resource.parent_suspension.child_activation)
+                .loan,
+            resource.loan
+        );
+        assert_eq!(
+            checked
+                .facts
+                .flow
+                .contexts
+                .constraint_refs
+                .get(resource.parent_suspension.parent_entry_constraint)
+                .kind,
+            psi_checked_trees::FlowConstraintKind::BorrowLoan {
+                loan: resource.parent_loan,
+            }
+        );
     }
+
+    let psi_checked_trees::CheckedParentBorrowResource::DirectRoot { resource: parent } =
+        before[0].1.parent_resource
+    else {
+        unreachable!()
+    };
+    let parent_weakening = checked
+        .facts
+        .borrow
+        .direct_loan_resources
+        .get(parent)
+        .weakening_source;
+    let child_weakening = before[0].1.weakening_source;
+    let psi_checked_trees::FlowInvalidationSource::Statement {
+        statement_index: parent_end,
+    } = parent_weakening
+    else {
+        panic!("parent weakening must be state-local")
+    };
+    let psi_checked_trees::FlowInvalidationSource::Statement {
+        statement_index: child_end,
+    } = child_weakening
+    else {
+        panic!("child weakening must be state-local")
+    };
+    assert!(
+        parent_end < child_end,
+        "the suspension boundary must not invent lexical interval containment"
+    );
 
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
         .expect("topological replay remaps every parent handle transactionally");
@@ -445,6 +506,17 @@ fn retains_projected_direct_reborrow_parent() {
         .expect("projected child resource");
     assert_eq!(resource.loan, loans[1].0);
     assert_eq!(resource.parent_loan, loans[0].0);
+    assert_eq!(resource.parent_suspension.parent_loan, loans[0].0);
+    assert_eq!(
+        checked
+            .facts
+            .flow
+            .contexts
+            .constraint_refs
+            .get(resource.parent_suspension.parent_entry_constraint)
+            .kind,
+        psi_checked_trees::FlowConstraintKind::BorrowLoan { loan: loans[0].0 }
+    );
     assert_eq!(
         resource.captured_place.segments,
         checked.facts.borrow.loan_segments(loans[1].1)
@@ -452,8 +524,74 @@ fn retains_projected_direct_reborrow_parent() {
 }
 
 #[test]
+fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_child() {
+    let checked = lower(
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine write(value: &mut Cell) { value.value = 1; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.cell;
+            let child: &mut Cell = &mut parent;
+            write(child);
+            write(parent);
+        }
+        "#,
+    );
+    let (_, child) = checked
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .iter()
+        .next()
+        .expect("direct child resource");
+    let psi_checked_trees::CheckedParentBorrowResource::DirectRoot { resource: parent } =
+        child.parent_resource
+    else {
+        panic!("direct child must name its root parent resource")
+    };
+    assert_eq!(
+        child.parent_suspension.parent_resource,
+        child.parent_resource
+    );
+    assert_eq!(
+        checked
+            .facts
+            .flow
+            .contexts
+            .constraint_refs
+            .get(child.parent_suspension.parent_entry_constraint)
+            .kind,
+        psi_checked_trees::FlowConstraintKind::BorrowLoan {
+            loan: child.parent_loan,
+        }
+    );
+    let psi_checked_trees::FlowInvalidationSource::Statement {
+        statement_index: child_end,
+    } = child.weakening_source
+    else {
+        panic!("child weakening must be state-local")
+    };
+    let psi_checked_trees::FlowInvalidationSource::Statement {
+        statement_index: parent_end,
+    } = checked
+        .facts
+        .borrow
+        .direct_loan_resources
+        .get(parent)
+        .weakening_source
+    else {
+        panic!("parent weakening must be state-local")
+    };
+    assert!(
+        child_end < parent_end,
+        "later source use may keep the parent lexically live without changing the formation boundary"
+    );
+}
+
+#[test]
 fn rejects_each_reborrow_resource_identity_parent_and_restoration_drift_transactionally() {
-    for axis in 0..20 {
+    for axis in 0..26 {
         let mut checked = direct_reborrow_chain();
         let direct_before = checked.facts.borrow.direct_loan_resources.clone();
         let wrong_direct = checked
@@ -560,6 +698,22 @@ fn rejects_each_reborrow_resource_identity_parent_and_restoration_drift_transact
                 resource.restoration.parent_resource =
                     psi_checked_trees::CheckedParentBorrowResource::DirectRoot {
                         resource: wrong_direct,
+                    }
+            }
+            20 => resource.parent_suspension.child_loan = psi_arena::Handle::invalid(),
+            21 => resource.parent_suspension.parent_loan = psi_arena::Handle::invalid(),
+            22 => {
+                resource.parent_suspension.parent_resource =
+                    psi_checked_trees::CheckedParentBorrowResource::DirectRoot {
+                        resource: wrong_direct,
+                    }
+            }
+            23 => resource.parent_suspension.child_activation = psi_arena::Handle::invalid(),
+            24 => resource.parent_suspension.parent_entry_constraint = psi_arena::Handle::invalid(),
+            25 => {
+                resource.parent_suspension.source =
+                    psi_checked_trees::FlowInvalidationSource::Statement {
+                        statement_index: usize::MAX,
                     }
             }
             _ => unreachable!(),
@@ -674,6 +828,121 @@ fn rejects_missing_duplicate_reordered_and_cross_state_reborrow_resources() {
                     .message
                     .contains("does not rejoin its exact state-owned loans")
         }));
+    }
+}
+
+#[test]
+fn rejects_missing_duplicate_and_moved_parent_entry_constraints_transactionally() {
+    for axis in 0..3 {
+        let mut checked = direct_reborrow_chain();
+        let direct_before = checked.facts.borrow.direct_loan_resources.clone();
+        let reborrows_before = checked.facts.borrow.reborrow_loan_resources.clone();
+        let child = checked
+            .facts
+            .borrow
+            .reborrow_loan_resources
+            .iter()
+            .next()
+            .expect("child resource")
+            .1
+            .clone();
+        let alternate = if axis != 0 {
+            let state = checked
+                .facts
+                .flow
+                .control
+                .states
+                .iter()
+                .map(|(_, state)| state)
+                .find(|state| {
+                    state.machine_symbol == child.machine_symbol
+                        && state.state_symbol == child.state_symbol
+                })
+                .expect("child flow state");
+            let psi_checked_trees::FlowInvalidationSource::Statement { statement_index } =
+                child.activation_source
+            else {
+                panic!("child activation must be state-local")
+            };
+            let statement = checked
+                .facts
+                .flow
+                .control
+                .statements
+                .span_or_empty(state.statements)
+                .iter()
+                .find(|statement| statement.statement_index == statement_index)
+                .expect("child formation statement");
+            (0..statement.entry_constraints.count())
+                .map(|offset| {
+                    psi_arena::Handle::from_parts(
+                        statement.entry_constraints.start().arena_index() + offset,
+                        statement.entry_constraints.start().generation(),
+                    )
+                })
+                .find(|handle| *handle != child.parent_suspension.parent_entry_constraint)
+                .expect("another entry constraint to duplicate or move into")
+        } else {
+            child.parent_suspension.parent_entry_constraint
+        };
+        match axis {
+            0 => {
+                checked
+                    .facts
+                    .flow
+                    .contexts
+                    .constraint_refs
+                    .get_mut(child.parent_suspension.parent_entry_constraint)
+                    .kind = psi_checked_trees::FlowConstraintKind::Unknown;
+            }
+            1 => {
+                checked
+                    .facts
+                    .flow
+                    .contexts
+                    .constraint_refs
+                    .get_mut(alternate)
+                    .kind = psi_checked_trees::FlowConstraintKind::BorrowLoan {
+                    loan: child.parent_loan,
+                };
+            }
+            2 => {
+                checked
+                    .facts
+                    .flow
+                    .contexts
+                    .constraint_refs
+                    .get_mut(child.parent_suspension.parent_entry_constraint)
+                    .kind = psi_checked_trees::FlowConstraintKind::Unknown;
+                checked
+                    .facts
+                    .flow
+                    .contexts
+                    .constraint_refs
+                    .get_mut(alternate)
+                    .kind = psi_checked_trees::FlowConstraintKind::BorrowLoan {
+                    loan: child.parent_loan,
+                };
+            }
+            _ => unreachable!(),
+        }
+
+        let diagnostics =
+            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+                .expect_err("missing, duplicate, or moved parent entry occurrence must reject");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("suspension requires exactly one parent entry constraint")
+                || diagnostic
+                    .message
+                    .contains("direct-reborrow resource closure drifted")
+        }));
+        assert_eq!(checked.facts.borrow.direct_loan_resources, direct_before);
+        assert_eq!(
+            checked.facts.borrow.reborrow_loan_resources,
+            reborrows_before
+        );
     }
 }
 

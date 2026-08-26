@@ -257,6 +257,23 @@ pub struct CheckedReborrowRestorationObligation {
     pub child_weakening_reason: crate::FlowBorrowWeakeningReason,
 }
 
+/// Exact checked-flow boundary at which an explicit direct reborrow suspends
+/// use through its immediate parent occurrence.
+///
+/// The parent constraint is the unique occurrence present immediately before
+/// the child activation. This checked-only join says nothing about the parent
+/// after formation: it is not interval containment, reactivation, completed
+/// restoration, or Terminal authority.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedReborrowParentSuspensionBoundary {
+    pub child_loan: Handle<BorrowLoanFact>,
+    pub parent_loan: Handle<BorrowLoanFact>,
+    pub parent_resource: CheckedParentBorrowResource,
+    pub child_activation: Handle<crate::FlowBorrowActivationFact>,
+    pub parent_entry_constraint: Handle<crate::FlowConstraintRef>,
+    pub source: crate::FlowInvalidationSource,
+}
+
 /// Checked-only resource closure for one explicit direct reborrow.
 ///
 /// The row retains the child's exact activation/weakening lifecycle and a
@@ -278,6 +295,7 @@ pub struct CheckedReborrowLoanResource {
     pub weakening_reason: crate::FlowBorrowWeakeningReason,
     pub parent_loan: Handle<BorrowLoanFact>,
     pub parent_resource: CheckedParentBorrowResource,
+    pub parent_suspension: CheckedReborrowParentSuspensionBoundary,
     pub restoration: CheckedReborrowRestorationObligation,
 }
 

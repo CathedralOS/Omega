@@ -221,7 +221,17 @@ Current ownership is:
   containment, or completed restoration. Compatibility certificates for these
   children must rejoin the exact new resource row. Aggregate/helper transfers
   and ambiguous or reassigned aliases remain `UnretainedDerived` and have no
-  row. Neither resource arena supplies Terminal authority.
+  row. Each retained child now also joins one checked parent-suspension
+  formation boundary: its exact activation handle and the unique parent-loan
+  constraint in that statement's entry set. Replay binds both occurrences to
+  the existing child and typed parent resources and validates the complete
+  boundary before either arena rebuilds. This establishes parent availability
+  immediately before child formation only. It does not claim a suspension
+  interval, post-formation parent activity, reactivation, completed
+  restoration, or later lifecycle authority. Lexical loan weakening may
+  precede the child's weakening, so those later lifecycle claims require a
+  distinct flow carrier rather than comparing the current endpoints. Neither
+  resource arena supplies Terminal authority.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
   owns call-site borrow-check coordination,
   `checks/borrows/calls/conflicts.rs` owns call-site access/access and

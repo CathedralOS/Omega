@@ -310,6 +310,18 @@ Aggregate and helper transfers, ambiguous or reassigned aliases, and
 write-only local loans remain fenced with no resource row. Neither checked
 resource arena supplies Terminal authority.
 
+Every retained direct child also carries one checked parent-suspension
+formation boundary. It names the exact child activation plus the unique
+parent-loan constraint in that statement's entry set and rejoins both to the
+existing child and typed parent resource identities. Transactional replay
+rejects missing, duplicate, substituted, reordered, or cross-state
+occurrences. This proves only that the parent occurrence was available
+immediately before the explicit child formed. It does not prove continued
+parent activity, suspension-interval containment, reactivation, completed
+restoration, or Terminal authority. The lexical parent weakening may precede
+the child weakening, so those later lifecycle claims require a distinct flow
+carrier.
+
 The row does not serialize "dominates" or "is valid" as trusted claims. The
 verifier reconstructs control-flow dominance and path availability from the
 premises' establishment points, checks their exact value/place versions and
