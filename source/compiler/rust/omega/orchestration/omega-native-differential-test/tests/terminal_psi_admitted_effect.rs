@@ -566,6 +566,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             published_service_ceiling: vec![service],
             block_entries: vec![TerminalAbstractBlockEntry {
                 block: BlockId::new(1).unwrap(),
+                parameters: Vec::new(),
                 operation_offset: 0,
             }],
             operations: vec![
@@ -763,6 +764,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             published_service_ceiling: vec![service],
             block_entries: vec![TerminalAbstractBlockEntry {
                 block: BlockId::new(1).unwrap(),
+                parameters: Vec::new(),
                 operation_offset: 0,
             }],
             operations: vec![
