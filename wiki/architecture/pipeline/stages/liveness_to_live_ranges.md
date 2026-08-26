@@ -71,8 +71,9 @@ splitting, and allocation remain unsupported until their selected-IR frontiers
 and independent checks exist. The admitted physical model, constraint catalog,
 and conservative active reservation profile now have explicit replay
 identities, but provider/runtime reservation closure, fixed-home transitions,
-and phase-exact candidate legality remain prerequisites for authoritative
-assignment.
+and explicit transition materialization remain prerequisites for authoritative
+assignment. The next allocation-legality stage now supplies the phase-exact
+candidate facts rather than asking an allocator to rederive them.
 
 ## Implementation Map
 

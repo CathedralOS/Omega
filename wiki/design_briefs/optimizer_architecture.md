@@ -758,6 +758,24 @@ and the content identity. The orchestration carrier nests complete liveness
 custody and grants no splitting, physical-home, spill, frame, emission, or
 publication authority.
 
+Before allocation, a separate legality artifact joins those ranges to the
+identity-bound register environment. For every occupied VReg point it publishes
+the exact class-compatible views whose storage and canonical-write footprints
+avoid the active reservation union, architectural semantic liveness, and
+same-phase architectural actions. A fixed operand may name a view that is not a
+general allocation candidate, but it must still have the right class and avoid
+reserved or architectural units. Production and replay independently derive
+the exact nonempty, sorted candidate rows.
+
+The same artifact exposes incompatible entry and operand fixed views as
+transition requirements. In the current forwarded-value fixture, the shared
+parameter arrives in `RSI`/`X1` and each leaf return requires `RAX`/`X0`.
+Recording that mismatch is not permission to change homes silently: a later
+named copy/split transformation must choose whether to hoist a transition or
+duplicate it on paths, materialize the selected CFG change with provenance,
+and pass independent validation. Only then may linear scan consume the legality
+rows and virtual interference to publish physical homes.
+
 The first allocator should be deterministic linear scan with interval splitting,
 spills, reloads, rematerialization of cheap constants, and verified frame-slot
 assignment. Subsequent policies may add optimistic coalescing, greedy coloring,
