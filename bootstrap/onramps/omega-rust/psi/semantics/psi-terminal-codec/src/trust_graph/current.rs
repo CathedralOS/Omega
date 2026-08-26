@@ -6,12 +6,12 @@ use super::{
     INTEGER_CONVERSION_COMPOSITION_SOURCE, INTEGER_CONVERSION_SOURCE,
     INTEGER_DIVIDE_REMAINDER_SOURCE, INTEGER_FOUNDATION_SOURCE, INTEGER_MULTIPLY_SOURCE,
     INTEGER_SHIFT_CHAINS_SOURCE, INTEGER_SHIFT_COMPOSITION_SOURCE, INTEGER_SHIFT_SOURCE,
-    MIGRATION_POLICY_DESCRIPTOR, OBLIGATION_LEDGER_CODEC_SOURCE, PROOF_BUNDLE_SOURCE,
-    PROOF_CODEC_SOURCE, PROOF_KERNEL_EVIDENCE_SOURCE, PROOF_KERNEL_INTEGER_AFFINE_SOURCE,
-    PROOF_KERNEL_INTEGER_CAST_SOURCE, PROOF_KERNEL_KERNEL_SOURCE, PROOF_KERNEL_LIB_SOURCE,
-    PROOF_KERNEL_PROOF_SOURCE, PROPOSITION_SOURCE, RECONSTRUCTION_SOURCE, SUBSTITUTION_SOURCE,
-    SUFFICIENT_REDUCTION_SOURCE, TERMINAL_CALL_COMPOSITION_SOURCE, TERMINAL_MODEL_SOURCE,
-    TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_SEMANTICS_SOURCE,
+    MIGRATION_POLICY_DESCRIPTOR, OBLIGATION_LEDGER_CODEC_SOURCE, PROOF_ADMISSION_EVIDENCE_SOURCE,
+    PROOF_ADMISSION_INTEGER_AFFINE_SOURCE, PROOF_ADMISSION_INTEGER_CAST_SOURCE,
+    PROOF_ADMISSION_JUDGMENT_SOURCE, PROOF_ADMISSION_LIB_SOURCE, PROOF_ADMISSION_PROOF_SOURCE,
+    PROOF_BUNDLE_SOURCE, PROOF_CODEC_SOURCE, PROPOSITION_SOURCE, RECONSTRUCTION_SOURCE,
+    SUBSTITUTION_SOURCE, SUFFICIENT_REDUCTION_SOURCE, TERMINAL_CALL_COMPOSITION_SOURCE,
+    TERMINAL_MODEL_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_SEMANTICS_SOURCE,
     TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy, TrustDependencyKind,
     TrustDependencyNode, TrustDependencyStatus, TrustGraphError, VERIFIER_CALL_COMPOSITION_SOURCE,
     VERIFIER_LIB_SOURCE, VERIFIER_SOURCE, VERIFIER_SOURCE_CLOSURE,
@@ -57,7 +57,7 @@ pub(super) fn build_current_terminal_trust_graph()
 -> Result<ValidatedTerminalTrustGraph, TrustGraphError> {
     let mut nodes = Vec::new();
     nodes.extend(registered_roots());
-    nodes.push(proof_kernel_node());
+    nodes.push(proof_admission_node());
     nodes.push(decoder_node());
     nodes.push(verifier_node());
     nodes.push(ledger_framework_node());
@@ -89,7 +89,7 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
             TrustDependencyStatus::Registered,
             "terminal-Psi proof bundle and primitive calculus",
             canonical_proof_calculus_version(),
-            "Psi proof-kernel architecture",
+            "Psi proof-admission architecture",
             "portable terminal-Psi proof checking",
             "The current small proof calculus is an explicit registered semantic root.",
             TrustAcceptingPolicy::RegisteredSemanticFoundation,
@@ -98,19 +98,22 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
                 ("psi-core/proposition.rs", PROPOSITION_SOURCE),
                 (
                     "psi-proof-admission/evidence.rs",
-                    PROOF_KERNEL_EVIDENCE_SOURCE,
+                    PROOF_ADMISSION_EVIDENCE_SOURCE,
                 ),
-                ("psi-proof-admission/kernel.rs", PROOF_KERNEL_KERNEL_SOURCE),
+                (
+                    "psi-proof-admission/kernel.rs",
+                    PROOF_ADMISSION_JUDGMENT_SOURCE,
+                ),
                 (
                     "psi-proof-admission/integer_affine.rs",
-                    PROOF_KERNEL_INTEGER_AFFINE_SOURCE,
+                    PROOF_ADMISSION_INTEGER_AFFINE_SOURCE,
                 ),
                 (
                     "psi-proof-admission/integer_cast.rs",
-                    PROOF_KERNEL_INTEGER_CAST_SOURCE,
+                    PROOF_ADMISSION_INTEGER_CAST_SOURCE,
                 ),
-                ("psi-proof-admission/lib.rs", PROOF_KERNEL_LIB_SOURCE),
-                ("psi-proof-admission/proof.rs", PROOF_KERNEL_PROOF_SOURCE),
+                ("psi-proof-admission/lib.rs", PROOF_ADMISSION_LIB_SOURCE),
+                ("psi-proof-admission/proof.rs", PROOF_ADMISSION_PROOF_SOURCE),
                 ("psi-terminal-codec/proof_bundle.rs", PROOF_CODEC_SOURCE),
             ],
         ),
@@ -146,37 +149,40 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
     ]
 }
 
-fn proof_kernel_node() -> TrustDependencyNode {
+fn proof_admission_node() -> TrustDependencyNode {
     TrustDependencyNode::new(
-        "implementation:rust-proof-kernel",
+        "implementation:rust-proof-admission",
         TrustDependencyKind::TrustedImplementation,
         TrustDependencyStatus::TrustedJudgment,
-        "Rust implementation of the current terminal proof calculus",
-        "rust-proof-kernel-v7",
+        "Rust product-local proof admission and judgment checker",
+        "rust-proof-admission-v7",
         "psi-proof-admission",
         "portable proof bundle acceptance",
-        "The current Rust kernel remains trusted until the independent low-rung checker closes the diamond.",
+        "The current Rust admission checker remains trusted until the independent low-rung checker closes the diamond.",
         TrustAcceptingPolicy::ExplicitMigrationTrust,
         dependencies(&[
             canonical_proof_calculus_identity(),
             "root:explicit-rust-migration-policy",
         ]),
         &[
-            ("psi-proof-admission/lib.rs", PROOF_KERNEL_LIB_SOURCE),
+            ("psi-proof-admission/lib.rs", PROOF_ADMISSION_LIB_SOURCE),
             (
                 "psi-proof-admission/evidence.rs",
-                PROOF_KERNEL_EVIDENCE_SOURCE,
+                PROOF_ADMISSION_EVIDENCE_SOURCE,
             ),
-            ("psi-proof-admission/kernel.rs", PROOF_KERNEL_KERNEL_SOURCE),
+            (
+                "psi-proof-admission/kernel.rs",
+                PROOF_ADMISSION_JUDGMENT_SOURCE,
+            ),
             (
                 "psi-proof-admission/integer_affine.rs",
-                PROOF_KERNEL_INTEGER_AFFINE_SOURCE,
+                PROOF_ADMISSION_INTEGER_AFFINE_SOURCE,
             ),
             (
                 "psi-proof-admission/integer_cast.rs",
-                PROOF_KERNEL_INTEGER_CAST_SOURCE,
+                PROOF_ADMISSION_INTEGER_CAST_SOURCE,
             ),
-            ("psi-proof-admission/proof.rs", PROOF_KERNEL_PROOF_SOURCE),
+            ("psi-proof-admission/proof.rs", PROOF_ADMISSION_PROOF_SOURCE),
         ],
     )
 }
@@ -212,7 +218,7 @@ fn verifier_node() -> TrustDependencyNode {
         "Rust remains the authoritative migration implementation until the canonical ledger is established independently.",
         TrustAcceptingPolicy::ExplicitMigrationTrust,
         dependencies(&[
-            "implementation:rust-proof-kernel",
+            "implementation:rust-proof-admission",
             "root:abstract-terminal-execution-model",
             "root:explicit-rust-migration-policy",
         ]),
