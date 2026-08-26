@@ -113,6 +113,8 @@ pub struct RegisterReservationProfile {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedRegisterReservationProfile {
     profile: RegisterReservationProfile,
+    target: omega_target::NativeTarget,
+    physical: PhysicalRegisterModelIdentity,
     reserved_units: Vec<RegisterUnitId>,
     identity: RegisterReservationProfileIdentity,
 }
@@ -120,6 +122,14 @@ pub struct ValidatedRegisterReservationProfile {
 impl ValidatedRegisterReservationProfile {
     pub const fn profile(&self) -> &RegisterReservationProfile {
         &self.profile
+    }
+
+    pub const fn target(&self) -> omega_target::NativeTarget {
+        self.target
+    }
+
+    pub const fn physical_identity(&self) -> PhysicalRegisterModelIdentity {
+        self.physical
     }
 
     pub fn reserved_units(&self) -> &[RegisterUnitId] {
@@ -244,6 +254,7 @@ pub struct RegisterConstraintCatalog {
 pub struct ValidatedRegisterConstraintCatalog {
     architecture: Architecture,
     catalog: RegisterConstraintCatalog,
+    physical: PhysicalRegisterModelIdentity,
     identity: RegisterConstraintCatalogIdentity,
 }
 
@@ -258,6 +269,10 @@ impl ValidatedRegisterConstraintCatalog {
 
     pub const fn identity(&self) -> RegisterConstraintCatalogIdentity {
         self.identity
+    }
+
+    pub const fn physical_identity(&self) -> PhysicalRegisterModelIdentity {
+        self.physical
     }
 
     pub fn into_catalog(self) -> RegisterConstraintCatalog {
@@ -590,6 +605,8 @@ pub fn validate_register_reservation_profile(
     );
     Ok(ValidatedRegisterReservationProfile {
         profile,
+        target,
+        physical: model.identity(),
         reserved_units,
         identity,
     })
@@ -743,6 +760,7 @@ pub fn validate_register_constraint_catalog(
     Ok(ValidatedRegisterConstraintCatalog {
         architecture: catalog.architecture,
         catalog,
+        physical: model.identity(),
         identity,
     })
 }

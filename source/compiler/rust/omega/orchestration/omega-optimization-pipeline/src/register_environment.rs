@@ -71,6 +71,10 @@ impl ValidatedTargetRegisterEnvironment {
         self.selected_keys
     }
 
+    pub const fn allocation_constraint_keys(&self) -> TargetRegisterEnvironmentConstraintKeys {
+        selected_environment_keys(self.selected_keys)
+    }
+
     pub fn fixed_register_view(
         &self,
         register: omega_terminal_target_operations::MachineRegister,

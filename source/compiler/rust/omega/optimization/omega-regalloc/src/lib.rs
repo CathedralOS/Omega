@@ -8,6 +8,10 @@
 //! selected-instruction liveness, block-local live-range fragments, and
 //! virtual-register interference. They perform no allocation.
 
+mod allocation_legality_compute;
+mod allocation_legality_identity;
+mod allocation_legality_model;
+mod allocation_legality_validate;
 mod compute;
 mod identity;
 mod live_range_compute;
@@ -17,6 +21,9 @@ mod live_range_validate;
 mod model;
 mod validate;
 
+pub use allocation_legality_identity::terminal_allocation_legality_identity;
+pub use allocation_legality_model::*;
+pub use allocation_legality_validate::validate_terminal_allocation_legality;
 pub use identity::terminal_liveness_identity;
 pub use live_range_identity::terminal_live_range_identity;
 pub use live_range_model::*;
@@ -48,6 +55,36 @@ pub fn analyze_terminal_live_ranges(
     live_range_validate::revalidate_liveness_custody(selected, liveness)?;
     let plan = live_range_compute::compute_terminal_live_ranges(selected, liveness)?;
     validate_terminal_live_ranges(selected, liveness, plan)
+}
+
+/// Derive exact per-point physical-view candidates and incompatible entry to
+/// operand fixed-view transition requirements. This grants no home assignment
+/// or copy-insertion authority.
+pub fn analyze_terminal_allocation_legality(
+    ranges: &ValidatedTerminalLiveRanges,
+    register_environment: TargetRegisterEnvironmentIdentity,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    reservations: &ValidatedRegisterReservationProfile,
+    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+) -> Result<ValidatedTerminalAllocationLegality, TerminalAllocationLegalityError> {
+    let plan = allocation_legality_compute::compute_terminal_allocation_legality(
+        ranges,
+        register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+    )?;
+    validate_terminal_allocation_legality(
+        ranges,
+        register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+        plan,
+    )
 }
 
 #[cfg(test)]

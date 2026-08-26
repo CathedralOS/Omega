@@ -189,6 +189,7 @@ Current deliberate gaps:
 - [Terminal Target Operations To Selected Instructions](stages/terminal_target_operations_to_selected_instructions.md)
 - [Selected Instructions To Liveness](stages/selected_instructions_to_liveness.md)
 - [Liveness To Live Ranges](stages/liveness_to_live_ranges.md)
+- [Live Ranges To Allocation Legality](stages/live_ranges_to_allocation_legality.md)
 - [Target Operations To Assigned Target Operations](stages/target_operations_to_assigned_target_operations.md)
 - [Target Operations To Machine Program](stages/target_operations_to_machine_program.md)
 - [Assigned Target Operations To Machine Instructions](stages/assigned_target_operations_to_machine_instructions.md)

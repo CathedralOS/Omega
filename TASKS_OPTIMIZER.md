@@ -93,7 +93,11 @@ These facts constrain the work below.
   retains an independently replayed, content-identified liveness plan over the
   selected CFG. `StagedOptimizedLiveRanges` nests that custody again with
   independently replayed block-local fragments, exact edge connectors, fixed
-  sites, architectural state/actions, and canonical virtual interference. A
+  sites, architectural state/actions, and canonical virtual interference.
+  `StagedOptimizedAllocationLegality` nests that custody once more, joins the
+  exact register-environment identity, records phase-specific physical-view
+  candidates, and exposes incompatible fixed-view transitions without
+  assigning homes. A
   separate `StagedOptimizedAssignedOperations` carrier
   retains the optimizer run, ledger, projection receipt, target plan, assigned
   plan, and independently reconstructed root/function provenance custody. This
@@ -815,6 +819,14 @@ dependency.
   sites, separate architectural-unit fragments/actions, and canonical unordered
   virtual-register interference pairs. It never convexifies ranges across CFG
   blocks or treats layout adjacency as semantic reachability.
+  A subsequent independently replayed legality artifact computes canonical
+  physical-view candidates at every occupied VReg point. Candidate storage and
+  write footprints cannot overlap the active reservation union, architectural
+  semantic liveness, or same-phase architectural use/def/clobber actions.
+  Fixed views are checked at their exact phases. The forwarded fixture exposes
+  two explicit entry-to-return transition requirements (`RSI -> RAX` or
+  `X1 -> X0`), while the constant fixture exposes none. This artifact grants no
+  split, copy insertion, home, spill, frame, emission, or publication authority.
 
   Remaining to close: live-interval construction, loop weights, calls and call
   crossings, crashes, cleanup and suspension frontiers, disconnected
@@ -836,9 +848,10 @@ dependency.
   explicit conservative active-reservation profile now have replay/cache
   identities joined into downstream custody. Before this task can publish
   homes, fixed entry-to-return view transitions need explicit splitting or copy
-  semantics; candidate views must be checked against phase-specific
-  architectural actions as well as semantic unit liveness; and provider/runtime
-  reservation requirements must either join the active profile or fail closed.
+  semantics. Phase-specific candidate legality is now independently replayed;
+  linear scan must consume it together with virtual interference rather than
+  re-derive it. Provider/runtime reservation requirements must either join the
+  active profile or fail closed.
 
 - **OPT-INTERVAL-SPLITTING.** Split live ranges around fixed uses, calls, high-
   pressure regions, and profitable rematerialization points.
