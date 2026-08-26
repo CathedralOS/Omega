@@ -1,0 +1,26 @@
+[package]
+name = "omega-optimization-pipeline"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_optimization_pipeline"
+path = "src/lib.rs"
+
+[dependencies]
+omega-lowering-optimizer = { path = "../../optimization/omega-lowering-optimizer" }
+omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
+omega-psi-optimizer = { path = "../../optimization/omega-psi-optimizer" }
+omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
+psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
+psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }
+
+[dev-dependencies]
+omega-target = { path = "../../foundation/omega-target" }
+omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
+omega-terminal-abstract-operations-to-target-operations = { path = "../../pipeline/omega-terminal-abstract-operations-to-target-operations" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
+psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }

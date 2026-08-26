@@ -3,12 +3,13 @@ use std::collections::BTreeSet;
 use omega_optimization_core::{
     InvalidOptimizationManifestRecord, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
     OptimizationDecisionRecord, OptimizationIdentityBundle, OptimizationPassManifestRecord,
-    OptimizationReasonCode, OptimizationRuleIdentity, OptimizationSelections,
-    OptimizationUnitIdentity, OptimizationValidatorIdentity, OptimizationWorkBudget,
-    OptimizationWorkUsage, TargetCostModelIdentity,
+    OptimizationReasonCode, OptimizationRuleIdentity, OptimizationRuleSetIdentity,
+    OptimizationSelections, OptimizationUnitIdentity, OptimizationValidatorIdentity,
+    OptimizationWorkBudget, OptimizationWorkUsage, TargetCostModelIdentity,
 };
 use omega_optimization_policy::{
-    BaselineDecisionLog, BaselineDecisionOutcome, BaselinePolicy, ValidatedCandidateSummary,
+    BaselineDecisionLog, BaselineDecisionLogDecodeError, BaselineDecisionOutcome, BaselinePolicy,
+    ValidatedCandidateSummary,
 };
 use omega_optimization_unit::{
     InvalidPsiTransformationLedger, ProvenanceRewrite, PsiOptimizationUnit, PsiRewriteCandidate,
@@ -24,7 +25,7 @@ use omega_terminal_psi_to_abstract_operations::{
 
 use crate::{
     AnalysisManager, AnalysisManagerError, OrderedRuleRegistry, RuleAnalysisView,
-    RuleProposalError, RuleRegistryError, built_in_psi_registry,
+    RuleProposalError, RuleRegistryError, built_in_psi_registries, built_in_psi_registry,
 };
 
 pub fn baseline_psi_cost_model_identity() -> TargetCostModelIdentity {
@@ -89,11 +90,12 @@ pub struct OptimizationRunUsage {
 #[derive(Debug)]
 pub struct OptimizationRun {
     pub selections: OptimizationSelections,
+    pub budget_per_pass: OptimizationWorkBudget,
     pub session: VerifiedPsiOptimizationSession,
     pub commits: Vec<PsiOptimizationCommit>,
     pub usage: OptimizationRunUsage,
     pub decisions: BaselineDecisionLog,
-    pub pass_manifest: Option<OptimizationPassManifestRecord>,
+    pub pass_manifests: Vec<OptimizationPassManifestRecord>,
     pub transformation_ledger: PsiTransformationLedger,
     pub identity_bundle: OptimizationIdentityBundle,
 }
@@ -105,6 +107,10 @@ impl OptimizationRun {
 
     pub const fn session(&self) -> &VerifiedPsiOptimizationSession {
         &self.session
+    }
+
+    pub const fn budget_per_pass(&self) -> OptimizationWorkBudget {
+        self.budget_per_pass
     }
 
     pub fn commits(&self) -> &[PsiOptimizationCommit] {
@@ -119,8 +125,8 @@ impl OptimizationRun {
         &self.decisions
     }
 
-    pub const fn pass_manifest(&self) -> Option<&OptimizationPassManifestRecord> {
-        self.pass_manifest.as_ref()
+    pub fn pass_manifests(&self) -> &[OptimizationPassManifestRecord] {
+        &self.pass_manifests
     }
 
     pub const fn transformation_ledger(&self) -> &PsiTransformationLedger {
@@ -151,6 +157,10 @@ pub enum OptimizationRunError {
     PolicySelectionMissing(OptimizationCandidateIdentity),
     InvalidManifest(InvalidOptimizationManifestRecord),
     InvalidTransformationLedger(InvalidPsiTransformationLedger),
+    DecisionLogReplay(BaselineDecisionLogDecodeError),
+    WorkUsageOverflow,
+    MissingPassManifest,
+    DuplicatePipelineRule,
     RegistryConstruction(RuleRegistryError),
     SelectionRegistryMismatch,
 }
@@ -178,11 +188,80 @@ pub fn run_psi_registry(
     }
     let session = VerifiedPsiOptimizationSession::new(verified)
         .map_err(OptimizationRunError::InitialValidation)?;
-    let (unit, commits, usage, decisions, pass_manifest, transformation_ledger) =
-        run_unit(session.unit, registry, budget)?;
+    if registry.is_empty() {
+        run_registries(session, selections, &[], budget)
+    } else {
+        run_registries(session, selections, std::slice::from_ref(registry), budget)
+    }
+}
+
+/// Execute every implemented named optimization as its own canonical pass
+/// group and publish one chained run over the exact selected suite.
+pub fn run_psi_pipeline(
+    verified: VerifiedPsiOptimizationUnit,
+    selections: &OptimizationSelections,
+    budget_per_pass: OptimizationWorkBudget,
+) -> Result<OptimizationRun, OptimizationRunError> {
+    let registries =
+        built_in_psi_registries(selections).map_err(OptimizationRunError::RegistryConstruction)?;
+    let session = VerifiedPsiOptimizationSession::new(verified)
+        .map_err(OptimizationRunError::InitialValidation)?;
+    run_registries(session, selections, &registries, budget_per_pass)
+}
+
+fn run_registries(
+    session: VerifiedPsiOptimizationSession,
+    selections: &OptimizationSelections,
+    registries: &[OrderedRuleRegistry],
+    budget_per_pass: OptimizationWorkBudget,
+) -> Result<OptimizationRun, OptimizationRunError> {
+    let initial_identity = session.unit.identity;
+    let terminal_psi = session.unit.terminal_psi;
+    let fuel_schedule = session.unit.fuel_schedule;
+    let ordered_rules = registries
+        .iter()
+        .flat_map(OrderedRuleRegistry::contracts)
+        .map(|contract| contract.identity())
+        .collect::<Vec<_>>();
+    let ordered_rule_set = OptimizationRuleSetIdentity::from_ordered_rules(&ordered_rules)
+        .map_err(|_| OptimizationRunError::DuplicatePipelineRule)?;
+    let mut unit = session.unit;
+    let mut commits = Vec::new();
+    let mut usage = OptimizationRunUsage::default();
+    let mut pass_logs = Vec::with_capacity(registries.len());
+    let mut pass_manifests = Vec::with_capacity(registries.len());
+    for registry in registries {
+        let (output, pass_commits, pass_usage, pass_decisions, pass_manifest, _pass_ledger) =
+            run_unit(unit, registry, budget_per_pass)?;
+        unit = output;
+        commits.extend(pass_commits);
+        usage = add_usage(usage, pass_usage)?;
+        pass_logs.push(pass_decisions);
+        pass_manifests.push(pass_manifest.ok_or(OptimizationRunError::MissingPassManifest)?);
+    }
+    let decisions = BaselineDecisionLog::concatenate(&pass_logs)
+        .map_err(OptimizationRunError::DecisionLogReplay)?;
+    let transformation_ledger = PsiTransformationLedger::new(
+        terminal_psi,
+        fuel_schedule,
+        initial_identity,
+        unit.identity,
+        commits
+            .iter()
+            .map(|commit| PsiTransformationRecord {
+                rule: commit.rule,
+                candidate: commit.candidate,
+                validator: commit.validator,
+                input: commit.input,
+                output: commit.output,
+                provenance: commit.provenance.clone(),
+            })
+            .collect(),
+    )
+    .map_err(OptimizationRunError::InvalidTransformationLedger)?;
     let identity_bundle = OptimizationIdentityBundle::new(
         selections.identity(),
-        registry.identity(),
+        ordered_rule_set,
         baseline_psi_cost_model_identity(),
         Some(decisions.identity),
         None,
@@ -190,6 +269,7 @@ pub fn run_psi_registry(
     );
     Ok(OptimizationRun {
         selections: selections.clone(),
+        budget_per_pass,
         session: VerifiedPsiOptimizationSession {
             input: session.input,
             unit,
@@ -197,9 +277,37 @@ pub fn run_psi_registry(
         commits,
         usage,
         decisions,
-        pass_manifest,
+        pass_manifests,
         transformation_ledger,
         identity_bundle,
+    })
+}
+
+fn add_usage(
+    left: OptimizationRunUsage,
+    right: OptimizationRunUsage,
+) -> Result<OptimizationRunUsage, OptimizationRunError> {
+    Ok(OptimizationRunUsage {
+        rule_evaluations: left
+            .rule_evaluations
+            .checked_add(right.rule_evaluations)
+            .ok_or(OptimizationRunError::WorkUsageOverflow)?,
+        candidates: left
+            .candidates
+            .checked_add(right.candidates)
+            .ok_or(OptimizationRunError::WorkUsageOverflow)?,
+        validation_steps: left
+            .validation_steps
+            .checked_add(right.validation_steps)
+            .ok_or(OptimizationRunError::WorkUsageOverflow)?,
+        commits: left
+            .commits
+            .checked_add(right.commits)
+            .ok_or(OptimizationRunError::WorkUsageOverflow)?,
+        iterations: left
+            .iterations
+            .checked_add(right.iterations)
+            .ok_or(OptimizationRunError::WorkUsageOverflow)?,
     })
 }
 
@@ -1004,14 +1112,14 @@ mod tests {
         let run =
             run_psi_registry(verified_empty_unit(), &selections, &registry, budget(2)).unwrap();
         assert!(run.commits.is_empty());
-        assert!(run.pass_manifest.is_none());
+        assert!(run.pass_manifests.is_empty());
         assert!(run.transformation_ledger.records().is_empty());
         assert_eq!(run.identity_bundle.selections(), selections.identity());
         assert_eq!(
             run.identity_bundle.transformation_ledger(),
             run.transformation_ledger.identity()
         );
-        assert_eq!(run.usage.iterations, 1);
+        assert_eq!(run.usage.iterations, 0);
         assert_eq!(
             run.session.unit().terminal_psi,
             run.session.input().plan().terminal_psi
@@ -1029,9 +1137,9 @@ mod tests {
 
         assert_eq!(run.commits.len(), 1);
         assert_eq!(run.transformation_ledger.records().len(), 1);
-        assert_eq!(run.pass_manifest.as_ref().unwrap().decisions().len(), 1);
+        assert_eq!(run.pass_manifests[0].decisions().len(), 1);
         assert_eq!(
-            run.pass_manifest.as_ref().unwrap().decisions()[0]
+            run.pass_manifests[0].decisions()[0]
                 .consumed_facts()
                 .iter()
                 .filter(|fact| matches!(

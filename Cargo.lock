@@ -534,9 +534,11 @@ dependencies = [
  "omega-instruction-selection",
  "omega-isa-x86_64",
  "omega-layout",
+ "omega-lowering-optimizer",
  "omega-machine-bytes",
  "omega-object-file",
  "omega-optimization-core",
+ "omega-optimization-pipeline",
  "omega-platform-interface",
  "omega-runtime-bodies",
  "omega-runtime-branching",
@@ -553,6 +555,7 @@ dependencies = [
  "omega-target",
  "omega-target-operations",
  "omega-task-plans",
+ "omega-terminal-abstract-operations",
  "omega-terminal-abstract-operations-to-target-operations",
  "omega-terminal-image-emission",
  "omega-terminal-installation-evidence",
@@ -963,6 +966,7 @@ dependencies = [
  "omega-terminal-abstract-operations",
  "omega-terminal-abstract-operations-to-target-operations",
  "omega-terminal-psi-to-abstract-operations",
+ "omega-terminal-target-operations",
  "psi-core",
  "psi-proof-admission",
  "psi-terminal",
@@ -1113,6 +1117,25 @@ name = "omega-optimization-core"
 version = "0.1.0"
 dependencies = [
  "sha2",
+]
+
+[[package]]
+name = "omega-optimization-pipeline"
+version = "0.1.0"
+dependencies = [
+ "omega-lowering-optimizer",
+ "omega-optimization-core",
+ "omega-psi-optimizer",
+ "omega-target",
+ "omega-terminal-abstract-operations",
+ "omega-terminal-abstract-operations-to-target-operations",
+ "omega-terminal-psi-to-abstract-operations",
+ "psi-core",
+ "psi-proof-admission",
+ "psi-terminal",
+ "psi-terminal-codec",
+ "psi-terminal-fuel",
+ "psi-terminal-verifier",
 ]
 
 [[package]]

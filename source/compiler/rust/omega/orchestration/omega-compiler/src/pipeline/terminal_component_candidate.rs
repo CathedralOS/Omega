@@ -9,6 +9,21 @@ use psi_diagnostics::Diagnostic;
 
 use super::CheckedCompilation;
 
+#[derive(Debug)]
+enum StagedAbstractOperations {
+    Compatibility(omega_terminal_abstract_operations::TerminalAbstractOperationPlan),
+    Optimized(Box<omega_lowering_optimizer::ValidatedOptimizedAbstractPlan>),
+}
+
+impl StagedAbstractOperations {
+    fn plan(&self) -> &omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
+        match self {
+            Self::Compatibility(plan) => plan,
+            Self::Optimized(optimized) => optimized.plan(),
+        }
+    }
+}
+
 /// One exact admitted provider execution selected for a staged terminal
 /// component. This is an owned identity projection, not a provider occurrence
 /// or an installation receipt.
@@ -191,15 +206,30 @@ pub fn stage_terminal_component(
         .map_err(|error| stage_error("semantic encoding", error))?;
     let proof_bytes = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
         .map_err(|error| stage_error("proof encoding", error))?;
-    let abstract_operations = omega_terminal_psi_to_abstract_operations::lower_artifact_sections(
-        &semantic_bytes,
-        &proof_bytes,
-        profile,
-    )
-    .map_err(|error| stage_error("verified artifact lowering", error))?;
-    crate::pipeline::optimization_gate::require_available_pipeline(
-        checked.optimization_selections(),
-    )?;
+    let abstract_operations = if checked.optimization_selections().is_empty() {
+        StagedAbstractOperations::Compatibility(
+            omega_terminal_psi_to_abstract_operations::lower_artifact_sections(
+                &semantic_bytes,
+                &proof_bytes,
+                profile,
+            )
+            .map_err(|error| stage_error("verified artifact lowering", error))?,
+        )
+    } else {
+        let request = omega_optimization_pipeline::compiler_baseline_request_v1(
+            checked.optimization_selections(),
+        )
+        .expect("the selected staging branch is nonempty");
+        StagedAbstractOperations::Optimized(Box::new(
+            omega_optimization_pipeline::optimize_artifact_sections(
+                &semantic_bytes,
+                &proof_bytes,
+                profile,
+                request,
+            )
+            .map_err(|error| stage_error("verified optimization", error))?,
+        ))
+    };
 
     let mut seen_requirements = BTreeSet::new();
     let mut admitted = Vec::with_capacity(settlements.len());
@@ -232,6 +262,7 @@ pub fn stage_terminal_component(
             ))]);
         }
         let matching_boundaries = abstract_operations
+            .plan()
             .boundary_machines
             .iter()
             .filter(|boundary| boundary.identity == requirement)
@@ -266,12 +297,30 @@ pub fn stage_terminal_component(
             ))
     });
 
-    let target_operations = lower_to_target_operations_with_provider_executions(
-        &abstract_operations,
-        target,
-        &admitted,
-    )
-    .map_err(|error| stage_error("target operation lowering", error))?;
+    let target_operations = match abstract_operations {
+        StagedAbstractOperations::Compatibility(abstract_operations) => {
+            lower_to_target_operations_with_provider_executions(
+                &abstract_operations,
+                target,
+                &admitted,
+            )
+            .map_err(|error| stage_error("target operation lowering", error))?
+        }
+        StagedAbstractOperations::Optimized(optimized) => {
+            let _validated_target =
+                omega_lowering_optimizer::lower_optimized_to_target_operations_with_provider_executions(
+                    *optimized,
+                    target,
+                    &admitted,
+                )
+                .map_err(|error| stage_error("optimized target operation lowering", error))?;
+            return Err(
+                crate::pipeline::optimization_gate::optimized_publication_unavailable(
+                    checked.optimization_selections(),
+                ),
+            );
+        }
+    };
     let assigned =
         omega_terminal_target_operations_to_assigned_target_operations::assign_registers(
             &target_operations,

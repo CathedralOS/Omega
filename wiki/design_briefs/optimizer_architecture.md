@@ -142,8 +142,9 @@ canonical Terminal Psi semantic + proof sections
        { final PsiOptimizationUnit,
          exact named selections,
          retained candidate declarations,
-         decision/pass records,
-         TransformationLedger,
+         explicit work budget per named pass,
+         ordered pass manifests (including zero-commit passes),
+         aggregate decision log + TransformationLedger,
          replay/cache identity bundle }
     -> independently replay and validate every committed candidate
     -> ValidatedOptimizedAbstractPlan
@@ -152,7 +153,10 @@ canonical Terminal Psi semantic + proof sections
          optimized-plan projection validation receipt }
     -> abstract operations and target-independent storage decisions
     -> lowering optimization
-    -> target operations with virtual register classes
+    -> ValidatedOptimizedTargetOperations
+       { target operations (borrowed access only; virtual classes remain open),
+         retained ValidatedOptimizedAbstractPlan,
+         exact native target }
     -> instruction selection / target combines
     -> register allocation + frame assignment
     -> assigned target operations
@@ -176,11 +180,22 @@ The Psi reference interpreter continues to execute the original verified
 module. Native/optimized agreement is evidence about the realization, not a
 new definition of program meaning.
 
-The Rust reference bridge for this cut lives in
-`optimization/omega-lowering-optimizer`. It deliberately does not trust the
-pass manager's final unit or reserialize that unit as a detached lowering
-value. It rebuilds the initial verified unit, replays the retained immutable
-candidate declarations through `omega-optimization-validation`, checks exact
+The Rust reference orchestration entry lives in
+`orchestration/omega-optimization-pipeline`; it accepts only a nonempty exact
+selection set and an explicit per-pass work ceiling. It derives the canonical
+named-pass schedule. The currently supported combined schedule is SCCP followed
+by copy propagation. Each pass emits a distinct chained manifest, even when it
+commits no rewrite. The aggregate decision log and transformation ledger cover
+the entire initial-to-final execution, while the replay/cache bundle binds the
+exact selections, flattened ordered rule identities, cost model, decision log,
+and ledger. Reordering or omitting pass manifests therefore fails independent
+projection rather than changing the meaning of a selection.
+
+The custody bridge lives in `optimization/omega-lowering-optimizer`. It
+deliberately does not trust the pass manager's final unit or reserialize that
+unit as a detached lowering value. It rebuilds the initial verified unit,
+replays the retained immutable candidate declarations through
+`omega-optimization-validation`, checks exact
 commit/ledger/pass-manifest/identity-bundle agreement, projects the final unit
 onto the source plan's immutable semantic metadata, and asks the independent
 validator to reconstruct that projection again. Its receipt binds custody of
@@ -189,13 +204,21 @@ selection set, ledger, and composite identity bundle. It is not the later
 target/native realization identity.
 
 The carrier exposes the projected abstract plan only by borrow while retaining
-the verified input and complete optimization run. This prevents an optimized
-consumer from obtaining the plan by consuming and discarding its evidence.
-The ordinary bare-plan lowering API remains for the empty-selection
-compatibility lane. Until optimizer orchestration and publication validation
-are connected, constructing this carrier does not authorize the compiler to
-emit an optimized artifact; the existing nonempty-selection build firewall
-continues to reject that route.
+the verified input and complete optimization run. A second optimized-only
+carrier lowers it to target operations while retaining the first carrier and
+exact target. This prevents an optimized consumer from obtaining either plan
+by consuming and discarding its evidence. The ordinary bare-plan lowering API
+remains for the empty-selection compatibility lane.
+
+Clean compiler staging branches before constructing optimizer state. Empty
+selection takes the prior compatibility route unchanged. Nonempty selection
+must enter `omega-optimization-pipeline`, and unsupported named families or any
+validation failure reject without fallback. A successful supported selection
+continues through the optimized-only target-lowering carrier, then deliberately
+stops before register assignment, machine emission, object/image construction,
+or component publication. Those stages require a later realization manifest
+that binds optimizer custody to physical records. The legacy compiler's
+nonempty-selection firewall remains closed.
 
 The verified optimizer input is required, not an optional evidence attachment
 to a bare plan. Compatibility lowering has a separate bare-plan entry; the
@@ -411,9 +434,10 @@ axis, restarts canonical rule dispatch after each accepted patch, requires a
 strictly decreasing transformation-specific measure, and commits analysis
 invalidation only after the independent validator constructs an accepted
 output. Exhaustion or rejection returns no optimized session for publication.
-This is still an internal vertical slice: build-level optimization selections
-remain rejected until their complete named pass schedules and publication gate
-exist.
+This remains a pre-publication vertical slice. Build-level selections may enter
+the clean verified optimizer lane when every named family has a complete
+schedule, but no selected build can publish output until physical realization
+retains the same custody and passes the publication gate.
 
 The next closed candidate vocabulary covers redundant block parameters without
 folding it into CFG cleanup. Its witness lists every exact incoming edge and

@@ -120,7 +120,9 @@ fn layer_of(manifest_path: &str) -> Option<&'static str> {
         || m("/source/compiler/rust/psi/semantics/")
     {
         Some("semantics")
-    } else if m("/source/compiler/rust/omega/pipeline/") || m("/source/compiler/rust/psi/pipeline/")
+    } else if m("/source/compiler/rust/omega/pipeline/")
+        || m("/source/compiler/rust/omega/optimization/")
+        || m("/source/compiler/rust/psi/pipeline/")
     {
         Some("pipeline")
     } else if m("/source/compiler/rust/omega/orchestration/") {
@@ -805,6 +807,7 @@ fn psi_reference_execution_ownership_and_terminal_lane_are_enforced() {
     let graph = load_graph();
     let roots = [
         "omega-optimization-core",
+        "omega-optimization-pipeline",
         "omega-terminal-abstract-operations",
         "omega-terminal-psi-to-abstract-operations",
         "omega-terminal-abstract-operations-to-target-operations",

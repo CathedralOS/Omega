@@ -24,13 +24,18 @@ use omega_optimization_validation::{
 };
 use omega_psi_optimizer::{
     OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit, RuleRegistryError,
-    baseline_psi_cost_model_identity, built_in_psi_registry,
+    baseline_psi_cost_model_identity, built_in_psi_registries,
 };
 use omega_terminal_abstract_operations::{
     TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractOperationPlan,
     TerminalAbstractParameter,
 };
+use omega_terminal_abstract_operations_to_target_operations::{
+    AdmittedTerminalBoundarySettlement, LoweringError, lower_to_target_operations,
+    lower_to_target_operations_with_provider_executions,
+};
 use omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput;
+use omega_terminal_target_operations::TerminalTargetOperationPlan;
 use psi_core::MachineId;
 
 /// An optimized abstract plan that cannot be constructed without independently
@@ -45,6 +50,55 @@ pub struct ValidatedOptimizedAbstractPlan {
     run: OptimizationRun,
     plan: TerminalAbstractOperationPlan,
     validation: ValidatedOptimizedAbstractPlanProjection,
+}
+
+/// Clean target lowering paired with the complete optimized abstract custody
+/// that authorized it. No consuming accessor detaches either plan.
+#[derive(Debug)]
+pub struct ValidatedOptimizedTargetOperations {
+    optimized: ValidatedOptimizedAbstractPlan,
+    target: omega_target::NativeTarget,
+    target_operations: TerminalTargetOperationPlan,
+}
+
+impl ValidatedOptimizedTargetOperations {
+    pub const fn optimized(&self) -> &ValidatedOptimizedAbstractPlan {
+        &self.optimized
+    }
+
+    pub const fn target(&self) -> omega_target::NativeTarget {
+        self.target
+    }
+
+    pub const fn target_operations(&self) -> &TerminalTargetOperationPlan {
+        &self.target_operations
+    }
+}
+
+pub fn lower_optimized_to_target_operations(
+    optimized: ValidatedOptimizedAbstractPlan,
+    target: omega_target::NativeTarget,
+) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
+    let target_operations = lower_to_target_operations(optimized.plan(), target)?;
+    Ok(ValidatedOptimizedTargetOperations {
+        optimized,
+        target,
+        target_operations,
+    })
+}
+
+pub fn lower_optimized_to_target_operations_with_provider_executions(
+    optimized: ValidatedOptimizedAbstractPlan,
+    target: omega_target::NativeTarget,
+    settlements: &[AdmittedTerminalBoundarySettlement<'_>],
+) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
+    let target_operations =
+        lower_to_target_operations_with_provider_executions(optimized.plan(), target, settlements)?;
+    Ok(ValidatedOptimizedTargetOperations {
+        optimized,
+        target,
+        target_operations,
+    })
 }
 
 impl ValidatedOptimizedAbstractPlan {
@@ -64,6 +118,10 @@ impl ValidatedOptimizedAbstractPlan {
         self.run.selections()
     }
 
+    pub const fn budget_per_pass(&self) -> omega_optimization_core::OptimizationWorkBudget {
+        self.run.budget_per_pass()
+    }
+
     pub fn commits(&self) -> &[PsiOptimizationCommit] {
         self.run.commits()
     }
@@ -76,8 +134,8 @@ impl ValidatedOptimizedAbstractPlan {
         self.run.decisions()
     }
 
-    pub const fn pass_manifest(&self) -> Option<&OptimizationPassManifestRecord> {
-        self.run.pass_manifest()
+    pub fn pass_manifests(&self) -> &[OptimizationPassManifestRecord] {
+        self.run.pass_manifests()
     }
 
     pub const fn transformation_ledger(&self) -> &PsiTransformationLedger {
@@ -123,20 +181,27 @@ impl std::error::Error for OptimizedAbstractProjectionError {}
 pub fn project_optimization_run(
     run: OptimizationRun,
 ) -> Result<ValidatedOptimizedAbstractPlan, OptimizedAbstractProjectionError> {
-    let registry = built_in_psi_registry(run.selections())
+    let registries = built_in_psi_registries(run.selections())
         .map_err(OptimizedAbstractProjectionError::Registry)?;
+    let ordered_rules = registries
+        .iter()
+        .flat_map(|registry| registry.contracts())
+        .map(|contract| contract.identity())
+        .collect::<Vec<_>>();
+    let ordered_rule_set = OptimizationRuleSetIdentity::from_ordered_rules(&ordered_rules)
+        .map_err(|_| OptimizedAbstractProjectionError::CommitReplayMismatch)?;
     replay_commits(&run)?;
-    validate_run_records(&run, registry.identity())?;
+    validate_run_records(&run, ordered_rule_set)?;
     let plan = project_plan(run.session().input().plan(), run.session().unit())?;
     let validation = validate_optimized_abstract_plan_projection(
         run.session().input(),
         run.session().unit(),
         &plan,
         run.selections(),
-        registry.identity(),
+        ordered_rule_set,
         baseline_psi_cost_model_identity(),
         run.decisions(),
-        run.pass_manifest(),
+        run.pass_manifests(),
         run.transformation_ledger(),
         run.identity_bundle(),
     )
@@ -201,22 +266,40 @@ fn validate_run_records(
     if run.transformation_ledger().records() != expected_records {
         return Err(OptimizedAbstractProjectionError::LedgerCommitMismatch);
     }
-    match run.pass_manifest() {
-        None if expected_rule_set
-            == OptimizationRuleSetIdentity::from_ordered_rules(&[])
-                .expect("empty rule set is canonical") => {}
-        Some(manifest) => {
-            if manifest.ordered_rule_set() != expected_rule_set
-                || manifest.work_usage() != work_usage(run.usage())
-            {
-                return Err(OptimizedAbstractProjectionError::ManifestUsageMismatch);
-            }
-            OptimizationPassManifestRecord::decode(&manifest.encode())
-                .map_err(|_| OptimizedAbstractProjectionError::ManifestUsageMismatch)?;
-        }
-        None => return Err(OptimizedAbstractProjectionError::ManifestUsageMismatch),
+    let flattened_rules = run
+        .pass_manifests()
+        .iter()
+        .flat_map(|manifest| manifest.ordered_rules().iter().copied())
+        .collect::<Vec<_>>();
+    if OptimizationRuleSetIdentity::from_ordered_rules(&flattened_rules).ok()
+        != Some(expected_rule_set)
+    {
+        return Err(OptimizedAbstractProjectionError::ManifestUsageMismatch);
+    }
+    let mut manifest_usage = OptimizationWorkUsage::default();
+    for manifest in run.pass_manifests() {
+        manifest_usage = add_work_usage(manifest_usage, manifest.work_usage())
+            .ok_or(OptimizedAbstractProjectionError::ManifestUsageMismatch)?;
+        OptimizationPassManifestRecord::decode(&manifest.encode())
+            .map_err(|_| OptimizedAbstractProjectionError::ManifestUsageMismatch)?;
+    }
+    if manifest_usage != work_usage(run.usage()) {
+        return Err(OptimizedAbstractProjectionError::ManifestUsageMismatch);
     }
     Ok(())
+}
+
+fn add_work_usage(
+    left: OptimizationWorkUsage,
+    right: OptimizationWorkUsage,
+) -> Option<OptimizationWorkUsage> {
+    Some(OptimizationWorkUsage {
+        rule_evaluations: left.rule_evaluations.checked_add(right.rule_evaluations)?,
+        candidates: left.candidates.checked_add(right.candidates)?,
+        validation_steps: left.validation_steps.checked_add(right.validation_steps)?,
+        commits: left.commits.checked_add(right.commits)?,
+        iterations: left.iterations.checked_add(right.iterations)?,
+    })
 }
 
 const fn work_usage(usage: OptimizationRunUsage) -> OptimizationWorkUsage {
@@ -350,9 +433,9 @@ fn project_parameter(
 #[cfg(test)]
 mod tests {
     use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
+    use omega_psi_optimizer::{built_in_psi_registry, run_psi_pipeline};
     use omega_target::NativeTarget;
     use omega_terminal_abstract_operations::TerminalAbstractOperation;
-    use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
     use omega_terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
     use psi_core::{
         BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
@@ -574,6 +657,13 @@ mod tests {
             .unwrap()
     }
 
+    fn run_pipeline(
+        verified: VerifiedPsiOptimizationUnit,
+        selections: OptimizationSelections,
+    ) -> OptimizationRun {
+        run_psi_pipeline(verified, &selections, work_budget()).unwrap()
+    }
+
     #[test]
     fn empty_selection_projects_the_original_plan_deterministically() {
         let selections = OptimizationSelections::new([]).unwrap();
@@ -584,7 +674,7 @@ mod tests {
         assert_eq!(first.plan(), second.plan());
         assert_eq!(first.validation(), second.validation());
         assert!(first.commits().is_empty());
-        assert!(first.pass_manifest().is_none());
+        assert!(first.pass_manifests().is_empty());
     }
 
     #[test]
@@ -596,7 +686,7 @@ mod tests {
 
         assert_eq!(optimized.commits().len(), 1);
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
-        assert!(optimized.pass_manifest().is_some());
+        assert_eq!(optimized.pass_manifests().len(), 1);
         assert!(matches!(
             optimized.plan().functions[0].operations[2],
             TerminalAbstractOperation::IntegerConstant {
@@ -605,7 +695,11 @@ mod tests {
             }
         ));
         assert_eq!(optimized.unit().accepted_obligation_facts.len(), 1);
-        lower_to_target_operations(optimized.plan(), NativeTarget::linux_x64()).unwrap();
+        let target =
+            lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64()).unwrap();
+        assert_eq!(target.target(), NativeTarget::linux_x64());
+        assert_eq!(target.optimized().commits().len(), 1);
+        assert_eq!(target.target_operations().functions.len(), 1);
     }
 
     #[test]
@@ -629,7 +723,9 @@ mod tests {
             &optimized.plan().functions[0].operations[2],
             TerminalAbstractOperation::Return { value, .. } if *value == ValueId::new(1_034).unwrap()
         ));
-        lower_to_target_operations(optimized.plan(), NativeTarget::linux_x64()).unwrap();
+        let target =
+            lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64()).unwrap();
+        assert_eq!(target.optimized().commits().len(), 1);
     }
 
     #[test]
@@ -656,7 +752,7 @@ mod tests {
                 registry.identity(),
                 baseline_psi_cost_model_identity(),
                 optimized.decisions(),
-                optimized.pass_manifest(),
+                optimized.pass_manifests(),
                 optimized.transformation_ledger(),
                 optimized.identity_bundle(),
             ),
@@ -683,7 +779,7 @@ mod tests {
                 registry.identity(),
                 baseline_psi_cost_model_identity(),
                 optimized.decisions(),
-                optimized.pass_manifest(),
+                optimized.pass_manifests(),
                 optimized.transformation_ledger(),
                 optimized.identity_bundle(),
             ),
@@ -702,6 +798,44 @@ mod tests {
         assert!(matches!(
             project_optimization_run(run),
             Err(OptimizedAbstractProjectionError::CommitReplayMismatch)
+        ));
+    }
+
+    #[test]
+    fn multi_pass_projection_retains_zero_commit_manifest_in_canonical_order() {
+        let selections = OptimizationSelections::new([
+            Optimization::SparseConditionalConstantPropagation,
+            Optimization::CopyPropagation,
+        ])
+        .unwrap();
+        let optimized =
+            project_optimization_run(run_pipeline(exact_add_verified(), selections)).unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.pass_manifests().len(), 2);
+        assert_eq!(optimized.pass_manifests()[0].work_usage().commits, 1);
+        assert_eq!(optimized.pass_manifests()[1].work_usage().commits, 0);
+    }
+
+    #[test]
+    fn multi_pass_projection_rejects_reordered_or_omitted_manifests() {
+        let selections = OptimizationSelections::new([
+            Optimization::SparseConditionalConstantPropagation,
+            Optimization::CopyPropagation,
+        ])
+        .unwrap();
+        let mut reordered = run_pipeline(exact_add_verified(), selections.clone());
+        reordered.pass_manifests.swap(0, 1);
+        assert!(matches!(
+            project_optimization_run(reordered),
+            Err(OptimizedAbstractProjectionError::ManifestUsageMismatch)
+        ));
+
+        let mut omitted = run_pipeline(exact_add_verified(), selections);
+        omitted.pass_manifests.pop();
+        assert!(matches!(
+            project_optimization_run(omitted),
+            Err(OptimizedAbstractProjectionError::ManifestUsageMismatch)
         ));
     }
 }

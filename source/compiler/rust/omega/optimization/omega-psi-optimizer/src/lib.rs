@@ -24,7 +24,8 @@ pub use analyses::{
 };
 pub use pass_manager::{
     OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
-    VerifiedPsiOptimizationSession, baseline_psi_cost_model_identity, run_psi_registry,
+    VerifiedPsiOptimizationSession, baseline_psi_cost_model_identity, run_psi_pipeline,
+    run_psi_registry,
 };
 pub use registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
@@ -44,7 +45,7 @@ pub use rules::{
     WrappingIntegerAddConstantsRule, WrappingIntegerDivideConstantsRule,
     WrappingIntegerMultiplyConstantsRule, WrappingIntegerRemainderConstantsRule,
     WrappingIntegerShiftLeftConstantsRule, WrappingIntegerShiftRightConstantsRule,
-    WrappingIntegerSubtractConstantsRule, built_in_psi_registry,
+    WrappingIntegerSubtractConstantsRule, built_in_psi_registries, built_in_psi_registry,
 };
 
 #[cfg(test)]
