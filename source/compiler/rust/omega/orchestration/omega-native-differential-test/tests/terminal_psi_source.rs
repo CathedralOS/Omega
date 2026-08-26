@@ -9,12 +9,14 @@ use omega_calling_conventions::{
     evaluate_ordinary_boundary_entry_plan, validate_entry_stack_domain_closure,
 };
 use omega_compiler::{
-    CompileOptions, CompileReport, SuppliedTerminalComponentDeploymentError,
-    TerminalComponentDeploymentInputs, TerminalComponentDeploymentOutputError,
-    TerminalComponentDeploymentOutputStage, TerminalComponentDeploymentSupply,
-    TerminalComponentProviderSettlement, compile_to_checked,
-    deploy_and_write_terminal_component_output, deploy_supplied_terminal_component_output,
-    stage_terminal_component, write_finalized_terminal_component_output,
+    CompileOptions, CompileReport, OwnedTerminalComponentDeploymentError,
+    SuppliedTerminalComponentDeploymentError, TerminalComponentDeploymentInputOwner,
+    TerminalComponentDeploymentInputRejection, TerminalComponentDeploymentInputs,
+    TerminalComponentDeploymentOutputError, TerminalComponentDeploymentOutputStage,
+    TerminalComponentDeploymentSupply, TerminalComponentProviderSettlement,
+    acquire_and_deploy_terminal_component_output, compile_to_checked,
+    deploy_and_write_terminal_component_output, stage_terminal_component,
+    write_finalized_terminal_component_output,
 };
 use omega_component_deployment::{
     ComponentProgressAttestationBinding, begin_terminal_component_deployment,
@@ -128,6 +130,43 @@ use std::{
 
 #[cfg(unix)]
 static NEXT_SCRATCH_DIRECTORY: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Debug)]
+struct SourceDeploymentInputOwner {
+    expected_target: NativeTarget,
+    supply: TerminalComponentDeploymentSupply,
+}
+
+#[derive(Debug)]
+struct SourceDeploymentInputAcquisitionError(&'static str);
+
+impl std::fmt::Display for SourceDeploymentInputAcquisitionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+impl TerminalComponentDeploymentInputOwner for SourceDeploymentInputOwner {
+    type Error = SourceDeploymentInputAcquisitionError;
+
+    fn acquire(
+        self,
+        candidate: &omega_compiler::TerminalComponentCandidate,
+    ) -> Result<
+        TerminalComponentDeploymentSupply,
+        TerminalComponentDeploymentInputRejection<Self, Self::Error>,
+    > {
+        if candidate.target() != self.expected_target {
+            return Err(TerminalComponentDeploymentInputRejection::new(
+                self,
+                SourceDeploymentInputAcquisitionError(
+                    "deployment-input owner rejected a different staged target",
+                ),
+            ));
+        }
+        Ok(self.supply)
+    }
+}
 
 fn terminal_source_canary(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -809,23 +848,27 @@ fn compiler_deployment_transaction_requires_real_installation_and_retains_failur
     };
     let profile_decision =
         ProfileDecisionId::new(0x55f3).expect("compiler deployment profile decision");
-    let error = deploy_supplied_terminal_component_output(
+    let acquisition_error = acquire_and_deploy_terminal_component_output(
         &options,
         1,
         candidate,
-        TerminalComponentDeploymentSupply::new(
-            wrong_installed,
-            Vec::new(),
-            Vec::new(),
-            profile_decision,
-        ),
+        SourceDeploymentInputOwner {
+            expected_target: NativeTarget::windows_x64(),
+            supply: TerminalComponentDeploymentSupply::new(
+                wrong_installed,
+                Vec::new(),
+                Vec::new(),
+                profile_decision,
+            ),
+        },
         None,
         None,
     )
-    .expect_err("compiler driver tail must reject substituted installed bytes");
-    let error = match *error {
-        SuppliedTerminalComponentDeploymentError::Deployment {
-            error,
+    .expect_err("compiler driver must retain rejected deployment-input acquisition");
+    let (candidate, mut owner) = match *acquisition_error {
+        OwnedTerminalComponentDeploymentError::Acquisition {
+            rejection,
+            candidate,
             source_file_count,
             build_evaluation_usage,
             build_observation_summary,
@@ -833,8 +876,36 @@ fn compiler_deployment_transaction_requires_real_installation_and_retains_failur
             assert_eq!(source_file_count, 1);
             assert!(build_evaluation_usage.is_none());
             assert!(build_observation_summary.is_none());
-            error
+            assert_eq!(
+                rejection.error().to_string(),
+                "deployment-input owner rejected a different staged target"
+            );
+            let (owner, _) = rejection.into_parts();
+            (candidate, owner)
         }
+        other => panic!("expected acquisition-stage driver recovery, got {other:?}"),
+    };
+    owner.expected_target = NativeTarget::linux_x64();
+    let error =
+        acquire_and_deploy_terminal_component_output(&options, 1, candidate, owner, None, None)
+            .expect_err(
+                "compiler driver must reject substituted installed bytes after acquisition",
+            );
+    let error = match *error {
+        OwnedTerminalComponentDeploymentError::Deployment(error) => match *error {
+            SuppliedTerminalComponentDeploymentError::Deployment {
+                error,
+                source_file_count,
+                build_evaluation_usage,
+                build_observation_summary,
+            } => {
+                assert_eq!(source_file_count, 1);
+                assert!(build_evaluation_usage.is_none());
+                assert!(build_observation_summary.is_none());
+                error
+            }
+            other => panic!("expected typed deployment recovery, got {other:?}"),
+        },
         other => panic!("expected deployment-stage driver recovery, got {other:?}"),
     };
     assert_eq!(error.stage(), TerminalComponentDeploymentOutputStage::Begin);
@@ -1311,20 +1382,23 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         let expected_path = options
             .build_dir()
             .join(&candidate.image().output().file_name);
-        let report = deploy_supplied_terminal_component_output(
+        let report = acquire_and_deploy_terminal_component_output(
             &options,
             1,
             candidate,
-            TerminalComponentDeploymentSupply::new(
-                installed,
-                provider_bindings,
-                progress_bindings,
-                ProfileDecisionId::new(0x5434).expect("compiler transaction profile decision"),
-            ),
+            SourceDeploymentInputOwner {
+                expected_target: NativeTarget::linux_x64(),
+                supply: TerminalComponentDeploymentSupply::new(
+                    installed,
+                    provider_bindings,
+                    progress_bindings,
+                    ProfileDecisionId::new(0x5434).expect("compiler transaction profile decision"),
+                ),
+            },
             None,
             None,
         )
-        .expect("compiler driver tail should deploy accepted supplied progress inputs");
+        .expect("compiler driver should acquire and deploy accepted progress inputs");
         assert_eq!(
             report.checked_native_executable_path(),
             Some(expected_path.as_path())

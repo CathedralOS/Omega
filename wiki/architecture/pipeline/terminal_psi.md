@@ -1886,9 +1886,13 @@ their real owners. The driver tail now accepts those independently acquired
 values as a `TerminalComponentDeploymentSupply`, binds them to the staged
 candidate, invokes the transaction, and constructs this report lane without
 discarding deployment-stage or report metadata on failure. The supply does not
-grant the compiler installation/provider/progress/profile authority; connecting
-its live owner to candidate staging is the remaining prerequisite to replacing
-the legacy publication path.
+grant the compiler installation/provider/progress/profile authority. The driver
+now invokes a `TerminalComponentDeploymentInputOwner` against the exact staged
+candidate; acquisition rejection preserves that owner, the candidate, and all
+report metadata, while success enters the typed transaction immediately. A
+concrete non-test installation/deployment owner and its connection to ordinary
+candidate staging remain prerequisites to replacing the legacy publication
+path; the compiler has no authority to stand in for that missing provider.
 Compact record identities remain report keys and grant no authority.
 
 ### Placed-occurrence and resident-custody slice

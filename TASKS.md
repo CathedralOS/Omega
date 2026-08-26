@@ -7599,13 +7599,24 @@ compiler concept is introduced.
   and build evaluation/observation metadata for exact recovery. A progress-
   bearing source canary crosses this supplied-input driver tail.
 
+  The production driver now has an explicit live-owner acquisition boundary.
+  `TerminalComponentDeploymentInputOwner` is invoked against the exact staged
+  candidate and may return only the authority-bearing supply above. Acquisition
+  rejection returns the unchanged owner, candidate, source count, and build
+  evaluation/observation metadata; success immediately enters the established
+  typed deployment/report transaction. A source canary rejects a substituted
+  target, recovers and corrects the same owner, then proves that a later
+  installed-byte rejection still returns typed deployment custody. The
+  progress-bearing source canary reaches report custody through the owner call.
+
   Remaining TPR6-B engineering: retire the legacy compiler's temporary final-
-  output rejection only after a live installation/deployment owner is connected
-  to candidate staging and supplies these real inputs to the new driver tail.
-  The current legacy path still publishes a native executable directly and
-  carries neither the manifest nor an installation acceptance, so removing the
-  fence there would erase the obligation; selected plans and authorized routes
-  remain insufficient.
+  output rejection only after a concrete non-test installation/deployment owner
+  implements this acquisition boundary and the ordinary driver connects it to
+  candidate staging. No such provider exists in the compiler today. The current
+  legacy path still publishes a native executable directly and carries neither
+  the manifest nor an installation acceptance, so removing the fence there
+  would erase the obligation; selected plans and authorized routes remain
+  insufficient.
   Independently add authored
   qualification-preserving correspondence beyond direct parameter/field
   identity. `QualificationEvidence` retains evidence kind and source
