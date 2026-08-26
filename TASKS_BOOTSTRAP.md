@@ -300,12 +300,20 @@ fixture matrices, and byte ceilings remain with their contracts and gates.
   from that witness through the ranking/reach facts, provider-owned boundary
   call, surrounding receiver closure, checked IR, conservative execution, and
   artifact reconstruction.
-- [ ] Add a focused Delta compiler regression for local state identifiers that
-  equal contextual syntax spellings. The OMGRSW9 producer exposed divergent
-  lowermachine behavior for names such as `write_byte`, `boundary`, and
-  `machine`; renaming those states unblocked this milestone but is not the
-  compiler fix. Isolate the smallest source, correct the contextual scan, and
-  require native/self artifact identity plus the intended execution result.
+- [x] Correct Delta lowermachine's contextual state-declaration scan. Phase 2
+  now joins `state` to the exact phase-1 machine/state ordinal and identifier,
+  consumes its comment-aware balanced header, and enters only the state body;
+  phase 1 excludes direct `->` targets from contextual `state`, `let`, and
+  sealed-I/O recognition. A focused twelve-name canary covers Delta keywords
+  and boundary-intrinsic spellings and requires Rust-on-ramp, native-
+  lowermachine, and self-built-lowermachine assembly identity plus identical
+  status-37 execution.
+- [ ] Extend the phase-1 transition-target exclusion across full lexical trivia.
+  The focused fix recognizes direct `-> name` targets and whitespace, but a
+  `//` comment between `->` and a contextual target name can still make the raw
+  backward scan classify that name as statement or sealed-I/O syntax. Add that
+  exact canary, consume the same trivia contract as the main scanner, and retain
+  native/self artifact identity plus execution agreement.
 
 Implement each as a general relation rather than file-name checks, declaration
 counts, compiler-source AST permutations, or a Cartesian matrix in one verifier.

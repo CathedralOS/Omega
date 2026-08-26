@@ -889,7 +889,8 @@ machine Main::main(&mut self) {
     state sparadv(){ self.pos = self.pos + 1; transition 0 { _ -> sparnx() } }
     state addSf() { self.ns = self.ns + 1; self.si = self.si + 1; self.pend = 0; transition 0 { _ -> sk() } }
     state ck1m()  { self.w = self.is_machine(self.start, self.pos); transition self.w == 1 { true -> newM1()  false -> ck1l() } }
-    state ck1l()  { self.w = self.is_let(self.start, self.pos); transition self.w == 1 { true -> setL1()  false -> ck1s() } }
+    state ck1l()  { self.w = self.is_let(self.start, self.pos); transition self.w == 1 { true -> let1_context()  false -> ck1s() } }
+    state let1_context() { self.qk = 2; transition 0 { _ -> word1_context() } }
     state setL1() { self.lpend = 1; transition 0 { _ -> sk() } }
     // Five machine-scoped tables have 128 rows. Reject in phase 1, before p2 publishes assembly.
     state newM1() { transition self.depth == 0 { true -> nmcap()  false -> sk() } }
@@ -897,14 +898,28 @@ machine Main::main(&mut self) {
     state nm1()   { self.mi = self.mi + 1; self.si = 0; self.mdecl = 1; self.typed_backing[self.hsf_base + self.mi] = 0; transition 0 { _ -> sk() } }
     state machine_exhausted() { self.console.exit_process(3) }
     state ck1s()  { transition self.depth == 1 { true -> ck1s2()  false -> ck1wb() } }
-    state ck1s2() { self.w = self.is_state(self.start, self.pos); transition self.w == 1 { true -> setP1()  false -> ck1wb() } }
+    state ck1s2() { self.w = self.is_state(self.start, self.pos); transition self.w == 1 { true -> state1_context()  false -> ck1wb() } }
+    state state1_context() { self.qk = 1; transition 0 { _ -> word1_context() } }
     state setP1() { self.pend = 1; transition 0 { _ -> sk() } }
     // Pre-scan the sealed byte-I/O spellings before pass 2 emits the entry
     // epilogue. This lets an implicit entry return flush output even when the
     // only write occurs in a later method body.
-    state ck1wb() { self.w = self.is_wbyte(self.start, self.pos); transition self.w == 1 { true -> setio1()  false -> ck1rb() } }
-    state ck1rb() { self.w = self.is_rbyte(self.start, self.pos); transition self.w == 1 { true -> setio1()  false -> ck1wl() } }
-    state ck1wl() { self.w = self.is_wline(self.start, self.pos); transition self.w == 1 { true -> setio1()  false -> sk() } }
+    state ck1wb() { self.w = self.is_wbyte(self.start, self.pos); transition self.w == 1 { true -> io1_context()  false -> ck1rb() } }
+    state ck1rb() { self.w = self.is_rbyte(self.start, self.pos); transition self.w == 1 { true -> io1_context()  false -> ck1wl() } }
+    state ck1wl() { self.w = self.is_wline(self.start, self.pos); transition self.w == 1 { true -> io1_context()  false -> sk() } }
+    // A transition target is an identifier followed by `(` too, but it is not
+    // a byte-I/O call.  Exclude the structurally preceding `->` so a state
+    // named read_byte/write_byte/write_line does not manufacture I/O support.
+    state io1_context() { self.qk = 3; transition 0 { _ -> word1_context() } }
+    state word1_context() { self.qa = self.start; transition 0 { _ -> word1_back() } }
+    state word1_back() { transition self.qa > 0 { true -> word1_dec() false -> word1_context_accept() } }
+    state word1_dec() { self.qa = self.qa - 1; transition self.byte_backing[self.source_base + self.qa] <= 32 { true -> word1_back() false -> word1_gt() } }
+    state word1_gt() { transition self.byte_backing[self.source_base + self.qa] == 62 { true -> word1_arrow_back() false -> word1_context_accept() } }
+    state word1_arrow_back() { transition self.qa > 0 { true -> word1_arrow_dec() false -> word1_context_accept() } }
+    state word1_arrow_dec() { self.qa = self.qa - 1; transition self.byte_backing[self.source_base + self.qa] <= 32 { true -> word1_arrow_back() false -> word1_dash() } }
+    state word1_dash() { transition self.byte_backing[self.source_base + self.qa] == 45 { true -> sk() false -> word1_context_accept() } }
+    state word1_context_accept() { transition self.qk == 1 { true -> setP1() false -> word1_context_let() } }
+    state word1_context_let() { transition self.qk == 2 { true -> setL1() false -> setio1() } }
     state setio1(){ self.usesio = 1; transition 0 { _ -> sk() } }
     // ---- pass 2: find the first `transition`, skip its subject, emit pop + arm dispatch ----
     state tok2()  { self.w = self.is_word(self.byte_backing[self.source_base + self.pos]); transition self.w == 1 { true -> word2()  false -> padv2() } }
@@ -942,7 +957,56 @@ machine Main::main(&mut self) {
     state nm2c()  { self.emit_prologue(); transition 0 { _ -> sk() } }
     state ck2t()  { self.w = self.is_trans(self.start, self.pos); transition self.w == 1 { true -> subjinit()  false -> ck2s() } }
     state subjinit(){ self.bterm = 1; self.mode = 0; self.opnd = 0; transition 0 { _ -> subj0() } }
-    state ck2s()  { self.w = self.is_state(self.start, self.pos); transition self.w == 1 { true -> emitL()  false -> ck2self() } }
+    state ck2s()  { self.w = self.is_state(self.start, self.pos); transition self.w == 1 { true -> state2_find_init()  false -> ck2self() } }
+    // `state` is contextual.  Match the phase-1 declaration identity for the
+    // current machine/state ordinal, then consume its complete header before
+    // returning to the body word dispatcher.  Without this seam, a declaration
+    // such as `state write_byte()` re-entered wc2 on its name and was lowered as
+    // the boundary intrinsic instead of as a label.
+    state state2_find_init() { self.cj = 0; transition 0 { _ -> state2_find() } }
+    state state2_find() { transition self.cj < self.ns { true -> state2_find_machine() false -> ck2self() } }
+    state state2_find_machine() { transition self.typed_backing[self.smi_base + self.cj] == self.mi { true -> state2_find_ordinal() false -> state2_find_next() } }
+    state state2_find_ordinal() { transition self.typed_backing[self.ssi_base + self.cj] == self.lsi { true -> state2_lookahead_init() false -> state2_find_next() } }
+    state state2_find_next() { self.cj = self.cj + 1; transition 0 { _ -> state2_find() } }
+    state state2_lookahead_init() { self.qa = self.pos; self.qk = 1; transition 0 { _ -> state2_trivia_bound() } }
+    // Match the main scanner's `//` trivia treatment at each state-header
+    // boundary.  The parenthesis scanner below uses the same comment skipper,
+    // so delimiters written inside a line comment cannot end the header early.
+    state state2_trivia_bound() { transition self.qa < self.n { true -> state2_trivia_char() false -> source_malformed() } }
+    state state2_trivia_char() { transition self.byte_backing[self.source_base + self.qa] <= 32 { true -> state2_trivia_advance() false -> state2_trivia_slash() } }
+    state state2_trivia_advance() { self.qa = self.qa + 1; transition 0 { _ -> state2_trivia_bound() } }
+    state state2_trivia_slash() { transition self.byte_backing[self.source_base + self.qa] == 47 { true -> state2_trivia_slash_bound() false -> state2_trivia_done() } }
+    state state2_trivia_slash_bound() { transition self.qa + 1 < self.n { true -> state2_trivia_slash_check() false -> state2_trivia_done() } }
+    state state2_trivia_slash_check() { transition self.byte_backing[self.source_base + self.qa + 1] == 47 { true -> state2_comment_advance() false -> state2_trivia_done() } }
+    state state2_comment_advance() { self.qa = self.qa + 2; transition 0 { _ -> state2_comment_bound() } }
+    state state2_comment_bound() { transition self.qa < self.n { true -> state2_comment_char() false -> source_malformed() } }
+    state state2_comment_char() { transition self.byte_backing[self.source_base + self.qa] == 10 { true -> state2_trivia_advance() false -> state2_comment_more() } }
+    state state2_comment_more() { self.qa = self.qa + 1; transition 0 { _ -> state2_comment_bound() } }
+    state state2_trivia_done() { transition self.qk == 1 { true -> state2_name_start() false -> state2_trivia_open() } }
+    state state2_trivia_open() { transition self.qk == 2 { true -> state2_open_check() false -> state2_trivia_body() } }
+    state state2_trivia_body() { transition self.qk == 3 { true -> state2_body_check() false -> state2_paren_bound() } }
+    // A same-spelled ordinary identifier in a body is not a declaration.  Do
+    // not commit the lookahead until its next token begins at the recorded name.
+    state state2_name_start() { transition self.qa == self.typed_backing[self.sns_base + self.cj] { true -> state2_name_scan() false -> ck2self() } }
+    state state2_name_scan() { transition self.qa < self.n { true -> state2_name_char() false -> source_malformed() } }
+    state state2_name_char() { self.w = self.is_word(self.byte_backing[self.source_base + self.qa]); transition self.w == 1 { true -> state2_name_more() false -> state2_name_end() } }
+    state state2_name_more() { self.qa = self.qa + 1; transition 0 { _ -> state2_name_scan() } }
+    state state2_name_end() { transition self.qa == self.typed_backing[self.sne_base + self.cj] { true -> state2_open_trivia() false -> source_malformed() } }
+    state state2_open_trivia() { self.qk = 2; transition 0 { _ -> state2_trivia_bound() } }
+    state state2_open_check() { transition self.byte_backing[self.source_base + self.qa] == 40 { true -> state2_paren_init() false -> source_malformed() } }
+    state state2_paren_init() { self.depth = 1; self.qk = 4; self.qa = self.qa + 1; transition 0 { _ -> state2_paren_bound() } }
+    state state2_paren_bound() { transition self.qa < self.n { true -> state2_paren_char() false -> source_malformed() } }
+    state state2_paren_char() { transition self.byte_backing[self.source_base + self.qa] == 47 { true -> state2_paren_slash_bound() false -> state2_paren_open_check() } }
+    state state2_paren_slash_bound() { transition self.qa + 1 < self.n { true -> state2_paren_slash_check() false -> state2_paren_advance() } }
+    state state2_paren_slash_check() { transition self.byte_backing[self.source_base + self.qa + 1] == 47 { true -> state2_comment_advance() false -> state2_paren_advance() } }
+    state state2_paren_open_check() { transition self.byte_backing[self.source_base + self.qa] == 40 { true -> state2_paren_open() false -> state2_paren_close_check() } }
+    state state2_paren_open() { self.depth = self.depth + 1; self.qa = self.qa + 1; transition 0 { _ -> state2_paren_bound() } }
+    state state2_paren_close_check() { transition self.byte_backing[self.source_base + self.qa] == 41 { true -> state2_paren_close() false -> state2_paren_advance() } }
+    state state2_paren_advance() { self.qa = self.qa + 1; transition 0 { _ -> state2_paren_bound() } }
+    state state2_paren_close() { self.depth = self.depth - 1; self.qa = self.qa + 1; transition self.depth == 0 { true -> state2_body_trivia() false -> state2_paren_bound() } }
+    state state2_body_trivia() { self.qk = 3; transition 0 { _ -> state2_trivia_bound() } }
+    state state2_body_check() { transition self.byte_backing[self.source_base + self.qa] == 123 { true -> state2_body_enter() false -> source_malformed() } }
+    state state2_body_enter() { self.pos = self.qa + 1; transition 0 { _ -> emitL() } }
     state ck2self(){ self.w = self.is_self(self.start, self.pos); transition self.w == 1 { true -> asgn0()  false -> ck2let() } }
     state ck2let() { self.w = self.is_let(self.start, self.pos); transition self.w == 1 { true -> let0()  false -> ck2ret() } }
     state ck2ret() { self.w = self.is_return(self.start, self.pos); transition self.w == 1 { true -> ret0()  false -> ck2wb() } }

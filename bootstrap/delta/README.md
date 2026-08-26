@@ -52,7 +52,12 @@ source- and cost-driven in the feature ledger.
   partition through both native and self-built compilers. Its explicit byte
   arena currently reserves 512 KiB so the growing general bridge compiler fits
   without making source compaction part of the language contract; the adjacent
-  512-KiB-plus-one input still fails closed before compilation or output.
+  512-KiB-plus-one input still fails closed before compilation or output. State
+  declarations are joined to the exact phase-1 machine/state identity before
+  their comment-aware balanced headers are consumed, so contextual identifiers
+  such as `state`, `let`, `write_byte`, and `read_byte` cannot re-enter the
+  statement or boundary-intrinsic dispatcher. A focused gate requires exact
+  Rust/native/self assembly identity and execution across twelve such names.
 - [`build/`](build/) contains the checked-in bootstrap compiler artifacts.
 - [`rust/`](rust/) is the disposable
   Rust producer and executable reference. It is not Delta's semantic authority.
