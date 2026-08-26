@@ -11,7 +11,7 @@ use omega_control_flow_to_abstract_operations::{
     AbstractOperationLoweringInput, build_abstract_operation_plan,
 };
 use omega_core::parallel::WorkerPoolHandle;
-use omega_data_planning::build_target_data_plan;
+use omega_data_planning::build_target_data_plan_with_dynamic_conformances;
 use omega_layout::build_layout_plan;
 use omega_machine_emission::{MachineEmissionInput, emit_machine_bytes};
 use omega_object_file::entry_symbol_name;
@@ -402,15 +402,17 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         build_runtime_text_plan(&backend_plan.host_calls, &backend_plan.state_storage)
     });
     backend_plan.data = record_backend_phase(&mut phase_timings, "target data", || {
-        build_target_data_plan(
+        build_target_data_plan_with_dynamic_conformances(
             program.as_ref(),
             &backend_plan.host_calls,
             &backend_plan.state_storage,
             &backend_plan.state_values,
             &backend_plan.runtime_branching_calls,
             &backend_plan.runtime_text,
+            &backend_plan.state_calls,
+            build_runtime_abi_plan(backend_plan.target),
         )
-    });
+    })?;
     backend_plan.abstract_data = (&backend_plan.data).into();
     backend_plan.abstract_operations =
         record_backend_phase(&mut phase_timings, "abstract operations", || {

@@ -6,6 +6,10 @@ use std::sync::Arc;
 pub struct TargetDataPlan {
     pub objects: Arena<TargetDataObject>,
     pub bytes: Arena<u8>,
+    /// Artifact-private selected-conformance tables. `object` identifies the
+    /// zero-filled pointer slots in `bytes`; row targets remain address-free
+    /// until relocation planning binds them to private functions.
+    pub dynamic_conformance_tables: Arena<DynamicConformanceTable>,
 }
 
 impl Default for TargetDataPlan {
@@ -19,8 +23,25 @@ impl TargetDataPlan {
         Self {
             objects: Arena::with_capacity(object_capacity),
             bytes: Arena::with_capacity(byte_capacity),
+            dynamic_conformance_tables: Arena::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DynamicConformanceTable {
+    pub object: TargetDataObjectHandle,
+    pub trait_identity: Arc<str>,
+    pub conformance_identity: Arc<str>,
+    pub rows: Vec<DynamicConformanceTableRow>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DynamicConformanceTableRow {
+    pub requirement_identity: Arc<str>,
+    pub realization_identity: Arc<str>,
+    /// Exact address-free private function target for the future relocation.
+    pub realization: StateKey,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,6 +62,7 @@ pub enum TargetDataObjectKind {
     StaticString,
     RuntimeTextBuffer,
     HostNewline,
+    DynamicConformanceTable,
     #[default]
     Other,
 }
@@ -87,6 +109,13 @@ impl From<&TargetDataPlan> for omega_abstract_operations::AbstractDataPlan {
                         }
                         TargetDataObjectKind::HostNewline => {
                             omega_abstract_operations::AbstractDataObjectKind::HostNewline
+                        }
+                        // The abstract-operation lane does not consume the
+                        // table's semantic rows yet. Its byte object remains
+                        // visible as ordinary immutable target data while the
+                        // exact table plan stays on `TargetDataPlan`.
+                        TargetDataObjectKind::DynamicConformanceTable => {
+                            omega_abstract_operations::AbstractDataObjectKind::Other
                         }
                         TargetDataObjectKind::Other => {
                             omega_abstract_operations::AbstractDataObjectKind::Other
