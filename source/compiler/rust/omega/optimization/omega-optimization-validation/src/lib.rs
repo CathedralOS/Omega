@@ -32,9 +32,9 @@ mod projection;
 
 pub use prephysical_manifest::{
     OptimizationManifestStage, OptimizationStructuralStatistics, PhysicalOptimizationDataStatus,
-    PrePhysicalOptimizationManifest, PrePhysicalOptimizationManifestError,
-    ValidatedPrePhysicalOptimizationManifest, project_pre_physical_optimization_manifest,
-    validate_pre_physical_optimization_manifest,
+    PrePhysicalOptimizationManifest, PrePhysicalOptimizationManifestDecodeError,
+    PrePhysicalOptimizationManifestError, ValidatedPrePhysicalOptimizationManifest,
+    project_pre_physical_optimization_manifest, validate_pre_physical_optimization_manifest,
 };
 pub use projection::{
     OptimizedAbstractPlanProjectionError, ValidatedOptimizedAbstractPlanProjection,
