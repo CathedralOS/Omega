@@ -187,7 +187,7 @@ fn run_unit(
     let mut policy = BaselinePolicy::default();
     loop {
         charge(&mut usage.iterations, budget.iterations(), "iterations")?;
-        let previous_measure = exact_integer_operation_count(&unit);
+        let previous_measure = integer_evaluation_operation_count(&unit);
         let mut chosen: Option<(
             omega_optimization_unit::PsiRewriteCandidate,
             ValidatedPsiRewrite,
@@ -329,7 +329,7 @@ fn run_unit(
         let candidate_identity = validated.candidate();
         let provenance = candidate.provenance().to_vec();
         let next = validated.into_unit();
-        let current_measure = exact_integer_operation_count(&next);
+        let current_measure = integer_evaluation_operation_count(&next);
         if current_measure >= previous_measure {
             return Err(OptimizationRunError::NonDecreasingConvergenceMeasure {
                 previous: previous_measure,
@@ -420,7 +420,7 @@ fn charge(counter: &mut u64, limit: u64, axis: &'static str) -> Result<(), Optim
     Ok(())
 }
 
-fn exact_integer_operation_count(unit: &PsiOptimizationUnit) -> u64 {
+fn integer_evaluation_operation_count(unit: &PsiOptimizationUnit) -> u64 {
     unit.functions
         .iter()
         .flat_map(|function| &function.blocks)
@@ -432,6 +432,12 @@ fn exact_integer_operation_count(unit: &PsiOptimizationUnit) -> u64 {
                     ..
                 } | omega_terminal_abstract_operations::TerminalAbstractOperation::ExactIntegerSubtract { .. }
                     | omega_terminal_abstract_operations::TerminalAbstractOperation::ExactIntegerMultiply { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::WrappingIntegerAdd { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::WrappingIntegerSubtract { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::WrappingIntegerMultiply { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::SaturatingIntegerAdd { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::SaturatingIntegerSubtract { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::SaturatingIntegerMultiply { .. }
             )
         })
         .count()
@@ -450,7 +456,7 @@ mod tests {
     use super::*;
     use crate::{
         ExactIntegerAddConstantsRule, PsiOptimizationRule, built_in_psi_registry,
-        rules::tests::{dependent_exact_chain_unit, exact_add_unit},
+        rules::tests::{dependent_exact_chain_unit, exact_add_unit, wrapping_add_unit},
     };
 
     #[derive(Debug)]
@@ -715,14 +721,14 @@ mod tests {
         assert_eq!(usage.commits, 1);
         assert_eq!(usage.validation_steps, 1);
         assert_eq!(usage.iterations, 2);
-        assert_eq!(usage.rule_evaluations, 4);
+        assert_eq!(usage.rule_evaluations, 10);
         assert_eq!(decisions.records.len(), 1);
         assert_eq!(
             decisions.records[0].outcome,
             BaselineDecisionOutcome::Choose(commits[0].candidate)
         );
         let pass_manifest = pass_manifest.expect("selected pass emits a manifest row");
-        assert_eq!(pass_manifest.ordered_rules().len(), 3);
+        assert_eq!(pass_manifest.ordered_rules().len(), 9);
         assert_eq!(pass_manifest.input(), unit.identity);
         assert_eq!(pass_manifest.output(), output.identity);
         assert_eq!(pass_manifest.decisions().len(), 1);
@@ -755,7 +761,7 @@ mod tests {
 
         assert_eq!(commits.len(), 2);
         assert_eq!(usage.iterations, 3);
-        assert_eq!(usage.rule_evaluations, 7);
+        assert_eq!(usage.rule_evaluations, 13);
         assert!(matches!(
             output.functions[0].blocks[0].nodes[2].operation,
             TerminalAbstractOperation::IntegerConstant {
@@ -771,9 +777,29 @@ mod tests {
             }
         ));
         let manifest = pass_manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 3);
+        assert_eq!(manifest.ordered_rules().len(), 9);
         assert_eq!(manifest.decisions().len(), 2);
         assert_eq!(ledger.records().len(), 2);
+    }
+
+    #[test]
+    fn pass_convergence_measure_includes_wrapping_and_saturating_rules() {
+        let selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let registry = built_in_psi_registry(&selections).unwrap();
+        let (output, commits, usage, _, _, _) =
+            run_unit(wrapping_add_unit(), &registry, budget(8)).unwrap();
+
+        assert_eq!(commits.len(), 1);
+        assert_eq!(usage.iterations, 2);
+        assert!(matches!(
+            output.functions[0].blocks[0].nodes[2].operation,
+            TerminalAbstractOperation::IntegerConstant {
+                value: psi_core::IntegerValue::Unsigned(4),
+                ..
+            }
+        ));
     }
 
     #[test]

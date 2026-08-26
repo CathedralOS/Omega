@@ -165,11 +165,15 @@ These facts constrain the work below.
   The independent validation crate re-reads both supported literal facts,
   evaluates the exact typed operation, constructs the output itself, retains
   Psi provenance/fuel, replaces the consumed obligation reference with the new
-  constant fact, and rejects a wrong result without mutating input. Separate
-  built-in add, subtract, and multiply rules share that validator, have distinct
-  stable rule identities under one ordered SCCP pass group, and can propose
-  candidates only when their explicit parent selection is present. No build
-  hook admits that still-incomplete optimization suite.
+  constant fact, and rejects a wrong result without mutating input. Nine
+  built-in add, subtract, and multiply rules cover the exact, wrapping, and
+  saturating policies with distinct stable identities under one ordered SCCP
+  pass group. Exact operations require `ProofCertified`; wrapping/saturating
+  operations require `ExactOperationSemantics`, and focused overflow tests
+  produce `4` versus `255` for the same `u8` operands. The shared independent
+  validator reconstructs the fact index rather than trusting rule-authored
+  insertions. Rules can propose candidates only when their explicit parent
+  selection is present. No build hook admits that still-incomplete suite.
 - A verified-session-only pass manager now performs canonical rule dispatch,
   dependency analysis, proposal enumeration, deterministic negative-cost
   choice with candidate-identity tie breaks, independent validation,
@@ -178,7 +182,7 @@ These facts constrain the work below.
   iterations. Budget exhaustion returns no output, every registered rule is
   covered before successful convergence, and the verifier-owned optimizer
   context remains attached to the resulting unit. A dependent add-then-
-  multiply fixture proves the ordered three-rule group reaches a deterministic
+  multiply fixture proves the ordered multi-rule group reaches a deterministic
   fixed point across revisions. `OPT-PASS-MANAGER` remains open for synthetic
   oscillation coverage. A separate `omega-optimization-policy` crate now
   receives only independently validated candidate summaries, chooses improving

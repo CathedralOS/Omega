@@ -32,7 +32,10 @@ pub use registry::{
 };
 pub use rules::{
     ExactIntegerAddConstantsRule, ExactIntegerMultiplyConstantsRule,
-    ExactIntegerSubtractConstantsRule, built_in_psi_registry,
+    ExactIntegerSubtractConstantsRule, SaturatingIntegerAddConstantsRule,
+    SaturatingIntegerMultiplyConstantsRule, SaturatingIntegerSubtractConstantsRule,
+    WrappingIntegerAddConstantsRule, WrappingIntegerMultiplyConstantsRule,
+    WrappingIntegerSubtractConstantsRule, built_in_psi_registry,
 };
 
 #[cfg(test)]
