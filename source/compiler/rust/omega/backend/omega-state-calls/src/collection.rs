@@ -1948,5 +1948,34 @@ mod tests {
         assert_eq!(descriptor.conformance, selected_conformance);
         assert_eq!(descriptor.rows, selection.rows);
         assert_eq!(descriptor.rows.len(), 1);
+        let row = &descriptor.rows[0];
+        let declaring_trait = checked
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == row.declaring_trait)
+            .expect("retained declaring trait");
+        let requirement = checked
+            .trait_machine_signatures(declaring_trait)
+            .iter()
+            .find(|requirement| requirement.symbol == row.requirement)
+            .expect("retained requirement");
+        let realization = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == row.realization_machine)
+            .expect("retained realization machine");
+        assert_eq!(
+            row.requirement_identity,
+            checked
+                .normalized_trait_requirement_overload_identity(declaring_trait, requirement)
+                .identity()
+        );
+        assert_eq!(
+            row.realization_identity,
+            checked
+                .normalized_machine_overload_identity(realization)
+                .expect("normalized realization")
+                .identity()
+        );
     }
 }

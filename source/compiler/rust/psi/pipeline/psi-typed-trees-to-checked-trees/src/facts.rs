@@ -469,11 +469,21 @@ fn build_dynamic_conformance_facts(
                 )));
                 continue;
             }
+            let (requirement_identity, realization_identity) =
+                match normalized_dynamic_row_identities(program, row) {
+                    Ok(identities) => identities,
+                    Err(diagnostic) => {
+                        diagnostics.push(diagnostic);
+                        continue;
+                    }
+                };
             rows.push(psi_checked_trees::DynamicConformanceRowFact {
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,
+                requirement_identity,
                 realization_machine: row.realization_machine,
                 realization_state: row.realization_state,
+                realization_identity,
                 source: match row.source {
                     psi_typed_trees::trait_definition::ConformanceRowSource::Inline => {
                         psi_checked_trees::DynamicConformanceRowSource::Inline
@@ -507,6 +517,68 @@ fn build_dynamic_conformance_facts(
         return Err(diagnostics);
     }
     Ok(psi_checked_trees::DynamicConformanceFacts { selections })
+}
+
+pub(crate) fn normalized_dynamic_row_identities(
+    program: &TypedTrees,
+    row: &psi_typed_trees::trait_definition::ConformanceRow,
+) -> Result<(String, String), psi_diagnostics::Diagnostic> {
+    let mut declaring_traits = program
+        .traits()
+        .iter()
+        .filter(|definition| definition.symbol == row.declaring_trait);
+    let declaring_trait = declaring_traits.next().ok_or_else(|| {
+        psi_diagnostics::Diagnostic::error(
+            "dynamic conformance row has no exact declaring trait for normalized identity",
+        )
+    })?;
+    if declaring_traits.next().is_some() {
+        return Err(psi_diagnostics::Diagnostic::error(
+            "dynamic conformance row has an ambiguous declaring trait for normalized identity",
+        ));
+    }
+
+    let mut requirements = program
+        .trait_machine_signatures(declaring_trait)
+        .iter()
+        .filter(|requirement| requirement.symbol == row.requirement);
+    let requirement = requirements.next().ok_or_else(|| {
+        psi_diagnostics::Diagnostic::error(
+            "dynamic conformance row has no exact requirement for normalized identity",
+        )
+    })?;
+    if requirements.next().is_some() {
+        return Err(psi_diagnostics::Diagnostic::error(
+            "dynamic conformance row has an ambiguous requirement for normalized identity",
+        ));
+    }
+
+    let mut realization_machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == row.realization_machine);
+    let realization_machine = realization_machines.next().ok_or_else(|| {
+        psi_diagnostics::Diagnostic::error(
+            "dynamic conformance row has no exact realization machine for normalized identity",
+        )
+    })?;
+    if realization_machines.next().is_some() {
+        return Err(psi_diagnostics::Diagnostic::error(
+            "dynamic conformance row has an ambiguous realization machine for normalized identity",
+        ));
+    }
+    let realization_identity = program
+        .normalized_machine_overload_identity(realization_machine)
+        .ok_or_else(|| {
+            psi_diagnostics::Diagnostic::error(
+                "dynamic conformance row realization has no normalized callable identity",
+            )
+        })?
+        .identity();
+    let requirement_identity = program
+        .normalized_trait_requirement_overload_identity(declaring_trait, requirement)
+        .identity();
+    Ok((requirement_identity, realization_identity))
 }
 
 fn selected_data_conformance<'program>(

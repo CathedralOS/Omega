@@ -592,7 +592,19 @@ fn validate_rows(
                 "state-graph dynamic selection requirement name drifted",
             ));
         }
+        let requirement_identity = program
+            .normalized_trait_requirement_overload_identity(declaring_trait, requirement)
+            .identity();
         exact_state(program, row.realization_machine, row.realization_state)?;
+        let realization_machine = exact_machine(program, row.realization_machine)?;
+        let realization_identity = program
+            .normalized_machine_overload_identity(realization_machine)
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "state-graph dynamic selection realization has no normalized callable identity",
+                )
+            })?
+            .identity();
         let source = match row.source {
             psi_checked_trees::trait_definition::ConformanceRowSource::Inline => {
                 DynamicConformanceRowSource::Inline
@@ -607,8 +619,10 @@ fn validate_rows(
         let expected = DynamicConformanceRowFact {
             declaring_trait: row.declaring_trait,
             requirement: row.requirement,
+            requirement_identity,
             realization_machine: row.realization_machine,
             realization_state: row.realization_state,
+            realization_identity,
             source,
         };
         if *selected != expected {
@@ -901,16 +915,45 @@ mod tests {
         }
         let selected_rows = rows
             .iter()
-            .map(|row| DynamicConformanceRowFact {
-                declaring_trait: row.declaring_trait,
-                requirement: row.requirement,
-                realization_machine: row.realization_machine,
-                realization_state: row.realization_state,
-                source: match row.source {
-                    ConformanceRowSource::Inline => DynamicConformanceRowSource::Inline,
-                    ConformanceRowSource::Reference => DynamicConformanceRowSource::Reference,
-                    ConformanceRowSource::TraitDefault => DynamicConformanceRowSource::TraitDefault,
-                },
+            .map(|row| {
+                let declaring_trait = program
+                    .traits()
+                    .iter()
+                    .find(|definition| definition.symbol == row.declaring_trait)
+                    .expect("fixture declaring trait");
+                let requirement = program
+                    .trait_machine_signatures(declaring_trait)
+                    .iter()
+                    .find(|requirement| requirement.symbol == row.requirement)
+                    .expect("fixture requirement");
+                let realization_machine = program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == row.realization_machine);
+                let realization_identity = realization_machine
+                    .and_then(|machine| program.normalized_machine_overload_identity(machine))
+                    .map(|identity| identity.identity())
+                    .unwrap_or_else(|| "invalid-fixture-realization".to_owned());
+                DynamicConformanceRowFact {
+                    declaring_trait: row.declaring_trait,
+                    requirement: row.requirement,
+                    requirement_identity: program
+                        .normalized_trait_requirement_overload_identity(
+                            declaring_trait,
+                            requirement,
+                        )
+                        .identity(),
+                    realization_machine: row.realization_machine,
+                    realization_state: row.realization_state,
+                    realization_identity,
+                    source: match row.source {
+                        ConformanceRowSource::Inline => DynamicConformanceRowSource::Inline,
+                        ConformanceRowSource::Reference => DynamicConformanceRowSource::Reference,
+                        ConformanceRowSource::TraitDefault => {
+                            DynamicConformanceRowSource::TraitDefault
+                        }
+                    },
+                }
             })
             .collect();
         program.typed.push_conformance(Conformance {
@@ -1024,6 +1067,19 @@ mod tests {
 
         assert!(error(&fixture(false, RowShape::DuplicateSlot)).contains("row is duplicated"));
         assert!(error(&fixture(false, RowShape::CrossOwned)).contains("cross-owned"));
+    }
+
+    #[test]
+    fn row_map_rejects_normalized_requirement_and_realization_identity_drift() {
+        let mut requirement = fixture(false, RowShape::Honest);
+        requirement.facts.dynamic_conformances.selections[0].rows[0].requirement_identity =
+            "drifted-requirement".to_owned();
+        assert!(error(&requirement).contains("exact identity drifted"));
+
+        let mut realization = fixture(false, RowShape::Honest);
+        realization.facts.dynamic_conformances.selections[0].rows[0].realization_identity =
+            "drifted-realization".to_owned();
+        assert!(error(&realization).contains("exact identity drifted"));
     }
 
     #[test]

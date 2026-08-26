@@ -8380,8 +8380,11 @@ checked-result arithmetic decision listed below.
   parameter. Validation requires the earlier same-trait selection rather than
   searching visible conformances. Checked selection facts retain the source,
   trait, conformance, and complete normalized row map through state graph and
-  control flow; state-call argument planning rejoins that exact descriptor
-  identity to the bare parameter's closed candidate catalog. Trait drift,
+  control flow. Each row now carries the complete normalized requirement-
+  overload and selected realization-callable identities; checked-to-state
+  validation independently reconstructs both and rejects identity drift before
+  state-call argument planning rejoins that exact descriptor identity to the
+  bare parameter's closed candidate catalog. Trait drift,
   unselected dynamic arguments, bodyless conformances, and ambiguous concrete
   arguments remain fail closed. Physical table bytes/emission and rebound,
   stored, joined, escaping, or component-crossing descriptors remain open.

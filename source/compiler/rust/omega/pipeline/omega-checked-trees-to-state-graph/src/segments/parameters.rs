@@ -121,24 +121,63 @@ fn checked_rows_for_conformance(
         .unwrap_or_default()
         .iter()
         .filter(|row| row.realization_machine.is_valid() && row.realization_state.is_valid())
-        .map(|row| psi_checked_trees::DynamicConformanceRowFact {
-            declaring_trait: row.declaring_trait,
-            requirement: row.requirement,
-            realization_machine: row.realization_machine,
-            realization_state: row.realization_state,
-            source: match row.source {
-                psi_checked_trees::trait_definition::ConformanceRowSource::Inline => {
-                    psi_checked_trees::DynamicConformanceRowSource::Inline
-                }
-                psi_checked_trees::trait_definition::ConformanceRowSource::Reference => {
-                    psi_checked_trees::DynamicConformanceRowSource::Reference
-                }
-                psi_checked_trees::trait_definition::ConformanceRowSource::TraitDefault => {
-                    psi_checked_trees::DynamicConformanceRowSource::TraitDefault
-                }
-            },
-        })
-        .collect()
+        .map(|row| checked_row(program, row))
+        .collect::<Option<Vec<_>>>()
+        .unwrap_or_default()
+}
+
+fn checked_row(
+    program: &CheckedTrees,
+    row: &psi_checked_trees::trait_definition::ConformanceRow,
+) -> Option<psi_checked_trees::DynamicConformanceRowFact> {
+    let mut declaring_traits = program
+        .traits()
+        .iter()
+        .filter(|definition| definition.symbol == row.declaring_trait);
+    let declaring_trait = declaring_traits.next()?;
+    if declaring_traits.next().is_some() {
+        return None;
+    }
+    let mut requirements = program
+        .trait_machine_signatures(declaring_trait)
+        .iter()
+        .filter(|requirement| requirement.symbol == row.requirement);
+    let requirement = requirements.next()?;
+    if requirements.next().is_some() {
+        return None;
+    }
+    let mut realization_machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == row.realization_machine);
+    let realization_machine = realization_machines.next()?;
+    if realization_machines.next().is_some() {
+        return None;
+    }
+
+    Some(psi_checked_trees::DynamicConformanceRowFact {
+        declaring_trait: row.declaring_trait,
+        requirement: row.requirement,
+        requirement_identity: program
+            .normalized_trait_requirement_overload_identity(declaring_trait, requirement)
+            .identity(),
+        realization_machine: row.realization_machine,
+        realization_state: row.realization_state,
+        realization_identity: program
+            .normalized_machine_overload_identity(realization_machine)?
+            .identity(),
+        source: match row.source {
+            psi_checked_trees::trait_definition::ConformanceRowSource::Inline => {
+                psi_checked_trees::DynamicConformanceRowSource::Inline
+            }
+            psi_checked_trees::trait_definition::ConformanceRowSource::Reference => {
+                psi_checked_trees::DynamicConformanceRowSource::Reference
+            }
+            psi_checked_trees::trait_definition::ConformanceRowSource::TraitDefault => {
+                psi_checked_trees::DynamicConformanceRowSource::TraitDefault
+            }
+        },
+    })
 }
 
 fn dynamic_conformance_symbol(
