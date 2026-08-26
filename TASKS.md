@@ -7627,8 +7627,17 @@ Remaining N6/N8 work:
   wide public selectors. Resolution accepts only the declared nominal result
   sum, stamps its exact data/case symbols after declaration assignment, and
   rejects non-sum, foreign, or unknown cases. Typed and checked trees retain the
-  guarded rows separately from unconditional facts; exit assignment, caller-arm
-  availability, and Terminal lowering remain fail-closed until stages 2-5 land.
+  guarded rows separately from unconditional facts. Stage 2 is also live on the
+  producer side: named guarded rows own checked evidence-term identities without
+  entering unconditional or caller-visible lanes, and case-aware path replay
+  requires one exact assignment on every matching ordinary exit while rejecting
+  assignments on other cases. Forwarded evidence is checked after substituting
+  the exact concrete result, including payload; unnamed rows require their
+  substituted proposition on every matching path. Crash exits contribute no
+  result lane, dynamic results reject when their exact case cannot be classified,
+  and distinct join predecessors remain distinct so one-arm evidence cannot cover
+  the merge. Caller-arm availability, validity intersections, and exact Terminal
+  retention/replay remain fail-closed until stages 3-5 land.
 
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct

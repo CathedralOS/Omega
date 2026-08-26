@@ -55,10 +55,10 @@ pub struct ContractProofFact {
     pub qualification_authorization: Option<BoundaryQualificationAuthorization>,
 }
 
-/// Stage-1 carrier for one outcome-specific guarantee row. These rows are
-/// deliberately separate from unconditional contract facts: later stages may
-/// inspect the exact nominal case, but callers and exits gain no fact or term
-/// until guarded assignment and arm-availability checking lands.
+/// Producer-side carrier for one outcome-specific guarantee row. These rows
+/// stay separate from unconditional contract facts. A named row owns an erased
+/// output identity so the producer can discharge it, but that identity is not
+/// published to callers until guarded result-arm selection is implemented.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OutcomeSpecificGuaranteeFact {
     pub machine_symbol: SymbolHandle,
@@ -66,6 +66,7 @@ pub struct OutcomeSpecificGuaranteeFact {
     pub result_case: SymbolHandle,
     pub public_selector: Option<String>,
     pub fact: Handle<psi_typed_trees::domain::ProofFact>,
+    pub evidence_term: Option<Handle<CheckedEvidenceTerm>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
