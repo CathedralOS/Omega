@@ -78,7 +78,9 @@ mod structural_terms;
 
 use arithmetic_judgment::{Engine, Judgment, Polynomial};
 use inductive_judgment::inductive_transition_entailment;
-pub(crate) use law_conformance::{check_law_conformance, check_operator_contract_conformance};
+pub(crate) use law_conformance::{
+    check_law_conformance, check_operator_contract_conformance, checked_operator_contract_snapshot,
+};
 use law_conformance::{
     collect_equality_conjuncts, diagnostic_shape_match, display_structural_term,
     term_mentions_variable,

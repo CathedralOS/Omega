@@ -1981,6 +1981,7 @@ pub struct CheckedPackageCallableReview {
     parameters: Vec<PackageReviewCallableParameter>,
     return_type: PackageReviewTypeIdentity,
     conformances: Vec<PackageReviewCallableConformance>,
+    operator_realizations: Vec<PackageReviewOperatorCoordinate>,
     contracts: Vec<PackageReviewCallableContract>,
     /// `Some` preserves a published ceiling, including an explicitly empty
     /// one. `None` is retained for the current ordinary build-machine form;
@@ -2156,6 +2157,10 @@ impl CheckedPackageCallableReview {
 
     pub fn conformances(&self) -> &[PackageReviewCallableConformance] {
         &self.conformances
+    }
+
+    pub fn operator_realizations(&self) -> &[PackageReviewOperatorCoordinate] {
+        &self.operator_realizations
     }
 
     pub fn contracts(&self) -> &[PackageReviewCallableContract] {
@@ -2609,6 +2614,21 @@ pub fn project_checked_package_review(
                 ))
             })
             .collect());
+    }
+    let derived_operator_realizations =
+        psi_typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(
+            &compilation.typed,
+        );
+    if derived_operator_realizations != compilation.facts.operators.operator_realization_contracts {
+        return Err(vec![Diagnostic::error(format!(
+            "retained checked operator-realization contracts do not equal compiler rederivation (retained {} rows, derived {} rows)",
+            compilation
+                .facts
+                .operators
+                .operator_realization_contracts
+                .len(),
+            derived_operator_realizations.len(),
+        ))]);
     }
     let build_machine = compilation.selected_build_machine_symbol();
     let public_traits = project_public_traits(compilation, package)?;
@@ -6946,7 +6966,7 @@ fn project_callable(
         &binders,
         &machine.lifetime_parameters,
     )?;
-    let (conformances, external_executable_supply) =
+    let (conformances, operator_realizations, external_executable_supply) =
         project_callable_conformances(compilation, machine, &identity, &binders, true)?;
     let contracts = project_callable_contracts(compilation, machine, entry, &binders)?;
     let service_reach = exactly_one(
@@ -7088,6 +7108,7 @@ fn project_callable(
             parameters,
             return_type,
             conformances,
+            operator_realizations,
             contracts,
             declared_service_reach,
             checked_service_reach,
@@ -7121,7 +7142,7 @@ fn project_private_external_executable_supply(
         identity.path.as_str(),
         &machine.lifetime_parameters,
     )?;
-    let (_, supply) =
+    let (_, _, supply) =
         project_callable_conformances(compilation, machine, identity, &binders, false)?;
     Ok(supply)
 }
@@ -9969,6 +9990,7 @@ fn project_callable_conformances(
 ) -> Result<
     (
         Vec<PackageReviewCallableConformance>,
+        Vec<PackageReviewOperatorCoordinate>,
         Vec<PackageReviewExternalExecutableSupply>,
     ),
     Vec<Diagnostic>,
@@ -10010,6 +10032,7 @@ fn project_callable_conformances(
         | MachineSupplyMode::Accepted => None,
     };
     let mut projected = Vec::new();
+    let mut operator_realizations = Vec::new();
     let mut external_executable_supply = Vec::new();
     for conformance in compilation.machine_trait_conformances(machine) {
         match (expected_external.as_ref(), conformance.external_binding) {
@@ -10034,15 +10057,117 @@ fn project_callable_conformances(
             }
             (Some(_), Some(_)) => {}
         }
-        let Some(trait_definition) = compilation
+        let trait_definition = compilation
             .traits()
             .iter()
-            .find(|definition| definition.symbol == conformance.symbol)
-        else {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed callable `{}` realizes an operator or unresolved trait requirement not yet represented by package review",
-                machine.name
-            ))]);
+            .find(|definition| definition.symbol == conformance.symbol);
+        let Some(trait_definition) = trait_definition else {
+            let Some(requirement_name) = conformance.requirement.as_ref() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` has an unresolved realization without an exact requirement",
+                    machine.name
+                ))]);
+            };
+            if !compilation
+                .type_reference_table
+                .type_reference_handles(conformance.arguments)
+                .is_empty()
+            {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` supplies type arguments to operator realization `{}::{}`",
+                    machine.name, conformance.name, requirement_name
+                ))]);
+            }
+            let Some(operator) = psi_typed_trees::operator::resolve_satisfied_checked_operator(
+                &compilation.typed,
+                machine,
+                conformance.name.as_str(),
+                requirement_name.as_str(),
+            ) else {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` realization `{}::{}` resolves to neither one exact trait requirement nor one exact checked operator",
+                    machine.name, conformance.name, requirement_name
+                ))]);
+            };
+            if expected_external.is_some() || conformance.external_binding.is_some() {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` realizes operator `{}::{}` through external executable supply not yet represented by package review",
+                    machine.name, conformance.name, requirement_name
+                ))]);
+            }
+            if !matches!(machine.supply_mode, MachineSupplyMode::CheckedBody)
+                || !machine.body_is_present
+            {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` realizes operator `{}::{}` without one checked implementation body",
+                    machine.name, conformance.name, requirement_name
+                ))]);
+            }
+            if require_public_trait && !operator.is_public {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` realizes non-public operator `{}::{}` whose complete contract is absent from package review",
+                    machine.name, conformance.name, requirement_name
+                ))]);
+            }
+            if operator.is_boundary || operator.spelling.is_some() {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` realizes boundary or fixed-token operator `{}::{}` outside the first checked operator-realization lane",
+                    machine.name, conformance.name, requirement_name
+                ))]);
+            }
+            if !operator.lifetime_parameters.is_empty()
+                || !compilation.operator_type_parameters(operator).is_empty()
+            {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` realizes generic or lifetime-parameterized operator `{}::{}` not yet represented by package review",
+                    machine.name, conformance.name, requirement_name
+                ))]);
+            }
+            if conformance.alias.is_some() {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` realizes operator `{}::{}` through an alias not yet represented by package review",
+                    machine.name, conformance.name, requirement_name
+                ))]);
+            }
+            if compilation.operator_contracts(operator).iter().any(|contract| {
+                matches!(
+                    contract.kind,
+                    psi_typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
+                        ..
+                    } | psi_typed_trees::signature::SignatureContractKind::Crashes { .. }
+                )
+            }) {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` realizes operator `{}::{}` with outcome-specific or crash contracts outside checked operator refinement",
+                    machine.name, conformance.name, requirement_name
+                ))]);
+            }
+            let Some(provider_envelope) = compilation
+                .facts
+                .contract_plans
+                .realized_envelope(machine.symbol)
+            else {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed checked operator provider `{}` has no retained realized contract envelope",
+                    machine.name
+                ))]);
+            };
+            if !provider_envelope.checked_crash.published().is_empty()
+                || !provider_envelope.checked_crash.checked_sites().is_empty()
+                || !provider_envelope.checked_crash.checked_calls().is_empty()
+            {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` realizes operator `{}::{}` with nonempty checked crash behavior outside checked operator refinement",
+                    machine.name, conformance.name, requirement_name
+                ))]);
+            }
+            psi_validation::validate_checked_operator_realization_contract(
+                &compilation.typed,
+                machine,
+                operator,
+            )?;
+            operator_realizations.push(project_operator_coordinate(compilation, operator)?);
+            continue;
         };
         if require_public_trait && !trait_definition.is_public {
             return Err(vec![Diagnostic::error(format!(
@@ -10141,6 +10266,16 @@ fn project_callable_conformances(
             machine.name
         ))]);
     }
+    operator_realizations.sort();
+    if operator_realizations
+        .windows(2)
+        .any(|rows| rows[0] == rows[1])
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` contains a duplicate exact operator realization",
+            machine.name
+        ))]);
+    }
     external_executable_supply.sort();
     if external_executable_supply
         .windows(2)
@@ -10151,7 +10286,7 @@ fn project_callable_conformances(
             machine.name
         ))]);
     }
-    Ok((projected, external_executable_supply))
+    Ok((projected, operator_realizations, external_executable_supply))
 }
 
 fn validate_external_binding_payload(

@@ -47,6 +47,230 @@ pub(crate) fn build_operator_facts(
 
     CheckedOperatorFacts::with_roots(uses, named_uses, candidates)
         .with_operator_crash_contracts(derive_checked_operator_crash_contracts(program))
+        .with_operator_realization_contracts(derive_checked_operator_realization_contracts(program))
+}
+
+pub(crate) fn derive_checked_operator_realization_contracts(
+    program: &TypedTrees,
+) -> Vec<psi_checked_trees::CheckedOperatorRealizationContract> {
+    let mut rows = Vec::new();
+    for machine in program.machines() {
+        let Some(entry) = program.machine_states(machine).first() else {
+            continue;
+        };
+        let provider_parameter_names = program
+            .state_parameters(entry)
+            .iter()
+            .map(|parameter| parameter.name.as_str().to_owned())
+            .collect::<Vec<_>>();
+        for conformance in program.machine_trait_conformances(machine) {
+            if program
+                .traits()
+                .iter()
+                .any(|definition| definition.symbol == conformance.symbol)
+            {
+                continue;
+            }
+            let Some(requirement) = conformance.requirement.as_ref() else {
+                continue;
+            };
+            let Some(operator) = psi_typed_trees::operator::resolve_satisfied_checked_operator(
+                program,
+                machine,
+                conformance.name.as_str(),
+                requirement.as_str(),
+            ) else {
+                continue;
+            };
+            let requirement_parameter_names = program
+                .operator_parameters(operator)
+                .iter()
+                .map(|parameter| parameter.name.as_str().to_owned())
+                .collect::<Vec<_>>();
+            rows.push(psi_checked_trees::CheckedOperatorRealizationContract::new(
+                machine.symbol,
+                operator.symbol,
+                crate::facts::encode_contract_set_canonical(
+                    program,
+                    program.machine_contracts(machine),
+                    &provider_parameter_names,
+                    &[],
+                    &[],
+                    false,
+                    true,
+                ),
+                crate::facts::encode_contract_set_canonical(
+                    program,
+                    program.operator_contracts(operator),
+                    &requirement_parameter_names,
+                    &[],
+                    &[],
+                    false,
+                    true,
+                ),
+                psi_validation::checked_operator_contract_snapshot(
+                    program,
+                    program.machine_contracts(machine),
+                ),
+                psi_validation::checked_operator_contract_snapshot(
+                    program,
+                    program.operator_contracts(operator),
+                ),
+                operator_realization_admission_snapshot(program, machine, conformance, operator),
+            ));
+        }
+    }
+    rows.sort_by_key(|row| {
+        (
+            row.machine_symbol().arena_index(),
+            row.machine_symbol().generation(),
+            row.operator_symbol().arena_index(),
+            row.operator_symbol().generation(),
+        )
+    });
+    rows
+}
+
+fn operator_realization_admission_snapshot(
+    program: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    conformance: &psi_typed_trees::machine::TraitConformance,
+    operator: &psi_typed_trees::operator::OperatorDefinition,
+) -> Vec<u8> {
+    use std::fmt::Debug;
+
+    fn append_debug(value: &impl Debug, output: &mut Vec<u8>) {
+        let bytes = format!("{value:?}").into_bytes();
+        output.extend_from_slice(
+            &u64::try_from(bytes.len())
+                .expect("checked operator admission snapshot length fits u64")
+                .to_le_bytes(),
+        );
+        output.extend(bytes);
+    }
+
+    fn append_type(
+        program: &TypedTrees,
+        type_reference: TypeReferenceHandle,
+        visited: &mut std::collections::HashSet<(u32, u32)>,
+        output: &mut Vec<u8>,
+    ) {
+        if !type_reference.is_valid() {
+            append_debug(&"<unit>", output);
+            return;
+        }
+        append_debug(&type_reference, output);
+        if !visited.insert((type_reference.arena_index(), type_reference.generation())) {
+            return;
+        }
+        let node = program.type_reference_table.type_reference(type_reference);
+        append_debug(node, output);
+        append_debug(
+            &program
+                .package_qualified_type_identity(type_reference)
+                .into_string(),
+            output,
+        );
+        match node {
+            psi_typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+                append_type(program, *referee, visited, output);
+            }
+            psi_typed_trees::types::TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                append_type(program, *base_type, visited, output);
+                for constraint in program.type_reference_table.constraints(*constraints) {
+                    append_debug(constraint, output);
+                    if let psi_typed_trees::types::TypeConstraintNode::Domain(domain) = constraint {
+                        for argument in &domain.arguments {
+                            append_type(program, *argument, visited, output);
+                        }
+                    }
+                }
+            }
+            psi_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. }
+            | psi_typed_trees::types::TypeReferenceNode::Slice { element_type } => {
+                append_type(program, *element_type, visited, output);
+            }
+            psi_typed_trees::types::TypeReferenceNode::Generic { arguments, .. } => {
+                for argument in program
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                {
+                    append_type(program, *argument, visited, output);
+                }
+            }
+            psi_typed_trees::types::TypeReferenceNode::ConstExpression(_)
+            | psi_typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
+            | psi_typed_trees::types::TypeReferenceNode::Named { .. }
+            | psi_typed_trees::types::TypeReferenceNode::Unit => {}
+        }
+    }
+
+    let mut output = Vec::new();
+    let mut visited_types = std::collections::HashSet::new();
+    append_debug(
+        &(
+            machine.symbol,
+            &machine.name,
+            machine.is_public,
+            machine.supply_mode,
+            machine.body_is_present,
+            &machine.lifetime_parameters,
+            program.machine_type_parameters(machine),
+        ),
+        &mut output,
+    );
+    append_debug(conformance, &mut output);
+    for argument in program
+        .type_reference_table
+        .type_reference_handles(conformance.arguments)
+    {
+        append_type(program, *argument, &mut visited_types, &mut output);
+    }
+    for state in program.machine_states(machine) {
+        append_debug(state, &mut output);
+        for parameter in program.state_parameters(state) {
+            append_debug(parameter, &mut output);
+            append_type(
+                program,
+                parameter.type_reference,
+                &mut visited_types,
+                &mut output,
+            );
+        }
+        append_type(program, state.return_type, &mut visited_types, &mut output);
+    }
+    append_debug(
+        &(
+            operator.is_public,
+            operator.is_boundary,
+            operator.symbol,
+            program.operator_path_members(operator.name),
+            &operator.lifetime_parameters,
+            program.operator_type_parameters(operator),
+            operator.spelling,
+            operator.token_count,
+        ),
+        &mut output,
+    );
+    for parameter in program.operator_parameters(operator) {
+        append_debug(parameter, &mut output);
+        append_type(
+            program,
+            parameter.type_reference,
+            &mut visited_types,
+            &mut output,
+        );
+    }
+    append_type(
+        program,
+        operator.return_type,
+        &mut visited_types,
+        &mut output,
+    );
+    output
 }
 
 pub(crate) fn derive_checked_operator_crash_contracts(

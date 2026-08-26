@@ -1292,6 +1292,27 @@ promoted into public callable rows. Canonical recovery, source accounting, and
 conflict rendering carry the row; none of them asserts an audit or Terminal
 verification.
 
+Package review v71/canonical row v29 binds each supported checked ordinary named operator
+realization into its public callable value. Checked lowering retains the exact
+machine/operator symbols, conformance/admission form, normalized overload
+shape plus exact lifetime-bearing type nodes, both complete canonical contract sets, and exact typed semantic
+snapshots of their contract graphs in full. The compiler requires exact
+equality with a fresh derivation, reruns signature-directed selection and the
+equality/`&&` `requires`/`ensures` contract judgment, then records the selected
+public, nongeneric, lifetime-free operator's existing package-qualified
+overload coordinate. Post-check redirection and coordinated typed-contract
+mutation both reject. Changing only a valid selected declaration changes only
+the callable row. Private, generic/lifetime-parameterized, aliased, bodyless,
+and operator-bound external realizations reject; the last requires a separate
+trust-bearing executable-supply association rather than borrowing the trait-
+supply row. Boundary and fixed-token realizations remain outside this first
+lane pending positive selected-provider and spelling canaries. Operators with
+outcome-specific or crash contracts, and providers with any nonempty checked
+crash behavior, reject until their refinement rules exist. The association is a retained compiler-private
+checked baseline, not a persisted package row, hash, or defense against a
+trusted component rewriting typed state and checked facts; it is not a reason
+for nominal Chi.
+
 ## Dependencies and the lock artifact
 
 Code imports package-local aliases. `build.omg` records source requests and
@@ -1804,12 +1825,15 @@ requires recursive specialization plus exact declaration-telescope, lifetime,
 and static-argument identity throughout those paths. This is distinct from
 already coherent bare generic-machine selection and call-target use such as
 `Schema<Selected>(...)`.
-Other non-public, external, operator, or lifetime-parameterized trait
-realizations likewise remain fail-closed; binder-free generic requirements,
-explicit evidence binders, and selected conformances with representable
-complete applications use the same canonical row as public traits. Checked
-realizations of public, ordinary, lifetime-free traits retain exact package-qualified trait and requirement
+Other non-public or lifetime-parameterized trait realizations likewise remain
+fail-closed; binder-free generic requirements, explicit evidence binders, and
+selected conformances with representable complete applications use the same
+canonical row as public traits. Checked realizations of public, ordinary,
+lifetime-free traits retain exact package-qualified trait and requirement
 identities, alpha-normalized arguments, and any explicit conformance alias.
+The separate v71 operator-realization lane admits only the checked public,
+nongeneric form described above; its unsupported neighbors do not inherit
+trait-conformance or external-supply semantics.
 Public callable `requires` and `ensures` retain exact structural rows for the
 closed boolean/integer expression subset over parameter
 ordinals, `result`, generic binders, and package-qualified nominals. Domain-

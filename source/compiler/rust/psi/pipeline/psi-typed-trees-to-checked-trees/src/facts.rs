@@ -1342,7 +1342,7 @@ fn is_true_crash_route(program: &TypedTrees, fact: &psi_typed_trees::domain::Pro
 /// one unconditional clause subsumes every guarded route in the same bucket.
 /// This keeps public contract identity independent of clause grouping while
 /// preserving the bucket itself as identity-bearing material.
-fn encode_contract_set_canonical(
+pub(crate) fn encode_contract_set_canonical(
     program: &TypedTrees,
     contracts: &[psi_typed_trees::signature::SignatureContract],
     parameter_names: &[String],

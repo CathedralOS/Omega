@@ -202,6 +202,35 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     validate_program_internal(program, false).map(|_| ())
 }
 
+/// Recheck one already-resolved checked-body operator realization at a
+/// compiler-internal evidence boundary. Callers must still establish the exact
+/// selected operator and establish a retained checked baseline separately; this
+/// reruns the contract-coverage judgment as the final semantic gate.
+pub fn validate_checked_operator_realization_contract(
+    program: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    operator: &psi_typed_trees::operator::OperatorDefinition,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    contract_entailment::check_operator_contract_conformance(
+        program,
+        machine,
+        operator,
+        &mut diagnostics,
+    );
+    finish_diagnostics(diagnostics)
+}
+
+/// Capture the exact typed contract structure consumed by checked operator
+/// conformance. The bytes are compiler-private custody for equality within one
+/// checked compilation; they are deliberately not a persisted format or hash.
+pub fn checked_operator_contract_snapshot(
+    program: &TypedTrees,
+    contracts: &[psi_typed_trees::signature::SignatureContract],
+) -> Vec<u8> {
+    contract_entailment::checked_operator_contract_snapshot(program, contracts)
+}
+
 /// Validate after machine-generic contracts were checked on the pristine
 /// typed graph, before monomorphization consumed the first template in place.
 /// All other validation still runs on the concrete graph; only those already
