@@ -13,10 +13,12 @@ use omega_compiler::{
 use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
 use psi_access_plans::{
-    AccessExposure, AtomicCapability, BoundaryReach, ExternalCapability, ExternalRead, FieldAccess,
-    ObservationModel, PlacementAdmissionId, ResourceProfile, ResourceProfileGrant,
-    ResourceProfileReceiptId, ResourceRegion, StableCapability, admit_owned_placement,
-    adopt_owned_stable,
+    AccessExposure, AtomicCapability, BoundaryReach, ExternalCapability, ExternalRead,
+    ExternalReadBehavior, FieldAccess, ObservationModel, PlacementAdmissionId, ResourceProfile,
+    ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion, SchemaCorrespondenceProviderId,
+    SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant, StableCapability,
+    StableDeviceInstanceId, TransferRule, admit_owned_placement, admit_placement,
+    adopt_owned_stable, bind_schema_correspondence_to_placement,
 };
 use psi_core::PackageKeyIdentity;
 use psi_extents::{
@@ -1928,4 +1930,325 @@ machine Main::main(&mut self) {}
     assert_eq!(dormant.resident_claim(), content_snapshot.8);
     assert_eq!(dormant.validity_receipt(), content_snapshot.9);
     assert_eq!(dormant.custody_receipt(), content_snapshot.10);
+}
+
+#[test]
+fn source_derived_external_plan_binds_correspondence_and_preserves_retry_custody() {
+    let main = write_program(
+        "source-external-correspondence",
+        r#"
+use omega::language::core::layout;
+
+pub data Register {
+    value: u32;
+}
+
+pub data HomePlacement {
+    entries: [FieldEntry; 64];
+    services: [u64; 32];
+}
+
+machine HomePlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let access: AccessPlan = AccessPlan::inaccessible(schema);
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 }
+    };
+    PlacementPlan {
+        layout: Plan {
+            entries: self.entries,
+            entry_count: 1,
+            size_fixed: 8,
+            size_is_dynamic: false,
+            align: 4
+        },
+        access: access.with(
+            schema.fields[0].key,
+            FieldAccess::External {
+                read: ExternalRead::Read,
+                write: true,
+                exposure: Exposure::Exported
+            }
+        ),
+        reach: BoundaryReach {
+            services: self.services,
+            service_count: 0
+        }
+    }
+}
+
+pub data ShiftedPlacement {
+    entries: [FieldEntry; 64];
+    services: [u64; 32];
+}
+
+machine ShiftedPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let access: AccessPlan = AccessPlan::inaccessible(schema);
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 4 }
+    };
+    PlacementPlan {
+        layout: Plan {
+            entries: self.entries,
+            entry_count: 1,
+            size_fixed: 8,
+            size_is_dynamic: false,
+            align: 4
+        },
+        access: access.with(
+            schema.fields[0].key,
+            FieldAccess::External {
+                read: ExternalRead::Read,
+                write: true,
+                exposure: Exposure::Exported
+            }
+        ),
+        reach: BoundaryReach {
+            services: self.services,
+            service_count: 0
+        }
+    }
+}
+
+machine retain_source_plans(
+    home: &Placed<HomePlacement, Register>,
+    shifted: &Placed<ShiftedPlacement, Register>
+) {}
+
+data Main {}
+machine Main::main(&mut self) {}
+"#,
+    );
+    let checked = compile_to_checked(&main, None)
+        .expect("both source-derived External placements should reach checked custody");
+    let home = checked
+        .typed
+        .placed_view_plans
+        .iter()
+        .find(|view| view.policy_name == "HomePlacement")
+        .expect("home checked placement row");
+    let shifted = checked
+        .typed
+        .placed_view_plans
+        .iter()
+        .find(|view| view.policy_name == "ShiftedPlacement")
+        .expect("shifted checked placement row");
+    assert_ne!(home.policy_symbol, shifted.policy_symbol);
+    assert_ne!(home.placement.identity(), shifted.placement.identity());
+    assert_eq!(home.placement.layout().size, Some(8));
+    assert_eq!(shifted.placement.layout().size, Some(8));
+    assert!(matches!(
+        home.placement
+            .access()
+            .plan()
+            .entries()
+            .first()
+            .expect("home External field")
+            .access(),
+        FieldAccess::External {
+            read: ExternalRead::Read,
+            write: true,
+            ..
+        }
+    ));
+
+    let rights = ExtentRights::from_normalized_identities([extent_identity(
+        411,
+        ExtentRightId::from_normalized_identity,
+    )]);
+    let extent = ExtentRootGrant::from_admitted_provider(
+        provider_issuance(26),
+        extent_identity(412, ExtentLineageId::from_normalized_identity),
+        extent_identity(413, AddressSpaceId::from_normalized_identity),
+        rights.clone(),
+        extent_identity(414, ExtentProvenanceId::from_normalized_identity),
+        extent_identity(415, MappingEraId::from_normalized_identity),
+    )
+    .mint(0x9000, 8)
+    .expect("provider External extent");
+    let loan_snapshot = (
+        extent.origin(),
+        extent.lineage_root(),
+        extent.base(),
+        extent.length(),
+        extent.address_space(),
+        extent.rights().clone(),
+        extent.provenance(),
+        extent.era(),
+    );
+    let external_profile = ResourceProfile {
+        regions: vec![ResourceRegion {
+            offset: 0,
+            length: 8,
+            stable: StableCapability::None,
+            external: ExternalCapability::Access {
+                read: ExternalReadBehavior::Repeatable,
+                write: true,
+                transfers: vec![TransferRule {
+                    width_bits: 32,
+                    alignment_bytes: 4,
+                }],
+            },
+            atomic: AtomicCapability::None,
+            reach: BoundaryReach::default(),
+        }],
+    };
+    let exact_profile = ResourceProfileGrant::from_admitted_provider(
+        ResourceProfileReceiptId::from_normalized_identity(416).expect("exact profile receipt"),
+        &extent,
+        rights.clone(),
+        BoundaryReach::default(),
+    )
+    .expect("exact provider profile grant")
+    .admit(external_profile.clone())
+    .expect("exact admitted External profile");
+    let alternate_profile = ResourceProfileGrant::from_admitted_provider(
+        ResourceProfileReceiptId::from_normalized_identity(417).expect("alternate profile receipt"),
+        &extent,
+        rights,
+        BoundaryReach::default(),
+    )
+    .expect("alternate provider profile grant")
+    .admit(external_profile)
+    .expect("alternate admitted External profile");
+
+    let provider = SchemaCorrespondenceProviderId::from_normalized_identity(418)
+        .expect("correspondence provider");
+    let device =
+        StableDeviceInstanceId::from_normalized_identity(419).expect("stable device identity");
+    let source =
+        SchemaCorrespondenceSourceId::from_normalized_identity(420).expect("correspondence source");
+    let correspondence = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+        provider,
+        device,
+        source,
+        &home.placement,
+        exact_profile.receipt(),
+        None,
+    )
+    .expect("provider correspondence grant")
+    .admit(&home.placement, &exact_profile)
+    .expect("source-derived correspondence admission");
+    let correspondence_snapshot = (
+        correspondence.provider(),
+        correspondence.device(),
+        correspondence.source(),
+        correspondence.placement(),
+        correspondence.profile_receipt(),
+    );
+    let admission_id =
+        PlacementAdmissionId::from_normalized_identity(421).expect("placement admission");
+
+    let loan = extent.loan(0, 8).expect("shared External loan");
+    let wrong_plan = admit_placement(admission_id, loan, &shifted.placement, &exact_profile)
+        .expect("shifted source plan is independently resource-compatible");
+    let rejection = bind_schema_correspondence_to_placement(wrong_plan, correspondence)
+        .expect_err("correspondence must reject a different retained source plan");
+    assert!(rejection.diagnostic().0.contains("exact plan"));
+    let (wrong_plan, correspondence, _) = rejection.into_parts();
+    assert_eq!(wrong_plan.identity(), admission_id);
+    assert_eq!(wrong_plan.profile_receipt(), exact_profile.receipt());
+    assert_eq!(
+        (
+            correspondence.provider(),
+            correspondence.device(),
+            correspondence.source(),
+            correspondence.placement(),
+            correspondence.profile_receipt(),
+        ),
+        correspondence_snapshot,
+    );
+    let loan = wrong_plan.withdraw();
+    assert_eq!(
+        (
+            loan.origin(),
+            loan.lineage_root(),
+            loan.base(),
+            loan.length(),
+            loan.address_space(),
+            loan.rights().clone(),
+            loan.provenance(),
+            loan.era(),
+        ),
+        loan_snapshot,
+    );
+
+    let wrong_profile = admit_placement(admission_id, loan, &home.placement, &alternate_profile)
+        .expect("alternate profile is independently resource-compatible");
+    let rejection = bind_schema_correspondence_to_placement(wrong_profile, correspondence)
+        .expect_err("correspondence must reject a different admitted profile receipt");
+    assert!(
+        rejection
+            .diagnostic()
+            .0
+            .contains("resource-profile receipt")
+    );
+    let (wrong_profile, correspondence, _) = rejection.into_parts();
+    assert_eq!(wrong_profile.identity(), admission_id);
+    assert_eq!(wrong_profile.profile_receipt(), alternate_profile.receipt());
+    assert_eq!(
+        (
+            correspondence.provider(),
+            correspondence.device(),
+            correspondence.source(),
+            correspondence.placement(),
+            correspondence.profile_receipt(),
+        ),
+        correspondence_snapshot,
+    );
+    let loan = wrong_profile.withdraw();
+    assert_eq!(
+        (
+            loan.origin(),
+            loan.lineage_root(),
+            loan.base(),
+            loan.length(),
+            loan.address_space(),
+            loan.rights().clone(),
+            loan.provenance(),
+            loan.era(),
+        ),
+        loan_snapshot,
+    );
+
+    let corrected = admit_placement(admission_id, loan, &home.placement, &exact_profile)
+        .expect("returned loan supports exact source-plan/profile retry");
+    let bound = bind_schema_correspondence_to_placement(corrected, correspondence)
+        .expect("returned correspondence supports exact retry");
+    assert_eq!(bound.admission(), admission_id);
+    assert_eq!(
+        (
+            bound.correspondence().provider(),
+            bound.correspondence().device(),
+            bound.correspondence().source(),
+            bound.correspondence().placement(),
+            bound.correspondence().profile_receipt(),
+        ),
+        correspondence_snapshot,
+    );
+    let (loan, correspondence) = bound.withdraw();
+    assert_eq!(
+        (
+            loan.origin(),
+            loan.lineage_root(),
+            loan.base(),
+            loan.length(),
+            loan.address_space(),
+            loan.rights().clone(),
+            loan.provenance(),
+            loan.era(),
+        ),
+        loan_snapshot,
+    );
+    assert_eq!(
+        (
+            correspondence.provider(),
+            correspondence.device(),
+            correspondence.source(),
+            correspondence.placement(),
+            correspondence.profile_receipt(),
+        ),
+        correspondence_snapshot,
+    );
 }
