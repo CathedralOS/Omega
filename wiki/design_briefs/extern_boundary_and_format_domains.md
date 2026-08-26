@@ -135,10 +135,13 @@ locator side table, relocation replay, and PE name/ordinal emission retain that
 same atomic value. Versioned ELF rows now reach a canonical final-image request
 with exact raw object/symbol/version coordinates and relocation sites, but
 runnable dynamic emission stays fail closed until a target-owned loader plan
-supplies the exact interpreter path and complete dynamic-link structures. Exact
-fixed-array widths, producer closure, evaluator receipt, source `via` evaluation,
-specialized string-only adapters, and complete versioned-ELF emission remain to
-migrate.
+supplies the exact interpreter path and complete dynamic-link structures. An
+owned direct `[u8; N]` destination now contextually copies a quoted literal into
+an ordinary raw-byte array only when `N` is a resolved integer literal and the
+source byte count matches exactly; non-byte or unresolved/mismatched widths
+reject, and hermetic evaluation observes the array value. Producer closure,
+evaluator receipt, source `via` evaluation, specialized string-only adapters,
+and complete versioned-ELF emission remain to migrate.
 
 Changing raw foreign bytes changes the normalized binding, forces every final
 artifact whose reachable closure contains it to relink, and requires fresh

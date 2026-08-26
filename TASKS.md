@@ -7926,10 +7926,18 @@ boundary without its corresponding checked law.
   emission remains fail closed before section planning or byte mutation: no
   target/deployment-owned loader plan yet carries the exact `PT_INTERP` bytes,
   and partial symbol-version sections would not constitute a dynamic image.
+  The generic contextual byte-literal rung is also live for owned direct
+  `[u8; N]` destinations used by final results, locals/owned initializers,
+  exact resolved call arguments, and record/case fields. It copies source bytes
+  into an ordinary array only when `N` is a resolved integer literal and the
+  byte count matches exactly; non-`u8`, short/long, const-parameter, and
+  const-call widths reject, while borrowed/text carriers keep their prior
+  meaning. Hermetic build-time evaluation observes the resulting raw-byte
+  `Array` value without text reconstruction.
   The existing source evaluator is isolated behind an explicitly temporary
-  `StringBackedImportBootstrap` variant. Source `via` evaluation, exact fixed-
-  array widths, and complete dynamic-ELF symbol-version emission with an exact
-  loader plan remain engineering joins.
+  `StringBackedImportBootstrap` variant. Ordinary source `via` evaluation and
+  complete dynamic-ELF symbol-version emission with an exact loader plan remain
+  engineering joins.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no

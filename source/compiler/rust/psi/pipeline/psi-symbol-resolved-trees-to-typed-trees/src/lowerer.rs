@@ -365,6 +365,7 @@ impl Lowerer<'_> {
         trees.proof_output_calls = proof_output_calls;
         normalize_domain_constraints(self.source_trees, &mut trees)?;
         normalize_qualification_casts(&mut trees)?;
+        crate::fixed_byte_array_literals::land_exact_fixed_byte_array_literals(&mut trees)?;
         Ok(trees)
     }
 }

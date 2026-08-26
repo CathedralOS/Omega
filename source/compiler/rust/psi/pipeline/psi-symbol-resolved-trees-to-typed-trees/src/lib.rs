@@ -9,6 +9,7 @@ mod equality;
 mod equatable;
 mod exhaustiveness;
 mod expression;
+mod fixed_byte_array_literals;
 mod lowerer;
 mod machine;
 mod measure;

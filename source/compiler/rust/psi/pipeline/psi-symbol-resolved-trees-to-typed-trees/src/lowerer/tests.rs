@@ -3,6 +3,103 @@ use psi_source_files_to_tokens::Lexer;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
+fn lower_source(source: &str) -> Result<psi_typed_trees::TypedTrees, psi_diagnostics::Diagnostic> {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    lower_symbol_resolved_trees(&resolved)
+}
+
+#[test]
+fn exact_quoted_bytes_land_as_an_owned_fixed_u8_array() {
+    let typed = lower_source(
+        r#"
+        machine bytes() -> [u8; 2] {
+            "\x80A"
+        }
+        "#,
+    )
+    .expect("exact-width raw bytes should type");
+
+    let array = typed
+        .expression_table
+        .expression_entries()
+        .find_map(|(_, expression)| match expression {
+            psi_typed_trees::expression::ExpressionNode::ArrayLiteral(elements) => Some(*elements),
+            _ => None,
+        })
+        .expect("the contextual string must become an ordinary array literal");
+    let values = typed
+        .expression_table
+        .expression_handles(array)
+        .iter()
+        .map(
+            |element| match typed.expression_table.expression(*element) {
+                psi_typed_trees::expression::ExpressionNode::Integer(literal) => {
+                    literal.value_i64().expect("byte integer")
+                }
+                other => panic!("expected byte integer, got {other:?}"),
+            },
+        )
+        .collect::<Vec<_>>();
+    assert_eq!(values, [0x80, i64::from(b'A')]);
+}
+
+#[test]
+fn quoted_bytes_reject_short_and_long_owned_fixed_array_destinations() {
+    for (width, literal_length) in [(3, 2), (1, 2)] {
+        let diagnostic = lower_source(&format!("machine bytes() -> [u8; {width}] {{ \"ab\" }}"))
+            .expect_err("fixed byte arrays neither pad nor truncate literals");
+        assert!(
+            diagnostic.message.contains(&format!(
+                "quoted byte literal has {literal_length} source byte(s)"
+            )) && diagnostic
+                .message
+                .contains(&format!("requires exactly {width}")),
+            "{}",
+            diagnostic.message,
+        );
+    }
+}
+
+#[test]
+fn quoted_bytes_reject_non_byte_fixed_array_destinations() {
+    let diagnostic = lower_source(r#"machine words() -> [u16; 2] { "ab" }"#)
+        .expect_err("quoted bytes must not acquire a non-byte element interpretation");
+    assert!(
+        diagnostic.message.contains("element type must be `u8`"),
+        "{}",
+        diagnostic.message,
+    );
+}
+
+#[test]
+fn quoted_bytes_reject_nonliteral_or_undetermined_widths() {
+    for source in [
+        r#"
+            machine bytes<const N: u64>() -> [u8; N] {
+                "ab"
+            }
+        "#,
+        r#"
+            machine width() -> u64 { 2 }
+            machine bytes() -> [u8; width()] {
+                "ab"
+            }
+        "#,
+    ] {
+        let diagnostic = lower_source(source)
+            .expect_err("a parameter/call width is not a resolved literal extent");
+        assert!(
+            diagnostic
+                .message
+                .contains("width must be a compile-known resolved integer literal"),
+            "{}",
+            diagnostic.message,
+        );
+    }
+}
+
 #[test]
 fn trait_machine_requirement_identity_reaches_typed_trees() {
     let tokens = Lexer::new("trait PrivateCallbackSlot<machine Requirement> {}")
