@@ -52,6 +52,11 @@ These facts constrain the work below.
 - Terminal Psi semantics, proof evidence, fuel schedules, installation choices,
   and debug maps have separate identities. Optimization must preserve that
   separation and retain source fuel/provenance mappings.
+- `omega-optimization-core` now owns frontend- and encoder-independent stable
+  identities, rule contracts, ordered analysis/invalidation sets, safety and
+  reason vocabularies, hard work budgets, candidate verdicts, and canonical
+  decision/pass manifest rows. Applied decisions cannot be represented without
+  an independent validator identity.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.
@@ -168,15 +173,6 @@ dependency.
   decision or executable byte.
 
 ## P1 — Optimization representation and rule engine
-
-- **OPT-CORE-TYPES.** Implement stable
-  optimization-selection/rule/pass/decision identities, safety classes,
-  analysis sets, invalidation sets, candidate verdicts, work budgets, reason
-  codes, and manifest records in `omega-optimization-core`.
-
-  Acceptance: canonical encode/decode and ordering tests cover every identity;
-  malformed/duplicate rule identities reject; no type depends on a frontend
-  syntax or target encoder crate.
 
 - **OPT-UNIT-BUILDER.** Build `PsiOptimizationUnit` from a verified
   `TerminalAbstractOperationPlan`.

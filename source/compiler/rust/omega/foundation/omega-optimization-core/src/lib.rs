@@ -8,13 +8,27 @@
 use sha2::{Digest, Sha256};
 use std::fmt;
 
+mod contracts;
 mod identities;
+mod manifest;
 
+pub use contracts::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, CoreContractDecodeError,
+    InvalidOptimizationRuleContract, InvalidOptimizationWorkBudget, OptimizationCandidateVerdict,
+    OptimizationReasonCode, OptimizationRuleContract, OptimizationSafetyClass,
+    OptimizationWorkBudget,
+};
 pub use identities::{
     DuplicateOptimizationRuleIdentity, IdentityBundleDecodeError, IdentityDecodeError,
-    OptimizationDecisionLogIdentity, OptimizationIdentityBundle,
-    OptimizationIdentityBundleIdentity, OptimizationRuleIdentity, OptimizationRuleSetIdentity,
-    OptimizationWorkloadProfileIdentity, TargetCostModelIdentity, TransformationLedgerIdentity,
+    OptimizationCandidateIdentity, OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
+    OptimizationIdentityBundle, OptimizationIdentityBundleIdentity, OptimizationPassIdentity,
+    OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationUnitIdentity,
+    OptimizationValidatorIdentity, OptimizationWorkloadProfileIdentity, TargetCostModelIdentity,
+    TransformationLedgerIdentity,
+};
+pub use manifest::{
+    InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationManifestDecodeError,
+    OptimizationPassManifestRecord, OptimizationWorkUsage,
 };
 
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
