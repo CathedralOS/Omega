@@ -8,6 +8,7 @@ mod bytes;
 mod constants;
 mod dynamic_link;
 mod dynamic_section_bytes;
+mod dynamic_section_descriptors;
 mod dynamic_sections;
 mod entry;
 mod headers;
@@ -23,6 +24,10 @@ pub use dynamic_link::{
 pub use dynamic_section_bytes::{
     ElfDynamicSectionSerializationError, ValidatedElfDynamicSectionPayloads,
     serialize_elf_dynamic_sections,
+};
+pub use dynamic_section_descriptors::{
+    ElfDynamicSectionDescriptorPlanningError, ValidatedElfDynamicSectionDescriptorPlan,
+    plan_elf_dynamic_section_descriptors,
 };
 pub use dynamic_sections::{
     ElfDynamicSectionPlanningError, ValidatedElfDynamicSectionPlan, plan_elf_dynamic_sections,

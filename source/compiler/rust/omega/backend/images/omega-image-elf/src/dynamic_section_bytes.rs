@@ -73,7 +73,6 @@ impl ValidatedElfDynamicSectionPayloads {
         self.payload_identity
     }
 
-    #[allow(dead_code)]
     pub(crate) const fn payloads(&self) -> &ElfDynamicSectionPayloadBytes {
         &self.payloads
     }

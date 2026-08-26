@@ -179,15 +179,30 @@ alignment](https://gabi.xinuos.com/elf/01-intro.html#sixty-four-bit-data-types)
 and [least-significant-byte-first
 encoding](https://gabi.xinuos.com/elf/02-eheader.html#data-encoding).
 
+A following sealed descriptor rung binds those six payloads to six
+address-free semantic section kinds with their exact ABI type, flags, payload
+size, alignment, entry size, semantic link, and `sh_info` meaning. Independent
+validation replays every name, payload relationship, symbol/version count,
+System V hash chain count, and version-need object count before sealing a
+deterministic descriptor identity while retaining payload custody on failure.
+An append-only section-name seed fixes the current `.interp`, `.dynstr`,
+`.dynsym`, `.hash`, `.gnu.version`, and `.gnu.version_r` offsets and reserves
+`.shstrtab`; it is not a complete name table and supplies neither a `.shstrtab`
+descriptor nor final numeric section indexes. The metadata follows the primary
+System V ABI [section-header, type, flag, link, and info
+rules](https://gabi.xinuos.com/elf/03-sheader.html) and the LSB [GNU section
+type assignments](https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/sections.html).
+
 The exact `DT_NEEDED` roster stays typed until all `Elf64_Dyn` tags can be
 planned together; this rung does not claim a partial `.dynamic` payload.
-Section names/headers, links, placement and alignment, `PT_INTERP` program-
-header placement, `PT_DYNAMIC`, `.dynamic` addresses/tags, optional
-`.gnu.hash`, the selected GOT/PLT arrangement, `.rela.dyn`/`.rela.plt`,
-architecture-specific relocation lowering, complete load/program-header
-layout, image mutation, and independent final-byte replay remain open.
-Validated payload bytes still grant no layout, loader, publication, or
-runnable-image authority. An owned direct `[u8; N]` destination now contextually
+The final section roster and completed `.shstrtab`, numeric
+`sh_name`/`sh_link`/`e_shstrndx`, section-header serialization, placement,
+`PT_INTERP` program-header placement, `PT_DYNAMIC`, `.dynamic` addresses/tags,
+optional `.gnu.hash`, the selected GOT/PLT arrangement,
+`.rela.dyn`/`.rela.plt`, architecture-specific relocation lowering, complete
+load/program-header layout, image mutation, and independent final-byte replay
+remain open. Validated descriptors still grant no layout, loader, publication,
+or runnable-image authority. An owned direct `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte
 or unresolved/mismatched widths reject, and hermetic evaluation observes the

@@ -8444,15 +8444,29 @@ boundary without its corresponding checked law.
   alignment](https://gabi.xinuos.com/elf/01-intro.html#sixty-four-bit-data-types)
   and [least-significant-byte-first
   encoding](https://gabi.xinuos.com/elf/02-eheader.html#data-encoding).
+  A following sealed descriptor rung now binds those six payloads to six
+  address-free semantic section-kind rows with their exact ABI type, flags,
+  payload size, alignment, entry size, semantic link, and `sh_info` meaning.
+  It independently replays every name, payload relationship, symbol/version
+  count, System V hash chain count, and version-need object count before
+  sealing deterministic descriptor identity while retaining payload custody
+  on failure. An append-only section-name seed fixes the current `.interp`,
+  `.dynstr`, `.dynsym`, `.hash`, `.gnu.version`, and `.gnu.version_r` name
+  offsets and reserves `.shstrtab`, but deliberately supplies neither a
+  `.shstrtab` descriptor nor final numeric section indexes. These rules follow
+  the primary System V ABI [section-header, type, flag, link, and info
+  rules](https://gabi.xinuos.com/elf/03-sheader.html) and the LSB [GNU section
+  type assignments](https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/sections.html).
   The exact `DT_NEEDED` roster remains typed until all `Elf64_Dyn` tags can be
   planned together; no partial `.dynamic` payload is claimed. Runnable ELF
-  emission remains fail closed before image mutation: section names/headers,
-  links, placement and alignment, `PT_INTERP` program-header placement,
+  emission remains fail closed before image mutation: the final section roster
+  and completed `.shstrtab`, numeric `sh_name`/`sh_link`/`e_shstrndx`, section-
+  header serialization, placement, `PT_INTERP` program-header placement,
   `PT_DYNAMIC`, `.dynamic` addresses/tags, optional `.gnu.hash`, the selected
   GOT/PLT arrangement, `.rela.dyn`/`.rela.plt`, architecture-specific
   relocation lowering, complete load/program-header layout, image mutation,
   and independent final-byte replay remain unimplemented. Validated section
-  payload bytes do not constitute a dynamic image.
+  descriptors do not constitute a dynamic image.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes
