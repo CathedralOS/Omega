@@ -55,25 +55,23 @@ machine neg_int(a: IntPair) -> IntPair {
 }
 
 // Commutativity: componentwise from Nat's add_comm (two citations).
-machine add_int_comm(a: IntPair, b: IntPair) -> IntPair
+machine add_int_comm(a: IntPair, b: IntPair)
 satisfies CommutativeSemiring::add_comm
 ensures
     (add_int(a, b)) == (add_int(b, a))
 {
     add_comm(a.neg, b.neg);
     add_comm(a.pos, b.pos);
-    transition { _ -> (add_int(a, b)) }
 }
 
 // Associativity: componentwise from Nat's add_assoc (two citations).
-machine add_int_assoc(a: IntPair, b: IntPair, c: IntPair) -> IntPair
+machine add_int_assoc(a: IntPair, b: IntPair, c: IntPair)
 satisfies CommutativeSemiring::add_assoc
 ensures
     (add_int(add_int(a, b), c)) == (add_int(a, add_int(b, c)))
 {
     add_assoc(a.neg, b.neg, c.neg);
     add_assoc(a.pos, b.pos, c.pos);
-    transition { _ -> (add_int(a, b)) }
 }
 
 // The symmetric pair (n+p, p+n) -- the difference-pair ZERO CLASS shape a
@@ -107,7 +105,7 @@ satisfies CommutativeSemiring::mul
 // Commutativity: mul_comm rewrites each product; the pos field then matches
 // outright, and the neg field's swapped ADDEND order settles under Nat's
 // earned add ring license (multiset flattening).
-machine mul_int_comm(a: IntPair, b: IntPair) -> IntPair
+machine mul_int_comm(a: IntPair, b: IntPair)
 satisfies CommutativeSemiring::mul_comm
 ensures
     (mul_int(a, b)) == (mul_int(b, a))
@@ -116,29 +114,26 @@ ensures
     mul_comm(a.neg, b.pos);
     mul_comm(a.pos, b.pos);
     mul_comm(a.neg, b.neg);
-    transition { _ -> (mul_int(a, b)) }
 }
 
 // Associativity: both sides unfold to two-level products of the six Nat
 // components; each field equation is a polynomial identity the SEMIRING
 // license (Nat's conformed add+mul with distributivity) normalizes
 // citation-free -- the tier-2 monomial multiset settles it.
-machine mul_int_assoc(a: IntPair, b: IntPair, c: IntPair) -> IntPair
+machine mul_int_assoc(a: IntPair, b: IntPair, c: IntPair)
 satisfies CommutativeSemiring::mul_assoc
 ensures
     (mul_int(mul_int(a, b), c)) == (mul_int(a, mul_int(b, c)))
 {
-    transition { _ -> (mul_int(a, b)) }
 }
 
 // Distributivity over add_int: componentwise polynomial identity, same
 // citation-free tier-2 discharge.
-machine mul_int_distributes(a: IntPair, b: IntPair, c: IntPair) -> IntPair
+machine mul_int_distributes(a: IntPair, b: IntPair, c: IntPair)
 satisfies CommutativeSemiring::mul_distributes
 ensures
     (mul_int(a, add_int(b, c))) == (add_int(mul_int(a, b), mul_int(a, c)))
 {
-    transition { _ -> (mul_int(a, b)) }
 }
 
 // THE QUOTIENT (cross-sum equivalence): a ~ a2 iff a.pos + a2.neg ==

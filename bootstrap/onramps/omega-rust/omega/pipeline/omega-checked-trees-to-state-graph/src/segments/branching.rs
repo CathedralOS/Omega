@@ -87,6 +87,22 @@ fn branch_call_target_with_visited<'program>(
 ) -> Option<&'program State> {
     let receiver = program.statement_table.name_path_members(call.receiver);
     let current_machine = exact_machine(program, current_machine.symbol);
+    // A receiver-less call can name another free machine. It is an ordinary
+    // call operation, not a branch into the current machine merely because
+    // its source spelling has no receiver. Exact self-state calls alone are
+    // eligible for local branch inlining.
+    if receiver.is_empty()
+        && call.target_symbol.is_valid()
+        && program.machines().iter().any(|machine| {
+            machine.symbol != current_machine.symbol
+                && program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == call.target_symbol)
+        })
+    {
+        return None;
+    }
     let target_state = if receiver.is_empty() || call.receiver_symbol == current_machine.symbol {
         exact_state_in_machine(program, current_machine, call)?
     } else {
@@ -238,9 +254,23 @@ fn exact_state_in_machine<'program>(
         "state-graph branching invariant: self target state is ambiguous"
     );
     if call.target_symbol.is_valid() {
-        assert_eq!(
-            state.name, call.target,
-            "state-graph branching invariant: self target symbol/name drifted"
+        let entry_is_named_by_machine = program
+            .machine_states(machine)
+            .first()
+            .is_some_and(|entry| entry.symbol == state.symbol)
+            && (machine.name == call.target
+                || machine
+                    .name
+                    .as_str()
+                    .rsplit("::")
+                    .next()
+                    .is_some_and(|name| name == call.target.as_str()));
+        assert!(
+            state.name == call.target || entry_is_named_by_machine,
+            "state-graph branching invariant: self target symbol/name drifted: state `{}`, machine `{}`, call `{}`",
+            state.name,
+            machine.name,
+            call.target,
         );
     }
     Some(state)
@@ -509,6 +539,42 @@ mod tests {
         assert_eq!(
             branch_target_symbol(&fixture.program, fixture.root, &self_call),
             Some(SymbolHandle::from_arena_index(7))
+        );
+    }
+
+    #[test]
+    fn receiverless_foreign_machine_call_is_not_a_self_branch() {
+        let fixture = branch_fixture();
+        let foreign_call = TableCall {
+            target_symbol: fixture.second_state,
+            target: Identifier::generated("branch"),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            branch_target_symbol(&fixture.program, fixture.root, &foreign_call),
+            None
+        );
+    }
+
+    #[test]
+    fn recursive_entry_call_may_name_the_machine_instead_of_entry_state() {
+        let fixture = branch_fixture();
+        let machine = exact_machine(&fixture.program, fixture.root);
+        let entry = fixture
+            .program
+            .machine_states(machine)
+            .first()
+            .expect("entry state");
+        let call = TableCall {
+            target_symbol: entry.symbol,
+            target: machine.name.clone(),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            exact_state_in_machine(&fixture.program, machine, &call).map(|state| state.symbol),
+            Some(entry.symbol)
         );
     }
 

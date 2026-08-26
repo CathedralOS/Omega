@@ -18,9 +18,9 @@
 // compute-mode unfolding and explicit lemma citation; the checker has no
 // compiler-known zero/one form.
 //
-// Migration note: the remaining `-> Self` results on LAW requirements below
-// are legacy onramp ceremony. Both identity slots are resultless;
-// RESULTLESS-LAWS migrates the remaining theorem slots with their satisfiers.
+// Law requirements are resultless theorem slots. Their parameters state the
+// universally quantified operands; satisfiers prove the `ensures` without
+// manufacturing a dummy `Self` value.
 trait CommutativeSemiring {
     // Algebra operations are total mathematical functions. Publishing that
     // promise is what permits a selected implementation to denote a value in
@@ -29,18 +29,18 @@ trait CommutativeSemiring {
     machine one() -> Self terminates;
     machine add(a: Self, b: Self) -> Self terminates;
     machine mul(a: Self, b: Self) -> Self terminates;
-    machine add_comm(a: Self, b: Self) -> Self
+    machine add_comm(a: Self, b: Self)
     ensures add(a, b) == add(b, a);
-    machine add_assoc(a: Self, b: Self, c: Self) -> Self
+    machine add_assoc(a: Self, b: Self, c: Self)
     ensures add(add(a, b), c) == add(a, add(b, c));
     machine add_identity(a: Self)
     ensures add(a, zero()) == a;
-    machine mul_comm(a: Self, b: Self) -> Self
+    machine mul_comm(a: Self, b: Self)
     ensures mul(a, b) == mul(b, a);
-    machine mul_assoc(a: Self, b: Self, c: Self) -> Self
+    machine mul_assoc(a: Self, b: Self, c: Self)
     ensures mul(mul(a, b), c) == mul(a, mul(b, c));
     machine mul_identity(a: Self)
     ensures mul(a, one()) == a;
-    machine mul_distributes(a: Self, b: Self, c: Self) -> Self
+    machine mul_distributes(a: Self, b: Self, c: Self)
     ensures mul(a, add(b, c)) == add(mul(a, b), mul(a, c));
 }

@@ -3,7 +3,7 @@ use omega::language::std::console;
 data Peano { case Zero; case Succ(pred: Peano); }
 trait RingOps2 {
     machine add(a: Self, b: Self) -> Self;
-    machine add_assoc(a: Self, b: Self, c: Self) -> Self
+    machine add_assoc(a: Self, b: Self, c: Self)
     ensures add(add(a, b), c) == add(a, add(b, c));
 }
 machine plus(a: Peano, b: Peano) -> Peano
@@ -15,14 +15,9 @@ terminates by a;
         Peano::Succ { pred } -> Peano::Succ { pred: plus(pred, b) }
     }
 }
-machine lawless(a: Peano, b: Peano, c: Peano) -> Peano
+machine lawless(a: Peano, b: Peano, c: Peano)
 satisfies RingOps2::add_assoc
-terminates by a;
 {
-    transition a {
-        Peano::Zero -> Peano::Zero
-        Peano::Succ { pred } -> Peano::Succ { pred: lawless(pred, b, c) }
-    }
 }
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(70); }

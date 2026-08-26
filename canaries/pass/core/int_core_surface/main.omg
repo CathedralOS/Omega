@@ -11,7 +11,7 @@ machine int_comm_consumer(a: IntPair, b: IntPair) -> IntPair
 ensures
     (add_int(a, b)) == (add_int(b, a))
 {
-    _ = add_int_comm(a, b);
+    add_int_comm(a, b);
     transition { _ -> (add_int(a, b)) }
 }
 
@@ -20,6 +20,6 @@ machine int_mul_consumer(a: IntPair, b: IntPair) -> IntPair
 ensures
     (mul_int(a, b)) == (mul_int(b, a))
 {
-    _ = mul_int_comm(a, b);
+    mul_int_comm(a, b);
     transition { _ -> (mul_int(a, b)) }
 }
