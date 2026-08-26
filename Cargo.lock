@@ -1159,6 +1159,7 @@ dependencies = [
  "nix",
  "omega-build-declarations",
  "omega-compiler",
+ "omega-platform-custody",
  "psi-core",
  "psi-diagnostics",
  "psi-source",
@@ -1169,6 +1170,10 @@ dependencies = [
  "sha1-checked",
  "sha2",
 ]
+
+[[package]]
+name = "omega-platform-custody"
+version = "0.1.0"
 
 [[package]]
 name = "omega-platform-interface"

@@ -172,10 +172,19 @@ before these executable-custody floors
 or under a different transport-authority profile is not silently reused.
 This identifies observed parent bytes and closes ordinary cross-user path
 ownership on Unix; it does not certify Git, the HTTPS helper, or SSH, bind
-other executable components, inspect macOS ACL grants, establish Windows
-ownership/DACL custody, protect against same-user replacement, bind TLS trust
-or the effective endpoint, or prove that an observed file equals an already
-loaded image.
+other executable components, establish Windows ownership/DACL custody, protect
+against same-user replacement, bind TLS trust or the effective endpoint, or
+prove that an observed file equals an already loaded image. On macOS, every
+selected executable, transport invocation entry, canonical transport target,
+and executable ancestor is additionally read through the native extended-ACL
+surface. The narrow platform wrapper classifies only native allow/deny tags and
+does not resolve ACL principals through ambient identity services. Any allow
+entry rejects; deny-only entries cannot broaden custody.
+Failure to inspect an ACL rejects rather than degrading to mode-only checks.
+These ACL checks run at the same repeated custody points as owner, mode,
+ancestry, and executable identity checks. They close ordinary extended-ACL
+grant substitution, not hostile same-user replacement or loaded-image
+identity.
 Each launch clears the complete inherited environment, installs only the fixed
 Git/protocol/locale/helper-path variables, and uses an explicit absolute cache
 or repository working directory. It also receives resolver-owned stdin,

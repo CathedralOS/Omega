@@ -1,0 +1,9 @@
+[package]
+name = "omega-platform-custody"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_platform_custody"
+path = "src/lib.rs"

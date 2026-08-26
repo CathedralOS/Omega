@@ -256,9 +256,9 @@ complete.
     an independently hostile process that can mutate the cache directory;
   - on Unix the selected Git executable now has resolver/root ownership,
     non-writable/non-set-id executable mode, and safe owned ancestry checks;
-    macOS ACL custody, Windows executable ownership/DACL custody, provenance,
-    the already loaded image, and executable components Git may launch other
-    than the separately observed HTTPS transport helper and SSH client remain;
+    Windows executable ownership/DACL custody, provenance, the already loaded
+    image, and executable components Git may launch other than the separately
+    observed HTTPS transport helper and SSH client remain;
   - the Git subprocess has no OS sandbox or CPU/memory/process/transfer
     ceilings; process-container cleanup contains ordinary descendants but not a
     hostile Unix process that deliberately changes session; cleanup has its own
@@ -368,6 +368,20 @@ complete.
   closes ambient HTTPS transport-helper selection; it does not prove the
   loaded image or TLS implementation, bind certificate stores or endpoints,
   inspect macOS ACLs or Windows DACLs, or replace native confinement.
+
+  Milestone 2026-08-26: macOS executable custody now inspects native extended
+  ACLs through the narrow compiler-owned `omega-platform-custody` wrapper while
+  retaining `forbid(unsafe_code)` in `omega-packages`. The wrapper returns only
+  a closed allow-entry fact and never resolves ACL principals through ambient
+  identity services. Any allow entry rejects on the selected Git executable,
+  the HTTPS/SSH invocation entry and canonical target, or any executable
+  ancestor; deny-only entries do not manufacture broader authority. ACLs are
+  rechecked wherever mode, owner, ancestry, and executable identity are already
+  rechecked around launches. Native tests add an allow entry to both an
+  executable and its ancestry and prove rejection, while the selected concrete
+  system Git still passes. This closes the ordinary macOS extended-ACL grant
+  gap, not same-user replacement, loaded-image identity, executable provenance,
+  Windows DACL custody, or native process confinement.
 
   Milestone 2026-08-25: legacy source-cache policy records now recover only
   from bounded, byte-identical canonical tool-owned encoding. Persistence
