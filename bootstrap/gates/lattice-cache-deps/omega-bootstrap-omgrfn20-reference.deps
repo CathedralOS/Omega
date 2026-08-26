@@ -1,0 +1,44 @@
+# Precise cache profile for OMGRFN20's independent R1-R5 owners and
+# representative persisted-Beta projections.
+script source/assurance/refinement/omega-bootstrap/omgrfn20-reference.sh
+
+input bootstrap/paths.sh
+input bootstrap/alpha/seed_env.sh
+input bootstrap/alpha/alpha_arm64_macos
+input bootstrap/alpha/assembler
+input bootstrap/beta/artifact_env.sh
+input bootstrap/beta/artifacts/bc.tape
+input bootstrap/beta/bc.beta
+input bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V3.md
+input bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V9.md
+input bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V17.md
+input bootstrap/omega-bootstrap/compiler/omega_bootstrap_bundle.py
+input bootstrap/omega-bootstrap/compiler/omega_bootstrap_compilation.py
+input bootstrap/omega-bootstrap/compiler/omega_bootstrap_compilation_v2.py
+input bootstrap/omega-bootstrap/compiler/omega_bootstrap_compilation_v3.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v2_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v3_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v4_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v5_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v14_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v15_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v17_reference.py
+input bootstrap/omega-bootstrap/gates/delta-checked-ir-v17-fixture.py
+input bootstrap/omega-bootstrap/gates/omgrsw9_provider_plan_fixture.py
+input bootstrap/omega-bootstrap/gates/omgrsw9_provider_plan_reference.py
+input bootstrap/omega-bootstrap/gates/fixtures/omgcomp3-console-provider-plan
+input source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V20.md
+input source/assurance/refinement/omega-bootstrap/omgrfn19_witness.py
+input source/assurance/refinement/omega-bootstrap/omgrfn20-beta-join.sh
+input source/assurance/refinement/omega-bootstrap/omgrfn20-materialize-beta.py
+input source/assurance/refinement/omega-bootstrap/omgrfn20-r1.py
+input source/assurance/refinement/omega-bootstrap/omgrfn20-r2.py
+input source/assurance/refinement/omega-bootstrap/omgrfn20-r3.py
+input source/assurance/refinement/omega-bootstrap/omgrfn20-r4.py
+input source/assurance/refinement/omega-bootstrap/omgrfn20-r5.py
+input source/assurance/refinement/omega-bootstrap/omgrfn20_bundle.py
+input source/assurance/refinement/omega-bootstrap/omgrfn20_ckir.py
+input source/assurance/refinement/omega-bootstrap/omgrfn20_frame.py
+input source/assurance/refinement/omega-bootstrap/omgrfn20_owner.py
+input source/assurance/refinement/omega-bootstrap/omgrfn20_owner_test.py
+input source/assurance/refinement/omega-bootstrap/omgrfn20_source.py
