@@ -627,6 +627,12 @@ contract expressions. Every element recursively projects through the same
 closed structural vocabulary and limits, including nested arrays. Element
 order is semantic identity, and an unsupported child keeps the whole row
 fail-closed.
+Review v68 and canonical row v26 admit nominal record and sum-case constructor
+expressions. Rows use exact package-qualified data, optional case, and field
+identities with recursively projected values. Fields sort by exact identity,
+so authored order is stable; changing the case, field, or value changes
+comparison identity. Unresolved/mismatched symbols and private public-interface
+selections reject.
 Review v52 and canonical row v12 add one blocking standalone row for every
 package-owned `pub proposition`, including an unused bodyless declaration.
 The row retains alpha-normalized binders, parameter types, witness interface,

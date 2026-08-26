@@ -1627,6 +1627,13 @@ contracts. Elements recursively use the existing structural contract
 vocabulary and depth/byte limits. Nested arrays are therefore exact and
 ordered; changing or reordering an element changes identity, while an
 unsupported child rejects the complete row rather than becoming opaque.
+Review v68 and canonical row v26 admit nominal record and sum-case constructor
+expressions. Canonical identity retains the exact package-qualified data,
+optional selected case, every exact field, and recursively projected values.
+Field order follows exact semantic field identity rather than source order.
+Changed cases/fields/values change the row; unresolved or mismatched symbols
+reject, while private constructor selection is rejected by the existing public-
+interface gate before projection.
 Review v52 and canonical row v12 add blocking standalone public-proposition
 shape. Every package-owned `pub proposition` is retained whether used or not;
 primitive publication records only vocabulary, while witness and transparent

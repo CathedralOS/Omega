@@ -679,6 +679,11 @@ expressions. Elements recursively use the same structural vocabulary and
 encoding limits, so nested arrays remain exact. Reordering or changing an
 element changes review identity; unsupported nested forms reject the complete
 row.
+Review v68/canonical row v26 retains nominal record and sum-case constructors
+by exact package-qualified data, optional case, and field identities plus
+recursive field values. Fields canonicalize by exact identity instead of
+authored order. Changed cases/fields/values change review identity; unresolved,
+mismatched, or private public-interface selections reject.
 Trait `invariant` clauses are retired rather than awaiting a package row.
 Requirements also retain whether their checked declaration
 supplies a default realization; implementation bodies remain checked source

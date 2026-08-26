@@ -1453,8 +1453,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 67);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 25);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 68);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 26);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -7688,10 +7688,9 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let unsupported = TempPackage::new();
     unsupported.write(
         "main.omg",
-        r#"pub data Token [copy] { value: u64; }
-pub proposition tokens(values: [Token; 1]);
-pub machine consume()
-requires tokens([Token { value: 1u64 }])
+        r#"pub proposition values(items: [i32; 1]);
+pub machine consume(source: [i32; 1])
+requires values([source[0]])
 { }
 "#,
     );
@@ -7706,13 +7705,154 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         Some("windows_x64"),
         package_inputs(&unsupported.0),
     )
-    .expect("array containing a struct literal should still check");
+    .expect("array containing an indexed expression should still check");
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("an unsupported nested form must keep the complete array fail-closed");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
             .contains("contract expression form not yet represented")
+    }));
+}
+
+#[test]
+fn review_projects_exact_nominal_record_and_case_constructors() {
+    let project = |point_fields: &str, case: &str, case_fields: &str| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                r#"pub data Point [copy] {{ x: i32; y: i32; }}
+pub data Outcome [copy] {{
+    code: u64;
+    case Success(value: u64);
+    case Failure(value: u64);
+}}
+pub proposition has_point(value: Point);
+pub proposition has_outcome(value: Outcome);
+pub machine consume()
+requires has_point(Point {{ {point_fields} }})
+requires has_outcome(Outcome::{case} {{ {case_fields} }})
+{{ }}
+"#,
+            ),
+        );
+        package.write(
+            "build.omg",
+            r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("nominal constructor contract fixture should check");
+        project_checked_package_review(&checked)
+            .expect("nominal constructors should project by exact declaration identity")
+    };
+
+    let original = project("x: 1, y: 2", "Success", "code: 3u64, value: 4u64");
+    let consume = original
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("consume"))
+        .expect("public constructor consumer");
+    assert_eq!(consume.contracts().len(), 2);
+    let point = consume
+        .contracts()
+        .iter()
+        .find_map(|contract| match contract.fact() {
+            PackageReviewContractFact::Proposition(application)
+                if application.declaration().path() == "has_point" =>
+            {
+                application.arguments().first()
+            }
+            _ => None,
+        })
+        .expect("record constructor argument");
+    let PackageReviewContractExpression::Constructor { data, case, fields } = point else {
+        panic!("one exact record constructor")
+    };
+    assert_eq!(data.path(), "Point");
+    assert_eq!(
+        data.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert!(case.is_none());
+    assert_eq!(fields.len(), 2);
+    assert!(fields[0].field().path() < fields[1].field().path());
+
+    let outcome = consume
+        .contracts()
+        .iter()
+        .find_map(|contract| match contract.fact() {
+            PackageReviewContractFact::Proposition(application)
+                if application.declaration().path() == "has_outcome" =>
+            {
+                application.arguments().first()
+            }
+            _ => None,
+        })
+        .expect("case constructor argument");
+    let PackageReviewContractExpression::Constructor {
+        data,
+        case: Some(case),
+        fields,
+    } = outcome
+    else {
+        panic!("one exact sum-case constructor")
+    };
+    assert_eq!(data.path(), "Outcome");
+    assert!(case.path().contains("Success"));
+    assert_eq!(fields.len(), 2, "record and selected-case payload fields");
+
+    let reordered = project("y: 2, x: 1", "Success", "value: 4u64, code: 3u64");
+    assert_eq!(
+        original.canonical_review_bytes().unwrap(),
+        reordered.canonical_review_bytes().unwrap(),
+        "constructor field spelling order must canonicalize by exact field identity",
+    );
+    let changed_case = project("x: 1, y: 2", "Failure", "code: 3u64, value: 4u64");
+    assert_ne!(
+        original.canonical_review_bytes().unwrap(),
+        changed_case.canonical_review_bytes().unwrap(),
+        "changing the exact selected case must change review identity",
+    );
+    let changed_value = project("x: 1, y: 2", "Success", "code: 3u64, value: 5u64");
+    assert_ne!(
+        original.canonical_review_bytes().unwrap(),
+        changed_value.canonical_review_bytes().unwrap(),
+        "changing a constructor field value must change review identity",
+    );
+
+    let private = TempPackage::new();
+    private.write(
+        "main.omg",
+        r#"data Hidden [copy] { value: u64; }
+pub proposition hidden(value: Hidden);
+pub machine consume()
+requires hidden(Hidden { value: 1u64 })
+{ }
+"#,
+    );
+    private.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let diagnostics = compile_to_checked_with_packages(
+        &private.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&private.0),
+    )
+    .expect_err("a public contract must reject a private constructor before review");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("public interface selects private data `Hidden`")
     }));
 }
 

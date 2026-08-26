@@ -1232,6 +1232,13 @@ complete.
   representable without weakening unsupported children. Element order and
   value changes alter canonical evidence; an unsupported nested expression
   rejects the complete public row.
+  Review v68 and canonical row v26 add nominal record and sum-case constructors
+  to the public contract vocabulary. Rows retain exact package-qualified data,
+  optional case, and field identities plus recursively projected values.
+  Fields canonicalize by exact identity rather than authored order. Changing a
+  case, field, or value changes evidence; unresolved or nonmatching symbols
+  reject, and the existing public-interface gate rejects private constructors
+  before review.
   Review v43 and
   canonical row v3 represent static-machine parameters directly. Structural
   contracts retain their complete alpha-normalized nested telescope, value
