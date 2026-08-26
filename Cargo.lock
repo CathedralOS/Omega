@@ -1081,6 +1081,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-optimization-policy"
+version = "0.1.0"
+dependencies = [
+ "omega-optimization-core",
+]
+
+[[package]]
 name = "omega-optimization-unit"
 version = "0.1.0"
 dependencies = [
@@ -1151,6 +1158,7 @@ name = "omega-psi-optimizer"
 version = "0.1.0"
 dependencies = [
  "omega-optimization-core",
+ "omega-optimization-policy",
  "omega-optimization-unit",
  "omega-optimization-validation",
  "omega-terminal-abstract-operations",

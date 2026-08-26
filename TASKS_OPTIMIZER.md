@@ -146,9 +146,12 @@ These facts constrain the work below.
   iterations. Budget exhaustion returns no output, every registered rule is
   covered before successful convergence, and the verifier-owned optimizer
   context remains attached to the resulting unit. `OPT-PASS-MANAGER` remains
-  open for named multi-rule pass groups, synthetic oscillation coverage, and a
-  separately owned baseline policy/decision log. The compiler build firewall
-  remains unchanged.
+  open for named multi-rule pass groups and synthetic oscillation coverage. A
+  separate `omega-optimization-policy` crate now receives only independently
+  validated candidate summaries, chooses improving work by exact cost then
+  stable candidate identity, cannot select outside that admitted set, and emits
+  a canonical decision log whose codec rejects identity tamper and trailing
+  bytes. The compiler build firewall remains unchanged.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.
@@ -326,13 +329,6 @@ dependency.
   Acceptance: work budgets, deterministic tie breaks, candidate limits, and
   fixed-point convergence metrics are enforced. Oscillating synthetic rules
   terminate with a deterministic diagnostic and no partial commit.
-
-- **OPT-BASELINE-POLICY.** Implement a deterministic model-free decision
-  provider.
-
-  Acceptance: policy sees only legal candidates, cannot override a validator,
-  and emits a replayable ordered decision log. Equal-cost ties use stable
-  candidate identity.
 
 ## P2 — Equivalence and publication gate
 

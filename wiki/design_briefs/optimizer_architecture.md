@@ -355,6 +355,15 @@ This is still an internal vertical slice: build-level optimization selections
 remain rejected until their complete named pass schedules and publication gate
 exist.
 
+Baseline choice lives in `omega-optimization-policy`, outside rule and
+validator crates. The pass manager first obtains independently constructed
+outputs, projects only their candidate identities and non-authoritative cost
+deltas to policy, and rejects any returned identity absent from that admitted
+set. The model-free policy selects the lowest improving cost with candidate
+identity as the final tie break. Its canonical ordered decision-log codec
+recomputes every decision identity during replay and rejects tamper or trailing
+data.
+
 ## Validation and trust
 
 Optimization remains an untrusted producer. Acceptance has layers.
