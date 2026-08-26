@@ -1891,20 +1891,30 @@ now invokes a `TerminalComponentDeploymentInputOwner` against the exact staged
 candidate; acquisition rejection preserves that owner, the candidate, and all
 report metadata, while success enters the typed transaction immediately. A
 strictly compositional terminal driver now connects ordinary candidate staging
-to that call: its staging carrier owns the target/subsystem choice and borrows
-the admission profile and exact provider settlements; failure returns that
-carrier, the deployment owner, and report metadata, while success proceeds
-through acquisition, deployment, publication, and report custody. A concrete
-non-test installation/deployment owner and routing the Psi-owned checked result
-into this connected driver remain prerequisites to replacing the legacy
-publication path; the compiler has no authority to stand in for that missing
-provider. The cutover adapter now binds staging target and report metadata only
-from the owning `CheckedCompilation`: targetless binding returns subsystem,
-admission profile, and provider settlements for retry, while successful driving
-projects build evaluation and observation metadata from that same owner. This
-does not establish an alternate checked-tree realization route;
+to that call: its staging carrier projects the checked-owned target/subsystem
+choice and borrows the admission profile and exact provider settlements;
+failure returns that carrier, the deployment owner, and report metadata, while
+success proceeds through acquisition, deployment, publication, and report
+custody. A separate typed terminal compile handoff now runs the ordinary
+Psi-owned checked frontend and routes its result into this connected driver
+without entering the legacy backend coordinator. The checked result retains its
+exact consumed source count and build-selected image subsystem. The request
+retains compile options, optional package inputs, externally borrowed admission
+and settlement evidence, and the external deployment-input owner: frontend
+failure returns that request unchanged, targetless binding returns it beside
+the exact checked result, and later failure preserves established driver custody
+with options and package inputs. The cutover adapter now binds staging target
+and report metadata only from the owning `CheckedCompilation`: targetless
+binding returns subsystem, admission profile, and provider settlements for
+retry, while successful driving projects build evaluation and observation
+metadata from that same owner. This does not establish an alternate checked-
+tree realization route;
 `stage_terminal_component` remains the sole operation that creates the terminal
-candidate consumed downstream.
+candidate consumed downstream. A concrete non-test installation/deployment
+owner and an ordinary production caller supplying it remain prerequisites to
+replacing the legacy publication path; the compiler has no authority to stand
+in for that missing provider. This is platform/provider engineering rather than
+a language-design block.
 Compact record identities remain report keys and grant no authority.
 
 ### Placed-occurrence and resident-custody slice

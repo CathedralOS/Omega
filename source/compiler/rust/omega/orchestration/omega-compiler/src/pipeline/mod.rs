@@ -48,6 +48,7 @@ mod stage;
 mod stages;
 mod target_machines;
 mod task_plans;
+mod terminal_compile_driver;
 mod terminal_component_candidate;
 mod terminal_component_driver;
 mod timing;
@@ -297,6 +298,10 @@ pub use source_inspection::{
 pub use source_profile::{
     SOURCE_FEATURE_CATALOG, SOURCE_FEATURE_CENSUS_SCHEMA, SOURCE_FEATURE_IDS, SOURCE_RESOURCE_IDS,
     SourceFeatureCensus, SourceFeatureCount, SourceResourceObservation, census_source_closure,
+};
+pub use terminal_compile_driver::{
+    TerminalComponentCompileError, TerminalComponentCompileRequest,
+    compile_terminal_component_output,
 };
 pub use terminal_component_candidate::{
     TerminalComponentCandidate, TerminalComponentCandidateParts,
