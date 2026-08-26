@@ -7,7 +7,9 @@
 //! bounded direct-lift inclusion judgment consumes the same partitions from
 //! its certificate owner. General entailment remains a separate obligation.
 
-use super::proof_fact_identity::{ProofFactIdentityContext, proof_facts_match};
+use super::proof_fact_identity::{
+    ProofFactIdentityContext, ProofValueSubstitution, proof_facts_match,
+};
 use super::runtime_correspondence::DirectLiftArgumentSource;
 use super::{
     DefineRuntimeCorrespondence, DefineRuntimePosition, DirectLiftRuntimeCorrespondence,
@@ -219,13 +221,20 @@ pub(super) fn derive_define_precondition_correspondence(
         .positions
         .iter()
         .enumerate()
-        .map(|(position, binding)| (binding.public_parameter, format!("${position}")))
+        .map(|(position, binding)| {
+            ProofValueSubstitution::symbolic(binding.public_parameter, format!("${position}"))
+        })
         .collect::<Vec<_>>();
     let representative_substitutions = runtime
         .positions
         .iter()
         .enumerate()
-        .map(|(position, binding)| (binding.representative_parameter, format!("${position}")))
+        .map(|(position, binding)| {
+            ProofValueSubstitution::symbolic(
+                binding.representative_parameter,
+                format!("${position}"),
+            )
+        })
         .collect::<Vec<_>>();
     let dependent = pair_precondition_facts(
         program,
@@ -251,8 +260,8 @@ fn pair_precondition_facts(
     representative_state_contracts: HandleSpan<SignatureContract>,
     public_locations: &[RepresentativeContractFactLocation],
     representative_locations: &[RepresentativeContractFactLocation],
-    public_substitutions: &[(SymbolHandle, String)],
-    representative_substitutions: &[(SymbolHandle, String)],
+    public_substitutions: &[ProofValueSubstitution],
+    representative_substitutions: &[ProofValueSubstitution],
     representative_static: &[RepresentativeStaticBinding],
 ) -> Result<Vec<DefinePreconditionFactPair>, RelationPlanError> {
     if public_locations.len() != representative_locations.len() {
@@ -328,7 +337,7 @@ pub(super) fn precondition_fact_at(
         .get(location.fact_position)
 }
 
-pub(super) fn proof_fact_depends_on_any(
+fn proof_fact_depends_on_any(
     program: &TypedTrees,
     fact: &ProofFact,
     parameters: &[SymbolHandle],

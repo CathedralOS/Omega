@@ -11,8 +11,53 @@ use psi_typed_trees::TypedTrees;
 use psi_typed_trees::domain::ProofFact;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ProofValueSubstitution {
+    pub(super) symbol: SymbolHandle,
+    rendered: String,
+    trace: String,
+}
+
+impl ProofValueSubstitution {
+    pub(super) fn symbolic(symbol: SymbolHandle, identity: String) -> Self {
+        Self {
+            symbol,
+            rendered: identity.clone(),
+            trace: identity,
+        }
+    }
+
+    pub(super) fn boolean(symbol: SymbolHandle, value: bool) -> Self {
+        Self {
+            symbol,
+            rendered: value.to_string(),
+            trace: boolean_trace(value),
+        }
+    }
+
+    pub(super) fn integer(
+        symbol: SymbolHandle,
+        spelling: &str,
+        landing: psi_numerics::literals::IntegerLanding,
+    ) -> Self {
+        Self {
+            symbol,
+            rendered: spelling.to_owned(),
+            trace: integer_trace(spelling, landing),
+        }
+    }
+
+    pub(super) fn rebound(&self, symbol: SymbolHandle) -> Self {
+        Self {
+            symbol,
+            rendered: self.rendered.clone(),
+            trace: self.trace.clone(),
+        }
+    }
+}
+
 pub(super) struct ProofFactIdentityContext<'a> {
-    pub(super) values: &'a [(SymbolHandle, String)],
+    pub(super) values: &'a [ProofValueSubstitution],
     pub(super) static_bindings: &'a [RepresentativeStaticBinding],
 }
 
@@ -68,10 +113,14 @@ pub(super) fn proof_facts_match(
 fn proof_expression_identity(
     program: &TypedTrees,
     expression: ExpressionHandle,
-    values: &[(SymbolHandle, String)],
+    values: &[ProofValueSubstitution],
 ) -> (String, String) {
+    let rendered_values = values
+        .iter()
+        .map(|value| (value.symbol, value.rendered.clone()))
+        .collect::<Vec<_>>();
     (
-        program.render_proof_expression_with_symbols(expression, values),
+        program.render_proof_expression_with_symbols(expression, &rendered_values),
         expression_symbol_trace(program, expression, values),
     )
 }
@@ -79,14 +128,15 @@ fn proof_expression_identity(
 fn expression_symbol_trace(
     program: &TypedTrees,
     expression: ExpressionHandle,
-    values: &[(SymbolHandle, String)],
+    values: &[ProofValueSubstitution],
 ) -> String {
     let trace = |expression| expression_symbol_trace(program, expression, values);
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => values
             .iter()
-            .find_map(|(symbol, value)| {
-                (*symbol == path.symbol || *symbol == path.head_symbol).then(|| value.clone())
+            .find_map(|value| {
+                (value.symbol == path.symbol || value.symbol == path.head_symbol)
+                    .then(|| value.trace.clone())
             })
             .unwrap_or_else(|| format!("name:{:?}:{:?}", path.head_symbol, path.symbol)),
         ExpressionNode::Call(call) => format!(
@@ -152,11 +202,25 @@ fn expression_symbol_trace(
         ExpressionNode::ZeroValue(value) => {
             format!("zero:{}", program.normalized_type_identity(*value))
         }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_) => String::new(),
+        ExpressionNode::Boolean(value) => boolean_trace(*value),
+        ExpressionNode::Integer(value) => value.landing().map_or_else(
+            || format!("integer:{}:unlanded", value.text()),
+            |landing| integer_trace(value.text(), landing),
+        ),
+        ExpressionNode::Float(_) | ExpressionNode::String(_) => String::new(),
     }
+}
+
+fn boolean_trace(value: bool) -> String {
+    format!("boolean:{value}")
+}
+
+fn integer_trace(spelling: &str, landing: psi_numerics::literals::IntegerLanding) -> String {
+    format!(
+        "integer:{spelling}:{}:{}",
+        landing.landed_type.name(),
+        landing.domain.name(),
+    )
 }
 
 pub(super) fn static_type_identities(

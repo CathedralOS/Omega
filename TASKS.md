@@ -7517,7 +7517,16 @@ compiler concept is introduced.
   without attempting a second registry claim. Runnable binding retains the
   live registry and checks its canonical exact-empty predicate and selected
   closure even for progress-free artifacts. Successful era retirement is the
-  sole public decomposition path for runnable code and registry custody.
+  sole public decomposition path for runnable code and registry custody. The
+  deployment owner now also exposes the flat-file endpoint needed by the later
+  compiler handoff: it consumes only a finalized runnable, replays the canonical
+  installation/image join, atomically stages and publishes the exact sealed
+  image bytes with executable mode, and returns a non-clonable receipt beside
+  the still-owned runnable. The receipt binds the installation and image
+  fingerprints, byte count, sealed filename, and path; any publication failure
+  returns the exact runnable and requested path for retry, and later file drift
+  invalidates replay. Progress-free and progress-bearing source canaries cross
+  this endpoint without losing the accepted manifest or installed custody.
 
   Remaining TPR6-B engineering: retire the legacy compiler's temporary final-
   output rejection only after `write_output` delegates to this deployment
@@ -7976,9 +7985,13 @@ Remaining N6/N8 work:
   feed an immutable non-receiver representative parameter only when its exact
   concrete primitive type and arithmetic domain agree. Their value, canonical
   spelling, and landing ride the occurrence identity; their input relation is
-  exact equality. A dependent representative `P` fact may not mention a
-  literal-fed position, while literal-only facts remain fixed ordinary call
-  obligations. Unsuffixed integers, floats, strings, aggregates, zero-value,
+  exact equality. Exact structural `Q => P` substitution now permits a
+  dependent representative `P` fact to mention a literal-fed position only
+  when public `Q` contains the identical post-substitution fact. Boolean value
+  and integer spelling, landed type, and arithmetic domain are all proof-value
+  identity even when rendering would erase a difference. Literal-only facts
+  remain fixed ordinary call obligations. Unsuffixed integers, floats, strings,
+  aggregates, zero-value,
   casts, calls, computed expressions, constrained/generic targets, mutable or
   attached targets, and literal arguments to `define` remain fail-closed.
   `define` remains strictly position-preserving at exact public

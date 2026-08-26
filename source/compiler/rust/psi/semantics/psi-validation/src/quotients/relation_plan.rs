@@ -178,7 +178,6 @@ pub(super) enum RelationPlanError {
     DirectLiftParameterModeMismatch(usize),
     DirectLiftParameterTypeMismatch(usize),
     DirectLiftLiteralTargetMismatch(usize),
-    DirectLiftLiteralInDependentPrecondition(usize),
     DirectLiftResultTypeMismatch,
     DirectLiftLeftPreconditionNotImplied(usize),
     DirectLiftRightPreconditionNotImplied(usize),
@@ -316,10 +315,6 @@ impl fmt::Display for RelationPlanError {
             Self::DirectLiftLiteralTargetMismatch(position) => write!(
                 formatter,
                 "direct-lift literal {position} is not a closed boolean or explicitly landed, in-range integer of the representative parameter's exact primitive type and arithmetic domain"
-            ),
-            Self::DirectLiftLiteralInDependentPrecondition(position) => write!(
-                formatter,
-                "direct-lift dependent representative precondition {position} mentions a literal-fed parameter and requires a general implication judgment"
             ),
             Self::DirectLiftResultTypeMismatch => formatter.write_str(
                 "the direct-lift result quotient carrier does not match the representative result",

@@ -6,7 +6,8 @@
 //! later quotient lifting and terminal replay stages.
 
 use super::proof_fact_identity::{
-    ProofFactIdentityContext, proof_facts_match, static_arguments_match, static_type_identities,
+    ProofFactIdentityContext, ProofValueSubstitution, proof_facts_match, static_arguments_match,
+    static_type_identities,
 };
 use super::theorem::SelectedTheoremTelescope;
 use super::theorem_schema::{
@@ -158,7 +159,7 @@ pub(super) fn verify_selected_theorem_schema(
             .iter()
             .zip(&application.arguments)
             .map(|(parameter, theorem_position)| {
-                (
+                ProofValueSubstitution::symbolic(
                     parameter.symbol,
                     format!("$theorem_parameter_{theorem_position}"),
                 )
@@ -168,7 +169,10 @@ pub(super) fn verify_selected_theorem_schema(
             .iter()
             .enumerate()
             .map(|(position, parameter)| {
-                (parameter.symbol, format!("$theorem_parameter_{position}"))
+                ProofValueSubstitution::symbolic(
+                    parameter.symbol,
+                    format!("$theorem_parameter_{position}"),
+                )
             })
             .collect::<Vec<_>>();
         let Some(found) = requires.iter().position(|actual| {
