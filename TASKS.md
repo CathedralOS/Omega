@@ -7545,20 +7545,17 @@ Remaining N6/N8 work:
   structure or acquires effects/custody beyond the initial integration fence.
 - **RESULTLESS-LAWS — finish removing dummy runtime results from recursive
   theorem-only slots.** A theorem-only machine publishes parameters,
-  `requires`, and `ensures` but no `Type` result. The nonrecursive
-  `CommutativeSemiring::mul_identity` slot, its satisfiers, and
-  `add_int_respects_eq` now use that surface. Migrate the remaining law
-  requirements and satisfiers away from dummy result types; retain return types
-  only for machines that genuinely compute an observed value in addition to
-  proving a contract.
+  `requires`, and `ensures` but no `Type` result. Both
+  `CommutativeSemiring` identity slots, their Nat/Int satisfiers, and
+  `add_int_respects_eq` now use that surface. Migrate the remaining
+  commutativity, associativity, and distributivity requirements and satisfiers
+  away from dummy result types; retain return types only for machines that
+  genuinely compute an observed value in addition to proving a contract.
   Resultless recursive proofs cite their smaller theorem application as a
-  statement and consume its checked `ensures`.
-- **INDUCTIVE-CITATION-EDGES — check every consumed recursive theorem citation.**
-  Include resultless statements, explicitly discarded calls, and calls nested
-  in value expressions in the direct/mutual recursion graph. Import a recursive
-  callee's `ensures` only after that exact edge proves a strict decrease under
-  the component's ranking. Reject unchanged self-citation and every other
-  unmeasured proof cycle before its conclusion can enter the fact context.
+  statement and consume its checked `ensures`. Exact recursion validation now
+  covers direct resultless citations, explicitly discarded calls, nested value
+  calls, and mutual proof cycles; unchanged edges reject before their
+  conclusion can certify a program.
 - Suppress every synthesized representation observer on quotient formation.
   Resolved-to-typed lowering now rejects runtime `==`/`!=`, a direct
   `Equatable` conformance, and synthesized container equality through a quotient

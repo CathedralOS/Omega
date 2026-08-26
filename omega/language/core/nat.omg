@@ -102,22 +102,26 @@ ensures
     transition { _ -> (add(Nat::Zero, b)) }
 }
 
-// Two conjuncts, one induction: the functional form (`result == a`,
-// consumed by per-call fact extraction) and the LAW form
-// (`add(a, Zero) == a`, the statement a CITATION delivers -- ch10 "Citing
-// Proofs": `add_zero_right(b);` in a consumer proof injects
-// `add(b, Zero) == b` at those operands). Both are discharged per arm
-// with the machine's own ensures as the inductive hypothesis.
-machine add_zero_right(a: Nat) -> Nat
+// Right identity by resultless structural induction. The step-state citation
+// is the induction edge: exact recursion checking proves `prev` descends from
+// `a`, then the citation contributes `add(prev, Zero) == prev` to that arm.
+// Consumers cite the theorem as a statement; it never computes a dummy Nat.
+machine add_zero_right(a: Nat)
 satisfies CommutativeSemiring::add_identity
 terminates by a;
 ensures
-    result == a;
     (add(a, Nat::Zero)) == a
 {
     transition a {
-        Nat::Zero -> Nat::Zero
-        Nat::Succ { prev } -> Nat::Succ { prev: add_zero_right(prev) }
+        Nat::Zero -> zero_case()
+        Nat::Succ { prev } -> succ_case(prev)
+    }
+
+    state zero_case() {
+    }
+
+    state succ_case(prev: Nat) {
+        add_zero_right(prev);
     }
 }
 

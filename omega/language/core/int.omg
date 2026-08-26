@@ -199,15 +199,13 @@ ensures
 // The identity laws: componentwise Nat identities under record ETA (the
 // rebuilt record IS the variable). zero folds via add_zero_right /
 // add_zero_left; one folds via mul_one_right / mul_zero_right.
-machine add_int_identity(a: IntPair) -> IntPair
+machine add_int_identity(a: IntPair)
 satisfies CommutativeSemiring::add_identity
 ensures
     (add_int(a, zero_int())) == (a)
 {
     add_zero_right(a.neg);
     add_zero_right(a.pos);
-    let z: IntPair = zero_int();
-    transition { _ -> (add_int(a, z)) }
 }
 
 machine mul_int_identity(a: IntPair)

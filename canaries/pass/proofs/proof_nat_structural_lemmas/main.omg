@@ -63,15 +63,14 @@ ensures
     (add(Nat::Succ { prev: Nat::Zero }, Nat::Succ { prev: Nat::Zero })) == (Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } })
 {
 }
-// FACT CONSUMPTION: cite core add_zero_right's PROVEN `result == a`
-// ensures. Its inductive body never finitely unfolds for a symbolic `a`,
-// so the caller discharges this only by consuming the callee's ensures
-// (extraction into consumer proofs).
+// FACT CONSUMPTION: cite core add_zero_right's proven right-identity theorem,
+// then return the value named by that fact. The theorem itself is resultless.
 machine cite_right(a: Nat) -> Nat
 ensures
     result == a
 {
-    transition { _ -> (add_zero_right(a)) }
+    add_zero_right(a);
+    transition { _ -> a }
 }
 // STATEMENT-CALL CITATION (ch10 "Citing Proofs"; the settled proof-citation
 // rule): the bare statement call delivers add_zero_right's proven LAW
