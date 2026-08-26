@@ -967,6 +967,21 @@ pub enum PackageReviewContractExpression {
         case: Option<PackageReviewNominalIdentity>,
         fields: Vec<PackageReviewConstructorField>,
     },
+    /// One checked indexing or slicing operator application. The selected
+    /// operator meaning remains distinct from its structural operands.
+    Indexed {
+        meaning: PackageReviewContractOperatorMeaning,
+        collection: Box<PackageReviewContractExpression>,
+        index: Box<PackageReviewContractExpression>,
+    },
+    /// Structural range operand used by an indexed contract expression.
+    /// Missing endpoints are explicit; inclusive and exclusive ends remain
+    /// distinct checked forms.
+    Range {
+        start: Option<Box<PackageReviewContractExpression>>,
+        end: Option<Box<PackageReviewContractExpression>>,
+        end_inclusive: bool,
+    },
     /// Exact decoded octets of an Omega quoted literal. No text encoding is
     /// implied by this row.
     ByteSequence(Vec<u8>),
@@ -8323,6 +8338,26 @@ fn project_contract_expression_with_substitutions(
         ExpressionNode::StructLiteral(literal) => {
             project_contract_constructor_expression(compilation, context, literal, &child)
         }
+        ExpressionNode::Indexed(indexed) => Ok(PackageReviewContractExpression::Indexed {
+            meaning: exact_checked_contract_operator_meaning(compilation, context, expression)?,
+            collection: Box::new(child(indexed.collection)?),
+            index: Box::new(child(indexed.index)?),
+        }),
+        ExpressionNode::Range(range) => Ok(PackageReviewContractExpression::Range {
+            start: range
+                .start
+                .is_valid()
+                .then(|| child(range.start))
+                .transpose()?
+                .map(Box::new),
+            end: range
+                .end
+                .is_valid()
+                .then(|| child(range.end))
+                .transpose()?
+                .map(Box::new),
+            end_inclusive: range.end_inclusive,
+        }),
         ExpressionNode::String(value) => Ok(PackageReviewContractExpression::ByteSequence(
             value.to_vec(),
         )),

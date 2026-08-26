@@ -117,6 +117,11 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
         }
 
         if input.at_punctuation(PunctuationKind::LeftBracket) {
+            let operator_span = input
+                .tokens
+                .first()
+                .map(|token| input.source_span(token))
+                .expect("recognized index punctuation has a source token");
             input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
             let (index, rest) = parse_index_or_range_expression_handle(syntax_trees, input)?;
             input = rest.take_punctuation(PunctuationKind::RightBracket, "]")?;
@@ -127,6 +132,9 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                         collection: expression,
                         index,
                     }));
+            syntax_trees
+                .expressions
+                .set_source_span(expression, operator_span);
             continue;
         }
 

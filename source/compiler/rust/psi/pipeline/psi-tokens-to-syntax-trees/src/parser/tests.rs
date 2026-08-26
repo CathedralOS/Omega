@@ -3184,6 +3184,12 @@ fn parses_slice_range_indexing_into_range_expression() {
     );
     assert!(range.start.is_valid(), "expected explicit range start");
     assert!(!range.end.is_valid(), "expected open-ended range");
+    let operator_span = parsed.expressions.source_span(local.initial_value).span;
+    assert_eq!(
+        &source[operator_span.start..operator_span.end],
+        "[",
+        "indexed syntax must retain its authored operator token"
+    );
 }
 
 #[test]

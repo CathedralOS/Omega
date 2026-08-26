@@ -152,6 +152,50 @@ fn successful_checking_finalizes_nested_intrinsic_logical_operators() {
                 AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
             )
     }));
+    let indexed = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| {
+            matches!(
+                node,
+                psi_typed_trees::expression::ExpressionNode::Indexed(_)
+            )
+            .then_some(expression)
+        })
+        .expect("checked program retains indexed expression");
+    assert!(crate::authored_selections::typed_operator_is_definitely_intrinsic(&checked, indexed));
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
+fn successful_checking_finalizes_index_and_range_operator_occurrences() {
+    let source = r#"
+        proposition selected(value: i32);
+        proposition window(values: &[i32]);
+        machine inspect(values: [i32; 2])
+        requires
+            selected(values[0]),
+            window(values[0..1])
+        { }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let operators = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Operator)
+        .collect::<Vec<_>>();
+
+    assert_eq!(operators.len(), 2, "selections={operators:#?}");
+    assert!(operators.iter().all(|selection| {
+        selection.target()
+            == AuthoredDeclarationSelectionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+            )
+    }));
     assert!(checked.authored_declaration_selections().all_finalized());
 }
 
