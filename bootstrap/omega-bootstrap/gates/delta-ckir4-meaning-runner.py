@@ -16,6 +16,21 @@ def record(path: Path, label: str, elapsed: float, size: int) -> None:
         timings.write(f"{elapsed:.6f}\t{size}\t{label}\n")
 
 
+def payload_error(payload: bytes, ceiling: int) -> str | None:
+    placeholder_count = payload.count(b"STDIN")
+    if placeholder_count != 1:
+        return f"Gamma placeholder count {placeholder_count}"
+    if not payload or b"E2G-UNSUPPORTED" in payload or len(payload) > ceiling:
+        return f"Gamma bytes {len(payload)} outside 1..={ceiling} or unsupported"
+    return None
+
+
+def require_payload(payload: bytes, ceiling: int, label: str) -> None:
+    error = payload_error(payload, ceiling)
+    if error is not None:
+        raise SystemExit(f"{label} FAIL - {error}")
+
+
 def elaborate(args: list[str]) -> None:
     executable, source_name, output_name, timing_name, label = args[:5]
     timeout, ceiling = float(args[5]), int(args[6])
@@ -34,12 +49,7 @@ def elaborate(args: list[str]) -> None:
     if result.returncode != 0:
         detail = result.stderr.decode("utf-8", errors="replace")[-1000:]
         raise SystemExit(f"{label} FAIL - elaboration status {result.returncode}: {detail}")
-    if payload.count(b"STDIN") != 1:
-        raise SystemExit(f"{label} FAIL - Gamma placeholder count {payload.count(b'STDIN')}")
-    if not payload or b"E2G-UNSUPPORTED" in payload or len(payload) > ceiling:
-        raise SystemExit(
-            f"{label} FAIL - Gamma bytes {len(payload)} outside 1..={ceiling} or unsupported"
-        )
+    require_payload(payload, ceiling, label)
     record(Path(timing_name), "elaboration", elapsed, len(payload))
     print(
         f"{label}: PASS elaboration {len(payload)} bytes in {elapsed:.2f}s "
@@ -85,15 +95,38 @@ def run(args: list[str]) -> None:
     print(f"{label}: PASS Gamma in {elapsed:.2f}s", flush=True)
 
 
+def capacity_tooth(args: list[str]) -> None:
+    ceiling = int(args[0])
+    marker = b"STDIN"
+    if ceiling < len(marker):
+        raise SystemExit("Gamma capacity tooth FAIL - ceiling cannot retain one placeholder")
+    exact = marker + b"x" * (ceiling - len(marker))
+    require_payload(exact, ceiling, "Gamma capacity tooth exact-limit")
+    error = payload_error(exact + b"x", ceiling)
+    expected = f"Gamma bytes {ceiling + 1} outside 1..={ceiling} or unsupported"
+    if error != expected:
+        raise SystemExit(
+            f"Gamma capacity tooth FAIL - adjacent over-limit returned {error!r}, "
+            f"expected {expected!r}"
+        )
+    print(
+        f"Gamma capacity tooth: exact {ceiling} accepted; {ceiling + 1} rejected",
+        flush=True,
+    )
+
+
 def main(args: list[str]) -> None:
     if len(args) == 8 and args[0] == "elaborate":
         elaborate(args[1:])
     elif len(args) == 8 and args[0] == "run":
         run(args[1:])
+    elif len(args) == 2 and args[0] == "capacity-tooth":
+        capacity_tooth(args[1:])
     else:
         raise SystemExit(
             "usage: elaborate EXE SOURCE OUTPUT TIMINGS LABEL TIMEOUT CEILING | "
-            "run INTERP TEMPLATE INPUT OUTPUT TIMINGS LABEL TIMEOUT"
+            "run INTERP TEMPLATE INPUT OUTPUT TIMINGS LABEL TIMEOUT | "
+            "capacity-tooth CEILING"
         )
 
 
