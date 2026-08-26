@@ -518,6 +518,20 @@ registers to assigned target operations. Its target model includes:
   limits; and
 - registers reserved by dispatch, metering, platform, or installed providers.
 
+The first implemented substrate is deliberately data-only. `omega-regalloc`
+defines register units, named views/classes, read/write footprints, preservation
+conventions, reservation overlays, and fixed/clobber constraints, then validates
+their closure without depending on either ISA. ISA crates construct those
+values and callers will eventually pass a validated model into the allocator;
+the allocator does not discover a target through global state. The baseline
+x86-64 model uses lane units so `al` and `ah` are disjoint while `ax`/`eax`/`rax`
+alias the appropriate union, and records `eax`'s full-register zeroing write.
+The baseline AArch64 model gives encoding-number-31 stack and zero-register
+views distinct units, aliases `Wn`/`Xn`, and splits vector halves so the AAPCS64
+low-half preservation rule is not inflated to all 128 bits. These declarations
+do not alter the current scratch-cycling assignment lane and are not allocator
+output evidence.
+
 The first allocator should be deterministic linear scan with interval splitting,
 spills, reloads, rematerialization of cheap constants, and verified frame-slot
 assignment. Subsequent policies may add optimistic coalescing, greedy coloring,

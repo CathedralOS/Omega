@@ -1,0 +1,12 @@
+[package]
+name = "omega-regalloc"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_regalloc"
+path = "src/lib.rs"
+
+[dependencies]
+omega-target = { path = "../../foundation/omega-target" }

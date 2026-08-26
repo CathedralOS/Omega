@@ -894,6 +894,7 @@ name = "omega-isa-aarch64"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-regalloc",
  "omega-target",
  "omega-target-operations",
  "omega-terminal-installation-evidence",
@@ -912,6 +913,7 @@ name = "omega-isa-x86_64"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-regalloc",
  "omega-target",
  "omega-target-operations",
  "omega-terminal-installation-evidence",
@@ -1181,6 +1183,13 @@ dependencies = [
  "psi-terminal-codec",
  "psi-terminal-fuel",
  "psi-terminal-verifier",
+]
+
+[[package]]
+name = "omega-regalloc"
+version = "0.1.0"
+dependencies = [
+ "omega-target",
 ]
 
 [[package]]

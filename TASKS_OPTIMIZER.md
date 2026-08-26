@@ -39,6 +39,22 @@ These facts constrain the work below.
   registers. It has no general liveness, interference, spilling, splitting,
   coalescing, or frame allocation. The clean Terminal assignment lane handles
   bounded forms but is also not a general allocator.
+- `omega-regalloc` now owns a target-neutral declarative physical-register
+  vocabulary and total structural validator, but performs no allocation.
+  ISA-owned x86-64 declarations split every GPR into exact byte/word/dword/qword
+  storage lanes, retain non-allocatable high-byte views, model 32-bit
+  zero-extension, and cover XMM, RFLAGS, and RIP state. AArch64 declarations
+  keep `SP`/`WSP` distinct from `XZR`/`WZR`, alias `Wn` with `Xn`, split vector
+  low/high halves so AAPCS64 can preserve only the required low half of
+  `v8`-`v15`, and cover NZCV, FPCR, FPSR, and PC. Both models publish ABI
+  argument/result order, complete caller/callee/fixed partitions, stack/red-zone
+  facts, selectable frame/dispatch/metering/platform reservations, syscall
+  fixed operands/clobbers, and conservative inline-assembly clobbers. Validator
+  and target corruption tests reject noncanonical/unknown/omitted units, false
+  write footprints, and overlapping preservation partitions. Nothing consumes
+  these declarations in assignment or emission yet; `OPT-REGISTER-MODEL`
+  remains open for the complete per-instruction constraint inventory, target
+  feature variants, and joins to every backend/provider reservation.
 - `CompileOptions` contains root, build directory, target, and output policy.
   `BuildConfig` now retains the exact canonical optimization selection set from
   the toolchain build vocabulary. A nonempty set is centrally rejected before

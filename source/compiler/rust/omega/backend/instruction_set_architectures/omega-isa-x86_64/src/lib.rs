@@ -10,6 +10,7 @@ mod host_calls;
 mod native_fuel;
 mod place_copy;
 mod privileged_effects;
+mod register_model;
 mod runtime_storage;
 mod runtime_text;
 mod syscalls;
@@ -56,6 +57,7 @@ pub use place_copy::{
     place_value_compare_register_writes,
 };
 pub use privileged_effects::*;
+pub use register_model::x86_64_physical_register_model;
 pub use runtime_storage::*;
 pub(crate) use runtime_storage::{
     append_runtime_binary_operation, append_runtime_convert_operation,
