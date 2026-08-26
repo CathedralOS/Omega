@@ -6,8 +6,9 @@
 //! representative static application. Faithful `define` remains declaration-
 //! order preserving; `lift` may explicitly select, permute, and repeat direct
 //! members of the public telescope or supply a closed boolean, integer with an
-//! explicit or exact target-derived landing, or float with an explicit or exact
-//! target-derived format to an immutable scalar representative position.
+//! explicit or exact target-derived landing, float with an explicit or exact
+//! target-derived format, or immutable-image byte string to its exact immutable
+//! representative position.
 //! Neither policy infers or selects a relation, contract proof, or
 //! representative operation.
 
@@ -37,7 +38,7 @@ pub(in crate::quotients) struct DefineRuntimeCorrespondence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum ClosedScalarLiteral {
+pub(super) enum ClosedLiftLiteral {
     Boolean(bool),
     Integer {
         spelling: String,
@@ -47,12 +48,13 @@ pub(super) enum ClosedScalarLiteral {
         spelling: String,
         landing: FloatFormat,
     },
+    ByteString(std::sync::Arc<[u8]>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum DirectLiftArgumentSource {
     PublicParameter(SymbolHandle),
-    ClosedScalarLiteral(ClosedScalarLiteral),
+    Literal(ClosedLiftLiteral),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -156,7 +158,7 @@ pub(super) fn derive_direct_lift_runtime_correspondence(
             if representative_parameter.is_mutable || representative_parameter.is_self {
                 return Err(RelationPlanError::DirectLiftParameterModeMismatch(position));
             }
-            let literal = closed_scalar_literal_for_representative(
+            let literal = closed_lift_literal_for_representative(
                 program,
                 *argument,
                 representative_parameter.type_reference,
@@ -168,7 +170,7 @@ pub(super) fn derive_direct_lift_runtime_correspondence(
             if *relation != InputRelation::ExactEquality(representative_parameter.type_reference) {
                 return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             }
-            DirectLiftArgumentSource::ClosedScalarLiteral(literal)
+            DirectLiftArgumentSource::Literal(literal)
         };
         positions.push(DirectLiftRuntimePosition {
             source,
@@ -265,12 +267,18 @@ fn derive_define_position_runtime_correspondence(
     Ok(positions)
 }
 
-pub(super) fn closed_scalar_literal_for_representative(
+pub(super) fn closed_lift_literal_for_representative(
     program: &TypedTrees,
     expression: ExpressionHandle,
     representative_type: TypeReferenceHandle,
     position: usize,
-) -> Result<Option<ClosedScalarLiteral>, RelationPlanError> {
+) -> Result<Option<ClosedLiftLiteral>, RelationPlanError> {
+    if let ExpressionNode::String(bytes) = program.expression_table.expression(expression) {
+        return exact_shared_byte_slice(program, representative_type)
+            .then(|| ClosedLiftLiteral::ByteString(bytes.clone()))
+            .map(Some)
+            .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+    }
     let TypeReferenceNode::Named { name, .. } = program
         .type_reference_table
         .type_reference(representative_type)
@@ -302,7 +310,7 @@ pub(super) fn closed_scalar_literal_for_representative(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Boolean(value) if primitive == PrimitiveType::Bool => {
-            Ok(Some(ClosedScalarLiteral::Boolean(*value)))
+            Ok(Some(ClosedLiftLiteral::Boolean(*value)))
         }
         ExpressionNode::Boolean(_) => {
             Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position))
@@ -323,7 +331,7 @@ pub(super) fn closed_scalar_literal_for_representative(
             {
                 return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             }
-            Ok(Some(ClosedScalarLiteral::Integer {
+            Ok(Some(ClosedLiftLiteral::Integer {
                 spelling: literal.text().to_owned(),
                 landing,
             }))
@@ -340,13 +348,36 @@ pub(super) fn closed_scalar_literal_for_representative(
             if landing != expected {
                 return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             }
-            Ok(Some(ClosedScalarLiteral::Float {
+            Ok(Some(ClosedLiftLiteral::Float {
                 spelling: literal.text().to_owned(),
                 landing,
             }))
         }
         _ => Ok(None),
     }
+}
+
+fn exact_shared_byte_slice(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+    let TypeReferenceNode::Reference {
+        referee, access, ..
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return false;
+    };
+    if *access != psi_language_core::ReferenceAccess::Shared {
+        return false;
+    }
+    let TypeReferenceNode::Slice { element_type } =
+        program.type_reference_table.type_reference(*referee)
+    else {
+        return false;
+    };
+    matches!(
+        program
+            .type_reference_table
+            .type_reference(*element_type),
+        TypeReferenceNode::Named { name, .. } if name.as_str() == PrimitiveType::U8.name()
+    )
 }
 
 fn landed_primitive(landed: LandedIntegerType) -> PrimitiveType {
