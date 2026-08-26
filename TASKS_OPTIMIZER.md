@@ -969,11 +969,23 @@ dependency.
   ISAs. This closes deterministic active expiration for the transition-free/
   spill-free base case, not general linear scan.
 
+  A validated miniature two-register model now exercises flexible, non-fixed
+  candidates directly in both production allocation and independent replay.
+  Two overlapping intervals deterministically receive views 0 and 1, an
+  expired third interval reuses view 0, and three pairwise-interfering
+  intervals fail identically at VReg 2 with `NoCompatibleHome`. This identifies
+  the exact future spill-choice boundary without pretending a spill exists.
+  The production selected vocabulary still lacks an ordinary two-input row, so
+  flexible pressure is allocator-core evidence rather than yet a source-to-
+  selected vertical slice.
+
   Sequencing: the exact named forwarded-value copy/split base case, copy-key
   identity, fresh split-result VRegs, provenance/fuel custody, independent
   reconstruction, complete reanalysis, post-copy homes, active expiration, and
-  the first real competing pair now exist. Next extend allocation to flexible
-  competing candidates under actual pressure, then deterministic spill choice.
+  the first real competing pair now exist. Flexible candidate ranking and the
+  deterministic pressure failure are covered at allocator-core level. Next add
+  an ordinary two-input selected instruction and carry that pressure evidence
+  through the production vertical slice before implementing spill choice.
   Provider/runtime reservation requirements must either join the active profile
   or fail closed.
 
