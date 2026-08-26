@@ -1,4 +1,7 @@
-use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use omega_optimization_core::{
+    Optimization, OptimizationExecutionPhase, OptimizationSelectionIdentity,
+    OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
+};
 use omega_regalloc::{
     TerminalAllocationLegalityError, TerminalLiteralFoldError, TerminalLiteralFoldIdentity,
     TerminalLiteralFoldPolicy, TerminalLiveRangeError, TerminalLivenessError,
@@ -52,6 +55,28 @@ impl StagedOptimizedLiteralFoldStep {
     }
 }
 
+/// One independently validated selected-lowering attempt before deciding
+/// whether another transformed-CFG analysis cycle is required. A terminal
+/// attempt has `applied_count() == 0` and is positive fixed-point evidence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagedOptimizedLiteralFoldAttempt {
+    choices: ValidatedTerminalSpillChoices,
+    recovery: ValidatedTerminalRecoveryClassifications,
+    fold: ValidatedTerminalLiteralFold,
+}
+
+impl StagedOptimizedLiteralFoldAttempt {
+    pub const fn choices(&self) -> &ValidatedTerminalSpillChoices {
+        &self.choices
+    }
+    pub const fn recovery(&self) -> &ValidatedTerminalRecoveryClassifications {
+        &self.recovery
+    }
+    pub const fn fold(&self) -> &ValidatedTerminalLiteralFold {
+        &self.fold
+    }
+}
+
 /// Ordered custody for separately invoked literal folds. Extending this value
 /// requires another explicit API call; construction never iterates to a fixed
 /// point and ordinary optimized staging never calls it implicitly.
@@ -76,6 +101,179 @@ impl StagedOptimizedLiteralFolds {
     }
     pub const fn custody(&self) -> &StagedOptimizedLiteralFoldCustodyReceipt {
         &self.custody
+    }
+}
+
+/// Completed execution of the selected-lowering projection of one exact
+/// source-visible suite. Applied steps are followed by one validated no-change
+/// attempt, so an empty `steps` vector is still an evidenced successful run.
+#[derive(Debug)]
+pub struct StagedSelectedLoweringOptimizationRun {
+    source: StagedOptimizedAllocationLegality,
+    selections: OptimizationSelections,
+    selected_lowering_selections: OptimizationSelections,
+    steps: Vec<StagedOptimizedLiteralFoldStep>,
+    terminal_attempt: StagedOptimizedLiteralFoldAttempt,
+    custody: StagedSelectedLoweringOptimizationCustodyReceipt,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedLoweringOptimizationSchedule {
+    SelectedIncomingU12ExactAddImmediateToNoChangeV1,
+}
+
+impl StagedSelectedLoweringOptimizationRun {
+    pub const fn source_legality_stage(&self) -> &StagedOptimizedAllocationLegality {
+        &self.source
+    }
+    pub const fn selections(&self) -> &OptimizationSelections {
+        &self.selections
+    }
+    pub const fn selected_lowering_selections(&self) -> &OptimizationSelections {
+        &self.selected_lowering_selections
+    }
+    pub fn steps(&self) -> &[StagedOptimizedLiteralFoldStep] {
+        &self.steps
+    }
+    pub const fn terminal_attempt(&self) -> &StagedOptimizedLiteralFoldAttempt {
+        &self.terminal_attempt
+    }
+    pub const fn custody(&self) -> &StagedSelectedLoweringOptimizationCustodyReceipt {
+        &self.custody
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagedSelectedLoweringOptimizationCustodyReceipt {
+    source: StagedOptimizedAllocationLegalityCustodyReceipt,
+    selections: OptimizationSelectionIdentity,
+    selected_lowering_selections: OptimizationSelectionIdentity,
+    schedule: SelectedLoweringOptimizationSchedule,
+    budget: OptimizationWorkBudget,
+    usage: OptimizationWorkUsage,
+    iteration_bound: usize,
+    action_count: usize,
+    initial_virtual_register_count: usize,
+    iterations: Vec<StagedOptimizedLiteralFoldIterationReceipt>,
+    terminal_attempt: StagedOptimizedLiteralFoldAttemptReceipt,
+    final_selected: TerminalSelectedInstructionPlanIdentity,
+    final_liveness: omega_regalloc::TerminalLivenessIdentity,
+    final_ranges: omega_regalloc::TerminalLiveRangeIdentity,
+    final_legality: omega_regalloc::TerminalAllocationLegalityIdentity,
+    final_virtual_register_count: usize,
+}
+
+impl StagedSelectedLoweringOptimizationCustodyReceipt {
+    pub const fn source(&self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
+        self.source
+    }
+    pub const fn selections(&self) -> OptimizationSelectionIdentity {
+        self.selections
+    }
+    pub const fn selected_lowering_selections(&self) -> OptimizationSelectionIdentity {
+        self.selected_lowering_selections
+    }
+    pub const fn schedule(&self) -> SelectedLoweringOptimizationSchedule {
+        self.schedule
+    }
+    pub const fn budget(&self) -> OptimizationWorkBudget {
+        self.budget
+    }
+    pub const fn usage(&self) -> OptimizationWorkUsage {
+        self.usage
+    }
+    pub const fn iteration_bound(&self) -> usize {
+        self.iteration_bound
+    }
+    pub const fn action_count(&self) -> usize {
+        self.action_count
+    }
+    pub const fn initial_virtual_register_count(&self) -> usize {
+        self.initial_virtual_register_count
+    }
+    pub fn iterations(&self) -> &[StagedOptimizedLiteralFoldIterationReceipt] {
+        &self.iterations
+    }
+    pub const fn terminal_attempt(&self) -> StagedOptimizedLiteralFoldAttemptReceipt {
+        self.terminal_attempt
+    }
+    pub const fn final_selected(&self) -> TerminalSelectedInstructionPlanIdentity {
+        self.final_selected
+    }
+    pub const fn final_liveness(&self) -> omega_regalloc::TerminalLivenessIdentity {
+        self.final_liveness
+    }
+    pub const fn final_ranges(&self) -> omega_regalloc::TerminalLiveRangeIdentity {
+        self.final_ranges
+    }
+    pub const fn final_legality(&self) -> omega_regalloc::TerminalAllocationLegalityIdentity {
+        self.final_legality
+    }
+    pub const fn final_virtual_register_count(&self) -> usize {
+        self.final_virtual_register_count
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StagedOptimizedLiteralFoldAttemptReceipt {
+    source_selected: TerminalSelectedInstructionPlanIdentity,
+    source_ranges: omega_regalloc::TerminalLiveRangeIdentity,
+    source_legality: omega_regalloc::TerminalAllocationLegalityIdentity,
+    choices: omega_regalloc::TerminalSpillChoiceIdentity,
+    choice_policy: TerminalSpillChoicePolicy,
+    choice_usage: OptimizationWorkUsage,
+    recovery: omega_regalloc::TerminalRecoveryClassificationIdentity,
+    recovery_policy: TerminalRecoveryClassificationPolicy,
+    recovery_usage: OptimizationWorkUsage,
+    fold: TerminalLiteralFoldIdentity,
+    fold_policy: TerminalLiteralFoldPolicy,
+    fold_usage: OptimizationWorkUsage,
+    applied_count: usize,
+    transformed_selected: TerminalSelectedInstructionPlanIdentity,
+}
+
+impl StagedOptimizedLiteralFoldAttemptReceipt {
+    pub const fn source_selected(self) -> TerminalSelectedInstructionPlanIdentity {
+        self.source_selected
+    }
+    pub const fn source_ranges(self) -> omega_regalloc::TerminalLiveRangeIdentity {
+        self.source_ranges
+    }
+    pub const fn source_legality(self) -> omega_regalloc::TerminalAllocationLegalityIdentity {
+        self.source_legality
+    }
+    pub const fn choices(self) -> omega_regalloc::TerminalSpillChoiceIdentity {
+        self.choices
+    }
+    pub const fn choice_policy(self) -> TerminalSpillChoicePolicy {
+        self.choice_policy
+    }
+    pub const fn choice_usage(self) -> OptimizationWorkUsage {
+        self.choice_usage
+    }
+    pub const fn recovery(self) -> omega_regalloc::TerminalRecoveryClassificationIdentity {
+        self.recovery
+    }
+    pub const fn recovery_policy(self) -> TerminalRecoveryClassificationPolicy {
+        self.recovery_policy
+    }
+    pub const fn recovery_usage(self) -> OptimizationWorkUsage {
+        self.recovery_usage
+    }
+    pub const fn fold(self) -> TerminalLiteralFoldIdentity {
+        self.fold
+    }
+    pub const fn fold_policy(self) -> TerminalLiteralFoldPolicy {
+        self.fold_policy
+    }
+    pub const fn fold_usage(self) -> OptimizationWorkUsage {
+        self.fold_usage
+    }
+    pub const fn applied_count(self) -> usize {
+        self.applied_count
+    }
+    pub const fn transformed_selected(self) -> TerminalSelectedInstructionPlanIdentity {
+        self.transformed_selected
     }
 }
 
@@ -203,9 +401,30 @@ pub enum OptimizedLiteralFoldCustodyError {
     Liveness(TerminalLivenessError),
     LiveRanges(TerminalLiveRangeError),
     AllocationLegality(TerminalAllocationLegalityError),
-    RemainingTransitions { count: usize },
+    RemainingTransitions {
+        count: usize,
+    },
     EmptySequence,
-    StepMismatch { step: usize },
+    StepMismatch {
+        step: usize,
+    },
+    MissingSelectedLoweringOptimization,
+    UnsupportedSelectedLoweringOptimization(Optimization),
+    SelectedLoweringMeasureMismatch {
+        previous: usize,
+        applied: usize,
+        current: usize,
+    },
+    SelectedLoweringIterationBoundExceeded {
+        bound: usize,
+    },
+    SelectionProjectionMismatch,
+    TerminalAttemptApplied,
+    WorkOverflow,
+    SelectedLoweringBudgetExceeded {
+        required: OptimizationWorkUsage,
+        budget: OptimizationWorkBudget,
+    },
 }
 
 impl std::fmt::Display for OptimizedLiteralFoldCustodyError {
@@ -274,6 +493,269 @@ pub fn stage_next_optimized_literal_fold(
     Ok(sequence)
 }
 
+/// Execute the exact selected-lowering projection to a validated fixed point.
+/// The named family uses compiler-owned deterministic policies and the work
+/// budget already retained by upstream optimizer custody.
+pub fn run_selected_lowering_optimizations(
+    source: StagedOptimizedAllocationLegality,
+) -> Result<StagedSelectedLoweringOptimizationRun, OptimizedLiteralFoldCustodyError> {
+    let upstream = validate_source(&source)?;
+    let optimized = source
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage()
+        .optimized_target()
+        .optimized();
+    let selections = optimized.selections().clone();
+    let budget = optimized.budget_per_pass();
+    let selected_lowering_selections =
+        selections.for_phase(OptimizationExecutionPhase::SelectedLowering);
+    if selected_lowering_selections.is_empty() {
+        return Err(OptimizedLiteralFoldCustodyError::MissingSelectedLoweringOptimization);
+    }
+    if let Some(unsupported) = selected_lowering_selections
+        .as_slice()
+        .iter()
+        .find(|optimization| {
+            !matches!(
+                optimization,
+                Optimization::SelectedIncomingU12ExactAddImmediate
+            )
+        })
+    {
+        return Err(
+            OptimizedLiteralFoldCustodyError::UnsupportedSelectedLoweringOptimization(*unsupported),
+        );
+    }
+
+    let choice_policy = TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1;
+    let recovery_policy =
+        TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1;
+    let fold_policy = TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1;
+    let iteration_bound = source.legality().receipt().virtual_register_count();
+    let selected = source
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage()
+        .selected();
+    let mut attempt = build_attempt(
+        selected,
+        source.live_range_stage().ranges(),
+        source.legality(),
+        &source,
+        choice_policy,
+        recovery_policy,
+        fold_policy,
+        budget,
+    )?;
+    let mut previous_measure = iteration_bound;
+    let mut steps = Vec::new();
+    let mut usage = attempt_usage(&attempt)?;
+    ensure_selected_lowering_budget(usage, budget)?;
+    loop {
+        if attempt.fold.receipt().applied_count() == 0 {
+            break;
+        }
+        if steps.len() >= iteration_bound {
+            return Err(
+                OptimizedLiteralFoldCustodyError::SelectedLoweringIterationBoundExceeded {
+                    bound: iteration_bound,
+                },
+            );
+        }
+        let step = complete_attempt(attempt, &source)?;
+        let current_measure = step.legality.receipt().virtual_register_count();
+        let applied = step.fold.receipt().applied_count();
+        if previous_measure.checked_sub(applied) != Some(current_measure) {
+            return Err(
+                OptimizedLiteralFoldCustodyError::SelectedLoweringMeasureMismatch {
+                    previous: previous_measure,
+                    applied,
+                    current: current_measure,
+                },
+            );
+        }
+        previous_measure = current_measure;
+        steps.push(step);
+        let previous = steps.last().expect("applied selected-lowering step exists");
+        attempt = build_attempt(
+            previous.fold(),
+            previous.ranges(),
+            previous.legality(),
+            &source,
+            choice_policy,
+            recovery_policy,
+            fold_policy,
+            budget,
+        )?;
+        usage = add_usage(usage, attempt_usage(&attempt)?)?;
+        ensure_selected_lowering_budget(usage, budget)?;
+    }
+    if attempt.fold.receipt().source_selected() != attempt.fold.receipt().transformed_selected() {
+        return Err(OptimizedLiteralFoldCustodyError::TerminalAttemptApplied);
+    }
+
+    let action_count = applied_action_count(&steps)?;
+    let custody = selected_lowering_custody_receipt(
+        upstream,
+        &selections,
+        &selected_lowering_selections,
+        &source,
+        &steps,
+        &attempt,
+        budget,
+        usage,
+        iteration_bound,
+        action_count,
+    );
+    Ok(StagedSelectedLoweringOptimizationRun {
+        source,
+        selections,
+        selected_lowering_selections,
+        steps,
+        terminal_attempt: attempt,
+        custody,
+    })
+}
+
+pub fn validate_selected_lowering_optimization_custody(
+    run: &StagedSelectedLoweringOptimizationRun,
+) -> Result<StagedSelectedLoweringOptimizationCustodyReceipt, OptimizedLiteralFoldCustodyError> {
+    let upstream = validate_source(&run.source)?;
+    let optimized = run
+        .source
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage()
+        .optimized_target()
+        .optimized();
+    let expected_budget = optimized.budget_per_pass();
+    if run.selections != *optimized.selections()
+        || run.custody.selections != optimized.selections().identity()
+        || run.custody.budget != expected_budget
+        || run.custody.schedule
+            != SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactAddImmediateToNoChangeV1
+    {
+        return Err(OptimizedLiteralFoldCustodyError::SelectionProjectionMismatch);
+    }
+    let projected = run
+        .selections
+        .for_phase(OptimizationExecutionPhase::SelectedLowering);
+    if projected != run.selected_lowering_selections
+        || projected.as_slice() != [Optimization::SelectedIncomingU12ExactAddImmediate]
+    {
+        return Err(OptimizedLiteralFoldCustodyError::SelectionProjectionMismatch);
+    }
+    for step in &run.steps {
+        validate_selected_lowering_schedule(
+            step.choices(),
+            step.recovery(),
+            step.fold(),
+            expected_budget,
+        )?;
+    }
+    validate_selected_lowering_schedule(
+        run.terminal_attempt.choices(),
+        run.terminal_attempt.recovery(),
+        run.terminal_attempt.fold(),
+        expected_budget,
+    )?;
+    let selected = run
+        .source
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage()
+        .selected();
+    let mut replayed = Vec::with_capacity(run.steps.len());
+    if let Some(first) = run.steps.first() {
+        replayed.push(replay_step(
+            0,
+            selected,
+            run.source.live_range_stage().ranges(),
+            run.source.legality(),
+            &run.source,
+            first,
+        )?);
+        for step_index in 1..run.steps.len() {
+            let previous = replayed.last().expect("first replayed step exists");
+            replayed.push(replay_step(
+                step_index,
+                previous.fold(),
+                previous.ranges(),
+                previous.legality(),
+                &run.source,
+                &run.steps[step_index],
+            )?);
+        }
+    }
+    let terminal = match replayed.last() {
+        Some(previous) => build_attempt(
+            previous.fold(),
+            previous.ranges(),
+            previous.legality(),
+            &run.source,
+            TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+            TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+            expected_budget,
+        )?,
+        None => build_attempt(
+            selected,
+            run.source.live_range_stage().ranges(),
+            run.source.legality(),
+            &run.source,
+            TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+            TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+            expected_budget,
+        )?,
+    };
+    if terminal.fold.receipt().applied_count() != 0 {
+        return Err(OptimizedLiteralFoldCustodyError::TerminalAttemptApplied);
+    }
+    if terminal.fold.receipt().source_selected() != terminal.fold.receipt().transformed_selected() {
+        return Err(OptimizedLiteralFoldCustodyError::TerminalAttemptApplied);
+    }
+    let mut previous_measure = run.source.legality().receipt().virtual_register_count();
+    for step in &replayed {
+        let current_measure = step.legality.receipt().virtual_register_count();
+        let applied = step.fold.receipt().applied_count();
+        if previous_measure.checked_sub(applied) != Some(current_measure) {
+            return Err(
+                OptimizedLiteralFoldCustodyError::SelectedLoweringMeasureMismatch {
+                    previous: previous_measure,
+                    applied,
+                    current: current_measure,
+                },
+            );
+        }
+        previous_measure = current_measure;
+    }
+    let mut usage = OptimizationWorkUsage::default();
+    for step in &replayed {
+        usage = add_usage(usage, step_usage(step)?)?;
+    }
+    usage = add_usage(usage, attempt_usage(&terminal)?)?;
+    ensure_selected_lowering_budget(usage, expected_budget)?;
+    let action_count = applied_action_count(&replayed)?;
+    let receipt = selected_lowering_custody_receipt(
+        upstream,
+        &run.selections,
+        &run.selected_lowering_selections,
+        &run.source,
+        &replayed,
+        &terminal,
+        expected_budget,
+        usage,
+        run.source.legality().receipt().virtual_register_count(),
+        action_count,
+    );
+    if replayed != run.steps || terminal != run.terminal_attempt || receipt != run.custody {
+        return Err(OptimizedLiteralFoldCustodyError::StepMismatch { step: 0 });
+    }
+    Ok(receipt)
+}
+
 pub fn validate_optimized_literal_fold_custody(
     sequence: &StagedOptimizedLiteralFolds,
 ) -> Result<StagedOptimizedLiteralFoldCustodyReceipt, OptimizedLiteralFoldCustodyError> {
@@ -336,6 +818,33 @@ fn build_step<S: ValidatedTerminalSelectedAnalysis>(
     fold_policy: TerminalLiteralFoldPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedLiteralFoldStep, OptimizedLiteralFoldCustodyError> {
+    let attempt = build_attempt(
+        selected,
+        ranges,
+        legality,
+        source,
+        choice_policy,
+        recovery_policy,
+        fold_policy,
+        budget,
+    )?;
+    if attempt.fold.receipt().applied_count() == 0 {
+        return Err(OptimizedLiteralFoldCustodyError::NoAppliedFold);
+    }
+    complete_attempt(attempt, source)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_attempt<S: ValidatedTerminalSelectedAnalysis>(
+    selected: &S,
+    ranges: &ValidatedTerminalLiveRanges,
+    legality: &ValidatedTerminalAllocationLegality,
+    source: &StagedOptimizedAllocationLegality,
+    choice_policy: TerminalSpillChoicePolicy,
+    recovery_policy: TerminalRecoveryClassificationPolicy,
+    fold_policy: TerminalLiteralFoldPolicy,
+    budget: OptimizationWorkBudget,
+) -> Result<StagedOptimizedLiteralFoldAttempt, OptimizedLiteralFoldCustodyError> {
     let environment = source
         .live_range_stage()
         .liveness_stage()
@@ -378,9 +887,27 @@ fn build_step<S: ValidatedTerminalSelectedAnalysis>(
         budget,
     )
     .map_err(OptimizedLiteralFoldCustodyError::Fold)?;
-    if fold.receipt().applied_count() == 0 {
-        return Err(OptimizedLiteralFoldCustodyError::NoAppliedFold);
-    }
+    Ok(StagedOptimizedLiteralFoldAttempt {
+        choices,
+        recovery,
+        fold,
+    })
+}
+
+fn complete_attempt(
+    attempt: StagedOptimizedLiteralFoldAttempt,
+    source: &StagedOptimizedAllocationLegality,
+) -> Result<StagedOptimizedLiteralFoldStep, OptimizedLiteralFoldCustodyError> {
+    let environment = source
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage()
+        .register_environment();
+    let StagedOptimizedLiteralFoldAttempt {
+        choices,
+        recovery,
+        fold,
+    } = attempt;
     let liveness =
         analyze_terminal_liveness(&fold).map_err(OptimizedLiteralFoldCustodyError::Liveness)?;
     let ranges = analyze_terminal_live_ranges(&fold, &liveness)
@@ -477,4 +1004,182 @@ fn iteration_receipt(
         fresh_ranges: step.ranges.receipt().identity(),
         fresh_legality: step.legality.receipt().identity(),
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn selected_lowering_custody_receipt(
+    source_receipt: StagedOptimizedAllocationLegalityCustodyReceipt,
+    selections: &OptimizationSelections,
+    selected_lowering_selections: &OptimizationSelections,
+    source: &StagedOptimizedAllocationLegality,
+    steps: &[StagedOptimizedLiteralFoldStep],
+    terminal_attempt: &StagedOptimizedLiteralFoldAttempt,
+    budget: OptimizationWorkBudget,
+    usage: OptimizationWorkUsage,
+    iteration_bound: usize,
+    action_count: usize,
+) -> StagedSelectedLoweringOptimizationCustodyReceipt {
+    let (final_selected, final_liveness, final_ranges, final_legality) = match steps.last() {
+        Some(step) => (
+            step.fold.receipt().transformed_selected(),
+            step.liveness.receipt().identity(),
+            step.ranges.receipt().identity(),
+            step.legality.receipt().identity(),
+        ),
+        None => (
+            source
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .selected()
+                .receipt()
+                .identity(),
+            source
+                .live_range_stage()
+                .liveness_stage()
+                .liveness()
+                .receipt()
+                .identity(),
+            source.live_range_stage().ranges().receipt().identity(),
+            source.legality().receipt().identity(),
+        ),
+    };
+    StagedSelectedLoweringOptimizationCustodyReceipt {
+        source: source_receipt,
+        selections: selections.identity(),
+        selected_lowering_selections: selected_lowering_selections.identity(),
+        schedule:
+            SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactAddImmediateToNoChangeV1,
+        budget,
+        usage,
+        iteration_bound,
+        action_count,
+        initial_virtual_register_count: source.legality().receipt().virtual_register_count(),
+        iterations: steps.iter().map(iteration_receipt).collect(),
+        terminal_attempt: attempt_receipt(terminal_attempt),
+        final_selected,
+        final_liveness,
+        final_ranges,
+        final_legality,
+        final_virtual_register_count: steps
+            .last()
+            .map(|step| step.legality.receipt().virtual_register_count())
+            .unwrap_or_else(|| source.legality().receipt().virtual_register_count()),
+    }
+}
+
+fn attempt_receipt(
+    attempt: &StagedOptimizedLiteralFoldAttempt,
+) -> StagedOptimizedLiteralFoldAttemptReceipt {
+    StagedOptimizedLiteralFoldAttemptReceipt {
+        source_selected: attempt.fold.receipt().source_selected(),
+        source_ranges: attempt.fold.receipt().ranges(),
+        source_legality: attempt.fold.receipt().legality(),
+        choices: attempt.choices.receipt().identity(),
+        choice_policy: attempt.choices.receipt().policy(),
+        choice_usage: attempt.choices.receipt().usage(),
+        recovery: attempt.recovery.receipt().identity(),
+        recovery_policy: attempt.recovery.receipt().policy(),
+        recovery_usage: attempt.recovery.receipt().usage(),
+        fold: attempt.fold.receipt().identity(),
+        fold_policy: attempt.fold.receipt().policy(),
+        fold_usage: attempt.fold.receipt().usage(),
+        applied_count: attempt.fold.receipt().applied_count(),
+        transformed_selected: attempt.fold.receipt().transformed_selected(),
+    }
+}
+
+fn step_usage(
+    step: &StagedOptimizedLiteralFoldStep,
+) -> Result<OptimizationWorkUsage, OptimizedLiteralFoldCustodyError> {
+    let choices_and_recovery = add_usage(
+        step.choices.receipt().usage(),
+        step.recovery.receipt().usage(),
+    )?;
+    add_usage(choices_and_recovery, step.fold.receipt().usage())
+}
+
+fn applied_action_count(
+    steps: &[StagedOptimizedLiteralFoldStep],
+) -> Result<usize, OptimizedLiteralFoldCustodyError> {
+    steps.iter().try_fold(0_usize, |count, step| {
+        count
+            .checked_add(step.fold.receipt().applied_count())
+            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)
+    })
+}
+
+fn attempt_usage(
+    attempt: &StagedOptimizedLiteralFoldAttempt,
+) -> Result<OptimizationWorkUsage, OptimizedLiteralFoldCustodyError> {
+    let choices_and_recovery = add_usage(
+        attempt.choices.receipt().usage(),
+        attempt.recovery.receipt().usage(),
+    )?;
+    add_usage(choices_and_recovery, attempt.fold.receipt().usage())
+}
+
+fn add_usage(
+    left: OptimizationWorkUsage,
+    right: OptimizationWorkUsage,
+) -> Result<OptimizationWorkUsage, OptimizedLiteralFoldCustodyError> {
+    Ok(OptimizationWorkUsage {
+        rule_evaluations: left
+            .rule_evaluations
+            .checked_add(right.rule_evaluations)
+            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)?,
+        candidates: left
+            .candidates
+            .checked_add(right.candidates)
+            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)?,
+        validation_steps: left
+            .validation_steps
+            .checked_add(right.validation_steps)
+            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)?,
+        commits: left
+            .commits
+            .checked_add(right.commits)
+            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)?,
+        iterations: left
+            .iterations
+            .checked_add(right.iterations)
+            .ok_or(OptimizedLiteralFoldCustodyError::WorkOverflow)?,
+    })
+}
+
+fn ensure_selected_lowering_budget(
+    usage: OptimizationWorkUsage,
+    budget: OptimizationWorkBudget,
+) -> Result<(), OptimizedLiteralFoldCustodyError> {
+    if usage.within(budget) {
+        Ok(())
+    } else {
+        Err(
+            OptimizedLiteralFoldCustodyError::SelectedLoweringBudgetExceeded {
+                required: usage,
+                budget,
+            },
+        )
+    }
+}
+
+fn validate_selected_lowering_schedule(
+    choices: &ValidatedTerminalSpillChoices,
+    recovery: &ValidatedTerminalRecoveryClassifications,
+    fold: &ValidatedTerminalLiteralFold,
+    budget: OptimizationWorkBudget,
+) -> Result<(), OptimizedLiteralFoldCustodyError> {
+    if choices.receipt().policy()
+        != TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1
+        || recovery.receipt().policy()
+            != TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1
+        || fold.receipt().policy()
+            != TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1
+        || choices.plan().budget != budget
+        || recovery.plan().budget != budget
+        || fold.plan().budget != budget
+    {
+        return Err(OptimizedLiteralFoldCustodyError::SelectionProjectionMismatch);
+    }
+    Ok(())
 }

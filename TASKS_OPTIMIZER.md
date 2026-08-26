@@ -784,6 +784,18 @@ dependency.
   it is never treated as Psi work, and native publication remains fail-closed
   until its selected-lowering execution receipt joins the full suite identity.
 
+  Current selected-lowering slice: the compiler-owned
+  `SelectedIncomingU12ExactAddImmediateToNoChangeV1` schedule derives the full
+  suite and budget from upstream custody, executes only the exact
+  selected-lowering projection, and retains zero or more strictly decreasing
+  fold/reanalysis steps plus a mandatory validated zero-action termination
+  attempt. Aggregate choice/classification/fold usage must fit the one retained
+  suite budget. The one-step staging APIs keep their explicit apply-or-reject
+  behavior. Remaining to close: bind this completion receipt into downstream
+  homes/post-allocation custody and the final realization manifest, then route
+  the compiler's nonempty selected lane through it without opening publication
+  early.
+
 ## P4 — Lowering optimizer and virtual-register form
 
 - **OPT-ABSTRACT-LOWERING-CUT.** Make the clean Terminal-derived optimized plan

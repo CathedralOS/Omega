@@ -59,10 +59,14 @@ pub use literal_fold_homes::{
     validate_optimized_register_home_after_literal_fold_custody,
 };
 pub use literal_folds::{
-    OptimizedLiteralFoldCustodyError, StagedOptimizedLiteralFoldCustodyReceipt,
-    StagedOptimizedLiteralFoldIterationReceipt, StagedOptimizedLiteralFoldStep,
-    StagedOptimizedLiteralFolds, stage_first_optimized_literal_fold,
+    OptimizedLiteralFoldCustodyError, SelectedLoweringOptimizationSchedule,
+    StagedOptimizedLiteralFoldAttempt, StagedOptimizedLiteralFoldAttemptReceipt,
+    StagedOptimizedLiteralFoldCustodyReceipt, StagedOptimizedLiteralFoldIterationReceipt,
+    StagedOptimizedLiteralFoldStep, StagedOptimizedLiteralFolds,
+    StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
+    run_selected_lowering_optimizations, stage_first_optimized_literal_fold,
     stage_next_optimized_literal_fold, validate_optimized_literal_fold_custody,
+    validate_selected_lowering_optimization_custody,
 };
 pub use live_ranges::{
     OptimizedLiveRangeCustodyError, StagedOptimizedLiveRangeCustodyReceipt,
@@ -232,7 +236,9 @@ pub fn optimize_verified_terminal_input(
 mod tests {
     use std::collections::BTreeSet;
 
-    use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
+    use omega_optimization_core::{
+        Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
+    };
     use omega_optimization_unit::ValueDefinitionSite;
     use omega_psi_optimizer::{OptimizationRunError, RuleRegistryError};
     use omega_regalloc::{
@@ -286,6 +292,10 @@ mod tests {
 
     fn budget() -> OptimizationWorkBudget {
         OptimizationWorkBudget::new(128, 128, 128, 128, 16).unwrap()
+    }
+
+    fn selected_lowering_budget() -> OptimizationWorkBudget {
+        OptimizationWorkBudget::new(10_000, 10_000, 100_000, 10_000, 64).unwrap()
     }
 
     fn artifact() -> (Vec<u8>, Vec<u8>) {
@@ -844,12 +854,24 @@ mod tests {
     }
 
     fn staged_exact_add_conditional(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
+        staged_exact_add_conditional_with_selections(
+            target,
+            OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            budget(),
+        )
+    }
+
+    fn staged_exact_add_conditional_with_selections(
+        target: NativeTarget,
+        selections: OptimizationSelections,
+        budget: OptimizationWorkBudget,
+    ) -> StagedOptimizedSelectedInstructions {
         let (semantic, proof) = conditional_exact_binary_artifact(false);
         let optimized = optimize_artifact_sections(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
-            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+            ExplicitOptimizationRequest::new(selections, budget).unwrap(),
         )
         .unwrap();
         let target =
@@ -2716,6 +2738,232 @@ mod tests {
                 *staged_homes.custody()
             );
         }
+    }
+
+    #[test]
+    fn named_selected_lowering_suite_reaches_a_verified_fixed_point_on_both_architectures() {
+        for (target, sole_view_name) in [
+            (NativeTarget::linux_x64(), "rax"),
+            (NativeTarget::linux_arm64(), "x0"),
+        ] {
+            let selections = OptimizationSelections::new([
+                Optimization::CopyPropagation,
+                Optimization::SelectedIncomingU12ExactAddImmediate,
+            ])
+            .unwrap();
+            let ranges = stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_exact_add_conditional_with_selections(
+                    target,
+                    selections.clone(),
+                    selected_lowering_budget(),
+                ))
+                .unwrap(),
+            )
+            .unwrap();
+            let environment = ranges
+                .liveness_stage()
+                .selected_stage()
+                .register_environment();
+            let sole_view = environment
+                .physical()
+                .model()
+                .view_named(sole_view_name)
+                .unwrap()
+                .id;
+            let availability = materialize_terminal_allocator_availability(
+                environment.identity(),
+                environment.target(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+                TerminalAllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
+                    views: vec![sole_view],
+                },
+            )
+            .unwrap();
+            let legality =
+                stage_optimized_allocation_legality_with_availability(ranges, availability)
+                    .unwrap();
+            let run = run_selected_lowering_optimizations(legality).unwrap();
+
+            assert_eq!(run.selections(), &selections);
+            assert_eq!(run.custody().selections(), selections.identity());
+            assert_eq!(
+                run.selected_lowering_selections().as_slice(),
+                &[Optimization::SelectedIncomingU12ExactAddImmediate]
+            );
+            assert_eq!(
+                run.custody().selected_lowering_selections(),
+                run.selected_lowering_selections().identity()
+            );
+            assert_eq!(run.steps().len(), 2);
+            assert_eq!(run.custody().action_count(), 2);
+            assert_eq!(
+                run.custody()
+                    .initial_virtual_register_count()
+                    .checked_sub(run.custody().action_count()),
+                Some(run.custody().final_virtual_register_count())
+            );
+            assert_eq!(run.custody().iterations().len(), 2);
+            assert_eq!(run.terminal_attempt().fold().receipt().applied_count(), 0);
+            assert_eq!(
+                run.terminal_attempt().fold().receipt().source_selected(),
+                run.terminal_attempt()
+                    .fold()
+                    .receipt()
+                    .transformed_selected()
+            );
+            assert!(run.custody().usage().within(run.custody().budget()));
+            assert_eq!(
+                validate_selected_lowering_optimization_custody(&run).unwrap(),
+                *run.custody()
+            );
+            let final_step = run.steps().last().unwrap();
+            let environment = run
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment();
+            omega_regalloc::assign_terminal_register_homes(
+                final_step.legality(),
+                final_step.ranges(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+            )
+            .unwrap();
+        }
+    }
+
+    #[test]
+    fn named_selected_lowering_suite_retains_verified_no_change_completion() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let selections = OptimizationSelections::new([
+                Optimization::CopyPropagation,
+                Optimization::SelectedIncomingU12ExactAddImmediate,
+            ])
+            .unwrap();
+            let legality = stage_optimized_allocation_legality(
+                stage_optimized_live_ranges(
+                    stage_optimized_liveness(staged_exact_add_conditional_with_selections(
+                        target,
+                        selections.clone(),
+                        selected_lowering_budget(),
+                    ))
+                    .unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let source_selected = legality
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .selected()
+                .receipt()
+                .identity();
+            let source_ranges = legality.live_range_stage().ranges().receipt().identity();
+            let source_legality = legality.legality().receipt().identity();
+            let run = run_selected_lowering_optimizations(legality).unwrap();
+
+            assert!(run.steps().is_empty());
+            assert_eq!(run.custody().action_count(), 0);
+            assert_eq!(run.custody().final_selected(), source_selected);
+            assert_eq!(run.custody().final_ranges(), source_ranges);
+            assert_eq!(run.custody().final_legality(), source_legality);
+            assert_eq!(run.terminal_attempt().fold().receipt().applied_count(), 0);
+            assert_eq!(
+                validate_selected_lowering_optimization_custody(&run).unwrap(),
+                *run.custody()
+            );
+        }
+    }
+
+    #[test]
+    fn selected_lowering_suite_enforces_one_aggregate_budget() {
+        let target = NativeTarget::linux_x64();
+        let selections = OptimizationSelections::new([
+            Optimization::CopyPropagation,
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+        ])
+        .unwrap();
+        let source = stage_optimized_allocation_legality(
+            stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_exact_add_conditional_with_selections(
+                    target,
+                    selections.clone(),
+                    selected_lowering_budget(),
+                ))
+                .unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let reference = run_selected_lowering_optimizations(source).unwrap();
+        let attempt = reference.terminal_attempt();
+        let component_usages = [
+            attempt.choices().receipt().usage(),
+            attempt.recovery().receipt().usage(),
+            attempt.fold().receipt().usage(),
+        ];
+        let maximum = |field: fn(OptimizationWorkUsage) -> u64| {
+            component_usages
+                .into_iter()
+                .map(field)
+                .max()
+                .unwrap()
+                .max(1)
+        };
+        let component_only_budget = OptimizationWorkBudget::new(
+            maximum(|usage| usage.rule_evaluations),
+            maximum(|usage| usage.candidates),
+            maximum(|usage| usage.validation_steps),
+            maximum(|usage| usage.commits),
+            maximum(|usage| usage.iterations),
+        )
+        .unwrap();
+        assert!(
+            component_usages
+                .into_iter()
+                .all(|usage| usage.within(component_only_budget))
+        );
+
+        let source = stage_optimized_allocation_legality(
+            stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_exact_add_conditional_with_selections(
+                    target,
+                    selections,
+                    component_only_budget,
+                ))
+                .unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(matches!(
+            run_selected_lowering_optimizations(source),
+            Err(OptimizedLiteralFoldCustodyError::SelectedLoweringBudgetExceeded { .. })
+        ));
+    }
+
+    #[test]
+    fn selected_lowering_runner_rejects_a_psi_only_source_suite() {
+        let legality = stage_optimized_allocation_legality(
+            stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_exact_add_conditional(NativeTarget::linux_x64()))
+                    .unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(matches!(
+            run_selected_lowering_optimizations(legality),
+            Err(OptimizedLiteralFoldCustodyError::MissingSelectedLoweringOptimization)
+        ));
     }
 
     #[test]
