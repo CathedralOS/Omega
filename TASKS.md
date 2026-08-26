@@ -2000,7 +2000,14 @@ Remaining:
   target, subsystem, object and relocation plans, encoded semantics/code,
   text/data bytes, callback identity, and blocker-free emission plan replay as
   one cardinality-checked artifact; the report owns no output path and reports
-  `wrote_output == false`. The checked/terminal cutover and output destination
+  `wrote_output == false`. Component-progress rejection and exact source/
+  harness root resolution now live with the manifest owner; selected-provider
+  external-binding projection and its source-boundary plan replay live under
+  `provider_plans`; and the strict emitted program-storage bridge owner now
+  controls source/physical gates, target fallback, preview wrapper insertion,
+  and final replay against the mutated backend plan. Both compiler routes call
+  those owners at their original settlement points. The checked/terminal
+  cutover, remaining post-check fact courier/mutations, and output destination
   custody remain open.
 
   Restore the driver contract:
@@ -7396,6 +7403,18 @@ Owners:
   object relocation, runtime storage, address, registration authority, or
   lease. Actual object relocation/emission and lifetime binding remain
   subsequent.
+  The registrar-occurrence join is now complete through the next address-free
+  seam. `HostCallPlan` and `AbstractBoundarySummary` retain the exact statement
+  or expression site, registrar operation and canonical overload, state/
+  statement/call ordinal, lowering identity, and ordered formal/
+  `NativeParameterId` rows. Backend planning binds each private demand to one
+  exact registrar occurrence and root native argument; nested `Field` places
+  preserve their layout identity and full ordered slot path, and distinct paths
+  may share one root argument. Independent replay rejects site, target,
+  overload, coordinate, lowering, order, cardinality, parameter, layout, or
+  path drift. The binding still owns no physical home, field offset, target
+  operation, bytes, object relocation, address, registration authority, or
+  lease.
 
   The first source canary cohort is live: the exact target-selected registrar
   closes two explicitly named, nonoverlapping nested private slots for two
