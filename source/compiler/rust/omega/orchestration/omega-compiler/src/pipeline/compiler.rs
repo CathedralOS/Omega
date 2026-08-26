@@ -83,86 +83,61 @@ pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>
     compile_request(CompileRequest::new(options))
 }
 
-/// Test-harness seam for outer schedulers that run independent compilations
-/// concurrently. Production compilation keeps using host parallelism; a
-/// bounded corpus runner can select one worker here and avoid multiplying its
-/// own job count by every compile's internal worker count.
+/// Explicitly test-only compiler controls. Entry overrides and worker ceilings
+/// cannot enter [`CompileRequest`] or production compilation.
 #[doc(hidden)]
-pub fn compile_with_test_entry_and_worker_count(
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompileHarnessRequest {
     options: CompileOptions,
-    entry_machine_name: impl Into<String>,
-    worker_count: usize,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_with_test_entry_worker_count_and_artifact_policy(
-        options,
-        entry_machine_name,
-        worker_count,
-        ArtifactEmissionPolicy::Full,
-    )
-}
-
-#[doc(hidden)]
-pub fn compile_with_test_entry_worker_count_and_artifact_policy(
-    options: CompileOptions,
-    entry_machine_name: impl Into<String>,
-    worker_count: usize,
+    entry_machine_name: Option<String>,
+    worker_count: Option<usize>,
     artifact_policy: ArtifactEmissionPolicy,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    let entry_machine_name = entry_machine_name.into();
-    run_on_compile_thread(move || {
-        Compiler::with_executable_tcb_policy(options, ExecutableTcbBuildPolicy::default())
-            .with_test_entry(entry_machine_name)
-            .with_worker_count(worker_count)
-            .with_artifact_policy(artifact_policy)
-            .compile()
-    })
-}
-
-/// Production compilation with an explicit backend-worker ceiling.
-///
-/// Corpus runners use this when they parallelize independent authored builds:
-/// each compile still follows target-owned `ProgramEntry` selection, while the
-/// outer scheduler controls aggregate concurrency.
-#[doc(hidden)]
-pub fn compile_with_worker_count_and_artifact_policy(
-    options: CompileOptions,
-    worker_count: usize,
-    artifact_policy: ArtifactEmissionPolicy,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    run_on_compile_thread(move || {
-        Compiler::with_executable_tcb_policy(options, ExecutableTcbBuildPolicy::default())
-            .with_worker_count(worker_count)
-            .with_artifact_policy(artifact_policy)
-            .compile()
-    })
-}
-
-/// Legacy native-test seam while semantic fixtures migrate to target-owned
-/// `ProgramEntry` roots. Production callers must use [`compile`].
-#[doc(hidden)]
-pub fn compile_with_test_entry(
-    options: CompileOptions,
-    entry_machine_name: impl Into<String>,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_with_test_entry_and_artifact_policy(
-        options,
-        entry_machine_name,
-        ArtifactEmissionPolicy::Full,
-    )
 }
 
 #[doc(hidden)]
-pub fn compile_with_test_entry_and_artifact_policy(
-    options: CompileOptions,
-    entry_machine_name: impl Into<String>,
-    artifact_policy: ArtifactEmissionPolicy,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    let entry_machine_name = entry_machine_name.into();
+impl CompileHarnessRequest {
+    pub fn new(options: CompileOptions) -> Self {
+        Self {
+            options,
+            entry_machine_name: None,
+            worker_count: None,
+            artifact_policy: ArtifactEmissionPolicy::Full,
+        }
+    }
+
+    pub fn with_test_entry(mut self, entry_machine_name: impl Into<String>) -> Self {
+        self.entry_machine_name = Some(entry_machine_name.into());
+        self
+    }
+
+    pub fn with_worker_count(mut self, worker_count: usize) -> Self {
+        self.worker_count = Some(worker_count.max(1));
+        self
+    }
+
+    pub fn with_artifact_policy(mut self, artifact_policy: ArtifactEmissionPolicy) -> Self {
+        self.artifact_policy = artifact_policy;
+        self
+    }
+}
+
+/// Test-harness seam for fixtures and outer schedulers. A corpus runner may
+/// bound backend workers here to avoid multiplying its own parallel job count.
+#[doc(hidden)]
+pub fn compile_harness(request: CompileHarnessRequest) -> Result<CompileReport, Vec<Diagnostic>> {
     run_on_compile_thread(move || {
-        Compiler::with_executable_tcb_policy(options, ExecutableTcbBuildPolicy::default())
-            .with_test_entry(entry_machine_name)
-            .with_artifact_policy(artifact_policy)
-            .compile()
+        let mut compiler = Compiler::with_executable_tcb_policy(
+            request.options,
+            ExecutableTcbBuildPolicy::default(),
+        )
+        .with_artifact_policy(request.artifact_policy);
+        if let Some(entry_machine_name) = request.entry_machine_name {
+            compiler = compiler.with_test_entry(entry_machine_name);
+        }
+        if let Some(worker_count) = request.worker_count {
+            compiler = compiler.with_worker_count(worker_count);
+        }
+        compiler.compile()
     })
 }
 

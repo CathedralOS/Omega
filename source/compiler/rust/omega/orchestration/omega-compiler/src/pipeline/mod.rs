@@ -96,10 +96,7 @@ pub use compile_report::{
     ExecutablePublicationReceipt, TerminalComponentDeploymentReportError,
 };
 pub use compiler::{
-    CompileRequest, compile, compile_request, compile_with_test_entry,
-    compile_with_test_entry_and_artifact_policy, compile_with_test_entry_and_worker_count,
-    compile_with_test_entry_worker_count_and_artifact_policy,
-    compile_with_worker_count_and_artifact_policy,
+    CompileHarnessRequest, CompileRequest, compile, compile_harness, compile_request,
 };
 pub use compiler_executable_commitment::{
     CompilerExecutableCommitment, CompilerExecutableCommitmentError,

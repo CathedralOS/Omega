@@ -16,10 +16,8 @@
 //! code documents the suite's own assertion and lets us sanity-check native against it.
 
 use omega_compiler::{
-    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileRequest, compile_request,
-    compile_to_checked, compile_with_test_entry_and_artifact_policy,
-    compile_with_test_entry_worker_count_and_artifact_policy,
-    compile_with_worker_count_and_artifact_policy,
+    ArtifactEmissionPolicy, CheckedCompilation, CompileHarnessRequest, CompileOptions,
+    CompileRequest, compile_harness, compile_request, compile_to_checked,
 };
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::fs;
@@ -2931,24 +2929,24 @@ fn try_compile_and_run_native_with_stdin(
         has_authored_host_program_entry(main_path),
         native_worker_count,
     ) {
-        (true, Some(worker_count)) => compile_with_worker_count_and_artifact_policy(
-            options,
-            worker_count,
-            ArtifactEmissionPolicy::OutputOnly,
+        (true, Some(worker_count)) => compile_harness(
+            CompileHarnessRequest::new(options)
+                .with_worker_count(worker_count)
+                .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
         ),
         (true, None) => compile_request(
             CompileRequest::new(options).with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
         ),
-        (false, Some(worker_count)) => compile_with_test_entry_worker_count_and_artifact_policy(
-            options,
-            "Main::main",
-            worker_count,
-            ArtifactEmissionPolicy::OutputOnly,
+        (false, Some(worker_count)) => compile_harness(
+            CompileHarnessRequest::new(options)
+                .with_test_entry("Main::main")
+                .with_worker_count(worker_count)
+                .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
         ),
-        (false, None) => compile_with_test_entry_and_artifact_policy(
-            options,
-            "Main::main",
-            ArtifactEmissionPolicy::OutputOnly,
+        (false, None) => compile_harness(
+            CompileHarnessRequest::new(options)
+                .with_test_entry("Main::main")
+                .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
         ),
     };
     if let Err(diagnostics) = compile_result {
