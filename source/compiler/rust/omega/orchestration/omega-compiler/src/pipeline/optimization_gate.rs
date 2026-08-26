@@ -34,9 +34,10 @@ pub(super) fn require_available_pipeline(
 }
 
 /// The clean selected lane may validate optimization and retain its custody
-/// through current target assignment, but cannot yet create a deployable
-/// component until an independent allocator/machine validator and optimized
-/// publication bind the ledger to every physical realization record.
+/// through selected lowering, strict register homes, and post-allocation
+/// machine validation, but cannot yet create a deployable component until
+/// frame/exit, emission, artifact, and optimized publication validation bind
+/// the ledger to every physical realization record.
 pub(super) fn optimized_publication_unavailable(
     selections: &OptimizationSelections,
 ) -> Vec<Diagnostic> {
@@ -48,7 +49,7 @@ pub(super) fn optimized_publication_unavailable(
         .collect::<Vec<_>>()
         .join("`, `");
     vec![Diagnostic::error(format!(
-        "selected optimization{} `{names}` completed verified Terminal-Psi optimization and staged target assignment, but independent allocator, machine, and optimized component publication validation are not available yet; no output was installed",
+        "selected optimization{} `{names}` completed the verified physical pipeline through post-allocation machine validation, but frame/exit, emission, artifact, and optimized component publication validation are not available yet; no output was installed",
         if selections.as_slice().len() == 1 {
             ""
         } else {

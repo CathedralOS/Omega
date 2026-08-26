@@ -530,14 +530,17 @@ and grants no machine-emission or publication authority.
 Clean compiler staging branches before constructing optimizer state. Empty
 selection takes the prior compatibility route unchanged. Nonempty selection
 must enter `omega-optimization-pipeline`, and unsupported named families or any
-validation failure reject without fallback. A successful supported selection
-continues through the optimized-only target-lowering carrier and the opaque
-staged-assignment carrier, then deliberately stops before machine emission,
-object/image construction, or component publication. Independent allocator
-validation must precede any claim that the assigned plan is physically legal;
-later physical stages additionally require a realization manifest that binds
-optimizer custody to their records. The legacy compiler's nonempty-selection
-firewall remains closed.
+validation failure reject without fallback. The typed terminal-component route
+continues through optimized target lowering, instruction selection, liveness,
+ranges, allocation legality, exact phase dispatch, strict spill-free homes,
+and independently replayed post-allocation machine facts. Psi-only suites take
+the direct home route; mixed or lower-only suites run the selected-lowering
+projection derived from retained full-suite custody. Both deliberately stop
+before frame/exit validation, machine emission, object/image construction, or
+component publication. A source shape outside the currently admitted selected
+CFG fails at that named boundary. The legacy compiler's nonempty-selection
+firewall remains closed so selected builds can never fall through to its old
+backend.
 
 The verified optimizer input is required, not an optional evidence attachment
 to a bare plan. Compatibility lowering has a separate bare-plan entry; the

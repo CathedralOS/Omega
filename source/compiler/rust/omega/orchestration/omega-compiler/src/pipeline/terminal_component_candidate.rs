@@ -168,11 +168,13 @@ pub fn stage_terminal_component(
             .map_err(|error| stage_error("target operation lowering", error))?
         }
         StagedAbstractOperations::Optimized(optimized) => {
-            let _staged_assignment =
-                omega_optimization_pipeline::stage_optimized_assignment_with_provider_executions(
+            let _physical = omega_optimization_pipeline::
+                stage_optimized_verified_physical_pipeline_with_provider_executions(
                     *optimized, target, &admitted,
                 )
-                .map_err(|error| stage_error("optimized target assignment", error))?;
+                .map_err(|error| {
+                    optimized_physical_stage_error(checked.optimization_selections(), error)
+                })?;
             return Err(
                 crate::pipeline::optimization_gate::optimized_publication_unavailable(
                     checked.optimization_selections(),
@@ -213,5 +215,20 @@ pub fn stage_terminal_component(
 fn stage_error(context: &str, error: impl std::fmt::Display) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!(
         "terminal component {context} failed: {error}"
+    ))]
+}
+
+fn optimized_physical_stage_error(
+    selections: &omega_optimization_core::OptimizationSelections,
+    error: impl std::fmt::Display,
+) -> Vec<Diagnostic> {
+    let names = selections
+        .as_slice()
+        .iter()
+        .map(|optimization| optimization.build_case_name())
+        .collect::<Vec<_>>()
+        .join("`, `");
+    vec![Diagnostic::error(format!(
+        "selected optimizations `{names}` entered the optimized verified physical pipeline but failed at a named validation boundary: {error}; no output was installed"
     ))]
 }
