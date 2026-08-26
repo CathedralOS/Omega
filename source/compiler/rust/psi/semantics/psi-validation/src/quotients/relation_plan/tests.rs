@@ -2294,12 +2294,9 @@ fn direct_lift_runtime_accepts_only_closed_exact_scalar_literals() {
     let boolean = program
         .expression_table
         .insert(ExpressionNode::Boolean(true));
-    let integer = program.expression_table.insert(ExpressionNode::Integer(
-        IntegerLiteral::from_value(7).with_landing(IntegerLanding {
-            landed_type: LandedIntegerType::I8,
-            domain: ArithmeticDomain::Exact,
-        }),
-    ));
+    let integer = program
+        .expression_table
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(7)));
     let arguments = program
         .expression_table
         .insert_expression_handles([boolean, integer]);
@@ -2315,7 +2312,7 @@ fn direct_lift_runtime_accepts_only_closed_exact_scalar_literals() {
     );
 
     let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
-        .expect("closed booleans and explicitly landed integers have exact representative types");
+        .expect("the exact representative type lands an anonymous integer once");
     assert_eq!(
         plan.input_relations,
         [
@@ -2562,21 +2559,15 @@ fn repeated_equal_direct_lift_literals_keep_distinct_runtime_and_theorem_positio
 }
 
 #[test]
-fn direct_lift_literal_fences_anonymous_mismatched_and_non_scalar_values() {
+fn direct_lift_literal_fences_mismatched_anonymous_float_and_non_scalar_values() {
     let mut program = TypedTrees::default();
     let i8_type = primitive_type(&mut program, "i8");
+    let u8_type = primitive_type(&mut program, "u8");
     let bool_type = primitive_type(&mut program, "bool");
     let f32_type = primitive_type(&mut program, "f32");
     let f64_type = primitive_type(&mut program, "f64");
     let unit_type = program.type_reference_table.insert(TypeReferenceNode::Unit);
     let cases = [
-        (
-            program
-                .expression_table
-                .insert(ExpressionNode::Integer(IntegerLiteral::from_value(7))),
-            i8_type,
-            RelationPlanError::DirectLiftLiteralTargetMismatch(0),
-        ),
         (
             program.expression_table.insert(ExpressionNode::Integer(
                 IntegerLiteral::from_value(7).with_landing(IntegerLanding {
@@ -2585,16 +2576,20 @@ fn direct_lift_literal_fences_anonymous_mismatched_and_non_scalar_values() {
                 }),
             )),
             i8_type,
+            RelationPlanError::DirectLiftLiteralTargetMismatch(0),
+        ),
+        (
+            program
+                .expression_table
+                .insert(ExpressionNode::Integer(IntegerLiteral::from_value(128))),
+            i8_type,
             RelationPlanError::DirectLiftLiteralTargetMismatch(1),
         ),
         (
-            program.expression_table.insert(ExpressionNode::Integer(
-                IntegerLiteral::from_value(128).with_landing(IntegerLanding {
-                    landed_type: LandedIntegerType::I8,
-                    domain: ArithmeticDomain::Exact,
-                }),
-            )),
-            i8_type,
+            program
+                .expression_table
+                .insert(ExpressionNode::Integer(IntegerLiteral::from_value(-1))),
+            u8_type,
             RelationPlanError::DirectLiftLiteralTargetMismatch(2),
         ),
         (
@@ -2975,10 +2970,17 @@ fn direct_plan_rejects_untyped_adapted_argument() {
     let result_type = quotient_type(&mut program, symbol(1), "ResultQ", symbol(2), "ResultR");
     let literal = program
         .expression_table
-        .insert(ExpressionNode::Integer(Default::default()));
+        .insert(ExpressionNode::Boolean(true));
+    let adapted = program
+        .expression_table
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: literal,
+            operator: BinaryOperator::Equal,
+            right: literal,
+        }));
     let arguments = program
         .expression_table
-        .insert_expression_handles([literal]);
+        .insert_expression_handles([adapted]);
     let call = call_with_arguments(arguments);
     let state = State {
         return_type: result_type,

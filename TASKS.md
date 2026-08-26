@@ -8005,18 +8005,22 @@ Remaining N6/N8 work:
   permitted. Each row retains exact public, representative, and
   verified-theorem contract-fact coordinates, and the plan composes them with
   the verified theorem and exact runtime correspondence into a non-executable
-  certificate. Closed booleans, explicitly landed in-range integers, and
-  format-landed floats may feed an immutable non-receiver representative
-  parameter only when its exact concrete primitive type and arithmetic
-  domain/format agree. Their value, canonical spelling, and landing ride the
-  occurrence identity; their input relation is exact equality. Exact
+  certificate. Closed booleans, in-range integers whose explicit suffix or
+  exact concrete representative target supplies the landing, and format-landed
+  floats may feed an immutable non-receiver representative parameter only when
+  its primitive type and arithmetic domain/format agree. An anonymous integer
+  lands once at that exact target; its derived width, signedness, and domain are
+  retained rather than inferred again. Literal value, canonical spelling, and
+  landing ride the occurrence identity; the input relation is exact equality.
+  Exact
   structural `Q => P` substitution now permits a
   dependent representative `P` fact to mention a literal-fed position only
   when public `Q` contains the identical post-substitution fact. Boolean value,
   integer spelling, landed type and arithmetic domain, and float spelling and
   format are all proof-value identity even when rendering would erase a
   difference. Literal-only facts remain fixed ordinary call obligations.
-  Unsuffixed integers, anonymous floats, strings, aggregates, zero-value,
+  Mismatched or out-of-range integers, anonymous floats, strings, aggregates,
+  zero-value,
   casts, calls, computed expressions, constrained/generic targets, mutable or
   attached targets, and literal arguments to `define` remain fail-closed.
   `define` remains strictly position-preserving at exact public
