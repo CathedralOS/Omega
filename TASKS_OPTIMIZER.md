@@ -134,9 +134,12 @@ These facts constrain the work below.
   for structural state, internal/boundary calls, services, transfers, normal
   exits, and crash exits. The operation match is exhaustive so new vocabulary
   cannot compile without classification. Exact integer rewrite validation now
-  independently compares all closed scalar observation axes before acceptance.
-  `OPT-OBSERVATION-MODEL` remains open for region live-in/live-out projection,
-  verifier-frontier joins, and later memory/suspension vocabulary.
+  independently compares all closed scalar observation axes before acceptance,
+  reconstructs its node-region live-ins and live-outs separately from the
+  optimizer analysis, requires unchanged live-outs, and forbids new live-in
+  dependencies. The two liveness implementations agree on the focused CFG
+  fixture. `OPT-OBSERVATION-MODEL` remains open for multi-node region
+  projection, verifier-frontier joins, and later memory/suspension vocabulary.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds input and
   output revision identities, rule contract, decision point, affected region,
