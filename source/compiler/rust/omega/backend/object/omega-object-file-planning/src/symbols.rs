@@ -7,7 +7,6 @@ use omega_object_file::{
     SymbolSection, machine_storage_symbol_name, normalized_foreign_import_symbol_name,
     private_function_symbol_name, runtime_frame_storage_symbol_name,
 };
-use omega_target::ForeignLocatorCandidate;
 use psi_diagnostics::Diagnostic;
 
 pub(super) fn object_symbol_capacity(input: &ObjectPlanningInput<'_>) -> usize {
@@ -48,15 +47,6 @@ pub(super) fn insert_object_symbols(
                 locator.normalized_identity(),
                 locator.target().target_name(),
                 input.target,
-            )));
-        }
-        if matches!(
-            locator.locator(),
-            ForeignLocatorCandidate::ElfVersioned { .. }
-        ) {
-            return Err(Diagnostic::error(format!(
-                "versioned ELF foreign locator 0x{:016x} reached object planning before ELF symbol-version emission semantics are implemented",
-                locator.normalized_identity(),
             )));
         }
     }

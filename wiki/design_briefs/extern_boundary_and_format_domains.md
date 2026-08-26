@@ -130,9 +130,15 @@ target, case, identity, and raw coordinates without rebuilding strings. The
 current source evaluator is visibly segregated as a temporary string-backed
 bootstrap. Trust artifacts now carry the atomic locator and render exact raw
 coordinates without text reconstruction, rejecting target drift before report
-installation; normalized rows still fail closed at the unmigrated ABI bridge.
-Exact fixed-array widths, producer closure, evaluator receipt, calling
-conventions, object planning, and backend emission remain to migrate.
+installation. The calling bridge, ordinary authored machine validation, object
+locator side table, relocation replay, and PE name/ordinal emission retain that
+same atomic value. Versioned ELF rows now reach a canonical final-image request
+with exact raw object/symbol/version coordinates and relocation sites, but
+runnable dynamic emission stays fail closed until a target-owned loader plan
+supplies the exact interpreter path and complete dynamic-link structures. Exact
+fixed-array widths, producer closure, evaluator receipt, source `via` evaluation,
+specialized string-only adapters, and complete versioned-ELF emission remain to
+migrate.
 
 Changing raw foreign bytes changes the normalized binding, forces every final
 artifact whose reachable closure contains it to relink, and requires fresh

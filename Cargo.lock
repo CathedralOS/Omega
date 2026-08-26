@@ -680,6 +680,7 @@ version = "0.1.0"
 dependencies = [
  "omega-image",
  "omega-object-file",
+ "omega-target",
  "psi-arena",
  "psi-diagnostics",
 ]
