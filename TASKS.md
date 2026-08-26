@@ -1158,6 +1158,12 @@ Owners:
   be fixed before source typing can publish an owned `Placed<P, T>` call.
   Existing Rust admission and occurrence identifiers remain implementation
   scaffolding and must not be promoted into a source ABI.
+  A source-to-foundation evidence canary now takes the exact Stable placement
+  plan retained by checked `Placed<P, T>` derivation through owned Extent
+  admission and provider-content adoption. Exact interpretation mismatch
+  returns the complete Extent and content grant, and withdrawal/re-admission
+  retries successfully under the correct retained plan without minting a
+  placed occurrence or choosing Q12's source result schema.
 - Derive readable, destructive-read, writable, and atomic field accessors while
   keeping logical extents distinct from whole-transfer footprints. Enforce
   total decode/encode, exact provider width/alignment, and operation-specific
@@ -7340,11 +7346,13 @@ Owners:
   duplicate cited placement, and a machine requirement substituted for the
   required named slot conformance. Two distinct cited slots at one physical
   extent also reject as overlapping supply. The direct-parameter pass canary is
-  language-design blocked: normalized `NativePlace::Parameter` exists, but the
-  source model has no declaration that marks one already-declared runtime
-  native parameter as the callback destination and binds its exact callback
-  requirement. Settle that declaration without exposing a raw ordinal,
-  inferring binder order, or appending a hidden ABI parameter. Add the same
+  design-blocked on
+  [OWNER_QUESTIONS.md Q13](OWNER_QUESTIONS.md#q13--declaring-a-direct-native-parameter-callback-destination):
+  normalized `NativePlace::Parameter` exists, but the source model has no
+  declaration that marks one already-declared runtime native parameter as the
+  callback destination and binds its exact callback requirement. Settle that
+  declaration without exposing a raw ordinal, inferring binder order, or
+  appending a hidden ABI parameter. Add the same
   target-neutral requirement placed at different x86/x64 offsets once the
   target catalog gains its missing 32-bit x86 engineering support; its present
   native targets are X86-64 and AArch64 only. The raw-offset canary now proves

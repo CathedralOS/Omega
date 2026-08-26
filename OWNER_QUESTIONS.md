@@ -565,3 +565,60 @@ outputs outside the runtime result.
   rejection.
 - Tempting but wrong: derive result identity from source spelling, call-site
   order, accessor names, parameter ordinals, or compact plan fingerprints.
+
+## Q13 — Declaring a direct native-parameter callback destination
+
+### Context
+
+The settled outbound callback model maps one nominal static-machine binder to
+one compiler-issued `NativePlace`. A nested destination comes from an
+authoritative layout's explicitly cited `PrivateCallbackSlot<Requirement>`
+demand. A registrar whose native ABI already has a direct callback parameter
+instead needs `NativePlace::Parameter` naming that existing runtime parameter;
+it must not append a hidden argument or expose a raw code address.
+
+The compiler internally derives a nominal native-parameter identity for each
+runtime parameter, but the source `BoundarySignature` publishes only semantic
+shape roots, callback binders, and layout-derived private demands. No source
+declaration associates one exact runtime parameter with a callback requirement
+or makes its compiler-issued native-parameter identity available to the calling
+policy.
+
+### Problem statement
+
+The language does not say where a registrar declares that an already-authored
+runtime parameter is the destination for one exact callback requirement.
+Inferring the association from parameter order, type shape, binder order, or a
+unique pointer-sized placement is unstable and loses nominal requirement
+identity. Letting policy source author a numeric `NativeParameterId` would turn
+an internal coordinate into forgeable ABI authority. Adding a hidden callback
+argument would change the public requirement rather than describe its existing
+native ABI.
+
+### Proposed direction
+
+Add one declaration relationship on the registrar requirement's existing
+runtime parameter that explicitly names the nominal static-machine binder (or
+its exact requirement) as that parameter's private callback destination. The
+compiler resolves both parameter and binder by symbol, publishes their paired
+compiler-issued identities in the target-closed `BoundarySignature`, and lets
+the policy select only that declared `NativePlace::Parameter`. Require exactly
+one compatible supply per cited binder and reject duplicate destinations,
+wrong requirements, non-runtime parameters, inferred order, and declarations
+that would add or reorder ABI parameters.
+
+### Alternates
+
+- Acceptable: publish a compiler-derived native-parameter catalog plus a
+  separate explicit requirement-level mapping operation, provided source names
+  parameters and binders nominally rather than indexing either catalog.
+- Acceptable for a narrower first release: support only layout-field callback
+  destinations and reject direct native callback parameters until the
+  declaration relationship is ratified.
+- Tempting but wrong: reuse the semantic shape identity in
+  `BoundarySignature.parameters` as native-parameter identity.
+- Tempting but wrong: select the first pointer-sized argument, the binder with
+  the same ordinal, or the only parameter whose target placement happens to
+  fit a function pointer.
+- Tempting but wrong: expose a raw parameter ordinal, physical register/stack
+  location, or callback code address to source policy.
