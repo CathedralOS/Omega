@@ -88,7 +88,7 @@ linked contracts and beside the gates that enforce them—not in this index.
   buffer layout is not a language feature.
 - Rust implementations are on-ramps or differential references. Authority
   comes from canonical meaning and lower-rooted source-to-artifact refinement,
-  not compiler agreement or diverse double compilation.
+  not compiler agreement.
 - Unsupported source and resource exhaustion reject before artifact
   publication. A bounded probe or transport decoder is evidence, not bridge
   admission.

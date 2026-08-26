@@ -134,14 +134,12 @@ tooling exists; the seams are the standing substitute.
 
 ## D5 — Direct checked refinement closes compiler provenance.
 
-**Supersedes the 2026-07-02 D5 ruling; ratified 2026-08-22.** Diverse double
-compilation (DDC) is not a trust requirement of this architecture. It asks whether
-a compiler binary corresponds to its source by comparing builds through another
-compiler. The lattice uses the stronger rule from D3: an independently
-reconstructed, lower-rooted check establishes that the exact produced artifact
-refines the canonical meaning of its exact source. The producer is untrusted, so
-its implementation language, ancestry, and agreement with another producer do
-not grant authority.
+**Supersedes the 2026-07-02 D5 ruling; ratified 2026-08-22.** Every compiler
+artifact becomes authoritative through an independently reconstructed,
+lower-rooted check that the exact produced artifact refines the canonical
+meaning of its exact source. The producer is untrusted, so its implementation
+language, ancestry, fixed point, and agreement with another producer do not
+grant authority.
 
 For each compiler edge, the required shape is:
 
@@ -154,38 +152,19 @@ under verifier-derived observation profile O
 accept or reject
 ```
 
-A Thompson payload changes the artifact or its behavior and therefore fails this
-check. A second compiler adds no soundness once that edge is closed. Exact
-output agreement is also the wrong long-term contract: two correct compilers may emit different
-artifacts, while two incorrect compilers may agree. Requiring byte identity
-between implementations unnecessarily creates a second compiler to maintain and
-conflates reproducibility with correctness.
+A payload that changes the artifact or its behavior fails this check. A second
+compiler adds no soundness once the edge is closed: two correct compilers may
+emit different artifacts, while two incorrect compilers may agree. Diverse
+double compilation therefore has no bootstrap or release role. Deterministic
+fixed points, differential compilers, and independent implementations remain
+useful regression and bug-finding tools only where their value justifies their
+maintenance cost.
 
-Applied across the full Alpha-to-production-Omega chain, this directly answers
-the source-correspondence question DDC would otherwise be introduced to ask,
-and answers it independently at every edge. DDC therefore has no residual
-bootstrap or release role. A maintained Rust Omega compiler can still provide
-useful differential tests, but that is ordinary bug finding rather than a
-second provenance construction.
-
-The current `bc` cold start no longer passes through
-`bootstrap/beta/rust/`. An Alpha-written compiler accepts the exact
-pinned `bc.beta` surface,
-reconstructs the persisted fixed-point tape, and runs the complete Beta corpus.
-That closes the external-producer dependency and establishes reproducible
-lineage. The separate lower-rooted refinement gate now establishes source
-correspondence: its independently reconstructed ROOT proposition proves exact
-maximal-observation equality for the persisted artifact over every finite source
-and supported `B_bc1` resource profile. This does not turn fixed-point identity
-or corpus agreement into correctness evidence; they remain separate regression
-and dependency-closure checks.
-
-The dedicated `compiler/beta-lang-py` comparison gate and `bc2.py` backend have
-been removed because they supplied no unique semantic or refinement coverage. Shared
-source recognition and executable meaning now live under
-`bootstrap/beta/reference/`; symbolic reconstruction lives under
-`source/assurance/refinement/beta/`. The forwarding facade under
-`compiler/beta-lang-py/` has been retired.
+Applied at every edge, this rule closes source correspondence across the full
+Alpha-to-production-Omega chain. The `bc` cold start is the concrete precedent:
+its persisted artifact has lower-rooted maximal-observation refinement against
+its exact source, while its fixed point and corpus runs remain separate
+dependency-closure and regression evidence.
 
 Independent Alpha realizations and independent proof-kernel implementations are
 conformance and soundness cross-checks against explicit
@@ -196,8 +175,6 @@ that grants an artifact authority.
 **Policy:**
 
 - Do not add second or third compilers merely for implementation diversity.
-- Do not create a DDC work lane or acceptance gate; direct checked refinement
-  is the compiler-provenance obligation.
 - Do not make cross-implementation byte identity a release or trust requirement.
 - Require deterministic reproduction where it serves build identity and audit,
   but never present a fixed point as correctness evidence.
