@@ -294,11 +294,13 @@ At every bridge milestone:
 
 ### 1. Consume product checkpoints and enforce provisional `Ωself`
 
-- [ ] Refresh checkpoint 000001 from the current product-owned source and build
-  inputs. Its published snapshot is useful historical evidence, but the fast
-  gate currently detects source and provenance drift. The refreshed checkpoint
-  must publish canonical logical source placements rather than making the
-  bridge reproduce the Rust on-ramp's repository-path compatibility scan.
+- [ ] Consume refreshed checkpoint 000001 as the current coherent lexical
+  product closure and reconcile bridge coverage against its source/profile
+  changes. Its manifest, profile, Cargo/provider provenance, and extracted
+  build prelude now pass together. Its repository-path dependency replay remains
+  provisional; before the hosted join, consume a product checkpoint with
+  canonical logical source placements rather than reproducing that compatibility
+  scan in the bridge.
 - [ ] For that checkpoint and every later coherent product checkpoint, verify
   the exact deterministic closure and update the one compositional
   feature/resource disposition table in
