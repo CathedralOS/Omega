@@ -124,7 +124,13 @@ impl AnalysisManager {
         validate_retained: bool,
     ) -> Result<AnalysisRevisionCommit, AnalysisManagerError> {
         validate_content_identity(unit)?;
-        let invalidated = invalidation_closure(declared);
+        let mut invalidated = invalidation_closure(declared);
+        // These facts are immutable source authority, but the analysis rows are
+        // explicitly rebound to the current optimization-unit revision. Never
+        // retain an old revision's rows across a successful commit.
+        if unit.identity != self.revision {
+            invalidated.insert(AnalysisKind::OwnershipFrontiers);
+        }
         if validate_retained {
             for (kind, cached) in self
                 .cache

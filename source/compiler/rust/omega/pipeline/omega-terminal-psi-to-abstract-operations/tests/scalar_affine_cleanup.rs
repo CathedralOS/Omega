@@ -1,3 +1,4 @@
+use omega_optimization_unit::{OwnershipFrontierOwnedPlace, OwnershipFrontierSite};
 use omega_terminal_abstract_operations::{
     TerminalAbstractFunctionResult, TerminalAbstractOperation,
 };
@@ -437,6 +438,44 @@ fn omega_projects_verified_scalar_cleanup_proofs_without_regrouping_actions() {
     )
     .expect("verified optimizer unit reconstruction");
     assert_eq!(verified_unit.unit().terminal_psi, plan.terminal_psi);
+    let unit_frontiers = &verified_unit.unit().ownership_frontier_facts;
+    assert!(!unit_frontiers.is_empty());
+    assert!(
+        unit_frontiers
+            .windows(2)
+            .all(|pair| { (pair[0].machine, pair[0].site) < (pair[1].machine, pair[1].site) })
+    );
+    let caller_fact = |site| {
+        unit_frontiers
+            .iter()
+            .find(|fact| fact.machine == caller.id && fact.site == site)
+            .expect("verified caller frontier is projected into the unit")
+    };
+    assert_eq!(
+        caller_fact(OwnershipFrontierSite::BlockEntry(block_id(1)))
+            .snapshot
+            .owned_places,
+        vec![
+            OwnershipFrontierOwnedPlace {
+                place: place_id(1),
+                multiplicity: StructuralMultiplicity::Affine,
+            },
+            OwnershipFrontierOwnedPlace {
+                place: place_id(2),
+                multiplicity: StructuralMultiplicity::Affine,
+            },
+        ]
+    );
+    caller_fact(OwnershipFrontierSite::OperationEntry(
+        psi_core::OperationId::new(1).unwrap(),
+    ));
+    caller_fact(OwnershipFrontierSite::OperationExit(
+        psi_core::OperationId::new(1).unwrap(),
+    ));
+    caller_fact(OwnershipFrontierSite::EdgeEntry(edge_id(1)));
+    assert!(!unit_frontiers.iter().any(|fact| {
+        fact.machine == caller.id && fact.site == OwnershipFrontierSite::EdgeExit(edge_id(1))
+    }));
     assert_eq!(
         verified_unit
             .input()

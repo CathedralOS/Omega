@@ -15,12 +15,14 @@ use omega_optimization_core::{
 use omega_optimization_unit::{
     BlockParameterIncomingBinding, BooleanConstantRewrite, IntegerConstantRewrite,
     IntegerEvaluationWitness, NodeLocation, OptimizationEdge, OptimizationFact, OwnershipEvent,
+    OwnershipFrontierFact, OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace,
+    OwnershipFrontierPartialCustody, OwnershipFrontierSite, OwnershipFrontierSnapshot,
     PsiNodeObservation, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterRewrite, ScalarConstantValue,
     SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState,
-    ValueDefinition, ValueDefinitionSite, ValueUse, derived_sccp_scalar_constant_fact_identity,
-    literal_scalar_constant_fact_identity, recompute_psi_optimization_unit_identity,
-    reconstruct_psi_observation_model,
+    ValueDefinition, ValueDefinitionSite, ValueUse, canonical_ownership_frontier_snapshot,
+    derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
+    recompute_psi_optimization_unit_identity, reconstruct_psi_observation_model,
 };
 use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ScalarType, ValueId};
 use psi_terminal_fuel::TerminalFuelSchedule;
@@ -150,6 +152,7 @@ pub enum OptimizationUnitValidationError {
         obligation: psi_core::ObligationId,
     },
     AcceptedObligationFactIndexMismatch,
+    OwnershipFrontierFactIndexMismatch,
     CandidateAcceptedObligationFactMismatch,
     MissingStructuralFrontierMachine(MachineId),
     MissingStructuralOperationFrontier {
@@ -321,6 +324,17 @@ pub fn validate_psi_optimization_unit(
     {
         return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
     }
+    if unit.ownership_frontier_facts.iter().any(|fact| {
+        fact.terminal_psi != unit.terminal_psi
+            || !fact.has_canonical_identity()
+            || !canonical_ownership_frontier_snapshot(&fact.snapshot)
+    }) || unit
+        .ownership_frontier_facts
+        .windows(2)
+        .any(|pair| (pair[0].machine, pair[0].site) >= (pair[1].machine, pair[1].site))
+    {
+        return Err(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch);
+    }
     let mut machines = BTreeSet::new();
     for function in &unit.functions {
         if !machines.insert(function.machine) {
@@ -329,6 +343,16 @@ pub fn validate_psi_optimization_unit(
             ));
         }
         validate_function(function)?;
+    }
+    for fact in &unit.ownership_frontier_facts {
+        if unit
+            .functions
+            .iter()
+            .find(|function| function.machine == fact.machine)
+            .is_none()
+        {
+            return Err(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch);
+        }
     }
     if !machines.contains(&unit.entry) {
         return Err(OptimizationUnitValidationError::MissingEntryMachine(
@@ -2003,6 +2027,11 @@ fn validate_psi_optimization_unit_with_context(
     if proof_fingerprint != context.proof_bundle_fingerprint() {
         return Err(OptimizationUnitValidationError::ProofFingerprintMismatch);
     }
+    let ownership_frontiers = independently_project_ownership_frontiers(input)
+        .ok_or(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch)?;
+    if ownership_frontiers != unit.ownership_frontier_facts {
+        return Err(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch);
+    }
 
     let reconstructed = context
         .reconstructed_obligations()
@@ -2090,6 +2119,11 @@ fn validate_psi_optimization_unit_with_context(
         omega_optimization_unit::attach_accepted_obligation_facts(seed, projected_facts).map_err(
             |_| OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch,
         )?;
+    let projected =
+        omega_optimization_unit::attach_ownership_frontier_facts(projected, ownership_frontiers)
+            .map_err(|_| {
+                OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch
+            })?;
     if (require_initial_revision && projected.identity != unit.identity)
         || projected.accepted_obligation_facts != unit.accepted_obligation_facts
     {
@@ -2158,6 +2192,103 @@ fn validate_psi_optimization_unit_with_context(
         }
     }
     Ok(())
+}
+
+fn independently_project_ownership_frontiers(
+    input: &omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput,
+) -> Option<Vec<OwnershipFrontierFact>> {
+    let context = input.context();
+    let mut facts = Vec::new();
+    for machine in &context.terminal_module().machines {
+        let frontiers = context.structural_frontiers().machine(machine.id)?;
+        for block in &machine.blocks {
+            push_independent_ownership_frontier(
+                &mut facts,
+                input.plan().terminal_psi,
+                machine.id,
+                OwnershipFrontierSite::BlockEntry(block.id),
+                frontiers.block_entry(block.id)?,
+            );
+            for operation in &block.operations {
+                push_independent_ownership_frontier(
+                    &mut facts,
+                    input.plan().terminal_psi,
+                    machine.id,
+                    OwnershipFrontierSite::OperationEntry(operation.id),
+                    frontiers.operation_entry(operation.id)?,
+                );
+                push_independent_ownership_frontier(
+                    &mut facts,
+                    input.plan().terminal_psi,
+                    machine.id,
+                    OwnershipFrontierSite::OperationExit(operation.id),
+                    frontiers.operation_exit(operation.id)?,
+                );
+            }
+            for edge in block.terminator.edges() {
+                push_independent_ownership_frontier(
+                    &mut facts,
+                    input.plan().terminal_psi,
+                    machine.id,
+                    OwnershipFrontierSite::EdgeEntry(edge),
+                    frontiers.edge_entry(edge)?,
+                );
+                if let Some(snapshot) = frontiers.edge_exit(edge) {
+                    push_independent_ownership_frontier(
+                        &mut facts,
+                        input.plan().terminal_psi,
+                        machine.id,
+                        OwnershipFrontierSite::EdgeExit(edge),
+                        snapshot,
+                    );
+                }
+            }
+        }
+    }
+    facts.sort_by_key(|fact| (fact.machine, fact.site));
+    Some(facts)
+}
+
+fn push_independent_ownership_frontier(
+    facts: &mut Vec<OwnershipFrontierFact>,
+    terminal_psi: psi_terminal::TerminalPsiIdentity,
+    machine: MachineId,
+    site: OwnershipFrontierSite,
+    snapshot: &psi_terminal_verifier::VerifiedStructuralOwnershipFrontier,
+) {
+    facts.push(OwnershipFrontierFact::new(
+        terminal_psi,
+        machine,
+        site,
+        OwnershipFrontierSnapshot {
+            claims: snapshot
+                .claims()
+                .iter()
+                .map(|claim| OwnershipFrontierLiveClaim {
+                    claim: claim.claim,
+                    input: claim.input,
+                    path: claim.path.clone(),
+                    multiplicity: claim.multiplicity,
+                })
+                .collect(),
+            owned_places: snapshot
+                .owned_places()
+                .iter()
+                .map(|place| OwnershipFrontierOwnedPlace {
+                    place: place.place,
+                    multiplicity: place.multiplicity,
+                })
+                .collect(),
+            partial_custody: snapshot
+                .partial_custody()
+                .iter()
+                .map(|partial| OwnershipFrontierPartialCustody {
+                    place: partial.place,
+                    moved_paths: partial.moved_paths.clone(),
+                })
+                .collect(),
+        },
+    ));
 }
 
 fn same_immutable_signature_custody(
@@ -3741,6 +3872,55 @@ mod tests {
                 "forgery class {index} returned {result:?}"
             );
         }
+    }
+
+    #[test]
+    fn ownership_frontier_catalog_rejects_reordering_duplication_and_context_forgery() {
+        let verified = verified_unit();
+        let original = verified.unit();
+        assert!(original.ownership_frontier_facts.len() >= 2);
+
+        let mut reordered = original.clone();
+        reordered.ownership_frontier_facts.swap(0, 1);
+        refresh_identity(&mut reordered);
+        assert_eq!(
+            validate_psi_optimization_unit(&reordered),
+            Err(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch)
+        );
+
+        let mut duplicated = original.clone();
+        duplicated
+            .ownership_frontier_facts
+            .insert(1, duplicated.ownership_frontier_facts[0].clone());
+        refresh_identity(&mut duplicated);
+        assert_eq!(
+            validate_psi_optimization_unit(&duplicated),
+            Err(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch)
+        );
+
+        let mut missing = original.clone();
+        missing.ownership_frontier_facts.pop();
+        refresh_identity(&mut missing);
+        assert_eq!(
+            validate_transformed_psi_optimization_unit(verified.input(), &missing),
+            Err(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch)
+        );
+
+        let mut forged = original.clone();
+        let prior = forged.ownership_frontier_facts[0].clone();
+        let mut snapshot = prior.snapshot;
+        snapshot.owned_places.push(OwnershipFrontierOwnedPlace {
+            place: id(130, PlaceId::new),
+            multiplicity: psi_terminal::StructuralMultiplicity::Affine,
+        });
+        snapshot.owned_places.sort_by_key(|place| place.place);
+        forged.ownership_frontier_facts[0] =
+            OwnershipFrontierFact::new(prior.terminal_psi, prior.machine, prior.site, snapshot);
+        refresh_identity(&mut forged);
+        assert_eq!(
+            validate_transformed_psi_optimization_unit(verified.input(), &forged),
+            Err(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch)
+        );
     }
 
     #[test]

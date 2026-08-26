@@ -17,10 +17,11 @@ pub use analyses::{
     BlockControlFlow, CallGraphAnalysis, ControlFlowAnalysis, DominatorAnalysis, EffectClass,
     EffectKnowledge, EffectSummaryAnalysis, ExecutableEdgeAnalysis, ExecutableEdgeFact,
     ExecutableEdgeKnowledge, ExitKind, FunctionControlFlow, FunctionEffectSummary, LoopAnalysis,
-    LoopRegion, NodeEffectSummary, NodeLiveness, ScalarConstant, ScalarConstantAnalysis,
-    ScalarConstantFact, ScalarConstantSupport, StronglyConnectedComponentAnalysis,
-    UseDefinitionAnalysis, ValueFactRegion, ValueLivenessAnalysis, ValueLivenessBlock,
-    ValueRangeAnalysis, ValueRangeFact, analysis_dependencies, compute_analysis,
+    LoopRegion, NodeEffectSummary, NodeLiveness, OwnershipFrontierAnalysis,
+    OwnershipFrontierAnalysisFact, ScalarConstant, ScalarConstantAnalysis, ScalarConstantFact,
+    ScalarConstantSupport, StronglyConnectedComponentAnalysis, UseDefinitionAnalysis,
+    ValueFactRegion, ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
+    analysis_dependencies, compute_analysis,
 };
 pub use pass_manager::{
     OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
@@ -55,6 +56,7 @@ mod tests {
     use omega_optimization_core::{AnalysisInvalidationSet, AnalysisKind, AnalysisSet};
     use omega_optimization_unit::{
         EffectLink, OptimizationBlock, OptimizationEdge, OptimizationFact, OptimizationNode,
+        OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
         PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinition,
         ValueDefinitionSite, ValueUse, recompute_psi_optimization_unit_identity,
     };
@@ -173,6 +175,7 @@ mod tests {
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             accepted_obligation_facts: Vec::new(),
+            ownership_frontier_facts: Vec::new(),
             functions,
         };
         unit.identity = recompute_psi_optimization_unit_identity(&unit);
@@ -494,6 +497,7 @@ mod tests {
             AnalysisKind::ControlFlowGraph,
             AnalysisKind::StronglyConnectedComponents,
             AnalysisKind::Dominators,
+            AnalysisKind::OwnershipFrontiers,
         ]);
         let cold = AnalysisManager::compute_cold_parallel(&unit, requested).unwrap();
         assert_eq!(
@@ -508,6 +512,66 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>();
         assert_eq!(cached, cold);
+    }
+
+    #[test]
+    fn ownership_frontiers_are_exact_and_never_retained_across_revisions() {
+        let mut original = unit(
+            vec![function(100, 1, vec![(1, Terminator::Return)])],
+            b"ownership-original",
+        );
+        let fact = OwnershipFrontierFact::new(
+            original.terminal_psi,
+            original.functions[0].machine,
+            OwnershipFrontierSite::BlockEntry(original.functions[0].entry),
+            OwnershipFrontierSnapshot {
+                claims: Vec::new(),
+                owned_places: Vec::new(),
+                partial_custody: Vec::new(),
+            },
+        );
+        original.ownership_frontier_facts = vec![fact.clone()];
+        original.identity = recompute_psi_optimization_unit_identity(&original);
+
+        let AnalysisProduct::OwnershipFrontiers(frontiers) =
+            compute_analysis(&original, AnalysisKind::OwnershipFrontiers).unwrap()
+        else {
+            unreachable!()
+        };
+        let projected = frontiers
+            .fact(fact.machine, fact.site)
+            .expect("exact source site is queryable");
+        assert_eq!(projected.identity, fact.identity);
+        assert_eq!(projected.snapshot, fact.snapshot);
+        assert_eq!(projected.revision, original.identity);
+
+        let mut changed = unit(
+            vec![function(
+                100,
+                1,
+                vec![(1, Terminator::Jump(2)), (2, Terminator::Return)],
+            )],
+            b"ownership-changed",
+        );
+        changed.ownership_frontier_facts = vec![fact];
+        changed.identity = recompute_psi_optimization_unit_identity(&changed);
+
+        let mut manager = AnalysisManager::new(&original);
+        manager
+            .require(&original, AnalysisKind::OwnershipFrontiers)
+            .unwrap();
+        let commit = manager
+            .commit_revision(&changed, AnalysisInvalidationSet::default(), true)
+            .unwrap();
+        assert_eq!(commit.invalidated, vec![AnalysisKind::OwnershipFrontiers]);
+        assert!(commit.retained.is_empty());
+        let AnalysisProduct::OwnershipFrontiers(rebound) = manager
+            .require(&changed, AnalysisKind::OwnershipFrontiers)
+            .unwrap()
+        else {
+            unreachable!()
+        };
+        assert_eq!(rebound.facts[0].revision, changed.identity);
     }
 
     #[test]
