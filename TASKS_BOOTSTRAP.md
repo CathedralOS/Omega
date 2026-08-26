@@ -278,11 +278,26 @@ The remaining actions are intentionally capability-shaped. Exact version identit
 fixture matrices, byte ceilings, and completed milestones remain with their
 contracts, gates, and Git history rather than as checked-off tasks here.
 
-- [ ] After an admitted provider installation and its target calling plan are
-  available, carry that same checked relation through conservative native
-  boundary execution and direct artifact reconstruction. Until then, keep the
-  provider-effect milestone separate and fail closed rather than manufacturing
-  authority from OMGRSW9's selected plan.
+- [ ] Carry checkpoint 000001's next directionally clear fixed-buffer slice:
+  guarded full-width `u64` indexing and mutation plus the direct trapping
+  `u64` leaf-plus-literal increment used by `SourceUnit::append` and
+  `byte_or_nul`. Preserve exact bounds, carry, destination-range, load/store,
+  and exhaustion behavior through source resolution, checked IR, Rust-free
+  meaning, conservative artifacts, and lower-rooted reconstruction. Keep
+  computed/effectful indexes, multiple observable traps, mutable slices,
+  unrelated `u64` arithmetic/relations, and broader allocation outside this
+  milestone. Implement it in focused successor modules rather than adding more
+  version branches to the historical resolver, backend, or all-versions
+  verifier.
+- [ ] After one exact `Console::write_byte` provider occurrence has an admitted
+  installation and evaluated target calling-plan identity, join OMGRSW9's
+  selected row to the installed leaf, final bytes/certificate/entry, effects,
+  and nonconstructible execution evidence. Then carry CKIR17's abstract byte
+  events through admitted settlement, conservative native execution, and
+  direct artifact reconstruction. The existing selected `ProviderPlan`, Linux
+  syscall catalog, and abstract events do not supply that admission or calling
+  plan. Until those artifacts exist, keep the provider-effect milestone
+  separate and fail closed rather than manufacturing authority.
 
 Implement each as a general relation rather than file-name checks, declaration
 counts, compiler-source AST permutations, or a Cartesian matrix in one verifier.
@@ -297,11 +312,21 @@ join.
   resource teeth, Rust-free meaning, and direct artifact path in the same
   milestone. A bounded frontend-only cost probe is evidence, not bridge
   admission.
+- [ ] Publish a path-independent, versioned Delta source-closure snapshot
+  contract and gate it first over the current canonical compiler root, then
+  over one explicitly provisional multi-root bridge slice. Bind logical source
+  identities and roles, exact bytes and digests, dependency/build edges,
+  generated inputs and provenance, target/configuration/ABI/resource profiles,
+  and imported tool-artifact manifests. Paths and symlink aliases are
+  diagnostic only. This validates the eventual manifest machinery; the
+  provisional bridge snapshot is not the complete `omega-bootstrap` closure.
 - [ ] Publish separate complete deterministic Delta source manifests for the
   canonical Delta compiler and `omega-bootstrap`, including every transitive
   source and build input. Prove both valid under the provisional Delta ledger;
   final validity belongs to the Delta-v1 freeze. They share one Delta language
-  contract rather than defining compiler-specific dialects.
+  contract rather than defining compiler-specific dialects. Do not enumerate
+  every historical `.alp` canary as the bridge: this item closes only after the
+  general bridge has one selected entry and complete build DAG.
 - [ ] Once the package/security owner publishes the canonical bounded
   projection from recheckable package evidence and accepted lock state to one
   accepted source closure, independently reconstruct it and join the
