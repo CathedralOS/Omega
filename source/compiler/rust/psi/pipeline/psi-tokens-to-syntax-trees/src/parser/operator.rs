@@ -117,16 +117,29 @@ fn parse_operator_contract<'tokens, 'source>(
     input: &mut Input<'tokens, 'source>,
 ) -> Result<CapabilityContract, crate::parse_error::ParseError> {
     if input.at_contextual("requires") {
+        let keyword_source_span = Some(input.current_source_span());
         *input = input.take_contextual("requires")?;
-        return parse_operator_fact_contract(syntax_trees, input, CapabilityContractKind::Requires);
+        return parse_operator_fact_contract(
+            syntax_trees,
+            input,
+            CapabilityContractKind::Requires,
+            keyword_source_span,
+        );
     }
 
     if input.at_contextual("ensures") {
+        let keyword_source_span = Some(input.current_source_span());
         *input = input.take_contextual("ensures")?;
-        return parse_operator_fact_contract(syntax_trees, input, CapabilityContractKind::Ensures);
+        return parse_operator_fact_contract(
+            syntax_trees,
+            input,
+            CapabilityContractKind::Ensures,
+            keyword_source_span,
+        );
     }
 
     if input.at_contextual("crashes") {
+        let keyword_source_span = Some(input.current_source_span());
         *input = input.take_contextual("crashes")?;
         let (cause, after_cause) = input.take_identifier()?;
         let cause = match cause.as_str() {
@@ -146,6 +159,7 @@ fn parse_operator_contract<'tokens, 'source>(
             syntax_trees,
             input,
             CapabilityContractKind::Crashes { cause },
+            keyword_source_span,
         )?;
         contract.token_count = contract
             .token_count
@@ -161,6 +175,7 @@ fn parse_operator_fact_contract<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: &mut Input<'tokens, 'source>,
     kind: CapabilityContractKind,
+    keyword_source_span: Option<psi_source::SourceSpan>,
 ) -> Result<CapabilityContract, crate::parse_error::ParseError> {
     let ((facts, token_count), rest) =
         parse_proof_facts_until(syntax_trees, *input, operator_contract_terminator)?;
@@ -168,6 +183,7 @@ fn parse_operator_fact_contract<'tokens, 'source>(
 
     Ok(CapabilityContract {
         kind,
+        keyword_source_span,
         binding: None,
         facts,
         token_count,

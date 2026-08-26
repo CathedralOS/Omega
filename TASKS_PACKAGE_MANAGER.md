@@ -2476,13 +2476,22 @@ complete.
   parent-identifier span beside the trait declaration under the closed
   `trait_parent` role. The typed trait edge already owned this span; projection
   carries it through canonical row sorting rather than reconstructing it from a
-  parent name. Coordinates remain explanatory and outside semantic row bytes,
-  while conflict fingerprint v5 and renderer V4 bind and display them.
-  Canonical-row recovery envelope v2 admits the appended role and rejects stale
-  envelopes rather than interpreting them under the new source schema. Callable
-  contract facts/body calls and authored `reaches`/`invokes` clause occurrences
-  remain incremental engineering work; the latter require deliberate span
-  retention before typed lowering, not later source-text reconstruction.
+  parent name. Coordinates remain explanatory and outside semantic row bytes.
+  Milestone 2026-08-26: syntax, resolved, and typed contract rows now retain the
+  exact authored `requires`, `ensures`, or `crashes` keyword span independently
+  from semantic facts. Direct machine, public-trait requirement, and public-
+  operator contracts carry that anchor under `contract_clause`; every projected
+  declaration family also walks structural static-machine parameter contracts
+  recursively. This uniformly covers expressions, memberships, proposition
+  applications, named evidence, and outcome groups without pretending an
+  expression-node token is a complete fact span. Accepted-claim rows reuse the callable sidecar, so a bodyless
+  trusted guarantee points at its `ensures` clause rather than only its
+  declaration. Current conflict fingerprint v6,
+  renderer V5, and canonical-row recovery envelope v3 bind the appended roles;
+  stale recovery envelopes reject rather than being reinterpreted.
+  Per-fact spans, body calls, and authored `reaches`/`invokes` clause occurrences
+  remain incremental engineering work and require deliberate span retention
+  before typed lowering, not later source-text reconstruction.
   Canonical recovery and root-project file custody are recorded below; none of
   these concerns requires nominal Chi or a new owner decision.
 

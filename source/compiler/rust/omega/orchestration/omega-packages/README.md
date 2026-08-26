@@ -113,9 +113,14 @@ real package fixture demonstrates an irreducible external contract.
   remains future admission work.
 - Canonical review rows carry explanatory source coordinates outside semantic
   identity. Public-trait rows now pair the outer declaration with every exact
-  typed parent-identifier span under `trait_parent`; recovery envelope v2 and
-  conflict renderer V4 retain what review displays. Later nested carriers must
-  come from existing compiler owners rather than package-layer source parsing.
+  typed parent-identifier span under `trait_parent`. Direct authored machine,
+  trait-requirement, and operator contract keyword anchors similarly travel
+  under `contract_clause`; structural static-machine parameter contracts are
+  walked recursively for every projected declaration family, and accepted
+  claims reuse their callable locations.
+  Recovery envelope v3 and conflict renderer V5 retain what review displays.
+  Later nested carriers must come from existing compiler owners rather than
+  package-layer source parsing.
 - Missing old source escalates code review but does not prevent comparison
   against the lock baseline. Missing lock evidence causes fresh graph
   admission.
@@ -1071,7 +1076,7 @@ the accepted lock and never silently re-resolves mutable source selectors.
 Conflict resolution is row-specific and bound to the exact candidate; there is
 no blanket approval switch.
 
-Ratified 2026-08-25: the compiler owns both the semantic extraction and the
+Ratified 2026-08-26: the compiler owns both the semantic extraction and the
 canonical conflict-row boundaries. It may read different rows from different
 compiler-owned representations, including private pre-Psi structural state,
 and move those joins as compiler internals evolve. Checked acceptance and
@@ -1081,7 +1086,9 @@ framed, versioned bytes and compares them exactly; it does not parse compiler IR
 or duplicate capability semantics.
 This does not create a nominal Chi stage. A new stage is warranted only if
 implementation discovers a genuine shared semantic invariant, not merely to
-stabilize a private checker interface. The initial callable row is one complete
+stabilize a private checker interface. Discovery may instead consolidate facts
+in an existing coherent representation such as `Exact` when that removes
+machinery without erasing meaning. The initial callable row is one complete
 envelope, and the selected-provider set deliberately remains one opaque,
 blocking row even with sealed provider identity; finer explanation does not
 change that ownership boundary.

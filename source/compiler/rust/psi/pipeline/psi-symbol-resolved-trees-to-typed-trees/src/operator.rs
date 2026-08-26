@@ -94,6 +94,7 @@ pub(crate) fn lower_operator_definition(
                         },
                     },
                 },
+                keyword_source_span: contract.keyword_source_span,
                 binding: contract.binding.as_ref().map(crate::name::lower_name),
                 facts,
                 token_count: contract.token_count,

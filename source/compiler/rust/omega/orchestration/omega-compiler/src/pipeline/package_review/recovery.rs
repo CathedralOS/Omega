@@ -6,7 +6,7 @@ use psi_core::PackageKeyIdentity;
 const RECOVERY_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW-RECOVERY\0";
 
 /// Version of the compiler-owned canonical-row recovery envelope.
-pub const PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION: u16 = 2;
+pub const PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION: u16 = 3;
 
 /// Resource ceilings applied while encoding or decoding one canonical-row
 /// recovery envelope.
@@ -594,6 +594,7 @@ const fn source_location_role_tag(role: PackageReviewSourceLocationRole) -> u8 {
         PackageReviewSourceLocationRole::SemanticDependencyDeclaration => 9,
         PackageReviewSourceLocationRole::ProviderRequirementDeclaration => 10,
         PackageReviewSourceLocationRole::TraitParent => 11,
+        PackageReviewSourceLocationRole::ContractClause => 12,
     }
 }
 
@@ -613,6 +614,7 @@ fn decode_source_location_role(
         9 => Ok(PackageReviewSourceLocationRole::SemanticDependencyDeclaration),
         10 => Ok(PackageReviewSourceLocationRole::ProviderRequirementDeclaration),
         11 => Ok(PackageReviewSourceLocationRole::TraitParent),
+        12 => Ok(PackageReviewSourceLocationRole::ContractClause),
         _ => Err(PackageReviewCanonicalRowRecoveryError::new(
             "canonical-row recovery source contains an unknown role tag",
         )),

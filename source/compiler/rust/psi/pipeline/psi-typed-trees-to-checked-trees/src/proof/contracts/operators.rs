@@ -122,6 +122,7 @@ mod tests {
             &mut operator,
             SignatureContract {
                 kind: SignatureContractKind::Requires,
+                keyword_source_span: None,
                 binding: None,
                 facts: requires_facts,
                 token_count: 1,
@@ -131,6 +132,7 @@ mod tests {
             &mut operator,
             SignatureContract {
                 kind: SignatureContractKind::Ensures,
+                keyword_source_span: None,
                 binding: None,
                 facts: ensures_facts,
                 token_count: 1,

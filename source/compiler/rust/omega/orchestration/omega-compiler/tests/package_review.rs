@@ -2648,6 +2648,7 @@ fn review_projects_exact_accepted_boundary_contracts() {
     let Some(target) = host_target_name() else {
         return;
     };
+    let zero_source = "boundary machine trusted_zero() -> u64\nensures result == 0;\n";
     let compile_claim = |value: u8| {
         let package = TempPackage::new();
         package.write(
@@ -2727,17 +2728,32 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .windows("trusted_zero".len())
             .any(|window| window == b"trusted_zero")
     );
-    let [claim_location] = accepted_claim
+    let claim_locations = accepted_claim
         .source()
         .authored_locations()
-        .expect("accepted claim declaration source")
-    else {
-        panic!("one accepted claim declaration location")
-    };
-    assert_eq!(claim_location.relative_path(), "main.omg");
-    assert_eq!(
-        claim_location.role(),
-        PackageReviewSourceLocationRole::Declaration
+        .expect("accepted claim declaration and contract source");
+    assert!(claim_locations.iter().any(|location| {
+        location.relative_path() == "main.omg"
+            && location.role() == PackageReviewSourceLocationRole::Declaration
+    }));
+    assert!(claim_locations.iter().any(|location| {
+        let start = usize::try_from(location.start_byte()).unwrap();
+        let end = usize::try_from(location.end_byte()).unwrap();
+        location.relative_path() == "main.omg"
+            && location.role() == PackageReviewSourceLocationRole::ContractClause
+            && &zero_source[start..end] == "ensures"
+    }));
+    let recovered_claim = decode_package_review_canonical_row(
+        &encode_package_review_canonical_row(accepted_claim).expect("encode accepted claim row"),
+    )
+    .expect("recover accepted claim row");
+    assert!(
+        recovered_claim
+            .source()
+            .authored_locations()
+            .is_some_and(|locations| locations.iter().any(|location| {
+                location.role() == PackageReviewSourceLocationRole::ContractClause
+            }))
     );
 
     let one = compile_claim(1);
@@ -3027,6 +3043,26 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     assert_eq!(
         domain.owner(),
         PackageReviewNominalOwner::Package(package_identity())
+    );
+    let membership_row = review
+        .canonical_rows()
+        .expect("membership canonical rows")
+        .into_iter()
+        .find(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::Callable
+                && row
+                    .key_bytes()
+                    .windows("consume".len())
+                    .any(|window| window == b"consume")
+        })
+        .expect("public consume callable row");
+    assert!(
+        membership_row
+            .source()
+            .authored_locations()
+            .is_some_and(|locations| locations.iter().any(|location| {
+                location.role() == PackageReviewSourceLocationRole::ContractClause
+            }))
     );
 
     let hidden = TempPackage::new();
@@ -3646,6 +3682,29 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let [contract] = consume.contracts() else {
         panic!("one named witness contract")
     };
+    let consume_row = direct_review
+        .canonical_rows()
+        .expect("named witness canonical rows")
+        .into_iter()
+        .find(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::Callable
+                && row
+                    .key_bytes()
+                    .windows("consume".len())
+                    .any(|window| window == b"consume")
+        })
+        .expect("named witness callable row");
+    assert!(
+        consume_row
+            .source()
+            .authored_locations()
+            .is_some_and(|locations| locations.iter().any(|location| {
+                let start = usize::try_from(location.start_byte()).unwrap();
+                let end = usize::try_from(location.end_byte()).unwrap();
+                location.role() == PackageReviewSourceLocationRole::ContractClause
+                    && &direct_source[start..end] == "requires"
+            }))
+    );
     assert_eq!(
         contract.binding(),
         None,
@@ -6800,19 +6859,19 @@ fn review_static_machine_contracts_are_recursive_alpha_stable_and_shape_sensitiv
     let original = TempPackage::new();
     let renamed = TempPackage::new();
     let changed = TempPackage::new();
-    original.write(
-        "main.omg",
-        r#"pub machine register<machine Schema>()
+    let original_source = r#"pub machine register<machine Schema>()
 where machine Schema<machine Inner>(value: u64) -> u64
-where machine Inner(value: u64) -> u64;
+where machine Inner(value: u64) -> u64
+requires value == value;
 { }
-"#,
-    );
+"#;
+    original.write("main.omg", original_source);
     renamed.write(
         "main.omg",
         r#"pub machine register<machine Operation>()
 where machine Operation<machine Callback>(value: u64) -> u64
-where machine Callback(value: u64) -> u64;
+where machine Callback(value: u64) -> u64
+requires value == value;
 { }
 "#,
     );
@@ -6820,7 +6879,8 @@ where machine Callback(value: u64) -> u64;
         "main.omg",
         r#"pub machine register<machine Operation>()
 where machine Operation<machine Callback>(value: u64) -> u64
-where machine Callback(value: i64) -> u64;
+where machine Callback(value: i64) -> u64
+requires value == value;
 { }
 "#,
     );
@@ -6868,6 +6928,29 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             _
         ))
     ));
+    let register_row = original
+        .canonical_rows()
+        .expect("static-machine canonical rows")
+        .into_iter()
+        .find(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::Callable
+                && row
+                    .key_bytes()
+                    .windows("register".len())
+                    .any(|window| window == b"register")
+        })
+        .expect("register callable canonical row");
+    assert!(
+        register_row
+            .source()
+            .authored_locations()
+            .is_some_and(|locations| locations.iter().any(|location| {
+                let start = usize::try_from(location.start_byte()).unwrap();
+                let end = usize::try_from(location.end_byte()).unwrap();
+                location.role() == PackageReviewSourceLocationRole::ContractClause
+                    && &original_source[start..end] == "requires"
+            }))
+    );
 
     assert_eq!(
         original
@@ -10690,6 +10773,26 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     assert_eq!(
         domain.owner(),
         PackageReviewNominalOwner::Package(package_identity())
+    );
+    let runtime_row = review
+        .canonical_rows()
+        .expect("trait precondition canonical rows")
+        .into_iter()
+        .find(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::PublicTrait
+                && row
+                    .key_bytes()
+                    .windows("SchedulerRuntime".len())
+                    .any(|window| window == b"SchedulerRuntime")
+        })
+        .expect("scheduler runtime trait row");
+    assert!(
+        runtime_row
+            .source()
+            .authored_locations()
+            .is_some_and(|locations| locations.iter().any(|location| {
+                location.role() == PackageReviewSourceLocationRole::ContractClause
+            }))
     );
 }
 

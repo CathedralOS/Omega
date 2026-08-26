@@ -263,6 +263,9 @@ pub struct CapabilityState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapabilityContract {
     pub kind: CapabilityContractKind,
+    /// Exact authored `requires`, `ensures`, or `crashes` keyword anchor.
+    /// Generated contracts have no authored clause keyword.
+    pub keyword_source_span: Option<psi_source::SourceSpan>,
     /// An explicit erased evidence-term binding (`requires proof: P` or
     /// `ensures proof: P`). Empty clauses remain ordinary ambient facts.
     pub binding: Option<Identifier>,
@@ -274,6 +277,7 @@ impl Default for CapabilityContract {
     fn default() -> Self {
         Self {
             kind: CapabilityContractKind::default(),
+            keyword_source_span: None,
             binding: None,
             facts: HandleSpan::empty(),
             token_count: 0,
