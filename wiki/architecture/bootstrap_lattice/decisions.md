@@ -235,10 +235,10 @@ selected from the production compiler's own complete source closure and the
 measured retain/refactor tradeoff. No exact source manifest substitutes for a
 general language/profile definition.
 
-These are the only two feature inventories being selected. The sources used to
-write the canonical Delta compiler and `omega-bootstrap` are governed by the
-same Delta v1 contract; the Omega source the bridge accepts is governed by
-`Ωself`. The resulting product compiler's user-facing feature set is not a
+These are the only two source-surface inventories being selected. The sources
+used to write the canonical Delta compiler and `omega-bootstrap` are governed
+by the same Delta v1 contract; the Omega source the bridge accepts is governed
+by `Ωself`. The resulting product compiler's user-facing feature set is not a
 third choice: it implements the already-authoritative full Omega specification.
 Generated-code quality is likewise not a language inventory.
 The frozen D0/O0/O1 envelopes are regression contracts for existing vertical

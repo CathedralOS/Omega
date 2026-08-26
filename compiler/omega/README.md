@@ -2,8 +2,8 @@
 
 This root owns the Omega-written target-lowering, optimization, and
 artifact-emission half of the production compiler; implementation remains open.
-Its source
-closure is constrained to `Ωself` and compiled by `omega-bootstrap`; those
+Its source closure is constrained to `Ωself` and compiled by
+`omega-bootstrap`; those
 product passes are not duplicated in the bridge.
 
 The source-profile constraint does not narrow the resulting compiler: this half

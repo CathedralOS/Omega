@@ -41,9 +41,9 @@ artifact view because it is a Delta-written compiler, not a language. The
 bracketed second `omega` is the same product source rebuilt for executable
 quality, not another feature surface or compiler generation.
 
-There are exactly two remaining feature choices. Only the first creates a
-language specification; the second constrains how one ordinary-Omega program
-is authored:
+There are exactly two source-surface inventories left to settle. Only the first
+creates a language specification; the second constrains how one
+ordinary-Omega program is authored:
 
 | Surface | Kind | Required closure |
 | --- | --- | --- |
@@ -212,8 +212,7 @@ are absent, and `u32` cursors are used directly where the specified `Array` and
 `Slice` indexing/count interfaces require `u64`. Explicit exact `as` widening is
 settled and implicit widening is forbidden; the current direct uses still need
 a product-source refactor or a distinct heterogeneous conversion/comparison
-ruling. Those are
-product-language ruling blockers recorded under
+ruling. Those are product-language ruling blockers recorded under
 `OMEGA-PRODUCT-COMPILER-SOURCE` in
 [`TASKS.md`](TASKS.md). They do not block bridge implementation for source
 forms whose meaning is already settled, as the closed same-module runtime-
@@ -356,7 +355,7 @@ beside the linked contracts:
 | Responsibility | Current closure | Canonical detail |
 | --- | --- | --- |
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
-| multi-unit structural custody | closed for generic `OMGCOMP1` and the exact Linux-x86-64/native-provider configuration in `OMGCOMP2`; source and provider spellings remain opaque, with no resolver/lock or digest authority | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md), [`OMEGA_BOOTSTRAP_COMPILATION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V2.md) |
+| multi-unit structural custody | closed for generic `OMGCOMP1` and the exact Linux-x86-64/native-provider configuration in `OMGCOMP2`; bounded Delta SHA-256 closes exact raw-envelope hashing through the public ceiling, while source/provider spellings remain opaque and no expected commitment, resolver/lock, or digest authority follows | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md), [`OMEGA_BOOTSTRAP_COMPILATION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V2.md), [`OMEGA_BOOTSTRAP_SHA256.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_SHA256.md) |
 | source resolution | bounded compositional relations are closed for the selected checkpoint facilities; least-version behavior, canonical identities, and refusal/resource boundaries are gated | versioned `OMEGA_BOOTSTRAP_RESOLUTION*.md` contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
 | checked lowering and composition | bounded compositional relations are closed for selected data, control, scalar, and view facilities, with inherited behavior and conservative traps retained across versions | versioned `OMEGA_BOOTSTRAP_CHECKED_IR*.md` and backend contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
 | lower-rooted artifact reconstruction | independent R1–R5 owners reconstruct the currently selected source/checked-IR/artifact relations; each version remains bounded by its own contract | [`omega-bootstrap` refinement status](bootstrap/assurance/refinement/omega-bootstrap/README.md) and its versioned witness contracts |
@@ -439,10 +438,12 @@ evidence stay in
   accepted source closure, independently reconstruct it and join the
   structurally checked multi-unit
   [compilation envelope](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
-  to that closure's exact commitment and envelope SHA-256. Compiler-issued
-  review rows, stored verdicts, and structural validity alone are never
-  compilation authority. This item is externally gated; it blocks final
-  acceptance, not the implementation work above.
+  to that closure's exact commitment and envelope SHA-256. The bounded
+  Delta-written SHA-256 producer closes the hash computation only; the expected
+  commitment and accepted source closure still come from this external
+  projection. Compiler-issued review rows, stored verdicts, and structural
+  validity alone are never compilation authority. This item is externally
+  gated; it blocks final acceptance, not the implementation work above.
 
 Acceptance: the bridge compiles the complete product-source manifest and every
 program admitted by the general candidate profile with exact Omega semantics.
