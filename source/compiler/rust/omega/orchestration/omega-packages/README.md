@@ -49,8 +49,10 @@ real package fixture demonstrates an irreducible external contract.
   build roots remain in the explicit Q4 compatibility lane; they are not
   accepted as package declarations.
 - `PackageName` is presentation. `PackageKey` joins the name to canonical
-  source lineage. `PackageInstance` adds exact source, toolchain, and checked
-  package-evidence identity.
+  source lineage. `PackageInstance` eventually adds exact source and produced-
+  artifact subjects, per-subject obligation semantics, locally re-derived
+  results, and disclosed open obligations. Compiler/toolchain identity remains
+  separately labeled review and reproduction metadata, not a package seal.
 - `build.omg` records source requests and update selectors. The dependency's
   own declaration determines its default import alias; `--as` is an
   exceptional local rename.
@@ -972,9 +974,17 @@ resolutions, and source bytes. Each opaque package identity still binds its
 declared name and source lineage. Recovered row envelopes must be joined to a
 locally reconstructed closure; renaming an unused alias or adding/removing an
 unused reachable dependency invalidates equality, while relocating the same
-graph does not. This closes the
-ledger's dependency-subject coordinate, not transitive certificate/open-
-obligation composition or lock admission.
+graph does not. The ledger now names its obligation-semantics schema separately
+from its outer codec and review-row vocabulary. Its bounded canonical whole-
+ledger frame carries the exact package, target, closure, aliases, and row bytes;
+strict decode revalidates canonical graph closure and row framing, and a domain-
+separated fingerprint identifies the complete framed replay question. Row
+payload meaning remains opaque until exact local reconstruction. Compiler-
+issued closure review retains that locally reconstructed ledger under one
+overflow-safe 64 MiB aggregate retained-ledger ceiling per review session.
+Decode and fingerprint remain inert until exact local reconstruction succeeds.
+This closes the schema-bound replay-question coordinate, not transitive
+certificate/open-obligation composition or lock admission.
 
 ## Target command surface
 
@@ -1071,10 +1081,17 @@ source lineage. Individually recovered row envelopes establish framing only and
 must be joined to that separately reconstructed closure; missing, reordered, stale,
 mixed-package, mixed-target, renamed-alias, or changed-closure ledgers reject
 under local comparison, while relocation alone is irrelevant. This is a replay
-gate for the current review vocabulary, not accepted package evidence or a
-lock-promotion path: produced-artifact subjects, certificate results,
-transitive open obligations, schema deltas, transitive dependency-evidence
-composition, and root admissions remain absent.
+gate for the current review vocabulary. It also retains an explicit current
+obligation-semantics identity and a bounded canonical whole-ledger frame over
+the package, target, complete path-free closure, aliases, and row bytes. Decode
+rechecks schema and row-vocabulary versions, closure reachability/cycles/order,
+row framing, resource ceilings, and canonical re-encoding; row payload semantics
+remain subject to exact local reconstruction. The ledger fingerprint is only
+identity of that framed question, and retained ledgers share one 64 MiB session
+ceiling. This is not accepted package evidence or a lock-promotion path:
+produced-artifact completion, certificate results, transitive open obligations,
+checked schema deltas, transitive dependency-evidence composition, and root
+admissions remain absent.
 Review-only update comparison joins candidate rows to exact resolver custody,
 matches rows linearly by compiler-owned `(kind, key)` coordinates, and retains
 complete old/new bytes without decoding them. Conflict fingerprints bind both
@@ -1199,6 +1216,7 @@ omega-packages/
 |   |-- closure_resolution.rs # Bounded recursive immutable source custody.
 |   |-- source_adapter.rs  # Explicit workspace and Git closure policy.
 |   |-- compiler_handoff.rs # Revalidated package-aware compiler inputs.
+|   |-- compiler_review.rs # Closure compilation and retained schema-bound replay ledgers.
 |   |-- source_commands.rs # Unhardened source diagnostic command surface.
 |   |-- source_patch.rs    # Bounded hostile-data source review packet.
 |   |-- review_evidence.rs # Private live/recovered comparison evidence seam.

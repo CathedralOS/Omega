@@ -18,7 +18,9 @@ use omega_compiler::{
     PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
     PackageReviewSynchronousInvocation, PackageReviewSyntheticSourceKind,
     PackageReviewTypeParameterKind, PackageSourceBinding, compile_to_checked_with_packages,
-    decode_package_review_canonical_row, encode_package_review_canonical_row,
+    decode_ordinary_package_obligation_ledger, decode_package_review_canonical_row,
+    encode_ordinary_package_obligation_ledger, encode_package_review_canonical_row,
+    ordinary_package_obligation_ledger_fingerprint,
     ordinary_package_obligation_ledger_from_compiler_rows, project_checked_package_review,
     recover_ordinary_package_obligation_ledger, validate_ordinary_package_obligation_ledger,
 };
@@ -28,6 +30,47 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+const LEDGER_MAGIC: &[u8] = b"OMEGA-ORDINARY-PACKAGE-OBLIGATION-LEDGER\0";
+
+fn read_ledger_u64(bytes: &[u8], position: &mut usize) -> usize {
+    let end = *position + 8;
+    let value = u64::from_le_bytes(bytes[*position..end].try_into().unwrap());
+    *position = end;
+    usize::try_from(value).unwrap()
+}
+
+fn ledger_target_range(bytes: &[u8]) -> std::ops::Range<usize> {
+    let mut position = LEDGER_MAGIC.len() + 4 * std::mem::size_of::<u16>() + 32;
+    let length = read_ledger_u64(bytes, &mut position);
+    position..position + length
+}
+
+fn ledger_closure_package_range(bytes: &[u8]) -> std::ops::Range<usize> {
+    let target = ledger_target_range(bytes);
+    let mut position = target.end + 32;
+    let count = read_ledger_u64(bytes, &mut position);
+    position..position + count * 32
+}
+
+fn ledger_row_frames(bytes: &[u8]) -> Vec<std::ops::Range<usize>> {
+    let packages = ledger_closure_package_range(bytes);
+    let mut position = packages.end;
+    let dependencies = read_ledger_u64(bytes, &mut position);
+    for _ in 0..dependencies {
+        position += 32;
+        let alias_length = read_ledger_u64(bytes, &mut position);
+        position += alias_length + 32;
+    }
+    let rows = read_ledger_u64(bytes, &mut position);
+    (0..rows)
+        .map(|_| {
+            let start = position;
+            let length = read_ledger_u64(bytes, &mut position);
+            position += length;
+            start..position
+        })
+        .collect()
+}
 
 struct TempPackage(PathBuf);
 
@@ -163,6 +206,61 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .expect("fresh compiler rows should form a canonical ledger");
     validate_ordinary_package_obligation_ledger(&ledger, &original_checked)
         .expect("unchanged checked semantics should reconstruct the same ledger");
+
+    let ledger_bytes = encode_ordinary_package_obligation_ledger(&ledger)
+        .expect("ordinary package obligation ledger should encode canonically");
+    let decoded_ledger = decode_ordinary_package_obligation_ledger(&ledger_bytes)
+        .expect("ordinary package obligation ledger should decode canonically");
+    assert_eq!(decoded_ledger, ledger);
+    validate_ordinary_package_obligation_ledger(&decoded_ledger, &original_checked)
+        .expect("decoded ledger remains inert until exact local reconstruction succeeds");
+    assert_eq!(
+        ordinary_package_obligation_ledger_fingerprint(&decoded_ledger).unwrap(),
+        ordinary_package_obligation_ledger_fingerprint(&ledger).unwrap()
+    );
+
+    let mut unknown_schema = ledger_bytes.clone();
+    let schema_offset = LEDGER_MAGIC.len() + std::mem::size_of::<u16>();
+    unknown_schema[schema_offset..schema_offset + 2].copy_from_slice(&u16::MAX.to_le_bytes());
+    let error = decode_ordinary_package_obligation_ledger(&unknown_schema)
+        .expect_err("unknown obligation semantics must reject");
+    assert!(
+        error
+            .message()
+            .contains("unsupported ordinary package obligation schema")
+    );
+
+    let mut trailing = ledger_bytes.clone();
+    trailing.push(0);
+    let error = decode_ordinary_package_obligation_ledger(&trailing)
+        .expect_err("trailing ledger bytes must reject");
+    assert!(error.message().contains("trailing bytes"));
+
+    let mut changed_package = ledger_bytes.clone();
+    let package_offset = LEDGER_MAGIC.len() + 4 * std::mem::size_of::<u16>();
+    changed_package[package_offset..package_offset + 32].copy_from_slice(&[88; 32]);
+    let error = decode_ordinary_package_obligation_ledger(&changed_package)
+        .expect_err("ledger package and row package must agree");
+    assert!(error.message().contains("different package identity"));
+
+    let mut changed_target = ledger_bytes.clone();
+    let target_range = ledger_target_range(&changed_target);
+    assert_eq!(target_range.len(), b"linux_arm64".len());
+    changed_target[target_range].copy_from_slice(b"linux_arm64");
+    let error = decode_ordinary_package_obligation_ledger(&changed_target)
+        .expect_err("ledger target and row target must agree");
+    assert!(error.message().contains("different target"));
+
+    let row_frames = ledger_row_frames(&ledger_bytes);
+    assert!(row_frames.len() >= 2);
+    let mut reordered_rows = Vec::new();
+    reordered_rows.extend_from_slice(&ledger_bytes[..row_frames[0].start]);
+    reordered_rows.extend_from_slice(&ledger_bytes[row_frames[1].clone()]);
+    reordered_rows.extend_from_slice(&ledger_bytes[row_frames[0].clone()]);
+    reordered_rows.extend_from_slice(&ledger_bytes[row_frames[1].end..]);
+    let error = decode_ordinary_package_obligation_ledger(&reordered_rows)
+        .expect_err("reordered canonical ledger rows must reject");
+    assert!(error.message().contains("strict canonical order"));
 
     let decoded = rows
         .iter()
@@ -306,6 +404,45 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         original_ledger, renamed_ledger,
         "the exact compiler-consumed alias still enters ledger identity"
     );
+    assert_ne!(
+        ordinary_package_obligation_ledger_fingerprint(&original_ledger).unwrap(),
+        ordinary_package_obligation_ledger_fingerprint(&renamed_ledger).unwrap(),
+        "the canonical whole-ledger identity binds requester-local aliases"
+    );
+    let original_bytes = encode_ordinary_package_obligation_ledger(&original_ledger).unwrap();
+    assert_eq!(
+        decode_ordinary_package_obligation_ledger(&original_bytes).unwrap(),
+        original_ledger
+    );
+
+    let package_range = ledger_closure_package_range(&original_bytes);
+    assert_eq!(package_range.len(), 64);
+    let mut reordered_packages = original_bytes.clone();
+    let first_package = reordered_packages[package_range.start..package_range.start + 32].to_vec();
+    let second_package = reordered_packages[package_range.start + 32..package_range.end].to_vec();
+    reordered_packages[package_range.start..package_range.start + 32]
+        .copy_from_slice(&second_package);
+    reordered_packages[package_range.start + 32..package_range.end].copy_from_slice(&first_package);
+    let error = decode_ordinary_package_obligation_ledger(&reordered_packages)
+        .expect_err("noncanonical closure package ordering must reject");
+    assert!(error.message().contains("strict canonical order"));
+
+    let alias = b"dependency";
+    let alias_start = original_bytes
+        .windows(alias.len())
+        .position(|window| window == alias)
+        .expect("canonical closure retains its requester-local alias");
+    let mut invalid_alias = original_bytes.clone();
+    invalid_alias[alias_start] = b'D';
+    let error = decode_ordinary_package_obligation_ledger(&invalid_alias)
+        .expect_err("noncanonical closure alias must reject");
+    assert!(error.message().contains("noncanonical alias"));
+
+    let mut open_edge = original_bytes.clone();
+    open_edge[alias_start + alias.len()..alias_start + alias.len() + 32].copy_from_slice(&[77; 32]);
+    let error = decode_ordinary_package_obligation_ledger(&open_edge)
+        .expect_err("open closure edge must reject");
+    assert!(error.message().contains("open edge"));
     let diagnostics =
         validate_ordinary_package_obligation_ledger(&original_ledger, &renamed_checked)
             .expect_err("a stale dependency closure must reject local reconstruction");

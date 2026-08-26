@@ -1,6 +1,9 @@
 use omega_packages::{
     BuildDeclaration, PackageName, WorkspaceMemberPath, extract_build_declaration,
 };
+use psi_source_files_to_tokens::Lexer;
+use psi_syntax_trees::item::Item;
+use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -56,6 +59,46 @@ fn canary_migration_key(canaries: &Path, root: &Path) -> String {
         .expect("canary root must be beneath the canary corpus")
         .to_string_lossy()
         .replace(['_', '\\'], "-")
+}
+
+fn assert_scoped_build_exception(root: &Path) {
+    let build_path = root.join("build.omg");
+    let source = fs::read_to_string(&build_path)
+        .unwrap_or_else(|error| panic!("read {}: {error}", build_path.display()));
+    let tokens = Lexer::new(&source)
+        .tokenize()
+        .unwrap_or_else(|error| panic!("lex {}: {}", build_path.display(), error.message));
+    let syntax_trees = parse_syntax_trees(&tokens)
+        .unwrap_or_else(|error| panic!("parse {}: {}", build_path.display(), error.message));
+
+    let mut scoped_builds = 0;
+    let mut free_builds = 0;
+    for item in syntax_trees.root_items() {
+        let Item::Machine(machine) = item else {
+            continue;
+        };
+        if machine.name.as_str().rsplit("::").next() != Some("build") {
+            continue;
+        }
+        if machine.attached_data.is_some() {
+            scoped_builds += 1;
+        } else {
+            free_builds += 1;
+        }
+    }
+
+    assert_eq!(
+        scoped_builds,
+        1,
+        "role-migration exception must retain exactly one scoped build machine in {}",
+        build_path.display()
+    );
+    assert_eq!(
+        free_builds,
+        0,
+        "role-migration exception must not acquire a free build root in {}",
+        build_path.display()
+    );
 }
 
 fn expected_canary_application_name(root: &Path) -> String {
@@ -150,6 +193,7 @@ fn ordinary_canary_projects_declare_canonical_application_roles() {
     for root in roots {
         let migration_key = canary_migration_key(&canaries, &root);
         if ROLE_MIGRATION_EXCEPTIONS.contains(&migration_key.as_str()) {
+            assert_scoped_build_exception(&root);
             exceptions += 1;
             continue;
         }

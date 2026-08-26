@@ -97,6 +97,66 @@ impl PackageDependencyClosure {
     pub fn dependencies(&self) -> &[PackageDependencyBinding] {
         &self.dependencies
     }
+
+    /// Recover one canonical source-path-free closure from persisted semantic
+    /// coordinates. This does not recover source custody or package admission.
+    ///
+    /// The wire decoder must not be able to manufacture a weaker graph shape
+    /// than `PackageCompilationInputs`: packages and requester-local aliases
+    /// are strictly ordered, every edge is closed, the root reaches every
+    /// package, and cycles reject.
+    pub(crate) fn from_canonical_parts(
+        root: PackageKeyIdentity,
+        packages: Vec<PackageKeyIdentity>,
+        dependencies: Vec<PackageDependencyBinding>,
+    ) -> Result<Self, &'static str> {
+        if packages.is_empty() {
+            return Err("package dependency closure has no packages");
+        }
+        if packages.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err("package dependency closure packages are not in strict canonical order");
+        }
+        let package_set = packages.iter().copied().collect::<BTreeSet<_>>();
+        if !package_set.contains(&root) {
+            return Err("package dependency closure does not contain its root package");
+        }
+
+        let mut adjacency =
+            BTreeMap::<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>::new();
+        let mut prior_coordinate: Option<(PackageKeyIdentity, &str)> = None;
+        for dependency in &dependencies {
+            let coordinate = (dependency.requester, dependency.alias.as_str());
+            if prior_coordinate.is_some_and(|prior| prior >= coordinate) {
+                return Err("package dependency closure edges are not in strict canonical order");
+            }
+            prior_coordinate = Some(coordinate);
+            if !is_snake_case(&dependency.alias) {
+                return Err("package dependency closure contains a noncanonical alias");
+            }
+            if !package_set.contains(&dependency.requester)
+                || !package_set.contains(&dependency.target)
+            {
+                return Err("package dependency closure contains an open edge");
+            }
+            adjacency
+                .entry(dependency.requester)
+                .or_default()
+                .insert(dependency.alias.clone(), dependency.target);
+        }
+
+        if reachable_packages(root, &adjacency) != package_set {
+            return Err("package dependency closure contains an unreachable package");
+        }
+        if dependency_cycle_in_set(&package_set, &adjacency) {
+            return Err("package dependency closure contains a cycle");
+        }
+
+        Ok(Self {
+            root,
+            packages,
+            dependencies,
+        })
+    }
 }
 
 /// Closed, requester-scoped package bindings accepted by package-aware
@@ -660,6 +720,49 @@ fn dependency_cycle(
     None
 }
 
+fn dependency_cycle_in_set(
+    packages: &BTreeSet<PackageKeyIdentity>,
+    dependencies: &BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>,
+) -> bool {
+    let mut inbound = packages
+        .iter()
+        .copied()
+        .map(|package| (package, 0usize))
+        .collect::<BTreeMap<_, _>>();
+    for targets in dependencies.values() {
+        for target in targets.values() {
+            let Some(count) = inbound.get_mut(target) else {
+                return true;
+            };
+            let Some(next) = count.checked_add(1) else {
+                return true;
+            };
+            *count = next;
+        }
+    }
+
+    let mut ready = inbound
+        .iter()
+        .filter_map(|(package, count)| (*count == 0).then_some(*package))
+        .collect::<Vec<_>>();
+    let mut visited = 0usize;
+    while let Some(package) = ready.pop() {
+        visited += 1;
+        if let Some(targets) = dependencies.get(&package) {
+            for target in targets.values() {
+                let count = inbound
+                    .get_mut(target)
+                    .expect("closed package dependency edge retains its target");
+                *count -= 1;
+                if *count == 0 {
+                    ready.push(*target);
+                }
+            }
+        }
+    }
+    visited != packages.len()
+}
+
 fn display_identity(identity: PackageKeyIdentity) -> String {
     let digest = identity.digest();
     let mut display = String::with_capacity(64);
@@ -828,6 +931,41 @@ mod tests {
                 .iter()
                 .any(|error| matches!(error, PackageCompilationInputError::DependencyCycle { .. }))
         );
+    }
+
+    #[test]
+    fn canonical_path_free_closure_recovery_rejects_open_unreachable_and_cyclic_graphs() {
+        let packages = vec![identity(1), identity(2)];
+        let unreachable = PackageDependencyClosure::from_canonical_parts(
+            identity(1),
+            packages.clone(),
+            Vec::new(),
+        )
+        .expect_err("unreachable path-free closure package must reject");
+        assert!(unreachable.contains("unreachable"));
+
+        let open = PackageDependencyClosure::from_canonical_parts(
+            identity(1),
+            packages.clone(),
+            vec![PackageDependencyBinding::new(
+                identity(1),
+                "dependency",
+                identity(3),
+            )],
+        )
+        .expect_err("open path-free closure edge must reject");
+        assert!(open.contains("open edge"));
+
+        let cyclic = PackageDependencyClosure::from_canonical_parts(
+            identity(1),
+            packages,
+            vec![
+                PackageDependencyBinding::new(identity(1), "dependency", identity(2)),
+                PackageDependencyBinding::new(identity(2), "root", identity(1)),
+            ],
+        )
+        .expect_err("cyclic path-free closure must reject");
+        assert!(cyclic.contains("cycle"));
     }
 
     #[test]

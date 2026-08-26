@@ -1325,9 +1325,18 @@ resolution, or source byte. Each opaque package identity still binds its
 declared name and source lineage. Recovered row envelopes must be joined to that
 separately reconstructed closure. Renaming an unused alias or adding/removing an
 unused reachable package invalidates ledger equality; relocating the same graph
-does not. This closes a
-subject coordinate in the current replay gate, not transitive certificate/open-
-obligation composition or lock authority.
+does not. The ledger's obligation-semantics schema is explicit and independent
+from its outer codec and review-row versions. A bounded canonical whole-ledger
+frame carries the schema, package, target, complete package/alias closure, and
+exact rows. Decode rejects unsupported vocabularies, malformed or noncanonical
+graphs and row framing, resource-limit violations, and trailing state. Row
+payload meaning remains opaque until exact local reconstruction. A domain-
+separated fingerprint names this complete framed replay question, and compiler-
+issued closure review retains the locally reconstructed ledger under one 64 MiB
+aggregate session ceiling. Neither decode nor a matching fingerprint
+establishes a discharge result. This closes a schema-bound subject coordinate
+in the current replay gate, not transitive certificate/open-obligation
+composition or lock authority.
 
 Terminal Psi now provides the first concrete replay ledger: one ordered,
 owner-tagged set covers executable operations, call and nominal-cleanup

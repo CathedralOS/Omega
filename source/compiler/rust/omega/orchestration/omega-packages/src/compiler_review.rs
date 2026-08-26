@@ -8,8 +8,9 @@ use crate::{
 use omega_compiler::{
     BuildObservationSummary, CheckedPackageReviewProjection, CompilerExecutableCommitment,
     CompilerExecutableCommitmentError, FilesystemSponsor, FilesystemSponsorError,
-    PackageCompilationInputError, PackageReviewCanonicalRow, PackageReviewEncodingError,
-    PackageSourceConsumptionCommitment, compile_to_checked_with_packages_in_sponsored_build_dir,
+    OrdinaryPackageObligationLedger, PackageCompilationInputError, PackageReviewCanonicalRow,
+    PackageReviewEncodingError, PackageSourceConsumptionCommitment,
+    compile_to_checked_with_packages_in_sponsored_build_dir,
     ordinary_package_obligation_ledger_from_compiler_rows, project_checked_package_review,
     validate_ordinary_package_obligation_ledger,
 };
@@ -22,6 +23,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static REVIEW_BUILD_SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+const MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES: usize = 64 * 1024 * 1024;
 
 /// Compiler-issued review material for one exact package source selection.
 ///
@@ -38,6 +40,7 @@ pub struct CompilerIssuedPackageReview {
     projection: CheckedPackageReviewProjection,
     canonical_review_bytes: Vec<u8>,
     canonical_rows: Vec<PackageReviewCanonicalRow>,
+    obligation_ledger: OrdinaryPackageObligationLedger,
     comparison_rows: Vec<ReviewOnlyCanonicalRow>,
 }
 
@@ -74,6 +77,13 @@ impl CompilerIssuedPackageReview {
 
     pub fn canonical_rows(&self) -> &[PackageReviewCanonicalRow] {
         &self.canonical_rows
+    }
+
+    /// Exact schema-bound replay question reconstructed from this package's
+    /// checked source. It remains compiler-issued review material, not a
+    /// discharge result, admission decision, package instance, or lock row.
+    pub const fn obligation_ledger(&self) -> &OrdinaryPackageObligationLedger {
+        &self.obligation_ledger
     }
 
     pub(crate) fn comparison_rows(&self) -> &[ReviewOnlyCanonicalRow] {
@@ -166,6 +176,10 @@ pub enum CompileResolvedPackageReviewsError {
     },
     IdentityMismatch {
         package: PackageKey,
+    },
+    RetainedObligationLedgerBudget {
+        package: PackageKey,
+        maximum_bytes: usize,
     },
 }
 
@@ -260,6 +274,14 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 "compiler review identity did not match package `{}`",
                 package.name().as_str()
             ),
+            Self::RetainedObligationLedgerBudget {
+                package,
+                maximum_bytes,
+            } => write!(
+                formatter,
+                "retained ordinary obligation ledgers exceeded the {maximum_bytes}-byte review-session ceiling while compiling package `{}`",
+                package.name().as_str()
+            ),
         }
     }
 }
@@ -302,6 +324,7 @@ fn compile_resolved_package_reviews_in_session(
             }
         })?;
     let mut reviews = Vec::with_capacity(closure.custodies().len());
+    let mut retained_obligation_ledger_total = 0usize;
     for key in dependency_first_package_order(closure) {
         verify_transitive_source_custody(
             closure,
@@ -395,6 +418,23 @@ fn compile_resolved_package_reviews_in_session(
                 diagnostics,
             },
         )?;
+        let obligation_ledger_bytes = retained_obligation_ledger_bytes(&obligation_ledger)
+            .ok_or_else(
+                || CompileResolvedPackageReviewsError::RetainedObligationLedgerBudget {
+                    package: key.clone(),
+                    maximum_bytes: MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES,
+                },
+            )?;
+        retained_obligation_ledger_total = reserve_retained_obligation_ledger_bytes(
+            retained_obligation_ledger_total,
+            obligation_ledger_bytes,
+        )
+        .ok_or_else(|| {
+            CompileResolvedPackageReviewsError::RetainedObligationLedgerBudget {
+                package: key.clone(),
+                maximum_bytes: MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES,
+            }
+        })?;
         let comparison_rows = canonical_rows
             .iter()
             .map(ReviewOnlyCanonicalRow::from_compiler_issued)
@@ -408,6 +448,7 @@ fn compile_resolved_package_reviews_in_session(
             projection,
             canonical_review_bytes,
             canonical_rows,
+            obligation_ledger,
             comparison_rows,
         });
     }
@@ -427,6 +468,32 @@ fn compile_resolved_package_reviews_in_session(
         );
     }
     Ok(CompilerIssuedPackageReviewSet { reviews })
+}
+
+fn retained_obligation_ledger_bytes(ledger: &OrdinaryPackageObligationLedger) -> Option<usize> {
+    let mut bytes = std::mem::size_of_val(ledger)
+        .checked_add(std::mem::size_of_val(ledger.rows()))?
+        .checked_add(std::mem::size_of_val(
+            ledger.dependency_closure().packages(),
+        ))?
+        .checked_add(std::mem::size_of_val(
+            ledger.dependency_closure().dependencies(),
+        ))?;
+    for row in ledger.rows() {
+        bytes = bytes
+            .checked_add(row.key_bytes().len())?
+            .checked_add(row.canonical_bytes().len())?;
+    }
+    for dependency in ledger.dependency_closure().dependencies() {
+        bytes = bytes.checked_add(dependency.alias().len())?;
+    }
+    Some(bytes)
+}
+
+fn reserve_retained_obligation_ledger_bytes(current: usize, additional: usize) -> Option<usize> {
+    current
+        .checked_add(additional)
+        .filter(|total| *total <= MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES)
 }
 
 #[derive(Debug)]
@@ -724,6 +791,22 @@ mod tests {
         assert_ne!(
             package_build_root(Path::new("build"), &key, &first),
             package_build_root(Path::new("build"), &key, &second)
+        );
+    }
+
+    #[test]
+    fn retained_obligation_ledger_budget_is_aggregate_and_overflow_safe() {
+        assert_eq!(
+            reserve_retained_obligation_ledger_bytes(MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES - 1, 1,),
+            Some(MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES)
+        );
+        assert_eq!(
+            reserve_retained_obligation_ledger_bytes(MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES, 1,),
+            None
+        );
+        assert_eq!(
+            reserve_retained_obligation_ledger_bytes(usize::MAX, 1),
+            None
         );
     }
 }

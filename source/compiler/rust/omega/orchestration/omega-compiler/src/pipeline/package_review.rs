@@ -16,8 +16,13 @@ pub use encoding::{
     PackageReviewEncodingError,
 };
 pub use obligation_ledger::{
-    OrdinaryPackageObligationLedger, OrdinaryPackageObligationLedgerRecoveryError,
-    OrdinaryPackageObligationRow, ordinary_package_obligation_ledger_from_compiler_rows,
+    ORDINARY_PACKAGE_OBLIGATION_LEDGER_ENCODING_VERSION,
+    ORDINARY_PACKAGE_OBLIGATION_SCHEMA_VERSION, OrdinaryPackageObligationLedger,
+    OrdinaryPackageObligationLedgerFingerprint, OrdinaryPackageObligationLedgerRecoveryError,
+    OrdinaryPackageObligationRow, OrdinaryPackageObligationSchemaIdentity,
+    decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
+    ordinary_package_obligation_ledger_fingerprint,
+    ordinary_package_obligation_ledger_from_compiler_rows,
     reconstruct_ordinary_package_obligation_ledger, recover_ordinary_package_obligation_ledger,
     validate_ordinary_package_obligation_ledger,
 };

@@ -2198,9 +2198,27 @@ complete.
   task. The vocabulary is still incomplete for accepted package evidence, and
   the ledger deliberately has no lock-promotion path. Exact produced-artifact
   subjects, certificate replay and results, transitive open obligations,
-  obligation-schema identity and deltas, transitive dependency-evidence
-  composition, and root admission decisions remain required before
-  `PackageInstance` exists.
+  certificate/evidence-schema identity and checked deltas, transitive
+  dependency-evidence composition, and root admission decisions remain
+  required before `PackageInstance` exists.
+
+  Milestone 2026-08-26: the ordinary ledger now names an explicit obligation-
+  semantics schema independently from its outer codec and the review-row
+  vocabulary. A bounded canonical whole-ledger encoding carries that schema,
+  exact package, target, complete path-free package/alias closure, and every
+  canonical row. Decode rejects unknown schema or row vocabulary, malformed or
+  noncanonical framing, duplicate/open/unreachable/cyclic closure state,
+  reordered rows, mixed package/target rows, trailing bytes, and every resource
+  ceiling violation. Kind-specific row payloads deliberately remain opaque at
+  this framing boundary; local reconstruction is what rejects a semantically
+  malformed or incomplete question. A domain-separated ledger fingerprint
+  identifies the complete framed replay question. Decoding and hashing confer
+  no authority: local reconstruction and exact equality remain mandatory.
+  Compiler-issued closure review retains the validated ledger rather than
+  discarding it, under one overflow-safe 64 MiB aggregate retained-ledger
+  ceiling for the whole review session. Neither the accepted lock,
+  `PackageInstance`, certificates, results, open obligations, nor admission
+  exists through this API.
 
 - **ACCEPTED-LOCK-SCHEMA.** Replace name-keyed/fingerprint-only lock entries.
 
@@ -2783,9 +2801,10 @@ standard library by path.
       product source also declares `psi`, so every concrete root workspace
       member has an explicit kind and stable name. Repository-level tests
       project all four real declarations through the public reader.
-- [ ] **Migrate project-root build files and enforce roles in every reader.**
-      The declaration projector now rejects absence, but standalone compiler
-      build loading still tolerates role-less files.
+- [x] **Migrate free project-root build files and enforce their roles in every
+      reader.**
+      The declaration projector and standalone compiler now reject a role-less
+      selected free build root through the same shared grammar.
       Migrate actual corpus/canary/sample project roots to explicit application
       declarations, distinguish virtual build-vocabulary fragments from project
       manifests, then make dependency projection and editing consume the same
@@ -2891,6 +2910,20 @@ standard library by path.
       error. Only the five scoped roots remain outside the shared role grammar,
       isolated behind the explicit Q4 compatibility lane rather than inferred
       as another manifest form.
+
+      Completed 2026-08-26: all 1,338 tracked free build roots declare an
+      explicit package, application, or workspace role. Package identity,
+      dependency projection/editing, and compiler loading consume the shared
+      `omega-build-declarations` grammar. The repository corpus test now also
+      parses each of the five named compatibility exceptions and requires
+      exactly one scoped build machine and no free root, so an exception path
+      cannot silently become arbitrary role-less source.
+- [ ] **BLOCKED — OWNER Q4: retire or formally admit scoped build roots.**
+      Exactly five tracked canaries remain on the standalone-only
+      `Owner::build` compatibility lane. Package readers reject that shape;
+      compiler loading bypasses free-role projection only for it. The remaining
+      work is the Q4 language/compiler-design choice, followed by mechanical
+      migration and removal or shared formalization of the compatibility seam.
 - [x] **Record the bundled-core decision** in
       `wiki/design_briefs/build_and_package_model.md`: core is welded to the
       compiler because it is the language, not because nobody wrote a manifest.

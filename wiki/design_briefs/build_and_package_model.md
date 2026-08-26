@@ -981,14 +981,25 @@ reconstruction before exposing its rows. Missing, reordered, stale,
 mixed-package, mixed-target, renamed-alias, or changed-closure subjects reject;
 relocation alone does not change the closure. This uses existing typed/checked
 carriers and the internal package projector; it creates no Chi or other nominal
-stage.
+stage. The ledger also carries an explicit obligation-semantics schema identity
+separate from its outer codec and review-row versions. One bounded canonical
+whole-ledger frame contains that schema, package, target, complete path-free
+package/alias closure, and exact canonical rows. Decode revalidates schema and
+row vocabulary, graph closure/reachability/cycles/order, row framing, resource
+ceilings, and canonical re-encoding. Kind-specific payload meaning remains
+opaque to this framing decoder and is accepted only by exact local
+reconstruction. Its domain-separated fingerprint names the complete framed
+replay question but proves no result. Compiler-issued closure review retains
+the validated ledger rather than discarding it, with one overflow-safe 64 MiB
+aggregate retained-ledger ceiling across the review session.
 
 This is not yet the ordinary accepted artifact described above. The current
 review vocabulary remains incomplete, and the ledger has no lock-promotion
 route. Exact produced-artifact subjects, certificate replay and results,
-transitive open obligations, obligation-schema identity and migration,
-dependency composition, and local admission decisions remain separate required
-joins before a `PackageInstance` can exist.
+transitive open obligations, certificate/evidence-schema identity and checked
+migration, dependency composition, and local admission decisions remain
+separate required joins before a `PackageInstance` can exist. Canonical decode
+or a matching ledger fingerprint cannot substitute for local reconstruction.
 
 The first bounded replay component exists at Terminal Psi. The verifier exposes
 one complete ordered obligation set for executable operations, call and nominal
