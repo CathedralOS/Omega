@@ -31,11 +31,13 @@ pub use registry::{
     RuleRegistryError, RuleScheduleKey,
 };
 pub use rules::{
-    ExactIntegerAddConstantsRule, ExactIntegerCastConstantsRule, ExactIntegerDivideConstantsRule,
+    BooleanEqualConstantsRule, BooleanNotConstantsRule, ExactIntegerAddConstantsRule,
+    ExactIntegerCastConstantsRule, ExactIntegerDivideConstantsRule,
     ExactIntegerMultiplyConstantsRule, ExactIntegerRemainderConstantsRule,
     ExactIntegerShiftLeftConstantsRule, ExactIntegerShiftRightConstantsRule,
     ExactIntegerSubtractConstantsRule, IntegerBitwiseAndConstantsRule,
     IntegerBitwiseNotConstantsRule, IntegerBitwiseOrConstantsRule, IntegerBitwiseXorConstantsRule,
+    IntegerEqualConstantsRule, IntegerLessOrEqualConstantsRule, IntegerLessThanConstantsRule,
     IntegerWidenConstantsRule, SaturatingIntegerAddConstantsRule,
     SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,
     SaturatingIntegerRemainderConstantsRule, SaturatingIntegerSubtractConstantsRule,

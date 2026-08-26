@@ -33,7 +33,7 @@ pub struct ProvenanceRewrite {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum IntegerEvaluationWitness {
+pub enum ScalarEvaluationWitness {
     Unary {
         operand_support: OperationId,
     },
@@ -42,6 +42,10 @@ pub enum IntegerEvaluationWitness {
         right_support: OperationId,
     },
 }
+
+/// Compatibility name retained while integer-only rules migrate to the shared
+/// scalar candidate vocabulary.
+pub type IntegerEvaluationWitness = ScalarEvaluationWitness;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IntegerConstantRewrite {
@@ -53,8 +57,17 @@ pub struct IntegerConstantRewrite {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BooleanConstantRewrite {
+    pub location: NodeLocation,
+    pub source_operation: OperationId,
+    pub result: ValueId,
+    pub constant: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PsiRewritePatch {
     ReplaceIntegerOperationWithConstant(IntegerConstantRewrite),
+    ReplaceBooleanOperationWithConstant(BooleanConstantRewrite),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,7 +83,7 @@ pub struct PsiRewriteCandidate {
     safety_class: OptimizationSafetyClass,
     substitutions: Vec<ScalarSubstitution>,
     provenance: Vec<ProvenanceRewrite>,
-    witness: IntegerEvaluationWitness,
+    witness: ScalarEvaluationWitness,
     predicted_cost_delta: i64,
     patch: PsiRewritePatch,
 }
@@ -102,17 +115,67 @@ impl PsiRewriteCandidate {
         affected_blocks: Vec<BlockId>,
         substitutions: Vec<ScalarSubstitution>,
         provenance: Vec<ProvenanceRewrite>,
-        witness: IntegerEvaluationWitness,
+        witness: ScalarEvaluationWitness,
         predicted_cost_delta: i64,
         patch: IntegerConstantRewrite,
     ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new_scalar_evaluation(
+            input,
+            contract,
+            affected_blocks,
+            substitutions,
+            provenance,
+            witness,
+            predicted_cost_delta,
+            PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_boolean_evaluation(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        substitutions: Vec<ScalarSubstitution>,
+        provenance: Vec<ProvenanceRewrite>,
+        witness: ScalarEvaluationWitness,
+        predicted_cost_delta: i64,
+        patch: BooleanConstantRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new_scalar_evaluation(
+            input,
+            contract,
+            affected_blocks,
+            substitutions,
+            provenance,
+            witness,
+            predicted_cost_delta,
+            PsiRewritePatch::ReplaceBooleanOperationWithConstant(patch),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new_scalar_evaluation(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        substitutions: Vec<ScalarSubstitution>,
+        provenance: Vec<ProvenanceRewrite>,
+        witness: ScalarEvaluationWitness,
+        predicted_cost_delta: i64,
+        patch: PsiRewritePatch,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        let location = match patch {
+            PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) => patch.location,
+            PsiRewritePatch::ReplaceBooleanOperationWithConstant(patch) => patch.location,
+        };
         if affected_blocks.is_empty() {
             return Err(PsiRewriteCandidateError::EmptyAffectedRegion);
         }
         if affected_blocks.windows(2).any(|pair| pair[0] >= pair[1]) {
             return Err(PsiRewriteCandidateError::NonCanonicalAffectedRegion);
         }
-        if !affected_blocks.contains(&patch.location.block) {
+        if !affected_blocks.contains(&location.block) {
             return Err(PsiRewriteCandidateError::DecisionPointOutsideRegion);
         }
         if substitutions.windows(2).any(|pair| pair[0] >= pair[1]) {
@@ -130,11 +193,10 @@ impl PsiRewriteCandidate {
         {
             return Err(PsiRewriteCandidateError::NonCanonicalProvenance);
         }
-        if provenance.iter().any(|row| row.output != patch.location) {
+        if provenance.iter().any(|row| row.output != location) {
             return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
         }
-        let decision_point = patch.location;
-        let patch = PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch);
+        let decision_point = location;
         let canonical = encode_candidate(
             input,
             contract,
@@ -213,7 +275,7 @@ impl PsiRewriteCandidate {
         &self.provenance
     }
 
-    pub const fn witness(&self) -> IntegerEvaluationWitness {
+    pub const fn witness(&self) -> ScalarEvaluationWitness {
         self.witness
     }
 
@@ -234,7 +296,7 @@ fn encode_candidate(
     affected_blocks: &[BlockId],
     substitutions: &[ScalarSubstitution],
     provenance: &[ProvenanceRewrite],
-    witness: IntegerEvaluationWitness,
+    witness: ScalarEvaluationWitness,
     predicted_cost_delta: i64,
     patch: PsiRewritePatch,
 ) -> Vec<u8> {
@@ -285,11 +347,11 @@ fn encode_candidate(
         }
     }
     match witness {
-        IntegerEvaluationWitness::Unary { operand_support } => {
+        ScalarEvaluationWitness::Unary { operand_support } => {
             bytes.push(1);
             bytes.extend_from_slice(&operand_support.get().to_le_bytes());
         }
-        IntegerEvaluationWitness::Binary {
+        ScalarEvaluationWitness::Binary {
             left_support,
             right_support,
         } => {
@@ -307,6 +369,13 @@ fn encode_candidate(
             bytes.extend_from_slice(&patch.result.get().to_le_bytes());
             encode_integer_type(&mut bytes, patch.scalar_type);
             encode_integer_value(&mut bytes, patch.constant);
+        }
+        PsiRewritePatch::ReplaceBooleanOperationWithConstant(patch) => {
+            bytes.push(2);
+            encode_location(&mut bytes, patch.location);
+            bytes.extend_from_slice(&patch.source_operation.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.result.get().to_le_bytes());
+            bytes.push(u8::from(patch.constant));
         }
     }
     bytes

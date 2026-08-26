@@ -13,10 +13,11 @@ use omega_optimization_core::{
     OptimizationValidatorIdentity,
 };
 use omega_optimization_unit::{
-    IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationEdge,
-    OptimizationFact, OwnershipEvent, PsiNodeObservation, PsiOptimizationFunction,
-    PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate, PsiRewritePatch, ValueDefinition,
-    ValueDefinitionSite, ValueUse, reconstruct_psi_observation_model,
+    BooleanConstantRewrite, IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation,
+    OptimizationEdge, OptimizationFact, OwnershipEvent, PsiNodeObservation,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate,
+    PsiRewritePatch, ValueDefinition, ValueDefinitionSite, ValueUse,
+    reconstruct_psi_observation_model,
 };
 use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ScalarType, ValueId};
 use psi_terminal_fuel::TerminalFuelSchedule;
@@ -318,7 +319,9 @@ pub fn validate_integer_evaluation_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
-    let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch();
+    let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch() else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
     if candidate.decision_point() != patch.location {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
@@ -421,6 +424,231 @@ pub fn validate_integer_evaluation_candidate(
             b"omega.validator.exact-integer-evaluation.v1",
         ),
     })
+}
+
+/// Dispatch one typed scalar-constant candidate to its independent validator.
+pub fn validate_scalar_evaluation_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    match candidate.patch() {
+        PsiRewritePatch::ReplaceIntegerOperationWithConstant(_) => {
+            validate_integer_evaluation_candidate(input, candidate)
+        }
+        PsiRewritePatch::ReplaceBooleanOperationWithConstant(_) => {
+            validate_boolean_evaluation_candidate(input, candidate)
+        }
+    }
+}
+
+/// Independently check and construct one Boolean-evaluation rewrite.
+pub fn validate_boolean_evaluation_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_psi_optimization_unit(input)?;
+    if candidate.input() != input.identity {
+        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
+    }
+    if !candidate
+        .required_analyses()
+        .contains(AnalysisKind::ScalarConstants)
+        || !candidate
+            .invalidated_analyses()
+            .contains(AnalysisKind::UseDefinition)
+        || !candidate.substitutions().is_empty()
+    {
+        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
+    }
+    let PsiRewritePatch::ReplaceBooleanOperationWithConstant(patch) = candidate.patch() else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
+    if candidate.decision_point() != patch.location {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
+    let function = input
+        .functions
+        .iter()
+        .find(|function| function.machine == patch.location.machine)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let block = function
+        .blocks
+        .iter()
+        .find(|block| block.id == patch.location.block)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let node = block
+        .nodes
+        .get(usize::try_from(patch.location.node).expect("u32 fits usize"))
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let input_observation = observation_at(input, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let input_live = reconstruct_closed_scalar_node_boundary(input, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let [provenance] = candidate.provenance() else {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    };
+    if provenance.output != patch.location || provenance.sources != node.provenance {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    }
+    if provenance.fuel != node.fuel {
+        return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
+    }
+    let (source_operation, result, evaluated) =
+        evaluate_boolean_operation(function, node, candidate)?;
+    if candidate.safety_class() != OptimizationSafetyClass::ExactOperationSemantics {
+        return Err(OptimizationUnitValidationError::CandidateSafetyClassMismatch);
+    }
+    if patch
+        != (BooleanConstantRewrite {
+            location: patch.location,
+            source_operation,
+            result,
+            constant: evaluated,
+        })
+    {
+        return Err(OptimizationUnitValidationError::CandidateEvaluationMismatch);
+    }
+    let mut output = input.clone();
+    let function = output
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == patch.location.machine)
+        .expect("candidate source function exists");
+    let block = function
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == patch.location.block)
+        .expect("candidate source block exists");
+    let node = &mut block.nodes[usize::try_from(patch.location.node).expect("u32 fits usize")];
+    node.operation =
+        omega_terminal_abstract_operations::TerminalAbstractOperation::BooleanConstant {
+            psi_operation: patch.source_operation,
+            result: patch.result,
+            value: patch.constant,
+        };
+    node.definitions = vec![ValueDefinition {
+        value: patch.result,
+        scalar_type: ScalarType::Boolean,
+        site: ValueDefinitionSite::Node {
+            block: patch.location.block,
+            node: patch.location.node,
+        },
+    }];
+    node.uses.clear();
+    node.successors.clear();
+    node.ownership.clear();
+    function.facts = reconstruct_fact_index(function);
+    output.identity = candidate.output();
+    validate_psi_optimization_unit(&output)?;
+    let output_observation = observation_at(&output, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if !same_closed_scalar_observation(&input_observation, &output_observation) {
+        return Err(OptimizationUnitValidationError::CandidateObservationMismatch);
+    }
+    let output_live = reconstruct_closed_scalar_node_boundary(&output, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if input_live.live_out != output_live.live_out
+        || output_live
+            .live_in
+            .iter()
+            .any(|value| !input_live.live_in.contains(value))
+    {
+        return Err(OptimizationUnitValidationError::CandidateLiveBoundaryMismatch);
+    }
+    Ok(ValidatedPsiRewrite {
+        unit: output,
+        candidate: candidate.identity(),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(
+            b"omega.validator.boolean-evaluation.v1",
+        ),
+    })
+}
+
+fn evaluate_boolean_operation(
+    function: &PsiOptimizationFunction,
+    node: &omega_optimization_unit::OptimizationNode,
+    candidate: &PsiRewriteCandidate,
+) -> Result<(psi_core::OperationId, ValueId, bool), OptimizationUnitValidationError> {
+    use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
+    match node.operation {
+        O::BooleanNot {
+            psi_operation,
+            result,
+            operand,
+        } => {
+            let IntegerEvaluationWitness::Unary { operand_support } = candidate.witness() else {
+                return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
+            };
+            let operand = literal_boolean_fact(function, operand, operand_support)
+                .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+            Ok((psi_operation, result, !operand))
+        }
+        O::BooleanEqual {
+            psi_operation,
+            result,
+            left,
+            right,
+        } => {
+            let IntegerEvaluationWitness::Binary {
+                left_support,
+                right_support,
+            } = candidate.witness()
+            else {
+                return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
+            };
+            let left = literal_boolean_fact(function, left, left_support)
+                .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+            let right = literal_boolean_fact(function, right, right_support)
+                .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+            Ok((psi_operation, result, left == right))
+        }
+        O::IntegerEqual {
+            psi_operation,
+            result,
+            left,
+            right,
+        }
+        | O::IntegerLessThan {
+            psi_operation,
+            result,
+            left,
+            right,
+        }
+        | O::IntegerLessOrEqual {
+            psi_operation,
+            result,
+            left,
+            right,
+        } => {
+            let IntegerEvaluationWitness::Binary {
+                left_support,
+                right_support,
+            } = candidate.witness()
+            else {
+                return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
+            };
+            let left_value = literal_integer_fact(function, left, left_support)
+                .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+            let right_value = literal_integer_fact(function, right, right_support)
+                .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+            let left_type = validator_integer_value_type(function, left)
+                .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+            if validator_integer_value_type(function, right) != Some(left_type) {
+                return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
+            }
+            let ordering = left_type
+                .compare(left_value, right_value)
+                .ok_or(OptimizationUnitValidationError::CandidateEvaluationMismatch)?;
+            let constant = match node.operation {
+                O::IntegerEqual { .. } => ordering.is_eq(),
+                O::IntegerLessThan { .. } => ordering.is_lt(),
+                O::IntegerLessOrEqual { .. } => !ordering.is_gt(),
+                _ => unreachable!(),
+            };
+            Ok((psi_operation, result, constant))
+        }
+        _ => Err(OptimizationUnitValidationError::CandidatePatchMismatch),
+    }
 }
 
 fn observation_at(
@@ -1007,6 +1235,40 @@ fn literal_integer_fact(
         } if *fact_value == value && *fact_support == support => Some(*constant),
         _ => None,
     })
+}
+
+fn literal_boolean_fact(
+    function: &PsiOptimizationFunction,
+    value: ValueId,
+    support: psi_core::OperationId,
+) -> Option<bool> {
+    function.facts.iter().find_map(|fact| match fact {
+        OptimizationFact::BooleanConstant {
+            value: fact_value,
+            constant,
+            support: fact_support,
+        } if *fact_value == value && *fact_support == support => Some(*constant),
+        _ => None,
+    })
+}
+
+fn validator_integer_value_type(
+    function: &PsiOptimizationFunction,
+    value: ValueId,
+) -> Option<psi_core::IntegerType> {
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.definitions)
+        .find_map(|definition| {
+            (definition.value == value)
+                .then_some(definition.scalar_type)
+                .and_then(|scalar_type| match scalar_type {
+                    ScalarType::Integer(integer) => Some(integer),
+                    ScalarType::Boolean => None,
+                })
+        })
 }
 
 /// Independently validate both the reconstructible unit and the required

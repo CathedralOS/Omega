@@ -15,7 +15,7 @@ use omega_optimization_unit::{
     PsiTransformationLedger, PsiTransformationRecord,
 };
 use omega_optimization_validation::{
-    OptimizationUnitValidationError, ValidatedPsiRewrite, validate_integer_evaluation_candidate,
+    OptimizationUnitValidationError, ValidatedPsiRewrite, validate_scalar_evaluation_candidate,
     validate_verified_psi_optimization_unit,
 };
 use omega_terminal_psi_to_abstract_operations::{
@@ -227,7 +227,7 @@ fn run_unit(
                     budget.validation_steps(),
                     "validation steps",
                 )?;
-                let output = validate_integer_evaluation_candidate(&unit, &candidate)
+                let output = validate_scalar_evaluation_candidate(&unit, &candidate)
                     .map_err(OptimizationRunError::CandidateValidation)?;
                 validated.push((candidate, output));
             }
@@ -454,6 +454,11 @@ fn integer_evaluation_operation_count(unit: &PsiOptimizationUnit) -> u64 {
                     | omega_terminal_abstract_operations::TerminalAbstractOperation::IntegerBitwiseAnd { .. }
                     | omega_terminal_abstract_operations::TerminalAbstractOperation::IntegerBitwiseOr { .. }
                     | omega_terminal_abstract_operations::TerminalAbstractOperation::IntegerBitwiseXor { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::BooleanNot { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::BooleanEqual { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::IntegerEqual { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::IntegerLessThan { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::IntegerLessOrEqual { .. }
             )
         })
         .count()
@@ -472,7 +477,9 @@ mod tests {
     use super::*;
     use crate::{
         ExactIntegerAddConstantsRule, PsiOptimizationRule, built_in_psi_registry,
-        rules::tests::{dependent_exact_chain_unit, exact_add_unit, wrapping_add_unit},
+        rules::tests::{
+            boolean_unit, dependent_exact_chain_unit, exact_add_unit, wrapping_add_unit,
+        },
     };
 
     #[derive(Debug)]
@@ -493,7 +500,12 @@ mod tests {
                 .into_iter()
                 .map(|candidate| {
                     let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) =
-                        candidate.patch();
+                        candidate.patch()
+                    else {
+                        return Err(RuleProposalError::InvalidCandidate(
+                            omega_optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch,
+                        ));
+                    };
                     omega_optimization_unit::PsiRewriteCandidate::new_integer_evaluation(
                         candidate.input(),
                         Self.contract(),
@@ -737,14 +749,14 @@ mod tests {
         assert_eq!(usage.commits, 1);
         assert_eq!(usage.validation_steps, 1);
         assert_eq!(usage.iterations, 2);
-        assert_eq!(usage.rule_evaluations, 26);
+        assert_eq!(usage.rule_evaluations, 31);
         assert_eq!(decisions.records.len(), 1);
         assert_eq!(
             decisions.records[0].outcome,
             BaselineDecisionOutcome::Choose(commits[0].candidate)
         );
         let pass_manifest = pass_manifest.expect("selected pass emits a manifest row");
-        assert_eq!(pass_manifest.ordered_rules().len(), 25);
+        assert_eq!(pass_manifest.ordered_rules().len(), 30);
         assert_eq!(pass_manifest.input(), unit.identity);
         assert_eq!(pass_manifest.output(), output.identity);
         assert_eq!(pass_manifest.decisions().len(), 1);
@@ -777,7 +789,7 @@ mod tests {
 
         assert_eq!(commits.len(), 2);
         assert_eq!(usage.iterations, 3);
-        assert_eq!(usage.rule_evaluations, 29);
+        assert_eq!(usage.rule_evaluations, 34);
         assert!(matches!(
             output.functions[0].blocks[0].nodes[2].operation,
             TerminalAbstractOperation::IntegerConstant {
@@ -793,7 +805,7 @@ mod tests {
             }
         ));
         let manifest = pass_manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 25);
+        assert_eq!(manifest.ordered_rules().len(), 30);
         assert_eq!(manifest.decisions().len(), 2);
         assert_eq!(ledger.records().len(), 2);
     }
@@ -815,6 +827,23 @@ mod tests {
                 value: psi_core::IntegerValue::Unsigned(4),
                 ..
             }
+        ));
+    }
+
+    #[test]
+    fn pass_dispatches_typed_boolean_validation_to_fixed_point() {
+        let selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let registry = built_in_psi_registry(&selections).unwrap();
+        let (output, commits, usage, _, _, _) =
+            run_unit(boolean_unit(true), &registry, budget(8)).unwrap();
+
+        assert_eq!(commits.len(), 1);
+        assert_eq!(usage.iterations, 2);
+        assert!(matches!(
+            output.functions[0].blocks[0].nodes[2].operation,
+            TerminalAbstractOperation::BooleanConstant { value: false, .. }
         ));
     }
 
