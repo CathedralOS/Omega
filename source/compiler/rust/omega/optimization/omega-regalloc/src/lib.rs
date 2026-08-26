@@ -28,6 +28,7 @@ mod live_range_identity;
 mod live_range_model;
 mod live_range_validate;
 mod model;
+mod post_allocation_manifest;
 mod selected_analysis_input;
 mod validate;
 
@@ -46,6 +47,7 @@ pub use live_range_model::*;
 pub use live_range_validate::validate_terminal_live_ranges;
 pub use model::*;
 pub use omega_register_model::*;
+pub use post_allocation_manifest::*;
 pub use selected_analysis_input::ValidatedTerminalSelectedAnalysis;
 pub use validate::validate_terminal_liveness;
 

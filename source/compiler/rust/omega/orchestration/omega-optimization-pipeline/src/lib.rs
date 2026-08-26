@@ -183,16 +183,17 @@ mod tests {
     use omega_optimization_unit::ValueDefinitionSite;
     use omega_psi_optimizer::{OptimizationRunError, RuleRegistryError};
     use omega_regalloc::{
-        TerminalAllocationLegalityError, TerminalArchitecturalUnitActionKind,
-        TerminalFixedViewCopyError, TerminalFixedViewCopyPolicy, TerminalLiveRangeError,
-        TerminalLiveRangeFragment, TerminalLiveRangePoint, TerminalLivenessError,
-        TerminalRegisterHomeError, TerminalRegisterHomePlan, TerminalVirtualFixedConstraintSite,
-        TerminalVirtualInterference, analyze_terminal_live_ranges, analyze_terminal_liveness,
+        PostAllocationOptimizationManifestError, TerminalAllocationLegalityError,
+        TerminalArchitecturalUnitActionKind, TerminalFixedViewCopyError,
+        TerminalFixedViewCopyPolicy, TerminalLiveRangeError, TerminalLiveRangeFragment,
+        TerminalLiveRangePoint, TerminalLivenessError, TerminalRegisterHomeError,
+        TerminalRegisterHomePlan, TerminalVirtualFixedConstraintSite, TerminalVirtualInterference,
+        analyze_terminal_live_ranges, analyze_terminal_liveness,
         terminal_allocation_legality_identity, terminal_fixed_view_copy_identity,
         terminal_live_range_identity, terminal_liveness_identity, terminal_register_home_identity,
-        validate_terminal_allocation_legality, validate_terminal_fixed_view_copies,
-        validate_terminal_live_ranges, validate_terminal_liveness,
-        validate_terminal_register_homes,
+        validate_post_allocation_optimization_manifest, validate_terminal_allocation_legality,
+        validate_terminal_fixed_view_copies, validate_terminal_live_ranges,
+        validate_terminal_liveness, validate_terminal_register_homes,
     };
     use omega_register_model::{
         RegisterOperandAccess, RegisterReservationProfile, RegisterUnitId,
@@ -1985,6 +1986,66 @@ mod tests {
             )
             .unwrap();
             assert_eq!(replay, *staged.homes());
+            let manifest = staged.post_allocation_manifest().record();
+            assert_eq!(manifest.identity, manifest.recomputed_identity());
+            assert_eq!(manifest.pre_physical, staged.custody().manifest());
+            assert_eq!(manifest.target, target);
+            assert_eq!(manifest.fixed_view_copy, None);
+            assert_eq!(manifest.homes, staged.homes().receipt().identity());
+            assert_eq!(manifest.statistics.functions, 1);
+            assert_eq!(manifest.statistics.assignments, 3);
+            assert_eq!(manifest.statistics.fixed_view_transitions, 0);
+            assert_eq!(
+                staged.custody().post_allocation_manifest(),
+                manifest.identity
+            );
+            assert_eq!(
+                validate_optimized_register_home_custody(
+                    legality,
+                    staged.homes(),
+                    staged.post_allocation_manifest(),
+                )
+                .unwrap(),
+                staged.custody()
+            );
+            assert!(manifest.render_text().contains("frame: unavailable"));
+            assert_eq!(
+                validate_post_allocation_optimization_manifest(
+                    manifest,
+                    staged.custody().manifest(),
+                    None,
+                    ranges.ranges(),
+                    legality.legality(),
+                    staged.homes(),
+                )
+                .unwrap(),
+                *staged.post_allocation_manifest()
+            );
+            let mut corrupted = manifest.clone();
+            corrupted.statistics.assignments += 1;
+            assert_eq!(
+                validate_post_allocation_optimization_manifest(
+                    &corrupted,
+                    staged.custody().manifest(),
+                    None,
+                    ranges.ranges(),
+                    legality.legality(),
+                    staged.homes(),
+                ),
+                Err(PostAllocationOptimizationManifestError::IdentityMismatch)
+            );
+            corrupted.identity = corrupted.recomputed_identity();
+            assert_eq!(
+                validate_post_allocation_optimization_manifest(
+                    &corrupted,
+                    staged.custody().manifest(),
+                    None,
+                    ranges.ranges(),
+                    legality.legality(),
+                    staged.homes(),
+                ),
+                Err(PostAllocationOptimizationManifestError::ContentMismatch)
+            );
             let model = environment.physical().model();
             assert_eq!(
                 function.assignments[0].view,
@@ -2308,6 +2369,30 @@ mod tests {
             assert_eq!(assignments[2].view, result_view);
             assert_eq!(assignments[3].view, result_view);
             assert_eq!(homes.custody().assignment_count(), 4);
+            let manifest = homes.post_allocation_manifest().record();
+            assert_eq!(manifest.identity, manifest.recomputed_identity());
+            assert_eq!(
+                manifest.fixed_view_copy,
+                Some(homes.custody().source().source().transformation())
+            );
+            assert_eq!(
+                manifest.selected,
+                homes.reanalysis_stage().ranges().plan().selected
+            );
+            assert_eq!(manifest.statistics.assignments, 4);
+            assert_eq!(
+                homes.custody().post_allocation_manifest(),
+                manifest.identity
+            );
+            assert_eq!(
+                validate_optimized_register_home_after_fixed_view_copy_custody(
+                    homes.reanalysis_stage(),
+                    homes.homes(),
+                    homes.post_allocation_manifest(),
+                )
+                .unwrap(),
+                homes.custody()
+            );
 
             let repeated = stage_optimized_register_homes_after_fixed_view_copies(
                 stage_optimized_selected_reanalysis(
