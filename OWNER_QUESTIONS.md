@@ -503,3 +503,65 @@ settlement authority.
   happens to refine the same bound.
 - Tempting but wrong: keep one hardcoded `PortIo` completion row and treat it as
   proof of PIC/LAPIC provider coherence.
+
+## Q12 — Source result schema for placed-view establishment
+
+### Context
+
+The placement model settles three distinct operations over an exact borrow or
+owned split of `Extent in Granted`: `view` interprets existing content,
+`initialize` encodes new content into `Vacant` Stable storage, and `validate`
+checks existing Stable content. Their successful views retain the source loan
+or owned extent, every unconditional non-runtime `Type` input has an explicit
+per-outcome disposition, and proof results remain in the separate `;` lane.
+The guide illustrates a conceptual `PlacementResult<View, Returned>` and says
+the compiler derives the Type-only `Returned` row for each instantiation.
+
+The core source surface currently declares only `Placement::plan`.
+`Placed<P, T>`, `Vacant`, `Resident<P, T>`, `PlacementError`, the three
+establishment operations, and their result families have no declarations from
+which source typing or checked identity can be derived.
+
+### Problem statement
+
+An owned placement request may fail dynamic range, alignment, revision, or
+content checks, so its source result cannot be invented as an infallible
+`Placed<P, T>`. The language does not yet define the nominal identity of the
+compiler-derived returned-input row, how that row participates in one ordinary
+closed result sum, or the exact operation signatures that return the owned
+extent/resident custody on rejection. `validate` must additionally retain the
+selected validator's declared content-error sum without erasing it into a
+generic code. Choosing any of these shapes in the compiler would create a
+public core ABI and pattern-matching vocabulary that the language has not
+specified.
+
+### Proposed direction
+
+Declare opaque core `Placed<P, T>`, `Vacant`, and invariant
+`Resident<P, T>` identities together with distinct generic `view`,
+`initialize`, and `validate` operations. Give each instantiated operation one
+compiler-derived nominal outcome type whose `Ready` case contains the exact
+view and whose `Rejected` case contains a closed operation-specific reason sum
+plus the canonical Type-only row of inputs marked `returned`. Derive that row
+from the operation identity, `P`, `T`, and canonical declaration paths—not the
+call site—and make its nominal identity and field order available to source
+patterns, checked Psi, and artifact replay. Keep validator-specific errors as a
+named nested case/payload selected from the validator contract, and keep proof
+outputs outside the runtime result.
+
+### Alternates
+
+- Acceptable if compiler-derived nominal sums are too broad for the first
+  release: declare separate core result families for `view`, `initialize`, and
+  `validate`, with a canonical compiler-generated returned-row argument and
+  exact validator-error argument.
+- Acceptable as a narrower first rung: admit only borrowed `view` when all
+  dynamic rejection cases are statically disproved, while still reserving the
+  settled general result family before owned establishment becomes source
+  visible.
+- Tempting but wrong: expose the Rust bootstrap admission receipt or occurrence
+  identifiers as forgeable source values.
+- Tempting but wrong: return an opaque error code or discard moved inputs on
+  rejection.
+- Tempting but wrong: derive result identity from source spelling, call-site
+  order, accessor names, parameter ordinals, or compact plan fingerprints.
