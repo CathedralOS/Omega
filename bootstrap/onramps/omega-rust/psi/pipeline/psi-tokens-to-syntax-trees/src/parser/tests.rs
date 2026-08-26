@@ -1483,6 +1483,30 @@ fn retired_provides_declarations_name_the_external_leaf_migration() {
 }
 
 #[test]
+fn retired_library_block_names_the_boundary_provider_migration() {
+    let source = r#"
+        library TestHost = "TestHost.dylib" calling_convention c {
+            entry host_write(fd: i32, count: u64) -> i32
+                symbol "_host_write"
+                boundary host
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize retired library block");
+    let error = parse_syntax_trees(&tokens).expect_err("library blocks must be retired");
+    assert!(
+        error.message.contains("legacy `library")
+            && error.message.contains("is retired")
+            && error
+                .message
+                .contains("satisfies ... via Binding::DllImport"),
+        "got: {}",
+        error.message
+    );
+}
+
+#[test]
 fn erased_join_type_is_rejected_but_join_names_are_ordinary() {
     let retired = "machine run(task: Join<i32>) {}";
     let tokens = Lexer::new(retired)

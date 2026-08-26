@@ -6,7 +6,6 @@ use crate::parser::data::{
 };
 use crate::parser::domain::parse_domain_definition;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
-use crate::parser::library::parse_library_definition;
 use crate::parser::machine::parse_machine;
 use crate::parser::measure::parse_measure_definition;
 use crate::parser::operator::parse_operator_definition;
@@ -207,9 +206,9 @@ pub(super) fn parse_item<'tokens, 'source>(
     }
 
     if input.at_keyword(KeywordKind::Library) {
-        let input = input.take_keyword(KeywordKind::Library, "library")?;
-        let (item, rest) = parse_library_definition(syntax_trees, input)?;
-        return Ok((Item::Library(item), rest));
+        return Err(input.error_here(
+            "the legacy `library \"...\" calling_convention ... { entry ... }` block is retired; declare an exact boundary-trait requirement and realize it with `satisfies ... via Binding::DllImport { ... }`",
+        ));
     }
 
     if input.at_contextual("measure") {

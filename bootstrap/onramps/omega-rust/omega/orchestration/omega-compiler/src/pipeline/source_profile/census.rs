@@ -382,27 +382,6 @@ impl Census {
                     self.operator(operator);
                 }
             }
-            ItemSnapshot::Library {
-                name,
-                path: _,
-                calling_convention,
-                functions,
-            } => {
-                self.bump("item.library");
-                if let Some(name) = name {
-                    self.identifier(name);
-                }
-                self.identifier(calling_convention);
-                for function in functions {
-                    self.state_signature(&function.signature);
-                    if let Some(convention) = &function.calling_convention {
-                        self.identifier(convention);
-                    }
-                    for boundary in &function.boundaries {
-                        self.boundary(boundary);
-                    }
-                }
-            }
             ItemSnapshot::Measure {
                 name,
                 parameter,
@@ -1523,6 +1502,7 @@ mod tests {
     #[test]
     fn catalog_and_resources_are_sorted_and_unique() {
         assert!(SOURCE_FEATURE_IDS.windows(2).all(|pair| pair[0] < pair[1]));
+        assert!(!SOURCE_FEATURE_IDS.contains(&"item.library"));
         assert!(
             SOURCE_RESOURCE_IDS
                 .windows(2)

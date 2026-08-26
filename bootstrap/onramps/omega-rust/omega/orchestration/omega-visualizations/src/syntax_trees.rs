@@ -420,14 +420,6 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
             }
             label
         }
-        Item::Library(value) => {
-            let name = value
-                .name
-                .as_ref()
-                .map(|name| name.as_str())
-                .unwrap_or("<anon>");
-            format!("library {name}\nfunctions: {}", value.functions.len())
-        }
         Item::Operator(value) => {
             let name = syntax
                 .items

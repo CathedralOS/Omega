@@ -16,7 +16,6 @@ pub enum Item {
     Const(ConstDefinition),
     Data(DataDefinition),
     Domain(DomainDefinition),
-    Library(LibraryDefinition),
     Measure(MeasureDefinition),
     Module(ModuleDeclaration),
     Operator(OperatorDefinition),
@@ -184,49 +183,6 @@ pub enum PropositionBody {
     Transparent {
         proposition: crate::expression::ExpressionHandle,
     },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LibraryDefinition {
-    pub name: Option<Identifier>,
-    pub path: String,
-    pub calling_convention: Identifier,
-    pub functions: HandleSpan<LibraryFunction>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LibraryFunction {
-    pub signature: StateSignature,
-    pub symbol: Option<String>,
-    pub calling_convention: Option<Identifier>,
-    pub boundaries: HandleSpan<BoundaryLevel>,
-}
-
-impl Default for LibraryFunction {
-    fn default() -> Self {
-        Self {
-            signature: StateSignature {
-                name: Identifier::default(),
-                spelling: None,
-                lifetime_parameters: Vec::new(),
-                type_parameters: HandleSpan::empty(),
-                is_default: false,
-                parameters: HandleSpan::empty(),
-                return_type: crate::types::TypeReferenceHandle::invalid(),
-                service_reach_is_installation_bound: false,
-                service_reaches: HandleSpan::empty(),
-                invokes: HandleSpan::empty(),
-                suspends: false,
-                blocks: false,
-                contracts: HandleSpan::empty(),
-                default_body: HandleSpan::empty(),
-                terminates_guarantee: false,
-            },
-            symbol: None,
-            calling_convention: None,
-            boundaries: HandleSpan::empty(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -921,8 +877,6 @@ struct DeclarationStorage {
     conformance_members: Arena<ConformanceMember>,
     satisfies_clauses: Arena<SatisfiesClause>,
     type_parameters: Arena<TypeParameter>,
-    boundary_levels: Arena<BoundaryLevel>,
-    library_functions: Arena<LibraryFunction>,
     capability_members: Arena<CapabilityMember>,
     capability_contracts: Arena<CapabilityContract>,
     data_members: Arena<DataMember>,
@@ -1005,16 +959,6 @@ impl ItemTable {
         self.declaration_storage
             .satisfies_clauses
             .span_or_empty(span)
-    }
-
-    pub fn library_functions(&self, span: HandleSpan<LibraryFunction>) -> &[LibraryFunction] {
-        self.declaration_storage
-            .library_functions
-            .span_or_empty(span)
-    }
-
-    pub fn boundary_levels(&self, span: HandleSpan<BoundaryLevel>) -> &[BoundaryLevel] {
-        self.declaration_storage.boundary_levels.span_or_empty(span)
     }
 
     pub fn capability_members(&self, span: HandleSpan<CapabilityMember>) -> &[CapabilityMember] {
@@ -1175,22 +1119,6 @@ impl ItemTable {
             .append(type_parameter)
     }
 
-    pub fn append_boundary_level(
-        &mut self,
-        boundary_level: BoundaryLevel,
-    ) -> Handle<BoundaryLevel> {
-        self.declaration_storage
-            .boundary_levels
-            .append(boundary_level)
-    }
-
-    pub fn append_library_function(
-        &mut self,
-        function: LibraryFunction,
-    ) -> Handle<LibraryFunction> {
-        self.declaration_storage.library_functions.append(function)
-    }
-
     pub fn append_capability_member(
         &mut self,
         member: CapabilityMember,
@@ -1331,8 +1259,6 @@ impl DeclarationStorage {
             conformance_members: Arena::new(),
             satisfies_clauses: Arena::new(),
             type_parameters: Arena::new(),
-            boundary_levels: Arena::new(),
-            library_functions: Arena::new(),
             capability_members: Arena::new(),
             capability_contracts: Arena::new(),
             data_members: Arena::new(),

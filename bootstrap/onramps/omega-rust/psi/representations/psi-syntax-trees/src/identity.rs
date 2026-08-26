@@ -172,27 +172,6 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 count_operator(syntax_trees, operator, counts);
             }
         }
-        Item::Library(library) => {
-            if let Some(name) = &library.name {
-                count_identifier(name, counts);
-            }
-            counts.string_literals += 1;
-            count_identifier(&library.calling_convention, counts);
-            for function in syntax_trees.items.library_functions(library.functions) {
-                count_state_signature(syntax_trees, &function.signature, counts);
-                if function.symbol.is_some() {
-                    counts.string_literals += 1;
-                }
-                if let Some(calling_convention) = &function.calling_convention {
-                    count_identifier(calling_convention, counts);
-                }
-                for boundary in syntax_trees.items.boundary_levels(function.boundaries) {
-                    if let BoundaryLevel::Named(name) = boundary {
-                        count_identifier(name, counts);
-                    }
-                }
-            }
-        }
         Item::Measure(measure) => {
             count_identifier_members(
                 syntax_trees.items.identifier_path_members(measure.name),

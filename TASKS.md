@@ -637,8 +637,12 @@ Remaining:
   operands, and the retired `entry(place)` spelling reject. Focused parser,
   checked-content, source-profile, and filesystem canaries pin the new surface
   while leaving unrelated boundary and internal-entry vocabulary unchanged.
-  The broader library/capability/member/trailing-boundary retirement in this
-  item remains open.
+  The legacy library block is also retired end to end: its dedicated parser,
+  syntax/snapshot/identity nodes, report/profile rows, visualization handling,
+  and former pass canary are gone, and a directed failure names boundary traits
+  plus exact `satisfies ... via Binding::DllImport` as the migration. Capability
+  entry, explicit machine-member entry, and trailing boundary-level retirement
+  remain open.
 
   Acceptance: the former passing library-block fixture becomes a directed
   `library_block_retired` failure canary; separate failure canaries reject
