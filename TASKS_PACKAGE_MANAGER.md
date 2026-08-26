@@ -2022,12 +2022,14 @@ complete.
 - **EXTERNAL-EXECUTABLE-SUPPLY-REVIEW.** Project bodyless external realization
   as its own blocking trust/TCB row.
 
-  Acceptance: every reviewed external realization binds the exact
+  Acceptance: every package-owned external realization, including a private
+  implementation leaf, binds the exact
   package-qualified callable and conformance application to one closed
   compiler-owned mechanism identity: import library and symbol, syscall number,
   compiler intrinsic, vtable slot, vtable field, or table-function field. The
   projector cross-checks the machine supply mode, conformance binding, and
-  external-binding table; missing, duplicate, mismatched, or unsupported state
+  external-binding table and requires exactly one conformance application;
+  missing, duplicate, mismatched, or unsupported state
   rejects rather than producing a partial row. This row remains distinct from
   callable API, declared/effective reach, boundary representation, accepted
   claims, and Terminal evidence. It records opaque executable supply and makes
@@ -2046,6 +2048,20 @@ complete.
   reusable semantic boundary with independent consumers, transformations, or
   invariants; reuse an existing coherent representation such as Exact when it
   makes the implementation smaller without losing meaning.
+
+  Milestone 2026-08-26: package review v70/canonical row v28 projects every
+  package-owned external leaf as one `ExternalExecutableSupply` row with
+  `OpaqueBlocking` risk. The callable/conformance application is the stable
+  row key; the exact structural import, syscall, intrinsic, vtable, or table-
+  function binding is row value, so a mechanism-only update changes this trust
+  row without contaminating callable API identity. Private leaves do not
+  become public callable rows. Projection validates exact-one conformance,
+  bodylessness, supply/conformance/table agreement, mechanism consistency,
+  payload bounds, attached table ownership, and canonical source accounting.
+  Canonical recovery and conflict rendering retain the new row kind; a changed
+  binding produces exactly one opaque-blocking supply conflict. Six-mechanism,
+  private-leaf, stable-key, recovery, malformed-state, and conflict canaries
+  cover the lane. No Terminal or audit claim is emitted.
 
 ## P4 — Lock and baseline
 

@@ -51,7 +51,18 @@ fn fixture_rows() -> Option<(
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        "pub data Token { value: i64; }\npub trait Marker { machine Self::touch(&self); }\npub Primary: Token satisfies Marker { machine touch(&self) { } }\npub proposition ready();\npub const LIMIT: u64 = 4;\n",
+        r#"pub data Token { value: i64; }
+pub trait Marker { machine Self::touch(&self); }
+pub Primary: Token satisfies Marker { machine touch(&self) { } }
+pub proposition ready();
+pub const LIMIT: u64 = 4;
+pub boundary trait ForeignSurface {
+    machine invoke() reaches ForeignSurface;
+}
+pub machine invoke_leaf()
+    satisfies ForeignSurface::invoke
+    via Binding::DllImport("omega-host", "invoke");
+"#,
     );
     package.write(
         "build.omg",
@@ -59,6 +70,7 @@ fn fixture_rows() -> Option<(
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let inputs = PackageCompilationInputs::new(
@@ -108,6 +120,11 @@ fn canonical_rows_round_trip_with_validated_package_target_and_exact_source() {
         rows.iter()
             .any(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConformance),
         "the public conformance row kind must survive canonical recovery"
+    );
+    assert!(
+        rows.iter()
+            .any(|row| row.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply),
+        "the external executable-supply row kind must survive canonical recovery"
     );
 
     for row in rows {

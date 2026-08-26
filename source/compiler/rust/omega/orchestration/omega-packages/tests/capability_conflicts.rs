@@ -1430,3 +1430,94 @@ pub Choice: First satisfies Marker<{argument}> {{ }}
     let _ = std::fs::remove_dir_all(candidate_cache);
     let _ = std::fs::remove_dir_all(build_root);
 }
+
+#[test]
+fn external_executable_supply_changes_render_as_opaque_blocking_conflicts() {
+    let live = temp_root("external-supply-live");
+    let baseline_cache = temp_root("external-supply-baseline");
+    let candidate_cache = temp_root("external-supply-candidate");
+    let build_root = temp_root("external-supply-build");
+    let context = ExternalSourceContext::derive(b"external-supply-conflict-test");
+
+    let source = |symbol: &str| {
+        format!(
+            r#"pub boundary trait ForeignSurface {{
+    machine invoke() reaches ForeignSurface;
+}}
+pub machine invoke_leaf()
+    satisfies ForeignSurface::invoke
+    via Binding::DllImport("omega-host", "{symbol}");
+"#,
+        )
+    };
+    write_package(&live, &source("invoke_v1"));
+    let baseline_sources = resolve_external_local_package_closure(
+        &live,
+        context.clone(),
+        &baseline_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve external-supply baseline");
+    let baseline_reviews =
+        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+            .expect("compile external-supply baseline");
+
+    write_package(&live, &source("invoke_v2"));
+    let candidate_sources = resolve_external_local_package_closure(
+        &live,
+        context,
+        &candidate_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve external-supply candidate");
+    let candidate_reviews =
+        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+            .expect("compile external-supply candidate");
+
+    let conflicts = compare_review_only_capabilities(
+        &baseline_reviews,
+        &candidate_reviews,
+        &candidate_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare external executable supply");
+    let external_conflicts = conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| package.conflicts())
+        .filter(|conflict| {
+            conflict.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply
+        })
+        .collect::<Vec<_>>();
+    let [conflict] = external_conflicts.as_slice() else {
+        panic!("expected exactly one external executable-supply conflict")
+    };
+    assert_eq!(
+        conflict.risk(),
+        PackageReviewCanonicalRowRisk::OpaqueBlocking
+    );
+    assert_eq!(
+        conflict.change(),
+        ReviewOnlyCapabilityConflictChange::Changed
+    );
+    assert!(conflict.is_blocking());
+    assert!(!conflicts.packages().iter().any(|package| {
+        package
+            .conflicts()
+            .iter()
+            .any(|conflict| conflict.kind() == PackageReviewCanonicalRowKind::Callable)
+    }));
+    assert!(
+        conflicts
+            .render_bounded(1024 * 1024)
+            .expect("render external executable-supply conflict")
+            .contains("change changed\nkind external_executable_supply\nrisk opaque_blocking\n")
+    );
+
+    let _ = std::fs::remove_dir_all(live);
+    let _ = std::fs::remove_dir_all(baseline_cache);
+    let _ = std::fs::remove_dir_all(candidate_cache);
+    let _ = std::fs::remove_dir_all(build_root);
+}

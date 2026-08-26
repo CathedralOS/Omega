@@ -1213,7 +1213,8 @@ proof-status, and build-contract admission does not require complete Terminal
 coverage. A row without Terminal evidence makes no Terminal claim; a generic
 partial/completeness bit must not blur the distinction.
 
-Bodyless external realization therefore projects as a separate blocking
+Every package-owned bodyless external realization, including a private
+implementation leaf, therefore projects as a separate blocking
 executable-supply trust row, not as callable API, reach, boundary
 representation, accepted proof, or Terminal evidence. The row binds the exact
 package-qualified callable and conformance application to one closed mechanism:
@@ -1234,6 +1235,18 @@ format or public IR depends on it. Nominal Chi is unwarranted unless later work
 discovers an independently useful semantic boundary; an existing coherent
 stage such as Exact should be reused when it carries the same facts more
 simply.
+
+Package review v70/canonical row v28 implements this lane. Each external leaf
+must have exactly one conformance application and a bodyless supply mode whose
+binding, mechanism, conformance reference, and structural table identity agree.
+Malformed import/syscall/vtable/table payloads and table fields without one
+exact attached data declaration reject. The callable plus complete conformance
+application is the row key and the structural binding is its value, so a
+binding-only update changes one `OpaqueBlocking` supply row while leaving
+callable API bytes stable. Private leaves receive the trust row without being
+promoted into public callable rows. Canonical recovery, source accounting, and
+conflict rendering carry the row; none of them asserts an audit or Terminal
+verification.
 
 ## Dependencies and the lock artifact
 

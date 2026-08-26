@@ -324,6 +324,44 @@ pub struct PackageReviewCallableConformance {
     alias: Option<String>,
 }
 
+/// Closed structural identity of executable code supplied outside Omega.
+/// String fields are foreign ABI identifiers, not package-authored policy or
+/// capability classifications.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewExternalBinding {
+    Import { library: String, symbol: String },
+    Syscall { number: i64 },
+    CompilerIntrinsic,
+    VtableSlot { index: i64 },
+    VtableField { field: String },
+    TableFunction { field: String },
+}
+
+/// One trust-bearing association between an exact reviewed callable,
+/// conformance application, and externally supplied executable mechanism.
+/// This is not Terminal evidence and makes no implementation-correctness or
+/// audit claim.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewExternalExecutableSupply {
+    callable: PackageReviewNominalIdentity,
+    conformance: PackageReviewCallableConformance,
+    binding: PackageReviewExternalBinding,
+}
+
+impl PackageReviewExternalExecutableSupply {
+    pub const fn callable(&self) -> &PackageReviewNominalIdentity {
+        &self.callable
+    }
+
+    pub const fn conformance(&self) -> &PackageReviewCallableConformance {
+        &self.conformance
+    }
+
+    pub const fn binding(&self) -> &PackageReviewExternalBinding {
+        &self.binding
+    }
+}
+
 impl PackageReviewCallableConformance {
     pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {
         &self.trait_identity
@@ -815,6 +853,18 @@ pub enum PackageReviewCallableRole {
     Boundary,
     Public,
     Build,
+}
+
+/// Source-handle-free supply classification retained on the callable envelope.
+/// Exact external binding identity is projected separately as an executable-
+/// supply trust row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewCallableSupply {
+    CheckedBody,
+    Requirement,
+    Boundary,
+    Accepted,
+    ExternalRealization,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -1919,7 +1969,7 @@ impl PackageReviewCapabilityFlow {
 pub struct CheckedPackageCallableReview {
     role: PackageReviewCallableRole,
     identity: PackageReviewNominalIdentity,
-    supply: MachineSupplyMode,
+    supply: PackageReviewCallableSupply,
     lifetime_parameter_count: usize,
     type_parameters: Vec<PackageReviewTypeParameter>,
     conformance_bounds: Vec<PackageReviewConformanceBound>,
@@ -2075,7 +2125,7 @@ impl CheckedPackageCallableReview {
         &self.identity
     }
 
-    pub const fn supply(&self) -> MachineSupplyMode {
+    pub const fn supply(&self) -> PackageReviewCallableSupply {
         self.supply
     }
 
@@ -2168,6 +2218,7 @@ pub struct CheckedPackageReviewProjection {
     representation_tcb: Vec<PackageReviewRepresentationTcb>,
     semantic_dependencies: Vec<PackageReviewSemanticDependency>,
     callables: Vec<CheckedPackageCallableReview>,
+    external_executable_supply: Vec<PackageReviewExternalExecutableSupply>,
     dangerous_authorities: Vec<PackageReviewDangerousAuthority>,
     dangerous_authority_slack: Vec<PackageReviewDangerousAuthoritySlack>,
     selected_providers: Vec<CheckedPackageProviderReview>,
@@ -2188,6 +2239,7 @@ impl PartialEq for CheckedPackageReviewProjection {
             && self.representation_tcb == other.representation_tcb
             && self.semantic_dependencies == other.semantic_dependencies
             && self.callables == other.callables
+            && self.external_executable_supply == other.external_executable_supply
             && self.dangerous_authorities == other.dangerous_authorities
             && self.dangerous_authority_slack == other.dangerous_authority_slack
             && self.selected_providers == other.selected_providers
@@ -2208,6 +2260,7 @@ struct PackageReviewCanonicalRowSources {
     representation_tcb: Vec<PackageReviewCanonicalRowSource>,
     semantic_dependencies: Vec<PackageReviewCanonicalRowSource>,
     callables: Vec<PackageReviewCanonicalRowSource>,
+    external_executable_supply: Vec<PackageReviewCanonicalRowSource>,
     dangerous_authorities: Vec<PackageReviewCanonicalRowSource>,
     dangerous_authority_slack: Vec<PackageReviewCanonicalRowSource>,
     selected_provider_set: PackageReviewCanonicalRowSource,
@@ -2271,6 +2324,9 @@ pub enum PackageReviewCanonicalRowKind {
     PublicConst,
     PublicOperator,
     PublicConformance,
+    /// Opaque executable code supplied through one exact external binding.
+    /// This is a blocking trust/TCB disclosure, not Terminal evidence.
+    ExternalExecutableSupply,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2478,6 +2534,10 @@ impl CheckedPackageReviewProjection {
         &self.callables
     }
 
+    pub fn external_executable_supply(&self) -> &[PackageReviewExternalExecutableSupply] {
+        &self.external_executable_supply
+    }
+
     pub fn dangerous_authorities(&self) -> &[PackageReviewDangerousAuthority] {
         &self.dangerous_authorities
     }
@@ -2557,6 +2617,7 @@ pub fn project_checked_package_review(
     let semantic_dependencies = project_semantic_dependencies(compilation, package)?;
     let synchronous_invocations = psi_effects::infer_synchronous_invocations(&compilation.typed);
     let mut callables = Vec::new();
+    let mut external_executable_supply = Vec::new();
     let mut projected_build_machine = false;
 
     for machine in compilation.machines() {
@@ -2587,11 +2648,54 @@ pub fn project_checked_package_review(
             }
         }
 
+        let (callable, executable_supply) =
+            project_callable(compilation, &synchronous_invocations, machine, role, owner)?;
+        external_executable_supply.extend(executable_supply.into_iter().map(|row| {
+            ProjectedReviewRow {
+                row,
+                declaration: machine.symbol,
+            }
+        }));
         callables.push(ProjectedReviewRow {
-            row: project_callable(compilation, &synchronous_invocations, machine, role, owner)?,
+            row: callable,
             declaration: machine.symbol,
         });
         projected_build_machine |= role == PackageReviewCallableRole::Build;
+    }
+
+    // External executable supply is trust-bearing even when the leaf is a
+    // private implementation detail. Public/build leaves were projected with
+    // their callable envelopes above; project every remaining package-owned
+    // external leaf without manufacturing a public callable row.
+    for machine in compilation.machines() {
+        if !matches!(
+            machine.supply_mode,
+            MachineSupplyMode::ExternalRealization { .. }
+        ) || machine.is_public
+            || Some(machine.symbol) == build_machine
+        {
+            continue;
+        }
+        let owner = nominal_identity(compilation, machine.symbol)?;
+        match owner.owner {
+            PackageReviewNominalOwner::Package(owner_package) if owner_package == package => {}
+            PackageReviewNominalOwner::Package(_)
+            | PackageReviewNominalOwner::ToolchainSource(_) => continue,
+            PackageReviewNominalOwner::Unresolved => {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed external callable `{}` has no managed package owner",
+                    owner.path
+                ))]);
+            }
+        }
+        external_executable_supply.extend(
+            project_private_external_executable_supply(compilation, machine, &owner)?
+                .into_iter()
+                .map(|row| ProjectedReviewRow {
+                    row,
+                    declaration: machine.symbol,
+                }),
+        );
     }
 
     if build_machine.is_some() && !projected_build_machine {
@@ -2607,6 +2711,15 @@ pub fn project_checked_package_review(
             .then(left.row.role.cmp(&right.row.role))
             .then(left.row.contracts.cmp(&right.row.contracts))
     });
+    external_executable_supply.sort_by(|left, right| left.row.cmp(&right.row));
+    if external_executable_supply
+        .windows(2)
+        .any(|rows| rows[0].row == rows[1].row)
+    {
+        return Err(vec![Diagnostic::error(
+            "package review contains a duplicate exact external executable-supply row",
+        )]);
+    }
     let dangerous_authorities = project_dangerous_authorities(compilation, &callables)?;
     let dangerous_authority_slack = project_dangerous_authority_slack(compilation, &callables)?;
     let selected_plans = compilation.selected_provider_plans().plans();
@@ -2763,6 +2876,11 @@ pub fn project_checked_package_review(
         callables,
         PackageReviewSourceLocationRole::Declaration,
     )?;
+    let (external_executable_supply, external_executable_supply_sources) = finalize_projected_rows(
+        compilation,
+        external_executable_supply,
+        PackageReviewSourceLocationRole::Declaration,
+    )?;
     let (dangerous_authorities, dangerous_authority_sources) =
         finalize_dangerous_authority_rows(compilation, dangerous_authorities)?;
     let (dangerous_authority_slack, dangerous_authority_slack_sources) =
@@ -2778,6 +2896,7 @@ pub fn project_checked_package_review(
         representation_tcb: representation_tcb_sources,
         semantic_dependencies: semantic_dependency_sources,
         callables: callable_sources,
+        external_executable_supply: external_executable_supply_sources,
         dangerous_authorities: dangerous_authority_sources,
         dangerous_authority_slack: dangerous_authority_slack_sources,
         selected_provider_set: selected_provider_row_source(compilation, &selected_providers)?,
@@ -2797,6 +2916,7 @@ pub fn project_checked_package_review(
         representation_tcb,
         semantic_dependencies,
         callables,
+        external_executable_supply,
         dangerous_authorities,
         dangerous_authority_slack,
         selected_providers,
@@ -3278,6 +3398,7 @@ fn validate_canonical_row_source_limits(
         .chain(&sources.representation_tcb)
         .chain(&sources.semantic_dependencies)
         .chain(&sources.callables)
+        .chain(&sources.external_executable_supply)
         .chain(&sources.dangerous_authorities)
         .chain(&sources.dangerous_authority_slack)
         .chain(std::iter::once(&sources.selected_provider_set));
@@ -6766,7 +6887,13 @@ fn project_callable(
     machine: &psi_typed_trees::machine::Machine,
     role: PackageReviewCallableRole,
     identity: PackageReviewNominalIdentity,
-) -> Result<CheckedPackageCallableReview, Vec<Diagnostic>> {
+) -> Result<
+    (
+        CheckedPackageCallableReview,
+        Vec<PackageReviewExternalExecutableSupply>,
+    ),
+    Vec<Diagnostic>,
+> {
     let subject = identity.path.as_str();
     let Some(entry) = compilation.machine_states(machine).first() else {
         return Err(vec![Diagnostic::error(format!(
@@ -6814,7 +6941,8 @@ fn project_callable(
         &binders,
         &machine.lifetime_parameters,
     )?;
-    let conformances = project_callable_conformances(compilation, machine, &binders)?;
+    let (conformances, external_executable_supply) =
+        project_callable_conformances(compilation, machine, &identity, &binders, true)?;
     let contracts = project_callable_contracts(compilation, machine, entry, &binders)?;
     let service_reach = exactly_one(
         compilation
@@ -6934,32 +7062,63 @@ fn project_callable(
             .then(left.via_state.cmp(&right.via_state))
     });
 
-    Ok(CheckedPackageCallableReview {
-        role,
-        identity,
-        supply: machine.supply_mode,
-        lifetime_parameter_count: machine.lifetime_parameters.len(),
-        type_parameters,
-        conformance_bounds,
-        parameters,
-        return_type,
-        conformances,
-        contracts,
-        declared_service_reach,
-        checked_service_reach,
-        unresolved_installation_reaches: project_installation_reaches(
-            compilation,
-            &service_reach.unresolved_installation_reaches,
-        )?,
-        declared_synchronous_invocations,
-        realized_synchronous_invocations,
-        capability_flows,
-        checked_may_suspend: realized.checked_may_suspend,
-        checked_may_block: realized.checked_may_block,
-        checked_termination: project_termination(compilation, &realized.checked_termination)?,
-        checked_crash: project_crash(compilation, &realized.checked_crash)?,
-        mutation: project_mutation(compilation, &realized.mutation)?,
-    })
+    let supply = match machine.supply_mode {
+        MachineSupplyMode::CheckedBody => PackageReviewCallableSupply::CheckedBody,
+        MachineSupplyMode::Requirement => PackageReviewCallableSupply::Requirement,
+        MachineSupplyMode::Boundary => PackageReviewCallableSupply::Boundary,
+        MachineSupplyMode::Accepted => PackageReviewCallableSupply::Accepted,
+        MachineSupplyMode::ExternalRealization { .. } => {
+            PackageReviewCallableSupply::ExternalRealization
+        }
+    };
+
+    Ok((
+        CheckedPackageCallableReview {
+            role,
+            identity,
+            supply,
+            lifetime_parameter_count: machine.lifetime_parameters.len(),
+            type_parameters,
+            conformance_bounds,
+            parameters,
+            return_type,
+            conformances,
+            contracts,
+            declared_service_reach,
+            checked_service_reach,
+            unresolved_installation_reaches: project_installation_reaches(
+                compilation,
+                &service_reach.unresolved_installation_reaches,
+            )?,
+            declared_synchronous_invocations,
+            realized_synchronous_invocations,
+            capability_flows,
+            checked_may_suspend: realized.checked_may_suspend,
+            checked_may_block: realized.checked_may_block,
+            checked_termination: project_termination(compilation, &realized.checked_termination)?,
+            checked_crash: project_crash(compilation, &realized.checked_crash)?,
+            mutation: project_mutation(compilation, &realized.mutation)?,
+        },
+        external_executable_supply,
+    ))
+}
+
+fn project_private_external_executable_supply(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    identity: &PackageReviewNominalIdentity,
+) -> Result<Vec<PackageReviewExternalExecutableSupply>, Vec<Diagnostic>> {
+    let machine_type_parameters = compilation.machine_type_parameters(machine);
+    let (binders, _) = project_type_parameters(
+        compilation,
+        machine_type_parameters,
+        "external executable supply",
+        identity.path.as_str(),
+        &machine.lifetime_parameters,
+    )?;
+    let (_, supply) =
+        project_callable_conformances(compilation, machine, identity, &binders, false)?;
+    Ok(supply)
 }
 
 struct ContractProjectionContext<'a> {
@@ -9799,15 +9958,76 @@ const fn project_contract_unary_operator(
 fn project_callable_conformances(
     compilation: &CheckedCompilation,
     machine: &psi_typed_trees::machine::Machine,
+    callable_identity: &PackageReviewNominalIdentity,
     binders: &[(SymbolHandle, String)],
-) -> Result<Vec<PackageReviewCallableConformance>, Vec<Diagnostic>> {
+    require_public_trait: bool,
+) -> Result<
+    (
+        Vec<PackageReviewCallableConformance>,
+        Vec<PackageReviewExternalExecutableSupply>,
+    ),
+    Vec<Diagnostic>,
+> {
+    let expected_external = match machine.supply_mode {
+        MachineSupplyMode::ExternalRealization { binding, mechanism } => {
+            if machine.body_is_present {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed external callable `{}` retains an implementation body",
+                    machine.name
+                ))]);
+            }
+            let conformances = compilation.machine_trait_conformances(machine);
+            if conformances.len() != 1 {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed external callable `{}` has {} conformance applications; expected exactly one",
+                    machine.name,
+                    conformances.len()
+                ))]);
+            }
+            let Some(identity) = compilation.external_bindings.identity(binding) else {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed external callable `{}` has no exact binding-table identity",
+                    machine.name
+                ))]);
+            };
+            if identity.mechanism() != mechanism {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed external callable `{}` has a supply mechanism inconsistent with its exact binding identity",
+                    machine.name
+                ))]);
+            }
+            validate_external_binding_payload(compilation, machine, identity)?;
+            Some((binding, project_external_binding(identity)))
+        }
+        MachineSupplyMode::CheckedBody
+        | MachineSupplyMode::Requirement
+        | MachineSupplyMode::Boundary
+        | MachineSupplyMode::Accepted => None,
+    };
     let mut projected = Vec::new();
+    let mut external_executable_supply = Vec::new();
     for conformance in compilation.machine_trait_conformances(machine) {
-        if conformance.external_binding.is_some() {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed callable `{}` uses an external trait realization not yet represented by package review",
-                machine.name
-            ))]);
+        match (expected_external.as_ref(), conformance.external_binding) {
+            (None, None) => {}
+            (None, Some(_)) => {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` retains an external conformance binding without external supply",
+                    machine.name
+                ))]);
+            }
+            (Some(_), None) => {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed external callable `{}` has a conformance without its exact external binding",
+                    machine.name
+                ))]);
+            }
+            (Some((expected, _)), Some(actual)) if *expected != actual => {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed external callable `{}` has a conformance binding inconsistent with its supply mode",
+                    machine.name
+                ))]);
+            }
+            (Some(_), Some(_)) => {}
         }
         let Some(trait_definition) = compilation
             .traits()
@@ -9819,7 +10039,7 @@ fn project_callable_conformances(
                 machine.name
             ))]);
         };
-        if !trait_definition.is_public {
+        if require_public_trait && !trait_definition.is_public {
             return Err(vec![Diagnostic::error(format!(
                 "reviewed callable `{}` realizes non-public trait `{}` whose complete contract is absent from package review",
                 machine.name, trait_definition.name
@@ -9869,7 +10089,7 @@ fn project_callable_conformances(
                 matching.len()
             ))]);
         };
-        projected.push(PackageReviewCallableConformance {
+        let row = PackageReviewCallableConformance {
             trait_identity: nominal_identity(compilation, trait_definition.symbol)?,
             requirement_identity: trait_requirement_identity(
                 compilation,
@@ -9893,7 +10113,21 @@ fn project_callable_conformances(
                 .alias
                 .as_ref()
                 .map(|alias| alias.as_str().to_owned()),
-        });
+        };
+        if let Some((_, binding)) = expected_external.as_ref() {
+            external_executable_supply.push(PackageReviewExternalExecutableSupply {
+                callable: callable_identity.clone(),
+                conformance: row.clone(),
+                binding: binding.clone(),
+            });
+        }
+        projected.push(row);
+    }
+    if expected_external.is_some() && external_executable_supply.is_empty() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed external callable `{}` has no exact conformance application",
+            machine.name
+        ))]);
     }
     projected.sort();
     if projected.windows(2).any(|rows| rows[0] == rows[1]) {
@@ -9902,7 +10136,102 @@ fn project_callable_conformances(
             machine.name
         ))]);
     }
-    Ok(projected)
+    external_executable_supply.sort();
+    if external_executable_supply
+        .windows(2)
+        .any(|rows| rows[0] == rows[1])
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed external callable `{}` contains duplicate executable-supply identity",
+            machine.name
+        ))]);
+    }
+    Ok((projected, external_executable_supply))
+}
+
+fn validate_external_binding_payload(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    identity: &psi_language_semantics::ExternalBindingIdentity,
+) -> Result<(), Vec<Diagnostic>> {
+    use psi_language_semantics::ExternalBindingIdentity;
+
+    let invalid = match identity {
+        ExternalBindingIdentity::Import { library, symbol } if library.is_empty() => {
+            Some("has no exact import-library identity")
+        }
+        ExternalBindingIdentity::Import { symbol, .. } if symbol.is_empty() => {
+            Some("has no exact import-symbol identity")
+        }
+        ExternalBindingIdentity::Syscall { number } if u32::try_from(*number).is_err() => {
+            Some("has a syscall number outside 0..=u32::MAX")
+        }
+        ExternalBindingIdentity::VtableSlot { index } if *index < 0 => {
+            Some("has a negative vtable-slot index")
+        }
+        ExternalBindingIdentity::VtableField { field }
+        | ExternalBindingIdentity::TableFunction { field }
+            if field.is_empty() =>
+        {
+            Some("has no exact table-field identity")
+        }
+        ExternalBindingIdentity::VtableField { .. }
+        | ExternalBindingIdentity::TableFunction { .. }
+            if !machine.attached_data_symbol.is_valid()
+                || machine.attached_data.is_none()
+                || !compilation
+                    .data_definitions()
+                    .iter()
+                    .any(|definition| definition.symbol == machine.attached_data_symbol) =>
+        {
+            Some("has table-field supply without one exact attached provider data declaration")
+        }
+        ExternalBindingIdentity::Import { .. }
+        | ExternalBindingIdentity::Syscall { .. }
+        | ExternalBindingIdentity::CompilerIntrinsic
+        | ExternalBindingIdentity::VtableSlot { .. }
+        | ExternalBindingIdentity::VtableField { .. }
+        | ExternalBindingIdentity::TableFunction { .. } => None,
+    };
+    match invalid {
+        Some(reason) => Err(vec![Diagnostic::error(format!(
+            "reviewed external callable `{}` {reason}",
+            machine.name
+        ))]),
+        None => Ok(()),
+    }
+}
+
+fn project_external_binding(
+    identity: &psi_language_semantics::ExternalBindingIdentity,
+) -> PackageReviewExternalBinding {
+    match identity {
+        psi_language_semantics::ExternalBindingIdentity::Import { library, symbol } => {
+            PackageReviewExternalBinding::Import {
+                library: library.clone(),
+                symbol: symbol.clone(),
+            }
+        }
+        psi_language_semantics::ExternalBindingIdentity::Syscall { number } => {
+            PackageReviewExternalBinding::Syscall { number: *number }
+        }
+        psi_language_semantics::ExternalBindingIdentity::CompilerIntrinsic => {
+            PackageReviewExternalBinding::CompilerIntrinsic
+        }
+        psi_language_semantics::ExternalBindingIdentity::VtableSlot { index } => {
+            PackageReviewExternalBinding::VtableSlot { index: *index }
+        }
+        psi_language_semantics::ExternalBindingIdentity::VtableField { field } => {
+            PackageReviewExternalBinding::VtableField {
+                field: field.clone(),
+            }
+        }
+        psi_language_semantics::ExternalBindingIdentity::TableFunction { field } => {
+            PackageReviewExternalBinding::TableFunction {
+                field: field.clone(),
+            }
+        }
+    }
 }
 
 fn project_synchronous_invocations(

@@ -499,7 +499,8 @@ const fn canonical_risk(kind: PackageReviewCanonicalRowKind) -> PackageReviewCan
         | PackageReviewCanonicalRowKind::DangerousAuthoritySlack => {
             PackageReviewCanonicalRowRisk::AuditRecommended
         }
-        PackageReviewCanonicalRowKind::SelectedProviderSet => {
+        PackageReviewCanonicalRowKind::SelectedProviderSet
+        | PackageReviewCanonicalRowKind::ExternalExecutableSupply => {
             PackageReviewCanonicalRowRisk::OpaqueBlocking
         }
         PackageReviewCanonicalRowKind::ProjectionHeader
@@ -538,6 +539,7 @@ fn decode_kind(
         12 => Ok(PackageReviewCanonicalRowKind::PublicConst),
         13 => Ok(PackageReviewCanonicalRowKind::PublicOperator),
         14 => Ok(PackageReviewCanonicalRowKind::PublicConformance),
+        15 => Ok(PackageReviewCanonicalRowKind::ExternalExecutableSupply),
         _ => Err(PackageReviewCanonicalRowRecoveryError::new(
             "canonical package-review row contains an unknown kind tag",
         )),
