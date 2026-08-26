@@ -108,9 +108,9 @@ rejects new sibling-relative cross-owner references.
 | Delta rung | `bootstrap/delta/` | complete; Delta v1 remains open |
 | Delta Rust producer | `bootstrap/delta/rust/` | complete |
 | current Rust Psi/Omega compiler and CLI | `source/compiler/rust/` | complete |
-| cross-cutting proof kernel | `source/assurance/proof-kernel/` | complete |
+| cross-cutting proof kernel | `source/assurance/proof-kernel/` | placement complete; assurance capabilities continue to evolve here |
 | Beta-source/Alpha-artifact refinement | `source/assurance/refinement/beta/` | complete |
-| bridge reconstruction and refinement | `source/assurance/refinement/omega-bootstrap/` | complete; assurance remains open |
+| bridge reconstruction and refinement | `source/assurance/refinement/omega-bootstrap/` | placement complete; bridge assurance remains open |
 | shared lattice inputs | `bootstrap/gates/{corpus,lattice-cache-deps}/` | complete |
 | Omega-written Psi/Omega compiler | `source/compiler/omega/{psi,omega}/` | first Psi lexical checkpoint landed |
 | product source checkpoints | `source/compiler/omega/source-checkpoints/` | active |

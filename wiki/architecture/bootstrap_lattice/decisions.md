@@ -160,6 +160,13 @@ fixed points, differential compilers, and independent implementations remain
 useful regression and bug-finding tools only where their value justifies their
 maintenance cost.
 
+The existence of the full seed-to-Omega chain is dependency closure, not by
+itself a correctness argument: an unchecked compiler defect can propagate
+through every later build. DDC is unnecessary because every edge instead binds
+the exact source, exact artifact, canonical meaning, and deployment observation
+profile through direct lower-rooted refinement. If an edge lacks that join,
+neither the surrounding chain nor compiler agreement repairs it.
+
 Applied at every edge, this rule closes source correspondence across the full
 Alpha-to-production-Omega chain. The `bc` cold start is the concrete precedent:
 its persisted artifact has lower-rooted maximal-observation refinement against

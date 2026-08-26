@@ -39,7 +39,7 @@ already specified and is not a third bootstrap feature vote:
 | Contract | Scope | Working rule |
 | --- | --- | --- |
 | Delta v1 | independent source language of the canonical Delta compiler and `omega-bootstrap` | robust deterministic C-class compiler host; specified failure and deterministic allocation backed by fixed, bump, or paged storage; Omega-like shape where cheap, with no subset requirement |
-| `Ωself` | ordinary-Omega source profile of production `omega` | omit proof/dependent authoring forms by default; retain ordinary compiler facilities unless a measured refactor lowers total source, bridge, and assurance cost |
+| Omega compiler-source profile (`Ωself`) | ordinary-Omega authoring profile of production `omega`; not another language or compiler generation | omit proof/dependent authoring forms by default; retain ordinary compiler facilities unless a measured refactor lowers total source, bridge, and assurance cost |
 
 The exact feature procedure lives only in
 [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md);
@@ -65,12 +65,16 @@ Queue invariants:
   proof-kernel implementation. Proof checking remains cross-cutting assurance.
 - Direct lower-rooted, subject-qualified source-to-artifact refinement closes
   provenance. Bare kernel acceptance is insufficient; compiler agreement and
-  Rust availability are never bootstrap or release requirements.
+  Rust availability are never bootstrap or release requirements. The complete
+  chain closes implementation-language dependency; its edge-by-edge direct
+  refinement, not the mere existence of the chain, is what makes diverse
+  double compilation unnecessary.
 - `source/compiler/omega/{psi,omega}/` are permanent Omega-written product owners;
   the current external-language implementation lives at `source/compiler/rust/`.
-- Only source transitively imported by the compiler belongs to the hosted
-  closure. Standalone interpreters, REPLs, proof explorers, viewers, debuggers,
-  and similar tools do not.
+- Only source transitively imported by the compiler executable belongs to the
+  hosted closure. Full-Omega conformance requires every specified language
+  facility, but does not require standalone interpreters, REPLs, proof
+  explorers, viewers, debuggers, and similar adjacent tools.
 - The bridge may use a private checked IR and conservative backend. It need not
   execute the product optimizer or use Terminal Psi internally.
 
@@ -88,7 +92,7 @@ Current state, without extrapolating from bounded canaries:
 | Delta language | executable corpus, native compiler path, self-host evidence, and a growing Delta→Gamma meaning route | a frozen v1 specification justified by both complete required Delta source closures, plus complete lower-rung coverage |
 | canonical Delta compiler | a Delta-written self-hosting compiler and bounded lower-rung executions | publication of the exact final compiler artifact from its complete source through Gamma, joined to refinement |
 | `omega-bootstrap` | multi-unit custody and selected vertical source→checked-IR→artifact→refinement slices, indexed by the bridge-local versioned contracts | the general compositional `Ωself` frontend, complete conservative backend, complete source closure, and frozen acceptance contract |
-| production Omega source | checkpoint 000001 for the Psi source-to-token phase | the parser, checker, terminal-Psi path, optimizer, backend, entrypoint closure, and final `Ωself` census |
+| production Omega source | checkpoint 000001 for the Psi source-to-token phase | the parser, checker, compiler-linked terminal-Psi representation/lowering, optimizer, backend, entrypoint closure, and final `Ωself` census; standalone interpreters and viewers are not implied |
 | hosted production build | bounded bridge canaries only | the first validated build of full production `omega`; no optional self-rebuild is required to close bootstrap |
 
 This table is the stopping-point summary. A row is not promoted by a nearby
@@ -368,7 +372,11 @@ closure or by assumed costs in the other.
   compositional profile, and complete bridge implementation. For every
   disputed Omega source feature, retain it with its measured implementation and
   assurance cost discharged or refactor it out and preserve a negative canary.
-  Freeze all transitive build inputs under the same rules.
+  Freeze all transitive build inputs under the same rules. Publish one final
+  disposition ledger that records source use, the concrete alternative when
+  excluded, general bridge/assurance cost, the retain-or-exclude result, and
+  the paired bridge-rejection/product-acceptance evidence. Do not distribute
+  these decisions among feature-specific task lists.
 - [ ] Resolve the high-leverage profile groups explicitly rather than letting
   them disappear inside the final census: presumptively exclude proof-program
   mathematics and dependent/proof-indexed typing (including linear-dependent
