@@ -886,13 +886,32 @@ P` bijection. Fixed facts without an exact match that require membership/
 proposition transport, float or computed implication, a mixed premise roster,
 unresolved identity, or argument adaptation remain fail closed, while generic
 owner substitution, general adapted arguments, non-arithmetic logical
-implication, and canonical Terminal replay remain fail closed.
+implication, and executable canonical Terminal replay remain fail closed.
 Arithmetic `Expression` entailment is implemented; transport of quotient-domain
 membership and opaque proposition families is language-design blocked on
 **OWNER_QUESTIONS Q9**. Q9 must settle the explicit selection locus, per-side
 transport/weakening application, and canonical theorem identity and replay
 evidence. Ambient domain linking, visibility search, or an opaque solver
 verdict cannot supply that authority.
+
+A standalone proof-only Terminal preparation seam now covers only the total
+direct faithful `define` shape. Its all-or-nothing validation API produces one
+source-handle-free aggregate containing package-qualified callable and type
+identities, parameter ordinals, exact positional relations, theorem
+parameters/premises/applications/conclusion, contract-fact coordinates,
+purity/termination/crash eligibility, and the direct result edge. The seam
+requires monomorphic one-state public, representative, and theorem machines;
+empty static telescopes and public/representative preconditions; no theorem
+legality premises; immutable non-attached parameters; complete eligibility;
+and unchanged direct result flow. Standalone Terminal-Psi retention binds the
+aggregate with an exact length-delimited canonical identity, while the
+independent verifier reconstructs its structural theorem and correspondence
+shape and re-encodes that identity. It is deliberately absent from
+`TerminalModule`, checked facts, codecs, and executable lowering. Normal
+validation continues to reject every quotient operation, and a batch with one
+unsupported request yields no partial rows. This is a source-erasure and replay
+prerequisite, not stage-4 admission; Q9 and executable Terminal lowering remain
+open.
 
 The representation-observer fence is explicit at resolved-to-typed lowering.
 A quotient cannot declare `Equatable`, participate as a field in synthesized

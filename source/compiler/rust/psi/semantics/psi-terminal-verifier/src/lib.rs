@@ -6,8 +6,10 @@
 //! edges, then requires evidence for every bodyful contract clause. Proof
 //! bundles cannot choose which obligations exist.
 
+mod quotient_correspondence;
 mod validation;
 mod verification;
 
+pub use quotient_correspondence::*;
 pub use validation::*;
 pub use verification::*;

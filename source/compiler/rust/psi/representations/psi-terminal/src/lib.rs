@@ -13,9 +13,11 @@
 mod identity;
 mod module;
 mod proof_values;
+mod quotient_correspondence;
 
 pub use psi_language_core::BindingRelevance;
 
 pub use identity::*;
 pub use module::*;
 pub use proof_values::*;
+pub use quotient_correspondence::*;

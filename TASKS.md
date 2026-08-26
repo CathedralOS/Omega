@@ -8220,14 +8220,33 @@ Remaining N6/N8 work:
   match that require membership/proposition transport, float or computed
   implication, a mixed premise roster, unresolved identity, or argument
   adaptation remain fail-closed; generic owner substitution, general adapted
-  lift arguments, non-arithmetic logical implication, and canonical Terminal
-  replay remain fail-closed, so stage 3 is not complete and stage 4 remains
+  lift arguments, non-arithmetic logical implication, and executable canonical
+  Terminal replay remain fail-closed, so stage 3 is not complete and stage 4 remains
   open. Arithmetic `Expression` entailment is implemented; transport
   of quotient-domain membership and opaque proposition families is
   language-design blocked on **OWNER_QUESTIONS Q9**. Q9 must settle the
   explicit selection locus, per-side transport/weakening application, and
   canonical theorem identity and replay evidence. Ambient domain linking,
   visibility search, or an opaque solver verdict cannot supply that authority.
+
+  One deliberately non-executable stage-4 preparation seam is now live for
+  the narrow total direct `define` case. A separate all-or-nothing validation
+  API erases source handles into package-qualified callable/type identities,
+  parameter ordinals, contract-fact coordinates, the exact positional
+  relations and theorem expansion, eligibility certificates, and the direct
+  result edge. It admits only monomorphic one-state operations with empty
+  static telescopes, empty public/representative preconditions, no theorem
+  legality premises, immutable non-attached parameters, complete checked
+  purity/termination/crash evidence, and an exact direct result. Standalone
+  Terminal-Psi retention binds that aggregate with an exact length-delimited
+  canonical identity, and the independent verifier reconstructs the theorem
+  parameters, relation premises, representative applications, conclusion,
+  runtime correspondence, and result flow. The aggregate is intentionally
+  absent from `TerminalModule`, its codec, checked facts, and every executable
+  lane; ordinary validation still rejects every quotient request, and one
+  unsupported request prevents returning a partial batch. This closes a
+  source-erasure/replay prerequisite only: stage 3 is still incomplete at Q9,
+  while executable stage-4 admission and lowering remain open.
 
   Every request intentionally remains non-executable. Complete admission in
   bounded stages:
