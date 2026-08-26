@@ -661,6 +661,14 @@ pub enum AbstractOperationKind {
         source: Place,
         target_offset: usize,
     },
+    /// Store the relocated address of one immutable data object into an exact
+    /// runtime-frame pointer word. Dynamic descriptor construction uses this
+    /// for the selected-conformance table word; it is not a string/slice
+    /// descriptor and writes no adjacent length word.
+    WriteDataAddressToRuntimeFrame {
+        data: AbstractDataObjectHandle,
+        target_offset: usize,
+    },
     SetDispatchState {
         dispatch_index: u32,
     },

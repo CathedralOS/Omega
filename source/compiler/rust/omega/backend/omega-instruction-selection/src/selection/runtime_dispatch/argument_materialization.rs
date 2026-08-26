@@ -160,6 +160,19 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             slot
         };
 
+        if emit_selected_dynamic_conformance_descriptor(
+            input,
+            source_key,
+            source_dispatch_index,
+            statement_index,
+            target_key,
+            parameter,
+            slot,
+            selected_instructions,
+        ) {
+            continue;
+        }
+
         resolved_argument_expressions.clear();
         let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
             alias_expressions,
@@ -1905,4 +1918,146 @@ fn runtime_parameter_slot<'a>(
             (slot.dispatch_index == target_dispatch_index && slot.symbol == parameter.symbol)
                 .then_some(slot)
         })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_selected_dynamic_conformance_descriptor(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    source_dispatch_index: u32,
+    statement_index: usize,
+    target_key: StateKey,
+    parameter: &StateParameterFlow,
+    target_slot: &omega_runtime_storage::RuntimeFrameSlot,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let mut calls = input
+        .state_calls
+        .calls_for_statement(source_key, statement_index)
+        .filter(|call| call.target_key == target_key)
+        .filter_map(|call| {
+            input
+                .state_calls
+                .arguments
+                .span(call.arguments)?
+                .iter()
+                .find(|argument| argument.parameter_symbol == parameter.symbol)
+                .and_then(|argument| argument.dynamic_conformance.as_ref())
+        });
+    let Some(descriptor) = calls.next() else {
+        return false;
+    };
+    // From this point the argument is semantically dynamic. Any failed exact
+    // join consumes the argument without falling through to the ordinary
+    // place-copy path: copying the unmaterialized erased local would silently
+    // manufacture a zero/foreign descriptor.
+    if calls.next().is_some() {
+        return true;
+    }
+
+    let Some(selection) = input
+        .control_flow
+        .semantics
+        .facts
+        .dynamic_conformances
+        .for_binding(
+            source_key.machine,
+            source_key.state,
+            descriptor.source_binding,
+        )
+    else {
+        return true;
+    };
+    if selection.source_data != descriptor.source_data
+        || selection.target_trait != descriptor.target_trait
+        || selection.conformance != Some(descriptor.conformance)
+        || selection.rows != descriptor.rows
+        || selection.source_path.len() != 1
+        || selection.source_path[0] != selection.source_name
+    {
+        return true;
+    }
+
+    let source_slots = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .filter_map(|(_, slot)| {
+            (slot.dispatch_index <= source_dispatch_index
+                && state_key_matches_statement_source(slot.source_key, source_key)
+                && slot.symbol == selection.source_symbol)
+                .then_some(slot)
+        })
+        .collect::<Vec<_>>();
+    let max_dispatch = source_slots.iter().map(|slot| slot.dispatch_index).max();
+    let Some(max_dispatch) = max_dispatch else {
+        return true;
+    };
+    let mut exact_source_slots = source_slots
+        .into_iter()
+        .filter(|slot| slot.dispatch_index == max_dispatch);
+    let Some(source_slot) = exact_source_slots.next() else {
+        return true;
+    };
+    if exact_source_slots.next().is_some() {
+        return true;
+    }
+
+    let Some(table_object) = input
+        .data
+        .dynamic_conformance_table_object(descriptor.target_trait, descriptor.conformance)
+    else {
+        return true;
+    };
+    let Some(table) = input
+        .data
+        .dynamic_conformance_tables
+        .iter()
+        .map(|(_, table)| table)
+        .find(|table| table.object == table_object)
+    else {
+        return true;
+    };
+    if table.rows.is_empty()
+        || table.rows.iter().any(|table_row| {
+            !descriptor.rows.iter().any(|row| {
+                table_row.requirement_identity.as_ref() == row.requirement_identity
+                    && table_row.realization_identity.as_ref() == row.realization_identity
+                    && table_row.realization.machine == row.realization_machine
+                    && table_row.realization.state == row.realization_state
+            })
+        })
+    {
+        return true;
+    }
+
+    let abi = input.runtime_abi.dynamic_trait_descriptor();
+    if target_slot.byte_size != abi.total_size() || target_slot.alignment < abi.align() {
+        return true;
+    }
+    let Some(instance_offset) = target_slot.byte_offset.checked_add(abi.instance_offset()) else {
+        return true;
+    };
+    let Some(table_offset) = target_slot.byte_offset.checked_add(abi.table_offset()) else {
+        return true;
+    };
+
+    selected_instructions.push(SelectedInstruction {
+        kind: crate::selection::runtime_dispatch::write_place_address_direct(
+            RuntimeStorageRegion::RuntimeFrame,
+            source_slot.byte_offset,
+            instance_offset,
+        ),
+        source_key,
+        source_statement: statement_index,
+    });
+    selected_instructions.push(SelectedInstruction {
+        kind: omega_abstract_operations::SelectedInstructionKind::WriteDataAddressToRuntimeFrame {
+            data: table_object,
+            target_offset: table_offset,
+        },
+        source_key,
+        source_statement: statement_index,
+    });
+    true
 }

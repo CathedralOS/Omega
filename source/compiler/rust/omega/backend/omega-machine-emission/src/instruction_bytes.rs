@@ -828,6 +828,15 @@ fn compiler_instruction_validation_kind(
                 },
             )
         }
+        SelectedInstructionKind::WriteDataAddressToRuntimeFrame {
+            data,
+            target_offset,
+        } => Some(
+            CompilerInstructionValidationKind::CompilerBodyDataAddressWrite {
+                data_symbol: Arc::clone(&emission_context.data.objects.get(*data).symbol),
+                target_offset: *target_offset,
+            },
+        ),
         SelectedInstructionKind::ReadRuntimeByte {
             target_region,
             target_offset,

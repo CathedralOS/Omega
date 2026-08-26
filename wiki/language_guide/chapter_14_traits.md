@@ -707,9 +707,15 @@ spellings. The abstract-data handoff preserves the exact trait and conformance
 symbols, normalized row identities, and private table object. Transitional
 instruction selection can therefore bind one unique table object without
 rediscovering a conformance from names; missing, duplicate, or non-table
-bindings fail closed. Runtime `{ instance, table }` construction, rebinding, storage,
-joins, escaping, and component crossing remain open. Those consumers use the
-same complete normalized maps. Each row retains
+bindings fail closed. A direct-place pass-through now constructs the exact
+runtime pair at the target parameter: the instance word receives the retained
+source-place address, and the table word receives the private data-object
+address through a distinct single-word operation. Both native encoders and
+their final relocation replay keep those words separate. Full-image execution
+still needs the selected realization to own a standalone private function
+symbol; that is an engineering emission rung, not a change to dynamic language
+semantics. Rebinding, storage, joins, escaping, and component crossing remain
+open. Those consumers use the same complete normalized maps. Each row retains
 the declaring trait, requirement, exact satisfier machine, default instantiation
 when applicable, normalized contracts, and selected conformance identity.
 

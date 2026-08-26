@@ -79,6 +79,7 @@ impl OperationSemanticQuery for AbstractOperationKind {
             Self::WritePlaceString { .. } => AbstractOperationDomain::RuntimeWrite,
             Self::WritePlaceBoundedBuffer { .. } => AbstractOperationDomain::RuntimeWrite,
             Self::WritePlaceAddress { .. } => AbstractOperationDomain::RuntimeWrite,
+            Self::WriteDataAddressToRuntimeFrame { .. } => AbstractOperationDomain::RuntimeWrite,
 
             Self::ReadRuntimeTextLine { .. }
             | Self::ReadRuntimeByte { .. }

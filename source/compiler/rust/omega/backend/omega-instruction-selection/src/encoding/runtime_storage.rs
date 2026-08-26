@@ -2219,6 +2219,31 @@ pub fn write_place_string_width(
     encode_write_place_string(architecture, target, byte_length).map(|bytes| bytes.len())
 }
 
+pub fn encode_runtime_frame_data_address_write(
+    architecture: Architecture,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_frame_data_address_write(target_offset).map(|(bytes, _)| bytes)
+        }
+        Architecture::Aarch64 => aarch64::encode_runtime_frame_data_address_write(target_offset),
+    }
+}
+
+pub fn runtime_frame_data_address_write_width(
+    architecture: Architecture,
+    target_offset: usize,
+) -> Result<usize, Diagnostic> {
+    encode_runtime_frame_data_address_write(architecture, target_offset).map(|bytes| bytes.len())
+}
+
+pub fn x86_64_encode_runtime_frame_data_address_write_with_sites(
+    target_offset: usize,
+) -> Result<(Vec<u8>, omega_isa_x86_64::PlaceCopySites), Diagnostic> {
+    x86_64::encode_runtime_frame_data_address_write(target_offset)
+}
+
 pub fn x86_64_encode_write_place_string_with_sites(
     target: &omega_target_operations::Place,
     byte_length: usize,

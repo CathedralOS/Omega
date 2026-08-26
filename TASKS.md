@@ -8461,8 +8461,16 @@ checked-result arithmetic decision listed below.
   conformance, normalized row identities, and private object handle rather than
   degrading it to ordinary data; a unique symbol-keyed lookup fails closed on
   missing, duplicate, or malformed bindings for transitional instruction
-  selection. Construction of the runtime `{ instance, table }` pair and rebound,
-  stored, joined, escaping, or component-crossing descriptors remain open.
+  selection. The first direct-place pass-through construction now writes the
+  exact two-word runtime ABI carrier: one place-address operation stores the
+  retained concrete instance and one single-word data-address operation stores
+  the selected private table. Target lowering, both native encoders, final-byte
+  validation, and the table/frame relocation pair preserve that distinction;
+  failed exact joins never fall through to copying the unmaterialized erased
+  local. Full-image execution remains an engineering rung because the retained
+  realization still needs a standalone private function symbol for the table's
+  existing slot relocation. Rebound, stored, joined, escaping, or component-
+  crossing descriptors also remain open.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
   realizations.** Complete hermetic evaluation with crash refinement, target
   capsule, separate result/usage identities, deterministic progress, and
