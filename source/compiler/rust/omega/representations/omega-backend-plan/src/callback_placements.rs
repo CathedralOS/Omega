@@ -1,4 +1,7 @@
-use omega_calling_conventions::BoundaryEntryPlan;
+use omega_calling_conventions::{
+    BoundaryEntryPlan, CallbackMaterializationContext, CallbackRequirementId, NativePlace,
+    StaticMachineBinderId,
+};
 use omega_control_flow::StateKey;
 use psi_checked_trees::NominalMachineUseSite;
 use psi_symbols::SymbolHandle;
@@ -22,6 +25,26 @@ pub struct BoundNominalCallbackPlacement {
     pub canonical_requirement_overload: String,
     pub boundary_calling_plan_fingerprint: u64,
     pub boundary_entry_plan: BoundaryEntryPlan,
+    /// Exact target-closed outbound binder/destination row selected by this
+    /// nominal callback use. `None` retains the established non-materializing
+    /// callback path; a plan containing private rows may not use that form.
+    pub private_materialization: Option<BoundCallbackPrivateMaterialization>,
+}
+
+/// Complete address-free context and selected row for one private callback
+/// materialization. Physical offsets, target operations, bytes, object
+/// relocations, runtime storage, registration authority, and leases are absent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundCallbackPrivateMaterialization {
+    pub binder: StaticMachineBinderId,
+    pub destination: NativePlace,
+    pub requirement: CallbackRequirementId,
+    /// Exact target-owned registrar plan whose outbound callback row owns the
+    /// binder-to-destination mapping. This is distinct from the callback
+    /// handler's inbound `boundary_entry_plan` retained by the placement.
+    pub registrar_boundary_entry_plan: BoundaryEntryPlan,
+    pub registrar_calling_plan_fingerprint: u64,
+    pub context: CallbackMaterializationContext,
 }
 
 /// Exact checked identity retained when a callback placement becomes a thunk.
@@ -42,6 +65,7 @@ pub struct CallbackPlacementBindingIdentity {
     pub satisfaction_requirement: SymbolHandle,
     pub canonical_requirement_overload: String,
     pub boundary_calling_plan_fingerprint: u64,
+    pub private_materialization: Option<BoundCallbackPrivateMaterialization>,
 }
 
 /// One private inbound function that later target lowering must emit.
@@ -109,8 +133,73 @@ pub fn callback_thunk_placement_identity_fingerprint(thunks: &[CallbackThunkPlan
             &mut fingerprint,
             &identity.boundary_calling_plan_fingerprint.to_le_bytes(),
         );
+        fingerprint_private_materialization(
+            &mut fingerprint,
+            identity.private_materialization.as_ref(),
+        );
     }
     fingerprint
+}
+
+fn fingerprint_private_materialization(
+    fingerprint: &mut u64,
+    materialization: Option<&BoundCallbackPrivateMaterialization>,
+) {
+    let Some(materialization) = materialization else {
+        fingerprint_into(fingerprint, &[0]);
+        return;
+    };
+    fingerprint_into(fingerprint, &[1]);
+    fingerprint_into(fingerprint, &materialization.binder.get().to_le_bytes());
+    fingerprint_into(
+        fingerprint,
+        &materialization.requirement.get().to_le_bytes(),
+    );
+    fingerprint_native_place(fingerprint, &materialization.destination);
+    fingerprint_into(
+        fingerprint,
+        &materialization
+            .registrar_calling_plan_fingerprint
+            .to_le_bytes(),
+    );
+    fingerprint_into(
+        fingerprint,
+        &(materialization.context.binders.len() as u64).to_le_bytes(),
+    );
+    for binder in &materialization.context.binders {
+        fingerprint_into(fingerprint, &binder.binder.get().to_le_bytes());
+        fingerprint_into(fingerprint, &binder.requirement.get().to_le_bytes());
+    }
+    fingerprint_into(
+        fingerprint,
+        &(materialization.context.demands.len() as u64).to_le_bytes(),
+    );
+    for demand in &materialization.context.demands {
+        fingerprint_native_place(fingerprint, &demand.destination);
+        fingerprint_into(fingerprint, &demand.requirement.get().to_le_bytes());
+    }
+}
+
+fn fingerprint_native_place(fingerprint: &mut u64, place: &NativePlace) {
+    match place {
+        NativePlace::Parameter(parameter) => {
+            fingerprint_into(fingerprint, &[1]);
+            fingerprint_into(fingerprint, &parameter.get().to_le_bytes());
+        }
+        NativePlace::Field {
+            parameter,
+            layout,
+            field_path,
+        } => {
+            fingerprint_into(fingerprint, &[2]);
+            fingerprint_into(fingerprint, &parameter.get().to_le_bytes());
+            fingerprint_into(fingerprint, &layout.get().to_le_bytes());
+            fingerprint_into(fingerprint, &(field_path.len() as u64).to_le_bytes());
+            for slot in field_path {
+                fingerprint_into(fingerprint, &slot.get().to_le_bytes());
+            }
+        }
+    }
 }
 
 fn fingerprint_symbol(fingerprint: &mut u64, symbol: SymbolHandle) {
@@ -139,6 +228,7 @@ pub fn callback_placement_binding_identity(
         satisfaction_requirement: placement.satisfaction_requirement,
         canonical_requirement_overload: placement.canonical_requirement_overload.clone(),
         boundary_calling_plan_fingerprint: placement.boundary_calling_plan_fingerprint,
+        private_materialization: placement.private_materialization.clone(),
     }
 }
 
@@ -174,6 +264,77 @@ pub fn validate_bound_nominal_callback_placement(
         placement.boundary_entry_plan.clone(),
         &signature,
     )?;
+    if let Some(materialization) = &placement.private_materialization {
+        let registrar_signature = omega_calling_conventions::CallSignature {
+            parameters: materialization
+                .registrar_boundary_entry_plan
+                .call
+                .parameters
+                .iter()
+                .map(|parameter| parameter.shape)
+                .collect(),
+            result: materialization
+                .registrar_boundary_entry_plan
+                .call
+                .result
+                .as_ref()
+                .map(|result| result.shape),
+        };
+        let validated_registrar =
+            omega_calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+                materialization.registrar_boundary_entry_plan.clone(),
+                &registrar_signature,
+                &materialization.context,
+            )?;
+        if validated_registrar.plan() != &materialization.registrar_boundary_entry_plan
+            || materialization.registrar_calling_plan_fingerprint == 0
+            || validated_registrar.contract_fingerprint()
+                != materialization.registrar_calling_plan_fingerprint
+        {
+            return Err(omega_calling_conventions::PlanDiagnostic(
+                "callback placement private materialization drifted from its exact evaluated registrar plan"
+                    .to_owned(),
+            ));
+        }
+        let matching_binders = materialization
+            .context
+            .binders
+            .iter()
+            .filter(|candidate| candidate.binder == materialization.binder)
+            .collect::<Vec<_>>();
+        let matching_demands = materialization
+            .context
+            .demands
+            .iter()
+            .filter(|candidate| candidate.destination == materialization.destination)
+            .collect::<Vec<_>>();
+        let matching_rows = materialization
+            .registrar_boundary_entry_plan
+            .call
+            .callback_materializations
+            .iter()
+            .filter(|candidate| candidate.binder == materialization.binder)
+            .collect::<Vec<_>>();
+        let ([binder], [demand], [row]) = (
+            matching_binders.as_slice(),
+            matching_demands.as_slice(),
+            matching_rows.as_slice(),
+        ) else {
+            return Err(omega_calling_conventions::PlanDiagnostic(
+                    "callback placement private materialization lost its exact binder, demand, or plan row"
+                        .to_owned(),
+                ));
+        };
+        if binder.requirement != materialization.requirement
+            || demand.requirement != materialization.requirement
+            || row.destination != materialization.destination
+        {
+            return Err(omega_calling_conventions::PlanDiagnostic(
+                    "callback placement private materialization binder, requirement, or destination drifted"
+                        .to_owned(),
+                ));
+        }
+    }
     if validated.plan() != &placement.boundary_entry_plan {
         return Err(omega_calling_conventions::PlanDiagnostic(
             "callback placement retained a noncanonical boundary entry plan".to_owned(),
@@ -238,6 +399,7 @@ mod tests {
             canonical_requirement_overload: "Handler::call".to_owned(),
             boundary_calling_plan_fingerprint: validated.contract_fingerprint(),
             boundary_entry_plan: validated.plan().clone(),
+            private_materialization: None,
         }
     }
 

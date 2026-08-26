@@ -7334,7 +7334,19 @@ Owners:
   the same context and rejects missing, duplicate, wrong-requirement,
   wrong-destination, or fingerprint-drifted rows. Target-neutral planning
   remains demand-free, and only the authoritative `LayoutPlan` may close it.
-  Private relocation/emission remains subsequent.
+  The first address-free relocation-planning rung is complete. Nominal
+  placement validation keeps the callback handler's inbound entry plan
+  separate from the registrar operation's outbound realization, selects the
+  latter by exact registration-operation symbol plus static ordinal and
+  satisfaction row, and retains its complete ordered context, validated plan,
+  fingerprint, binder, requirement, and `NativePlace` destination. Backend
+  planning joins that row one-to-one and in placement order with the emitted
+  private thunk/root schedule and independently replays missing, duplicate,
+  reordered, or identity-drifted catalogs. `CallbackPrivateRelocationDemand`
+  remains strictly address-free: it owns no target operation, byte, offset,
+  object relocation, runtime storage, address, registration authority, or
+  lease. Actual object relocation/emission and lifetime binding remain
+  subsequent.
 
   The first source canary cohort is live: the exact target-selected registrar
   closes two explicitly named, nonoverlapping nested private slots for two

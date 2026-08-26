@@ -135,6 +135,7 @@ mod tests {
             canonical_requirement_overload: "Handler::call".to_owned(),
             boundary_calling_plan_fingerprint: validated.contract_fingerprint(),
             boundary_entry_plan: validated.plan().clone(),
+            private_materialization: None,
         };
         (control_flow, placement)
     }

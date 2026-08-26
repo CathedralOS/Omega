@@ -1,3 +1,4 @@
+use super::callback_private_relocations::plan_callback_private_relocations;
 use super::callback_thunks::plan_callback_thunks;
 use super::entry::resolve_backend_entry_point;
 use super::skeleton::{BackendPlanSkeletonInput, build_backend_plan_skeleton};
@@ -67,6 +68,8 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     let target = target_profile.native_target();
     let entry_point = resolve_backend_entry_point(&program, entry_machine_name)?;
     let callback_thunks = plan_callback_thunks(&control_flow, &callback_placements)?;
+    let callback_private_relocations =
+        plan_callback_private_relocations(&callback_placements, &callback_thunks)?;
     let mut phase_timings = Arena::new();
     // A freestanding build trusts no ambient host boundary packages: start
     // from an empty ABI plan, so there are no implicit bindings, platform
@@ -218,6 +221,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         entry_boundary_plan,
         callback_placements,
         callback_thunks,
+        callback_private_relocations,
         phase_timings,
     });
     let mut phase_timings = std::mem::take(&mut backend_plan.phase_timings);

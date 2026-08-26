@@ -708,6 +708,20 @@ from actual to published. The foreign protocol relies on the published
 envelope; installation, resource, reach, and crash reasoning may use the
 narrower actual envelope.
 
+The first private-relocation planner remains deliberately address-free. It
+selects the callback handler's inbound plan only from the exact satisfaction
+trait/requirement and independently selects the registrar's outbound
+realization by the exact registration-operation symbol, static binder ordinal,
+and satisfaction row. One retained materialization binds the complete ordered
+registrar context and validated plan/fingerprint to its exact binder,
+requirement, and `NativePlace`. Backend planning joins that receipt one-to-one
+and in placement order with the emitted thunk and callback-root schedule.
+Replay rejects missing, duplicated, reordered, substituted-operation, plan,
+context, row, thunk, or schedule identities. The resulting
+`CallbackPrivateRelocationDemand` has no target operation, physical offset,
+bytes, object relocation, runtime storage, native address, registration
+authority, or lease; those remain later lowering and lifetime steps.
+
 The checked identity spine is live. Admission records the exact statement or
 expression handle, argument ordinal, registration operation, selected machine
 and entry, unique satisfaction trait/requirement pair, and canonical overload
@@ -721,8 +735,9 @@ retain the nonzero fingerprint of their exact evaluated boundary calling plan;
 ordinary nominal uses retain no callback placement. This is the target-owned
 plan join key, not a source-visible address. Check-only and native orchestration
 consume it before handoff, revalidate the retained plan, and require one exact
-trait/requirement/fingerprint realization. Emitting the validated thunk and
-its private relocation remains a later lowering slice.
+trait/requirement/fingerprint realization. The validated payloadless thunk and
+its address-free relocation demand are now retained; target/object relocation
+and runtime registration remain later lowering slices.
 
 The identity row additionally pins two separate normalized public-contract
 endpoints: the callback requirement capsule and the selected machine's declared
@@ -1331,7 +1346,10 @@ Multi-entry/re-entrant instruction emission, the private registration
 relocation, and registration lifetime accounting remain the next vertical
 slice. The outbound registrar plan now owns the settled binder-slot-to-
 `NativePlace` row and private layout-demand closure; neither may be inferred
-from the callback's inbound entry plan.
+from the callback's inbound entry plan. The address-free backend demand now
+replays that separation against the exact emitted thunk/root schedule, but does
+not yet choose a relocation kind, section, offset, encoded bytes, or runtime
+lease.
 
 Compiler-body memory operations likewise retain their exact plan-selected place
 and relocation recipes through emission and replay validation. Current
