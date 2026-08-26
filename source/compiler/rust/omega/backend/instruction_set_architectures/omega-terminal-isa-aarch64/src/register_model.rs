@@ -88,13 +88,19 @@ pub const AARCH64_ADD_I64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 4,
 };
+/// Flag-transparent `result = left + immediate`, matching the AArch64 ADD
+/// immediate form for the named admitted immediate domain.
+pub const AARCH64_ADD_I64_IMMEDIATE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 5,
+};
 
 /// Closed baseline constraint inventory currently owned by the AArch64 target.
 /// The ordinary rows are limited to the baseline operations required by a
 /// register-passed scalar conditional-return CFG plus the first arithmetic row
 /// needed by the pressure vertical. Other ordinary and feature-specific
 /// instruction rows remain intentionally absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 11] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 12] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_RETURN,
@@ -106,6 +112,7 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 11] = [
     AARCH64_COMPARE_I64_ZERO,
     AARCH64_CONDITIONAL_BRANCH,
     AARCH64_ADD_I64,
+    AARCH64_ADD_I64_IMMEDIATE,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -643,6 +650,17 @@ pub fn aarch64_register_constraint_catalog(
             implicit_defs: Vec::new(),
             clobbers: Vec::new(),
         },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(11),
+            key: AARCH64_ADD_I64_IMMEDIATE,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Def, GPR64),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        },
     ];
 
     RegisterConstraintCatalog {
@@ -889,6 +907,24 @@ mod tests {
         assert!(add.implicit_uses.is_empty());
         assert!(add.implicit_defs.is_empty());
         assert!(add.clobbers.is_empty());
+
+        let add_immediate = &catalog.constraints[11];
+        assert_eq!(add_immediate.key, AARCH64_ADD_I64_IMMEDIATE);
+        assert_eq!(add_immediate.operands.len(), 2);
+        assert_eq!(add_immediate.operands[0].access, RegisterOperandAccess::Use);
+        assert_eq!(add_immediate.operands[1].access, RegisterOperandAccess::Def);
+        assert!(
+            add_immediate
+                .operands
+                .iter()
+                .all(|operand| operand.class == GPR64
+                    && operand.fixed_view.is_none()
+                    && operand.tied_to.is_none()
+                    && !operand.early_clobber)
+        );
+        assert!(add_immediate.implicit_uses.is_empty());
+        assert!(add_immediate.implicit_defs.is_empty());
+        assert!(add_immediate.clobbers.is_empty());
         assert_eq!(
             branch.implicit_defs,
             model.model().view_named("pc").unwrap().units
@@ -968,6 +1004,17 @@ mod tests {
             Err(
                 Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(
                     AARCH64_COMPARE_I64_ZERO,
+                )
+            )
+        );
+
+        let mut immediate = aarch64_register_constraint_catalog(&model);
+        immediate.constraints[11].operands[0].access = RegisterOperandAccess::Def;
+        assert_eq!(
+            validate_aarch64_register_constraint_catalog(immediate, &model),
+            Err(
+                Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(
+                    AARCH64_ADD_I64_IMMEDIATE,
                 )
             )
         );

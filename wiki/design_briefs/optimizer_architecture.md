@@ -337,11 +337,39 @@ The versioned codec again decodes only to an unchecked plain plan.
 
 This classification grants no authority to choose a strategy, move or
 duplicate the original semantic instruction, add a native reconstruction,
-change logical-fuel placement, allocate private storage, or emit code. A later
-literal-sinking policy must say whether an incoming definition moves or an
-already executed resident is physically reconstructed with zero new logical
-fuel, reconstruct the selected CFG independently, and rerun liveness, ranges,
-legality, pressure, and homes.
+change logical-fuel placement, allocate private storage, or emit code.
+
+The first transformation consuming that evidence is the separately named
+`SelectedIncomingU12ExactAddImmediateV1` policy. It is intentionally not a
+generic literal sink or rematerializer. In the production pressure case the
+right literal is already immediately before its only use, and moving it cannot
+remove the two simultaneous register uses of a three-register `ExactAddI64`.
+The admitted transform instead folds one incoming unsigned `0..=4095` literal
+into an immediately following exact-add consumer. Both target owners publish a
+two-operand `add_i64_immediate` constraint row: x86-64 may realize the exact,
+flag-transparent form with LEA and AArch64 with ADD-immediate.
+
+The transformed `ExactAddI64Immediate` retains the original exact-add
+obligation and accepted proof-fact identity. Its provenance concatenates the
+literal and add operations and logical-fuel settlements exactly once, while
+retaining the add's source values, edges, and obligations. The literal
+instruction and its VReg disappear; all later instruction and VReg identities
+are deterministically redensified throughout the function. A domain-separated
+recipe identity and strict codec bind every selected/range/legality/pressure/
+classification/environment/availability/unit/fuel root, named policy, work
+budget and usage, per-function action, and transformed selected-CFG identity.
+Validation reconstructs the complete transformed CFG from retained roots; the
+validated carrier alone can feed fresh liveness, ranges, legality, pressure,
+and home analysis.
+
+Each invocation applies at most one already selected action per function. It
+does not iterate implicitly and is not installed in ordinary builds. In the
+one-view production fixture, one explicit invocation folds literal `8`, full
+reanalysis exposes the other leaf's literal as the next pressure victim, and a
+second explicit invocation plus another full reanalysis reaches deterministic
+homes on x86-64 and AArch64. This establishes an exact physical-form pressure
+recovery without granting spill, frame, emission, or general rematerialization
+authority.
 
 Allocator search availability is now a separate compiler-internal validated
 artifact. `AllEnvironmentAllocatableViewsV1` derives the complete flexible set
@@ -357,8 +385,8 @@ target/provider/runtime exclusions and participate in the target-environment
 identity. Availability controls only allocator search. Fixed ABI and operand
 constraints therefore bypass the flexible allowlist, while still undergoing
 the exact class, reservation, and point-local architectural conflict checks.
-An explicit one-view production fixture retains `rdi` on x86-64 and `x0` on
-AArch64. Both reach the first honest pressure witness at incoming VReg 2 and
+An explicit one-view classification fixture retains `rdi` on x86-64 and `x0`
+on AArch64. Both reach the first honest pressure witness at incoming VReg 2 and
 classify literal `8` under
 `SelectedVictimImmediateU64EligibilityV1`; x86-64's non-allowlisted fixed
 `rax` return remains legal.

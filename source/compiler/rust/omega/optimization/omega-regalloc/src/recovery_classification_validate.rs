@@ -299,7 +299,8 @@ fn replay_classification(
         });
     }
     let value = match defining.kind {
-        TerminalSelectedInstructionKind::ExactAddI64 { .. } => {
+        TerminalSelectedInstructionKind::ExactAddI64 { .. }
+        | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => {
             return replay_no(TerminalNoAdmittedRecoveryReason::ProofBearingDefinition);
         }
         TerminalSelectedInstructionKind::MaterializeI64 { value } => value,

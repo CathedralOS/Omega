@@ -103,6 +103,12 @@ pub const X86_64_ADD_I64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 4,
 };
+/// Flag-transparent `result = left + immediate`, realizable as LEA for the
+/// named admitted immediate domain without a destructive two-address tie.
+pub const X86_64_ADD_I64_IMMEDIATE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 5,
+};
 
 /// Closed v1 inventory owned by the x86-64 target.
 ///
@@ -110,7 +116,7 @@ pub const X86_64_ADD_I64: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 11] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 12] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_RETURN,
@@ -122,6 +128,7 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 11] = [
     X86_64_COMPARE_I64_ZERO,
     X86_64_CONDITIONAL_BRANCH,
     X86_64_ADD_I64,
+    X86_64_ADD_I64_IMMEDIATE,
 ];
 
 struct ModelBuilder {
@@ -616,6 +623,17 @@ pub fn x86_64_register_constraint_catalog(
             implicit_defs: Vec::new(),
             clobbers: Vec::new(),
         },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(11),
+            key: X86_64_ADD_I64_IMMEDIATE,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Def, GPR64),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        },
     ];
 
     RegisterConstraintCatalog {
@@ -871,6 +889,24 @@ mod tests {
         assert!(add.implicit_uses.is_empty());
         assert!(add.implicit_defs.is_empty());
         assert!(add.clobbers.is_empty());
+
+        let add_immediate = &catalog.constraints[11];
+        assert_eq!(add_immediate.key, X86_64_ADD_I64_IMMEDIATE);
+        assert_eq!(add_immediate.operands.len(), 2);
+        assert_eq!(add_immediate.operands[0].access, RegisterOperandAccess::Use);
+        assert_eq!(add_immediate.operands[1].access, RegisterOperandAccess::Def);
+        assert!(
+            add_immediate
+                .operands
+                .iter()
+                .all(|operand| operand.class == GPR64
+                    && operand.fixed_view.is_none()
+                    && operand.tied_to.is_none()
+                    && !operand.early_clobber)
+        );
+        assert!(add_immediate.implicit_uses.is_empty());
+        assert!(add_immediate.implicit_defs.is_empty());
+        assert!(add_immediate.clobbers.is_empty());
         assert_eq!(
             branch.implicit_defs,
             model.model().view_named("rip").unwrap().units
@@ -985,6 +1021,17 @@ mod tests {
             Err(
                 X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
                     X86_64_ADD_I64,
+                )
+            )
+        );
+
+        let mut wrong_immediate_role = x86_64_register_constraint_catalog(&model);
+        wrong_immediate_role.constraints[11].operands[0].access = RegisterOperandAccess::Def;
+        assert_eq!(
+            validate_x86_64_register_constraint_catalog(wrong_immediate_role, &model),
+            Err(
+                X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
+                    X86_64_ADD_I64_IMMEDIATE,
                 )
             )
         );

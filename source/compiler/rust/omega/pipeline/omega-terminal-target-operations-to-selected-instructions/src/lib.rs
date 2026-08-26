@@ -812,6 +812,7 @@ fn require_key_rows(
         keys.materialize_i64,
         keys.copy_i64,
         keys.add_i64,
+        keys.add_i64_immediate,
         keys.compare_i64_zero,
         keys.conditional_branch,
         keys.return_i64,
@@ -1821,7 +1822,7 @@ pub fn terminal_selected_instruction_plan_identity(
     plan: &TerminalSelectedInstructionPlan,
 ) -> TerminalSelectedInstructionPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v2\0");
+    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v3\0");
     bytes.extend_from_slice(plan.terminal_psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.terminal_psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
@@ -1934,6 +1935,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &TerminalSelectedInstruc
         TerminalSelectedInstructionKind::ReturnI64 => 3,
         TerminalSelectedInstructionKind::CopyI64 => 4,
         TerminalSelectedInstructionKind::ExactAddI64 { .. } => 5,
+        TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => 6,
     });
     match instruction.kind {
         TerminalSelectedInstructionKind::MaterializeI64 { value } => match value {
@@ -1950,6 +1952,24 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &TerminalSelectedInstruc
             obligation,
             accepted_fact,
         } => {
+            bytes.extend_from_slice(&obligation.get().to_le_bytes());
+            bytes.extend_from_slice(&accepted_fact.bytes());
+        }
+        TerminalSelectedInstructionKind::ExactAddI64Immediate {
+            immediate,
+            obligation,
+            accepted_fact,
+        } => {
+            match immediate {
+                psi_core::IntegerValue::Signed(value) => {
+                    bytes.push(0);
+                    bytes.extend_from_slice(&value.to_le_bytes());
+                }
+                psi_core::IntegerValue::Unsigned(value) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&value.to_le_bytes());
+                }
+            }
             bytes.extend_from_slice(&obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
