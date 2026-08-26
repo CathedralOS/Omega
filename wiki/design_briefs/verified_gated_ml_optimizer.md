@@ -2,6 +2,12 @@
 
 Scouted 2026-06-15. Status: OPEN QUESTIONS (direction only; no sign-off).
 
+The concrete compiler architecture, build hook, verification boundary, and
+folder ownership now live in
+[`optimizer_architecture.md`](optimizer_architecture.md). The execution queue is
+[`TASKS_OPTIMIZER.md`](../../TASKS_OPTIMIZER.md). This page remains the research
+motivation and prior-art direction.
+
 Omega's optimizer has two structural advantages over LLVM/GCC worth designing
 FOR explicitly, rather than discovering later (LLVM retrofits both and fights its
 own architecture doing so).

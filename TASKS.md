@@ -36,6 +36,12 @@ Compiler validation and code generation may consume general plans. They must
 not acquire customer-shaped semantic types, lifecycle states, writers,
 scanners, or receipts.
 
+Optimizer architecture is specified in
+[`optimizer_architecture.md`](wiki/design_briefs/optimizer_architecture.md), and
+its detailed execution queue lives in
+[`TASKS_OPTIMIZER.md`](TASKS_OPTIMIZER.md). Keep the product-compiler ownership
+task here; do not duplicate optimizer pass milestones in both queues.
+
 ## Omega-written hosted product compiler
 
 Remaining:

@@ -13,3 +13,8 @@ language rung or required bootstrap edge.
 
 The current Rust implementation is explicitly transitional and lives at
 `source/compiler/rust/omega/`. Do not place new Rust crates here.
+
+The optimizer's durable architecture is
+[`optimizer_architecture.md`](../../../../wiki/design_briefs/optimizer_architecture.md),
+and its implementation queue is
+[`TASKS_OPTIMIZER.md`](../../../../TASKS_OPTIMIZER.md).
