@@ -1143,8 +1143,9 @@ complete.
   the review projection: supply mode, lifetime arity, alpha-normalized type and
   const parameters, copy/carry properties, zero gating, retired identities,
   fields, variants, payloads, relevance, and package-qualified type identities.
-  Quotients and proposition parameters fail review until exact canonical rows
-  exist; none are silently omitted. Review v43 and
+  Public data quotients fail review until exact canonical rows exist; none are
+  silently omitted. Data declarations do not admit proposition parameters.
+  Review v43 and
   canonical row v3 represent static-machine parameters directly. Structural
   contracts retain their complete alpha-normalized nested telescope, value
   signature, proof/crash contracts, reach, invocation, suspension, blocking,

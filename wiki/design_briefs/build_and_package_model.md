@@ -1091,8 +1091,10 @@ Public data projects its supply, generic shape, properties,
 fields/variants/payloads, relevance, and stable numbered and retired identities.
 Those numbered ordinary-data identities are
 the wire contract; the retired standalone `wire data` form is not projected as
-a duplicate API. Any public quotient, default-domain proof fact, or static
-machine/proposition parameter rejects until the projection has an exact row.
+a duplicate API. Public data quotients reject until the projection has an exact
+row. Data declarations do not admit proposition parameters; static-machine
+parameters and the representable default-domain proof fragment have exact
+canonical rows, while unsupported proof forms fail closed.
 Public domain rows likewise retain exact declaring-package identity,
 alpha-normalized type/const binders, carrier type, and index arguments.
 Synthesized semantic paths retain an authored provenance span without replacing
