@@ -1840,7 +1840,14 @@ installed provider occurrence, progress-establishment receipt, or
 `InstalledCode` claim: compilation assembles evidence but cannot mint runtime
 or publication authority. The deployment owner consumes the candidate, joins
 real installation occurrences and receipts under the live registry, acquires
-installed-code custody, and only then produces a runnable carrier. That owner
+installed-code custody, and only then produces a runnable carrier.
+The authority-free candidate carrier now belongs to the neutral
+`omega-terminal-component-candidate` crate, on which both compiler and
+deployment depend. Deployment therefore no longer depends on compiler, so the
+production compiler can invoke the deployment owner without a crate cycle.
+Constructing the carrier grants no authority: deployment still independently
+replays the artifact, installation, provider, and progress joins before any
+registry claim or publication. The deployment owner
 can now consume the finalized runnable to publish one flat executable: it
 replays the canonical installation/image join, stages and validates the exact
 sealed bytes and executable mode before atomic rename, replays the visible

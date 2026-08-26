@@ -3,6 +3,9 @@ use std::collections::BTreeSet;
 use omega_terminal_abstract_operations_to_target_operations::{
     AdmittedTerminalBoundarySettlement, lower_to_target_operations_with_provider_executions,
 };
+pub use omega_terminal_component_candidate::{
+    TerminalComponentCandidate, TerminalComponentCandidateParts, TerminalComponentProviderExecution,
+};
 use omega_terminal_installation_evidence::TerminalProviderExecutionEvidence;
 use omega_terminal_target_operations::TerminalBoundaryRealization;
 use psi_diagnostics::Diagnostic;
@@ -24,58 +27,6 @@ impl StagedAbstractOperations {
     }
 }
 
-/// One exact admitted provider execution selected for a staged terminal
-/// component. This is an owned identity projection, not a provider occurrence
-/// or an installation receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalComponentProviderExecution {
-    requirement_identity: String,
-    provider_plan: u64,
-    provider_execution_identity: u64,
-    provider_execution_fingerprint: u64,
-    normalized_root_identity: u64,
-    boundary_contract_fingerprint: u64,
-}
-
-impl TerminalComponentProviderExecution {
-    fn from_evidence(evidence: &dyn TerminalProviderExecutionEvidence) -> Self {
-        Self {
-            requirement_identity: evidence.requirement_identity().to_owned(),
-            provider_plan: evidence.provider_plan(),
-            provider_execution_identity: evidence.provider_execution_identity(),
-            provider_execution_fingerprint: evidence.provider_execution_fingerprint(),
-            normalized_root_identity: evidence.normalized_root_identity(),
-            boundary_contract_fingerprint: evidence.boundary_contract_fingerprint(),
-        }
-    }
-}
-
-impl TerminalProviderExecutionEvidence for TerminalComponentProviderExecution {
-    fn requirement_identity(&self) -> &str {
-        &self.requirement_identity
-    }
-
-    fn provider_plan(&self) -> u64 {
-        self.provider_plan
-    }
-
-    fn provider_execution_identity(&self) -> u64 {
-        self.provider_execution_identity
-    }
-
-    fn provider_execution_fingerprint(&self) -> u64 {
-        self.provider_execution_fingerprint
-    }
-
-    fn normalized_root_identity(&self) -> u64 {
-        self.normalized_root_identity
-    }
-
-    fn boundary_contract_fingerprint(&self) -> u64 {
-        self.boundary_contract_fingerprint
-    }
-}
-
 /// Provider-supplied realization input for one terminal boundary. The exact
 /// requirement comes from the admitted execution rather than a caller-authored
 /// numeric boundary ID.
@@ -83,96 +34,6 @@ impl TerminalProviderExecutionEvidence for TerminalComponentProviderExecution {
 pub struct TerminalComponentProviderSettlement<'execution> {
     pub provider_execution: &'execution dyn TerminalProviderExecutionEvidence,
     pub realization: TerminalBoundaryRealization,
-}
-
-/// A source-independent, non-visible terminal component candidate.
-///
-/// The candidate retains everything compilation can honestly establish. It
-/// contains no output path, visibility receipt, installed-code claim, provider
-/// occurrence, or progress-establishment receipt; those belong to deployment.
-#[derive(Debug)]
-pub struct TerminalComponentCandidate {
-    target: omega_target::NativeTarget,
-    entry_machine: String,
-    semantic_bytes: Vec<u8>,
-    proof_bytes: Vec<u8>,
-    object: omega_terminal_image_emission::TerminalObjectArtifact,
-    image: omega_terminal_image_emission::TerminalExecutableImage,
-    selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
-    provider_executions: Vec<TerminalComponentProviderExecution>,
-    component_progress: Option<omega_effects::ComponentProgressManifest>,
-}
-
-/// Complete owned compiler output transferred to deployment.
-///
-/// Only consuming a compiler-produced `TerminalComponentCandidate` yields
-/// these parts. The parts themselves grant no installation or publication
-/// authority; deployment must still bind them to real provider occurrences
-/// and one exact `InstalledCode` occurrence.
-#[derive(Debug)]
-pub struct TerminalComponentCandidateParts {
-    pub target: omega_target::NativeTarget,
-    pub entry_machine: String,
-    pub semantic_bytes: Vec<u8>,
-    pub proof_bytes: Vec<u8>,
-    pub object: omega_terminal_image_emission::TerminalObjectArtifact,
-    pub image: omega_terminal_image_emission::TerminalExecutableImage,
-    pub selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
-    pub provider_executions: Vec<TerminalComponentProviderExecution>,
-    pub component_progress: Option<omega_effects::ComponentProgressManifest>,
-}
-
-impl TerminalComponentCandidate {
-    pub const fn target(&self) -> omega_target::NativeTarget {
-        self.target
-    }
-
-    pub fn entry_machine(&self) -> &str {
-        &self.entry_machine
-    }
-
-    pub fn semantic_bytes(&self) -> &[u8] {
-        &self.semantic_bytes
-    }
-
-    pub fn proof_bytes(&self) -> &[u8] {
-        &self.proof_bytes
-    }
-
-    pub const fn object(&self) -> &omega_terminal_image_emission::TerminalObjectArtifact {
-        &self.object
-    }
-
-    pub const fn image(&self) -> &omega_terminal_image_emission::TerminalExecutableImage {
-        &self.image
-    }
-
-    pub const fn selected_provider_plans(&self) -> &omega_effects::SelectedProviderPlanFacts {
-        &self.selected_provider_plans
-    }
-
-    pub fn provider_executions(&self) -> &[TerminalComponentProviderExecution] {
-        &self.provider_executions
-    }
-
-    pub const fn component_progress(&self) -> Option<&omega_effects::ComponentProgressManifest> {
-        self.component_progress.as_ref()
-    }
-
-    /// Transfer the complete non-visible compiler candidate into deployment.
-    pub fn into_parts(self) -> TerminalComponentCandidateParts {
-        TerminalComponentCandidateParts {
-            target: self.target,
-            entry_machine: self.entry_machine,
-            semantic_bytes: self.semantic_bytes,
-            proof_bytes: self.proof_bytes,
-            object: self.object,
-            image: self.image,
-            selected_provider_plans: self.selected_provider_plans,
-            provider_executions: self.provider_executions,
-            component_progress: self.component_progress,
-        }
-    }
 }
 
 /// Lower one exact selected source entry into a canonical, non-visible terminal
@@ -286,14 +147,14 @@ pub fn stage_terminal_component(
     }
     provider_executions.sort_by(|left, right| {
         (
-            left.requirement_identity.as_str(),
-            left.provider_plan,
-            left.provider_execution_identity,
+            left.requirement_identity(),
+            left.provider_plan(),
+            left.provider_execution_identity(),
         )
             .cmp(&(
-                right.requirement_identity.as_str(),
-                right.provider_plan,
-                right.provider_execution_identity,
+                right.requirement_identity(),
+                right.provider_plan(),
+                right.provider_execution_identity(),
             ))
     });
 
@@ -331,20 +192,22 @@ pub fn stage_terminal_component(
     let image = omega_terminal_image_emission::emit_terminal_executable_image(&object, subsystem)
         .map_err(|diagnostic| vec![diagnostic])?;
 
-    Ok(TerminalComponentCandidate {
-        target,
-        entry_machine: entry_machine.to_owned(),
-        semantic_bytes,
-        proof_bytes,
-        object,
-        image,
-        selected_provider_plans: checked.selected_provider_plans().clone(),
-        provider_executions,
-        component_progress: checked
-            .component_progress()
-            .filter(|manifest| !manifest.pending().is_empty())
-            .cloned(),
-    })
+    Ok(TerminalComponentCandidate::from_parts(
+        TerminalComponentCandidateParts {
+            target,
+            entry_machine: entry_machine.to_owned(),
+            semantic_bytes,
+            proof_bytes,
+            object,
+            image,
+            selected_provider_plans: checked.selected_provider_plans().clone(),
+            provider_executions,
+            component_progress: checked
+                .component_progress()
+                .filter(|manifest| !manifest.pending().is_empty())
+                .cloned(),
+        },
+    ))
 }
 
 fn stage_error(context: &str, error: impl std::fmt::Display) -> Vec<Diagnostic> {

@@ -557,6 +557,7 @@ dependencies = [
  "omega-task-plans",
  "omega-terminal-abstract-operations",
  "omega-terminal-abstract-operations-to-target-operations",
+ "omega-terminal-component-candidate",
  "omega-terminal-image-emission",
  "omega-terminal-installation-evidence",
  "omega-terminal-machine-emission",
@@ -605,11 +606,11 @@ dependencies = [
 name = "omega-component-deployment"
 version = "0.1.0"
 dependencies = [
- "omega-compiler",
  "omega-component-publication",
  "omega-effects",
  "omega-executable-installation",
  "omega-external-roots",
+ "omega-terminal-component-candidate",
  "omega-terminal-image-emission",
  "omega-terminal-installation-evidence",
  "psi-core",
@@ -1589,6 +1590,16 @@ dependencies = [
  "omega-terminal-target-operations",
  "psi-core",
  "psi-terminal",
+]
+
+[[package]]
+name = "omega-terminal-component-candidate"
+version = "0.1.0"
+dependencies = [
+ "omega-effects",
+ "omega-target",
+ "omega-terminal-image-emission",
+ "omega-terminal-installation-evidence",
 ]
 
 [[package]]

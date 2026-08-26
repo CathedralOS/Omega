@@ -9,8 +9,8 @@ name = "omega_component_deployment"
 path = "src/lib.rs"
 
 [dependencies]
-omega-compiler = { path = "../omega-compiler" }
 omega-component-publication = { path = "../omega-component-publication" }
+omega-terminal-component-candidate = { path = "../omega-terminal-component-candidate" }
 omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
 omega-effects = { path = "../../representations/omega-effects" }
 omega-external-roots = { path = "../omega-external-roots" }

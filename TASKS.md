@@ -7529,12 +7529,22 @@ compiler concept is introduced.
   invalidates replay. Progress-free and progress-bearing source canaries cross
   this endpoint without losing the accepted manifest or installed custody.
 
+  The authority-free terminal component candidate now lives in the neutral
+  `omega-terminal-component-candidate` crate. Both the compiler and deployment
+  owner depend on that carrier, and deployment no longer depends on the
+  compiler. This removes the crate cycle that prevented the compiler from
+  invoking deployment while retaining private candidate fields, consuming
+  decomposition, and zero installation or publication authority.
+
   Remaining TPR6-B engineering: retire the legacy compiler's temporary final-
-  output rejection only after `write_output` delegates to this deployment
-  lane. The current path still publishes a native executable directly and
-  carries neither the manifest nor an installation acceptance, so removing
-  the fence there would erase the obligation; selected plans and authorized
-  routes remain insufficient.
+  output rejection after production output orchestration threads the
+  deployment-owned installed-code, provider-occurrence, progress-attestation,
+  and profile inputs into `write_output`, consumes the staged candidate through
+  `omega-component-deployment`, and retains the resulting runnable and flat
+  publication receipt in the report. The current path still publishes a native
+  executable directly and carries neither the manifest nor an installation
+  acceptance, so removing the fence there would erase the obligation; selected
+  plans and authorized routes remain insufficient.
   Independently add authored
   qualification-preserving correspondence beyond direct parameter/field
   identity. `QualificationEvidence` retains evidence kind and source

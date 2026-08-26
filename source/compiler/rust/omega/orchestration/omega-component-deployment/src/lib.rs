@@ -8,13 +8,15 @@
 //! values without allowing a failed step to discard the one-shot installation
 //! registry claim.
 
-use omega_compiler::{TerminalComponentCandidate, TerminalComponentCandidateParts};
 use omega_component_publication::{InstalledRunnableComponent, bind_installed_runnable_component};
 use omega_executable_installation::InstalledCode;
 use omega_external_roots::{
     ComponentProgressDemandIdentity, ComponentProgressReceiptBinding,
     InstalledComponentProgressClosure, InstalledRootLedger,
     ProgressProfileEstablishmentAttestation, ProviderOccurrencePlanBinding,
+};
+use omega_terminal_component_candidate::{
+    TerminalComponentCandidate, TerminalComponentCandidateParts,
 };
 use omega_terminal_image_emission::{
     bind_installed_terminal_artifact,
