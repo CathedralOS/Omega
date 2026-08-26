@@ -332,6 +332,7 @@ mod tests {
             callback_placements: Arc::from([]),
             callback_thunks: Arc::from([]),
             callback_private_relocations: Arc::from([]),
+            callback_registrar_arguments: Arc::from([]),
             receiver_bases: Vec::new(),
             state_contexts: Vec::new(),
             phase_timings: Arena::<BackendPlanPhaseTiming>::new(),

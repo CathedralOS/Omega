@@ -227,6 +227,17 @@ relocation still consumes only a complete validated outbound plan: missing,
 duplicate, overlapping, shape-incompatible, or unresolved materializations
 reject.
 
+Backend planning now performs the next address-free join after abstract
+boundary lowering: every ordered demand retains the exact registrar occurrence
+handle and exact ordered native-argument handle that own its `NativePlace`
+root. Replay binds the original placement/thunk/demand evidence to the source
+host-call site, registrar target and overload, lowering and call coordinates,
+formal order, and overload-derived native parameter identity. Nested field
+destinations preserve the complete nominal layout and ordered slot path without
+deriving a byte offset; distinct fields may share one exact parameter root.
+This evidence still carries no target operation, bytes, object relocation,
+runtime address, registration authority, or lease.
+
 Reference identities retain loan compatibility and permitted operations
 separately. `&write T` carries an exclusive loan over an existing valid `T`
 with mutation but no observation authority. Terminal production preserves that

@@ -56,7 +56,12 @@ Primary responsibility: lower checked control flow into explicit operations with
   its exact occurrence and records the operation ordinal inside the host call,
   so missing, duplicate, reordered, or drifted rows fail before target lowering.
   This carrier owns no physical place, address, byte offset, or relocation
-  authority.
+  authority. At the first later backend-plan coexistence point, the private
+  callback relocation demand joins this exact occurrence and one ordered native
+  formal by typed arena handle. A nested callback destination retains its
+  nominal layout identity and complete field path while selecting only the
+  formal's root `NativeParameterId`; it still derives no physical offset or
+  relocation authority.
 - `omega-abstract-operations/src/plan/` owns the representation root:
   executable operation shape lives under `AbstractOperationCode`, while
   preserved semantic evidence lives under `AbstractSemanticSummary`.
