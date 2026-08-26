@@ -2,15 +2,16 @@
 //!
 //! The lift rung here is intentionally bounded to exact direct public
 //! arguments, including omission, permutation, repeated occurrences, and
-//! contract-separable closed scalar literals, plus structural fact inclusion.
+//! exact closed scalar literal substitution, plus structural fact inclusion.
 //! It is not the general implication or adapted-argument judgment.
 
 use super::precondition::{
     DefinePreconditionCorrespondence, RepresentativeContractFactLocation,
     RepresentativeContractOwner, RepresentativePreconditionPartition, precondition_fact_at,
-    proof_fact_depends_on_any,
 };
-use super::proof_fact_identity::{ProofFactIdentityContext, proof_facts_match};
+use super::proof_fact_identity::{
+    ProofFactIdentityContext, ProofValueSubstitution, proof_facts_match,
+};
 use super::runtime_correspondence::{
     DefineRuntimeCorrespondence, DirectLiftArgumentSource, DirectLiftRuntimeCorrespondence,
 };
@@ -20,7 +21,6 @@ use super::theorem_schema::{
 };
 use super::theorem_schema_verification::VerifiedTheoremSchema;
 use super::{RelationPlanError, RepresentativeTelescope};
-use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
@@ -79,7 +79,6 @@ pub(super) fn derive_direct_lift_precondition_implication(
         }
         let mut public_values = Vec::new();
         let mut representative_values = Vec::with_capacity(runtime.positions.len());
-        let mut literal_parameters = Vec::new();
         for (position, theorem_position) in
             runtime.positions.iter().zip(&application_schema.arguments)
         {
@@ -87,19 +86,35 @@ pub(super) fn derive_direct_lift_precondition_implication(
                 DirectLiftArgumentSource::PublicParameter(public_parameter) => {
                     let value = public_values
                         .iter()
-                        .find_map(|(public, value): &(SymbolHandle, String)| {
-                            (*public == *public_parameter).then(|| value.clone())
+                        .find_map(|value: &ProofValueSubstitution| {
+                            (value.symbol == *public_parameter).then(|| value.clone())
                         })
                         .unwrap_or_else(|| {
-                            let value = format!("$theorem_parameter_{theorem_position}");
-                            public_values.push((*public_parameter, value.clone()));
+                            let value = ProofValueSubstitution::symbolic(
+                                *public_parameter,
+                                format!("$theorem_parameter_{theorem_position}"),
+                            );
+                            public_values.push(value.clone());
                             value
                         });
-                    representative_values.push((position.representative_parameter, value));
+                    representative_values.push(value.rebound(position.representative_parameter));
                 }
-                DirectLiftArgumentSource::ClosedScalarLiteral(_) => {
-                    literal_parameters.push(position.representative_parameter);
-                }
+                DirectLiftArgumentSource::ClosedScalarLiteral(
+                    super::runtime_correspondence::ClosedScalarLiteral::Boolean(value),
+                ) => representative_values.push(ProofValueSubstitution::boolean(
+                    position.representative_parameter,
+                    *value,
+                )),
+                DirectLiftArgumentSource::ClosedScalarLiteral(
+                    super::runtime_correspondence::ClosedScalarLiteral::Integer {
+                        spelling,
+                        landing,
+                    },
+                ) => representative_values.push(ProofValueSubstitution::integer(
+                    position.representative_parameter,
+                    spelling,
+                    *landing,
+                )),
             }
         }
 
@@ -113,11 +128,6 @@ pub(super) fn derive_direct_lift_precondition_implication(
                 *representative_location,
             )
             .ok_or_else(|| implication_error(application, representative_position))?;
-            if proof_fact_depends_on_any(program, representative_fact, &literal_parameters)? {
-                return Err(RelationPlanError::DirectLiftLiteralInDependentPrecondition(
-                    representative_position,
-                ));
-            }
             let Some(public_location) = public.dependent.iter().copied().find(|location| {
                 precondition_fact_at(
                     program,
