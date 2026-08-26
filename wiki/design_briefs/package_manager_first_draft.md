@@ -29,23 +29,25 @@ honest surface.
 
 ## Package declaration and identity
 
-Every package declares its own human name in its `build.omg` through one
-well-known, hermetically evaluated constant:
+Every package declares its own human name in its `build.omg` through the
+ordinary build surface:
 
 ```omega
-const PACKAGE: Package = Package {
-    name: "arithmetic-kernels"
-};
-
 machine build(builder: &mut Build) {
+    builder.package("arithmetic-kernels");
 }
 ```
 
-This uses ordinary `const` and data syntax. `Package` is toolchain-provided
-build vocabulary, not a new grammar form. Omega extracts the declaration before
-executing `build`, resolving imports, or supplying build-host services. The
-declaration must be unique, compile-time evaluable, effect-free, independent of
+This is the same surface that carries `depend_as`, `select_provider`, and
+`roots.bind` — not a new grammar form and not a specially parsed literal. The
+kind is always stated: `builder.member(path)` for a workspace root,
+`builder.application(name)` for an application. No role is inferred from an
+absent declaration. The declaration must be unique, effect-free, independent of
 dependencies and generated files, and use canonical kebab-case spelling.
+
+> Superseded 2026-08-25: this brief previously specified a `const PACKAGE:
+> Package` literal extracted by a bespoke static parser. See
+> [Build And Package Model](build_and_package_model.md) for the settled form.
 Canonical spelling begins with an ASCII lowercase letter, contains only
 lowercase ASCII letters, digits, and single hyphen separators, and therefore
 maps mechanically to a valid snake-case Omega alias.

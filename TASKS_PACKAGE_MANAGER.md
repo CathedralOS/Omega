@@ -24,7 +24,26 @@ complete.
 
 ## Settled model
 
-- A fetched package declares `const PACKAGE: Package` in its own `build.omg`.
+- A fetched package declares its identity through the ordinary build surface in
+  its own `build.omg`: `builder.package("name")`. The retired `const PACKAGE:
+  Package` literal and its bespoke shape-matching parser are superseded
+  (settled 2026-08-25). Every `build.omg` states its kind explicitly —
+  `builder.package`, `builder.member`, `builder.application` — and no role is
+  ever inferred from an absent declaration.
+- A workspace root lists members by **path**, so relocating a subtree is a
+  one-line manifest edit rather than a repository-wide rewrite.
+- `SourceIdentity { kind, locator, resolved }` keeps `kind` open. Git is one
+  supported kind, not the blessed model. There is no package version field:
+  identity is the package name plus the resolved source revision, and a
+  moving locator (branch) resolves once and is pinned in the lock.
+- One `omega.lock` lives at the workspace root. A dependency's lock is never
+  read by its consumers — the lock belongs to whoever builds an artifact, and a
+  library does not pin its consumers' graph. What composes upward is the
+  dependency's manifest and disclosed admissions, which are separate files.
+- `omega::language::core` stays bundled with the compiler by decision, not by
+  omission: it is the language, its version is the language version, and two
+  versions of it can never coexist in one graph. `omega::language::std` is an
+  ordinary fetchable package.
 - `PackageName` is human identity; `PackageKey` adds canonical source lineage;
   `PackageInstance` adds exact source and artifact subjects, per-subject
   obligation-semantics identity, re-derived discharge results, and transitive
@@ -2273,3 +2292,54 @@ complete.
   The local integration canary now regenerates compiler review evidence from
   resolver-owned fixture custody; the remote suite independently proves exact
   source custody and declaration parity, not sealed package admission.
+
+## P8 — Declaration surface, workspace, and stdlib packaging
+
+Settled 2026-08-25. These land after P1's identity work and before any
+repository relocation; directory moves are cheap only once nothing resolves the
+standard library by path.
+
+- [ ] **Retire the `PACKAGE` const and its parser.** `declaration.rs` currently
+      lexes `build.omg` and shape-matches a top-level literal — exactly one
+      field, named `name`, string, type `Package` — behind roughly fifteen
+      error variants. Replace the whole path with `builder.package("name")`
+      evaluated through the ordinary build surface that already carries
+      `depend_as`, `select_provider`, and `roots.bind`. Evaluating `build.omg`
+      to learn identity is not circular: declaring a name needs no resolved
+      dependencies.
+- [ ] **Add `builder.member(path)` and a workspace root `build.omg`.** Members
+      carry paths. This is the file that tells the resolver where packages live
+      and makes relocation a manifest edit.
+- [ ] **Add `builder.application(name)`.** `apps/omega-compiler/build.omg` is
+      currently an application by *absence* of a package declaration, and the
+      same absence is `MissingPackageDeclaration` — an error — in the package
+      reader. One file shape must not mean "fine" or "broken" depending on the
+      caller.
+- [ ] **Give `omega/language/std` a `build.omg`.** `builder.package(
+      "omega-language-std")`. Today the standard library has no manifest of any
+      kind, which is why no git URL can name it and why minimal checkout is
+      impossible.
+- [ ] **Record the bundled-core decision** in
+      `wiki/design_briefs/build_and_package_model.md`: core is welded to the
+      compiler because it is the language, not because nobody wrote a manifest.
+- [ ] **Replace the bundled-std reader.** `frontend.rs:643` reads
+      `omega/language/std/<module>.omg` directly. Route it through ordinary
+      package resolution once std is a package.
+- [ ] **Resolve git dependencies by package name.** `declaration.rs` reads
+      `build.omg` at the fetched root only, so one git URL means one package at
+      the repository root. Read the root manifest, consult its members, and
+      select by name — the model Cargo uses, and the one that lets this
+      repository publish `omega-language-std` without splitting itself apart.
+- [ ] **`omega fetch <package>` minimal checkout.** Once members declare paths,
+      sparse-checkout plus a blobless clone can retrieve one subtree. Consuming
+      the standard library currently requires cloning roughly 9,300 tracked
+      files to obtain 59.
+- [ ] **Stop mirroring `filesystem_host.omg` in Rust.** `FilesystemHostOperation`
+      duplicates the trait's declared machines, and two `#[test]` functions in
+      `psi-checked-interpreter/src/evaluator/filesystem_host_operation.rs` read
+      the `.omg` source to guard the copy. Generate or consume the declaration
+      instead of testing a hand-maintained mirror.
+
+Repository relocation (`bootstrap/onramps/omega-rust` out of `bootstrap/`,
+`compiler/` naming, `canaries` + `fixtures`) is tracked separately and depends
+on nothing here except that the standard library stop being reached by path.

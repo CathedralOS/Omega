@@ -32,18 +32,39 @@ to preserve abstractions that implementation evidence makes unnecessary.
 
 ## Package declaration and build entry
 
-Every package owns one stable human name declared in its own `build.omg`:
+Every package owns one stable human name declared in its own `build.omg`,
+through the same build surface that already carries `depend_as`,
+`select_provider`, and `roots.bind`:
 
 ```omega
-const PACKAGE: Package = Package {
-    name: "arithmetic-kernels"
-};
+machine build(builder: &mut Build) {
+    builder.package("arithmetic-kernels");
+}
 ```
 
-`Package` is toolchain-provided ordinary data. The compiler hermetically
-evaluates this well-known constant before resolving the package's dependencies
-or executing its build machine. Missing, duplicate, effectful,
-dependency-dependent, generated, or non-canonical declarations reject.
+Every `build.omg` states its kind explicitly. A workspace root lists members; an
+application declares itself an application:
+
+```omega
+machine build(builder: &mut Build) {
+    builder.member("omega/language/std");
+    builder.member("compiler/psi");
+}
+```
+
+```omega
+machine build(builder: &mut Build) {
+    builder.application("omega-compiler");
+}
+```
+
+**No role is ever inferred from an absent declaration.** A missing kind is an
+error in every reader, not an application in one and a broken package in
+another. The earlier `const PACKAGE: Package` literal — matched statically by a
+bespoke parser over roughly fifteen shape errors — is retired (settled
+2026-08-25); evaluating `build.omg` to learn identity is not circular, because
+declaring a name requires no resolved dependencies. Missing, duplicate,
+effectful, dependency-dependent, or non-canonical declarations reject.
 Directory and repository names are advisory only.
 The canonical name begins with an ASCII lowercase letter and otherwise contains
 only lowercase ASCII letters, digits, and single hyphen separators, ensuring
@@ -1773,6 +1794,30 @@ A workspace build composes member `Build` values with ordinary Omega code.
 Shared pins and ceilings may be passed into members and members may only narrow
 them. Source code never searches parent directories for ambient imports; only
 the build tool discovers the nearest enclosing workspace/build entry.
+
+Members are declared by **path**, so relocating a subtree is a one-line manifest
+edit rather than a repository-wide rewrite. A remote dependency names a package,
+not a directory: the resolver fetches the source, reads its root manifest,
+consults the member list, and selects by declared name. One repository may
+therefore publish several packages, and moving one inside its repository breaks
+no consumer.
+
+`SourceIdentity { kind, locator, resolved }` keeps `kind` open. Git is one
+supported source kind, not the blessed model. There is no package version
+field: identity is the declared name plus the resolved source revision, and a
+moving locator such as a branch resolves once and is pinned thereafter.
+
+One `omega.lock` lives at the workspace root, and a dependency's lock is never
+read by its consumers. The lock belongs to whoever builds an artifact; a library
+does not pin its consumers' graph. What composes upward from a dependency is its
+manifest and its disclosed admissions — separate artifacts with separate rules.
+
+`omega::language::core` is bundled with the compiler by decision rather than by
+omission. It is the language: the checker cannot typecheck without it, its
+version is the language version, and two versions of it can never coexist in one
+graph, so welding it enforces something real instead of hoping a resolver agrees.
+`omega::language::std` is an ordinary fetchable package with its own version
+line, which freestanding builds already demonstrate is optional.
 
 ## Current engineering delta
 
