@@ -48,7 +48,7 @@ pub use guards::{
 pub use inbound::{
     DerivedBoundaryEntryParameterStorage, DerivedBoundaryEntryStorage,
     derive_boundary_entry_slice_descriptor_footprint, derive_boundary_entry_storage,
-    derive_boundary_entry_storage_writes,
+    derive_boundary_entry_storage_writes, derive_internal_call_entry_storage,
 };
 pub use indirect_calls::derive_boundary_compiler_body_outbound_indirect_call_footprint;
 pub use place_copies::derive_boundary_compiler_body_place_copy_footprint;

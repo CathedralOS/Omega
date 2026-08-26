@@ -11,6 +11,7 @@ pub(super) fn runtime_body_state_call_expansion_reason(
     match grouped_blocker.lowering {
         StateCallLowering::InlineLeaf => "leaf state-call expansion".to_owned(),
         StateCallLowering::InlineExpansion => "straight-line state-call expansion".to_owned(),
+        StateCallLowering::IndirectDynamic => "runtime dynamic table-slot call".to_owned(),
         StateCallLowering::Unresolved => "unresolved state-call expansion".to_owned(),
         StateCallLowering::InlineBranching => {
             runtime_branching_call_expansion_reason(input, grouped_blocker)

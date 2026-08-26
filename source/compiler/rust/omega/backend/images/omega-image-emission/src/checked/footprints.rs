@@ -429,9 +429,11 @@ pub(super) fn validate_compiler_body_specification_footprints(
             continue;
         }
         let composed = compose_state_footprints(evidence_rows.iter().copied());
-        if retained.len() != 1 || retained[0].evidence != composed {
+        let retained_composed =
+            compose_state_footprints(retained.iter().map(|fragment| &fragment.evidence));
+        if retained.is_empty() || retained_composed != composed {
             return Err(Diagnostic::error(format!(
-                "final {origin:?} target-specification footprint does not match its StatePlan-validated semantic fragment: retained={:?}, replayed={composed:?}",
+                "final {origin:?} target-specification footprint does not match its StatePlan-validated semantic fragment union: retained={:?}, retained_union={retained_composed:?}, replayed={composed:?}",
                 retained
                     .iter()
                     .map(|fragment| &fragment.evidence)
@@ -487,9 +489,11 @@ pub(super) fn validate_compiler_fixed_mechanics_footprint(
         .filter(|fragment| fragment.origin == BoundaryFootprintFragmentOrigin::CallReturnMechanics)
         .collect::<Vec<_>>();
     let composed = compose_state_footprints(evidence_rows.iter().copied());
-    if retained.len() != 1 || retained[0].evidence != composed {
+    let retained_composed =
+        compose_state_footprints(retained.iter().map(|fragment| &fragment.evidence));
+    if retained.is_empty() || retained_composed != composed {
         return Err(Diagnostic::error(
-            "final CallReturnMechanics target-specification footprint does not match its StatePlan-validated semantic fragment",
+            "final CallReturnMechanics target-specification footprint does not match its StatePlan-validated semantic fragment union",
         ));
     }
     let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
@@ -506,4 +510,53 @@ pub(super) fn validate_compiler_fixed_mechanics_footprint(
         &composed.evidence_fingerprint().to_le_bytes(),
     );
     Ok((boundary_contract_fingerprint, fingerprint))
+}
+
+#[cfg(test)]
+mod private_function_union_tests {
+    use super::*;
+    use omega_calling_conventions::{MachineRegister, MachineStateSet, RegisterSet};
+    use omega_machine_instructions::{BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin};
+
+    fn register_evidence(
+        register: MachineRegister,
+    ) -> omega_calling_conventions::StateFootprintEvidence {
+        omega_calling_conventions::StateFootprintEvidence::new(
+            RegisterSet::new([register]),
+            MachineStateSet::empty(),
+        )
+    }
+
+    #[test]
+    fn private_function_fragments_compose_under_one_root_certificate() {
+        let origin = BoundaryFootprintFragmentOrigin::ExitResultRegisters;
+        let first = register_evidence(MachineRegister::Aarch64X(0));
+        let second = register_evidence(MachineRegister::Aarch64X(16));
+        let derived = vec![(origin, first.clone()), (origin, second.clone())];
+        let mut semantics = omega_machine_bytes::EncodedMachineSemanticSummary::default();
+        semantics
+            .boundaries
+            .footprints
+            .boundary_contract_fingerprint = Some(0x5151);
+        semantics.boundaries.footprints.fragments.extend([
+            BoundaryFootprintFragment {
+                origin,
+                evidence: first,
+            },
+            BoundaryFootprintFragment {
+                origin,
+                evidence: second,
+            },
+        ]);
+
+        validate_compiler_body_specification_footprints(&semantics, &derived)
+            .expect("two private-function fragments compose under the root contract");
+        validate_compiler_composed_footprint(&semantics, &derived)
+            .expect("the complete compiler footprint is the same normalized union");
+
+        semantics.boundaries.footprints.fragments.pop();
+        let diagnostic = validate_compiler_body_specification_footprints(&semantics, &derived)
+            .expect_err("omitting one private-function fragment must reject");
+        assert!(diagnostic.message.contains("fragment union"));
+    }
 }

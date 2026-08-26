@@ -34,6 +34,7 @@ pub(super) fn collect_host_operation_relocations(
         Some(operation_key),
         operands,
         context.selected_text_offset,
+        None,
         context.relocation_plan,
     );
     collect_host_operation_call_relocation(context, operation_key, operands)?;

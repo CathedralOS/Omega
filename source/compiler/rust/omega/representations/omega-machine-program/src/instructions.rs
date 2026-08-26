@@ -77,6 +77,7 @@ pub enum MachineInstructionKind {
     RuntimeFrameIndexedStringWrite,
     RuntimeMachineIndexedStringWrite,
     RuntimeStorageAddressToRuntimeFrameWrite,
+    DataAddressToRuntimeFrameWrite,
     RuntimePointeeAddressToRuntimeFrameWrite,
     RuntimeFrameIndexedAddressToRuntimeFrameWrite,
     RuntimeFrameFixedIndexedAddressToRuntimeFrameWrite,
@@ -128,6 +129,7 @@ pub enum MachineInstructionKind {
     EntryIndirectU64ToOutgoingStackCopy,
     OutgoingStackFrameRelease,
     HostCallSequence,
+    DynamicTableCallSequence,
     /// The x86 `hlt` privileged instruction (`asm { hlt }`). Zero operands,
     /// no relocation. See the privileged_effects_and_binary_trust brief.
     MachineHalt,

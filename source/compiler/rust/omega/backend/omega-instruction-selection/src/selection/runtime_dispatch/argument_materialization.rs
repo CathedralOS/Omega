@@ -165,6 +165,8 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             source_key,
             source_dispatch_index,
             statement_index,
+            expressions,
+            argument,
             target_key,
             parameter,
             slot,
@@ -1926,6 +1928,8 @@ fn emit_selected_dynamic_conformance_descriptor(
     source_key: StateKey,
     source_dispatch_index: u32,
     statement_index: usize,
+    expressions: &ExpressionTable,
+    argument: ExpressionHandle,
     target_key: StateKey,
     parameter: &StateParameterFlow,
     target_slot: &omega_runtime_storage::RuntimeFrameSlot,
@@ -1944,9 +1948,7 @@ fn emit_selected_dynamic_conformance_descriptor(
                 .find(|argument| argument.parameter_symbol == parameter.symbol)
                 .and_then(|argument| argument.dynamic_conformance.as_ref())
         });
-    let Some(descriptor) = calls.next() else {
-        return false;
-    };
+    let descriptor = calls.next();
     // From this point the argument is semantically dynamic. Any failed exact
     // join consumes the argument without falling through to the ordinary
     // place-copy path: copying the unmaterialized erased local would silently
@@ -1954,27 +1956,73 @@ fn emit_selected_dynamic_conformance_descriptor(
     if calls.next().is_some() {
         return true;
     }
-
-    let Some(selection) = input
-        .control_flow
-        .semantics
-        .facts
-        .dynamic_conformances
-        .for_binding(
-            source_key.machine,
-            source_key.state,
-            descriptor.source_binding,
-        )
-    else {
-        return true;
+    let selection = if let Some(descriptor) = descriptor {
+        let Some(selection) = input
+            .control_flow
+            .semantics
+            .facts
+            .dynamic_conformances
+            .for_binding(
+                source_key.machine,
+                source_key.state,
+                descriptor.source_binding,
+            )
+        else {
+            return true;
+        };
+        if selection.source_data != descriptor.source_data
+            || selection.target_trait != descriptor.target_trait
+            || selection.conformance != Some(descriptor.conformance)
+            || selection.rows != descriptor.rows
+        {
+            return true;
+        }
+        selection
+    } else {
+        let Some(argument_place) = resolve_runtime_storage_place_in_table(
+            input,
+            source_dispatch_index,
+            source_key,
+            expressions,
+            argument,
+        ) else {
+            return false;
+        };
+        let mut bindings = input
+            .runtime_storage
+            .frame_slots
+            .iter()
+            .filter_map(|(_, slot)| {
+                (slot.dispatch_index <= source_dispatch_index
+                    && state_key_matches_statement_source(slot.source_key, source_key)
+                    && slot.byte_offset == argument_place.byte_offset
+                    && slot.byte_size == argument_place.byte_count)
+                    .then_some(slot)
+            });
+        let Some(binding) = bindings.next() else {
+            return false;
+        };
+        if bindings.next().is_some() {
+            return true;
+        }
+        let Some(selection) = input
+            .control_flow
+            .semantics
+            .facts
+            .dynamic_conformances
+            .for_receiver(
+                source_key.machine,
+                source_key.state,
+                binding.symbol,
+                &binding.name,
+                statement_index,
+            )
+        else {
+            return false;
+        };
+        selection
     };
-    if selection.source_data != descriptor.source_data
-        || selection.target_trait != descriptor.target_trait
-        || selection.conformance != Some(descriptor.conformance)
-        || selection.rows != descriptor.rows
-        || selection.source_path.len() != 1
-        || selection.source_path[0] != selection.source_name
-    {
+    if selection.source_path.last() != Some(&selection.source_name) {
         return true;
     }
 
@@ -2003,9 +2051,12 @@ fn emit_selected_dynamic_conformance_descriptor(
         return true;
     }
 
+    let Some(conformance) = selection.conformance else {
+        return true;
+    };
     let Some(table_object) = input
         .data
-        .dynamic_conformance_table_object(descriptor.target_trait, descriptor.conformance)
+        .dynamic_conformance_table_object(selection.target_trait, conformance)
     else {
         return true;
     };
@@ -2020,7 +2071,7 @@ fn emit_selected_dynamic_conformance_descriptor(
     };
     if table.rows.is_empty()
         || table.rows.iter().any(|table_row| {
-            !descriptor.rows.iter().any(|row| {
+            !selection.rows.iter().any(|row| {
                 table_row.requirement_identity.as_ref() == row.requirement_identity
                     && table_row.realization_identity.as_ref() == row.realization_identity
                     && table_row.realization.machine == row.realization_machine

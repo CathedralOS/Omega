@@ -393,14 +393,14 @@ pub(super) fn expected_outbound_call_spec(
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyOutboundIndirectCall {
                         operands,
                         data_symbols,
-                        mechanism,
+                        identity,
                         plan,
                     } => {
                         let (bytes, address_sites) = encode_indirect_call_replay(
                             architecture,
                             &operands,
                             &data_symbols,
-                            &mechanism,
+                            &identity,
                             &plan,
                         )?;
                         (

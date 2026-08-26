@@ -801,6 +801,8 @@ pub fn render_frame_slot_table(
     let kind_label = |kind: &RuntimeFrameSlotKind| -> String {
         match kind {
             RuntimeFrameSlotKind::Parameter => "param".to_owned(),
+            RuntimeFrameSlotKind::DynamicReceiver { .. } => "dyn-receiver".to_owned(),
+            RuntimeFrameSlotKind::DynamicResultScratch { .. } => "dyn-result".to_owned(),
             RuntimeFrameSlotKind::LocalStorage => "local".to_owned(),
             RuntimeFrameSlotKind::StateCallResult {
                 role, call_ordinal, ..

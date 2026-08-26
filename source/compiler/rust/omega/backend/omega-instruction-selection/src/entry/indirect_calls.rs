@@ -21,6 +21,58 @@ pub fn derive_boundary_compiler_body_outbound_indirect_call_footprint(
     let mut registers = Vec::new();
     let mut has_call = false;
     for instruction in instructions {
+        if let AbstractOperationKind::DynamicTableCall {
+            call_plan,
+            result_present,
+            operands: operand_span,
+            ..
+        } = &instruction.kind
+        {
+            let Some(selected_operands) = operands.span(*operand_span) else {
+                continue;
+            };
+            if !matches!(call_plan.entry_control, EntryControl::CallReturn)
+                || selected_operands.len()
+                    != call_plan.parameters.len() + 1 + usize::from(*result_present)
+            {
+                continue;
+            }
+            has_call = true;
+            registers.extend_from_slice(call_plan.ordinary_clobbers.as_slice());
+            match input.target.architecture {
+                omega_target::Architecture::X86_64 => registers.push(MachineRegister::X86Rsp),
+                omega_target::Architecture::Aarch64 => {
+                    registers.push(MachineRegister::Aarch64X(16));
+                    if *result_present
+                        && let Some((byte_offset, byte_count)) =
+                            selected_operands
+                                .first()
+                                .and_then(|operand| match &operand.kind {
+                                    InstructionOperandKind::RuntimeScalarInteger {
+                                        byte_offset,
+                                        byte_count,
+                                        ..
+                                    }
+                                    | InstructionOperandKind::RuntimeScalarFloat {
+                                        byte_offset,
+                                        byte_count,
+                                        ..
+                                    } => Some((*byte_offset, *byte_count)),
+                                    _ => None,
+                                })
+                    {
+                        registers.extend_from_slice(
+                            omega_isa_aarch64::constant_host_result_clobbers(
+                                byte_offset,
+                                byte_count,
+                            )
+                            .as_slice(),
+                        );
+                    }
+                }
+            }
+            continue;
+        }
         let AbstractOperationKind::HostOperation {
             operation_ordinal,
             operands: operand_span,

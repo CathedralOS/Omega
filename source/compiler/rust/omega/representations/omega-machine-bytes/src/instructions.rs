@@ -339,7 +339,7 @@ pub enum CompilerInstructionValidationKind {
     CompilerBodyOutboundIndirectCall {
         operands: Vec<omega_target_operations::InstructionOperand>,
         data_symbols: Vec<Arc<str>>,
-        mechanism: omega_calling_conventions::HostBindingMechanism,
+        identity: CompilerIndirectCallValidationIdentity,
         plan: omega_calling_conventions::CallPlan,
     },
     CompilerBodyOutboundOpenCreateImport {
@@ -657,6 +657,20 @@ pub enum CompilerInstructionValidationKind {
     },
     DispatchCaseLeave {
         loop_byte_distance: isize,
+    },
+}
+
+/// Closed semantic identity for indirect-call final-byte replay. Private
+/// dynamic dispatch cannot inherit foreign-host control-state policy, and an
+/// authored table name cannot impersonate the compiler-private variant.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompilerIndirectCallValidationIdentity {
+    Foreign {
+        mechanism: omega_calling_conventions::HostBindingMechanism,
+    },
+    PrivateDynamic {
+        requirement_identity: Arc<str>,
+        byte_offset: usize,
     },
 }
 

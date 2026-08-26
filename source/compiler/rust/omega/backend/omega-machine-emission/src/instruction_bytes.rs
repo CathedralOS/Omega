@@ -955,6 +955,33 @@ fn compiler_instruction_validation_kind(
                 },
             )
         }
+        SelectedInstructionKind::DynamicTableCall {
+            byte_offset,
+            requirement_identity,
+            call_plan,
+            operands,
+            ..
+        } => {
+            let operands = emission_context
+                .assigned_target_operations
+                .instruction_operands(*operands)
+                .ok_or_else(|| Diagnostic::error("compiler dynamic table call lost its assigned operand span"))?;
+            if operands.is_empty() {
+                return Ok(None);
+            }
+            Some(CompilerInstructionValidationKind::CompilerBodyOutboundIndirectCall {
+                operands: operands.to_vec(),
+                data_symbols: assigned_outbound_syscall_data_symbols(
+                    emission_context,
+                    operands,
+                ),
+                identity: omega_machine_bytes::CompilerIndirectCallValidationIdentity::PrivateDynamic {
+                    requirement_identity: requirement_identity.clone(),
+                    byte_offset: *byte_offset,
+                },
+                plan: call_plan.clone(),
+            })
+        }
         SelectedInstructionKind::HostOperation {
             operation_key,
             operands,
@@ -1553,7 +1580,9 @@ fn compiler_instruction_validation_kind(
                             emission_context,
                             operands,
                         ),
-                        mechanism: binding.mechanism.clone(),
+                        identity: omega_machine_bytes::CompilerIndirectCallValidationIdentity::Foreign {
+                            mechanism: binding.mechanism.clone(),
+                        },
                         plan: binding.call_plan().clone(),
                     },
                 ));

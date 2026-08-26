@@ -1,5 +1,6 @@
 mod byte_io;
 mod context;
+mod dynamic_table_calls;
 mod host_operation;
 mod internal_calls;
 mod queries;
@@ -68,6 +69,10 @@ pub(super) fn collect_instruction_relocations(
 
     if internal_calls::collect_internal_call_relocation(&mut context, &instruction.kind)? {
     } else if host_operation::collect_host_operation_relocations(&mut context, &instruction.kind)? {
+    } else if dynamic_table_calls::collect_dynamic_table_call_relocations(
+        &mut context,
+        &instruction.kind,
+    )? {
     } else if runtime_storage::collect_runtime_storage_relocations(&mut context, &instruction.kind)
     {
     } else if wire_encode::collect_wire_encode_relocations(&mut context, &instruction.kind) {

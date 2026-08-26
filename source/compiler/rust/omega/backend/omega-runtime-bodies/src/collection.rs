@@ -802,6 +802,24 @@ fn append_state_call_body_operation(
     type_references: &mut TypeReferenceTable,
     visiting: &mut BodyVisitingStates,
 ) {
+    if state_call.lowering == StateCallLowering::IndirectDynamic {
+        operations.insert(body_operation(
+            state_call.source_key,
+            state_call.statement_index,
+            RuntimeDispatchBodyOperationKind::DynamicStateCall {
+                role: state_call.role,
+                call_ordinal: state_call.call_ordinal,
+                target_key: state_call.target_key,
+                argument_count: state_call.argument_count,
+            },
+        ));
+        // The indirect instruction's authoritative CallPlan writes its ABI
+        // result directly into the caller-owned result slot.  Replaying the
+        // representative realization's terminal expression here would add a
+        // second producer and can overwrite that result with private-callee
+        // frame storage.
+        return;
+    }
     if state_call.lowering == StateCallLowering::InlineLeaf {
         operations.insert(body_operation(
             state_call.source_key,

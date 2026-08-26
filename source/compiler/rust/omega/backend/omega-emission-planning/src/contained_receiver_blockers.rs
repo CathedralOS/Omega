@@ -53,6 +53,13 @@ pub(crate) fn collect_contained_receiver_blockers(
         if state_call.receiver_name.as_str().is_empty() {
             continue;
         }
+        // An admitted dynamic call loads the concrete receiver from the
+        // descriptor's instance word and reaches the realization through its
+        // exact table slot. It never enters the contained-machine by-type
+        // receiver walk guarded by this pass.
+        if state_call.lowering == omega_state_calls::StateCallLowering::IndirectDynamic {
+            continue;
+        }
         if !state_call.reachable && !live_machines.contains(&state_call.source_key.machine) {
             continue;
         }

@@ -207,6 +207,7 @@ pub struct StateCall {
     pub required: bool,
     pub resolution: StateCallResolution,
     pub lowering: StateCallLowering,
+    pub dynamic_dispatch: Option<StateCallDynamicDispatch>,
 }
 
 impl Default for StateCall {
@@ -226,6 +227,7 @@ impl Default for StateCall {
             required: false,
             resolution: StateCallResolution::Unresolved,
             lowering: StateCallLowering::Unresolved,
+            dynamic_dispatch: None,
         }
     }
 }
@@ -276,6 +278,25 @@ pub struct StateCallDynamicConformance {
     pub rows: Vec<psi_checked_trees::DynamicConformanceRowFact>,
 }
 
+/// Exact checked identity retained by one call through a bare dynamic
+/// parameter. The runtime descriptor chooses the candidate table; the
+/// normalized requirement identity chooses one common row in every table.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateCallDynamicDispatch {
+    pub receiver_parameter: SymbolHandle,
+    pub target_trait: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub requirement_identity: String,
+    pub candidates: Vec<StateCallDynamicDispatchCandidate>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateCallDynamicDispatchCandidate {
+    pub source_data: SymbolHandle,
+    pub conformance: SymbolHandle,
+    pub rows: Vec<psi_checked_trees::DynamicConformanceRowFact>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StateCallArgumentKind {
     #[default]
@@ -297,6 +318,7 @@ pub enum StateCallLowering {
     InlineLeaf,
     InlineBranching,
     InlineExpansion,
+    IndirectDynamic,
     #[default]
     Unresolved,
 }

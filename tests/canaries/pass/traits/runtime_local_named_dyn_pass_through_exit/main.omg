@@ -18,12 +18,14 @@ Primary: Item satisfies Shape {
 
 data Main {
     console: Console;
-    item: Item;
+    decoy: Item;
+    selected: Item;
 }
 
 machine Main::main(&mut self) {
-    self.item.value = 99;
-    let erased: &dyn Shape = &self.item as &dyn Item::Primary;
+    self.decoy.value = 4;
+    self.selected.value = 99;
+    let erased: &dyn Shape = &self.selected as &dyn Item::Primary;
     let result: i32 = dispatch(erased);
     transition result == 99 {
         true -> good()

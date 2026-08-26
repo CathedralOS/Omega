@@ -50,6 +50,12 @@ pub(super) fn collect_state_call_blockers(
         }
         let target_name = state_name(input, state_call.target_key);
 
+        if state_call.lowering == StateCallLowering::IndirectDynamic
+            && state_call.dynamic_dispatch.is_some()
+        {
+            continue;
+        }
+
         if matches!(
             state_call.lowering,
             StateCallLowering::InlineLeaf
@@ -96,6 +102,10 @@ pub(super) fn collect_state_call_blockers(
                     proof_scope_suffix(input, state_call.source_key)
                 ),
             )),
+        StateCallLowering::IndirectDynamic => blockers.insert(blocker(
+            "state calls",
+            "dynamic state call lost its exact runtime descriptor lowering",
+        )),
         StateCallLowering::Unresolved => blockers.insert(blocker(
             "state calls",
             &format!(

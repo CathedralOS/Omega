@@ -60,6 +60,7 @@ pub(in crate::checked) fn encode_aarch64_indirect_call_replay(
     mechanism: &omega_calling_conventions::HostBindingMechanism,
     plan: &omega_calling_conventions::CallPlan,
     result_present: bool,
+    foreign_float_control: bool,
 ) -> Result<(Vec<u8>, Vec<(usize, OutboundCallRelocationTarget)>), Diagnostic> {
     use omega_calling_conventions::{HostBindingMechanism, ValueClass, ValueLocation};
     use omega_target_operations::InstructionOperandLike;
@@ -320,14 +321,23 @@ pub(in crate::checked) fn encode_aarch64_indirect_call_replay(
         ));
     }
 
-    let prefix = omega_isa_aarch64::encode_foreign_float_control_prefix_bytes();
-    let suffix = omega_isa_aarch64::encode_foreign_float_control_suffix_bytes();
+    let prefix = if foreign_float_control {
+        omega_isa_aarch64::encode_foreign_float_control_prefix_bytes().to_vec()
+    } else {
+        Vec::new()
+    };
+    let suffix = if foreign_float_control {
+        omega_isa_aarch64::encode_foreign_float_control_suffix_bytes().to_vec()
+    } else {
+        Vec::new()
+    };
+    let prefix_len = prefix.len();
     let mut bytes = Vec::with_capacity(prefix.len() + inner.len() + suffix.len());
     bytes.extend(prefix);
     bytes.extend(inner);
     bytes.extend(suffix);
     for (site, _) in &mut address_sites {
-        *site += prefix.len();
+        *site += prefix_len;
     }
     Ok((bytes, address_sites))
 }
@@ -336,14 +346,39 @@ pub(in crate::checked) fn encode_indirect_call_replay(
     architecture: Architecture,
     operands: &[omega_target_operations::InstructionOperand],
     data_symbols: &[std::sync::Arc<str>],
-    mechanism: &omega_calling_conventions::HostBindingMechanism,
+    identity: &omega_machine_bytes::CompilerIndirectCallValidationIdentity,
     plan: &omega_calling_conventions::CallPlan,
 ) -> Result<(Vec<u8>, Vec<(usize, OutboundCallRelocationTarget)>), Diagnostic> {
     use omega_calling_conventions::{CallingPolicy, HostBindingMechanism};
     use omega_target_operations::InstructionOperandLike;
 
+    let (mechanism, foreign_float_control) = match identity {
+        omega_machine_bytes::CompilerIndirectCallValidationIdentity::Foreign { mechanism } => (
+            mechanism.clone(),
+            mechanism.requires_float_control_restore(),
+        ),
+        omega_machine_bytes::CompilerIndirectCallValidationIdentity::PrivateDynamic {
+            requirement_identity,
+            byte_offset,
+        } => {
+            if requirement_identity.is_empty() {
+                return Err(Diagnostic::error(
+                    "final private dynamic call lost its normalized requirement identity",
+                ));
+            }
+            (
+                HostBindingMechanism::TableFunction {
+                    table: "omega.private.dynamic".into(),
+                    field: requirement_identity.clone(),
+                    byte_offset: *byte_offset,
+                },
+                false,
+            )
+        }
+    };
+
     let dispatch_only = usize::from(matches!(
-        mechanism,
+        &mechanism,
         HostBindingMechanism::TableFunction { .. }
     ));
     let parameter_count = plan
@@ -357,7 +392,7 @@ pub(in crate::checked) fn encode_indirect_call_replay(
             "final indirect-call replay retained an operand count incompatible with its call plan",
         ));
     }
-    if matches!(mechanism, HostBindingMechanism::VtableSlot { .. }) && result_present {
+    if matches!(&mechanism, HostBindingMechanism::VtableSlot { .. }) && result_present {
         return Err(Diagnostic::error(
             "final slot-indexed vtable replay unexpectedly retained a result operand",
         ));
@@ -367,13 +402,14 @@ pub(in crate::checked) fn encode_indirect_call_replay(
         return encode_aarch64_indirect_call_replay(
             operands,
             data_symbols,
-            mechanism,
+            &mechanism,
             plan,
             result_present,
+            foreign_float_control,
         );
     }
 
-    let field_offset = match mechanism {
+    let field_offset = match &mechanism {
         HostBindingMechanism::VtableSlot { index } => index
             .checked_mul(8)
             .ok_or_else(|| Diagnostic::error("final vtable slot offset overflowed"))?,
@@ -387,7 +423,7 @@ pub(in crate::checked) fn encode_indirect_call_replay(
         }
     };
 
-    let (inner, raw_sites) = match (plan.policy, mechanism) {
+    let (inner, raw_sites) = match (plan.policy, &mechanism) {
         (CallingPolicy::MicrosoftX64, HostBindingMechanism::VtableSlot { index }) => (
             omega_isa_x86_64::encode_win64_vtable_call_with_plan(operands, *index, plan)?,
             omega_isa_x86_64::win64_vtable_call_relocation_sites_with_plan(operands, false, plan),
@@ -536,14 +572,118 @@ pub(in crate::checked) fn encode_indirect_call_replay(
         ));
     }
 
-    let prefix = omega_isa_x86_64::encode_foreign_float_control_prefix_bytes();
-    let suffix = omega_isa_x86_64::encode_foreign_float_control_suffix_bytes();
+    let prefix = if foreign_float_control {
+        omega_isa_x86_64::encode_foreign_float_control_prefix_bytes().to_vec()
+    } else {
+        Vec::new()
+    };
+    let suffix = if foreign_float_control {
+        omega_isa_x86_64::encode_foreign_float_control_suffix_bytes().to_vec()
+    } else {
+        Vec::new()
+    };
+    let prefix_len = prefix.len();
     let mut bytes = Vec::with_capacity(prefix.len() + inner.len() + suffix.len());
     bytes.extend(prefix);
     bytes.extend(inner);
     bytes.extend(suffix);
     for (site, _) in &mut address_sites {
-        *site += prefix.len();
+        *site += prefix_len;
     }
     Ok((bytes, address_sites))
+}
+
+#[cfg(test)]
+mod private_dynamic_replay_tests {
+    use super::*;
+    use omega_calling_conventions::{
+        CallSignature, CallingPolicy, HostBindingMechanism, ValueShape, evaluate_call_plan,
+    };
+    use omega_target_operations::{
+        InstructionOperand, InstructionOperandKind, RuntimeStorageRegion,
+    };
+
+    fn runtime_integer(byte_offset: usize, byte_count: usize) -> InstructionOperand {
+        InstructionOperand {
+            kind: InstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset,
+                byte_count,
+            },
+        }
+    }
+
+    fn assert_private_replay_has_no_foreign_envelope(
+        architecture: Architecture,
+        policy: CallingPolicy,
+    ) {
+        let plan = evaluate_call_plan(
+            policy,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8)],
+                result: Some(ValueShape::integer(4, 4)),
+            },
+        )
+        .expect("one-word private dynamic call plan");
+        let operands = [
+            runtime_integer(0, 4),
+            runtime_integer(16, 8),
+            runtime_integer(8, 8),
+        ];
+        let private_identity =
+            omega_machine_bytes::CompilerIndirectCallValidationIdentity::PrivateDynamic {
+                requirement_identity: "Shape::code".into(),
+                byte_offset: 0,
+            };
+        let foreign_identity =
+            omega_machine_bytes::CompilerIndirectCallValidationIdentity::Foreign {
+                mechanism: HostBindingMechanism::TableFunction {
+                    table: "authored.plugin.table".into(),
+                    field: "foreign_callback".into(),
+                    byte_offset: 0,
+                },
+            };
+        let (private, private_sites) =
+            encode_indirect_call_replay(architecture, &operands, &[], &private_identity, &plan)
+                .expect("private replay");
+
+        let (foreign, foreign_sites) =
+            encode_indirect_call_replay(architecture, &operands, &[], &foreign_identity, &plan)
+                .expect("foreign replay");
+        let (prefix, suffix) = match architecture {
+            Architecture::X86_64 => (
+                omega_isa_x86_64::encode_foreign_float_control_prefix_bytes().to_vec(),
+                omega_isa_x86_64::encode_foreign_float_control_suffix_bytes().to_vec(),
+            ),
+            Architecture::Aarch64 => (
+                omega_isa_aarch64::encode_foreign_float_control_prefix_bytes().to_vec(),
+                omega_isa_aarch64::encode_foreign_float_control_suffix_bytes().to_vec(),
+            ),
+        };
+        assert_eq!(
+            &foreign[prefix.len()..foreign.len().saturating_sub(suffix.len())],
+            private.as_slice()
+        );
+        assert_eq!(&foreign[..prefix.len()], prefix.as_slice());
+        assert_eq!(&foreign[foreign.len() - suffix.len()..], suffix.as_slice());
+        assert_eq!(private_sites.len(), foreign_sites.len());
+        assert!(private_sites.iter().zip(&foreign_sites).all(
+            |((private_offset, private_target), (foreign_offset, foreign_target))| {
+                *foreign_offset == private_offset.saturating_add(prefix.len())
+                    && foreign_target == private_target
+            }
+        ));
+    }
+
+    #[test]
+    fn private_dynamic_replay_adds_no_foreign_control_bytes_or_site_offset() {
+        assert_private_replay_has_no_foreign_envelope(
+            Architecture::X86_64,
+            CallingPolicy::SystemVAMD64,
+        );
+        assert_private_replay_has_no_foreign_envelope(
+            Architecture::Aarch64,
+            CallingPolicy::Aapcs64,
+        );
+    }
 }

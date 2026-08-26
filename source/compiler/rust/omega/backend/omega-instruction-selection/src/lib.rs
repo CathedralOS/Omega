@@ -64,7 +64,7 @@ pub use entry::{
     derive_boundary_exit_indirect_result_copy_footprint,
     derive_boundary_exit_result_register_footprint, derive_boundary_place_guard_footprint,
     derive_boundary_runtime_text_guard_footprint, derive_boundary_runtime_value_guard_footprint,
-    derive_boundary_static_guard_footprint,
+    derive_boundary_static_guard_footprint, derive_internal_call_entry_storage,
 };
 pub use generated_writer::{
     LoweredPostHandoffWriter, LoweredPostHandoffWriterFragment, PostHandoffEntryWriterBindingError,

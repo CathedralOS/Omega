@@ -20,6 +20,19 @@ fn translate_instruction_kind(
     instruction: &omega_abstract_operations::AbstractOperation,
 ) -> TargetOperationKind {
     match &instruction.kind {
+        omega_abstract_operations::AbstractOperationKind::DynamicTableCall {
+            byte_offset,
+            requirement_identity,
+            result_present,
+            call_plan,
+            operands,
+        } => TargetOperationKind::DynamicTableCall {
+            byte_offset: *byte_offset,
+            requirement_identity: requirement_identity.clone(),
+            result_present: *result_present,
+            call_plan: call_plan.clone(),
+            operands: remap::operand_span(*operands),
+        },
         omega_abstract_operations::AbstractOperationKind::HostOperation {
             operation_ordinal,
             operands,

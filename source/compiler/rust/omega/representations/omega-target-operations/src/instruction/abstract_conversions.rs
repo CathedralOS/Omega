@@ -844,6 +844,9 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 byte_count: *byte_count,
             },
             omega_abstract_operations::AbstractOperationKind::BeginPlatformCall => Self::BeginPlatformCall,
+            omega_abstract_operations::AbstractOperationKind::DynamicTableCall { .. } => {
+                panic!("abstract dynamic table calls must be lowered in omega-abstract-operations-to-target-operations")
+            }
             omega_abstract_operations::AbstractOperationKind::HostOperation { .. } => {
                 panic!("abstract host operation ordinals must be lowered in omega-abstract-operations-to-target-operations")
             }

@@ -10,6 +10,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             Self::EnterFunction
             | Self::LeaveFunction
             | Self::CallInternalFunction { .. }
+            | Self::DynamicTableCall { .. }
             | Self::LoadOutgoingStackAddress { .. }
             | Self::ReserveOutgoingStackFrame { .. }
             | Self::WriteOutgoingStackU64 { .. }

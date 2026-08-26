@@ -10,7 +10,9 @@ pub(crate) fn state_call_lowering(
     call: &CollectedStateCall,
     calling_states: &[StateKey],
 ) -> StateCallLowering {
-    if !state_key_is_valid(call.target_key) {
+    if call.dynamic_dispatch.is_some() && state_key_is_valid(call.target_key) {
+        StateCallLowering::IndirectDynamic
+    } else if !state_key_is_valid(call.target_key) {
         StateCallLowering::Unresolved
     } else if state_call_targets_leaf(context, call) && !calling_states.contains(&call.target_key) {
         // A leaf has no transitions AND makes no calls of its own. The

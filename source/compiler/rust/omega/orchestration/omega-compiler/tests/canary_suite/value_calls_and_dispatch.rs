@@ -1004,7 +1004,7 @@ fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
         &compilation,
         70,
         "forwarded named dynamic descriptor canary",
-        "the exact Primary realization must survive pass-through descriptor construction",
+        "the indirect slot must execute against the selected Item instance, not the same-type decoy",
     );
 
     let _ = fs::remove_dir_all(&build_dir);
