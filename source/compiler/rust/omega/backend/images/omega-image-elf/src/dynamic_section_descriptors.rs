@@ -72,6 +72,10 @@ impl ValidatedElfDynamicSectionDescriptorPlan {
         self.contents.section_name_table_seed.len()
     }
 
+    pub(crate) fn section_name_table_seed(&self) -> &[u8] {
+        &self.contents.section_name_table_seed
+    }
+
     /// Compatibility fingerprint of the exact payload identity, append-only
     /// name seed, semantic descriptor kinds/links, and every ABI metadata
     /// field. This is content identity, not layout or image authority.

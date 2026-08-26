@@ -8,6 +8,7 @@ mod bytes;
 mod constants;
 mod dynamic_import_relocations;
 mod dynamic_link;
+mod dynamic_linkage_descriptors;
 mod dynamic_linkage_templates;
 mod dynamic_section_bytes;
 mod dynamic_section_descriptors;
@@ -26,6 +27,11 @@ pub use dynamic_import_relocations::{
 };
 pub use dynamic_link::{
     ElfDynamicLinkInputPlanningError, PlannedElfDynamicLinkInputs, plan_elf_dynamic_link_inputs,
+};
+pub use dynamic_linkage_descriptors::{
+    ElfProcedureLinkageSectionDescriptorPlanningError,
+    ValidatedElfProcedureLinkageSectionDescriptorPlan,
+    plan_elf_procedure_linkage_section_descriptors,
 };
 pub use dynamic_linkage_templates::{
     ElfProcedureLinkageTemplatePlanningError, ValidatedElfProcedureLinkageTemplatePlan,
