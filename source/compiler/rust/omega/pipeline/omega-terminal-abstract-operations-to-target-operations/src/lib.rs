@@ -2960,6 +2960,7 @@ fn lower_unit_function(
                             || cleanup_function.block_entries.as_slice()
                                 != [omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
                                     block: cleanup_function.entry,
+                                    parameters: Vec::new(),
                                     operation_offset: 0,
                                 }]
                         {
@@ -3296,6 +3297,7 @@ fn validate_bounded_nominal_cleanup_body(
                 != [
                     omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
                         block: helper.entry,
+                        parameters: Vec::new(),
                         operation_offset: 0,
                     },
                 ]

@@ -10,9 +10,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omega_optimization_unit::{
     OptimizationEdge, OptimizationFact, OwnershipEvent, PsiOptimizationFunction,
-    PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
+    PsiOptimizationUnit, PsiProvenance, ValueDefinition, ValueDefinitionSite, ValueUse,
 };
-use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ValueId};
+use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ScalarType, ValueId};
 use psi_terminal_fuel::TerminalFuelSchedule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,6 +21,10 @@ pub enum OptimizationUnitValidationError {
     MissingEntryMachine(MachineId),
     DuplicateMachine(MachineId),
     MissingEntryBlock {
+        machine: MachineId,
+        block: BlockId,
+    },
+    EntryBlockHasParameters {
         machine: MachineId,
         block: BlockId,
     },
@@ -44,6 +48,18 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         block: BlockId,
         target: BlockId,
+    },
+    UnreachableBlock {
+        machine: MachineId,
+        block: BlockId,
+    },
+    ControlCycle {
+        machine: MachineId,
+        block: BlockId,
+    },
+    ParameterMetadataMismatch {
+        machine: MachineId,
+        block: Option<BlockId>,
     },
     DuplicateEdge(EdgeId),
     DuplicateProvenance(PsiProvenance),
@@ -289,12 +305,24 @@ fn validate_function(
             block: function.entry,
         });
     }
+    if !blocks[&function.entry].parameters.is_empty() {
+        return Err(OptimizationUnitValidationError::EntryBlockHasParameters {
+            machine: function.machine,
+            block: function.entry,
+        });
+    }
+    validate_parameter_metadata(function)?;
 
     let mut edge_ids = BTreeSet::new();
     let mut predecessor = function
         .blocks
         .iter()
         .map(|block| (block.id, BTreeSet::new()))
+        .collect::<BTreeMap<_, _>>();
+    let mut successors = function
+        .blocks
+        .iter()
+        .map(|block| (block.id, Vec::new()))
         .collect::<BTreeMap<_, _>>();
     for block in &function.blocks {
         if block.nodes.is_empty() {
@@ -306,6 +334,8 @@ fn validate_function(
         for (index, node) in block.nodes.iter().enumerate() {
             let node_index = u32::try_from(index).expect("unit node index was built as u32");
             if node.provenance != expected_provenance(&node.operation)
+                || node.definitions != expected_definitions(&node.operation, block.id, node_index)
+                || node.uses != expected_uses(&node.operation, block.id, node_index)
                 || node.successors != expected_edges(&node.operation)
                 || node.ownership != expected_ownership(&node.operation)
             {
@@ -339,6 +369,10 @@ fn validate_function(
                     .get_mut(&edge.target)
                     .expect("known target")
                     .insert(block.id);
+                successors
+                    .get_mut(&block.id)
+                    .expect("every block has a successor row")
+                    .push(edge.target);
             }
         }
         if !is_terminator(&block.nodes.last().expect("nonempty").operation) {
@@ -349,10 +383,113 @@ fn validate_function(
         }
     }
 
+    validate_total_cfg(function, &blocks, &successors)?;
+
     validate_provenance_fuel_effects(function)?;
     validate_fact_index(function)?;
     validate_values_and_bindings(function, &blocks, &predecessor)?;
     validate_places_and_claims(function)?;
+    Ok(())
+}
+
+fn validate_parameter_metadata(
+    function: &PsiOptimizationFunction,
+) -> Result<(), OptimizationUnitValidationError> {
+    for (position, parameter) in function.parameters.iter().enumerate() {
+        let Ok(position) = u32::try_from(position) else {
+            return Err(OptimizationUnitValidationError::ParameterMetadataMismatch {
+                machine: function.machine,
+                block: None,
+            });
+        };
+        if parameter.site != ValueDefinitionSite::FunctionParameter(position) {
+            return Err(OptimizationUnitValidationError::ParameterMetadataMismatch {
+                machine: function.machine,
+                block: None,
+            });
+        }
+    }
+    for block in &function.blocks {
+        for (position, parameter) in block.parameters.iter().enumerate() {
+            let Ok(position) = u32::try_from(position) else {
+                return Err(OptimizationUnitValidationError::ParameterMetadataMismatch {
+                    machine: function.machine,
+                    block: Some(block.id),
+                });
+            };
+            if parameter.site
+                != (ValueDefinitionSite::BlockParameter {
+                    block: block.id,
+                    position,
+                })
+            {
+                return Err(OptimizationUnitValidationError::ParameterMetadataMismatch {
+                    machine: function.machine,
+                    block: Some(block.id),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_total_cfg(
+    function: &PsiOptimizationFunction,
+    blocks: &BTreeMap<BlockId, &omega_optimization_unit::OptimizationBlock>,
+    successors: &BTreeMap<BlockId, Vec<BlockId>>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let mut reachable = BTreeSet::new();
+    let mut pending = vec![function.entry];
+    while let Some(block) = pending.pop() {
+        if reachable.insert(block) {
+            pending.extend(successors[&block].iter().copied());
+        }
+    }
+    if reachable.len() != blocks.len() {
+        let block = blocks
+            .keys()
+            .find(|block| !reachable.contains(block))
+            .copied()
+            .expect("different block counts have an unreachable block");
+        return Err(OptimizationUnitValidationError::UnreachableBlock {
+            machine: function.machine,
+            block,
+        });
+    }
+
+    let mut indegree = blocks
+        .keys()
+        .copied()
+        .map(|block| (block, 0usize))
+        .collect::<BTreeMap<_, _>>();
+    for target in successors.values().flatten() {
+        *indegree.get_mut(target).expect("successor was validated") += 1;
+    }
+    let mut ready = indegree
+        .iter()
+        .filter_map(|(block, count)| (*count == 0).then_some(*block))
+        .collect::<BTreeSet<_>>();
+    let mut visited = 0usize;
+    while let Some(block) = ready.pop_first() {
+        visited += 1;
+        for target in &successors[&block] {
+            let count = indegree.get_mut(target).expect("successor was validated");
+            *count -= 1;
+            if *count == 0 {
+                ready.insert(*target);
+            }
+        }
+    }
+    if visited != blocks.len() {
+        let block = indegree
+            .iter()
+            .find_map(|(block, count)| (*count != 0).then_some(*block))
+            .expect("a cyclic graph leaves positive indegree");
+        return Err(OptimizationUnitValidationError::ControlCycle {
+            machine: function.machine,
+            block,
+        });
+    }
     Ok(())
 }
 
@@ -789,6 +926,220 @@ fn validate_operation_places(
     Ok(())
 }
 
+fn expected_definitions(
+    operation: &omega_terminal_abstract_operations::TerminalAbstractOperation,
+    block: BlockId,
+    node: u32,
+) -> Vec<ValueDefinition> {
+    use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
+    let definition = match operation {
+        O::Call {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::IntegerConstant {
+            result,
+            scalar_type,
+            ..
+        } => Some((*result, *scalar_type)),
+        O::CallStructuralScalar { result, .. } => Some((result.value, result.scalar_type)),
+        O::BoundaryCall {
+            result: Some(result),
+            ..
+        } => Some((result.value, result.scalar_type)),
+        O::BooleanConstant { result, .. }
+        | O::BooleanStructuralField { result, .. }
+        | O::BooleanNot { result, .. }
+        | O::BooleanEqual { result, .. }
+        | O::IntegerEqual { result, .. }
+        | O::IntegerLessThan { result, .. }
+        | O::IntegerLessOrEqual { result, .. } => Some((*result, ScalarType::Boolean)),
+        O::IntegerBitwiseNot {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::IntegerBitwiseAnd {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::IntegerBitwiseOr {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::IntegerBitwiseXor {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::WrappingIntegerAdd {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::ExactIntegerAdd {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::SaturatingIntegerAdd {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::WrappingIntegerSubtract {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::ExactIntegerSubtract {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::SaturatingIntegerSubtract {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::WrappingIntegerMultiply {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::ExactIntegerMultiply {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::ExactIntegerDivide {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::ExactIntegerRemainder {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::WrappingIntegerDivide {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::WrappingIntegerRemainder {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::SaturatingIntegerDivide {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::SaturatingIntegerRemainder {
+            result,
+            scalar_type,
+            ..
+        }
+        | O::SaturatingIntegerMultiply {
+            result,
+            scalar_type,
+            ..
+        } => Some((*result, ScalarType::Integer(*scalar_type))),
+        O::IntegerWiden {
+            result,
+            target_type,
+            ..
+        }
+        | O::IntegerExactCast {
+            result,
+            target_type,
+            ..
+        } => Some((*result, ScalarType::Integer(*target_type))),
+        O::WrappingIntegerShiftLeft {
+            result, value_type, ..
+        }
+        | O::WrappingIntegerShiftRight {
+            result, value_type, ..
+        }
+        | O::ExactIntegerShiftLeft {
+            result, value_type, ..
+        }
+        | O::ExactIntegerShiftRight {
+            result, value_type, ..
+        } => Some((*result, ScalarType::Integer(*value_type))),
+        _ => None,
+    };
+    definition
+        .into_iter()
+        .map(|(value, scalar_type)| ValueDefinition {
+            value,
+            scalar_type,
+            site: ValueDefinitionSite::Node { block, node },
+        })
+        .collect()
+}
+
+fn expected_uses(
+    operation: &omega_terminal_abstract_operations::TerminalAbstractOperation,
+    block: BlockId,
+    node: u32,
+) -> Vec<ValueUse> {
+    use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
+    let values = match operation {
+        O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => arguments.clone(),
+        O::BooleanNot { operand, .. }
+        | O::IntegerBitwiseNot { operand, .. }
+        | O::IntegerWiden { operand, .. }
+        | O::IntegerExactCast { operand, .. } => vec![*operand],
+        O::BooleanEqual { left, right, .. }
+        | O::IntegerEqual { left, right, .. }
+        | O::IntegerLessThan { left, right, .. }
+        | O::IntegerLessOrEqual { left, right, .. }
+        | O::IntegerBitwiseAnd { left, right, .. }
+        | O::IntegerBitwiseOr { left, right, .. }
+        | O::IntegerBitwiseXor { left, right, .. }
+        | O::WrappingIntegerAdd { left, right, .. }
+        | O::ExactIntegerAdd { left, right, .. }
+        | O::SaturatingIntegerAdd { left, right, .. }
+        | O::WrappingIntegerSubtract { left, right, .. }
+        | O::ExactIntegerSubtract { left, right, .. }
+        | O::SaturatingIntegerSubtract { left, right, .. }
+        | O::WrappingIntegerMultiply { left, right, .. }
+        | O::ExactIntegerMultiply { left, right, .. }
+        | O::ExactIntegerDivide { left, right, .. }
+        | O::ExactIntegerRemainder { left, right, .. }
+        | O::WrappingIntegerDivide { left, right, .. }
+        | O::WrappingIntegerRemainder { left, right, .. }
+        | O::SaturatingIntegerDivide { left, right, .. }
+        | O::SaturatingIntegerRemainder { left, right, .. }
+        | O::SaturatingIntegerMultiply { left, right, .. } => vec![*left, *right],
+        O::WrappingIntegerShiftLeft { value, count, .. }
+        | O::WrappingIntegerShiftRight { value, count, .. }
+        | O::ExactIntegerShiftLeft { value, count, .. }
+        | O::ExactIntegerShiftRight { value, count, .. } => vec![*value, *count],
+        O::Jump { bindings, .. } => bindings.iter().map(|binding| binding.argument).collect(),
+        O::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } => std::iter::once(*condition)
+            .chain(when_true.bindings.iter().map(|binding| binding.argument))
+            .chain(when_false.bindings.iter().map(|binding| binding.argument))
+            .collect(),
+        O::Return { value, .. } => vec![*value],
+        _ => Vec::new(),
+    };
+    values
+        .into_iter()
+        .map(|value| ValueUse { value, block, node })
+        .collect()
+}
+
 fn expected_provenance(
     operation: &omega_terminal_abstract_operations::TerminalAbstractOperation,
 ) -> Vec<PsiProvenance> {
@@ -1059,6 +1410,7 @@ mod tests {
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![TerminalAbstractBlockEntry {
                     block,
+                    parameters: Vec::new(),
                     operation_offset: 0,
                 }],
                 operations: vec![
@@ -1127,15 +1479,42 @@ mod tests {
             Err(OptimizationUnitValidationError::FactIndexMismatch(_))
         ));
 
-        let mut undefined = unit();
-        let block = undefined.functions[0].blocks[0].id;
-        undefined.functions[0].blocks[0].nodes[1]
+        let mut forged_uses = unit();
+        let block = forged_uses.functions[0].blocks[0].id;
+        forged_uses.functions[0].blocks[0].nodes[1]
             .uses
             .push(ValueUse {
                 value: id(99, ValueId::new),
                 block,
                 node: 1,
             });
+        assert!(matches!(
+            validate_psi_optimization_unit(&forged_uses),
+            Err(OptimizationUnitValidationError::OperationMetadataMismatch { .. })
+        ));
+
+        let mut forged_definitions = unit();
+        forged_definitions.functions[0].blocks[0].nodes[0]
+            .definitions
+            .clear();
+        assert!(matches!(
+            validate_psi_optimization_unit(&forged_definitions),
+            Err(OptimizationUnitValidationError::OperationMetadataMismatch { .. })
+        ));
+
+        let mut undefined = unit();
+        let unknown = id(99, ValueId::new);
+        let TerminalAbstractOperation::Return { value, .. } =
+            &mut undefined.functions[0].blocks[0].nodes[1].operation
+        else {
+            panic!("unit ends in return")
+        };
+        *value = unknown;
+        undefined.functions[0].blocks[0].nodes[1].uses = vec![ValueUse {
+            value: unknown,
+            block,
+            node: 1,
+        }];
         assert!(matches!(
             validate_psi_optimization_unit(&undefined),
             Err(OptimizationUnitValidationError::UndefinedValue { .. })
@@ -1170,6 +1549,53 @@ mod tests {
         assert!(matches!(
             validate_psi_optimization_unit(&cfg),
             Err(OptimizationUnitValidationError::UnknownSuccessor { .. })
+        ));
+
+        let mut entry_parameters = unit();
+        let block = entry_parameters.functions[0].entry;
+        entry_parameters.functions[0].blocks[0]
+            .parameters
+            .push(ValueDefinition {
+                value: id(76, ValueId::new),
+                scalar_type: ScalarType::Boolean,
+                site: ValueDefinitionSite::BlockParameter { block, position: 0 },
+            });
+        assert!(matches!(
+            validate_psi_optimization_unit(&entry_parameters),
+            Err(OptimizationUnitValidationError::EntryBlockHasParameters { .. })
+        ));
+
+        let mut unreachable = unit();
+        let block = id(75, BlockId::new);
+        let mut detached = unreachable.functions[0].blocks[0].clone();
+        detached.id = block;
+        for (node_index, node) in detached.nodes.iter_mut().enumerate() {
+            let node_index = u32::try_from(node_index).unwrap();
+            node.definitions = expected_definitions(&node.operation, block, node_index);
+            node.uses = expected_uses(&node.operation, block, node_index);
+        }
+        unreachable.functions[0].blocks.push(detached);
+        assert!(matches!(
+            validate_psi_optimization_unit(&unreachable),
+            Err(OptimizationUnitValidationError::UnreachableBlock { .. })
+        ));
+
+        let mut cycle = unit();
+        let block = cycle.functions[0].entry;
+        let operation = TerminalAbstractOperation::Jump {
+            psi_edge: id(5, EdgeId::new),
+            target: block,
+            bindings: Vec::new(),
+        };
+        let node = &mut cycle.functions[0].blocks[0].nodes[1];
+        node.operation = operation;
+        node.provenance = expected_provenance(&node.operation);
+        node.uses = expected_uses(&node.operation, block, 1);
+        node.successors = expected_edges(&node.operation);
+        node.ownership = expected_ownership(&node.operation);
+        assert!(matches!(
+            validate_psi_optimization_unit(&cycle),
+            Err(OptimizationUnitValidationError::ControlCycle { .. })
         ));
     }
 

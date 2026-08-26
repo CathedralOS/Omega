@@ -91,6 +91,14 @@ These facts constrain the work below.
   provenance site. The unit tasks remain open for ordered block-parameter
   reconstruction, full signatures/effects, total CFG coverage, and projecting
   these capabilities into region-indexed rule facts.
+- The clean abstract-operation plan now retains every block's scalar
+  declarations in exact Terminal-Psi order instead of attempting to infer them
+  from incoming edges. The unit validator independently re-derives operation
+  definitions and uses, rejects forged parameter positions, and rechecks the
+  current verified CFG contract: parameter-free entry blocks, closed edges,
+  total reachability, and acyclicity. The unit tasks remain open for complete
+  function/module signatures, region-indexed semantic facts, and a canonical
+  mutable-unit revision identity.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.

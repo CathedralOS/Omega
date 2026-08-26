@@ -187,10 +187,12 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
                 block_entries: vec![
                     TerminalAbstractBlockEntry {
                         block: BlockId::new(1).expect("entry block"),
+                        parameters: Vec::new(),
                         operation_offset: 0,
                     },
                     TerminalAbstractBlockEntry {
                         block: BlockId::new(2).expect("return block"),
+                        parameters: Vec::new(),
                         operation_offset: 2,
                     },
                 ],

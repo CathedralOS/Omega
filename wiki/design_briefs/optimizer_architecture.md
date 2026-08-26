@@ -206,6 +206,16 @@ The unit must not contain syntax nodes, `ExpressionHandle`, authored names as
 identity, native byte offsets, physical registers, or target instruction
 encodings.
 
+Block parameters retain Terminal-Psi declaration order as explicit input data;
+they are never reconstructed by sorting parameter identities or by observing
+only the incoming edges that happen to survive. Cached definition/use rows are
+convenience indices, not authority: the independent representation validator
+re-derives them from operation semantics. It also rechecks the complete current
+Terminal-Psi CFG contract—parameter-free entry, closed edges, total
+reachability, and acyclicity—before any rule may inspect the unit. When Terminal
+Psi later admits wider cyclic control flow, that expansion must arrive as an
+explicit vocabulary/validator change rather than an optimizer-only exception.
+
 SSA applies naturally to scalar values. Memory, ownership, and cleanup are not
 forced into a scalar fiction. They use explicit versioned tokens/frontiers so a
 pass can prove that a rewrite preserves all relevant state. Address-stable

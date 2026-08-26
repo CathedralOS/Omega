@@ -88,9 +88,13 @@ pub struct TerminalAbstractFunction {
     pub operations: Vec<TerminalAbstractOperation>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAbstractBlockEntry {
     pub block: BlockId,
+    /// Scalar parameters in canonical Terminal-Psi declaration order. This is
+    /// retained independently of incoming bindings so entry and otherwise
+    /// unreferenced declarations cannot disappear during lowering.
+    pub parameters: Vec<TerminalAbstractParameter>,
     pub operation_offset: usize,
 }
 

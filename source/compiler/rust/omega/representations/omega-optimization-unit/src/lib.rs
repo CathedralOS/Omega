@@ -8,7 +8,7 @@
 //! validators and later passes do not have to rediscover CFG, SSA, semantic
 //! fuel, effects, or provenance from a mutable instruction stream.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use omega_optimization_core::OptimizationUnitIdentity;
 use omega_terminal_abstract_operations::{
@@ -152,16 +152,8 @@ pub struct PsiOptimizationUnit {
 pub enum OptimizationUnitBuildError {
     MissingBlocks(MachineId),
     FirstBlockDoesNotStartAtZero(MachineId),
-    InvalidBlockOffset {
-        machine: MachineId,
-        offset: usize,
-    },
+    InvalidBlockOffset { machine: MachineId, offset: usize },
     DuplicateBlock(MachineId, BlockId),
-    ConflictingBlockParameter {
-        machine: MachineId,
-        block: BlockId,
-        value: ValueId,
-    },
     NodeIndexOverflow(MachineId),
     ParameterIndexOverflow(MachineId),
 }
@@ -228,24 +220,6 @@ fn build_function(
         }
     }
 
-    let mut block_parameters = BTreeMap::<BlockId, BTreeMap<ValueId, ScalarType>>::new();
-    for operation in &function.operations {
-        for successor in operation_edges(operation) {
-            let parameters = block_parameters.entry(successor.target).or_default();
-            for binding in &successor.bindings {
-                if let Some(previous) = parameters.insert(binding.parameter, binding.scalar_type)
-                    && previous != binding.scalar_type
-                {
-                    return Err(OptimizationUnitBuildError::ConflictingBlockParameter {
-                        machine: function.machine,
-                        block: successor.target,
-                        value: binding.parameter,
-                    });
-                }
-            }
-        }
-    }
-
     let parameters = function
         .parameters
         .iter()
@@ -281,15 +255,14 @@ fn build_function(
                 offset: end,
             });
         }
-        let block_parameter_rows = block_parameters
-            .remove(&entry.block)
-            .unwrap_or_default()
-            .into_iter()
+        let block_parameter_rows = entry
+            .parameters
+            .iter()
             .enumerate()
-            .map(|(position, (value, scalar_type))| {
+            .map(|(position, parameter)| {
                 Ok(ValueDefinition {
-                    value,
-                    scalar_type,
+                    value: parameter.value,
+                    scalar_type: parameter.scalar_type,
                     site: ValueDefinitionSite::BlockParameter {
                         block: entry.block,
                         position: u32::try_from(position).map_err(|_| {
@@ -876,6 +849,7 @@ mod tests {
     use super::*;
     use omega_terminal_abstract_operations::{
         TerminalAbstractBlockEntry, TerminalAbstractFunctionResult, TerminalAbstractParameter,
+        TerminalAbstractResult, TerminalValueBinding,
     };
     use psi_core::{IntegerSign, IntegerType, IntegerValue};
     use psi_terminal::{SemanticFingerprint, VocabularyMarker};
@@ -918,6 +892,7 @@ mod tests {
                 published_service_ceiling: Vec::new(),
                 block_entries: vec![TerminalAbstractBlockEntry {
                     block,
+                    parameters: Vec::new(),
                     operation_offset: 0,
                 }],
                 operations: vec![
@@ -949,6 +924,89 @@ mod tests {
         assert_ne!(
             first.functions[0].blocks[0].nodes[0].fuel[0].site,
             first.functions[0].blocks[0].nodes[1].fuel[0].site
+        );
+    }
+
+    #[test]
+    fn block_parameters_keep_terminal_declaration_order() {
+        let mut plan = plan();
+        let function = &mut plan.functions[0];
+        let entry = function.entry;
+        let target = id(20, BlockId::new);
+        // Deliberately descending identities prove this is declaration order,
+        // not the previous BTreeMap order.
+        let first_parameter = id(90, ValueId::new);
+        let second_parameter = id(80, ValueId::new);
+        let first_argument = function.parameters[0].value;
+        let second_argument = id(70, ValueId::new);
+        let scalar_type = function.parameters[0].scalar_type;
+        function.parameters.push(TerminalAbstractParameter {
+            value: second_argument,
+            scalar_type,
+        });
+        function.result = TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+            value: first_parameter,
+            scalar_type,
+        });
+        function.block_entries = vec![
+            TerminalAbstractBlockEntry {
+                block: entry,
+                parameters: Vec::new(),
+                operation_offset: 0,
+            },
+            TerminalAbstractBlockEntry {
+                block: target,
+                parameters: vec![
+                    TerminalAbstractParameter {
+                        value: first_parameter,
+                        scalar_type,
+                    },
+                    TerminalAbstractParameter {
+                        value: second_parameter,
+                        scalar_type,
+                    },
+                ],
+                operation_offset: 1,
+            },
+        ];
+        function.operations = vec![
+            TerminalAbstractOperation::Jump {
+                psi_edge: id(60, EdgeId::new),
+                target,
+                bindings: vec![
+                    TerminalValueBinding {
+                        parameter: first_parameter,
+                        argument: first_argument,
+                        scalar_type,
+                    },
+                    TerminalValueBinding {
+                        parameter: second_parameter,
+                        argument: second_argument,
+                        scalar_type,
+                    },
+                ],
+            },
+            TerminalAbstractOperation::Return {
+                psi_edge: id(61, EdgeId::new),
+                result: first_parameter,
+                value: first_parameter,
+                scalar_type,
+                cleanup_actions: Vec::new(),
+            },
+        ];
+
+        let unit = reconstruct_psi_optimization_unit_seed(
+            &plan,
+            FuelScheduleIdentity::new(1).expect("nonzero schedule"),
+        )
+        .expect("ordered block parameters");
+        assert_eq!(
+            unit.functions[0].blocks[1]
+                .parameters
+                .iter()
+                .map(|parameter| parameter.value)
+                .collect::<Vec<_>>(),
+            vec![first_parameter, second_parameter]
         );
     }
 }

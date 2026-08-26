@@ -433,6 +433,14 @@ fn lower_machine(
     for block in &machine.blocks {
         block_entries.push(TerminalAbstractBlockEntry {
             block: block.id,
+            parameters: block
+                .parameters
+                .iter()
+                .map(|parameter| TerminalAbstractParameter {
+                    value: parameter.id,
+                    scalar_type: parameter.scalar_type,
+                })
+                .collect(),
             operation_offset: operations.len(),
         });
         for operation in &block.operations {
@@ -1467,6 +1475,7 @@ fn lower_structural_machine(
             published_service_ceiling: Vec::new(),
             block_entries: vec![TerminalAbstractBlockEntry {
                 block: block.id,
+                parameters: Vec::new(),
                 operation_offset: 0,
             }],
             operations: vec![
@@ -1646,6 +1655,7 @@ fn lower_structural_machine(
         published_service_ceiling: Vec::new(),
         block_entries: vec![TerminalAbstractBlockEntry {
             block: block.id,
+            parameters: Vec::new(),
             operation_offset: 0,
         }],
         operations: vec![TerminalAbstractOperation::ReturnStructural {

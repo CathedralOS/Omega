@@ -25,6 +25,7 @@ fn structural_scalar_call_plan() -> TerminalAbstractOperationPlan {
     let block_entry =
         |machine: MachineId| omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
             block: BlockId::new(machine.get()).unwrap(),
+            parameters: Vec::new(),
             operation_offset: 0,
         };
     let parameter = |place, position| StructuralParameterDeclaration {
@@ -190,6 +191,7 @@ fn bounded_boolean_cleanup_plan() -> TerminalAbstractOperationPlan {
     let block_entry =
         |block, operation_offset| omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
             block: BlockId::new(block).unwrap(),
+            parameters: Vec::new(),
             operation_offset,
         };
     let return_unit = |edge| TerminalAbstractOperation::ReturnUnit {
@@ -470,6 +472,7 @@ fn two_nominal_cleanups_admit_zero_one_distinct_or_shared_bounded_executable_bod
         block_entries: vec![
             omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
                 block: block(machine),
+                parameters: Vec::new(),
                 operation_offset: 0,
             },
         ],
@@ -736,6 +739,7 @@ fn unit_fixed_array_call_selects_exact_forty_byte_native_placements() {
         block_entries: vec![
             omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
                 block: BlockId::new(machine.get()).unwrap(),
+                parameters: Vec::new(),
                 operation_offset: 0,
             },
         ],
@@ -1023,6 +1027,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
             block_entries: vec![
                 omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
                     block: BlockId::new(1).unwrap(),
+                    parameters: Vec::new(),
                     operation_offset: 0,
                 },
             ],
@@ -1731,14 +1736,17 @@ fn constant_conditional_plan(select_true: bool) -> TerminalAbstractOperationPlan
             block_entries: vec![
                 omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
                     block: BlockId::new(1).expect("entry block"),
+                    parameters: Vec::new(),
                     operation_offset: 0,
                 },
                 omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
                     block: BlockId::new(2).expect("true block"),
+                    parameters: Vec::new(),
                     operation_offset: 2,
                 },
                 omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
                     block: BlockId::new(3).expect("false block"),
+                    parameters: Vec::new(),
                     operation_offset: 4,
                 },
             ],
@@ -1984,6 +1992,7 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
             block_entries: vec![
                 omega_terminal_abstract_operations::TerminalAbstractBlockEntry {
                     block,
+                    parameters: Vec::new(),
                     operation_offset: 0,
                 },
             ],
@@ -2140,6 +2149,7 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
             published_service_ceiling: Vec::new(),
             block_entries: vec![TerminalAbstractBlockEntry {
                 block,
+                parameters: Vec::new(),
                 operation_offset: 0,
             }],
             operations: vec![
