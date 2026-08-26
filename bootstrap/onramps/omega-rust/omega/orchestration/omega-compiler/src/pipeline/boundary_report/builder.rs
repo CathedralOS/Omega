@@ -10,9 +10,7 @@ use psi_effects::CapabilityFlowKind;
 use psi_symbols::SymbolHandle;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;
-use psi_syntax_trees::item::{
-    BoundaryLevel, BoundaryMode, CapabilityContractKind, CapabilityMember, Item,
-};
+use psi_syntax_trees::item::{BoundaryMode, CapabilityContractKind, Item};
 
 /// Adds the capability blast-radius section to a boundary report, describing the
 /// theoretical authority each boundary capability can mint and the authority-flow
@@ -479,19 +477,6 @@ pub(super) fn build_boundary_report(syntax: &SyntaxTrees) -> BoundaryReport {
 
     for item in syntax.root_items() {
         match item {
-            Item::Capability(capability) => {
-                for member in syntax.items.capability_members(capability.members) {
-                    let CapabilityMember::State(state) = member else {
-                        continue;
-                    };
-                    collect_boundary_contracts(
-                        &mut report,
-                        capability.name.as_str(),
-                        state.signature.name.as_str(),
-                        syntax.items.capability_contracts(state.contracts),
-                    );
-                }
-            }
             Item::Operator(operator) if operator.is_boundary => {
                 collect_operator_boundary(&mut report, "operator", syntax, operator);
             }
@@ -559,35 +544,6 @@ fn collect_operator_boundary(
     );
 }
 
-fn collect_boundary_contracts(
-    report: &mut BoundaryReport,
-    capability: &str,
-    state: &str,
-    contracts: &[psi_syntax_trees::item::CapabilityContract],
-) {
-    let requires_count = contracts
-        .iter()
-        .filter(|contract| matches!(contract.kind, CapabilityContractKind::Requires))
-        .count();
-    let ensures_count = contracts
-        .iter()
-        .filter(|contract| matches!(contract.kind, CapabilityContractKind::Ensures))
-        .count();
-
-    for contract in contracts {
-        let CapabilityContractKind::Boundary(boundary) = &contract.kind else {
-            continue;
-        };
-        report.contracts.insert(BoundaryContract {
-            capability: capability.to_owned(),
-            state: state.to_owned(),
-            boundary: boundary_name(boundary),
-            requires_count,
-            ensures_count,
-        });
-    }
-}
-
 fn collect_declared_boundary(
     report: &mut BoundaryReport,
     capability: &str,
@@ -610,13 +566,6 @@ fn collect_declared_boundary(
         requires_count,
         ensures_count,
     });
-}
-
-fn boundary_name(boundary: &BoundaryLevel) -> String {
-    match boundary {
-        BoundaryLevel::Host => "host".to_owned(),
-        BoundaryLevel::Named(name) => name.to_string(),
-    }
 }
 
 fn identifier_path_name(syntax: &SyntaxTrees, path: HandleSpan<Identifier>) -> String {
@@ -1160,16 +1109,8 @@ mod tests {
     }
 
     #[test]
-    fn boundary_report_collects_targets_contracts_and_operators() {
+    fn boundary_report_collects_targets_and_declared_boundary_operators() {
         let source = r#"
-            capability Core {
-                state index() {
-                    requires true;
-                    ensures true;
-                    boundary compiler_slice;
-                }
-            }
-
             boundary operator Slice::index<T>(items: &[T], index: usize) -> T
             requires
                 index < items.len;
@@ -1187,7 +1128,7 @@ mod tests {
         let report = build_boundary_report(&syntax);
 
         assert_eq!(report.targets.len(), 1);
-        assert_eq!(report.contracts.len(), 2);
+        assert_eq!(report.contracts.len(), 1);
         assert_eq!(report.unchecked_policies.len(), 1);
 
         let (_, target) = report.targets.iter().next().expect("target");
@@ -1195,9 +1136,6 @@ mod tests {
         assert_eq!(target.unchecked_boundaries, 1);
         assert_eq!(target.host_provider, "omega::host");
 
-        assert!(report.contracts.iter().any(|(_, contract)| {
-            contract.capability == "Core" && contract.boundary == "compiler_slice"
-        }));
         assert!(report.contracts.iter().any(|(_, contract)| {
             contract.capability == "operator" && contract.state == "Slice::index"
         }));

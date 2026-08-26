@@ -1,15 +1,15 @@
 use super::catalog::{SOURCE_FEATURE_CATALOG, SOURCE_FEATURE_IDS, SOURCE_RESOURCE_IDS};
 use crate::pipeline::source_inspection::SourceClosureSnapshot;
 use psi_syntax_trees::snapshot::{
-    BoundaryLevelSnapshot, CapabilityContractKindSnapshot, CapabilityContractSnapshot,
-    CapabilityMemberSnapshot, ConformanceBodySnapshot, ConformanceMemberSnapshot,
-    DataMemberSnapshot, DataPropertiesSnapshot, ExpressionSnapshot, ExternalBindingSnapshot,
-    FixedArrayLengthSnapshot, GenericConformanceBoundSnapshot, IdentifierSnapshot, ItemSnapshot,
-    OperatorSnapshot, ProofFactSnapshot, PropositionBodySnapshot, SatisfiesClauseSnapshot,
-    StateParameterSnapshot, StateSignatureSnapshot, StateSnapshot, StatementSnapshot,
-    StaticArgumentSnapshot, StructLiteralFieldSnapshot, TargetHostSettingValueSnapshot,
-    TransitionGuardSnapshot, TransitionTargetSnapshot, TypeConstraintSnapshot,
-    TypeParameterSnapshot, TypeReferenceSnapshot, WireDataMemberSnapshot,
+    CapabilityContractKindSnapshot, CapabilityContractSnapshot, CapabilityMemberSnapshot,
+    ConformanceBodySnapshot, ConformanceMemberSnapshot, DataMemberSnapshot,
+    DataPropertiesSnapshot, ExpressionSnapshot, ExternalBindingSnapshot, FixedArrayLengthSnapshot,
+    GenericConformanceBoundSnapshot, IdentifierSnapshot, ItemSnapshot, OperatorSnapshot,
+    ProofFactSnapshot, PropositionBodySnapshot, SatisfiesClauseSnapshot, StateParameterSnapshot,
+    StateSignatureSnapshot, StateSnapshot, StatementSnapshot, StaticArgumentSnapshot,
+    StructLiteralFieldSnapshot, TargetHostSettingValueSnapshot, TransitionGuardSnapshot,
+    TransitionTargetSnapshot, TypeConstraintSnapshot, TypeParameterSnapshot,
+    TypeReferenceSnapshot, WireDataMemberSnapshot,
 };
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -862,10 +862,6 @@ impl Census {
             match &contract.kind {
                 CapabilityContractKindSnapshot::Ensures => self.bump("contract.ensures"),
                 CapabilityContractKindSnapshot::Requires => self.bump("contract.requires"),
-                CapabilityContractKindSnapshot::Boundary { boundary } => {
-                    self.bump("contract.boundary");
-                    self.boundary(boundary);
-                }
                 CapabilityContractKindSnapshot::Crashes { cause: _ } => {
                     self.bump("contract.crashes")
                 }
@@ -875,13 +871,6 @@ impl Census {
                 self.identifier(binding);
             }
             self.proof_facts(&contract.facts);
-        }
-    }
-
-    fn boundary(&mut self, boundary: &BoundaryLevelSnapshot) {
-        match boundary {
-            BoundaryLevelSnapshot::Host => {}
-            BoundaryLevelSnapshot::Named { name } => self.identifier(name),
         }
     }
 
@@ -1502,6 +1491,7 @@ mod tests {
     #[test]
     fn catalog_and_resources_are_sorted_and_unique() {
         assert!(SOURCE_FEATURE_IDS.windows(2).all(|pair| pair[0] < pair[1]));
+        assert!(!SOURCE_FEATURE_IDS.contains(&"contract.boundary"));
         assert!(!SOURCE_FEATURE_IDS.contains(&"item.library"));
         assert!(
             SOURCE_RESOURCE_IDS

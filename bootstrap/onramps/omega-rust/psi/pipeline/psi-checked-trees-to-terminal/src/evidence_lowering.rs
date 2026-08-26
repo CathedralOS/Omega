@@ -273,11 +273,6 @@ fn lower_evidence_term_ids(
         let lane_key = match term.kind {
             psi_checked_trees::ContractProofFactKind::Requires => (0_u8, term.lane_position),
             psi_checked_trees::ContractProofFactKind::Ensures => (1_u8, term.lane_position),
-            _ => {
-                return Err(LoweringError::Unsupported(
-                    "terminal evidence term is not a named requires/ensures lane",
-                ));
-            }
         };
         roots
             .entry(root)
@@ -522,11 +517,6 @@ fn lower_evidence_contract_lanes(
                 }
                 psi_checked_trees::ContractProofFactKind::Ensures => {
                     EvidenceContractLaneKind::Ensures
-                }
-                _ => {
-                    return Err(LoweringError::Unsupported(
-                        "terminal evidence term is not a named requires/ensures lane",
-                    ));
                 }
             };
             Ok(EvidenceContractLane {

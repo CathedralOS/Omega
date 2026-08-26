@@ -11,7 +11,6 @@ pub(crate) fn remap_contract_fact_ref_owned(
         kind: match reference.kind {
             omega_state_graph::StateContractFactKind::Requires => StateContractFactKind::Requires,
             omega_state_graph::StateContractFactKind::Ensures => StateContractFactKind::Ensures,
-            omega_state_graph::StateContractFactKind::Boundary => StateContractFactKind::Boundary,
         },
         fact: reference.fact,
     }

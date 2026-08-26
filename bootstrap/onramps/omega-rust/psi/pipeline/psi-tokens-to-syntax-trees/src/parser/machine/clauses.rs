@@ -8,7 +8,7 @@ use psi_arena::{Handle, HandleSpan};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{
-    BoundaryLevel, CapabilityContract, CapabilityContractKind, CrashCause, GenericConformanceBound,
+    CapabilityContract, CapabilityContractKind, CrashCause, GenericConformanceBound,
     SatisfiesClause,
 };
 use psi_tokens::{KeywordKind, PunctuationKind};
@@ -255,23 +255,9 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("boundary") {
-            let (boundary, rest) = parse_boundary_clause(input)?;
-            input = rest;
-            let handle = syntax_trees
-                .items
-                .append_capability_contract(CapabilityContract {
-                    kind: CapabilityContractKind::Boundary(boundary),
-                    binding: None,
-                    facts: HandleSpan::empty(),
-                    token_count: 2,
-                });
-            if contract_count == 0 {
-                contract_start = handle;
-            }
-            contract_count = contract_count
-                .checked_add(1)
-                .expect("machine contract span count overflow");
-            continue;
+            return Err(input.error_here(
+                "trailing `boundary host` and `boundary Name` contract clauses are retired; use a leading `boundary trait`, `boundary machine`, or `boundary operator` declaration and realize exact requirements with `satisfies Trait::requirement via Binding::...`",
+            ));
         }
 
         if input.at_contextual("requires") || input.at_contextual("ensures") {
@@ -540,19 +526,6 @@ fn parse_crash_header<'tokens, 'source>(
         }
     };
     Ok(((cause, 2), input))
-}
-
-fn parse_boundary_clause<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, BoundaryLevel> {
-    let input = input.take_contextual("boundary")?;
-    if input.at_contextual("host") {
-        let input = input.take_contextual("host")?;
-        return Ok((BoundaryLevel::Host, input));
-    }
-
-    let (name, input) = input.take_identifier()?;
-    Ok((BoundaryLevel::Named(name), input))
 }
 
 fn starts_termination_clause_block(input: Input<'_, '_>) -> bool {

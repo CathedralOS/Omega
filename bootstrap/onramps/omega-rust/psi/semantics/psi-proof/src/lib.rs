@@ -60,7 +60,6 @@ pub enum ContractKindSurface {
     #[default]
     Requires,
     Ensures,
-    Boundary,
     Crashes,
 }
 
@@ -333,7 +332,6 @@ fn collect_contracts(
             kind: match &contract.kind {
                 CapabilityContractKind::Requires => ContractKindSurface::Requires,
                 CapabilityContractKind::Ensures => ContractKindSurface::Ensures,
-                CapabilityContractKind::Boundary(_) => ContractKindSurface::Boundary,
                 CapabilityContractKind::Crashes { .. } => ContractKindSurface::Crashes,
             },
             fact_count: syntax_trees.items.proof_facts(contract.facts).len(),

@@ -1177,7 +1177,6 @@ fn encode_callable_contract(
     encoder.byte(match contract.kind {
         PackageReviewContractKind::Requires => 0,
         PackageReviewContractKind::Ensures => 1,
-        PackageReviewContractKind::Boundary => 2,
     });
     encoder.option(contract.binding.as_deref(), |encoder, binding| {
         encoder.string(binding)
@@ -1259,7 +1258,6 @@ fn encode_proposition_application(
                 encoder.byte(match source_kind {
                     PackageReviewContractKind::Requires => 0,
                     PackageReviewContractKind::Ensures => 1,
-                    PackageReviewContractKind::Boundary => 2,
                 });
                 encoder.u32(*source_lane_position);
                 encode_nominal(encoder, declaring_trait)?;

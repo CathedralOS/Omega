@@ -315,7 +315,6 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
         match kind {
             SignatureContractKind::Requires => "requires",
             SignatureContractKind::Ensures => "ensures",
-            SignatureContractKind::Boundary => "boundary",
             SignatureContractKind::Crashes { .. } => "crashes",
         }
     }
@@ -766,7 +765,6 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         match kind {
             SignatureContractKind::Requires => "requires",
             SignatureContractKind::Ensures => "ensures",
-            SignatureContractKind::Boundary => "boundary",
             SignatureContractKind::Crashes { .. } => "crashes",
         }
     }

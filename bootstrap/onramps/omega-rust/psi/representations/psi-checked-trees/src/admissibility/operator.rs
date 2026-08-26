@@ -7,13 +7,11 @@ impl<'facts> AcceptanceView for OperatorAcceptance<'facts> {
     fn summary(&self) -> AcceptanceSummary {
         AcceptanceSummary::accepted(
             0,
-            self.operator_use.requires.len()
-                + self.operator_use.ensures.len()
-                + self.operator_use.boundary.len(),
+            self.operator_use.requires.len() + self.operator_use.ensures.len(),
             0,
             0,
             0,
-            self.operator_use.boundary.len(),
+            0,
             0,
         )
     }
@@ -50,12 +48,6 @@ impl<'facts> OperatorAcceptance<'facts> {
             .span_or_empty(self.operator_use.ensures)
     }
 
-    pub fn boundary(&self) -> &'facts [ContractProofFactRef] {
-        self.facts
-            .proof
-            .contract_fact_refs
-            .span_or_empty(self.operator_use.boundary)
-    }
 }
 
 #[cfg(test)]
@@ -69,7 +61,6 @@ mod tests {
         let operator_use = ContractOperatorUseFact {
             requires: HandleSpan::from_parts(psi_arena::Handle::from_arena_index(1), 2),
             ensures: HandleSpan::from_parts(psi_arena::Handle::from_arena_index(3), 1),
-            boundary: HandleSpan::from_parts(psi_arena::Handle::from_arena_index(4), 1),
             ..Default::default()
         };
         let acceptance = OperatorAcceptance {
@@ -80,7 +71,7 @@ mod tests {
         let summary = acceptance.summary();
 
         assert!(summary.is_accepted());
-        assert_eq!(summary.proof.evidence_count, 4);
-        assert_eq!(summary.boundaries.evidence_count, 1);
+        assert_eq!(summary.proof.evidence_count, 3);
+        assert_eq!(summary.boundaries.evidence_count, 0);
     }
 }

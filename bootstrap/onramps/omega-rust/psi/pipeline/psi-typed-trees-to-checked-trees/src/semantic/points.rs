@@ -102,7 +102,6 @@ pub(super) fn contract_fact_origin(contract: &ContractProofFact) -> FactOrigin {
         } => match contract.kind {
             ContractProofFactKind::Requires => FactOrigin::OperatorRequires { operator_symbol },
             ContractProofFactKind::Ensures => FactOrigin::OperatorEnsures { operator_symbol },
-            ContractProofFactKind::Boundary => FactOrigin::OperatorBoundary { operator_symbol },
         },
         ContractProofFactOwner::Unknown => FactOrigin::Unknown,
     }

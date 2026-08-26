@@ -250,9 +250,6 @@ pub(crate) fn lower_signature_contracts(
                         syntax::item::CapabilityContractKind::Ensures => {
                             SignatureContractKind::Ensures
                         }
-                        syntax::item::CapabilityContractKind::Boundary(_) => {
-                            SignatureContractKind::Boundary
-                        }
                         syntax::item::CapabilityContractKind::Crashes { cause } => {
                             SignatureContractKind::Crashes {
                                 cause: match cause {

@@ -5,8 +5,8 @@ use crate::parser::type_reference::parse_type_reference_handle;
 use psi_arena::{Handle, HandleSpan};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::item::{
-    BoundaryLevel, CapabilityContract, CapabilityContractKind, CapabilityDefinition,
-    CapabilityField, CapabilityMember, CapabilityState,
+    CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
+    CapabilityMember, CapabilityState,
 };
 use psi_tokens::{KeywordKind, PunctuationKind};
 
@@ -174,17 +174,8 @@ fn parse_capability_contract<'tokens, 'source>(
     }
 
     if input.at_contextual("boundary") {
-        let input = input.take_contextual("boundary")?;
-        let (boundary_level, input) = parse_boundary_level(input)?;
-        let input = take_optional_semicolon(input)?;
-        return Ok((
-            CapabilityContract {
-                kind: CapabilityContractKind::Boundary(boundary_level),
-                binding: None,
-                facts: HandleSpan::empty(),
-                token_count: 1,
-            },
-            input,
+        return Err(input.error_here(
+            "trailing `boundary host` and `boundary Name` contract clauses are retired; use a leading `boundary trait`, `boundary machine`, or `boundary operator` declaration and realize exact requirements with `satisfies Trait::requirement via Binding::...`",
         ));
     }
 
@@ -210,16 +201,4 @@ fn capability_contract_terminator(input: Input<'_, '_>) -> bool {
         || input.at_contextual("ensures")
         || input.at_contextual("boundary")
         || input.tokens.is_empty()
-}
-
-fn parse_boundary_level<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, BoundaryLevel> {
-    if input.at_keyword(KeywordKind::Host) {
-        let input = input.take_keyword(KeywordKind::Host, "host")?;
-        Ok((BoundaryLevel::Host, input))
-    } else {
-        let (name, input) = input.take_identifier()?;
-        Ok((BoundaryLevel::Named(name), input))
-    }
 }

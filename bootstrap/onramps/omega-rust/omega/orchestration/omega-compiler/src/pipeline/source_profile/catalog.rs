@@ -14,7 +14,6 @@ pub const SOURCE_FEATURE_IDS: &[&str] = &[
     "call.static_argument.const",
     "call.static_argument.evidence_projection",
     "call.static_argument.path",
-    "contract.boundary",
     "contract.crashes",
     "contract.ensures",
     "contract.evidence_binding",

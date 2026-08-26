@@ -1332,9 +1332,6 @@ fn contract_fact_kind(
         psi_typed_trees::signature::SignatureContractKind::Ensures => {
             Some(ContractProofFactKind::Ensures)
         }
-        psi_typed_trees::signature::SignatureContractKind::Boundary => {
-            Some(ContractProofFactKind::Boundary)
-        }
         psi_typed_trees::signature::SignatureContractKind::Crashes { .. } => None,
     }
 }

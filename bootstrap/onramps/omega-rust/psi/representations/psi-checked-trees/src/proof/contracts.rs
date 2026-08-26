@@ -9,7 +9,6 @@ pub enum ContractProofFactKind {
     #[default]
     Requires,
     Ensures,
-    Boundary,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -221,5 +220,4 @@ pub struct ContractOperatorUseFact {
     pub operator_symbol: SymbolHandle,
     pub requires: HandleSpan<ContractProofFactRef>,
     pub ensures: HandleSpan<ContractProofFactRef>,
-    pub boundary: HandleSpan<ContractProofFactRef>,
 }

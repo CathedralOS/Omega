@@ -106,9 +106,6 @@ pub(crate) fn append_machine_contract_facts(
                         ensures_position += 1;
                         position
                     }
-                    ContractProofFactKind::Boundary => {
-                        unreachable!("validated named contracts are requires or ensures")
-                    }
                 };
                 let psi_typed_trees::domain::ProofFact::Proposition(application) =
                     program.proof_facts.get(fact)
@@ -178,7 +175,7 @@ pub(crate) fn append_state_contract_facts(
                             requires_position += 1;
                             position
                         }
-                        ContractProofFactKind::Ensures | ContractProofFactKind::Boundary => {
+                        ContractProofFactKind::Ensures => {
                             unreachable!("states admit only arrival requires contracts")
                         }
                     };
@@ -261,9 +258,6 @@ pub(crate) fn append_state_signature_contract_facts(
                             let position = ensures_position;
                             ensures_position += 1;
                             position
-                        }
-                        ContractProofFactKind::Boundary => {
-                            unreachable!("validated named contracts are requires or ensures")
                         }
                     };
                     let psi_typed_trees::domain::ProofFact::Proposition(application) =

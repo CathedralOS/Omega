@@ -46,9 +46,7 @@ pub(super) fn append_contract_semantic_facts(
                     first.expect("a non-empty dependency set must append a fact")
                 }
             }
-            ContractProofFactKind::Ensures | ContractProofFactKind::Boundary => {
-                facts.append_fact(declaration_fact)
-            }
+            ContractProofFactKind::Ensures => facts.append_fact(declaration_fact),
         };
         let contract_index = usize::try_from(contract_handle.arena_index())
             .expect("contract fact handle index overflow");

@@ -625,11 +625,11 @@ pub(super) fn ordinary_projected_call_is_supported(
             && facts
                 .contract_plans
                 .for_machine(caller_machine.symbol)
-                .is_some_and(|contract| !contract.closed_scalar_values.has_other_clauses())
+                .is_some()
             && facts
                 .contract_plans
                 .for_machine(target_machine.symbol)
-                .is_some_and(|contract| !contract.closed_scalar_values.has_other_clauses());
+                .is_some();
     }
 
     arguments
@@ -713,9 +713,7 @@ pub(super) fn target_contract_mentions_projected_parameter(
         .filter(|contract| match contract.kind {
             SignatureContractKind::Crashes { .. } => false,
             SignatureContractKind::Requires if runtime_arithmetic_requires_are_terminal => false,
-            SignatureContractKind::Requires
-            | SignatureContractKind::Ensures
-            | SignatureContractKind::Boundary => true,
+            SignatureContractKind::Requires | SignatureContractKind::Ensures => true,
         })
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
         .any(|fact| {

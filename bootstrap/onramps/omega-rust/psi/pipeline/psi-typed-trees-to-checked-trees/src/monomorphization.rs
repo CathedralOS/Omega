@@ -4534,7 +4534,6 @@ fn encode_contract_kind(
     output.push(match kind {
         psi_typed_trees::signature::SignatureContractKind::Requires => 1,
         psi_typed_trees::signature::SignatureContractKind::Ensures => 2,
-        psi_typed_trees::signature::SignatureContractKind::Boundary => 3,
         psi_typed_trees::signature::SignatureContractKind::Crashes { .. } => 4,
     });
     if let psi_typed_trees::signature::SignatureContractKind::Crashes { cause } = kind {

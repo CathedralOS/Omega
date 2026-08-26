@@ -224,9 +224,6 @@ fn lower_contract_kind(
         resolved::signature::SignatureContractKind::Ensures => {
             typed::signature::SignatureContractKind::Ensures
         }
-        resolved::signature::SignatureContractKind::Boundary => {
-            typed::signature::SignatureContractKind::Boundary
-        }
         resolved::signature::SignatureContractKind::Crashes { cause } => {
             typed::signature::SignatureContractKind::Crashes {
                 cause: match cause {

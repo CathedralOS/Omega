@@ -31,7 +31,6 @@ fn append_contract_operator_use(
 ) {
     let mut requires = HandleSpan::empty();
     let mut ensures = HandleSpan::empty();
-    let mut boundary = HandleSpan::empty();
 
     for contract in program
         .signature_contracts
@@ -43,7 +42,6 @@ fn append_contract_operator_use(
         let target = match kind {
             ContractProofFactKind::Requires => &mut requires,
             ContractProofFactKind::Ensures => &mut ensures,
-            ContractProofFactKind::Boundary => &mut boundary,
         };
 
         for fact in super::fact_handles(contract.facts) {
@@ -67,7 +65,7 @@ fn append_contract_operator_use(
         }
     }
 
-    if requires.is_empty() && ensures.is_empty() && boundary.is_empty() {
+    if requires.is_empty() && ensures.is_empty() {
         return;
     }
 
@@ -77,7 +75,6 @@ fn append_contract_operator_use(
         operator_symbol: operator_use.operator_symbol(),
         requires,
         ensures,
-        boundary,
     });
 }
 
@@ -182,8 +179,6 @@ mod tests {
         assert_eq!(operator_use.operator_symbol, operator_symbol);
         assert_eq!(operator_use.requires.len(), 1);
         assert_eq!(operator_use.ensures.len(), 1);
-        assert!(operator_use.boundary.is_empty());
-
         let require_ref = fact_refs.span_or_empty(operator_use.requires)[0];
         let require_fact = contract_facts.get(require_ref.fact);
         assert_eq!(require_fact.kind, ContractProofFactKind::Requires);

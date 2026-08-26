@@ -46,15 +46,7 @@ impl<'facts> AcceptanceView for StateAcceptance<'facts> {
         let exits = self.exits();
         let operator_proof_evidence = self
             .operator_uses()
-            .map(|operator_use| {
-                operator_use.requires.len()
-                    + operator_use.ensures.len()
-                    + operator_use.boundary.len()
-            })
-            .sum::<usize>();
-        let operator_boundary_evidence = self
-            .operator_uses()
-            .map(|operator_use| operator_use.boundary.len())
+            .map(|operator_use| operator_use.requires.len() + operator_use.ensures.len())
             .sum::<usize>();
 
         AcceptanceSummary::accepted(
@@ -63,7 +55,7 @@ impl<'facts> AcceptanceView for StateAcceptance<'facts> {
             service_reach_evidence_count(self.facts, self.state.service_reach),
             suspension_evidence_count(self.state.suspension),
             blocking_evidence_count(self.state.blocking),
-            state_boundary_evidence_count(self.state, calls) + operator_boundary_evidence,
+            state_boundary_evidence_count(self.state, calls),
             machine_decrease_count(self.facts, self.state.machine_symbol),
         )
     }

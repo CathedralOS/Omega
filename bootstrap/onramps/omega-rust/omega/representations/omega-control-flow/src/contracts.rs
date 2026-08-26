@@ -6,7 +6,6 @@ pub enum StateContractFactKind {
     #[default]
     Requires,
     Ensures,
-    Boundary,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
