@@ -1,5 +1,6 @@
 use omega_compiler::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
+    PackageReviewSourceLocationRole,
 };
 use omega_packages::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, PackageTriageDisposition,
@@ -255,7 +256,7 @@ pub proposition ready();
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render bounded conflict evidence");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V3\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V4\n"));
     assert!(rendered.contains("change added\nkind public_proposition\nrisk blocking\n"));
     assert!(rendered.contains("candidate_location declaration package "));
     assert!(rendered.contains(" \"main.omg\"\n"));
@@ -763,6 +764,116 @@ pub Choice: First satisfies Marker<{argument}> {{ }}
             .expect("render public conformance conflict")
             .contains("change changed\nkind public_conformance\nrisk blocking\n")
     );
+
+    let _ = std::fs::remove_dir_all(live);
+    let _ = std::fs::remove_dir_all(baseline_cache);
+    let _ = std::fs::remove_dir_all(candidate_cache);
+    let _ = std::fs::remove_dir_all(build_root);
+}
+
+#[test]
+fn callable_conflicts_render_exact_nested_contract_and_reach_anchors() {
+    let live = temp_root("callable-anchor-live");
+    let baseline_cache = temp_root("callable-anchor-baseline");
+    let candidate_cache = temp_root("callable-anchor-candidate");
+    let build_root = temp_root("callable-anchor-build");
+    let context = ExternalSourceContext::derive(b"callable-anchor-conflict-test");
+    let source = |value: u64| {
+        format!(
+            r#"use omega::language::std::filesystem_host;
+
+pub proposition acceptable(value: u64);
+
+pub machine inspect(input: u64)
+reaches FilesystemHost
+requires acceptable({value});
+{{
+}}
+"#
+        )
+    };
+
+    write_package(&live, &source(0));
+    let baseline_sources = resolve_external_local_package_closure(
+        &live,
+        context.clone(),
+        &baseline_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve callable-anchor baseline");
+    let baseline_reviews =
+        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+            .expect("compile callable-anchor baseline");
+
+    write_package(&live, &source(1));
+    let candidate_sources = resolve_external_local_package_closure(
+        &live,
+        context,
+        &candidate_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve callable-anchor candidate");
+    let candidate_reviews =
+        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+            .expect("compile callable-anchor candidate");
+
+    let conflicts = compare_review_only_capabilities(
+        &baseline_reviews,
+        &candidate_reviews,
+        &candidate_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare callable contract change");
+    let conflict = conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| package.conflicts())
+        .find(|conflict| conflict.kind() == PackageReviewCanonicalRowKind::Callable)
+        .expect("changed callable row");
+    assert_eq!(
+        conflict.change(),
+        ReviewOnlyCapabilityConflictChange::Changed
+    );
+    for source in [
+        conflict
+            .baseline_source()
+            .expect("baseline callable source"),
+        conflict
+            .candidate_source()
+            .expect("candidate callable source"),
+    ] {
+        let locations = source
+            .authored_locations()
+            .expect("callable conflict must retain exact authored anchors");
+        for role in [
+            PackageReviewSourceLocationRole::ContractClause,
+            PackageReviewSourceLocationRole::ContractSelectionUse,
+            PackageReviewSourceLocationRole::ContractSelectionDeclaration,
+            PackageReviewSourceLocationRole::ReachClause,
+            PackageReviewSourceLocationRole::ReachServiceUse,
+            PackageReviewSourceLocationRole::ReachServiceDeclaration,
+        ] {
+            assert!(
+                locations.iter().any(|location| location.role() == role),
+                "callable conflict must retain {role:?}"
+            );
+        }
+    }
+    let rendered = conflicts
+        .render_bounded(1024 * 1024)
+        .expect("render callable source anchors");
+    for token in [
+        "contract_clause",
+        "contract_selection_use",
+        "contract_selection_declaration",
+        "reach_clause",
+        "reach_service_use",
+        "reach_service_declaration",
+    ] {
+        assert!(rendered.contains(token), "renderer must expose `{token}`");
+    }
 
     let _ = std::fs::remove_dir_all(live);
     let _ = std::fs::remove_dir_all(baseline_cache);

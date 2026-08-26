@@ -128,6 +128,7 @@ mod tests {
                 binding: None,
                 facts: requires_facts,
                 token_count: 1,
+                source_span: Default::default(),
             },
         );
         program.push_operator_contract(
@@ -137,6 +138,7 @@ mod tests {
                 binding: None,
                 facts: ensures_facts,
                 token_count: 1,
+                source_span: Default::default(),
             },
         );
         let contracts = operator.contracts;

@@ -674,6 +674,128 @@ target macos_arm64 { }
 }
 
 #[test]
+fn callable_rows_retain_exact_nested_contract_and_reach_source_anchors() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+"#;
+    let body = r#"use omega::language::std::filesystem_host;
+
+pub proposition acceptable(value: u64);
+
+pub machine inspect(value: u64)
+reaches FilesystemHost
+requires acceptable(value);
+{
+}
+"#;
+    let project = |prefix: &str| {
+        let package = TempPackage::new();
+        let source = format!("{prefix}{body}");
+        package.write("main.omg", &source);
+        package.write("build.omg", build);
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("nested callable source-anchor fixture should check");
+        let review = project_checked_package_review(&checked)
+            .expect("nested callable source anchors should project");
+        let row = review
+            .canonical_rows()
+            .expect("canonical rows")
+            .into_iter()
+            .find(|row| {
+                row.kind() == PackageReviewCanonicalRowKind::Callable
+                    && row.source().authored_locations().is_some_and(|locations| {
+                        locations.iter().any(|location| {
+                            location.role() == PackageReviewSourceLocationRole::ReachClause
+                        })
+                    })
+            })
+            .expect("public callable row with a reaches clause");
+        (source, row)
+    };
+
+    let (source, row) = project("");
+    let locations = row
+        .source()
+        .authored_locations()
+        .expect("callable row must retain authored anchors");
+    let package_text = |role| {
+        locations
+            .iter()
+            .find(|location| {
+                location.role() == role
+                    && matches!(
+                        location.owner(),
+                        PackageReviewSourceLocationOwner::Package(_)
+                    )
+            })
+            .map(|location| &source[location.start_byte() as usize..location.end_byte() as usize])
+    };
+    assert_eq!(
+        package_text(PackageReviewSourceLocationRole::ReachClause),
+        Some("reaches FilesystemHost")
+    );
+    assert_eq!(
+        package_text(PackageReviewSourceLocationRole::ReachServiceUse),
+        Some("FilesystemHost")
+    );
+    assert_eq!(
+        package_text(PackageReviewSourceLocationRole::ContractClause),
+        Some("requires acceptable(value);")
+    );
+    assert_eq!(
+        package_text(PackageReviewSourceLocationRole::ContractSelectionUse),
+        Some("acceptable")
+    );
+    assert!(locations.iter().any(|location| {
+        location.role() == PackageReviewSourceLocationRole::ReachServiceDeclaration
+            && matches!(
+                location.owner(),
+                PackageReviewSourceLocationOwner::Toolchain(_)
+            )
+    }));
+    assert!(locations.iter().any(|location| {
+        location.role() == PackageReviewSourceLocationRole::ContractSelectionDeclaration
+            && matches!(
+                location.owner(),
+                PackageReviewSourceLocationOwner::Package(_)
+            )
+    }));
+
+    let (moved_source, moved_row) = project("// source movement only\n");
+    assert_eq!(
+        row.canonical_bytes(),
+        moved_row.canonical_bytes(),
+        "nested source coordinates remain outside callable semantic bytes"
+    );
+    let moved_reach = moved_row
+        .source()
+        .authored_locations()
+        .expect("moved callable anchors")
+        .iter()
+        .find(|location| location.role() == PackageReviewSourceLocationRole::ReachClause)
+        .expect("moved reaches clause");
+    assert_eq!(
+        &moved_source[moved_reach.start_byte() as usize..moved_reach.end_byte() as usize],
+        "reaches FilesystemHost"
+    );
+    let original_reach = locations
+        .iter()
+        .find(|location| location.role() == PackageReviewSourceLocationRole::ReachClause)
+        .expect("original reaches clause");
+    assert!(moved_reach.start_byte() > original_reach.start_byte());
+}
+
+#[test]
 fn package_review_rejects_impossible_supply_body_combinations() {
     let Some(target) = host_target_name() else {
         return;
@@ -1388,13 +1510,13 @@ machine build(builder: &mut Build) { }
             .windows("trusted_zero".len())
             .any(|window| window == b"trusted_zero")
     );
-    let [claim_location] = accepted_claim
+    let claim_location = accepted_claim
         .source()
         .authored_locations()
         .expect("accepted claim declaration source")
-    else {
-        panic!("one accepted claim declaration location")
-    };
+        .iter()
+        .find(|location| location.role() == PackageReviewSourceLocationRole::Declaration)
+        .expect("accepted claim declaration location");
     assert_eq!(claim_location.relative_path(), "main.omg");
     assert_eq!(
         claim_location.role(),

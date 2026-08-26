@@ -27,6 +27,15 @@ pub(crate) fn lower_machine(
         termination_plan: machine.termination_plan.clone(),
         service_reach_row: machine.service_reach_row,
         service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
+        service_reach_clause_spans: machine.service_reach_clause_spans.clone(),
+        authored_service_reach_selections: machine
+            .authored_service_reach_selections
+            .iter()
+            .map(|selection| typed::machine::AuthoredServiceReachSelection {
+                use_name: selection.use_name.clone(),
+                declaration: selection.declaration,
+            })
+            .collect(),
         lifetime_parameters: machine
             .lifetime_parameters
             .iter()
@@ -169,6 +178,7 @@ pub(crate) fn lower_machine(
                 binding: contract.binding.as_ref().map(crate::name::lower_name),
                 facts,
                 token_count: contract.token_count,
+                source_span: contract.source_span,
             },
         );
     }

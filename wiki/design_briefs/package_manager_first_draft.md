@@ -427,6 +427,19 @@ fingerprints. Exact nested
 use sites may be added through their existing typed/checked owners and compiler
 sidecars without creating a report-only stage.
 
+The first completed nested-source slice applies that rule to the full callable
+family. Syntax retains complete authored contract and `reaches` clause spans;
+reach normalization retains each source-backed service occurrence beside the
+exact service declaration selected by the reach semantics; and contract facts
+reuse their checked authored-selection occurrences and exact declaration
+symbols. Callable projection emits distinct fixed roles for clauses, uses, and
+declarations. Compiler intrinsics use a closed derivation reason rather than a
+fabricated declaration. These coordinates remain outside semantic row bytes,
+but canonical-row recovery v2 preserves them and changed-row conflict
+fingerprint v5 plus renderer v4 bind and display them. This required no Chi
+stage: each coordinate stayed with its existing semantic owner until the
+post-check projection join.
+
 Proposition and named-evidence rows apply that rule as an explicit join. The
 typed application owns the structural proposition declaration, binder
 arguments, and ordinary value-expression arguments. Checked proof state owns

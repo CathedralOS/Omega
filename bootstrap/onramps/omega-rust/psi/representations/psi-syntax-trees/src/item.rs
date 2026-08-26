@@ -304,7 +304,7 @@ pub struct CapabilityState {
     pub contracts: HandleSpan<CapabilityContract>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Eq)]
 pub struct CapabilityContract {
     pub kind: CapabilityContractKind,
     /// An explicit erased evidence-term binding (`requires proof: P` or
@@ -312,6 +312,18 @@ pub struct CapabilityContract {
     pub binding: Option<Identifier>,
     pub facts: HandleSpan<ProofFact>,
     pub token_count: usize,
+    /// Complete authored clause coordinates. Generated contracts carry the
+    /// empty span; this is explanatory provenance, never semantic identity.
+    pub source_span: psi_source::SourceSpan,
+}
+
+impl PartialEq for CapabilityContract {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+            && self.binding == other.binding
+            && self.facts == other.facts
+            && self.token_count == other.token_count
+    }
 }
 
 impl Default for CapabilityContract {
@@ -321,6 +333,7 @@ impl Default for CapabilityContract {
             binding: None,
             facts: HandleSpan::empty(),
             token_count: 0,
+            source_span: psi_source::SourceSpan::default(),
         }
     }
 }
@@ -806,6 +819,10 @@ pub struct Machine {
     /// checker consumes ranges (never silently dropped).
     pub ranking_range: crate::expression::ExpressionHandle,
     pub service_reaches: HandleSpan<Identifier>,
+    /// Complete coordinates for each directly authored `reaches` clause, in
+    /// source order. Distinct clauses remain distinct even though their names
+    /// normalize into one semantic row downstream.
+    pub service_reach_clause_spans: Vec<psi_source::SourceSpan>,
     /// `reaches <= Bound` on one top-level bodyless boundary requirement.
     /// The written row is a conservative upper bound; installation supplies
     /// the exact row selected for this requirement path.

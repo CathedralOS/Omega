@@ -1972,9 +1972,21 @@ complete.
   provider review row can therefore combine authored coordinates with compiler-
   derived reasons without reconstructing either from names, schemas, or
   fingerprints. Free external providers and an empty selected set also carry
-  closed reasons. Exact nested clause/use-site anchors and durable root-policy
-  resolutions remain engineering work. They do not require nominal Chi or a
-  new owner decision.
+  closed reasons.
+
+  Milestone 2026-08-25: one complete callable family now carries exact nested
+  explanatory custody without changing semantic row bytes. Parser-owned
+  complete contract and `reaches` clause spans survive resolved and typed
+  lowering; reach normalization binds each authored service use to the exact
+  service declaration selected by the semantic reach rule; and contract
+  expression/proposition/membership uses join the existing checked authored-
+  selection ledger and exact declaration symbols. Callable projection emits
+  fixed roles for each clause, use, and declaration, with a closed compiler-
+  intrinsic reason where no authored declaration exists. Canonical-row
+  recovery v2, conflict fingerprint v5, and fixed-vocabulary renderer v4
+  preserve and bind those anchors. Source movement still preserves row bytes
+  while moving explanatory coordinates. No nominal Chi or report-only IR was
+  introduced. Durable root-policy resolutions remain engineering work.
 
   Milestone 2026-08-25: the review-only conflict model now accepts one closed
   root-policy disposition for each exact blocking fingerprint and binds the

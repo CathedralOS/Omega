@@ -31,6 +31,10 @@ pub struct Machine {
     /// The published row is an installation-selected upper bound rather than
     /// a fixed callable ceiling.
     pub service_reach_is_installation_bound: bool,
+    /// Complete coordinates for each directly authored `reaches` clause.
+    pub service_reach_clause_spans: Vec<psi_source::SourceSpan>,
+    /// Direct authored reach uses with their exact resolved declarations.
+    pub authored_service_reach_selections: Vec<AuthoredServiceReachSelection>,
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub owned_data: HandleSpan<OwnedData>,
@@ -56,6 +60,8 @@ impl Default for Machine {
             termination_plan: psi_language_semantics::MachineTerminationPlan::default(),
             service_reach_row: psi_language_semantics::ServiceReachRowId::NULL,
             service_reach_is_installation_bound: false,
+            service_reach_clause_spans: Vec::new(),
+            authored_service_reach_selections: Vec::new(),
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
@@ -68,6 +74,13 @@ impl Default for Machine {
             states: HandleSpan::empty(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthoredServiceReachSelection {
+    /// Source-backed authored spelling retained solely for review provenance.
+    pub use_name: psi_source::SourceText,
+    pub declaration: SymbolHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

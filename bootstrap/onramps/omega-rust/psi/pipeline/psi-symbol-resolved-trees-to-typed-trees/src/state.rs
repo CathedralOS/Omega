@@ -83,6 +83,7 @@ pub(crate) fn lower_state(
                 binding: contract.binding.as_ref().map(crate::name::lower_name),
                 facts,
                 token_count: contract.token_count,
+                source_span: contract.source_span,
             },
         );
     }
@@ -386,6 +387,7 @@ pub(crate) fn lower_state_signature(
                 binding: contract.binding.as_ref().map(crate::name::lower_name),
                 facts,
                 token_count: contract.token_count,
+                source_span: contract.source_span,
             },
         );
     }
@@ -500,6 +502,7 @@ pub(crate) fn build_domain_membership_contract(
             value,
             domain,
             domain_symbol,
+            domain_use_span: Default::default(),
         }),
     );
 
@@ -508,6 +511,7 @@ pub(crate) fn build_domain_membership_contract(
         binding: None,
         facts,
         token_count: 0,
+        source_span: Default::default(),
     }
 }
 

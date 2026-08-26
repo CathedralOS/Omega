@@ -506,6 +506,7 @@ impl SyntaxTrees {
             },
             service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
             service_reaches: self.copy_item_identifier_span(other, machine.service_reaches),
+            service_reach_clause_spans: machine.service_reach_clause_spans.clone(),
             invokes: self.copy_item_identifier_span(other, machine.invokes),
             suspends: machine.suspends,
             blocks: machine.blocks,
@@ -708,6 +709,7 @@ impl SyntaxTrees {
                 binding: contract.binding.clone(),
                 facts: self.copy_domain_fact_span(other, contract.facts),
                 token_count: contract.token_count,
+                source_span: contract.source_span,
             })
             .collect::<Vec<_>>();
         self.copy_span(contracts, |this, contract| {
