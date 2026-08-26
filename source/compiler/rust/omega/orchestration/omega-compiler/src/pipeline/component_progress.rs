@@ -125,6 +125,35 @@ pub(super) fn build_component_progress_manifest(
         .map_err(|message| vec![Diagnostic::error(message)])
 }
 
+/// TPR6 fail-closed admission seam. Checked lowering and the component
+/// manifest preserve exact provider-receiver demands, but a selected provider
+/// plan is not itself an establishment receipt. Native/final composition must
+/// stop here until the installation occurrence and admitted receipt discharge
+/// each exact row.
+pub(super) fn reject_undischarged_build_bound_progress(
+    manifest: Option<&omega_effects::ComponentProgressManifest>,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(manifest) = manifest else {
+        return Ok(());
+    };
+    let demands = manifest.pending();
+    if demands.is_empty() {
+        return Ok(());
+    }
+    Err(demands
+        .iter()
+        .map(|demand| {
+            Diagnostic::error(format!(
+                "final composition cannot discharge build-bound progress demand `{}` requiring profile `{}` at checked call {}:{}; the exact installed provider occurrence and admitted establishment receipt must be bound before native lowering",
+                demand.requirement_identity,
+                demand.profile_identity,
+                demand.statement_ordinal,
+                demand.call_ordinal,
+            ))
+        })
+        .collect())
+}
+
 fn owning_machine<'a>(
     program: &'a psi_checked_trees::CheckedTrees,
     symbol: SymbolHandle,
@@ -175,4 +204,122 @@ fn machine_callable_identity(
     program
         .normalized_machine_overload_identity(machine)
         .map(|identity| identity.identity())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::reject_undischarged_build_bound_progress;
+    use omega_effects::provider_plan::{
+        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod,
+        ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
+        ServiceProgressPremise, ServiceProgressSubject, ServiceSchema,
+    };
+    use omega_effects::{
+        CheckedComponentProgressDemand, ComponentProgressManifest, SelectedProviderPlanFacts,
+    };
+
+    fn selected() -> SelectedProviderPlanFacts {
+        let plan = ProviderPlan {
+            name: "scheduler".into(),
+            provider_type: "SchedulerProvider".into(),
+            provider_type_package_identity: None,
+            target: "test".into(),
+            schema: ServiceSchema {
+                trait_name: "Scheduler".into(),
+                trait_package_identity: None,
+                methods: vec![ServiceMethod {
+                    name: "wait".into(),
+                    requirement_owner: "Scheduler".into(),
+                    requirement_owner_package_identity: None,
+                    requirement_identity: "Scheduler::wait#exact".into(),
+                    parameter_count: 0,
+                    parameter_type_identities: Vec::new(),
+                    entry_claims: Vec::new(),
+                    has_result: false,
+                    result_type_identity: None,
+                    result_claims: Vec::new(),
+                    service_reach: vec!["Scheduler".into()],
+                    synchronous_invocations: Vec::new(),
+                    may_suspend: true,
+                    may_block: false,
+                    terminates_guarantee: true,
+                    termination_premises: vec![ServiceProgressPremise {
+                        profile: "WeakFair".into(),
+                        subject: ServiceProgressSubject::ProviderReceiver,
+                        subject_projections: vec!["queue".into()],
+                        establishment_routes: vec![ServiceProgressEstablishmentRoute {
+                            kind: ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                            requirement_identity: "SchedulerAdmission::grant#exact".into(),
+                        }],
+                    }],
+                    calling_plan_fingerprint: None,
+                }],
+            },
+            rows: vec![ProviderPlanRow {
+                method: "wait".into(),
+                requirement_identity: "Scheduler::wait#exact".into(),
+                binding: ProviderBinding::CheckedAdapter {
+                    machine_identity: "SchedulerProvider::wait".into(),
+                    machine_package_identity: None,
+                },
+            }],
+            origin_package_identity: None,
+            origin_package: "test".into(),
+        };
+        SelectedProviderPlanFacts::from_selected_plans(vec![plan])
+            .expect("selected progress provider")
+    }
+
+    fn demand(call_ordinal: usize) -> CheckedComponentProgressDemand {
+        CheckedComponentProgressDemand {
+            provider_service_identity: "Scheduler".into(),
+            provider_service_package_identity: None,
+            requirement_identity: "Scheduler::wait#exact".into(),
+            requirement_owner_package_identity: None,
+            profile_identity: "WeakFair".into(),
+            subject_projections: vec!["queue".into()],
+            origin_callable_identity: "Application::run#exact".into(),
+            origin_state_identity: "Application::run".into(),
+            statement_ordinal: 4,
+            call_ordinal,
+        }
+    }
+
+    #[test]
+    fn absent_progress_manifest_needs_no_discharge() {
+        reject_undischarged_build_bound_progress(None)
+            .expect("absent progress carries no pending demand");
+    }
+
+    #[test]
+    fn empty_progress_manifest_needs_no_discharge() {
+        let selected = SelectedProviderPlanFacts::from_selected_plans(Vec::new())
+            .expect("empty provider selection");
+        let manifest =
+            ComponentProgressManifest::bind("Application::run#exact".into(), &selected, Vec::new())
+                .expect("empty progress manifest");
+        reject_undischarged_build_bound_progress(Some(&manifest))
+            .expect("empty progress carries no pending demand");
+    }
+
+    #[test]
+    fn pending_progress_rejects_in_canonical_manifest_order() {
+        let manifest = ComponentProgressManifest::bind(
+            "Application::run#exact".into(),
+            &selected(),
+            vec![demand(2), demand(1)],
+        )
+        .expect("canonical progress manifest");
+        let diagnostics = reject_undischarged_build_bound_progress(Some(&manifest))
+            .expect_err("pending progress must fail closed before native lowering");
+        assert_eq!(diagnostics.len(), 2);
+        assert_eq!(
+            diagnostics[0].message,
+            "final composition cannot discharge build-bound progress demand `Scheduler::wait#exact` requiring profile `WeakFair` at checked call 4:1; the exact installed provider occurrence and admitted establishment receipt must be bound before native lowering",
+        );
+        assert_eq!(
+            diagnostics[1].message,
+            "final composition cannot discharge build-bound progress demand `Scheduler::wait#exact` requiring profile `WeakFair` at checked call 4:2; the exact installed provider occurrence and admitted establishment receipt must be bound before native lowering",
+        );
+    }
 }
