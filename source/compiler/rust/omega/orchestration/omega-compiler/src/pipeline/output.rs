@@ -8,6 +8,29 @@ use omega_image_emission::{
 use omega_object_file::{ObjectContainerInput, emit_omega_object_container};
 use psi_diagnostics::Diagnostic;
 
+/// Publish one fully finalized terminal component at the compiler's canonical
+/// flat-output destination.
+///
+/// This is the first production output handoff to
+/// `omega-component-deployment`. The compiler contributes only its existing
+/// build-directory policy and the sealed filename already retained by the
+/// runnable. It cannot construct the runnable, infer installation authority,
+/// or substitute selected provider plans for deployment receipts. Publication
+/// remains consuming, and every failure returns the exact runnable and derived
+/// path through the deployment error.
+pub fn write_finalized_terminal_component_output(
+    options: &CompileOptions,
+    runnable: omega_component_publication::InstalledRunnableComponent,
+) -> Result<
+    omega_component_deployment::PublishedTerminalComponentFlatOutput,
+    Box<omega_component_deployment::TerminalComponentFlatOutputPublicationError>,
+> {
+    let output_path = options
+        .build_dir()
+        .join(&runnable.terminal_artifact().image().output().file_name);
+    omega_component_deployment::publish_terminal_component_flat_output(runnable, output_path)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ExecutablePublicationEvidence {
     certificate_fingerprint: u64,

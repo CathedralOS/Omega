@@ -105,6 +105,7 @@ pub use compiler::{
 pub use compiler_executable_commitment::{
     CompilerExecutableCommitment, CompilerExecutableCommitmentError,
 };
+pub use output::write_finalized_terminal_component_output;
 pub use package_compilation::{
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
     PackageDependencyClosure, PackageSourceBinding,

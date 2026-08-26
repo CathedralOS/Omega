@@ -523,6 +523,8 @@ dependencies = [
  "omega-build-declarations",
  "omega-calling-conventions",
  "omega-checked-trees-to-state-graph",
+ "omega-component-deployment",
+ "omega-component-publication",
  "omega-control-flow",
  "omega-core",
  "omega-effects",

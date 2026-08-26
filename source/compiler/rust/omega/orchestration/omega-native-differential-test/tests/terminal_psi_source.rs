@@ -9,7 +9,8 @@ use omega_calling_conventions::{
     evaluate_ordinary_boundary_entry_plan, validate_entry_stack_domain_closure,
 };
 use omega_compiler::{
-    TerminalComponentProviderSettlement, compile_to_checked, stage_terminal_component,
+    CompileOptions, TerminalComponentProviderSettlement, compile_to_checked,
+    stage_terminal_component, write_finalized_terminal_component_output,
 };
 use omega_component_deployment::{
     ComponentProgressAttestationBinding, begin_terminal_component_deployment,
@@ -703,15 +704,27 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
         let blocked_parent = scratch.0.join("not-a-directory");
         std::fs::write(&blocked_parent, b"occupied").expect("create blocked output parent");
         let blocked_path = blocked_parent.join(&file_name);
-        let error = publish_terminal_component_flat_output(runnable, blocked_path.clone())
+        let blocked_options = CompileOptions {
+            root_path: progress_free_selected_source_canary(),
+            build_dir: Some(blocked_parent),
+            target_name: Some("linux_x64".into()),
+            write_output: true,
+        };
+        let error = write_finalized_terminal_component_output(&blocked_options, runnable)
             .expect_err("filesystem rejection must preserve runnable deployment custody");
         assert!(error.diagnostic().contains("output directory"));
         let (runnable, returned_path) = error.into_parts();
         assert_eq!(returned_path, blocked_path);
         assert_eq!(runnable.installed_code(), installed_identity);
 
-        let output_path = scratch.0.join("published").join(&file_name);
-        let published = publish_terminal_component_flat_output(runnable, output_path.clone())
+        let output_options = CompileOptions {
+            root_path: progress_free_selected_source_canary(),
+            build_dir: Some(scratch.0.join("published")),
+            target_name: Some("linux_x64".into()),
+            write_output: true,
+        };
+        let output_path = output_options.build_dir().join(&file_name);
+        let published = write_finalized_terminal_component_output(&output_options, runnable)
             .expect("returned runnable custody should publish on an exact retry");
         assert_eq!(published.receipt().output_path(), output_path);
         assert_eq!(published.receipt().byte_count(), expected_bytes.len());
@@ -753,7 +766,7 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
         assert!(validation.diagnostic().contains("bytes differ"));
         let (runnable, _drifted_receipt) = published.into_parts();
         assert_eq!(runnable.installed_code(), installed_identity);
-        let repaired = publish_terminal_component_flat_output(runnable, output_path)
+        let repaired = write_finalized_terminal_component_output(&output_options, runnable)
             .expect("retained runnable custody should repair a drifted flat output");
         repaired
             .validate()
@@ -989,10 +1002,13 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         let scratch = ScratchDirectory(fresh_scratch_directory(
             "omega-terminal-progress-flat-output",
         ));
-        let output_path = scratch
-            .0
-            .join(&runnable.terminal_artifact().image().output().file_name);
-        let published = publish_terminal_component_flat_output(runnable, output_path)
+        let output_options = CompileOptions {
+            root_path: progress_source_canary(),
+            build_dir: Some(scratch.0.clone()),
+            target_name: Some("linux_x64".into()),
+            write_output: true,
+        };
+        let published = write_finalized_terminal_component_output(&output_options, runnable)
             .expect("progress-bearing deployment should authorize exact flat output");
         assert!(
             published

@@ -1855,14 +1855,20 @@ deployment depend. Deployment therefore no longer depends on compiler, so the
 production compiler can invoke the deployment owner without a crate cycle.
 Constructing the carrier grants no authority: deployment still independently
 replays the artifact, installation, provider, and progress joins before any
-registry claim or publication. The deployment owner
-can now consume the finalized runnable to publish one flat executable: it
+registry claim or publication. The compiler output owner now accepts a
+deployment-finalized runnable at one explicit terminal-output seam. It derives
+the canonical build-directory destination from the image's sealed filename and
+delegates consuming publication to deployment; it does not accept selected
+plans or compiler TCB authorization as substitutes for installation custody.
+Every rejection returns the exact runnable and derived path. The deployment
+owner consumes the finalized runnable to publish one flat executable: it
 replays the canonical installation/image join, stages and validates the exact
 sealed bytes and executable mode before atomic rename, replays the visible
 file, and returns a non-clonable installation/image/path receipt while retaining
 the runnable. Every failure returns the exact runnable and requested path for
 retry; receipt replay detects later byte or mode drift. The legacy direct
-`write_output` path remains fenced until it delegates to that owner.
+`write_output` route remains fenced until production orchestration supplies the
+real deployment inputs and retains this non-clonable result in its report.
 Compact record identities remain report keys and grant no authority.
 
 ### Placed-occurrence and resident-custody slice

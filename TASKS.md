@@ -7549,12 +7549,22 @@ compiler concept is introduced.
   invoking deployment while retaining private candidate fields, consuming
   decomposition, and zero installation or publication authority.
 
+  The compiler output owner now has one real deployment handoff for the final
+  filesystem step. `write_finalized_terminal_component_output` accepts only a
+  deployment-finalized runnable, derives the canonical build-directory path
+  from the image's sealed filename, and delegates consuming publication to
+  `omega-component-deployment`. It cannot manufacture installed code, provider
+  occurrences, progress acceptance, or a profile decision. Rejection returns
+  the exact runnable and derived path through the deployment error; the
+  progress-free and progress-bearing source canaries cross this compiler seam.
+
   Remaining TPR6-B engineering: retire the legacy compiler's temporary final-
   output rejection after production output orchestration threads the
   deployment-owned installed-code, provider-occurrence, progress-attestation,
-  and profile inputs into `write_output`, consumes the staged candidate through
-  `omega-component-deployment`, and retains the resulting runnable and flat
-  publication receipt in the report. The current path still publishes a native
+  and profile inputs to the staged candidate, finalizes it through
+  `omega-component-deployment`, routes the resulting runnable through the new
+  output seam, and retains its non-clonable runnable and flat publication
+  receipt in the report. The current legacy path still publishes a native
   executable directly and carries neither the manifest nor an installation
   acceptance, so removing the fence there would erase the obligation; selected
   plans and authorized routes remain insufficient.
@@ -8006,12 +8016,14 @@ Remaining N6/N8 work:
   verified-theorem contract-fact coordinates, and the plan composes them with
   the verified theorem and exact runtime correspondence into a non-executable
   certificate. Closed booleans, in-range integers whose explicit suffix or
-  exact concrete representative target supplies the landing, and format-landed
-  floats may feed an immutable non-receiver representative parameter only when
-  its primitive type and arithmetic domain/format agree. An anonymous integer
-  lands once at that exact target; its derived width, signedness, and domain are
-  retained rather than inferred again. Literal value, canonical spelling, and
-  landing ride the occurrence identity; the input relation is exact equality.
+  exact concrete representative target supplies the landing, and floats whose
+  explicit suffix or exact `f32`/`f64` target supplies the format may feed an
+  immutable non-receiver representative parameter only when its primitive type
+  and arithmetic domain/format agree. An anonymous numeric scalar lands once
+  at that exact target; derived integer width/signedness/domain or float format
+  is retained rather than inferred again. Literal value, canonical spelling,
+  and landing ride the occurrence identity; the input relation is exact
+  equality.
   Exact
   structural `Q => P` substitution now permits a
   dependent representative `P` fact to mention a literal-fed position only
@@ -8019,7 +8031,7 @@ Remaining N6/N8 work:
   integer spelling, landed type and arithmetic domain, and float spelling and
   format are all proof-value identity even when rendering would erase a
   difference. Literal-only facts remain fixed ordinary call obligations.
-  Mismatched or out-of-range integers, anonymous floats, strings, aggregates,
+  Mismatched or out-of-range integers, mismatched floats, strings, aggregates,
   zero-value,
   casts, calls, computed expressions, constrained/generic targets, mutable or
   attached targets, and literal arguments to `define` remain fail-closed.
