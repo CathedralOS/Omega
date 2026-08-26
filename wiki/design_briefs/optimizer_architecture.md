@@ -693,6 +693,13 @@ Human text/HTML views are projections of a structured compiler-owned record.
 They do not enter semantic identity. The report must be suppressible without
 changing optimization decisions.
 
+The decision-row substrate is self-authenticating rather than caller-stamped.
+Each row derives its identity from the exact input unit, candidate, rule,
+verdict, consumed analyses, canonical typed fact references, and validator; its
+codec recomputes that identity. This prevents a future top-level manifest or
+human projection from faithfully rendering a row whose evidence was never
+actually identity-bound.
+
 ## Folder ownership
 
 The final Omega-written product source belongs under

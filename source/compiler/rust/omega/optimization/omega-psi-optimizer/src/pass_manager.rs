@@ -2,10 +2,10 @@ use std::collections::BTreeSet;
 
 use omega_optimization_core::{
     InvalidOptimizationManifestRecord, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
-    OptimizationDecisionIdentity, OptimizationDecisionRecord, OptimizationIdentityBundle,
-    OptimizationPassManifestRecord, OptimizationReasonCode, OptimizationRuleIdentity,
-    OptimizationSelections, OptimizationUnitIdentity, OptimizationValidatorIdentity,
-    OptimizationWorkBudget, OptimizationWorkUsage, TargetCostModelIdentity,
+    OptimizationDecisionRecord, OptimizationIdentityBundle, OptimizationPassManifestRecord,
+    OptimizationReasonCode, OptimizationRuleIdentity, OptimizationSelections,
+    OptimizationUnitIdentity, OptimizationValidatorIdentity, OptimizationWorkBudget,
+    OptimizationWorkUsage, TargetCostModelIdentity,
 };
 use omega_optimization_policy::{
     BaselineDecisionLog, BaselineDecisionOutcome, BaselinePolicy, ValidatedCandidateSummary,
@@ -257,16 +257,12 @@ fn run_unit(
                 };
                 candidate_decisions.push(
                     OptimizationDecisionRecord::new(
-                        manifest_decision_identity(
-                            unit.identity,
-                            candidate.identity(),
-                            contract.identity(),
-                            verdict,
-                        ),
+                        unit.identity,
                         candidate.identity(),
                         contract.identity(),
                         verdict,
                         contract.required_analyses(),
+                        candidate.consumed_facts(),
                         Some(accepted.validator()),
                     )
                     .map_err(OptimizationRunError::InvalidManifest)?,
@@ -397,21 +393,6 @@ fn build_pass_manifest(
     .map_err(OptimizationRunError::InvalidManifest)
 }
 
-fn manifest_decision_identity(
-    input: OptimizationUnitIdentity,
-    candidate: OptimizationCandidateIdentity,
-    rule: OptimizationRuleIdentity,
-    verdict: OptimizationCandidateVerdict,
-) -> OptimizationDecisionIdentity {
-    let mut canonical = Vec::with_capacity(130);
-    canonical.extend_from_slice(b"omega.psi-manifest-decision.v1\0");
-    canonical.extend_from_slice(&input.bytes());
-    canonical.extend_from_slice(&candidate.bytes());
-    canonical.extend_from_slice(&rule.bytes());
-    canonical.extend_from_slice(&verdict.encode());
-    OptimizationDecisionIdentity::from_canonical_bytes(&canonical)
-}
-
 fn charge(counter: &mut u64, limit: u64, axis: &'static str) -> Result<(), OptimizationRunError> {
     if *counter == limit {
         return Err(OptimizationRunError::WorkBudgetExhausted(axis));
@@ -470,15 +451,18 @@ fn integer_evaluation_operation_count(unit: &PsiOptimizationUnit) -> u64 {
 mod tests {
     use std::sync::Arc;
 
-    use omega_optimization_core::{Optimization, OptimizationSelections};
+    use omega_optimization_core::{
+        Optimization, OptimizationFactReference, OptimizationSelections,
+    };
     use omega_optimization_unit::PsiRewritePatch;
     use omega_terminal_abstract_operations::TerminalAbstractOperation;
 
     use super::*;
     use crate::{
-        ExactIntegerAddConstantsRule, PsiOptimizationRule, built_in_psi_registry,
+        AnalysisProduct, ExactIntegerAddConstantsRule, PsiOptimizationRule, built_in_psi_registry,
         rules::tests::{
-            boolean_unit, dependent_exact_chain_unit, exact_add_unit, wrapping_add_unit,
+            boolean_unit, dependent_exact_chain_unit, exact_add_unit,
+            propagated_block_parameter_unit, wrapping_add_unit,
         },
     };
 
@@ -760,6 +744,8 @@ mod tests {
         assert_eq!(pass_manifest.input(), unit.identity);
         assert_eq!(pass_manifest.output(), output.identity);
         assert_eq!(pass_manifest.decisions().len(), 1);
+        assert_eq!(pass_manifest.decisions()[0].input(), unit.identity);
+        assert_eq!(pass_manifest.decisions()[0].consumed_facts().len(), 2);
         assert_eq!(
             pass_manifest.decisions()[0].verdict(),
             OptimizationCandidateVerdict::Applied
@@ -808,6 +794,34 @@ mod tests {
         assert_eq!(manifest.ordered_rules().len(), 30);
         assert_eq!(manifest.decisions().len(), 2);
         assert_eq!(ledger.records().len(), 2);
+    }
+
+    #[test]
+    fn manifest_retains_propagated_block_parameter_fact_identity() {
+        let unit = propagated_block_parameter_unit();
+        let AnalysisProduct::ScalarConstants(constants) = crate::compute_analysis(
+            &unit,
+            omega_optimization_core::AnalysisKind::ScalarConstants,
+        )
+        .unwrap() else {
+            unreachable!()
+        };
+        let derived = constants
+            .facts
+            .iter()
+            .find(|fact| !fact.support.edges.is_empty())
+            .and_then(|fact| fact.identity)
+            .expect("fixture has one proof-bearing propagated parameter fact");
+        let selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let registry = built_in_psi_registry(&selections).unwrap();
+        let (_, commits, _, _, manifest, _) = run_unit(unit, &registry, budget(8)).unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(
+            manifest.unwrap().decisions()[0].consumed_facts(),
+            &[OptimizationFactReference::ScalarConstant(derived)]
+        );
     }
 
     #[test]
@@ -884,6 +898,7 @@ mod tests {
             OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::NotProfitable)
         );
         assert!(manifest.decisions()[0].validator().is_some());
+        assert_eq!(manifest.decisions()[0].consumed_facts().len(), 2);
         assert!(ledger.records().is_empty());
         assert_eq!(ledger.input(), ledger.output());
     }

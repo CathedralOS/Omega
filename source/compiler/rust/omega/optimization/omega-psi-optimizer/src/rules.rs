@@ -1392,7 +1392,7 @@ pub(crate) mod tests {
         .unwrap()
     }
 
-    fn propagated_block_parameter_unit() -> PsiOptimizationUnit {
+    pub(crate) fn propagated_block_parameter_unit() -> PsiOptimizationUnit {
         let machine = id(601, MachineId::new);
         let entry = id(602, BlockId::new);
         let when_true = id(603, BlockId::new);
@@ -2358,6 +2358,7 @@ pub(crate) mod tests {
             patch,
         )
         .unwrap();
+        assert_eq!(binary_witness.consumed_facts().len(), 1);
         assert_ne!(binary_witness.identity(), candidates[0].identity());
         assert!(matches!(
             validate_integer_evaluation_candidate(&unit, &binary_witness),

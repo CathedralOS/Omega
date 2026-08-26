@@ -55,8 +55,14 @@ These facts constrain the work below.
 - `omega-optimization-core` now owns frontend- and encoder-independent stable
   identities, rule contracts, ordered analysis/invalidation sets, safety and
   reason vocabularies, hard work budgets, candidate verdicts, and canonical
-  decision/pass manifest rows. Applied decisions cannot be represented without
-  an independent validator identity.
+  decision/pass manifest rows. Decision rows use a self-authenticating v2 codec:
+  identity is derived from the input revision, candidate, rule, verdict,
+  consumed analyses, a canonical duplicate-free typed fact-reference set, and
+  optional validator, then recomputed during decode. Applied decisions cannot
+  be represented without an independent validator identity; identity tamper,
+  unknown fact kinds, and reordered/duplicate facts reject. The Psi pass
+  manager projects unary/binary scalar witnesses into these rows, including
+  independently reconstructed propagated block-parameter facts.
 - `omega-optimization-unit` now deterministically reconstructs explicit blocks,
   scalar definitions/uses, conservative effect links, structural roots,
   ownership events, literal facts, source provenance, and separately identified

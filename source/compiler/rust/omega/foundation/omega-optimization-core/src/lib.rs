@@ -27,8 +27,8 @@ pub use identities::{
     TargetCostModelIdentity, TransformationLedgerIdentity,
 };
 pub use manifest::{
-    InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationManifestDecodeError,
-    OptimizationPassManifestRecord, OptimizationWorkUsage,
+    InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
+    OptimizationManifestDecodeError, OptimizationPassManifestRecord, OptimizationWorkUsage,
 };
 
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
