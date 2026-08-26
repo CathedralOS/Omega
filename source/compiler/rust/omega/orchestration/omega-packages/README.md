@@ -661,6 +661,12 @@ Proposition-local type references are symbol-resolved before projection;
 renaming a binder is stable, while changing the observed type changes review
 identity. Quotient targets remain forbidden by the compiler's representation-
 observer fence.
+Review v65/canonical row v23 retains outcome-specific `ensures` with the exact
+package-qualified result-data/result-case guard, public selector when named,
+checked evidence-lane position, and canonical fact. Projection must rejoin one
+exact producer-side checked guarded-guarantee carrier; missing, duplicate, or
+mismatched carriers reject. Group and row ordering are stable, while moving a
+fact between cases or renaming its public selector changes review identity.
 Trait `invariant` clauses are retired rather than awaiting a package row.
 Requirements also retain whether their checked declaration
 supplies a default realization; implementation bodies remain checked source

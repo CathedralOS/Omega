@@ -608,6 +608,13 @@ diagnostic spelling, or checker verdict become identity. Proposition-local type
 binders receive exact symbols before typed lowering, so renames are stable and
 changing the observed type changes canonical evidence. The existing quotient
 observer fence rejects quotient targets before package review.
+Review v65 and canonical row v23 retain outcome-specific `ensures` as guarded
+proof-interface rows rather than silently omitting or publishing them as
+unconditional facts. Each row carries exact package-qualified result-data and
+result-case identity, the public selector when named, checked evidence-lane
+position, and canonical fact. Review requires exactly one matching checked
+producer carrier. Group/row reordering is stable; changing the arm or public
+selector changes comparison identity.
 Review v52 and canonical row v12 add one blocking standalone row for every
 package-owned `pub proposition`, including an unused bodyless declaration.
 The row retains alpha-normalized binders, parameter types, witness interface,

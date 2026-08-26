@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 64;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 65;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 22;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 23;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -1199,10 +1199,20 @@ fn encode_callable_contract(
     encoder: &mut Encoder,
     contract: &PackageReviewCallableContract,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.byte(match contract.kind {
-        PackageReviewContractKind::Requires => 0,
-        PackageReviewContractKind::Ensures => 1,
-    });
+    match (contract.kind, contract.result_case.as_ref()) {
+        (PackageReviewContractKind::Requires, None) => encoder.byte(0),
+        (PackageReviewContractKind::Ensures, None) => encoder.byte(1),
+        (PackageReviewContractKind::Ensures, Some(result_case)) => {
+            encoder.byte(2);
+            encode_nominal(encoder, &result_case.result_data)?;
+            encode_nominal(encoder, &result_case.result_case)?;
+        }
+        (PackageReviewContractKind::Requires, Some(_)) => {
+            return Err(PackageReviewEncodingError::new(
+                "requires contract cannot carry a result-case guard",
+            ));
+        }
+    }
     encoder.option(contract.binding.as_deref(), |encoder, binding| {
         encoder.string(binding)
     })?;

@@ -1315,9 +1315,29 @@ pub enum PackageReviewContractFact {
     PropositionParameter(PackageReviewPropositionParameterApplication),
 }
 
+/// Exact nominal result-arm coordinate guarding one outcome-specific
+/// guarantee. The coordinate is absent for unconditional `requires` and
+/// `ensures` rows.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewResultCaseIdentity {
+    result_data: PackageReviewNominalIdentity,
+    result_case: PackageReviewNominalIdentity,
+}
+
+impl PackageReviewResultCaseIdentity {
+    pub const fn result_data(&self) -> &PackageReviewNominalIdentity {
+        &self.result_data
+    }
+
+    pub const fn result_case(&self) -> &PackageReviewNominalIdentity {
+        &self.result_case
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewCallableContract {
     kind: PackageReviewContractKind,
+    result_case: Option<PackageReviewResultCaseIdentity>,
     binding: Option<String>,
     evidence_lane_position: Option<u32>,
     fact: PackageReviewContractFact,
@@ -1326,6 +1346,10 @@ pub struct PackageReviewCallableContract {
 impl PackageReviewCallableContract {
     pub const fn kind(&self) -> PackageReviewContractKind {
         self.kind
+    }
+
+    pub const fn result_case(&self) -> Option<&PackageReviewResultCaseIdentity> {
+        self.result_case.as_ref()
     }
 
     pub fn binding(&self) -> Option<&str> {
@@ -6883,10 +6907,20 @@ fn project_contracts(
     })?;
     let mut projected = Vec::new();
     for contract in contracts {
-        let kind = match contract.kind {
-            SignatureContractKind::Requires => PackageReviewContractKind::Requires,
-            SignatureContractKind::Ensures => PackageReviewContractKind::Ensures,
-            SignatureContractKind::EnsuresForResultCase { .. } => continue,
+        let (kind, guarded_symbols, result_case) = match contract.kind {
+            SignatureContractKind::Requires => (PackageReviewContractKind::Requires, None, None),
+            SignatureContractKind::Ensures => (PackageReviewContractKind::Ensures, None, None),
+            SignatureContractKind::EnsuresForResultCase {
+                result_data,
+                result_case,
+            } => (
+                PackageReviewContractKind::Ensures,
+                Some((result_data, result_case)),
+                Some(PackageReviewResultCaseIdentity {
+                    result_data: nominal_identity(compilation, result_data)?,
+                    result_case: nominal_identity(compilation, result_case)?,
+                }),
+            ),
             SignatureContractKind::Crashes { .. }
                 if policy == ContractProjectionPolicy::PublicOperator =>
             {
@@ -6913,9 +6947,6 @@ fn project_contracts(
                     .expect("proof fact handle index overflow"),
                 contract.facts.start().generation(),
             );
-            let checked_fact = (policy != ContractProjectionPolicy::PublicOperator)
-                .then(|| checked_contract_fact(compilation, context, fact_handle, kind))
-                .transpose()?;
             let fact = match compilation.proof_facts.get(fact_handle) {
                 ProofFact::Expression(expression) => {
                     PackageReviewContractFact::Expression(project_contract_expression(
@@ -6971,24 +7002,47 @@ fn project_contracts(
                     0,
                 )?,
             };
-            let evidence_lane_position = match checked_fact {
-                Some(checked_fact) => validate_checked_contract_evidence(
+            let evidence_lane_position = if let Some((result_data, result_case)) = guarded_symbols {
+                let checked = checked_outcome_specific_guarantee(
+                    compilation,
+                    context,
+                    fact_handle,
+                    result_data,
+                    result_case,
+                    contract.binding.as_ref(),
+                )?;
+                validate_checked_contract_evidence_components(
                     compilation,
                     context,
                     contract.binding.as_ref(),
-                    checked_fact,
+                    psi_checked_trees::ContractProofFactOwner::Machine {
+                        machine_symbol: checked.machine_symbol,
+                    },
+                    psi_checked_trees::ContractProofFactKind::Ensures,
+                    checked.evidence_term,
                     &fact,
-                )?,
-                None if contract.binding.is_none() => None,
-                None => {
+                )?
+            } else if policy == ContractProjectionPolicy::PublicOperator {
+                if contract.binding.is_some() {
                     return Err(vec![Diagnostic::error(format!(
                         "reviewed {} `{}` binds operator-contract evidence not yet represented by public-operator review",
                         context.subject_kind, context.subject_name
                     ))]);
                 }
+                None
+            } else {
+                let checked = checked_contract_fact(compilation, context, fact_handle, kind)?;
+                validate_checked_contract_evidence(
+                    compilation,
+                    context,
+                    contract.binding.as_ref(),
+                    checked,
+                    &fact,
+                )?
             };
             projected.push(PackageReviewCallableContract {
                 kind,
+                result_case: result_case.clone(),
                 binding: match kind {
                     PackageReviewContractKind::Ensures => contract
                         .binding
@@ -7004,6 +7058,47 @@ fn project_contracts(
     projected.sort();
     projected.dedup();
     Ok(projected)
+}
+
+fn checked_outcome_specific_guarantee<'a>(
+    compilation: &'a CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    fact: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    result_data: SymbolHandle,
+    result_case: SymbolHandle,
+    binding: Option<&psi_typed_trees::name::Identifier>,
+) -> Result<&'a psi_checked_trees::OutcomeSpecificGuaranteeFact, Vec<Diagnostic>> {
+    let psi_checked_trees::ContractProofFactOwner::Machine { machine_symbol } = context.owner
+    else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` publishes an outcome-specific guarantee without a checked machine owner",
+            context.subject_kind, context.subject_name
+        ))]);
+    };
+    let public_selector = binding.map(|binding| binding.as_str());
+    let matching = compilation
+        .facts
+        .proof
+        .outcome_specific_guarantees
+        .iter()
+        .filter_map(|(_, checked)| {
+            (checked.machine_symbol == machine_symbol
+                && checked.fact == fact
+                && checked.result_data == result_data
+                && checked.result_case == result_case
+                && checked.public_selector.as_deref() == public_selector)
+                .then_some(checked)
+        })
+        .collect::<Vec<_>>();
+    let [checked] = matching.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` outcome-specific guarantee has {} exact checked carrier rows; expected one",
+            context.subject_kind,
+            context.subject_name,
+            matching.len()
+        ))]);
+    };
+    Ok(*checked)
 }
 
 fn checked_contract_fact<'a>(
@@ -7044,8 +7139,29 @@ fn validate_checked_contract_evidence(
     checked: &psi_checked_trees::ContractProofFact,
     projected: &PackageReviewContractFact,
 ) -> Result<Option<u32>, Vec<Diagnostic>> {
+    validate_checked_contract_evidence_components(
+        compilation,
+        context,
+        binding,
+        checked.owner,
+        checked.kind,
+        checked.evidence_term,
+        projected,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_checked_contract_evidence_components(
+    compilation: &CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    binding: Option<&psi_typed_trees::name::Identifier>,
+    checked_owner: psi_checked_trees::ContractProofFactOwner,
+    checked_kind: psi_checked_trees::ContractProofFactKind,
+    checked_evidence_term: Option<psi_arena::Handle<psi_checked_trees::CheckedEvidenceTerm>>,
+    projected: &PackageReviewContractFact,
+) -> Result<Option<u32>, Vec<Diagnostic>> {
     let Some(binding) = binding else {
-        if checked.evidence_term.is_some() {
+        if checked_evidence_term.is_some() {
             return Err(vec![Diagnostic::error(format!(
                 "reviewed {} `{}` has an unnamed contract with a checked evidence term",
                 context.subject_kind, context.subject_name
@@ -7053,14 +7169,14 @@ fn validate_checked_contract_evidence(
         }
         return Ok(None);
     };
-    let Some(term_handle) = checked.evidence_term else {
+    let Some(term_handle) = checked_evidence_term else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` named contract `{}` has no checked evidence term",
             context.subject_kind, context.subject_name, binding
         ))]);
     };
     let term = compilation.facts.proof.evidence_terms.get(term_handle);
-    if term.name != binding.as_str() || term.owner != checked.owner || term.kind != checked.kind {
+    if term.name != binding.as_str() || term.owner != checked_owner || term.kind != checked_kind {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` named contract `{}` does not match its checked evidence term",
             context.subject_kind, context.subject_name, binding
