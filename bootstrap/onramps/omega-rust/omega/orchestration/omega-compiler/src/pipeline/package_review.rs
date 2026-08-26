@@ -6345,6 +6345,7 @@ fn project_contract_proposition(
                     callable_binders,
                     *argument,
                     value_substitutions,
+                    &[],
                     checked_fact,
                     0,
                 )
@@ -6422,6 +6423,7 @@ fn project_contract_proposition(
                 callable_binders,
                 *argument,
                 value_substitutions,
+                &[],
                 checked_fact,
                 0,
             )
@@ -6471,12 +6473,22 @@ fn project_contract_proposition(
                     depth + 1,
                 ),
                 PropositionFormula::BooleanExpression(expression) => {
+                    let projection_substitutions = declaration_parameters
+                        .iter()
+                        .zip(
+                            compilation
+                                .expression_table
+                                .expression_handles(application.arguments),
+                        )
+                        .map(|(parameter, argument)| (parameter.symbol, *argument))
+                        .collect::<Vec<_>>();
                     project_contract_expression_with_substitutions(
                         compilation,
                         context,
                         callable_binders,
                         *expression,
                         &nested_values,
+                        &projection_substitutions,
                         checked_fact,
                         0,
                     )
@@ -6979,9 +6991,136 @@ fn project_contract_expression(
         binders,
         expression,
         &[],
+        &[],
         checked_fact,
         depth,
     )
+}
+
+fn exact_fact_call_projection<'compilation>(
+    compilation: &'compilation CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    projection_expression: psi_typed_trees::expression::ExpressionHandle,
+    call_expression: psi_typed_trees::expression::ExpressionHandle,
+    member: &psi_typed_trees::expression::TableMemberExpression,
+) -> Result<&'compilation psi_checked_trees::CheckedFactCallProjection, Vec<Diagnostic>> {
+    use psi_typed_trees::expression::ExpressionNode;
+
+    let ExpressionNode::Call(call) = compilation.expression_table.expression(call_expression)
+    else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` fact-call projection does not rejoin a call expression",
+            context.subject_kind, context.subject_name
+        ))]);
+    };
+    let matching = compilation
+        .facts
+        .fact_call_projections
+        .iter()
+        .filter(|projection| {
+            projection.projection_expression == projection_expression
+                && projection.call_expression == call_expression
+                && projection.target_state == call.target_symbol
+                && projection.machine_arguments == call.machine_arguments
+        })
+        .collect::<Vec<_>>();
+    let [projection] = matching.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` fact-call projection rejoins {} exact eligibility certificates; expected one",
+            context.subject_kind,
+            context.subject_name,
+            matching.len()
+        ))]);
+    };
+    let target = compilation
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == projection.target_machine)
+        .and_then(|machine| {
+            compilation
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == projection.target_state)
+        });
+    if target.is_none_or(|state| state.return_type != projection.result_type) {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` fact-call projection certificate no longer rejoins its exact result type",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    if member.case_variant.is_some() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` fact-call projection is not a direct record field",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    let data_symbol = match compilation
+        .type_reference_table
+        .type_reference(projection.result_type)
+    {
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+        psi_typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => {
+            Some(*base_symbol)
+        }
+        _ => None,
+    };
+    let field_rejoins = data_symbol
+        .and_then(|symbol| {
+            compilation
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == symbol)
+        })
+        .and_then(|data| {
+            compilation.data_members(data).iter().find_map(|candidate| {
+                let psi_typed_trees::data::DataMember::Field(field) = candidate else {
+                    return None;
+                };
+                (field.name.as_str() == member.member.as_str()).then_some(field.symbol)
+            })
+        })
+        .is_some_and(|field| field == projection.field);
+    if !field_rejoins {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` fact-call projection certificate no longer rejoins its exact field",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    Ok(projection)
+}
+
+fn contract_parameter_field_symbol(
+    compilation: &CheckedCompilation,
+    parameter: &psi_typed_trees::signature::StateParameter,
+    field_name: &str,
+) -> Option<SymbolHandle> {
+    use psi_typed_trees::types::TypeReferenceNode;
+
+    let mut type_reference = parameter.type_reference;
+    let data_symbol = loop {
+        match compilation
+            .type_reference_table
+            .type_reference(type_reference)
+        {
+            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Named { symbol, .. } => break *symbol,
+            TypeReferenceNode::Generic { base_symbol, .. } => break *base_symbol,
+            _ => return None,
+        }
+    };
+    compilation
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == data_symbol)
+        .and_then(|data| {
+            compilation.data_members(data).iter().find_map(|member| {
+                let psi_typed_trees::data::DataMember::Field(field) = member else {
+                    return None;
+                };
+                (field.name.as_str() == field_name).then_some(field.symbol)
+            })
+        })
 }
 
 fn project_contract_expression_with_substitutions(
@@ -6990,6 +7129,7 @@ fn project_contract_expression_with_substitutions(
     binders: &[(SymbolHandle, String)],
     expression: psi_typed_trees::expression::ExpressionHandle,
     substitutions: &[(SymbolHandle, PackageReviewContractExpression)],
+    projection_substitutions: &[(SymbolHandle, psi_typed_trees::expression::ExpressionHandle)],
     checked_fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
     depth: usize,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
@@ -7008,6 +7148,7 @@ fn project_contract_expression_with_substitutions(
             binders,
             expression,
             substitutions,
+            projection_substitutions,
             checked_fact,
             depth + 1,
         )
@@ -7104,6 +7245,116 @@ fn project_contract_expression_with_substitutions(
             substitutions,
             checked_fact,
         ),
+        ExpressionNode::Member(member)
+            if matches!(
+                compilation.expression_table.expression(member.receiver),
+                ExpressionNode::Name(path)
+                    if projection_substitutions
+                        .iter()
+                        .any(|(symbol, actual)| {
+                            *symbol == path.symbol
+                                && matches!(
+                                    compilation.expression_table.expression(*actual),
+                                    ExpressionNode::Call(_)
+                                )
+                        })
+            ) =>
+        {
+            let ExpressionNode::Name(path) =
+                compilation.expression_table.expression(member.receiver)
+            else {
+                unreachable!()
+            };
+            let actual = projection_substitutions
+                .iter()
+                .find(|(symbol, _)| *symbol == path.symbol)
+                .map(|(_, actual)| *actual)
+                .expect("guarded projection substitution");
+            let projection =
+                exact_fact_call_projection(compilation, context, expression, actual, member)?;
+            project_contract_member_expression(
+                compilation,
+                context,
+                child(actual)?,
+                projection.field,
+                None,
+            )
+        }
+        ExpressionNode::Member(member)
+            if matches!(
+                compilation.expression_table.expression(member.receiver),
+                ExpressionNode::Name(path)
+                    if substitutions.iter().any(|(symbol, _)| *symbol == path.symbol)
+            ) =>
+        {
+            project_contract_member_expression(
+                compilation,
+                context,
+                child(member.receiver)?,
+                member.member_symbol,
+                None,
+            )
+        }
+        ExpressionNode::Member(member)
+            if checked_fact.is_none()
+                && matches!(
+                    compilation.expression_table.expression(member.receiver),
+                    ExpressionNode::Name(path)
+                        if context.parameters.iter().any(|parameter| {
+                            parameter.symbol == path.symbol && member.case_variant.is_none()
+                        })
+                ) =>
+        {
+            let ExpressionNode::Name(path) =
+                compilation.expression_table.expression(member.receiver)
+            else {
+                unreachable!()
+            };
+            let parameter = context
+                .parameters
+                .iter()
+                .find(|parameter| parameter.symbol == path.symbol)
+                .expect("guarded proposition parameter member");
+            let field = contract_parameter_field_symbol(
+                compilation,
+                parameter,
+                member.member.as_str(),
+            )
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "reviewed {} `{}` proposition parameter member does not resolve through its declared carrier",
+                    context.subject_kind, context.subject_name
+                ))]
+            })?;
+            project_contract_member_expression(
+                compilation,
+                context,
+                child(member.receiver)?,
+                field,
+                None,
+            )
+        }
+        ExpressionNode::Member(member)
+            if matches!(
+                compilation.expression_table.expression(member.receiver),
+                ExpressionNode::Call(_)
+            ) =>
+        {
+            let projection = exact_fact_call_projection(
+                compilation,
+                context,
+                expression,
+                member.receiver,
+                member,
+            )?;
+            project_contract_member_expression(
+                compilation,
+                context,
+                child(member.receiver)?,
+                projection.field,
+                None,
+            )
+        }
         ExpressionNode::Member(_) => {
             let Some(checked_fact) = checked_fact else {
                 return Err(vec![Diagnostic::error(format!(

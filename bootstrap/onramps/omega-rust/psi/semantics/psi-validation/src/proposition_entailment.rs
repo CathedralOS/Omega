@@ -72,8 +72,35 @@ pub(crate) fn validate_proposition_entailment(
                 &[],
                 false,
             ));
+            let structural_proposition_goals = program
+                .machine_contracts(machine)
+                .iter()
+                .chain(program.state_contracts(state))
+                .filter(|contract| contract.kind == SignatureContractKind::Ensures)
+                .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+                .filter_map(|fact| match fact {
+                    ProofFact::Proposition(application) => program
+                        .normalize_proposition_application(application)
+                        .map(|formula| (formula.identity_label(), application)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
             for goal in required {
-                if !known.contains(&goal) && !produced_evidence.contains(&goal) {
+                let structurally_entailed = structural_proposition_goals.iter().any(
+                    |(label, application)| {
+                        label == &goal
+                            && crate::contract_entailment::transparent_proposition_application_entailed(
+                                program,
+                                machine,
+                                state,
+                                application,
+                            )
+                    },
+                );
+                if !known.contains(&goal)
+                    && !produced_evidence.contains(&goal)
+                    && !structurally_entailed
+                {
                     diagnostics.push(Diagnostic::error(format!(
                         "checked machine `{}` cannot establish proposition ensure `{goal}` in state `{}`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence",
                         machine.name.as_str(),

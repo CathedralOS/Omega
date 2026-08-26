@@ -24,6 +24,11 @@ data IntPair {
     pos: Nat;
 }
 
+// The quotient relation is a named proof family. Applications state the
+// relation; the declaration itself proves no instance.
+proposition int_pair_equivalent(left: IntPair, right: IntPair) =
+    (add(left.pos, right.neg)) == (add(right.pos, left.neg));
+
 // Componentwise addition: (p1 - n1) + (p2 - n2) = (p1 + p2) - (n1 + n2).
 machine add_int(a: IntPair, b: IntPair) -> IntPair
 satisfies CommutativeSemiring::add
@@ -137,18 +142,16 @@ ensures
 }
 
 // THE QUOTIENT (cross-sum equivalence): a ~ a2 iff a.pos + a2.neg ==
-// a2.pos + a.neg. add_int RESPECTS it -- if a ~ a2 then a + b ~ a2 + b,
-// spelled in unfolded Nat component form (the fact grammar has no member-
-// of-call, so the ensures states the components add_int computes). This is a
-// legacy implementation-coupled statement; FACT-CALL-PROJECTION replaces it
-// with a named relation applied to the two `add_int` results. The
+// a2.pos + a.neg. add_int RESPECTS it -- if a ~ a2 then a + b ~ a2 + b.
+// The result relation is stated over the operation calls themselves, so the
+// theorem no longer repeats add_int's componentwise implementation. The
 // requires hypothesis exchanges inside the goal's addend multiset under
 // the add ring license (hypothesis-exchange tier).
 machine add_int_respects_eq(a: IntPair, a2: IntPair, b: IntPair) -> IntPair
 requires
-    (add(a.pos, a2.neg)) == (add(a2.pos, a.neg))
+    int_pair_equivalent(a, a2)
 ensures
-    (add(add(a.pos, b.pos), add(a2.neg, b.neg))) == (add(add(a2.pos, b.pos), add(a.neg, b.neg)))
+    int_pair_equivalent(add_int(a, b), add_int(a2, b))
 {
     transition { _ -> (add_int(a, b)) }
 }

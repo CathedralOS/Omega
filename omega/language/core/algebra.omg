@@ -24,10 +24,13 @@
 // erased recursive statement citations carry the same ranked-cycle checking as
 // value-position calls.
 trait CommutativeSemiring {
-    machine zero() -> Self;
-    machine one() -> Self;
-    machine add(a: Self, b: Self) -> Self;
-    machine mul(a: Self, b: Self) -> Self;
+    // Algebra operations are total mathematical functions. Publishing that
+    // promise is what permits a selected implementation to denote a value in
+    // Prop; each satisfier still owes the ordinary termination proof.
+    machine zero() -> Self terminates;
+    machine one() -> Self terminates;
+    machine add(a: Self, b: Self) -> Self terminates;
+    machine mul(a: Self, b: Self) -> Self terminates;
     machine add_comm(a: Self, b: Self) -> Self
     ensures add(a, b) == add(b, a);
     machine add_assoc(a: Self, b: Self, c: Self) -> Self

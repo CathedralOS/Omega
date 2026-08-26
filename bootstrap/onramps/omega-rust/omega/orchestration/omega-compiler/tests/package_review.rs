@@ -6693,6 +6693,59 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
+fn public_contract_call_projection_requires_one_exact_checked_certificate() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Pair [copy] { left: u64; right: u64; }
+pub machine make_pair(left: u64, right: u64) -> Pair terminates; {
+    transition { _ -> (Pair { left: left, right: right }) }
+}
+pub proposition projected_left(pair: Pair, expected: u64) = pair.left == expected;
+pub trait Worker {
+    machine observe(left: u64, right: u64) -> u64
+    ensures projected_left(make_pair(left, right), left);
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("public fact-call projection fixture should check");
+    project_checked_package_review(&checked)
+        .expect("one exact fact-call projection certificate should rejoin");
+
+    let mut missing = checked.clone();
+    missing.facts.fact_call_projections.clear();
+    let diagnostics = project_checked_package_review(&missing)
+        .expect_err("missing fact-call projection certificate must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("fact-call projection rejoins 0 exact eligibility certificates")
+    }));
+
+    let mut duplicate = checked;
+    let certificate = duplicate.facts.fact_call_projections[0].clone();
+    duplicate.facts.fact_call_projections.push(certificate);
+    let diagnostics = project_checked_package_review(&duplicate)
+        .expect_err("duplicate fact-call projection certificates must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("fact-call projection rejoins 2 exact eligibility certificates")
+    }));
+}
+
+#[test]
 fn public_trait_contract_calls_use_the_same_checked_projection() {
     let package = TempPackage::new();
     package.write(

@@ -5,6 +5,21 @@ use crate::{
     SuspensionFacts, SynchronousInvocationFacts, TerminationFacts,
 };
 
+/// Exact checked certificate for the first fact-call projection rung. The
+/// expression handles rejoin the retained typed call/member tree; all nominal
+/// coordinates are duplicated here so later review cannot accept a merely
+/// shape-compatible projection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedFactCallProjection {
+    pub projection_expression: psi_typed_trees::expression::ExpressionHandle,
+    pub call_expression: psi_typed_trees::expression::ExpressionHandle,
+    pub target_machine: psi_symbols::SymbolHandle,
+    pub target_state: psi_symbols::SymbolHandle,
+    pub machine_arguments: Box<[psi_typed_trees::expression::StaticMachineArgument]>,
+    pub result_type: psi_typed_trees::types::TypeReferenceHandle,
+    pub field: psi_symbols::SymbolHandle,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
     pub semantic: psi_facts::FactPlan,
@@ -52,6 +67,9 @@ pub struct CheckFacts {
     /// declaration. Later live-set and runtime-admission passes consume this
     /// plan rather than re-deriving policy from syntax.
     pub carry: CarryFacts,
+    /// Denotational, non-executing call-result projections admitted by
+    /// validation. Package review must rejoin this row exactly.
+    pub fact_call_projections: Vec<CheckedFactCallProjection>,
 }
 
 impl CheckFacts {
@@ -76,6 +94,7 @@ impl CheckFacts {
         qualifications: QualificationFacts,
         contract_plans: MachineContractPlans,
         carry: CarryFacts,
+        fact_call_projections: Vec<CheckedFactCallProjection>,
     ) -> Self {
         Self {
             semantic,
@@ -98,6 +117,7 @@ impl CheckFacts {
             qualifications,
             contract_plans,
             carry,
+            fact_call_projections,
         }
     }
 }

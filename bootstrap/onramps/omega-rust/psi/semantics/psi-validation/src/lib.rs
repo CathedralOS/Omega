@@ -9,11 +9,13 @@ mod contract_entailment;
 mod data;
 mod declaration_visibility;
 mod default_domains;
+mod denotational_calls;
 mod destructure;
 mod domain_weakening;
 mod domains;
 mod effects;
 mod expression_types;
+mod fact_call_projections;
 mod float_projection_bindings;
 mod float_projection_invocations;
 mod invocations;
@@ -124,6 +126,7 @@ pub struct ProgramValidationFacts {
     pub exact_integer_casts: Vec<ExactIntegerCastFact>,
     pub float_meaning_projection_invocations: Vec<ValidatedFloatMeaningProjectionInvocation>,
     pub float_meaning_equality_propositions: Vec<ValidatedFloatMeaningEqualityProposition>,
+    pub fact_call_projections: Vec<fact_call_projections::ValidatedFactCallProjection>,
 }
 
 /// Exact source-independent coordinate of a contract-entailment goal that the
@@ -282,6 +285,8 @@ fn validate_program_internal(
     // classification named.
     let proof_only = psi_typed_trees::proof_only::classify(program);
     quotients::validate_quotients(program, &proof_only, &mut diagnostics);
+    let fact_call_projections =
+        fact_call_projections::validate_fact_call_projections(program, &mut diagnostics);
     proof_only_faces::validate_proof_only_consumption(program, &proof_only, &mut diagnostics);
     // Q6/MR4: runtime call cycles require the constant-stack tail admission;
     // erased proof-only SCCs instead require strict structural descent.
@@ -566,6 +571,7 @@ fn validate_program_internal(
         exact_integer_casts,
         float_meaning_projection_invocations,
         float_meaning_equality_propositions,
+        fact_call_projections,
     })
 }
 

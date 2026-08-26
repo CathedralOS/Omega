@@ -134,6 +134,23 @@ fn append_domain_expression_dependency_places(
         return;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Member(member)
+            if matches!(
+                program.expression_table.expression(member.receiver),
+                ExpressionNode::Call(_)
+            ) =>
+        {
+            // A fact-call projection has no materialized result place. Its
+            // validity/revision scope is exactly the transitive union of the
+            // call's input occurrences.
+            append_domain_expression_dependency_places(
+                program,
+                facts,
+                domain_target,
+                member.receiver,
+                dependencies,
+            );
+        }
         ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             let place = append_domain_expression_place(program, facts, domain_target, expression);
             dependencies.push(DomainDefinitionFactDependency { expression, place });

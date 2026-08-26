@@ -562,7 +562,10 @@ and contracts do not execute.
 A domain `requires` row must resolve to `Prop`. A machine returning `bool` is a
 value term, not an implicit proposition and not a validator invocation hidden
 inside qualification. Transparent proposition bodies may contain eligible total
-pure machine calls as denotational terms under the fact-call rule above; their
+pure machine calls as denotational terms under the fact-call rule above. When a
+transparent proposition projects one of its parameters, substituting a call
+result for that parameter retains the exact call-and-projection eligibility
+certificate rather than hiding the call behind the proposition name. The call's
 contracts and validity scopes remain in the proof, while no runtime call is
 emitted merely because the proposition is used.
 
