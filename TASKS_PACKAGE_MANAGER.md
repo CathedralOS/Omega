@@ -2495,6 +2495,18 @@ standard library by path.
       question Q4: standalone compilation still treats scoped `Owner::build`
       machines as project build roots while the package declaration reader
       deliberately rejects them.
+
+      Milestone 2026-08-26: all 140 executable sample roots now declare an
+      explicit kebab-case application name and use the canonical `builder`
+      receiver. A repository-level package-reader canary discovers the complete
+      sample population and projects every declaration through the same
+      authoritative role reader. Standalone checked compilation accepts 138 of
+      the migrated roots; the remaining `file-journal` and `note-vault` roots
+      reach their pre-existing duplicate-trait and Exact-cast failures after
+      build loading, so role migration is not masking them. Ordinary compiler
+      canaries remain the next mechanical cohort; malformed build diagnostics,
+      target-only vocabulary fragments, frozen bootstrap inputs, and the five
+      scoped roots remain deliberately separate.
 - [x] **Record the bundled-core decision** in
       `wiki/design_briefs/build_and_package_model.md`: core is welded to the
       compiler because it is the language, not because nobody wrote a manifest.
