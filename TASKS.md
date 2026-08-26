@@ -7442,10 +7442,11 @@ Remaining N6/N8 work:
   requirement's parameters, result, static telescope, or declared proposition
   parameters, and ordinary borrow/revision validity still applies.
 
-  Land the feature in dependency order. First add a source canary proving that
-  the existing concrete lane can introduce a witness-bearing proposition,
-  select its named output after `;`, pass it through a named input, and eliminate
-  it through its declared carrierless evidence interface. Then extend trait
+  Land the feature in dependency order. The
+  `named_witness_concrete_lane_compile` source canary now proves that the
+  existing concrete lane can introduce a witness-bearing proposition, select
+  its named output after `;`, pass it through a named input, and eliminate it
+  through its declared carrierless evidence interface. Next extend trait
   requirement checking, conformance inheritance, defaults, static calls, and
   runtime trait dispatch. A satisfying machine must assign every inherited
   output on each applicable ordinary exit and may not omit, rename, weaken, or
