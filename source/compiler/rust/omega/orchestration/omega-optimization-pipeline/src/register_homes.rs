@@ -11,8 +11,10 @@ use psi_core::{FuelScheduleIdentity, MachineId};
 use psi_terminal::TerminalPsiIdentity;
 
 use crate::{
-    OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
-    validate_optimized_allocation_legality_custody,
+    OptimizedAllocationLegalityCustodyError, OptimizedSelectedReanalysisError,
+    StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
+    StagedOptimizedSelectedReanalysisCustodyReceipt,
+    validate_optimized_allocation_legality_custody, validate_optimized_selected_reanalysis_custody,
 };
 
 /// Bounded opt-in physical-home staging. This lane admits only legality plans
@@ -219,6 +221,171 @@ fn custody_receipt(
         liveness: upstream.liveness(),
         ranges: upstream.ranges(),
         legality: upstream.legality(),
+        homes: homes.identity(),
+        function_count: homes.function_count(),
+        assignment_count: homes.assignment_count(),
+    }
+}
+
+/// Physical homes after one exact fixed-view copy transformation and complete
+/// reanalysis. This remains custody-only and cannot enter machine emission.
+#[derive(Debug)]
+pub struct StagedOptimizedRegisterHomesAfterFixedViewCopies {
+    reanalysis: StagedOptimizedSelectedReanalysis,
+    homes: ValidatedTerminalRegisterHomes,
+    custody: StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
+}
+
+impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
+    pub const fn reanalysis_stage(&self) -> &StagedOptimizedSelectedReanalysis {
+        &self.reanalysis
+    }
+    pub const fn homes(&self) -> &ValidatedTerminalRegisterHomes {
+        &self.homes
+    }
+    pub const fn custody(&self) -> StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
+        self.custody
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
+    source: StagedOptimizedSelectedReanalysisCustodyReceipt,
+    homes: TerminalRegisterHomeIdentity,
+    function_count: usize,
+    assignment_count: usize,
+}
+
+impl StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
+    pub const fn source(self) -> StagedOptimizedSelectedReanalysisCustodyReceipt {
+        self.source
+    }
+    pub const fn homes(self) -> TerminalRegisterHomeIdentity {
+        self.homes
+    }
+    pub const fn function_count(self) -> usize {
+        self.function_count
+    }
+    pub const fn assignment_count(self) -> usize {
+        self.assignment_count
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OptimizedPostCopyRegisterHomeCustodyError {
+    UpstreamReanalysis(OptimizedSelectedReanalysisError),
+    Assignment(TerminalRegisterHomeError),
+    Revalidation(TerminalRegisterHomeError),
+    ReceiptMismatch,
+}
+
+impl std::fmt::Display for OptimizedPostCopyRegisterHomeCustodyError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "optimized post-copy register-home staging failed: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for OptimizedPostCopyRegisterHomeCustodyError {}
+
+pub fn stage_optimized_register_homes_after_fixed_view_copies(
+    reanalysis: StagedOptimizedSelectedReanalysis,
+) -> Result<
+    StagedOptimizedRegisterHomesAfterFixedViewCopies,
+    OptimizedPostCopyRegisterHomeCustodyError,
+> {
+    let source = validate_optimized_selected_reanalysis_custody(
+        reanalysis.transformation_stage(),
+        reanalysis.liveness(),
+        reanalysis.ranges(),
+        reanalysis.legality(),
+    )
+    .map_err(OptimizedPostCopyRegisterHomeCustodyError::UpstreamReanalysis)?;
+    let environment = reanalysis
+        .transformation_stage()
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage()
+        .register_environment();
+    let homes = assign_terminal_register_homes(
+        reanalysis.legality(),
+        reanalysis.ranges(),
+        environment.identity(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        environment.allocation_constraint_keys(),
+    )
+    .map_err(OptimizedPostCopyRegisterHomeCustodyError::Assignment)?;
+    let replayed = validate_terminal_register_homes(
+        reanalysis.legality(),
+        reanalysis.ranges(),
+        environment.identity(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        environment.allocation_constraint_keys(),
+        homes.plan().clone(),
+    )
+    .map_err(OptimizedPostCopyRegisterHomeCustodyError::Revalidation)?;
+    if replayed.receipt() != homes.receipt() {
+        return Err(OptimizedPostCopyRegisterHomeCustodyError::ReceiptMismatch);
+    }
+    let custody = post_copy_custody_receipt(source, homes.receipt());
+    Ok(StagedOptimizedRegisterHomesAfterFixedViewCopies {
+        reanalysis,
+        homes,
+        custody,
+    })
+}
+
+pub fn validate_optimized_register_home_after_fixed_view_copy_custody(
+    reanalysis: &StagedOptimizedSelectedReanalysis,
+    homes: &ValidatedTerminalRegisterHomes,
+) -> Result<
+    StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
+    OptimizedPostCopyRegisterHomeCustodyError,
+> {
+    let source = validate_optimized_selected_reanalysis_custody(
+        reanalysis.transformation_stage(),
+        reanalysis.liveness(),
+        reanalysis.ranges(),
+        reanalysis.legality(),
+    )
+    .map_err(OptimizedPostCopyRegisterHomeCustodyError::UpstreamReanalysis)?;
+    let environment = reanalysis
+        .transformation_stage()
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage()
+        .register_environment();
+    let replayed = validate_terminal_register_homes(
+        reanalysis.legality(),
+        reanalysis.ranges(),
+        environment.identity(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        environment.allocation_constraint_keys(),
+        homes.plan().clone(),
+    )
+    .map_err(OptimizedPostCopyRegisterHomeCustodyError::Revalidation)?;
+    if replayed.receipt() != homes.receipt() {
+        return Err(OptimizedPostCopyRegisterHomeCustodyError::ReceiptMismatch);
+    }
+    Ok(post_copy_custody_receipt(source, replayed.receipt()))
+}
+
+fn post_copy_custody_receipt(
+    source: StagedOptimizedSelectedReanalysisCustodyReceipt,
+    homes: omega_regalloc::TerminalRegisterHomeValidationReceipt,
+) -> StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
+    StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
+        source,
         homes: homes.identity(),
         function_count: homes.function_count(),
         assignment_count: homes.assignment_count(),

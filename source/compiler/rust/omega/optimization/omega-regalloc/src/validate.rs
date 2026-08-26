@@ -1,12 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
-use omega_terminal_selected_instructions::{
-    TerminalSelectedBlock, TerminalSelectedFunction, TerminalSelectedInstruction,
-    TerminalSelectedTerminator, TerminalVirtualRegisterId, TerminalVirtualRegisterOrigin,
-};
-use omega_terminal_target_operations_to_selected_instructions::ValidatedTerminalSelectedInstructions;
-
 use crate::identity::terminal_liveness_identity;
 use crate::model::{
     TerminalBlockLiveness, TerminalEntryDefinition, TerminalFunctionLiveness,
@@ -14,21 +7,26 @@ use crate::model::{
     TerminalLivenessPosition, TerminalLivenessValidationReceipt, TerminalOperandPosition,
     TerminalSuccessorLiveness, ValidatedTerminalLiveness,
 };
+use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
+use omega_terminal_selected_instructions::{
+    TerminalSelectedBlock, TerminalSelectedFunction, TerminalSelectedInstruction,
+    TerminalSelectedTerminator, TerminalVirtualRegisterId, TerminalVirtualRegisterOrigin,
+};
 
 pub fn validate_terminal_liveness(
-    selected: &ValidatedTerminalSelectedInstructions,
+    selected: &impl crate::ValidatedTerminalSelectedAnalysis,
     plan: TerminalLivenessPlan,
 ) -> Result<ValidatedTerminalLiveness, TerminalLivenessError> {
-    if plan.selected != selected.receipt().identity()
-        || plan.optimization_unit != selected.receipt().optimization_unit()
-        || plan.fuel_schedule != selected.receipt().fuel_schedule()
-        || plan.target != selected.plan().target
-        || plan.functions.len() != selected.plan().functions.len()
+    if plan.selected != selected.selected_identity()
+        || plan.optimization_unit != selected.optimization_unit_identity()
+        || plan.fuel_schedule != selected.fuel_schedule_identity()
+        || plan.target != selected.selected_plan().target
+        || plan.functions.len() != selected.selected_plan().functions.len()
     {
         return Err(TerminalLivenessError::RootMismatch);
     }
     for (function_index, (selected_function, actual)) in selected
-        .plan()
+        .selected_plan()
         .functions
         .iter()
         .zip(&plan.functions)
@@ -62,7 +60,7 @@ pub fn validate_terminal_liveness(
         function_count: plan.functions.len(),
         block_count,
         virtual_register_count: selected
-            .plan()
+            .selected_plan()
             .functions
             .iter()
             .map(|function| function.virtual_registers.len())

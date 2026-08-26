@@ -1,9 +1,5 @@
 use std::collections::BTreeSet;
 
-use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
-use omega_terminal_selected_instructions::{TerminalSelectedBlockId, TerminalVirtualRegisterId};
-use omega_terminal_target_operations_to_selected_instructions::ValidatedTerminalSelectedInstructions;
-
 use crate::{
     TerminalArchitecturalUnitAction, TerminalArchitecturalUnitActionKind,
     TerminalArchitecturalUnitLiveRange, TerminalBlockLiveness, TerminalBlockPointDomain,
@@ -13,13 +9,15 @@ use crate::{
     TerminalVirtualInterference, TerminalVirtualLiveRange, TerminalVirtualOccurrence,
     ValidatedTerminalLiveness,
 };
+use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
+use omega_terminal_selected_instructions::{TerminalSelectedBlockId, TerminalVirtualRegisterId};
 
 pub(crate) fn compute_terminal_live_ranges(
-    selected: &ValidatedTerminalSelectedInstructions,
+    selected: &impl crate::ValidatedTerminalSelectedAnalysis,
     liveness: &ValidatedTerminalLiveness,
 ) -> Result<TerminalLiveRangePlan, TerminalLiveRangeError> {
     let functions = selected
-        .plan()
+        .selected_plan()
         .functions
         .iter()
         .zip(&liveness.plan().functions)
@@ -27,11 +25,11 @@ pub(crate) fn compute_terminal_live_ranges(
         .map(|(index, (selected, live))| compute_function(index, selected, live))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(TerminalLiveRangePlan {
-        selected: selected.receipt().identity(),
+        selected: selected.selected_identity(),
         liveness: liveness.receipt().identity(),
-        optimization_unit: selected.receipt().optimization_unit(),
-        fuel_schedule: selected.receipt().fuel_schedule(),
-        target: selected.plan().target,
+        optimization_unit: selected.optimization_unit_identity(),
+        fuel_schedule: selected.fuel_schedule_identity(),
+        target: selected.selected_plan().target,
         functions,
     })
 }

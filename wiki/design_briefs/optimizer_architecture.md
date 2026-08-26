@@ -159,7 +159,10 @@ canonical Terminal Psi semantic + proof sections
          exact native target }
     -> instruction selection / target combines
        -> selected CFG liveness, live ranges, physical-view legality
-          -> bounded transition-free physical-home assignment
+          -> bounded transition-free physical-home assignment, or
+          -> exact named fixed-view copies
+             -> complete liveness/range/legality reanalysis
+             -> bounded transition-free physical-home assignment
              (custody-only branch; stops before emission)
        -> current transitional bounded scratch assignment
     -> StagedOptimizedAssignedOperations
@@ -226,12 +229,26 @@ storage/write footprints to prevent conflicting homes, while allowing
 mutually-exclusive leaf values to reuse a view. Production and independent
 replay both bind the legality, range, and register-environment identities.
 
-This is not yet the general allocator and grants no copy insertion, splitting,
-spill, frame, emission, or publication authority. An incompatible ABI-entry to
-fixed-return view remains an explicit transition error. The next named
-transformation must materialize copies or splits in the selected CFG, preserve
-their exact provenance and fuel custody, and rerun liveness, ranges, and
-legality before home assignment.
+The direct home path is still not the general allocator and grants no copy
+insertion, splitting, spill, frame, emission, or publication authority. An
+incompatible ABI-entry to fixed-return view remains an explicit transition
+error there.
+
+The separately named `LeafLocalBeforeFixedUseV1` transformation handles only
+the admitted scalar-u64 entry-to-leaf-return case. It inserts an explicit
+ISA-owned `CopyI64`, creates a fresh split-result VReg, rewrites only the exact
+fixed return operand, preserves the return's provenance and logical fuel, and
+gives the native copy source-value provenance with zero logical fuel. Its
+explicit work budget is checked for the whole plan before any artifact is
+published. Independent replay reconstructs the complete transformed selected
+CFG and a domain-separated transformation identity.
+
+Because the selected CFG changed, a sealed validated-analysis boundary reruns
+liveness, ranges, interference, architectural state, and candidate legality
+from scratch and requires zero remaining transitions. Only then may a separate
+post-copy custody carrier invoke the unchanged strict home assigner. Both paths
+stop before machine emission. General splitting around calls or pressure,
+address-stable values, spills, and frames remain future named capabilities.
 
 The carrier exposes the projected abstract plan only by borrow while retaining
 the verified input and complete optimization run. A second optimized-only

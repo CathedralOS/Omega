@@ -1,22 +1,20 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
-use omega_terminal_selected_instructions::{
-    TerminalSelectedBlock, TerminalSelectedFunction, TerminalSelectedInstruction,
-    TerminalSelectedTerminator, TerminalVirtualRegisterId, TerminalVirtualRegisterOrigin,
-};
-use omega_terminal_target_operations_to_selected_instructions::ValidatedTerminalSelectedInstructions;
-
 use crate::model::{
     TerminalBlockLiveness, TerminalEntryDefinition, TerminalFunctionLiveness,
     TerminalInstructionLiveness, TerminalLivenessError, TerminalLivenessPlan,
     TerminalLivenessPosition, TerminalOperandPosition, TerminalSuccessorLiveness,
 };
+use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
+use omega_terminal_selected_instructions::{
+    TerminalSelectedBlock, TerminalSelectedFunction, TerminalSelectedInstruction,
+    TerminalSelectedTerminator, TerminalVirtualRegisterId, TerminalVirtualRegisterOrigin,
+};
 
 pub(crate) fn compute_terminal_liveness(
-    selected: &ValidatedTerminalSelectedInstructions,
+    selected: &impl crate::ValidatedTerminalSelectedAnalysis,
 ) -> Result<TerminalLivenessPlan, TerminalLivenessError> {
-    let plan = selected.plan();
+    let plan = selected.selected_plan();
     let functions = plan
         .functions
         .iter()
@@ -24,9 +22,9 @@ pub(crate) fn compute_terminal_liveness(
         .map(|(index, function)| compute_function(index, function))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(TerminalLivenessPlan {
-        selected: selected.receipt().identity(),
-        optimization_unit: selected.receipt().optimization_unit(),
-        fuel_schedule: selected.receipt().fuel_schedule(),
+        selected: selected.selected_identity(),
+        optimization_unit: selected.optimization_unit_identity(),
+        fuel_schedule: selected.fuel_schedule_identity(),
         target: plan.target,
         functions,
     })
