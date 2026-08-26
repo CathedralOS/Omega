@@ -11,10 +11,10 @@ data Stager {
     fd: i32;
 }
 
-machine Stager::build(&mut self, b: &mut Build) {
+machine Stager::build(&mut self, builder: &mut Build) {
     self.fd = self.fs.create("build/asset.bin", 438);
-    transition true { true -> done(b) _ -> done(b) }
-    state done(&mut self, b: &mut Build) {
-        b.freestanding = false;
+    transition true { true -> done(builder) _ -> done(builder) }
+    state done(&mut self, builder: &mut Build) {
+        builder.freestanding = false;
     }
 }

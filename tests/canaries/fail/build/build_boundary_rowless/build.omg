@@ -11,10 +11,10 @@ data Logger {
     log: BuildLog;
 }
 
-machine Logger::build(&mut self, b: &mut Build)
+machine Logger::build(&mut self, builder: &mut Build)
 reaches
     Console
 {
     self.log.write_line("configuring");
-    b.freestanding = false;
+    builder.freestanding = false;
 }

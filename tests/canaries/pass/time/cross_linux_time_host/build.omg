@@ -4,3 +4,7 @@ target linux_x64 {
 
 target linux_arm64 {
 }
+
+machine build(builder: &mut Build) {
+    builder.application("cross-linux-time-host");
+}

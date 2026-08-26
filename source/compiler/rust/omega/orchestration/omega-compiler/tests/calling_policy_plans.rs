@@ -1667,6 +1667,7 @@ machine Boot::launch(
 }
 
 machine build(builder: &mut Build) {
+    builder.application("receiver-free-whole-root-authority");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
     builder.roots.bind(uefi_x86_64::ProgramEntry, Boot::launch);

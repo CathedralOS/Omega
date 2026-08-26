@@ -40,6 +40,7 @@ fn write_cross_package_program(name: &str, consumer: &str) -> PathBuf {
         directory.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
+    builder.application("access-plans");
     builder.depend_as("policy", Source::Path { location: "policy" });
 }
 "#,

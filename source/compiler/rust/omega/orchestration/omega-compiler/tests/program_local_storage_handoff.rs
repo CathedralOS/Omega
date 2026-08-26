@@ -636,6 +636,7 @@ machine Boot::{label}(
 }}
 
 machine build(builder: &mut Build) {{
+    builder.application("program-local-storage-handoff");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
     builder.roots.bind(uefi_x86_64::ProgramEntry, Boot::{label});

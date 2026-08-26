@@ -37,15 +37,20 @@ fn package_identity(marker: u8) -> PackageKeyIdentity {
 }
 
 #[test]
-fn absent_and_empty_builds_select_no_optimizations() {
+fn absent_and_role_only_builds_select_no_optimizations() {
     let absent = project("absent", None);
     let checked =
         compile_to_checked(&absent.join("main.omg"), None).expect("absent build remains valid");
     assert!(checked.optimization_selections().is_empty());
 
-    let empty = project("empty", Some("machine build(builder: &mut Build) {\n}\n"));
-    let checked = compile_to_checked(&empty.join("main.omg"), None)
-        .expect("empty canonical build remains valid");
+    let role_only = project(
+        "role-only",
+        Some(
+            "machine build(builder: &mut Build) {\n    builder.application(\"optimizer-role-only\");\n}\n",
+        ),
+    );
+    let checked = compile_to_checked(&role_only.join("main.omg"), None)
+        .expect("role-only canonical build remains valid");
     assert!(checked.optimization_selections().is_empty());
 }
 
@@ -55,6 +60,7 @@ fn enable_calls_project_the_exact_canonical_named_set() {
         "selected",
         Some(
             r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-selected");
     builder.optimizations.enable(Optimization::ProofCheckElision);
     builder.optimizations.enable(Optimization::ControlFlowCleanup);
     builder.optimizations.enable(Optimization::CopyPropagation);
@@ -84,6 +90,7 @@ fn duplicate_enable_calls_reject_during_build_evaluation() {
         "duplicate",
         Some(
             r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-duplicate");
     builder.optimizations.enable(Optimization::GlobalValueNumbering);
     builder.optimizations.enable(Optimization::GlobalValueNumbering);
 }
@@ -99,60 +106,54 @@ fn duplicate_enable_calls_reject_during_build_evaluation() {
 }
 
 #[test]
-fn authored_legacy_build_without_selection_field_stays_disabled() {
+fn ordinary_authored_build_does_not_replace_selected_toolchain_build() {
     let root = project(
-        "legacy",
+        "ordinary-build",
         Some(
-            r#"data Subsystem {
-    case Console;
-    case Gui;
-    case EfiApplication;
-    case Unspecified(value: u16);
-}
-data Build {
-    subsystem: Subsystem;
-    freestanding: bool;
-}
-machine build(builder: &mut Build) {
-    builder.freestanding = false;
+            r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-ordinary-build");
 }
 "#,
         ),
     );
+    std::fs::write(
+        root.join("main.omg"),
+        r#"data Build {
+    freestanding: bool;
+}
+"#,
+    )
+    .expect("write ordinary legacy Build declaration");
     let checked = compile_to_checked(&root.join("main.omg"), None)
-        .expect("legacy authored Build remains compatible");
+        .expect("ordinary authored Build must remain outside build-root vocabulary");
     assert!(checked.optimization_selections().is_empty());
 }
 
 #[test]
-fn authored_lookalike_selection_field_rejects_nominally() {
+fn ordinary_authored_lookalike_selection_field_cannot_spoof_toolchain_build() {
     let root = project(
         "lookalike",
         Some(
-            r#"data Subsystem {
-    case Console;
-    case Gui;
-    case EfiApplication;
-    case Unspecified(value: u16);
-}
-data Optimizations {
-}
-data Build {
-    subsystem: Subsystem;
-    freestanding: bool;
-    optimizations: Optimizations;
-}
-machine build(builder: &mut Build) {
+            r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-lookalike");
 }
 "#,
         ),
     );
-    let diagnostics = compile_to_checked(&root.join("main.omg"), None)
-        .expect_err("authored Optimizations lookalike must reject");
-    assert!(
-        diagnostic_messages(&diagnostics)
-            .contains("Build.optimizations must have the exact toolchain `Optimizations` type")
-    );
+    std::fs::write(
+        root.join("main.omg"),
+        r#"data ProgramOptimizations {
+}
+data Build {
+    freestanding: bool;
+    optimizations: ProgramOptimizations;
+}
+"#,
+    )
+    .expect("write ordinary lookalike Build declaration");
+    let checked = compile_to_checked(&root.join("main.omg"), None)
+        .expect("ordinary lookalike vocabulary must not replace the toolchain Build");
+    assert!(checked.optimization_selections().is_empty());
 }
 
 #[test]
@@ -161,6 +162,7 @@ fn selected_native_build_fails_closed_without_installing_output() {
         "fail-closed",
         Some(
             r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-fail-closed");
     builder.optimizations.enable(Optimization::ControlFlowCleanup);
 }
 "#,
@@ -191,6 +193,7 @@ fn selected_check_only_validates_without_entering_an_optimizer_backend() {
         "selected-check-only",
         Some(
             r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-selected-check-only");
     builder.optimizations.enable(Optimization::ControlFlowCleanup);
 }
 "#,
@@ -257,6 +260,7 @@ fn package_aware_root_build_retains_its_exact_selection() {
         "package-root-selection",
         Some(
             r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-package-root-selection");
     builder.optimizations.enable(Optimization::GlobalValueNumbering);
 }
 "#,

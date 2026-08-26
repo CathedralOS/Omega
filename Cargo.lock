@@ -520,6 +520,7 @@ dependencies = [
  "omega-backend-pipeline",
  "omega-backend-plan",
  "omega-backend-report",
+ "omega-build-declarations",
  "omega-calling-conventions",
  "omega-checked-trees-to-state-graph",
  "omega-control-flow",

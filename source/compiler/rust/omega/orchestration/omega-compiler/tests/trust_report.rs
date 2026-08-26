@@ -226,12 +226,10 @@ fn domain_and_unmatched_root_grants_reject_without_receipts() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("build.omg"),
-        r#"data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
-data Build { subsystem: Subsystem; freestanding: bool; }
-
-machine build(b: &mut Build) {
-    b.accept_boundary<Meters>();
-    b.accept_boundary<walker_lib::collatz_cert_checked>();
+        r#"machine build(builder: &mut Build) {
+    builder.application("trust-grant");
+    builder.accept_boundary<Meters>();
+    builder.accept_boundary<walker_lib::collatz_cert_checked>();
 }
 "#,
     )
@@ -291,11 +289,9 @@ machine Main::exercise(&mut self) {}
     .expect("write main.omg");
     let build_with = |grant: &str| {
         format!(
-            r#"data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
-data Build {{ subsystem: Subsystem; freestanding: bool; }}
-
-machine build(b: &mut Build) {{
-    b.accept_boundary<{grant}>();
+            r#"machine build(builder: &mut Build) {{
+    builder.application("trust-grant-canonicalization");
+    builder.accept_boundary<{grant}>();
 }}
 "#
         )
@@ -356,11 +352,9 @@ fn lockfile_written_and_drift_fails_until_reapproved() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("build.omg"),
-        r#"data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
-data Build { subsystem: Subsystem; freestanding: bool; }
-
-machine build(b: &mut Build) {
-    b.accept_boundary<admitted>();
+        r#"machine build(builder: &mut Build) {
+    builder.application("trust-lock");
+    builder.accept_boundary<admitted>();
 }
 "#,
     )
@@ -432,14 +426,12 @@ machine Main::exercise(&mut self) {}
     let build_with = |grants: &[&str]| {
         let grants = grants
             .iter()
-            .map(|grant| format!("    b.accept_boundary<{grant}>();"))
+            .map(|grant| format!("    builder.accept_boundary<{grant}>();"))
             .collect::<Vec<_>>()
             .join("\n");
         format!(
-            r#"data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
-data Build {{ subsystem: Subsystem; freestanding: bool; }}
-
-machine build(b: &mut Build) {{
+            r#"machine build(builder: &mut Build) {{
+    builder.application("trust-lock-grants");
 {grants}
 }}
 "#
@@ -516,9 +508,7 @@ fn trust_lock_rejects_corrupt_and_duplicate_rows_without_repair() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("build.omg"),
-        r#"data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
-data Build { subsystem: Subsystem; freestanding: bool; }
-machine build(b: &mut Build) { b.accept_boundary<Alpha>(); }
+        r#"machine build(builder: &mut Build) { builder.application("trust-lock-corrupt"); builder.accept_boundary<Alpha>(); }
 "#,
     )
     .expect("write build.omg");
@@ -583,11 +573,9 @@ fn granted_axiom_receipt_drifts_on_claim_edit() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("build.omg"),
-        r#"data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
-data Build { subsystem: Subsystem; freestanding: bool; }
-
-machine build(b: &mut Build) {
-    b.accept_boundary<mul_comm_axiom>();
+        r#"machine build(builder: &mut Build) {
+    builder.application("axiom-lock");
+    builder.accept_boundary<mul_comm_axiom>();
 }
 "#,
     )
@@ -651,11 +639,9 @@ fn granted_axiom_receipt_drifts_on_published_contract_axis_edit() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("build.omg"),
-        r#"data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
-data Build { subsystem: Subsystem; freestanding: bool; }
-
-machine build(b: &mut Build) {
-    b.accept_boundary<admitted_axis>();
+        r#"machine build(builder: &mut Build) {
+    builder.application("axiom-axis-lock");
+    builder.accept_boundary<admitted_axis>();
 }
 "#,
     )
@@ -720,11 +706,9 @@ fn granted_generic_axiom_receipt_pins_template_and_machine_requirement() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("build.omg"),
-        r#"data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
-data Build { subsystem: Subsystem; freestanding: bool; }
-
-machine build(b: &mut Build) {
-    b.accept_boundary<admitted>();
+        r#"machine build(builder: &mut Build) {
+    builder.application("generic-axiom-lock");
+    builder.accept_boundary<admitted>();
 }
 "#,
     )
@@ -893,11 +877,9 @@ fn granted_plan_receipt_pins_the_fingerprint() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("build.omg"),
-        r#"data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
-data Build { subsystem: Subsystem; freestanding: bool; }
-
-machine build(b: &mut Build) {
-    b.accept_boundary<Flags>();
+        r#"machine build(builder: &mut Build) {
+    builder.application("plan-lock");
+    builder.accept_boundary<Flags>();
 }
 "#,
     )
@@ -1388,11 +1370,9 @@ fn routed_qualification_rows_retain_exact_root_grant_selectors() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("build.omg"),
-        r#"data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
-data Build { subsystem: Subsystem; freestanding: bool; }
-
-machine build(b: &mut Build) {
-    b.accept_boundary<Issuer>();
+        r#"machine build(builder: &mut Build) {
+    builder.application("trust-abstract-issuer");
+    builder.accept_boundary<Issuer>();
 }
 "#,
     )
@@ -1639,12 +1619,10 @@ fn slot_grant_pins_only_the_selected_provider_plan() {
     std::fs::create_dir_all(&project).expect("create project dir");
     let build_with = |provider: &str| {
         format!(
-            r#"data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
-data Build {{ subsystem: Subsystem; freestanding: bool; }}
-
-machine build(b: &mut Build) {{
-    b.accept_boundary<Pair>();
-    b.select_provider<Pair, {provider}>();
+            r#"machine build(builder: &mut Build) {{
+    builder.application("trust-provider-selection");
+    builder.accept_boundary<Pair>();
+    builder.select_provider<Pair, {provider}>();
 }}
 "#
         )

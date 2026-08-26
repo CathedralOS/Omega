@@ -1,3 +1,4 @@
+use omega_build_declarations::BuildDeclarationError;
 use omega_compiler::{
     PackageCompilationInputs, PackageSourceBinding, compile_to_checked,
     compile_to_checked_with_packages,
@@ -60,7 +61,10 @@ fn absent_build_machine_retains_no_symbol_or_standalone_package_identity() {
 fn present_build_machine_retains_its_exact_checked_symbol() {
     let project = TempProject::new();
     project.write("main.omg", "const ANSWER: u32 = 42;\n");
-    project.write("build.omg", "machine build(builder: &mut Build) { }\n");
+    project.write(
+        "build.omg",
+        "machine build(builder: &mut Build) { builder.application(\"checked-build-symbol\"); }\n",
+    );
 
     let checked = compile_to_checked(&project.main(), None).expect("build program should check");
     let build = checked
@@ -74,13 +78,54 @@ fn present_build_machine_retains_its_exact_checked_symbol() {
 }
 
 #[test]
+fn selected_free_build_without_a_project_role_rejects_with_shared_diagnostic() {
+    let project = TempProject::new();
+    project.write("main.omg", "const ANSWER: u32 = 42;\n");
+    project.write("build.omg", "machine build(builder: &mut Build) { }\n");
+
+    let diagnostics = compile_to_checked(&project.main(), None)
+        .expect_err("a selected free build root must declare its project role");
+    let missing_kind = BuildDeclarationError::MissingBuildDeclaration.to_string();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.ends_with(&missing_kind)),
+        "unexpected diagnostics: {diagnostics:#?}",
+    );
+}
+
+#[test]
+fn selected_scoped_build_retains_q4_compatibility_behavior() {
+    let project = TempProject::new();
+    project.write("main.omg", "data Owner { }\nconst ANSWER: u32 = 42;\n");
+    project.write(
+        "build.omg",
+        "machine Owner::build(&mut self, builder: &mut Build) { }\n",
+    );
+
+    let checked = compile_to_checked(&project.main(), None)
+        .expect("a selected scoped build root remains in the Q4 compatibility lane");
+    let build = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Owner::build")
+        .expect("checked scoped build machine");
+
+    assert_eq!(checked.selected_build_machine_symbol(), Some(build.symbol));
+}
+
+#[test]
 fn imported_file_named_build_is_not_a_project_build_root() {
     let project = TempProject::new();
     project.write(
         "main.omg",
         "use nested::build;\ndata Helper { }\nconst ANSWER: u32 = 42;\n",
     );
-    project.write("build.omg", "machine build(builder: &mut Build) { }\n");
+    project.write(
+        "build.omg",
+        "machine build(builder: &mut Build) { builder.application(\"imported-build-source\"); }\n",
+    );
     project.write(
         "nested/build.omg",
         "machine Helper::build(&mut self, builder: &mut Build) { }\n",

@@ -29,3 +29,7 @@ target linux_x64 {
     boundary omega::host::contracts
     boundary omega::host::targets::linux
 }
+
+machine build(builder: &mut Build) {
+    builder.application("tic-tac-toe");
+}

@@ -2611,6 +2611,19 @@ standard library by path.
       therefore has 1,105 explicit canary applications and ten exceptions:
       the wrong-arity root, five Q4-scoped roots, and four target-only
       fragments.
+
+      Milestone 2026-08-26: compiler loading now projects the exact retained
+      bytes of the selected free `build.omg` through
+      `omega-build-declarations` before injecting build vocabulary or
+      executing build code. A role-less free root therefore receives the same
+      missing-kind diagnostic as package orchestration; absence of a companion
+      build file remains valid for focused compilation. The 70 frozen bootstrap
+      roots, the wrong-arity diagnostic canary, and the four formerly
+      target-only canary roots now declare explicit application roles. The
+      wrong-arity root still reaches its intended two-versus-one activation
+      error. Only the five scoped roots remain outside the shared role grammar,
+      isolated behind the explicit Q4 compatibility lane rather than inferred
+      as another manifest form.
 - [x] **Record the bundled-core decision** in
       `wiki/design_briefs/build_and_package_model.md`: core is welded to the
       compiler because it is the language, not because nobody wrote a manifest.

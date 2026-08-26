@@ -330,8 +330,9 @@ machine Main::main(&mut self) {
     // The Build/Subsystem vocabulary is TOOLCHAIN-INJECTED (a virtual
     // prelude source) -- build.omg authors only the machine.
     const BUILD_GUI: &str = r#"
-machine build(b: &mut Build) {
-    b.subsystem = Subsystem::Gui;
+machine build(builder: &mut Build) {
+    builder.application("build-subsystem-gui");
+    builder.subsystem = Subsystem::Gui;
 }
 "#;
 

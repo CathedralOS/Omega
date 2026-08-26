@@ -9,6 +9,7 @@ name = "omega_compiler"
 path = "src/lib.rs"
 
 [dependencies]
+omega-build-declarations = { path = "../omega-build-declarations" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
 psi-core = { path = "../../../psi/foundation/psi-core" }

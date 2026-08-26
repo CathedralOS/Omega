@@ -31,13 +31,15 @@ real package fixture demonstrates an irreducible external contract.
 - All executable roots under `samples/` declare explicit application roles and
   use the canonical `builder` receiver. A repository canary discovers the full
   sample population and projects each role through this package reader.
-- The ordinary compiler-canary corpus is also explicit except where a test is
-  deliberately malformed, contains only target vocabulary, exercises a scoped
-  build root, or has an intrinsically invalid build entry. Those exceptions are
-  enumerated by the same repository canary rather than inferred. The exact
-  selected build source resolves the compiler-owned `Build` vocabulary through
-  a source-scoped binding, so an ordinary same-spelled program declaration
-  remains nominally independent and no longer needs an exception.
+- The ordinary compiler-canary and frozen bootstrap corpora declare explicit
+  application roles. Compiler loading projects the exact retained bytes of a
+  selected free `build.omg` through the same declaration crate before prelude
+  injection or execution, so a role-less free root cannot bypass package-side
+  interpretation. The exact selected source also resolves compiler-owned
+  `Build` vocabulary through a source-scoped binding, leaving an ordinary
+  same-spelled program declaration nominally independent. Only the five scoped
+  build roots remain in the explicit Q4 compatibility lane; they are not
+  accepted as package declarations.
 - `PackageName` is presentation. `PackageKey` joins the name to canonical
   source lineage. `PackageInstance` adds exact source, toolchain, and checked
   package-evidence identity.
