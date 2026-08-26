@@ -2019,6 +2019,34 @@ complete.
   Terminal evidence grants no Terminal claim, and no generic completeness bit
   weakens this rule.
 
+- **EXTERNAL-EXECUTABLE-SUPPLY-REVIEW.** Project bodyless external realization
+  as its own blocking trust/TCB row.
+
+  Acceptance: every reviewed external realization binds the exact
+  package-qualified callable and conformance application to one closed
+  compiler-owned mechanism identity: import library and symbol, syscall number,
+  compiler intrinsic, vtable slot, vtable field, or table-function field. The
+  projector cross-checks the machine supply mode, conformance binding, and
+  external-binding table; missing, duplicate, mismatched, or unsupported state
+  rejects rather than producing a partial row. This row remains distinct from
+  callable API, declared/effective reach, boundary representation, accepted
+  claims, and Terminal evidence. It records opaque executable supply and makes
+  no claim that the supplied code was audited or that its realization was
+  verified.
+
+  Ratified design decision 2026-08-26: derive each component from the earliest
+  coherent compiler-owned representation in which that component is
+  semantically settled. Structural binding identity may come from private
+  pre-Terminal state and join the checked callable/conformance association only
+  after successful compilation. The projector may move with compiler internals;
+  only its versioned canonical row crosses into package orchestration. Psi may
+  repeat the consistency check as a backstop, but the package checker does not
+  reconstruct an already-settled binding from reduced Terminal Psi. Do not add
+  nominal Chi for this seam. Add a stage only if implementation discovers a
+  reusable semantic boundary with independent consumers, transformations, or
+  invariants; reuse an existing coherent representation such as Exact when it
+  makes the implementation smaller without losing meaning.
+
 ## P4 — Lock and baseline
 
 - **ORDINARY-PACKAGE-ARTIFACT-SUBJECT.** Finish and name the canonical semantic

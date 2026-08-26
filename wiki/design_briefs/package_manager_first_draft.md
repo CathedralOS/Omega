@@ -1030,6 +1030,26 @@ build-contract admission does not wait for blanket Terminal coverage. Evidence
 rows state their exact class; missing Terminal evidence cannot be represented
 as a weaker “complete enough” bit or mistaken for a Terminal-verified claim.
 
+Bodyless external realization is consequently one separate blocking
+executable-supply trust row. It binds the exact package-qualified callable and
+conformance application to a closed compiler-owned mechanism identity: import
+library and symbol, syscall number, compiler intrinsic, vtable slot, vtable
+field, or table-function field. The projector cross-checks machine supply mode,
+conformance binding, and the external-binding table. Missing, duplicate,
+mismatched, or unsupported state rejects. The row is not callable API, reach,
+boundary representation, an accepted proof, or Terminal evidence, and does not
+claim that anyone audited the supplied code or verified its realization.
+
+Projection reads each component from the earliest coherent compiler-owned
+representation in which it is semantically settled. Private pre-Terminal binding
+identity may join the checked callable/conformance association only after
+successful compilation. Only the versioned canonical row crosses into package
+orchestration; the checker may move with compiler internals. Psi may repeat the
+invariant as a backstop but is not the mandatory reconstruction source. Do not
+introduce nominal Chi for this seam. A new stage is warranted only by a real
+shared semantic boundary with independent consumers, transformations, or
+invariants; reuse a coherent existing stage such as Exact when it is simpler.
+
 Underdeclared effective reach is a compiler error. Overdeclared reach remains a
 visible contract-slack row. “Realized” here is the exact inferred transitive row
 of an actual checked body, never the authored public ceiling. Bodyless supply
