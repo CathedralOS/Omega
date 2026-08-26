@@ -64,8 +64,8 @@ Queue invariants:
 - Gamma supplies Delta's meaning route and happens to host one independent
   proof-kernel implementation. Proof checking remains cross-cutting assurance.
 - Direct lower-rooted, subject-qualified source-to-artifact refinement closes
-  provenance. Bare kernel acceptance is insufficient. Do not create a DDC lane
-  or make Rust agreement a bootstrap/release requirement.
+  provenance. Bare kernel acceptance is insufficient; compiler agreement and
+  Rust availability are never bootstrap or release requirements.
 - `source/compiler/omega/{psi,omega}/` are permanent Omega-written product owners;
   the current external-language implementation lives at `source/compiler/rust/`.
 - Only source transitively imported by the compiler belongs to the hosted
