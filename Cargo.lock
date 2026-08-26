@@ -678,6 +678,7 @@ dependencies = [
  "omega-target-operations",
  "psi-arena",
  "psi-checked-trees",
+ "psi-diagnostics",
  "psi-facts",
  "psi-language-semantics",
  "psi-numerics",

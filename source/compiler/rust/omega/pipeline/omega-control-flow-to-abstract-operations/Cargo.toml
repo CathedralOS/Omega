@@ -18,6 +18,7 @@ psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 omega-effects = { path = "../../representations/omega-effects" }
 psi-facts = { path = "../../../psi/representations/psi-facts" }
 psi-numerics = { path = "../../../psi/foundation/psi-numerics" }
+psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
 omega-layout = { path = "../../backend/omega-layout" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
