@@ -13,9 +13,10 @@ use omega_compiler::{
 use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
 use psi_access_plans::{
-    AccessExposure, AtomicCapability, BoundaryReach, ExternalCapability, ExternalRead,
-    ExternalReadBehavior, FieldAccess, ObservationModel, PlacementAdmissionId, ResourceProfile,
-    ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion, SchemaCorrespondenceProviderId,
+    AccessExposure, AtomicCapability, AtomicPermissions, AtomicTransferRule, BoundaryReach,
+    EffectiveSupplyKind, ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess,
+    ObservationModel, PlacementAdmissionId, ResourceProfile, ResourceProfileGrant,
+    ResourceProfileReceiptId, ResourceRegion, SchemaCorrespondenceProviderId,
     SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant, StableCapability,
     StableDeviceInstanceId, TransferRule, admit_owned_placement, admit_placement,
     adopt_owned_stable, bind_schema_correspondence_to_placement,
@@ -2250,5 +2251,242 @@ machine Main::main(&mut self) {}
             correspondence.profile_receipt(),
         ),
         correspondence_snapshot,
+    );
+}
+
+#[test]
+fn source_derived_atomic_plan_rejects_underpowered_profile_and_preserves_retry_custody() {
+    let main = write_program(
+        "source-atomic-profile-retry",
+        r#"
+use omega::language::core::layout;
+
+pub data Counter {
+    value: u32;
+}
+
+pub data AtomicPlacement {
+    entries: [FieldEntry; 64];
+    services: [u64; 32];
+}
+
+machine AtomicPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let access: AccessPlan = AccessPlan::inaccessible(schema);
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 }
+    };
+    PlacementPlan {
+        layout: Plan {
+            entries: self.entries,
+            entry_count: 1,
+            size_fixed: 4,
+            size_is_dynamic: false,
+            align: 4
+        },
+        access: access.with(
+            schema.fields[0].key,
+            FieldAccess::Atomic {
+                operations: AtomicOperations {
+                    load: true,
+                    store: false,
+                    fetch_add: true,
+                    fetch_sub: false,
+                    fetch_xor: false,
+                    fetch_or: false,
+                    fetch_and: false,
+                    swap: false,
+                    compare_exchange: false,
+                    compare_exchange_once: false,
+                    try_exchange: false,
+                    try_exchange_once: false
+                },
+                exposure: Exposure::Exported
+            }
+        ),
+        reach: BoundaryReach {
+            services: self.services,
+            service_count: 0
+        }
+    }
+}
+
+machine retain_source_plan(counter: &Placed<AtomicPlacement, Counter>) {}
+
+data Main {}
+machine Main::main(&mut self) {}
+"#,
+    );
+    let checked = compile_to_checked(&main, None)
+        .expect("source-derived Atomic placement should reach checked custody");
+    let retained = checked
+        .typed
+        .placed_view_plans
+        .iter()
+        .find(|view| view.policy_name == "AtomicPlacement")
+        .expect("checked Atomic placement row");
+    let atomic_access = retained
+        .placement
+        .access()
+        .plan()
+        .entries()
+        .first()
+        .expect("retained Atomic field")
+        .access();
+    assert!(matches!(
+        atomic_access,
+        FieldAccess::Atomic { operations, .. }
+            if operations.load && operations.fetch_add && !operations.store
+    ));
+    assert_eq!(retained.placement.layout().size, Some(4));
+
+    let rights = ExtentRights::from_normalized_identities([extent_identity(
+        422,
+        ExtentRightId::from_normalized_identity,
+    )]);
+    let extent = ExtentRootGrant::from_admitted_provider(
+        provider_issuance(27),
+        extent_identity(423, ExtentLineageId::from_normalized_identity),
+        extent_identity(424, AddressSpaceId::from_normalized_identity),
+        rights.clone(),
+        extent_identity(425, ExtentProvenanceId::from_normalized_identity),
+        extent_identity(426, MappingEraId::from_normalized_identity),
+    )
+    .mint(0xa000, 4)
+    .expect("provider Atomic extent");
+    let loan_snapshot = (
+        extent.origin(),
+        extent.lineage_root(),
+        extent.base(),
+        extent.length(),
+        extent.address_space(),
+        extent.rights().clone(),
+        extent.provenance(),
+        extent.era(),
+    );
+    let underpowered_profile = ResourceProfileGrant::from_admitted_provider(
+        ResourceProfileReceiptId::from_normalized_identity(427)
+            .expect("underpowered profile receipt"),
+        &extent,
+        rights.clone(),
+        BoundaryReach::default(),
+    )
+    .expect("underpowered provider profile grant")
+    .admit(ResourceProfile {
+        regions: vec![ResourceRegion {
+            offset: 0,
+            length: 4,
+            stable: StableCapability::None,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::Access {
+                transfers: vec![AtomicTransferRule {
+                    transfer: TransferRule {
+                        width_bits: 32,
+                        alignment_bytes: 4,
+                    },
+                    operations: AtomicPermissions {
+                        load: true,
+                        ..AtomicPermissions::default()
+                    },
+                }],
+            },
+            reach: BoundaryReach::default(),
+        }],
+    })
+    .expect("admitted load-only Atomic profile");
+    let exact_profile = ResourceProfileGrant::from_admitted_provider(
+        ResourceProfileReceiptId::from_normalized_identity(428).expect("exact profile receipt"),
+        &extent,
+        rights,
+        BoundaryReach::default(),
+    )
+    .expect("exact provider profile grant")
+    .admit(ResourceProfile {
+        regions: vec![ResourceRegion {
+            offset: 0,
+            length: 4,
+            stable: StableCapability::None,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::Access {
+                transfers: vec![AtomicTransferRule {
+                    transfer: TransferRule {
+                        width_bits: 32,
+                        alignment_bytes: 4,
+                    },
+                    operations: AtomicPermissions {
+                        load: true,
+                        fetch_add: true,
+                        ..AtomicPermissions::default()
+                    },
+                }],
+            },
+            reach: BoundaryReach::default(),
+        }],
+    })
+    .expect("admitted exact Atomic profile");
+
+    let admission_id =
+        PlacementAdmissionId::from_normalized_identity(429).expect("Atomic placement admission");
+    let loan = extent.loan(0, 4).expect("shared Atomic loan");
+    let rejection = admit_placement(
+        admission_id,
+        loan,
+        &retained.placement,
+        &underpowered_profile,
+    )
+    .expect_err("load-only supply must not satisfy source-requested fetch-add");
+    assert!(
+        rejection.diagnostic().0.contains("value")
+            && rejection.diagnostic().0.contains("operation families"),
+        "unexpected Atomic profile diagnostic: {}",
+        rejection.diagnostic().0,
+    );
+    let (loan, _) = rejection.into_parts();
+    assert_eq!(
+        (
+            loan.origin(),
+            loan.lineage_root(),
+            loan.base(),
+            loan.length(),
+            loan.address_space(),
+            loan.rights().clone(),
+            loan.provenance(),
+            loan.era(),
+        ),
+        loan_snapshot,
+    );
+
+    let admission = admit_placement(admission_id, loan, &retained.placement, &exact_profile)
+        .expect("returned loan supports exact Atomic plan/profile retry");
+    assert_eq!(admission.identity(), admission_id);
+    assert_eq!(admission.profile_receipt(), exact_profile.receipt());
+    assert_eq!(
+        admission.resources().placement(),
+        retained.placement.identity()
+    );
+    assert_eq!(
+        admission.resources().profile(),
+        exact_profile.profile().identity(),
+    );
+    let fields = admission.resources().fields();
+    assert_eq!(fields.len(), 1);
+    assert_eq!(fields[0].kind(), EffectiveSupplyKind::Atomic);
+    assert_eq!(fields[0].offset(), 0);
+    assert_eq!(fields[0].width_bits(), 32);
+    assert_eq!(fields[0].alignment_bytes(), 4);
+
+    let loan = admission.withdraw();
+    assert_eq!(
+        (
+            loan.origin(),
+            loan.lineage_root(),
+            loan.base(),
+            loan.length(),
+            loan.address_space(),
+            loan.rights().clone(),
+            loan.provenance(),
+            loan.era(),
+        ),
+        loan_snapshot,
     );
 }
