@@ -13,9 +13,9 @@ use omega_optimization_core::{
     OptimizationValidatorIdentity,
 };
 use omega_optimization_unit::{
-    IntegerConstantRewrite, OptimizationEdge, OptimizationFact, OwnershipEvent, PsiNodeObservation,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate,
-    PsiRewritePatch, ValueDefinition, ValueDefinitionSite, ValueUse,
+    IntegerConstantRewrite, NodeLocation, OptimizationEdge, OptimizationFact, OwnershipEvent,
+    PsiNodeObservation, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+    PsiRewriteCandidate, PsiRewritePatch, ValueDefinition, ValueDefinitionSite, ValueUse,
     reconstruct_psi_observation_model,
 };
 use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ScalarType, ValueId};
@@ -154,6 +154,7 @@ pub enum OptimizationUnitValidationError {
     CandidateEvaluationMismatch,
     CandidateFactReplacementMissing,
     CandidateObservationMismatch,
+    CandidateLiveBoundaryMismatch,
 }
 
 impl std::fmt::Display for OptimizationUnitValidationError {
@@ -163,6 +164,91 @@ impl std::fmt::Display for OptimizationUnitValidationError {
 }
 
 impl std::error::Error for OptimizationUnitValidationError {}
+
+/// Independently reconstructed scalar interface of one closed node region.
+/// Canonical ordering is by `ValueId`; block-parameter bindings remain uses of
+/// the predecessor terminator and therefore participate naturally.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClosedScalarObservationBoundary {
+    pub location: NodeLocation,
+    pub live_in: Vec<ValueId>,
+    pub live_out: Vec<ValueId>,
+}
+
+pub fn reconstruct_closed_scalar_node_boundary(
+    unit: &PsiOptimizationUnit,
+    location: NodeLocation,
+) -> Option<ClosedScalarObservationBoundary> {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == location.machine)?;
+    let mut live_entry = function
+        .blocks
+        .iter()
+        .map(|block| (block.id, BTreeSet::new()))
+        .collect::<BTreeMap<_, _>>();
+    let mut live_exit = live_entry.clone();
+    loop {
+        let mut changed = false;
+        for block in function.blocks.iter().rev() {
+            let next_exit = block
+                .nodes
+                .last()
+                .into_iter()
+                .flat_map(|node| &node.successors)
+                .filter_map(|edge| live_entry.get(&edge.target))
+                .flat_map(|values| values.iter().copied())
+                .collect::<BTreeSet<_>>();
+            let mut next_entry = next_exit.clone();
+            for node in block.nodes.iter().rev() {
+                for definition in &node.definitions {
+                    next_entry.remove(&definition.value);
+                }
+                next_entry.extend(node.uses.iter().map(|use_site| use_site.value));
+            }
+            for parameter in &block.parameters {
+                next_entry.remove(&parameter.value);
+            }
+            if live_exit[&block.id] != next_exit {
+                live_exit.insert(block.id, next_exit);
+                changed = true;
+            }
+            if live_entry[&block.id] != next_entry {
+                live_entry.insert(block.id, next_entry);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+
+    let block = function
+        .blocks
+        .iter()
+        .find(|block| block.id == location.block)?;
+    let target = usize::try_from(location.node).ok()?;
+    if target >= block.nodes.len() {
+        return None;
+    }
+    let mut live = live_exit[&block.id].clone();
+    for (node_index, node) in block.nodes.iter().enumerate().rev() {
+        let live_out = live.clone();
+        for definition in &node.definitions {
+            live.remove(&definition.value);
+        }
+        live.extend(node.uses.iter().map(|use_site| use_site.value));
+        if node_index == target {
+            return Some(ClosedScalarObservationBoundary {
+                location,
+                live_in: live.iter().copied().collect(),
+                live_out: live_out.iter().copied().collect(),
+            });
+        }
+    }
+    None
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedPsiRewrite {
@@ -256,6 +342,8 @@ pub fn validate_integer_evaluation_candidate(
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let input_observation = observation_at(input, patch.location)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let input_live = reconstruct_closed_scalar_node_boundary(input, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let [provenance] = candidate.provenance() else {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     };
@@ -331,6 +419,16 @@ pub fn validate_integer_evaluation_candidate(
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     if !same_closed_scalar_observation(&input_observation, &output_observation) {
         return Err(OptimizationUnitValidationError::CandidateObservationMismatch);
+    }
+    let output_live = reconstruct_closed_scalar_node_boundary(&output, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if input_live.live_out != output_live.live_out
+        || output_live
+            .live_in
+            .iter()
+            .any(|value| !input_live.live_in.contains(value))
+    {
+        return Err(OptimizationUnitValidationError::CandidateLiveBoundaryMismatch);
     }
     Ok(ValidatedPsiRewrite {
         unit: output,
@@ -1883,7 +1981,22 @@ mod tests {
         let candidate = integer_candidate(&input, IntegerValue::Unsigned(15));
         let replay = integer_candidate(&input, IntegerValue::Unsigned(15));
         assert_eq!(candidate.identity(), replay.identity());
+        let input_boundary = reconstruct_closed_scalar_node_boundary(
+            &input,
+            NodeLocation {
+                machine: id(201, MachineId::new),
+                block: id(202, BlockId::new),
+                node: 2,
+            },
+        )
+        .unwrap();
         let accepted = validate_integer_evaluation_candidate(&input, &candidate).unwrap();
+        let output_boundary =
+            reconstruct_closed_scalar_node_boundary(accepted.unit(), input_boundary.location)
+                .unwrap();
+        assert_eq!(input_boundary.live_in.len(), 2);
+        assert!(output_boundary.live_in.is_empty());
+        assert_eq!(input_boundary.live_out, output_boundary.live_out);
         assert_eq!(accepted.candidate(), candidate.identity());
         assert_ne!(accepted.unit().identity, input.identity);
         assert_eq!(accepted.unit().identity, candidate.output());

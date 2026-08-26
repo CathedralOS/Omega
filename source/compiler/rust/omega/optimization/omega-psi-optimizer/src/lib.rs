@@ -479,5 +479,16 @@ mod tests {
         assert_eq!(liveness.blocks[0].nodes[0].exit, vec![condition]);
         assert_eq!(liveness.blocks[0].nodes[1].entry, vec![condition]);
         assert!(liveness.blocks[0].nodes[1].exit.is_empty());
+        let independent = omega_optimization_validation::reconstruct_closed_scalar_node_boundary(
+            &unit,
+            omega_optimization_unit::NodeLocation {
+                machine: id(100, MachineId::new),
+                block: id(1, BlockId::new),
+                node: 1,
+            },
+        )
+        .unwrap();
+        assert_eq!(independent.live_in, liveness.blocks[0].nodes[1].entry);
+        assert_eq!(independent.live_out, liveness.blocks[0].nodes[1].exit);
     }
 }
