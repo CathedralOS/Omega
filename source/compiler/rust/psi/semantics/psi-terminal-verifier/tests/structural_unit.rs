@@ -23,7 +23,8 @@ use psi_terminal::{
 };
 use psi_terminal_verifier::{
     ModuleError, ObligationEvidence, ProofBundle, ServiceCeilingOwner,
-    reconstruct_operation_obligations, validate_module, verify_module,
+    reconstruct_operation_obligations, reconstruct_structural_ownership_frontiers, validate_module,
+    verify_module,
 };
 
 #[test]
@@ -2032,12 +2033,35 @@ fn direct_field_partial_affine_return_validates_and_verifies() {
         vec!["middle", "left"]
     );
     validate_module(&module).expect("direct moved field plus residual cleanup exhausts the root");
-    verify_module(
+    let frontiers = reconstruct_structural_ownership_frontiers(&module)
+        .expect("verifier exposes its path-sensitive frontier walk");
+    let caller = frontiers.machine(machine_id(1)).expect("caller frontier");
+    let operation_entry = caller
+        .operation_entry(operation_id(1))
+        .expect("projected call entry frontier");
+    assert_eq!(operation_entry.owned_places()[0].place, place_id(1));
+    assert!(operation_entry.partial_custody().is_empty());
+    let operation_exit = caller
+        .operation_exit(operation_id(1))
+        .expect("projected call exit frontier");
+    assert_eq!(operation_exit.owned_places()[0].place, place_id(1));
+    assert_eq!(operation_exit.partial_custody().len(), 1);
+    assert_eq!(
+        operation_exit.partial_custody()[0].moved_paths,
+        vec![vec![StructuralPathSegment::Field("right".into())]]
+    );
+    assert_eq!(
+        caller.edge_entry(edge_id(1)),
+        Some(operation_exit),
+        "return cleanup begins from the exact post-operation frontier"
+    );
+    let verified = verify_module(
         &module,
         &ProofBundle::default(),
         &AdmissionProfile::default(),
     )
     .expect("partial affine cleanup introduces no producer-authored proposition");
+    assert_eq!(verified.structural_frontiers(), &frontiers);
 }
 
 #[test]

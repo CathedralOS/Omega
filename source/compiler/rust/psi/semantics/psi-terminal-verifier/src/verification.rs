@@ -8,7 +8,10 @@ use psi_core::{IntegerSign, IntegerValue, Proposition, ScalarTerm};
 use psi_proof_admission::{AcceptedFact, AdmissionProfile, EvidenceError, verify_obligation};
 use psi_terminal::TerminalModule;
 
-use crate::{ModuleError, ValidatedTerminalModule, validate_module};
+use crate::{
+    ModuleError, ValidatedTerminalModule, VerifiedTerminalStructuralFrontiers,
+    reconstruct_validated_structural_ownership_frontiers, validate_module,
+};
 
 mod affine_joins;
 mod call_composition;
@@ -132,6 +135,7 @@ pub struct VerifiedTerminalModule<'module> {
     proof_bundle: ProofBundle,
     reconstructed_obligations: ReconstructedTerminalObligationSet,
     accepted_facts: Vec<AcceptedFact>,
+    structural_frontiers: VerifiedTerminalStructuralFrontiers,
 }
 
 impl<'module> VerifiedTerminalModule<'module> {
@@ -155,6 +159,12 @@ impl<'module> VerifiedTerminalModule<'module> {
     pub const fn reconstructed_obligations(&self) -> &ReconstructedTerminalObligationSet {
         &self.reconstructed_obligations
     }
+
+    /// Exact block-, operation-, and edge-scoped custody snapshots produced by
+    /// the same verifier walk that admitted this module.
+    pub const fn structural_frontiers(&self) -> &VerifiedTerminalStructuralFrontiers {
+        &self.structural_frontiers
+    }
 }
 
 pub fn verify_module<'module>(
@@ -163,6 +173,8 @@ pub fn verify_module<'module>(
     profile: &AdmissionProfile,
 ) -> Result<VerifiedTerminalModule<'module>, VerificationError> {
     let validated = validate_module(module).map_err(VerificationError::Module)?;
+    let structural_frontiers = reconstruct_validated_structural_ownership_frontiers(module)
+        .map_err(VerificationError::Module)?;
     validate_evidence_producer_provenance(module, proof_bundle)?;
     let reconstructed_obligations =
         reconstruct_validated_terminal_obligations(module).map_err(VerificationError::Module)?;
@@ -217,6 +229,7 @@ pub fn verify_module<'module>(
         proof_bundle: proof_bundle.clone(),
         reconstructed_obligations,
         accepted_facts,
+        structural_frontiers,
     })
 }
 

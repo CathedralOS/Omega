@@ -102,6 +102,25 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         claim: ClaimId,
     },
+    TerminalIdentityMismatch,
+    ProofFingerprintMismatch,
+    AcceptedObligationMismatch(psi_core::ObligationId),
+    OperationObligationOwnerMismatch {
+        machine: MachineId,
+        operation: psi_core::OperationId,
+        obligation: psi_core::ObligationId,
+    },
+    MissingStructuralFrontierMachine(MachineId),
+    MissingStructuralOperationFrontier {
+        machine: MachineId,
+        operation: psi_core::OperationId,
+    },
+    MissingStructuralEdgeFrontier {
+        machine: MachineId,
+        edge: EdgeId,
+    },
+    ContextIdentity(psi_terminal_codec::CodecError),
+    ContextProofFingerprint(psi_terminal_codec::ProofCodecError),
 }
 
 impl std::fmt::Display for OptimizationUnitValidationError {
@@ -131,6 +150,123 @@ pub fn validate_psi_optimization_unit(
         return Err(OptimizationUnitValidationError::MissingEntryMachine(
             unit.entry,
         ));
+    }
+    Ok(())
+}
+
+/// Independently validate both the reconstructible unit and the required
+/// verifier context retained by the optimizer-facing constructor.
+pub fn validate_verified_psi_optimization_unit(
+    verified: &omega_terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit,
+) -> Result<(), OptimizationUnitValidationError> {
+    let unit = verified.unit();
+    validate_psi_optimization_unit(unit)?;
+    let input = verified.input();
+    let context = input.context();
+    let terminal_identity = psi_terminal_codec::terminal_psi_identity(context.terminal_module())
+        .map_err(OptimizationUnitValidationError::ContextIdentity)?;
+    if input.plan().terminal_psi != terminal_identity || unit.terminal_psi != terminal_identity {
+        return Err(OptimizationUnitValidationError::TerminalIdentityMismatch);
+    }
+    let proof_fingerprint = psi_terminal_codec::proof_bundle_fingerprint(context.proof_bundle())
+        .map_err(OptimizationUnitValidationError::ContextProofFingerprint)?;
+    if proof_fingerprint != context.proof_bundle_fingerprint() {
+        return Err(OptimizationUnitValidationError::ProofFingerprintMismatch);
+    }
+
+    let reconstructed = context
+        .reconstructed_obligations()
+        .obligations()
+        .iter()
+        .map(|row| (row.obligation.id, row))
+        .collect::<BTreeMap<_, _>>();
+    let accepted = context
+        .accepted_facts()
+        .iter()
+        .map(|fact| (fact.obligation, fact))
+        .collect::<BTreeMap<_, _>>();
+    if reconstructed.len() != accepted.len() {
+        let obligation = reconstructed
+            .keys()
+            .find(|id| !accepted.contains_key(id))
+            .or_else(|| accepted.keys().find(|id| !reconstructed.contains_key(id)))
+            .copied()
+            .expect("different finite obligation maps have a differing key");
+        return Err(OptimizationUnitValidationError::AcceptedObligationMismatch(
+            obligation,
+        ));
+    }
+    for (obligation, row) in &reconstructed {
+        if accepted
+            .get(obligation)
+            .is_none_or(|fact| fact.proposition != row.obligation.proposition)
+        {
+            return Err(OptimizationUnitValidationError::AcceptedObligationMismatch(
+                *obligation,
+            ));
+        }
+    }
+
+    for function in &unit.functions {
+        let Some(frontiers) = context.structural_frontiers().machine(function.machine) else {
+            return Err(
+                OptimizationUnitValidationError::MissingStructuralFrontierMachine(function.machine),
+            );
+        };
+        for fact in &function.facts {
+            let OptimizationFact::OperationObligationReference {
+                obligation,
+                support,
+            } = fact
+            else {
+                continue;
+            };
+            let owner_matches = reconstructed.get(obligation).is_some_and(|row| {
+                row.owner
+                    == psi_terminal_verifier::ReconstructedTerminalObligationOwner::Operation {
+                        machine: function.machine,
+                        operation: *support,
+                    }
+            });
+            if !owner_matches || !accepted.contains_key(obligation) {
+                return Err(
+                    OptimizationUnitValidationError::OperationObligationOwnerMismatch {
+                        machine: function.machine,
+                        operation: *support,
+                        obligation: *obligation,
+                    },
+                );
+            }
+        }
+        for site in function.blocks.iter().flat_map(|block| {
+            block
+                .nodes
+                .iter()
+                .flat_map(|node| node.provenance.iter().copied())
+        }) {
+            match site {
+                PsiProvenance::Operation(operation)
+                    if frontiers.operation_entry(operation).is_none()
+                        || frontiers.operation_exit(operation).is_none() =>
+                {
+                    return Err(
+                        OptimizationUnitValidationError::MissingStructuralOperationFrontier {
+                            machine: function.machine,
+                            operation,
+                        },
+                    );
+                }
+                PsiProvenance::Edge(edge) if frontiers.edge_entry(edge).is_none() => {
+                    return Err(
+                        OptimizationUnitValidationError::MissingStructuralEdgeFrontier {
+                            machine: function.machine,
+                            edge,
+                        },
+                    );
+                }
+                _ => {}
+            }
+        }
     }
     Ok(())
 }
@@ -821,6 +957,76 @@ mod tests {
     };
     use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
+    fn verified_unit() -> omega_terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
+        use psi_terminal::{
+            Block, MachineContract, TerminalMachine, TerminalMachineResult, TerminalModule,
+            Terminator,
+        };
+
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: id(101, MachineId::new),
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: id(101, MachineId::new),
+                attachment: None,
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Unit,
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: id(102, BlockId::new),
+                blocks: vec![Block {
+                    id: id(102, BlockId::new),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: id(103, EdgeId::new),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+                contract: MachineContract {
+                    id: id(104, psi_core::ContractId::new),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                },
+            }],
+        };
+        let proof = psi_terminal_verifier::ProofBundle::default();
+        let semantic = psi_terminal_codec::encode_module(&module).expect("encode unit module");
+        let proof = psi_terminal_codec::encode_proof_bundle(&proof).expect("encode empty proof");
+        let input =
+            omega_terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+                &semantic,
+                &proof,
+                &psi_proof_admission::AdmissionProfile::default(),
+            )
+            .expect("verified optimizer input");
+        omega_terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+            input,
+            TerminalFuelSchedule::CURRENT.identity(),
+        )
+        .expect("verified optimizer unit")
+    }
+
     fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
         constructor(raw).expect("nonzero test identity")
     }
@@ -882,6 +1088,11 @@ mod tests {
     #[test]
     fn independently_accepts_builder_output() {
         validate_psi_optimization_unit(&unit()).unwrap();
+    }
+
+    #[test]
+    fn independently_accepts_verified_context_and_frontier_coverage() {
+        validate_verified_psi_optimization_unit(&verified_unit()).unwrap();
     }
 
     #[test]
