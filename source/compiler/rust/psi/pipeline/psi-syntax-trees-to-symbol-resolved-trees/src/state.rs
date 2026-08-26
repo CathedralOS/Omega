@@ -2,7 +2,7 @@ use crate::domain::lower_proof_facts;
 use crate::lowerer::Lowerer;
 use crate::statement::lower_statement_handle;
 use crate::type_reference::lower_type_reference_handle;
-use psi_arena::HandleSpan;
+use psi_arena::{Handle, HandleSpan};
 use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees::name::DiagnosticName;
 use psi_symbol_resolved_trees::signature::{
@@ -231,11 +231,155 @@ pub(crate) fn lower_signature_contracts(
     syntax_trees: &SyntaxTrees,
     contracts: HandleSpan<syntax::item::CapabilityContract>,
 ) -> Result<HandleSpan<SignatureContract>, Diagnostic> {
+    lower_signature_contracts_with_result_sum(lowerer, syntax_trees, contracts, None)
+}
+
+pub(crate) fn lower_machine_signature_contracts(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    contracts: HandleSpan<syntax::item::CapabilityContract>,
+    states: HandleSpan<Handle<psi_symbol_resolved_trees::state::State>>,
+) -> Result<HandleSpan<SignatureContract>, Diagnostic> {
+    let has_outcome_rows = syntax_trees
+        .items
+        .capability_contracts(contracts)
+        .iter()
+        .any(|contract| {
+            matches!(
+                &contract.kind,
+                syntax::item::CapabilityContractKind::EnsuresForResultCase { .. }
+            )
+        });
+    if !has_outcome_rows {
+        return lower_signature_contracts_with_result_sum(lowerer, syntax_trees, contracts, None);
+    }
+
+    let root_state = lowerer
+        .symbol_resolved_trees
+        .machine_state_handles(states)
+        .first()
+        .copied()
+        .map(|handle| lowerer.symbol_resolved_trees.machine_state(handle))
+        .ok_or_else(|| {
+            Diagnostic::error("outcome-specific ensures requires a machine result state")
+        })?;
+    let result_data_name = match root_state.return_type.as_ref() {
+        Some(psi_symbol_resolved_trees::types::TypeReference::Named { name, .. }) => name.as_str(),
+        Some(psi_symbol_resolved_trees::types::TypeReference::Generic(generic)) => {
+            generic.base_name.as_str()
+        }
+        _ => {
+            return Err(Diagnostic::error(
+                "outcome-specific ensures requires a declared nominal sum result type",
+            ));
+        }
+    };
+    let data = lowerer
+        .symbol_resolved_trees
+        .data_definitions
+        .iter()
+        .find(|data| data.name.as_str() == result_data_name)
+        .ok_or_else(|| {
+            Diagnostic::error(
+                "outcome-specific ensures result does not resolve to a declared data sum",
+            )
+        })?;
+    let variants = lowerer
+        .symbol_resolved_trees
+        .data_members(data.members)
+        .iter()
+        .filter_map(|member| match member {
+            psi_symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                Some(variant.name.to_string())
+            }
+            psi_symbol_resolved_trees::data::DataMember::Field(_) => None,
+        })
+        .collect::<Vec<_>>();
+    if variants.is_empty() {
+        return Err(Diagnostic::error(format!(
+            "outcome-specific ensures requires a sum result; `{}` declares no cases",
+            data.name
+        )));
+    }
+    let result_sum = ResultSumContractContext {
+        data_name: data.name.to_string(),
+        variants,
+    };
+    lower_signature_contracts_with_result_sum(lowerer, syntax_trees, contracts, Some(&result_sum))
+}
+
+struct ResultSumContractContext {
+    data_name: String,
+    variants: Vec<String>,
+}
+
+fn lower_signature_contracts_with_result_sum(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    contracts: HandleSpan<syntax::item::CapabilityContract>,
+    result_sum: Option<&ResultSumContractContext>,
+) -> Result<HandleSpan<SignatureContract>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
     for contract in syntax_trees.items.capability_contracts(contracts) {
+        let (kind, pending_outcome) = match &contract.kind {
+            syntax::item::CapabilityContractKind::Requires => {
+                (SignatureContractKind::Requires, None)
+            }
+            syntax::item::CapabilityContractKind::Ensures => (SignatureContractKind::Ensures, None),
+            syntax::item::CapabilityContractKind::EnsuresForResultCase { result_case } => {
+                let Some(result_sum) = result_sum else {
+                    return Err(Diagnostic::error(
+                        "outcome-specific ensures is admitted only on a top-level machine result",
+                    ));
+                };
+                let members = syntax_trees.items.identifier_path_members(*result_case);
+                let [result_name, case_name] = members else {
+                    return Err(Diagnostic::error(
+                        "outcome-specific ensures requires the exact path `Result::Case`",
+                    ));
+                };
+                if result_name.as_str() != result_sum.data_name.as_str() {
+                    return Err(Diagnostic::error(format!(
+                        "outcome-specific ensures case `{result_name}::{case_name}` does not belong to declared result sum `{}`",
+                        result_sum.data_name
+                    )));
+                }
+                let result_case_name = result_sum
+                    .variants
+                    .iter()
+                    .find(|name| name.as_str() == case_name.as_str())
+                    .cloned()
+                    .ok_or_else(|| {
+                        Diagnostic::error(format!(
+                            "outcome-specific ensures names unknown case `{case_name}` of declared result sum `{}`",
+                            result_sum.data_name
+                        ))
+                    })?;
+                (
+                    SignatureContractKind::EnsuresForResultCase {
+                        result_data: psi_symbols::SymbolHandle::invalid(),
+                        result_case: psi_symbols::SymbolHandle::invalid(),
+                    },
+                    Some((result_sum.data_name.clone(), result_case_name)),
+                )
+            }
+            syntax::item::CapabilityContractKind::Crashes { cause } => (
+                SignatureContractKind::Crashes {
+                    cause: match cause {
+                        syntax::item::CrashCause::Trap => {
+                            psi_symbol_resolved_trees::signature::CrashCause::Trap
+                        }
+                        syntax::item::CrashCause::Abort => {
+                            psi_symbol_resolved_trees::signature::CrashCause::Abort
+                        }
+                    },
+                },
+                None,
+            ),
+        };
         let facts = lower_proof_facts(lowerer, syntax_trees, contract.facts)?;
-        lowerer
+        let handle = lowerer
             .symbol_resolved_trees
             .tables
             .declarations
@@ -243,34 +387,79 @@ pub(crate) fn lower_signature_contracts(
             .append_to_span(
                 &mut span,
                 SignatureContract {
-                    kind: match &contract.kind {
-                        syntax::item::CapabilityContractKind::Requires => {
-                            SignatureContractKind::Requires
-                        }
-                        syntax::item::CapabilityContractKind::Ensures => {
-                            SignatureContractKind::Ensures
-                        }
-                        syntax::item::CapabilityContractKind::Crashes { cause } => {
-                            SignatureContractKind::Crashes {
-                                cause: match cause {
-                                    syntax::item::CrashCause::Trap => {
-                                        psi_symbol_resolved_trees::signature::CrashCause::Trap
-                                    }
-                                    syntax::item::CrashCause::Abort => {
-                                        psi_symbol_resolved_trees::signature::CrashCause::Abort
-                                    }
-                                },
-                            }
-                        }
-                    },
+                    kind,
                     binding: contract.binding.as_ref().map(crate::name::lower_name),
                     facts,
                     token_count: contract.token_count,
                 },
             );
+        if let Some((result_data_name, result_case_name)) = pending_outcome {
+            lowerer.pending_outcome_specific_contracts.push(
+                crate::lowerer::PendingOutcomeSpecificContract {
+                    contract: handle,
+                    result_data_name,
+                    result_case_name,
+                },
+            );
+        }
     }
 
     Ok(span)
+}
+
+pub(crate) fn finalize_outcome_specific_contract_symbols(
+    program: &mut psi_symbol_resolved_trees::SymbolResolvedTrees,
+    pending: &[crate::lowerer::PendingOutcomeSpecificContract],
+) -> Result<(), Diagnostic> {
+    for pending in pending {
+        let (result_data, result_case) = {
+            let data = program
+                .data_definitions
+                .iter()
+                .find(|data| data.name.as_str() == pending.result_data_name)
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "outcome-specific ensures lost declared result sum `{}` during symbol assignment",
+                        pending.result_data_name
+                    ))
+                })?;
+            let result_case = program
+                .data_members(data.members)
+                .iter()
+                .find_map(|member| match member {
+                    psi_symbol_resolved_trees::data::DataMember::Variant(variant)
+                        if variant.name.as_str() == pending.result_case_name =>
+                    {
+                        Some(variant.symbol)
+                    }
+                    _ => None,
+                })
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "outcome-specific ensures lost declared result case `{}::{}` during symbol assignment",
+                        pending.result_data_name, pending.result_case_name
+                    ))
+                })?;
+            (data.symbol, result_case)
+        };
+        let contract = program
+            .tables
+            .declarations
+            .signature_contracts
+            .get_mut(pending.contract);
+        let SignatureContractKind::EnsuresForResultCase {
+            result_data: contract_data,
+            result_case: contract_case,
+        } = &mut contract.kind
+        else {
+            return Err(Diagnostic::error(
+                "outcome-specific ensures changed kind before symbol normalization",
+            ));
+        };
+        *contract_data = result_data;
+        *contract_case = result_case;
+    }
+    Ok(())
 }
 
 fn lower_state_statements(

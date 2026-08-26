@@ -55,6 +55,19 @@ pub struct ContractProofFact {
     pub qualification_authorization: Option<BoundaryQualificationAuthorization>,
 }
 
+/// Stage-1 carrier for one outcome-specific guarantee row. These rows are
+/// deliberately separate from unconditional contract facts: later stages may
+/// inspect the exact nominal case, but callers and exits gain no fact or term
+/// until guarded assignment and arm-availability checking lands.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OutcomeSpecificGuaranteeFact {
+    pub machine_symbol: SymbolHandle,
+    pub result_data: SymbolHandle,
+    pub result_case: SymbolHandle,
+    pub public_selector: Option<String>,
+    pub fact: Handle<psi_typed_trees::domain::ProofFact>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedEvidenceTerm {
     /// Public output-field name for `ensures`, local input alias for `requires`.

@@ -1103,6 +1103,7 @@ pub struct ClosedScalarValueContractPlan {
     requires: Vec<Option<ClosedScalarContractValue>>,
     ensures: Vec<Option<ClosedScalarContractValue>>,
     has_crash_clauses: bool,
+    has_outcome_specific_clauses: bool,
 }
 
 impl ClosedScalarValueContractPlan {
@@ -1110,11 +1111,13 @@ impl ClosedScalarValueContractPlan {
         requires: Vec<Option<ClosedScalarContractValue>>,
         ensures: Vec<Option<ClosedScalarContractValue>>,
         has_crash_clauses: bool,
+        has_outcome_specific_clauses: bool,
     ) -> Self {
         Self {
             requires,
             ensures,
             has_crash_clauses,
+            has_outcome_specific_clauses,
         }
     }
 
@@ -1128,6 +1131,10 @@ impl ClosedScalarValueContractPlan {
 
     pub const fn has_crash_clauses(&self) -> bool {
         self.has_crash_clauses
+    }
+
+    pub const fn has_outcome_specific_clauses(&self) -> bool {
+        self.has_outcome_specific_clauses
     }
 }
 

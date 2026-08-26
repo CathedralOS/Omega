@@ -829,7 +829,15 @@ fn build_closed_scalar_value_contract_plan(
     let mut requires = Vec::new();
     let mut ensures = Vec::new();
     let mut has_crash_clauses = false;
+    let mut has_outcome_specific_clauses = false;
     for contract in program.machine_contracts(machine) {
+        if matches!(
+            &contract.kind,
+            SignatureContractKind::EnsuresForResultCase { .. }
+        ) {
+            has_outcome_specific_clauses = true;
+            continue;
+        }
         // Named witness-bearing lanes are checked and lowered through the
         // evidence contract plan. They do not participate in the independent
         // closed scalar value contract used by terminal scalar production.
@@ -839,6 +847,9 @@ fn build_closed_scalar_value_contract_plan(
         match contract.kind {
             SignatureContractKind::Requires => requires.push(lower_clause(contract)),
             SignatureContractKind::Ensures => ensures.push(lower_clause(contract)),
+            SignatureContractKind::EnsuresForResultCase { .. } => unreachable!(
+                "outcome-specific clauses were separated from unconditional scalar contracts"
+            ),
             SignatureContractKind::Crashes { .. } => has_crash_clauses = true,
         }
     }
@@ -846,6 +857,7 @@ fn build_closed_scalar_value_contract_plan(
         requires,
         ensures,
         has_crash_clauses,
+        has_outcome_specific_clauses,
     )
 }
 
@@ -1014,6 +1026,14 @@ fn encode_signature_contract_kind(
     match kind {
         psi_typed_trees::signature::SignatureContractKind::Requires => output.push(1),
         psi_typed_trees::signature::SignatureContractKind::Ensures => output.push(2),
+        psi_typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
+            result_data,
+            result_case,
+        } => {
+            output.push(3);
+            output.extend_from_slice(&result_data.arena_index().to_le_bytes());
+            output.extend_from_slice(&result_case.arena_index().to_le_bytes());
+        }
         psi_typed_trees::signature::SignatureContractKind::Crashes { cause } => {
             output.push(4);
             output.push(match cause {

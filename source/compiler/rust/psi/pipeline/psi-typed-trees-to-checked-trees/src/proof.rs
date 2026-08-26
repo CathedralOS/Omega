@@ -35,6 +35,7 @@ pub(crate) fn build_proof_facts_with_operators(
     let mut obligations = psi_arena::Arena::with_capacity(proof_plan.obligations.len());
     let mut contract_facts =
         psi_arena::Arena::with_capacity(estimated_contract_fact_capacity(program));
+    let mut outcome_specific_guarantees = psi_arena::Arena::default();
     let mut evidence_terms = psi_arena::Arena::default();
 
     for (_, obligation) in proof_plan.obligations.iter() {
@@ -42,6 +43,29 @@ pub(crate) fn build_proof_facts_with_operators(
     }
 
     for machine in program.machines() {
+        for contract in program.machine_contracts(machine) {
+            let psi_typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
+                result_data,
+                result_case,
+            } = &contract.kind
+            else {
+                continue;
+            };
+            for fact in fact_handles(contract.facts) {
+                outcome_specific_guarantees.append(
+                    psi_checked_trees::OutcomeSpecificGuaranteeFact {
+                        machine_symbol: machine.symbol,
+                        result_data: *result_data,
+                        result_case: *result_case,
+                        public_selector: contract
+                            .binding
+                            .as_ref()
+                            .map(|binding| binding.as_str().to_owned()),
+                        fact,
+                    },
+                );
+            }
+        }
         append_machine_contract_facts(program, machine, &mut contract_facts, &mut evidence_terms);
         for state in program.machine_states(machine) {
             append_state_contract_facts(
@@ -142,6 +166,7 @@ pub(crate) fn build_proof_facts_with_operators(
     ProofFacts::with_roots(
         obligations,
         contract_facts,
+        outcome_specific_guarantees,
         evidence_terms,
         psi_arena::Arena::default(),
         psi_arena::Arena::default(),
@@ -1332,6 +1357,7 @@ fn contract_fact_kind(
         psi_typed_trees::signature::SignatureContractKind::Ensures => {
             Some(ContractProofFactKind::Ensures)
         }
+        psi_typed_trees::signature::SignatureContractKind::EnsuresForResultCase { .. } => None,
         psi_typed_trees::signature::SignatureContractKind::Crashes { .. } => None,
     }
 }

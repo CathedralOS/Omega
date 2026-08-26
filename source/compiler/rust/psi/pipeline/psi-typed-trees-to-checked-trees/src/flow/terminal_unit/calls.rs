@@ -713,7 +713,9 @@ pub(super) fn target_contract_mentions_projected_parameter(
         .filter(|contract| match contract.kind {
             SignatureContractKind::Crashes { .. } => false,
             SignatureContractKind::Requires if runtime_arithmetic_requires_are_terminal => false,
-            SignatureContractKind::Requires | SignatureContractKind::Ensures => true,
+            SignatureContractKind::Requires
+            | SignatureContractKind::Ensures
+            | SignatureContractKind::EnsuresForResultCase { .. } => true,
         })
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
         .any(|fact| {
