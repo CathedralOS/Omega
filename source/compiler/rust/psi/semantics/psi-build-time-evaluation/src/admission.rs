@@ -19,9 +19,11 @@ use std::sync::Arc;
 use crate::BuildTimeValue;
 
 mod closure_validation;
+mod const_evaluable;
 mod selection_authority;
 
 use closure_validation::checked_closure_violation;
+use const_evaluable::require_const_evaluable_result;
 use selection_authority::selection_authority_violation;
 
 /// Package-neutral authority consulted before the compiler executes an
@@ -233,6 +235,47 @@ impl BuildTimeAdmissionPlan {
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         self.require_common_floor_for_invocation(program, machine, custody)?;
         psi_checked_interpreter::evaluate_build_time_machine(program, machine_name, arguments)
+    }
+
+    /// Admit and evaluate one machine whose result position explicitly
+    /// requires the target-neutral `ConstEvaluable(T, value)` judgment.
+    /// Existing compiler-owned structured plan positions remain on
+    /// [`Self::evaluate_machine`] until their result vocabularies opt in.
+    pub fn evaluate_const_evaluable_machine(
+        &self,
+        program: &TypedTrees,
+        machine_name: &str,
+        arguments: Vec<BuildTimeValue>,
+    ) -> Result<BuildTimeValue, String> {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == machine_name)
+            .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
+        self.require_common_floor(program, machine)?;
+        let value =
+            psi_checked_interpreter::evaluate_build_time_machine(program, machine_name, arguments)?;
+        require_const_evaluable_result(program, machine, &value)?;
+        Ok(value)
+    }
+
+    pub fn evaluate_const_evaluable_machine_for_invocation(
+        &self,
+        program: &TypedTrees,
+        machine_name: &str,
+        arguments: Vec<BuildTimeValue>,
+        custody: BuildTimeInvocationCustody,
+    ) -> Result<BuildTimeValue, String> {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == machine_name)
+            .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
+        self.require_common_floor_for_invocation(program, machine, custody)?;
+        let value =
+            psi_checked_interpreter::evaluate_build_time_machine(program, machine_name, arguments)?;
+        require_const_evaluable_result(program, machine, &value)?;
+        Ok(value)
     }
 
     fn machine_suspension(&self, machine_symbol: SymbolHandle) -> Option<bool> {

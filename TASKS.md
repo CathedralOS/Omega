@@ -8131,6 +8131,20 @@ checked-result arithmetic decision listed below.
   unfixed NaN payload at runtime materialization, and preserve an exact carried
   quotient representative without demanding canonicalization. Retain target-
   dependent const application identity through target-neutral intermediates.
+
+  The first opt-in `ConstEvaluable(T, value)` result boundary is live.
+  Explicit admission APIs preserve operational/common-floor checking and
+  interpreter execution, then structurally validate the exact declared result
+  against its returned owned snapshot. They admit Unit, primitives, literal
+  fixed arrays, closed `[copy]` records, and only the realized case/payload of a
+  closed sum; constraints reuse their already-checked carrier. Reference,
+  slice, Text, dynamic/open/generic/opaque, atomic, affine-record, and malformed
+  type/value shapes reject with a component path and no panic. Existing
+  compiler-owned plan evaluators do not opt in implicitly while their affine
+  result vocabularies remain unchanged. Caller migration, quotient snapshots,
+  `ConstMaterializable`, target capsules/observations, and representation bytes
+  remain subsequent.
+
   Materialize one compiler-owned versioned typed capsule shared by evaluator and
   backend. Expose only its closed subject-qualified observation vocabulary; do
   not add a runtime reflection object or ordinary provider for primitive carrier
