@@ -179,6 +179,10 @@ pub enum TerminalRegisterHomeError {
         function: usize,
         register: u32,
     },
+    IntervalOverflow {
+        function: usize,
+        register: u32,
+    },
     NoCommonCandidate {
         function: usize,
         register: u32,

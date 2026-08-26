@@ -2370,8 +2370,16 @@ mod tests {
             let assignments = &homes.homes().plan().functions[0].assignments;
             assert_eq!(assignments.len(), 4);
             assert_eq!(assignments[1].view, entry_view);
+            assert_ne!(assignments[0].view, assignments[1].view);
             assert_eq!(assignments[2].view, result_view);
             assert_eq!(assignments[3].view, result_view);
+            assert_eq!(
+                homes.reanalysis_stage().ranges().plan().functions[0].interference,
+                vec![TerminalVirtualInterference {
+                    lower: TerminalVirtualRegisterId(0),
+                    higher: TerminalVirtualRegisterId(1),
+                }]
+            );
             assert_eq!(homes.custody().assignment_count(), 4);
             let manifest = homes.post_allocation_manifest().record();
             assert_eq!(manifest.identity, manifest.recomputed_identity());
@@ -2388,6 +2396,7 @@ mod tests {
                 homes.reanalysis_stage().ranges().plan().selected
             );
             assert_eq!(manifest.statistics.assignments, 4);
+            assert_eq!(manifest.statistics.virtual_interferences, 1);
             assert_eq!(
                 homes.custody().post_allocation_manifest(),
                 manifest.identity

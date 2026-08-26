@@ -956,17 +956,24 @@ dependency.
   Current slice: canonical CFG-aware range fragments, exact VReg interference,
   identity-bound register environments, and independently replayed phase-
   specific candidate legality now feed a bounded deterministic home assigner.
-  It assigns the admitted constant conditional on both ISAs without modulo
-  scratch cycling, permits exact mutually-exclusive reuse, and fails closed if
-  any VReg lacks one shared legal view, needs a spill, or retains a fixed-view
-  transition. This closes only the transition-free/spill-free base case, not
-  general linear scan.
+  Production now orders canonical half-open interval envelopes by start/VReg,
+  expires the active set by exclusive end, and chooses the lowest legal view
+  against only still-active exact CFG interferences and complete write/storage
+  footprints. The independent validator reconstructs the same allocation with
+  separate interval and active-set logic. It assigns the admitted constant
+  conditional on both ISAs without modulo scratch cycling, permits exact
+  mutually-exclusive reuse, and fails closed if any VReg lacks one shared legal
+  view, needs a spill, or retains a fixed-view transition. The post-copy fixture
+  now proves one real interfering entry pair receives distinct homes while its
+  expired mutually exclusive split results reuse the same return view on both
+  ISAs. This closes deterministic active expiration for the transition-free/
+  spill-free base case, not general linear scan.
 
   Sequencing: the exact named forwarded-value copy/split base case, copy-key
   identity, fresh split-result VRegs, provenance/fuel custody, independent
-  reconstruction, complete reanalysis, and post-copy homes now exist. Next
-  extend the allocator to active-interval expiration and real competing live
-  ranges.
+  reconstruction, complete reanalysis, post-copy homes, active expiration, and
+  the first real competing pair now exist. Next extend allocation to flexible
+  competing candidates under actual pressure, then deterministic spill choice.
   Provider/runtime reservation requirements must either join the active profile
   or fail closed.
 
