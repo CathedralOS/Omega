@@ -116,14 +116,21 @@ fn parse_operator_contract<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: &mut Input<'tokens, 'source>,
 ) -> Result<CapabilityContract, crate::parse_error::ParseError> {
+    let clause_input = *input;
     if input.at_contextual("requires") {
         *input = input.take_contextual("requires")?;
-        return parse_operator_fact_contract(syntax_trees, input, CapabilityContractKind::Requires);
+        let mut contract =
+            parse_operator_fact_contract(syntax_trees, input, CapabilityContractKind::Requires)?;
+        contract.source_span = clause_input.source_span_until(*input);
+        return Ok(contract);
     }
 
     if input.at_contextual("ensures") {
         *input = input.take_contextual("ensures")?;
-        return parse_operator_fact_contract(syntax_trees, input, CapabilityContractKind::Ensures);
+        let mut contract =
+            parse_operator_fact_contract(syntax_trees, input, CapabilityContractKind::Ensures)?;
+        contract.source_span = clause_input.source_span_until(*input);
+        return Ok(contract);
     }
 
     if input.at_contextual("crashes") {
@@ -151,6 +158,7 @@ fn parse_operator_contract<'tokens, 'source>(
             .token_count
             .checked_add(header_token_count)
             .expect("operator crash contract token count overflow");
+        contract.source_span = clause_input.source_span_until(*input);
         return Ok(contract);
     }
 
@@ -171,6 +179,7 @@ fn parse_operator_fact_contract<'tokens, 'source>(
         binding: None,
         facts,
         token_count,
+        source_span: psi_source::SourceSpan::default(),
     })
 }
 

@@ -522,6 +522,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("crashes") {
+            let clause_input = input;
             let after_keyword = input.take_contextual("crashes")?;
             let (cause, after_cause) = after_keyword.take_identifier()?;
             let cause = match cause.as_str() {
@@ -561,6 +562,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                     token_count: fact_token_count
                         .checked_add(header_token_count)
                         .expect("crash contract token count overflow"),
+                    source_span: clause_input.source_span_until(rest),
                 });
             if contract_count == 0 {
                 contract_start = handle;
@@ -573,6 +575,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("requires") || input.at_contextual("ensures") {
+            let clause_input = input;
             let kind = if input.at_contextual("requires") {
                 input = input.take_contextual("requires")?;
                 CapabilityContractKind::Requires
@@ -619,6 +622,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                     binding,
                     facts,
                     token_count,
+                    source_span: clause_input.source_span_until(rest),
                 });
             if contract_count == 0 {
                 contract_start = handle;

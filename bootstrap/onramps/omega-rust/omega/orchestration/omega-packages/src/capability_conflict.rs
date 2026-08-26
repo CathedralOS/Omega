@@ -20,10 +20,10 @@ use std::cmp::Ordering;
 use std::fmt;
 
 const CONFLICT_FINGERPRINT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CAPABILITY-CONFLICT\0";
-const CONFLICT_FINGERPRINT_VERSION: u16 = 4;
+const CONFLICT_FINGERPRINT_VERSION: u16 = 5;
 const CANDIDATE_CLOSURE_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CANDIDATE-CLOSURE\0";
 const CANDIDATE_CLOSURE_VERSION: u16 = 1;
-const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V3\n";
+const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V4\n";
 
 /// Resource ceilings for exact review-row comparison.
 ///
@@ -1465,6 +1465,7 @@ const fn synthetic_source_kind_tag(kind: PackageReviewSyntheticSourceKind) -> u8
         PackageReviewSyntheticSourceKind::EmptySelectedProviderSet => 1,
         PackageReviewSyntheticSourceKind::UniqueCoveringProviderSelection => 2,
         PackageReviewSyntheticSourceKind::FreeExternalProviderType => 3,
+        PackageReviewSyntheticSourceKind::ContractIntrinsicSelection => 4,
     }
 }
 
@@ -1476,6 +1477,9 @@ const fn synthetic_source_kind_token(kind: PackageReviewSyntheticSourceKind) -> 
             "unique_covering_provider_selection"
         }
         PackageReviewSyntheticSourceKind::FreeExternalProviderType => "free_external_provider_type",
+        PackageReviewSyntheticSourceKind::ContractIntrinsicSelection => {
+            "contract_intrinsic_selection"
+        }
     }
 }
 
@@ -1606,6 +1610,12 @@ const fn source_location_role_tag(role: PackageReviewSourceLocationRole) -> u8 {
         PackageReviewSourceLocationRole::SemanticDependencyConsumer => 8,
         PackageReviewSourceLocationRole::SemanticDependencyDeclaration => 9,
         PackageReviewSourceLocationRole::ProviderRequirementDeclaration => 10,
+        PackageReviewSourceLocationRole::ContractClause => 11,
+        PackageReviewSourceLocationRole::ContractSelectionUse => 12,
+        PackageReviewSourceLocationRole::ContractSelectionDeclaration => 13,
+        PackageReviewSourceLocationRole::ReachClause => 14,
+        PackageReviewSourceLocationRole::ReachServiceUse => 15,
+        PackageReviewSourceLocationRole::ReachServiceDeclaration => 16,
     }
 }
 
@@ -1628,5 +1638,13 @@ const fn source_location_role_token(role: PackageReviewSourceLocationRole) -> &'
         PackageReviewSourceLocationRole::SemanticDependencyDeclaration => {
             "semantic_dependency_declaration"
         }
+        PackageReviewSourceLocationRole::ContractClause => "contract_clause",
+        PackageReviewSourceLocationRole::ContractSelectionUse => "contract_selection_use",
+        PackageReviewSourceLocationRole::ContractSelectionDeclaration => {
+            "contract_selection_declaration"
+        }
+        PackageReviewSourceLocationRole::ReachClause => "reach_clause",
+        PackageReviewSourceLocationRole::ReachServiceUse => "reach_service_use",
+        PackageReviewSourceLocationRole::ReachServiceDeclaration => "reach_service_declaration",
     }
 }

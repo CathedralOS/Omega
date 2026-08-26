@@ -6,7 +6,7 @@ use psi_core::PackageKeyIdentity;
 const RECOVERY_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW-RECOVERY\0";
 
 /// Version of the compiler-owned canonical-row recovery envelope.
-pub const PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION: u16 = 1;
+pub const PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION: u16 = 2;
 
 /// Resource ceilings applied while encoding or decoding one canonical-row
 /// recovery envelope.
@@ -560,6 +560,12 @@ const fn source_location_role_tag(role: PackageReviewSourceLocationRole) -> u8 {
         PackageReviewSourceLocationRole::SemanticDependencyConsumer => 8,
         PackageReviewSourceLocationRole::SemanticDependencyDeclaration => 9,
         PackageReviewSourceLocationRole::ProviderRequirementDeclaration => 10,
+        PackageReviewSourceLocationRole::ContractClause => 11,
+        PackageReviewSourceLocationRole::ContractSelectionUse => 12,
+        PackageReviewSourceLocationRole::ContractSelectionDeclaration => 13,
+        PackageReviewSourceLocationRole::ReachClause => 14,
+        PackageReviewSourceLocationRole::ReachServiceUse => 15,
+        PackageReviewSourceLocationRole::ReachServiceDeclaration => 16,
     }
 }
 
@@ -578,6 +584,12 @@ fn decode_source_location_role(
         8 => Ok(PackageReviewSourceLocationRole::SemanticDependencyConsumer),
         9 => Ok(PackageReviewSourceLocationRole::SemanticDependencyDeclaration),
         10 => Ok(PackageReviewSourceLocationRole::ProviderRequirementDeclaration),
+        11 => Ok(PackageReviewSourceLocationRole::ContractClause),
+        12 => Ok(PackageReviewSourceLocationRole::ContractSelectionUse),
+        13 => Ok(PackageReviewSourceLocationRole::ContractSelectionDeclaration),
+        14 => Ok(PackageReviewSourceLocationRole::ReachClause),
+        15 => Ok(PackageReviewSourceLocationRole::ReachServiceUse),
+        16 => Ok(PackageReviewSourceLocationRole::ReachServiceDeclaration),
         _ => Err(PackageReviewCanonicalRowRecoveryError::new(
             "canonical-row recovery source contains an unknown role tag",
         )),
@@ -590,6 +602,7 @@ const fn synthetic_source_tag(kind: PackageReviewSyntheticSourceKind) -> u8 {
         PackageReviewSyntheticSourceKind::EmptySelectedProviderSet => 1,
         PackageReviewSyntheticSourceKind::UniqueCoveringProviderSelection => 2,
         PackageReviewSyntheticSourceKind::FreeExternalProviderType => 3,
+        PackageReviewSyntheticSourceKind::ContractIntrinsicSelection => 4,
     }
 }
 
@@ -601,6 +614,7 @@ fn decode_synthetic_source(
         1 => Ok(PackageReviewSyntheticSourceKind::EmptySelectedProviderSet),
         2 => Ok(PackageReviewSyntheticSourceKind::UniqueCoveringProviderSelection),
         3 => Ok(PackageReviewSyntheticSourceKind::FreeExternalProviderType),
+        4 => Ok(PackageReviewSyntheticSourceKind::ContractIntrinsicSelection),
         _ => Err(PackageReviewCanonicalRowRecoveryError::new(
             "canonical-row recovery source contains an unknown compiler-derivation tag",
         )),

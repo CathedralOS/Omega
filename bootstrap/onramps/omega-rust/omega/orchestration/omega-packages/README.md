@@ -890,9 +890,18 @@ Selection and sorting preserve the pair and add exact authored build/target-
 default call sites or a closed reason for an implicit unique choice. The single
 selected-provider row may therefore contain both authored coordinates and
 compiler-derived reasons; free external providers and empty sets also have
-closed reasons. Exact nested clause/use-site coordinates and durable root-policy
-resolutions remain unfinished engineering work; none independently motivates
-nominal Chi.
+closed reasons. One complete callable-family nested-source slice is now closed.
+Complete
+authored contract and `reaches` clause spans survive ordinary compiler
+lowering; reach normalization retains each service use with its exact selected
+declaration; and contract facts reuse checked authored-selection occurrences
+and exact declaration symbols. Callable source custody has distinct fixed roles
+for clauses, uses, and declarations plus a closed intrinsic-selection reason.
+Coordinates remain outside semantic row bytes. Canonical-row recovery v2
+preserves them, while conflict fingerprint v5 and fixed-vocabulary renderer v4
+bind and display old/new anchors. Durable resolution encoding and custody, and
+install/update transaction revalidation remain unfinished engineering work;
+none independently motivates nominal Chi.
 
 The former commands accepting `manifest.json`, `receipt.json`, `--package`, or
 mandatory `--alias` are quarantined from the production CLI. Their manifest,

@@ -24,6 +24,7 @@ type MachineClauses = (
     psi_syntax_trees::expression::ExpressionHandle,
     bool,
     HandleSpan<Identifier>,
+    Vec<psi_source::SourceSpan>,
     HandleSpan<Identifier>,
     bool,
     bool,
@@ -52,6 +53,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     let mut service_reach_is_installation_bound = false;
     let mut service_start = Handle::invalid();
     let mut service_count = 0u32;
+    let mut service_reach_clause_spans = Vec::new();
     let mut invokes_start = Handle::invalid();
     let mut invokes_count = 0u32;
     let mut suspends = false;
@@ -118,6 +120,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("reaches") {
+            let clause_input = input;
             input = input.take_contextual("reaches")?;
             let service_count_before_clause = service_count;
             if input.at_punctuation(PunctuationKind::LessEqual) {
@@ -171,6 +174,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                     "an installation-bound reach row requires a nonempty upper bound after `reaches <=`",
                 ));
             }
+            service_reach_clause_spans.push(clause_input.source_span_until(input));
             continue;
         }
 
@@ -207,6 +211,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("crashes") {
+            let clause_input = input;
             let ((cause, header_token_count), after_header) = parse_crash_header(input)?;
             let ((facts, fact_token_count), rest) =
                 crate::parser::proof_fact::parse_proof_facts_until_with_machine_semicolon(
@@ -243,6 +248,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                     token_count: fact_token_count
                         .checked_add(header_token_count)
                         .expect("crash contract token count overflow"),
+                    source_span: clause_input.source_span_until(rest),
                 });
             if contract_count == 0 {
                 contract_start = handle;
@@ -255,6 +261,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("boundary") {
+            let clause_input = input;
             let (boundary, rest) = parse_boundary_clause(input)?;
             input = rest;
             let handle = syntax_trees
@@ -264,6 +271,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                     binding: None,
                     facts: HandleSpan::empty(),
                     token_count: 2,
+                    source_span: clause_input.source_span_until(rest),
                 });
             if contract_count == 0 {
                 contract_start = handle;
@@ -275,6 +283,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("requires") || input.at_contextual("ensures") {
+            let clause_input = input;
             let kind = if input.at_contextual("requires") {
                 input = input.take_contextual("requires")?;
                 CapabilityContractKind::Requires
@@ -335,6 +344,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                     binding,
                     facts,
                     token_count,
+                    source_span: clause_input.source_span_until(rest),
                 });
             if contract_count == 0 {
                 contract_start = handle;
@@ -416,6 +426,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             ranking_range,
             service_reach_is_installation_bound,
             service_reaches,
+            service_reach_clause_spans,
             invokes,
             suspends,
             blocks,

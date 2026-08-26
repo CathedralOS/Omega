@@ -208,11 +208,22 @@ impl Default for ProofFact {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Eq)]
 pub struct ProofMembershipFact {
     pub value: crate::expression::ExpressionHandle,
     pub domain: HandleSpan<Identifier>,
     pub domain_symbol: SymbolHandle,
+    /// Exact authored terminal domain selection. Generated facts carry the
+    /// empty span; this is review provenance, never proof identity.
+    pub domain_use_span: psi_source::SourceSpan,
+}
+
+impl PartialEq for ProofMembershipFact {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+            && self.domain == other.domain
+            && self.domain_symbol == other.domain_symbol
+    }
 }
 
 impl Default for ProofMembershipFact {
@@ -221,6 +232,7 @@ impl Default for ProofMembershipFact {
             value: crate::expression::ExpressionHandle::invalid(),
             domain: HandleSpan::empty(),
             domain_symbol: SymbolHandle::invalid(),
+            domain_use_span: psi_source::SourceSpan::default(),
         }
     }
 }

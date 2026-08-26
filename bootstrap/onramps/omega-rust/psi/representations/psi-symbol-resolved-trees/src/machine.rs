@@ -43,7 +43,18 @@ pub struct Machine {
     /// The published row is an installation-selected upper bound rather than
     /// a fixed callable ceiling.
     pub service_reach_is_installation_bound: bool,
+    /// Complete coordinates for each directly authored `reaches` clause.
+    pub service_reach_clause_spans: Vec<psi_source::SourceSpan>,
+    /// Direct authored service selections, bound once during reach
+    /// normalization from exact source occurrences to declaration symbols.
+    pub authored_service_reach_selections: Vec<AuthoredServiceReachSelection>,
     pub storage: MachineStorage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthoredServiceReachSelection {
+    pub use_name: psi_source::SourceText,
+    pub declaration: SymbolHandle,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

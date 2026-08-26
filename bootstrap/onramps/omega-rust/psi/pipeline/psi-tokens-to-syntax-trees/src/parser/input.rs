@@ -91,6 +91,34 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         SourceSpan::new(self.source_id, token.span)
     }
 
+    /// Coordinates from this cursor's first semantic token through the last
+    /// semantic token consumed before `rest`. Intervening whitespace and
+    /// comments are naturally covered, while trailing trivia is excluded.
+    pub(super) fn source_span_until(self, rest: Self) -> SourceSpan {
+        debug_assert_eq!(self.source_id, rest.source_id);
+        let Some(first) = self.tokens.first() else {
+            return SourceSpan::default();
+        };
+        let rest_start = rest
+            .tokens
+            .first()
+            .map(|token| token.span.start)
+            .unwrap_or(usize::MAX);
+        let Some(last) = self
+            .tokens
+            .iter()
+            .take_while(|token| token.span.start < rest_start)
+            .filter(|token| !token.is_non_semantic())
+            .last()
+        else {
+            return SourceSpan::default();
+        };
+        SourceSpan::new(
+            self.source_id,
+            psi_source::Span::new(first.span.start, last.span.end),
+        )
+    }
+
     pub(super) fn error_here(&self, message: impl Into<String>) -> ParseError {
         let source_span = self
             .tokens
