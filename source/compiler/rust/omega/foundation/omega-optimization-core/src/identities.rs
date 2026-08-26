@@ -62,6 +62,26 @@ canonical_identity!(
     b"omega.optimization-rule-identity.v1\0"
 );
 canonical_identity!(
+    OptimizationPassIdentity,
+    b"omega.optimization-pass-identity.v1\0"
+);
+canonical_identity!(
+    OptimizationCandidateIdentity,
+    b"omega.optimization-candidate-identity.v1\0"
+);
+canonical_identity!(
+    OptimizationDecisionIdentity,
+    b"omega.optimization-decision-identity.v1\0"
+);
+canonical_identity!(
+    OptimizationValidatorIdentity,
+    b"omega.optimization-validator-identity.v1\0"
+);
+canonical_identity!(
+    OptimizationUnitIdentity,
+    b"omega.optimization-unit-identity.v1\0"
+);
+canonical_identity!(
     OptimizationRuleSetIdentity,
     b"omega.optimization-rule-set-identity.v1\0"
 );
@@ -378,6 +398,41 @@ mod tests {
             OptimizationDecisionLogIdentity::from_canonical_bytes(b"same").bytes(),
             TransformationLedgerIdentity::from_canonical_bytes(b"same").bytes()
         );
+        let rule = OptimizationRuleIdentity::from_canonical_bytes(b"same").bytes();
+        for identity in [
+            OptimizationPassIdentity::from_canonical_bytes(b"same").bytes(),
+            OptimizationCandidateIdentity::from_canonical_bytes(b"same").bytes(),
+            OptimizationDecisionIdentity::from_canonical_bytes(b"same").bytes(),
+            OptimizationValidatorIdentity::from_canonical_bytes(b"same").bytes(),
+            OptimizationUnitIdentity::from_canonical_bytes(b"same").bytes(),
+            OptimizationRuleSetIdentity::from_canonical_bytes(b"same").bytes(),
+            OptimizationWorkloadProfileIdentity::from_canonical_bytes(b"same").bytes(),
+            OptimizationIdentityBundleIdentity::from_canonical_bytes(b"same").bytes(),
+        ] {
+            assert_ne!(rule, identity);
+        }
+    }
+
+    #[test]
+    fn every_fixed_width_identity_round_trips() {
+        macro_rules! round_trip {
+            ($identity:ty) => {{
+                let identity = <$identity>::from_canonical_bytes(stringify!($identity).as_bytes());
+                assert_eq!(<$identity>::decode(&identity.encode()), Ok(identity));
+            }};
+        }
+        round_trip!(OptimizationRuleIdentity);
+        round_trip!(OptimizationPassIdentity);
+        round_trip!(OptimizationCandidateIdentity);
+        round_trip!(OptimizationDecisionIdentity);
+        round_trip!(OptimizationValidatorIdentity);
+        round_trip!(OptimizationUnitIdentity);
+        round_trip!(OptimizationRuleSetIdentity);
+        round_trip!(TargetCostModelIdentity);
+        round_trip!(OptimizationDecisionLogIdentity);
+        round_trip!(OptimizationWorkloadProfileIdentity);
+        round_trip!(TransformationLedgerIdentity);
+        round_trip!(OptimizationIdentityBundleIdentity);
     }
 
     #[test]
