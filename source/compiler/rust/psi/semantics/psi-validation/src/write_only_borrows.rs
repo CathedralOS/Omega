@@ -93,6 +93,20 @@ fn fixed_byte_array_length(
     fixed_byte_array_shape(program, type_reference).map(|(_, length)| length)
 }
 
+fn literal_fixed_array_length(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<usize> {
+    let TypeReferenceNode::FixedArray {
+        length: FixedArrayLength::Literal(length),
+        ..
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    Some(*length)
+}
+
 fn fixed_byte_array_shape(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -124,17 +138,25 @@ fn is_byte_slice(program: &TypedTrees, type_reference: TypeReferenceHandle) -> b
     )
 }
 
-fn is_direct_write_only_length_metadata(
+fn is_write_only_length_metadata(
     program: &TypedTrees,
     member: &psi_typed_trees::expression::TableMemberExpression,
     roots: &[WriteOnlyRoot],
 ) -> bool {
-    member.case_variant.is_none()
-        && member.member.as_str() == "len"
-        && direct_write_only_root(program, member.receiver, roots).is_some_and(|root| {
-            is_byte_slice(program, root.referee)
-                || fixed_byte_array_length(program, root.referee).is_some()
-        })
+    if member.case_variant.is_some() || member.member.as_str() != "len" {
+        return false;
+    }
+
+    if direct_write_only_root(program, member.receiver, roots).is_some_and(|root| {
+        is_byte_slice(program, root.referee)
+            || fixed_byte_array_length(program, root.referee).is_some()
+    }) {
+        return true;
+    }
+
+    write_only_record_field_type(program, member.receiver, roots)
+        .and_then(|field_type| literal_fixed_array_length(program, field_type))
+        .is_some()
 }
 
 /// The first aggregate rung is deliberately nominal and closed. It admits an
@@ -617,12 +639,13 @@ fn validate_expression(
             }
         },
         ExpressionNode::Member(member) => {
-            if is_direct_write_only_length_metadata(program, member, roots) {
-                // A direct slice length belongs to its descriptor; a literal
-                // fixed-array length belongs to its static type. Neither reads
-                // the referent's byte content. Do not recurse into the receiver:
-                // doing so would misclassify this exact metadata read as
-                // referent observation.
+            if is_write_only_length_metadata(program, member, roots) {
+                // A direct slice length belongs to its descriptor. A literal
+                // fixed-array length belongs to its static type, including when
+                // the array is reached only through statically known common
+                // fields of plain records. Neither reads referent content. Do
+                // not recurse into the receiver: doing so would misclassify this
+                // exact metadata read as observation.
             } else if let Some(root) = mentioned_write_only_root(program, member.receiver, roots) {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{machine}` state `{state}` reads field `{}` from write-only parameter `{}`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation",
