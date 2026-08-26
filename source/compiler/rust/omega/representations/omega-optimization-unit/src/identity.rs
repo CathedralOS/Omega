@@ -24,11 +24,12 @@ use psi_terminal::{
 
 use crate::{
     AcceptedObligationFact, EffectLink, FuelSettlement, OptimizationEdge, OptimizationFact,
-    OptimizationNode, OwnershipEvent, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+    OptimizationNode, OwnershipEvent, OwnershipFrontierFact, OwnershipFrontierSite,
+    OwnershipFrontierSnapshot, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     ValueDefinition, ValueDefinitionSite, ValueUse,
 };
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v3\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v4\0";
 
 pub fn recompute_psi_optimization_unit_identity(
     unit: &PsiOptimizationUnit,
@@ -43,6 +44,10 @@ pub fn recompute_psi_optimization_unit_identity(
     bytes.slice(&unit.boundary_machines, encode_boundary_machine);
     bytes.slice(&unit.provider_candidates, encode_provider_candidate);
     bytes.slice(&unit.accepted_obligation_facts, encode_accepted_fact);
+    bytes.slice(
+        &unit.ownership_frontier_facts,
+        encode_ownership_frontier_fact,
+    );
     bytes.slice(&unit.functions, encode_function);
     OptimizationUnitIdentity::from_canonical_bytes(&bytes.finish())
 }
@@ -114,6 +119,60 @@ fn encode_accepted_fact(bytes: &mut CanonicalBytes, fact: &AcceptedObligationFac
     bytes.id(fact.obligation);
     bytes.len(fact.proposition.len());
     bytes.bytes(&fact.proposition);
+}
+
+fn encode_ownership_frontier_fact(bytes: &mut CanonicalBytes, fact: &OwnershipFrontierFact) {
+    bytes.bytes(&fact.identity.bytes());
+    bytes.u16(fact.terminal_psi.vocabulary_marker.get());
+    bytes.bytes(fact.terminal_psi.program_fingerprint.as_bytes());
+    bytes.id(fact.machine);
+    match fact.site {
+        OwnershipFrontierSite::BlockEntry(id) => {
+            bytes.u8(1);
+            bytes.id(id);
+        }
+        OwnershipFrontierSite::OperationEntry(id) => {
+            bytes.u8(2);
+            bytes.id(id);
+        }
+        OwnershipFrontierSite::OperationExit(id) => {
+            bytes.u8(3);
+            bytes.id(id);
+        }
+        OwnershipFrontierSite::EdgeEntry(id) => {
+            bytes.u8(4);
+            bytes.id(id);
+        }
+        OwnershipFrontierSite::EdgeExit(id) => {
+            bytes.u8(5);
+            bytes.id(id);
+        }
+    }
+    encode_ownership_frontier_snapshot(bytes, &fact.snapshot);
+}
+
+fn encode_ownership_frontier_snapshot(
+    bytes: &mut CanonicalBytes,
+    snapshot: &OwnershipFrontierSnapshot,
+) {
+    bytes.slice(&snapshot.claims, |bytes, claim| {
+        bytes.id(claim.claim);
+        encode_optional(bytes, claim.input.as_ref(), |bytes, input| bytes.id(*input));
+        bytes.slice(&claim.path, encode_structural_path_segment);
+        encode_optional(bytes, claim.multiplicity.as_ref(), |bytes, multiplicity| {
+            encode_multiplicity(bytes, *multiplicity)
+        });
+    });
+    bytes.slice(&snapshot.owned_places, |bytes, place| {
+        bytes.id(place.place);
+        encode_multiplicity(bytes, place.multiplicity);
+    });
+    bytes.slice(&snapshot.partial_custody, |bytes, partial| {
+        bytes.id(partial.place);
+        bytes.slice(&partial.moved_paths, |bytes, path| {
+            bytes.slice(path, encode_structural_path_segment)
+        });
+    });
 }
 
 fn encode_function(bytes: &mut CanonicalBytes, function: &PsiOptimizationFunction) {

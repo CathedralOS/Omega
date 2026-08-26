@@ -1,11 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use omega_optimization_core::{OptimizationUnitIdentity, ScalarConstantFactIdentity};
+use omega_optimization_core::{
+    OptimizationUnitIdentity, OwnershipFrontierFactIdentity, ScalarConstantFactIdentity,
+};
 use omega_optimization_unit::{
-    OptimizationEdge, OptimizationFact, PsiOptimizationFunction, PsiOptimizationUnit,
-    PsiProvenance, ScalarConstantValue, SccpBlockRow, SccpEdgeRow, SccpEdgeState,
-    SccpMachineSnapshot, SccpValueRow, SccpValueState, ValueDefinition, ValueUse,
-    derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
+    OptimizationEdge, OptimizationFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ScalarConstantValue, SccpBlockRow,
+    SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState, ValueDefinition,
+    ValueUse, derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{
@@ -194,6 +196,36 @@ pub struct ValueLivenessAnalysis {
     pub blocks: Vec<ValueLivenessBlock>,
 }
 
+/// Exact immutable verifier fact made available in one optimization revision.
+/// The site remains a source Terminal-Psi site; consumers must match that exact
+/// site rather than treating the snapshot as a timeless function-wide fact.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnershipFrontierAnalysisFact {
+    pub identity: OwnershipFrontierFactIdentity,
+    pub revision: OptimizationUnitIdentity,
+    pub machine: MachineId,
+    pub site: OwnershipFrontierSite,
+    pub snapshot: OwnershipFrontierSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnershipFrontierAnalysis {
+    pub facts: Vec<OwnershipFrontierAnalysisFact>,
+}
+
+impl OwnershipFrontierAnalysis {
+    pub fn fact(
+        &self,
+        machine: MachineId,
+        site: OwnershipFrontierSite,
+    ) -> Option<&OwnershipFrontierAnalysisFact> {
+        self.facts
+            .binary_search_by_key(&(machine, site), |fact| (fact.machine, fact.site))
+            .ok()
+            .map(|index| &self.facts[index])
+    }
+}
+
 pub(super) fn use_definitions(unit: &PsiOptimizationUnit) -> UseDefinitionAnalysis {
     let mut definitions = Vec::new();
     let mut uses = Vec::new();
@@ -221,6 +253,22 @@ pub(super) fn use_definitions(unit: &PsiOptimizationUnit) -> UseDefinitionAnalys
         );
     }
     UseDefinitionAnalysis { definitions, uses }
+}
+
+pub(super) fn ownership_frontiers(unit: &PsiOptimizationUnit) -> OwnershipFrontierAnalysis {
+    OwnershipFrontierAnalysis {
+        facts: unit
+            .ownership_frontier_facts
+            .iter()
+            .map(|fact| OwnershipFrontierAnalysisFact {
+                identity: fact.identity,
+                revision: unit.identity,
+                machine: fact.machine,
+                site: fact.site,
+                snapshot: fact.snapshot.clone(),
+            })
+            .collect(),
+    }
 }
 
 pub(super) fn scalar_constants(unit: &PsiOptimizationUnit) -> ScalarConstantAnalysis {

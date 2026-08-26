@@ -151,9 +151,12 @@ These facts constrain the work below.
   logical-fuel settlements from the clean plan. The independent
   `omega-optimization-validation` crate rejects malformed CFG, SSA dominance,
   edge bindings, provenance/fuel, effect chains, place roots, claim frontiers,
-  and cleanup metadata. `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open
-  until verified proof/range evidence and complete path-sensitive place and
-  ownership frontiers survive the Terminal-Psi lowering boundary.
+  and cleanup metadata. The verified builder additionally attaches a canonical
+  immutable catalog of verifier-owned block-entry, operation-entry/exit, and
+  edge-entry/available-edge-exit ownership snapshots. `OPT-UNIT-BUILDER` and
+  `OPT-UNIT-VALIDATOR` remain open until verified proof/range evidence and the
+  complete current-place/effect/call vocabulary survive the Terminal-Psi
+  lowering boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
   division, and remainder now retain their exact obligation identities through
   Terminal abstract, target, and assigned-target operations. Exact add,
@@ -178,13 +181,19 @@ These facts constrain the work below.
 - Psi's structural-frontier verifier now exposes deterministic machine/block,
   operation-entry/exit, and edge-entry/exit snapshots with exact live claims,
   owned-place multiplicities, and projected moved paths. The verified optimizer
-  carrier retains those snapshots, and the independent unit validator checks
-  proof fingerprints, reconstructed-obligation/admitted-fact agreement,
-  operation-obligation ownership, and frontier coverage for every retained Psi
-  provenance site. It also independently rebuilds the accepted-obligation
-  projection and initial unit identity from the immutable verifier carrier.
-  The unit tasks remain open for full effect summaries and projecting these
-  capabilities into region-indexed rule facts.
+  carrier retains those snapshots, and the optimization unit now projects each
+  one into a self-authenticating fact row whose complete claim/place/path state
+  contributes to content identity. Attachment is one-shot and requires strict
+  machine/site and nested snapshot order. The independent validator reprojects
+  the complete catalog from the immutable verifier context on initial and
+  transformed revisions; removal, duplication, reordering, or a recomputed
+  forged snapshot fails closed. Terminal return/crash edges currently expose an
+  entry snapshot but no exit snapshot, while control-successor edges expose
+  both. The validator also checks proof fingerprints,
+  reconstructed-obligation/admitted-fact agreement, operation-obligation
+  ownership, and frontier coverage for every retained Psi provenance site.
+  The unit tasks remain open for full effect summaries and current-region
+  ownership derivation after arbitrary CFG rewrites.
 - The clean abstract-operation plan now retains every block's scalar
   declarations in exact Terminal-Psi order instead of attempting to infer them
   from incoming edges. The unit validator independently re-derives operation
@@ -199,7 +208,7 @@ These facts constrain the work below.
   retains that history separately. Exact module structural-type, boundary, and
   provider catalogs now survive into the unit, as do every function's nominal
   attachment, scalar/structural parameters, result shape, full ordered entry
-  claims, and published service ceiling. Content identity v3 encodes these
+  claims, and published service ceiling. Content identity v4 encodes these
   rows exhaustively; the independent validator compares them with the verified
   source on initial and transformed revisions, and optimized-plan projection
   consumes the unit-held rows before independently checking the round trip.
@@ -219,6 +228,13 @@ These facts constrain the work below.
   The manager and CFG tasks remain open until rewrite rules exercise the full
   audit and suspension/richer call exits are present in the optimization
   representation.
+- The previously reserved `OwnershipFrontiers` analysis kind is now active. It
+  exposes exact source-site fact identities and snapshots, bound to the current
+  unit revision, without treating them as timeless function-wide conclusions.
+  The analysis manager always invalidates and rebinds this view at a revision
+  commit even though the underlying verifier catalog is immutable. No rewrite
+  consumes these facts yet; current-region/path applicability remains an open
+  semantic-analysis task rather than being inferred from a removed source site.
 - The Psi optimizer now also has immutable compilation-local rule registries.
   They preserve the pass manager's explicit schedule (never hash-sort it),
   reject duplicate rule identities, bind the exact order into a rule-set

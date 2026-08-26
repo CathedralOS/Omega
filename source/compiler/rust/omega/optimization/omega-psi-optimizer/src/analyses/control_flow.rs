@@ -73,7 +73,8 @@ pub fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
         AnalysisKind::ControlFlowGraph
         | AnalysisKind::CallGraph
         | AnalysisKind::UseDefinition
-        | AnalysisKind::EffectSummaries => Some(AnalysisSet::default()),
+        | AnalysisKind::EffectSummaries
+        | AnalysisKind::OwnershipFrontiers => Some(AnalysisSet::default()),
         AnalysisKind::Dominators
         | AnalysisKind::PostDominators
         | AnalysisKind::StronglyConnectedComponents => {
@@ -129,6 +130,9 @@ pub fn compute_analysis(unit: &PsiOptimizationUnit, kind: AnalysisKind) -> Optio
         )),
         AnalysisKind::EffectSummaries => Some(AnalysisProduct::EffectSummaries(
             super::semantic::effect_summaries(unit),
+        )),
+        AnalysisKind::OwnershipFrontiers => Some(AnalysisProduct::OwnershipFrontiers(
+            super::semantic::ownership_frontiers(unit),
         )),
         AnalysisKind::ValueLiveness => Some(AnalysisProduct::ValueLiveness(
             super::semantic::value_liveness(unit),

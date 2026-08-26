@@ -294,8 +294,15 @@ not yet project them.
 Structural frontier snapshots come from Psi's verifier walk itself. They retain
 block entry, operation entry/exit, and edge entry/exit states with exact claim
 paths, owned-place multiplicities, and partially moved paths. Omega validates
-their coverage and joins them to transformation provenance; it does not
-reimplement the borrow checker as a target alias analysis.
+their coverage, projects them into a canonical immutable optimization-unit fact
+catalog, and joins them to transformation provenance; it does not reimplement
+the borrow checker as a target alias analysis. Every fact has a content-derived
+identity over its Terminal-Psi identity, machine, exact source site, and complete
+snapshot. The independent validator reconstructs that catalog from the retained
+verifier context for both initial and transformed revisions. Return and crash
+edges currently contribute edge-entry facts only because Psi's verifier does
+not yet publish their post-terminal exit state; control-successor edges publish
+both entry and exit.
 
 ## Optimization unit
 
@@ -330,6 +337,15 @@ field, transformed-revision validation compares them with the immutable
 verified input, and abstract-plan projection reads them from the unit before an
 independent round-trip check. Passes may inspect this custody but cannot rewrite
 it.
+
+The unit also owns the exact verifier-projected ownership frontier catalog.
+This is immutable source authority, not a mutable reconstruction of the current
+CFG: rewrites may remove a source operation or edge but must retain its fact
+row. Catalog and nested snapshot ordering are canonical, the complete catalog
+is bound by unit content identity, and validation compares it to an independent
+projection from `VerifiedTerminalOptimizationInput`. A later analysis may use a
+row only at its exact source site unless it proves a new current-region
+relationship.
 
 The unit must not contain syntax nodes, `ExpressionHandle`, authored names as
 identity, native byte offsets, physical registers, or target instruction
@@ -405,6 +421,14 @@ cold-recomputes supposedly retained rows before changing the manager revision.
 A mismatch is an undeclared-invalidation failure and leaves both cache and
 revision untouched. Independent cold analyses may run concurrently, but their
 published bundle is sorted back into canonical analysis order.
+
+`OwnershipFrontiers` is the first verifier-derived semantic analysis product.
+It exposes each immutable catalog row under its exact machine/source-site key
+and binds the view to the current optimization-unit revision. Because that
+revision is part of the analysis region, the manager always invalidates and
+rebinds the product across a commit, even when no rule declares a mutation of
+the underlying immutable catalog. It is not yet a current-CFG ownership solver,
+and no rewrite may broaden a source-site snapshot into a function-wide fact.
 
 Literal-derived constants and ranges name the exact supporting Psi operation
 and are valid only for their `(unit revision, machine, value)` region.

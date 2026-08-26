@@ -11,9 +11,9 @@ pub use manager::{AnalysisManager, AnalysisManagerError, AnalysisRevisionCommit}
 pub use semantic::{
     EffectClass, EffectKnowledge, EffectSummaryAnalysis, ExecutableEdgeAnalysis,
     ExecutableEdgeFact, ExecutableEdgeKnowledge, FunctionEffectSummary, NodeEffectSummary,
-    NodeLiveness, ScalarConstant, ScalarConstantAnalysis, ScalarConstantFact,
-    ScalarConstantSupport, UseDefinitionAnalysis, ValueFactRegion, ValueLivenessAnalysis,
-    ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
+    NodeLiveness, OwnershipFrontierAnalysis, OwnershipFrontierAnalysisFact, ScalarConstant,
+    ScalarConstantAnalysis, ScalarConstantFact, ScalarConstantSupport, UseDefinitionAnalysis,
+    ValueFactRegion, ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,6 +29,7 @@ pub enum AnalysisProduct {
     ScalarConstants(ScalarConstantAnalysis),
     ValueRanges(ValueRangeAnalysis),
     EffectSummaries(EffectSummaryAnalysis),
+    OwnershipFrontiers(OwnershipFrontierAnalysis),
     ValueLiveness(ValueLivenessAnalysis),
 }
 
@@ -47,6 +48,7 @@ impl AnalysisProduct {
             Self::ScalarConstants(_) => AnalysisKind::ScalarConstants,
             Self::ValueRanges(_) => AnalysisKind::ValueRanges,
             Self::EffectSummaries(_) => AnalysisKind::EffectSummaries,
+            Self::OwnershipFrontiers(_) => AnalysisKind::OwnershipFrontiers,
             Self::ValueLiveness(_) => AnalysisKind::ValueLiveness,
         }
     }

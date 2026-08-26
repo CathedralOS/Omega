@@ -78,6 +78,10 @@ canonical_identity!(
     b"omega.accepted-obligation-fact-identity.v1\0"
 );
 canonical_identity!(
+    OwnershipFrontierFactIdentity,
+    b"omega.ownership-frontier-fact-identity.v1\0"
+);
+canonical_identity!(
     OptimizationDecisionIdentity,
     b"omega.optimization-decision-identity.v1\0"
 );
@@ -440,6 +444,7 @@ mod tests {
         round_trip!(OptimizationCandidateIdentity);
         round_trip!(ScalarConstantFactIdentity);
         round_trip!(AcceptedObligationFactIdentity);
+        round_trip!(OwnershipFrontierFactIdentity);
         round_trip!(OptimizationDecisionIdentity);
         round_trip!(OptimizationValidatorIdentity);
         round_trip!(OptimizationUnitIdentity);
