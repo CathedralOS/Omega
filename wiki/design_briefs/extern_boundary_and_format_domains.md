@@ -262,13 +262,19 @@ at their exact value-field offsets. An independent bounded decoder requires
 the exact row count with no trailing bytes and replays endianness, row order
 and values, fixup bounds/non-overlap/targets, deterministic identity, and plan
 custody. The serialized carrier supplies no `.dynamic` name, descriptor,
-section index, address, or placement authority.
+section index, address, or placement authority. The following address-free
+descriptor carrier extends the exact 93-byte append-only name seed with raw
+`.dynamic\0` at offset 93 and retains one semantic `SHT_DYNAMIC` row with
+writable/allocated flags, exact payload size, alignment eight, entry size
+sixteen, a typed `.dynstr` link, and no info relationship. Independent replay
+checks the complete 102-byte seed, raw name, unique semantic link, every field,
+identity, and payload custody. No final numeric `sh_name`/`sh_link`, section
+index, address, or placement is assigned.
 
 The final section roster and completed `.shstrtab`, numeric
 `sh_name`/`sh_link`/`e_shstrndx`, section-header serialization, placement,
 `PT_INTERP` program-header placement, `PT_DYNAMIC`, `.dynamic` address
-resolution, optional `.gnu.hash`, final descriptors for
-`.dynamic` and `.shstrtab`,
+resolution, optional `.gnu.hash`, the final descriptor for `.shstrtab`,
 numeric indexes for `.plt`/`.got.plt`/`.rela.plt`, address-resolved fixup
 application, complete load/program-header layout, image mutation, and
 independent final-byte replay remain open. Validated semantic tags still
