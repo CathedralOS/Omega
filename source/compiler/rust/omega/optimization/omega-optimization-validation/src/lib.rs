@@ -17,11 +17,11 @@ use omega_optimization_unit::{
     IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationEdge,
     OptimizationFact, OwnershipEvent, OwnershipFrontierFact, OwnershipFrontierLiveClaim,
     OwnershipFrontierOwnedPlace, OwnershipFrontierPartialCustody, OwnershipFrontierSite,
-    OwnershipFrontierSnapshot, PsiNodeObservation, PsiOptimizationFunction, PsiOptimizationUnit,
-    PsiProvenance, PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterRewrite,
-    ScalarConstantValue, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
-    SccpValueRow, SccpValueState, ValueDefinition, ValueDefinitionSite, ValueUse,
-    canonical_ownership_frontier_snapshot, derived_sccp_scalar_constant_fact_identity,
+    OwnershipFrontierSnapshot, ProvenanceDisposition, PsiNodeObservation, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate, PsiRewritePatch,
+    RedundantBlockParameterRewrite, ScalarConstantValue, SccpBlockRow, SccpEdgeRow, SccpEdgeState,
+    SccpMachineSnapshot, SccpValueRow, SccpValueState, ValueDefinition, ValueDefinitionSite,
+    ValueUse, canonical_ownership_frontier_snapshot, derived_sccp_scalar_constant_fact_identity,
     literal_scalar_constant_fact_identity, recompute_psi_optimization_unit_identity,
     reconstruct_psi_closed_region_observation, reconstruct_psi_observation_model,
 };
@@ -302,6 +302,7 @@ pub struct ValidatedPsiRewrite {
     unit: PsiOptimizationUnit,
     candidate: OptimizationCandidateIdentity,
     validator: OptimizationValidatorIdentity,
+    provenance: Vec<omega_optimization_unit::ProvenanceRewrite>,
 }
 
 impl ValidatedPsiRewrite {
@@ -315,6 +316,12 @@ impl ValidatedPsiRewrite {
 
     pub const fn validator(&self) -> OptimizationValidatorIdentity {
         self.validator
+    }
+
+    /// Validator-accepted source disposition and fuel accounting. Consumers
+    /// must ledger this value rather than re-reading the proposal.
+    pub fn provenance(&self) -> &[omega_optimization_unit::ProvenanceRewrite] {
+        &self.provenance
     }
 
     pub fn into_unit(self) -> PsiOptimizationUnit {
@@ -442,12 +449,19 @@ pub fn validate_integer_evaluation_candidate(
     let [provenance] = candidate.provenance() else {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     };
-    if provenance.output != patch.location || provenance.sources != node.provenance {
+    if provenance.disposition != ProvenanceDisposition::RealizedAt(patch.location)
+        || provenance.sources != node.provenance
+    {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
     if provenance.fuel != node.fuel {
         return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
     }
+    let accepted_provenance = vec![omega_optimization_unit::ProvenanceRewrite {
+        disposition: ProvenanceDisposition::RealizedAt(patch.location),
+        sources: node.provenance.clone(),
+        fuel: node.fuel.clone(),
+    }];
 
     let (source_operation, result, scalar_type, evaluated, safety_class) =
         evaluate_integer_operation(function, node, candidate)?;
@@ -552,6 +566,7 @@ pub fn validate_integer_evaluation_candidate(
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
             b"omega.validator.exact-integer-evaluation.v2",
         ),
+        provenance: accepted_provenance,
     })
 }
 
@@ -692,17 +707,42 @@ pub fn validate_constant_conditional_candidate(
         .copied()
         .filter(|settlement| settlement.site == PsiProvenance::Edge(selected.psi_edge))
         .collect::<Vec<_>>();
-    let [provenance] = candidate.provenance() else {
+    let rejected_fuel = node
+        .fuel
+        .iter()
+        .copied()
+        .filter(|settlement| settlement.site == PsiProvenance::Edge(rejected.psi_edge))
+        .collect::<Vec<_>>();
+    let [realized, proven_unreachable] = candidate.provenance() else {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     };
-    if provenance.output != patch.location
-        || provenance.sources != [PsiProvenance::Edge(selected.psi_edge)]
+    if realized.disposition != ProvenanceDisposition::RealizedAt(patch.location)
+        || realized.sources != [PsiProvenance::Edge(selected.psi_edge)]
+        || proven_unreachable.disposition
+            != ProvenanceDisposition::ProvenUnreachableAt(patch.location)
+        || proven_unreachable.sources != [PsiProvenance::Edge(rejected.psi_edge)]
     {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
-    if provenance.fuel != expected_fuel || expected_fuel.is_empty() {
+    if realized.fuel != expected_fuel
+        || expected_fuel.is_empty()
+        || proven_unreachable.fuel != rejected_fuel
+        || rejected_fuel.is_empty()
+    {
         return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
     }
+    let accepted_provenance = vec![
+        omega_optimization_unit::ProvenanceRewrite {
+            disposition: ProvenanceDisposition::RealizedAt(patch.location),
+            sources: vec![PsiProvenance::Edge(selected.psi_edge)],
+            fuel: expected_fuel.clone(),
+        },
+        omega_optimization_unit::ProvenanceRewrite {
+            disposition: ProvenanceDisposition::ProvenUnreachableAt(patch.location),
+            sources: vec![PsiProvenance::Edge(rejected.psi_edge)],
+            fuel: rejected_fuel,
+        },
+    ];
 
     let mut output = input.clone();
     let output_function = output
@@ -773,8 +813,9 @@ pub fn validate_constant_conditional_candidate(
         unit: output,
         candidate: candidate.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.constant-conditional-fold.v1",
+            b"omega.validator.constant-conditional-fold.v2",
         ),
+        provenance: accepted_provenance,
     })
 }
 
@@ -911,7 +952,7 @@ pub fn validate_redundant_block_parameter_candidate(
             if changes_use || changes_binding {
                 affected_blocks.insert(source.id);
                 expected_provenance.push(omega_optimization_unit::ProvenanceRewrite {
-                    output: location,
+                    disposition: ProvenanceDisposition::RealizedAt(location),
                     sources: node.provenance.clone(),
                     fuel: node.fuel.clone(),
                 });
@@ -1004,6 +1045,7 @@ pub fn validate_redundant_block_parameter_candidate(
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
             b"omega.validator.redundant-block-parameter.v2",
         ),
+        provenance: expected_provenance,
     })
 }
 
@@ -1367,12 +1409,19 @@ pub fn validate_boolean_evaluation_candidate(
     let [provenance] = candidate.provenance() else {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     };
-    if provenance.output != patch.location || provenance.sources != node.provenance {
+    if provenance.disposition != ProvenanceDisposition::RealizedAt(patch.location)
+        || provenance.sources != node.provenance
+    {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     }
     if provenance.fuel != node.fuel {
         return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
     }
+    let accepted_provenance = vec![omega_optimization_unit::ProvenanceRewrite {
+        disposition: ProvenanceDisposition::RealizedAt(patch.location),
+        sources: node.provenance.clone(),
+        fuel: node.fuel.clone(),
+    }];
     let (source_operation, result, evaluated) =
         evaluate_boolean_operation(function, node, candidate)?;
     if candidate.safety_class() != OptimizationSafetyClass::ExactOperationSemantics {
@@ -1441,6 +1490,7 @@ pub fn validate_boolean_evaluation_candidate(
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
             b"omega.validator.boolean-evaluation.v1",
         ),
+        provenance: accepted_provenance,
     })
 }
 
@@ -4802,7 +4852,7 @@ mod tests {
             vec![block.id],
             Vec::new(),
             vec![ProvenanceRewrite {
-                output: location,
+                disposition: ProvenanceDisposition::RealizedAt(location),
                 sources: node.provenance.clone(),
                 fuel: node.fuel.clone(),
             }],

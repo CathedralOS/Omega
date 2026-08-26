@@ -346,12 +346,20 @@ These facts constrain the work below.
 - Successful Psi runs now emit a canonical transformation ledger binding the
   exact Terminal-Psi identity, fuel schedule, initial/final unit revisions, and
   every validated rule/candidate/validator revision step. Each step explicitly
-  retains its output node, source operation/edge set, and original logical-fuel
-  settlements. Broken chains, duplicate candidates, empty/duplicate
-  provenance, and mismatched fuel sites reject. Empty no-op runs receive a
-  valid identity-preserving ledger. `OPT-FUEL-MAP` remains open for one-to-many
-  rewrites and physical/runtime metering joins, and the publication gate must
-  later consume this ledger rather than trusting its producer.
+  partitions its source operation/edge set into `RealizedAt(output)` or
+  `ProvenUnreachableAt(input)` rows and retains the original scheduled fuel for
+  both. Only realized rows are runtime charges; unreachable rows retain audit
+  custody without inventing a zero-unit settlement or fake output. Broken
+  chains, duplicate candidates, empty/duplicate or cross-disposition source
+  custody, zero/mismatched fuel, and noncanonical rows reject. The independent
+  projection validator requires the initial source/fuel map to equal the exact
+  disjoint union of final realized source/fuel and cumulative proven-
+  unreachable rows, and rejects resurrection after a tombstone. The pass
+  manager ledgers validator-accepted accounting, not the proposal. Empty no-op
+  runs receive a valid identity-preserving ledger. `OPT-FUEL-MAP` remains open
+  for path-qualified one-to-many rewrites and physical/runtime metering joins,
+  and the publication gate must later consume this ledger rather than trusting
+  its producer.
 - The public Psi run now requires the exact named `OptimizationSelections`,
   reconstructs the built-in registry for that set, and rejects detached rule
   schedules or any named optimization whose implementation is unavailable. A
@@ -832,8 +840,12 @@ dependency.
   Current slice: exact constant-conditional folding is available under only
   the explicit `ControlFlowCleanup` selection. It preserves the complete block
   roster, refuses a fold that would make any block unreachable, retains only
-  the realized selected edge's logical charge, and independently validates the
-  consumed Boolean fact and both edge identities. Empty-block threading,
+  the selected edge as a realized logical charge, and durably records the
+  rejected edge plus its original scheduled fuel as independently proven
+  unreachable and uncharged. Candidate v8, ledger v2, prephysical manifest v3,
+  and the projection-wide source-custody partition all bind that distinction.
+  The validator independently reconstructs the consumed Boolean fact, both
+  edge identities, both source dispositions, and both fuel rows. Empty-block threading,
   redundant jumps, block-roster-changing unreachable cleanup, and private-
   machine pruning remain open.
 

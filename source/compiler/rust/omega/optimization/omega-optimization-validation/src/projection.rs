@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use omega_optimization_core::{
     OptimizationCandidateVerdict, OptimizationExecutionPhase, OptimizationIdentityBundle,
     OptimizationPassManifestRecord, OptimizationRuleSetIdentity, OptimizationSelectionIdentity,
@@ -6,7 +8,8 @@ use omega_optimization_core::{
 };
 use omega_optimization_policy::{BaselineDecisionLog, BaselineDecisionLogDecodeError};
 use omega_optimization_unit::{
-    InvalidPsiTransformationLedger, PsiOptimizationUnit, PsiTransformationLedger,
+    InvalidPsiTransformationLedger, ProvenanceDisposition, PsiOptimizationUnit, PsiProvenance,
+    PsiTransformationLedger,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperationPlan;
 use omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput;
@@ -117,6 +120,7 @@ pub enum OptimizedAbstractPlanProjectionError {
     ManifestRevisionMismatch,
     ManifestRuleSetMismatch,
     ManifestLedgerMismatch,
+    SourceCustodyMismatch,
     SourceFunctionRosterMismatch,
     ImmutablePlanMetadataMismatch,
     ReconstructibleProjectionMismatch,
@@ -182,6 +186,7 @@ pub fn validate_optimized_abstract_plan_projection(
     if ledger.output() != final_unit.identity {
         return Err(OptimizedAbstractPlanProjectionError::LedgerFinalMismatch);
     }
+    validate_source_custody(initial.unit(), final_unit, ledger)?;
 
     if bundle.selections() != selections.identity() {
         return Err(OptimizedAbstractPlanProjectionError::SelectionIdentityMismatch);
@@ -224,9 +229,84 @@ pub fn validate_optimized_abstract_plan_projection(
         ledger: ledger.identity(),
         bundle: bundle.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.optimized-abstract-plan-projection.v2",
+            b"omega.validator.optimized-abstract-plan-projection.v3",
         ),
     })
+}
+
+fn source_fuel_map(
+    unit: &PsiOptimizationUnit,
+) -> Option<BTreeMap<(psi_core::MachineId, PsiProvenance), u64>> {
+    let mut result = BTreeMap::new();
+    for function in &unit.functions {
+        for settlement in function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .flat_map(|node| &node.fuel)
+        {
+            if result
+                .insert((function.machine, settlement.site), settlement.units)
+                .is_some()
+            {
+                return None;
+            }
+        }
+    }
+    Some(result)
+}
+
+fn validate_source_custody(
+    initial: &PsiOptimizationUnit,
+    final_unit: &PsiOptimizationUnit,
+    ledger: &PsiTransformationLedger,
+) -> Result<(), OptimizedAbstractPlanProjectionError> {
+    let initial = source_fuel_map(initial)
+        .ok_or(OptimizedAbstractPlanProjectionError::SourceCustodyMismatch)?;
+    let final_sources = source_fuel_map(final_unit)
+        .ok_or(OptimizedAbstractPlanProjectionError::SourceCustodyMismatch)?;
+    let mut removed = BTreeMap::new();
+    let mut unavailable = BTreeSet::new();
+    for record in ledger.records() {
+        for row in &record.provenance {
+            let machine = row.disposition.location().machine;
+            match row.disposition {
+                ProvenanceDisposition::RealizedAt(_) => {
+                    if row
+                        .sources
+                        .iter()
+                        .any(|source| unavailable.contains(&(machine, *source)))
+                    {
+                        return Err(OptimizedAbstractPlanProjectionError::SourceCustodyMismatch);
+                    }
+                }
+                ProvenanceDisposition::ProvenUnreachableAt(_) => {
+                    for settlement in &row.fuel {
+                        let key = (machine, settlement.site);
+                        if initial.get(&key) != Some(&settlement.units)
+                            || !unavailable.insert(key)
+                            || removed.insert(key, settlement.units).is_some()
+                        {
+                            return Err(
+                                OptimizedAbstractPlanProjectionError::SourceCustodyMismatch,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if final_sources
+        .iter()
+        .any(|(key, units)| initial.get(key) != Some(units) || removed.contains_key(key))
+        || initial.len() != final_sources.len() + removed.len()
+        || initial
+            .iter()
+            .any(|(key, units)| final_sources.get(key).or_else(|| removed.get(key)) != Some(units))
+    {
+        return Err(OptimizedAbstractPlanProjectionError::SourceCustodyMismatch);
+    }
+    Ok(())
 }
 
 pub(super) fn validate_manifests(
@@ -422,6 +502,18 @@ fn same_reconstructible_projection(
 
 #[cfg(test)]
 mod tests {
+    use omega_optimization_core::{
+        OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationValidatorIdentity,
+    };
+    use omega_optimization_unit::{
+        FuelSettlement, NodeLocation, ProvenanceRewrite, PsiTransformationRecord,
+        reconstruct_psi_optimization_unit_seed,
+    };
+    use omega_terminal_abstract_operations::{
+        TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
+        TerminalAbstractOperation, TerminalAbstractOperationPlan,
+    };
+    use psi_core::{BlockId, EdgeId, MachineId};
     use psi_terminal::{SemanticFingerprint, VocabularyMarker};
 
     use super::*;
@@ -443,6 +535,67 @@ mod tests {
                     b"bundle",
                 ),
             validator: OptimizationValidatorIdentity::from_canonical_bytes(b"validator"),
+        }
+    }
+
+    fn custody_unit() -> PsiOptimizationUnit {
+        let machine = MachineId::new(41).unwrap();
+        let block = BlockId::new(42).unwrap();
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([43; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry: block,
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![TerminalAbstractOperation::ReturnUnit {
+                        psi_edge: EdgeId::new(44).unwrap(),
+                        cleanup_actions: Vec::new(),
+                    }],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    fn custody_record(
+        input: OptimizationUnitIdentity,
+        output: OptimizationUnitIdentity,
+        disposition: ProvenanceDisposition,
+        source: PsiProvenance,
+    ) -> omega_optimization_unit::PsiTransformationRecord {
+        PsiTransformationRecord {
+            rule: OptimizationRuleIdentity::from_canonical_bytes(b"custody-rule"),
+            candidate: OptimizationCandidateIdentity::from_canonical_bytes(&output.bytes()),
+            validator: OptimizationValidatorIdentity::from_canonical_bytes(b"custody-validator"),
+            input,
+            output,
+            provenance: vec![ProvenanceRewrite {
+                disposition,
+                sources: vec![source],
+                fuel: vec![FuelSettlement {
+                    site: source,
+                    units: 1,
+                }],
+            }],
         }
     }
 
@@ -497,5 +650,95 @@ mod tests {
         for corrupted in changed {
             assert_ne!(baseline.identity(), corrupted.identity());
         }
+    }
+
+    #[test]
+    fn source_custody_is_an_exact_final_or_unreachable_partition() {
+        let initial = custody_unit();
+        let location = NodeLocation {
+            machine: initial.functions[0].machine,
+            block: initial.functions[0].blocks[0].id,
+            node: 0,
+        };
+        let source = initial.functions[0].blocks[0].nodes[0].provenance[0];
+        let mut final_unit = initial.clone();
+        final_unit.functions[0].blocks[0].nodes.clear();
+        final_unit.identity =
+            omega_optimization_unit::recompute_psi_optimization_unit_identity(&final_unit);
+        let record = custody_record(
+            initial.identity,
+            final_unit.identity,
+            ProvenanceDisposition::ProvenUnreachableAt(location),
+            source,
+        );
+        let ledger = PsiTransformationLedger::new(
+            initial.terminal_psi,
+            initial.fuel_schedule,
+            initial.identity,
+            final_unit.identity,
+            vec![record.clone()],
+        )
+        .unwrap();
+        validate_source_custody(&initial, &final_unit, &ledger).unwrap();
+
+        assert_eq!(
+            validate_source_custody(&initial, &initial, &ledger),
+            Err(OptimizedAbstractPlanProjectionError::SourceCustodyMismatch)
+        );
+
+        let mut wrong_units = record;
+        wrong_units.provenance[0].fuel[0].units = 2;
+        let wrong_ledger = PsiTransformationLedger::new(
+            initial.terminal_psi,
+            initial.fuel_schedule,
+            initial.identity,
+            final_unit.identity,
+            vec![wrong_units],
+        )
+        .unwrap();
+        assert_eq!(
+            validate_source_custody(&initial, &final_unit, &wrong_ledger),
+            Err(OptimizedAbstractPlanProjectionError::SourceCustodyMismatch)
+        );
+    }
+
+    #[test]
+    fn source_custody_rejects_resurrection_after_unreachability() {
+        let initial = custody_unit();
+        let location = NodeLocation {
+            machine: initial.functions[0].machine,
+            block: initial.functions[0].blocks[0].id,
+            node: 0,
+        };
+        let source = initial.functions[0].blocks[0].nodes[0].provenance[0];
+        let mut final_unit = initial.clone();
+        final_unit.functions[0].blocks[0].nodes.clear();
+        final_unit.identity =
+            omega_optimization_unit::recompute_psi_optimization_unit_identity(&final_unit);
+        let middle = OptimizationUnitIdentity::from_canonical_bytes(b"custody-middle");
+        let removed = custody_record(
+            initial.identity,
+            middle,
+            ProvenanceDisposition::ProvenUnreachableAt(location),
+            source,
+        );
+        let resurrected = custody_record(
+            middle,
+            final_unit.identity,
+            ProvenanceDisposition::RealizedAt(location),
+            source,
+        );
+        let ledger = PsiTransformationLedger::new(
+            initial.terminal_psi,
+            initial.fuel_schedule,
+            initial.identity,
+            final_unit.identity,
+            vec![removed, resurrected],
+        )
+        .unwrap();
+        assert_eq!(
+            validate_source_custody(&initial, &final_unit, &ledger),
+            Err(OptimizedAbstractPlanProjectionError::SourceCustodyMismatch)
+        );
     }
 }

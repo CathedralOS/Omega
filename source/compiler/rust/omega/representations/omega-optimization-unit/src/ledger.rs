@@ -7,9 +7,11 @@ use omega_optimization_core::{
 use psi_core::{BlockId, EdgeId, FuelScheduleIdentity, MachineId, OperationId};
 use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-use crate::{FuelSettlement, NodeLocation, ProvenanceRewrite, PsiProvenance};
+use crate::{
+    FuelSettlement, NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance,
+};
 
-const LEDGER_MAGIC: &[u8] = b"omega.psi-transformation-ledger.v1\0";
+const LEDGER_MAGIC: &[u8] = b"omega.psi-transformation-ledger.v2\0";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiTransformationRecord {
@@ -39,6 +41,7 @@ pub enum InvalidPsiTransformationLedger {
     EmptyProvenance,
     NonCanonicalProvenance,
     FuelProvenanceMismatch,
+    ZeroFuelSettlement,
 }
 
 impl std::fmt::Display for InvalidPsiTransformationLedger {
@@ -57,6 +60,7 @@ pub enum PsiTransformationLedgerDecodeError {
     InvalidFuelSchedule,
     InvalidSemanticIdentity,
     UnknownProvenanceTag(u8),
+    UnknownDispositionTag(u8),
     LengthOverflow,
     TrailingBytes,
     InvalidLedger(InvalidPsiTransformationLedger),
@@ -172,9 +176,24 @@ impl PsiTransformationLedger {
             let provenance_count = cursor.length()?;
             let mut provenance = Vec::with_capacity(provenance_count.min(cursor.remaining()));
             for _ in 0..provenance_count {
+                let disposition_tag = cursor.byte()?;
                 let machine = semantic_id(u64::from_le_bytes(cursor.array()?), MachineId::new)?;
                 let block = semantic_id(u64::from_le_bytes(cursor.array()?), BlockId::new)?;
                 let node = u32::from_le_bytes(cursor.array()?);
+                let location = NodeLocation {
+                    machine,
+                    block,
+                    node,
+                };
+                let disposition = match disposition_tag {
+                    1 => ProvenanceDisposition::RealizedAt(location),
+                    2 => ProvenanceDisposition::ProvenUnreachableAt(location),
+                    tag => {
+                        return Err(PsiTransformationLedgerDecodeError::UnknownDispositionTag(
+                            tag,
+                        ));
+                    }
+                };
                 let source_count = cursor.length()?;
                 let mut sources = Vec::with_capacity(source_count.min(cursor.remaining()));
                 for _ in 0..source_count {
@@ -189,11 +208,7 @@ impl PsiTransformationLedger {
                     });
                 }
                 provenance.push(ProvenanceRewrite {
-                    output: NodeLocation {
-                        machine,
-                        block,
-                        node,
-                    },
+                    disposition,
                     sources,
                     fuel,
                 });
@@ -228,12 +243,30 @@ fn validate_provenance(rows: &[ProvenanceRewrite]) -> Result<(), InvalidPsiTrans
     if rows.is_empty() || rows.iter().any(|row| row.sources.is_empty()) {
         return Err(InvalidPsiTransformationLedger::EmptyProvenance);
     }
-    if rows.windows(2).any(|pair| pair[0].output >= pair[1].output) {
+    if rows.windows(2).any(|pair| {
+        let left = (
+            pair[0].disposition.canonical_tag(),
+            pair[0].disposition.location(),
+        );
+        let right = (
+            pair[1].disposition.canonical_tag(),
+            pair[1].disposition.location(),
+        );
+        left >= right
+    }) {
         return Err(InvalidPsiTransformationLedger::NonCanonicalProvenance);
     }
+    let mut all_sources = BTreeSet::new();
     for row in rows {
         let sources = row.sources.iter().copied().collect::<BTreeSet<_>>();
         if sources.len() != row.sources.len() {
+            return Err(InvalidPsiTransformationLedger::NonCanonicalProvenance);
+        }
+        let machine = row.disposition.location().machine;
+        if !sources
+            .iter()
+            .all(|source| all_sources.insert((machine, *source)))
+        {
             return Err(InvalidPsiTransformationLedger::NonCanonicalProvenance);
         }
         let fuel = row
@@ -243,6 +276,9 @@ fn validate_provenance(rows: &[ProvenanceRewrite]) -> Result<(), InvalidPsiTrans
             .collect::<BTreeSet<_>>();
         if fuel.len() != row.fuel.len() || fuel != sources {
             return Err(InvalidPsiTransformationLedger::FuelProvenanceMismatch);
+        }
+        if row.fuel.iter().any(|settlement| settlement.units == 0) {
+            return Err(InvalidPsiTransformationLedger::ZeroFuelSettlement);
         }
     }
     Ok(())
@@ -271,9 +307,16 @@ fn encode_ledger(
         encoded.extend_from_slice(&record.output.bytes());
         encode_len(&mut encoded, record.provenance.len());
         for row in &record.provenance {
-            encoded.extend_from_slice(&row.output.machine.get().to_le_bytes());
-            encoded.extend_from_slice(&row.output.block.get().to_le_bytes());
-            encoded.extend_from_slice(&row.output.node.to_le_bytes());
+            let (tag, location) = match row.disposition {
+                ProvenanceDisposition::RealizedAt(location)
+                | ProvenanceDisposition::ProvenUnreachableAt(location) => {
+                    (row.disposition.canonical_tag(), location)
+                }
+            };
+            encoded.push(tag);
+            encoded.extend_from_slice(&location.machine.get().to_le_bytes());
+            encoded.extend_from_slice(&location.block.get().to_le_bytes());
+            encoded.extend_from_slice(&location.node.to_le_bytes());
             encode_len(&mut encoded, row.sources.len());
             for source in &row.sources {
                 encode_provenance(&mut encoded, *source);
@@ -383,7 +426,7 @@ impl<'encoded> LedgerCursor<'encoded> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{FuelSettlement, NodeLocation};
+    use crate::{FuelSettlement, NodeLocation, ProvenanceDisposition};
     use psi_core::{BlockId, MachineId, OperationId};
     use psi_terminal::{SemanticFingerprint, VocabularyMarker};
 
@@ -396,17 +439,54 @@ mod tests {
             input: OptimizationUnitIdentity::from_canonical_bytes(input),
             output: OptimizationUnitIdentity::from_canonical_bytes(output),
             provenance: vec![ProvenanceRewrite {
-                output: NodeLocation {
+                disposition: ProvenanceDisposition::RealizedAt(NodeLocation {
                     machine: MachineId::new(1).unwrap(),
                     block: BlockId::new(2).unwrap(),
                     node: 0,
-                },
+                }),
                 sources: vec![source],
                 fuel: vec![FuelSettlement {
                     site: source,
                     units: 1,
                 }],
             }],
+        }
+    }
+
+    fn disposition_record(input: &[u8], output: &[u8]) -> PsiTransformationRecord {
+        let location = NodeLocation {
+            machine: MachineId::new(1).unwrap(),
+            block: BlockId::new(2).unwrap(),
+            node: 0,
+        };
+        let realized = PsiProvenance::Operation(OperationId::new(3).unwrap());
+        let unreachable = PsiProvenance::Operation(OperationId::new(4).unwrap());
+        PsiTransformationRecord {
+            rule: OptimizationRuleIdentity::from_canonical_bytes(b"disposition-rule"),
+            candidate: OptimizationCandidateIdentity::from_canonical_bytes(output),
+            validator: OptimizationValidatorIdentity::from_canonical_bytes(
+                b"disposition-validator",
+            ),
+            input: OptimizationUnitIdentity::from_canonical_bytes(input),
+            output: OptimizationUnitIdentity::from_canonical_bytes(output),
+            provenance: vec![
+                ProvenanceRewrite {
+                    disposition: ProvenanceDisposition::RealizedAt(location),
+                    sources: vec![realized],
+                    fuel: vec![FuelSettlement {
+                        site: realized,
+                        units: 1,
+                    }],
+                },
+                ProvenanceRewrite {
+                    disposition: ProvenanceDisposition::ProvenUnreachableAt(location),
+                    sources: vec![unreachable],
+                    fuel: vec![FuelSettlement {
+                        site: unreachable,
+                        units: 1,
+                    }],
+                },
+            ],
         }
     }
 
@@ -497,6 +577,80 @@ mod tests {
                 vec![bad_fuel],
             ),
             Err(InvalidPsiTransformationLedger::FuelProvenanceMismatch)
+        );
+    }
+
+    #[test]
+    fn mixed_dispositions_round_trip_and_reject_corruption() {
+        let row = disposition_record(b"input", b"output");
+        let ledger = PsiTransformationLedger::new(
+            source(),
+            FuelScheduleIdentity::new(1).unwrap(),
+            row.input,
+            row.output,
+            vec![row.clone()],
+        )
+        .unwrap();
+        assert_eq!(
+            PsiTransformationLedger::decode(&ledger.encode()),
+            Ok(ledger.clone())
+        );
+
+        let mut unknown_disposition = ledger.encode();
+        let mut cursor = LedgerCursor::new(&unknown_disposition);
+        cursor.take(LEDGER_MAGIC.len()).unwrap();
+        cursor.take(2 + 32 + 4 + 32 + 32).unwrap();
+        assert_eq!(cursor.length().unwrap(), 1);
+        cursor.take(32 * 5).unwrap();
+        assert_eq!(cursor.length().unwrap(), 2);
+        let disposition_offset = cursor.offset;
+        drop(cursor);
+        unknown_disposition[disposition_offset] = 99;
+        assert_eq!(
+            PsiTransformationLedger::decode(&unknown_disposition),
+            Err(PsiTransformationLedgerDecodeError::UnknownDispositionTag(
+                99
+            ))
+        );
+
+        let mut noncanonical = row.clone();
+        noncanonical.provenance.swap(0, 1);
+        assert_eq!(
+            PsiTransformationLedger::new(
+                source(),
+                FuelScheduleIdentity::new(1).unwrap(),
+                noncanonical.input,
+                noncanonical.output,
+                vec![noncanonical],
+            ),
+            Err(InvalidPsiTransformationLedger::NonCanonicalProvenance)
+        );
+
+        let mut duplicate = row.clone();
+        duplicate.provenance[1].sources = duplicate.provenance[0].sources.clone();
+        duplicate.provenance[1].fuel = duplicate.provenance[0].fuel.clone();
+        assert_eq!(
+            PsiTransformationLedger::new(
+                source(),
+                FuelScheduleIdentity::new(1).unwrap(),
+                duplicate.input,
+                duplicate.output,
+                vec![duplicate],
+            ),
+            Err(InvalidPsiTransformationLedger::NonCanonicalProvenance)
+        );
+
+        let mut zero = row;
+        zero.provenance[1].fuel[0].units = 0;
+        assert_eq!(
+            PsiTransformationLedger::new(
+                source(),
+                FuelScheduleIdentity::new(1).unwrap(),
+                zero.input,
+                zero.output,
+                vec![zero],
+            ),
+            Err(InvalidPsiTransformationLedger::ZeroFuelSettlement)
         );
     }
 }

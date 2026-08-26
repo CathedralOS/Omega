@@ -850,10 +850,10 @@ mod tests {
             Err(PrePhysicalOptimizationManifestDecodeError::WrongMagic)
         );
         let mut wrong_version = encoded.clone();
-        wrong_version[8..12].copy_from_slice(&1_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
         assert_eq!(
             PrePhysicalOptimizationManifest::decode(&wrong_version),
-            Err(PrePhysicalOptimizationManifestDecodeError::UnsupportedVersion(1))
+            Err(PrePhysicalOptimizationManifestDecodeError::UnsupportedVersion(2))
         );
         assert_eq!(
             manifest.physical_data,
@@ -878,7 +878,8 @@ mod tests {
         assert!(text.contains("candidate verdicts: applied=1, skipped=0, rejected=0"));
         assert!(text.contains("fact: accepted-obligation:"));
         assert!(text.contains("source: operation:"));
-        assert!(text.contains("fuel: operation:"));
+        assert!(text.contains("source-scheduled-fuel: operation:"));
+        assert!(text.contains("runtime-charge=1"));
 
         let replay = validate_pre_physical_optimization_manifest(
             manifest,

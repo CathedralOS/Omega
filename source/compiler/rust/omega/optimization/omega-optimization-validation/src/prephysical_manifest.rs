@@ -7,7 +7,10 @@ use omega_optimization_core::{
     OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
 };
 use omega_optimization_policy::BaselineDecisionLog;
-use omega_optimization_unit::{PsiOptimizationUnit, PsiProvenance, PsiTransformationLedger};
+use omega_optimization_unit::{
+    ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit, PsiProvenance,
+    PsiTransformationLedger,
+};
 use omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput;
 use psi_core::FuelScheduleIdentity;
 use psi_terminal::TerminalPsiIdentity;
@@ -15,7 +18,7 @@ use psi_terminal::TerminalPsiIdentity;
 use crate::ValidatedOptimizedAbstractPlanProjection;
 
 const PRE_PHYSICAL_MANIFEST_MAGIC: &[u8; 8] = b"OMGPPM\0\0";
-const PRE_PHYSICAL_MANIFEST_VERSION: u32 = 2;
+const PRE_PHYSICAL_MANIFEST_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizationManifestStage {
@@ -303,10 +306,35 @@ impl PrePhysicalOptimizationManifest {
             self.optimized_statistics.nodes,
         )
         .unwrap();
+        let realized = self
+            .transformation_ledger
+            .records()
+            .iter()
+            .flat_map(|record| &record.provenance)
+            .filter(|rewrite| rewrite.disposition.is_realized())
+            .count();
+        let proven_unreachable = self
+            .transformation_ledger
+            .records()
+            .iter()
+            .flat_map(|record| &record.provenance)
+            .filter(|rewrite| !rewrite.disposition.is_realized())
+            .count();
+        let proven_unreachable_sources = self
+            .transformation_ledger
+            .records()
+            .iter()
+            .flat_map(|record| &record.provenance)
+            .filter(|rewrite| !rewrite.disposition.is_realized())
+            .map(|rewrite| rewrite.sources.len())
+            .sum::<usize>();
         writeln!(
             output,
-            "provenance/fuel records: {}",
-            self.transformation_ledger.records().len()
+            "provenance/fuel records: transformations={}, realized={}, proven-unreachable={}, proven-unreachable-sources={}",
+            self.transformation_ledger.records().len(),
+            realized,
+            proven_unreachable,
+            proven_unreachable_sources,
         )
         .unwrap();
         for (record_index, record) in self.transformation_ledger.records().iter().enumerate() {
@@ -320,26 +348,7 @@ impl PrePhysicalOptimizationManifest {
             )
             .unwrap();
             for rewrite in &record.provenance {
-                writeln!(
-                    output,
-                    "  output: machine={}, block={}, node={}",
-                    rewrite.output.machine.get(),
-                    rewrite.output.block.get(),
-                    rewrite.output.node,
-                )
-                .unwrap();
-                for source in &rewrite.sources {
-                    writeln!(output, "    source: {}", render_provenance(*source)).unwrap();
-                }
-                for fuel in &rewrite.fuel {
-                    writeln!(
-                        output,
-                        "    fuel: {} units={}",
-                        render_provenance(fuel.site),
-                        fuel.units,
-                    )
-                    .unwrap();
-                }
+                render_provenance_rewrite(&mut output, rewrite);
             }
         }
         output
@@ -713,7 +722,7 @@ fn pre_physical_manifest_identity(
     manifest: &PrePhysicalOptimizationManifest,
 ) -> PrePhysicalOptimizationManifestIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.pre-physical-optimization-manifest.v2\0");
+    canonical.extend_from_slice(b"omega.pre-physical-optimization-manifest.v3\0");
     canonical.extend_from_slice(&encode_manifest_content(manifest));
     PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(&canonical)
 }
@@ -921,8 +930,47 @@ fn render_provenance(provenance: PsiProvenance) -> String {
     }
 }
 
+fn render_provenance_rewrite(output: &mut String, rewrite: &ProvenanceRewrite) {
+    let (label, location) = match rewrite.disposition {
+        ProvenanceDisposition::RealizedAt(location) => ("realized-at", location),
+        ProvenanceDisposition::ProvenUnreachableAt(location) => ("proven-unreachable-at", location),
+    };
+    writeln!(
+        output,
+        "  {label}: machine={}, block={}, node={}",
+        location.machine.get(),
+        location.block.get(),
+        location.node,
+    )
+    .unwrap();
+    for source in &rewrite.sources {
+        writeln!(output, "    source: {}", render_provenance(*source)).unwrap();
+    }
+    for fuel in &rewrite.fuel {
+        match rewrite.disposition {
+            ProvenanceDisposition::RealizedAt(_) => writeln!(
+                output,
+                "    source-scheduled-fuel: {} units={} runtime-charge={}",
+                render_provenance(fuel.site),
+                fuel.units,
+                fuel.units,
+            ),
+            ProvenanceDisposition::ProvenUnreachableAt(_) => writeln!(
+                output,
+                "    source-scheduled-fuel: {} units={} runtime-charge=none reason=proven-unreachable",
+                render_provenance(fuel.site),
+                fuel.units,
+            ),
+        }
+        .unwrap();
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use omega_optimization_unit::{FuelSettlement, NodeLocation};
+    use psi_core::{BlockId, EdgeId, MachineId};
+
     use super::*;
 
     #[test]
@@ -934,5 +982,36 @@ mod tests {
             render_fact(OptimizationFactReference::OwnershipFrontier(identity)),
             format!("ownership-frontier:{}", hex(&identity.bytes()))
         );
+    }
+
+    #[test]
+    fn human_projection_distinguishes_charged_and_unreachable_source_fuel() {
+        let location = NodeLocation {
+            machine: MachineId::new(1).unwrap(),
+            block: BlockId::new(2).unwrap(),
+            node: 3,
+        };
+        let source = PsiProvenance::Edge(EdgeId::new(4).unwrap());
+        let render = |disposition| {
+            let mut text = String::new();
+            render_provenance_rewrite(
+                &mut text,
+                &ProvenanceRewrite {
+                    disposition,
+                    sources: vec![source],
+                    fuel: vec![FuelSettlement {
+                        site: source,
+                        units: 1,
+                    }],
+                },
+            );
+            text
+        };
+        let realized = render(ProvenanceDisposition::RealizedAt(location));
+        assert!(realized.contains("realized-at: machine=1, block=2, node=3"));
+        assert!(realized.contains("runtime-charge=1"));
+        let unreachable = render(ProvenanceDisposition::ProvenUnreachableAt(location));
+        assert!(unreachable.contains("proven-unreachable-at: machine=1, block=2, node=3"));
+        assert!(unreachable.contains("runtime-charge=none reason=proven-unreachable"));
     }
 }
