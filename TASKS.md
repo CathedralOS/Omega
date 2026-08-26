@@ -47,11 +47,12 @@ task here; do not duplicate optimizer pass milestones in both queues.
 Remaining:
 
 - **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as
-  Omega source under `source/compiler/omega/psi/` and `source/compiler/omega/omega/`, with hosted product
-  entrypoints under `apps/`. Preserve the Psi/Omega ownership firewall: Psi owns
-  parsing and target-neutral semantics through terminal Psi; Omega owns
-  provider installation, optimization, target realization, and artifact
-  emission. The current implementation under
+  Omega source under `source/compiler/omega/psi/` and
+  `source/compiler/omega/omega/`, with the hosted product entrypoints at
+  `source/compiler/omega/{build.omg,main.omg}`. Preserve the Psi/Omega ownership
+  firewall: Psi owns parsing and target-neutral semantics through terminal Psi;
+  Omega owns provider installation, optimization, target realization, and
+  artifact emission. The current implementation under
   `source/compiler/rust/` is a migration/reference producer, not the
   source tree for this task.
 

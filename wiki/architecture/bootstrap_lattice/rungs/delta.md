@@ -45,8 +45,9 @@ required programs nor a disguised subset of Omega.
 
 Its job is to implement `omega-bootstrap`, which accepts the exact Omega
 product-compiler source profile `Ωself` and rejects the rest. That bridge
-compiles the `Ωself`-constrained production source into the full optimizing
-compiler. That compiler's own machine code may initially be conservative.
+compiles the `Ωself`-constrained production source into the full-spec product
+compiler, including its optimizer and advanced lowering. That compiler's own
+machine code may initially be conservative.
 
 Delta's own self-hosting compiler and `omega-bootstrap` are distinct artifacts.
 The former establishes and exercises the Delta language; the latter is the
