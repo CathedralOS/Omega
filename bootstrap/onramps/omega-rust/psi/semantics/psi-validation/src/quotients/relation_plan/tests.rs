@@ -5,8 +5,9 @@ use super::{
     complete_state_forwarding_result_flow, derive_define_precondition_correspondence,
     derive_direct_terminal_plan, derive_exact_representative_static_application,
     derive_public_precondition_partition, derive_representative_precondition_partition,
-    derive_representative_telescope, fallthrough_result_root, immutable_alias_fallthrough_root,
-    pure_representative_effect, substituted_type_matches, unconditional_representative_termination,
+    derive_representative_telescope, derive_selected_theorem_telescope, fallthrough_result_root,
+    immutable_alias_fallthrough_root, pure_representative_effect, substituted_type_matches,
+    unconditional_representative_termination,
 };
 use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
@@ -148,8 +149,161 @@ fn request_with_representative(symbol: SymbolHandle) -> QuotientOperationRequest
     QuotientOperationRequest {
         kind: QuotientOperationKind::Lift,
         representative_operation,
-        respect_conformance: static_argument("ExactRespect"),
+        selected_theorem: static_argument("ExactRespect"),
     }
+}
+
+fn push_selected_theorem(program: &mut TypedTrees) -> StaticMachineArgument {
+    let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+    let mut theorem = Machine {
+        symbol: symbol(700),
+        name: Identifier::generated_static("selected_theorem"),
+        termination_plan: psi_language_semantics::MachineTerminationPlan {
+            checked_summary: psi_language_semantics::TerminationGuarantee::Terminates {
+                premises: Vec::new(),
+            },
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    program.push_machine_state(
+        &mut theorem,
+        State {
+            symbol: symbol(701),
+            name: Identifier::generated_static("prove"),
+            return_type: unit,
+            ..Default::default()
+        },
+    );
+    program.push_machine(theorem);
+    let mut selected = static_argument("selected_theorem");
+    selected.symbol = symbol(701);
+    selected
+}
+
+fn push_custom_selected_theorem(
+    program: &mut TypedTrees,
+    supply_mode: psi_language_semantics::MachineSupplyMode,
+    body_is_present: bool,
+    return_type: TypeReferenceHandle,
+) -> StaticMachineArgument {
+    let mut theorem = Machine {
+        symbol: symbol(710),
+        name: Identifier::generated_static("custom_theorem"),
+        supply_mode,
+        body_is_present,
+        ..Default::default()
+    };
+    program.push_machine_state(
+        &mut theorem,
+        State {
+            symbol: symbol(711),
+            name: Identifier::generated_static("prove"),
+            return_type,
+            ..Default::default()
+        },
+    );
+    program.push_machine(theorem);
+    let mut selected = static_argument("custom_theorem");
+    selected.symbol = symbol(711);
+    selected
+}
+
+#[test]
+fn selected_theorem_requires_a_bodyful_checked_machine() {
+    let mut program = TypedTrees::default();
+    let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+    let mut request = request_with_representative(SymbolHandle::invalid());
+    request.selected_theorem = push_custom_selected_theorem(
+        &mut program,
+        psi_language_semantics::MachineSupplyMode::Boundary,
+        false,
+        unit,
+    );
+
+    assert_eq!(
+        derive_selected_theorem_telescope(&program, &request),
+        Err(RelationPlanError::TheoremMustBeCheckedBody)
+    );
+}
+
+#[test]
+fn selected_theorem_requires_a_resultless_machine() {
+    let mut program = TypedTrees::default();
+    let result = carrier_type(&mut program);
+    let mut request = request_with_representative(SymbolHandle::invalid());
+    request.selected_theorem = push_custom_selected_theorem(
+        &mut program,
+        psi_language_semantics::MachineSupplyMode::CheckedBody,
+        true,
+        result,
+    );
+
+    assert_eq!(
+        derive_selected_theorem_telescope(&program, &request),
+        Err(RelationPlanError::TheoremMustBeResultless)
+    );
+}
+
+#[test]
+fn selected_theorem_retains_the_exact_closed_static_application() {
+    let mut program = TypedTrees::default();
+    let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+    let selected_type_symbol = symbol(722);
+    program.push_data_definition(DataDefinition {
+        symbol: selected_type_symbol,
+        name: Identifier::generated_static("SelectedType"),
+        ..Default::default()
+    });
+    let mut theorem = Machine {
+        symbol: symbol(720),
+        name: Identifier::generated_static("generic_theorem"),
+        ..Default::default()
+    };
+    program.push_machine_type_parameter(
+        &mut theorem,
+        TypeParameter {
+            symbol: symbol(723),
+            name: Identifier::generated_static("T"),
+            kind: TypeParameterKind::Type,
+            ..Default::default()
+        },
+    );
+    program.push_machine_state(
+        &mut theorem,
+        State {
+            symbol: symbol(721),
+            name: Identifier::generated_static("prove"),
+            return_type: unit,
+            ..Default::default()
+        },
+    );
+    program.push_machine(theorem);
+
+    let mut selected_type = static_argument("SelectedType");
+    selected_type.symbol = selected_type_symbol;
+    let mut selected_theorem = static_argument("generic_theorem");
+    selected_theorem.symbol = symbol(721);
+    selected_theorem.application = Some(Box::new(StaticSymbolApplication {
+        lifetime_arguments: Box::default(),
+        arguments: vec![selected_type].into_boxed_slice(),
+    }));
+    let mut request = request_with_representative(SymbolHandle::invalid());
+    request.selected_theorem = selected_theorem;
+
+    let theorem = derive_selected_theorem_telescope(&program, &request)
+        .expect("one closed theorem application should derive");
+    assert_eq!(theorem.machine_symbol, symbol(720));
+    assert_eq!(theorem.state_symbol, symbol(721));
+    assert_eq!(theorem.static_application.bindings.len(), 1);
+    assert_eq!(
+        theorem.static_application.bindings[0].parameter,
+        symbol(723)
+    );
+    assert_eq!(
+        theorem.static_application.bindings[0].argument.symbol,
+        selected_type_symbol
+    );
 }
 
 fn push_representative(
@@ -185,7 +339,9 @@ fn push_representative(
     program.push_state_contract(&mut state, Default::default());
     program.push_machine_state(&mut machine, state);
     program.push_machine(machine);
-    request_with_representative(symbol(91))
+    let mut request = request_with_representative(symbol(91));
+    request.selected_theorem = push_selected_theorem(program);
+    request
 }
 
 fn push_generic_representative_application(program: &mut TypedTrees) -> QuotientOperationRequest {
@@ -282,6 +438,7 @@ fn push_generic_representative_application(program: &mut TypedTrees) -> Quotient
         lifetime_arguments: Box::default(),
         arguments: vec![type_argument, const_argument, machine_argument].into_boxed_slice(),
     }));
+    request.selected_theorem = push_selected_theorem(program);
     request
 }
 
@@ -352,6 +509,27 @@ fn direct_plan_retains_exact_input_and_result_quotient_identities() {
     assert_eq!(plan.result_relation.relation_symbol, symbol(4));
     assert_eq!(plan.representative.machine_symbol, symbol(90));
     assert_eq!(plan.representative.state_symbol, symbol(91));
+    assert_eq!(plan.selected_theorem.machine_symbol, symbol(700));
+    assert_eq!(plan.selected_theorem.state_symbol, symbol(701));
+    assert_eq!(
+        plan.selected_theorem.static_application.bindings,
+        Vec::new()
+    );
+    assert_eq!(
+        plan.selected_theorem_termination,
+        Some(super::SelectedTheoremTermination {
+            machine_symbol: symbol(700),
+            state_symbol: symbol(701),
+        })
+    );
+    assert_eq!(
+        plan.selected_theorem_purity,
+        Some(super::SelectedTheoremPurity {
+            machine_symbol: symbol(700),
+            state_symbol: symbol(701),
+        })
+    );
+    assert!(plan.selected_theorem_crash_free);
     assert_eq!(plan.representative.parameters.len(), 2);
     assert!(plan.representative.parameters[0].is_self);
     assert!(!plan.representative.parameters[1].is_self);
@@ -1841,7 +2019,7 @@ fn nonterminal_expression_request_cannot_claim_direct_result_flow() {
     assert!(
         diagnostics[0]
             .message
-            .contains("retains its exact representative operation and named conformance")
+            .contains("retains its exact representative operation and selected theorem")
     );
     assert!(
         !diagnostics[0]

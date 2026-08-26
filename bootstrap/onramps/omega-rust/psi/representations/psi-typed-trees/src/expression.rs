@@ -2171,14 +2171,16 @@ pub enum QuotientOperationKind {
     Define,
 }
 
-/// Exact source-selected identities for `Quotient::lift<F, Respect>` and
-/// `Quotient::define<F, Respect>`. This checked-tree boundary deliberately
-/// carries no derived quotient admission or executable lowering authority.
+/// Exact source-selected identities for `Quotient::lift<F, Theorem>` and
+/// `Quotient::define<F, Theorem>`. This typed boundary deliberately carries no
+/// derived quotient admission or executable lowering authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuotientOperationRequest {
     pub kind: QuotientOperationKind,
     pub representative_operation: StaticMachineArgument,
-    pub respect_conformance: StaticMachineArgument,
+    /// One exact selected resultless theorem-machine application, never a
+    /// conformance or structurally discovered proof.
+    pub selected_theorem: StaticMachineArgument,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
