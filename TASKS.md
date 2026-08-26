@@ -7773,6 +7773,12 @@ Remaining F7 work:
   admitted hardware realization; and
 - complete the wider proof/`Real` connection under N6/N8.
 
+The mechanical x86-64 prerequisite is live: `omega-isa-x86_64` owns exact
+register-only VEX encoders for scalar `VFMADD132SS` and `VFMADD132SD`, including
+extended-register and invalid-register coverage. These helpers grant no target
+feature admission and are not selected by generic FMA lowering; that still
+requires the feature-qualified provider or checked software realization above.
+
 Proof-only Exact float-to-integer cast admission now lives in a focused 399-
 line private owner. Finite expression intervals, declared range projection,
 all-incoming guard meets, strict next-float bounds, comparison polarity, and

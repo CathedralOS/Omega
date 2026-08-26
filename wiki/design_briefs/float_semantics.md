@@ -44,6 +44,10 @@ is an assembler in a costume — parsed checked assembly is the honest surface).
 Today's hardcoded IEEE instruction selection is the bootstrap binding. F7
 migrates it to target conformances plus the checked instruction catalog. The
 former `Binding::Instruction` bootstrap carrier is already retired.
+The x86-64 backend now has exact register-only VEX encoders for scalar
+`VFMADD132SS` and `VFMADD132SD`, but their existence is instruction mechanics
+only: no generic FMA slot may select them until an exact target-feature
+admission is retained.
 
 **Names mean formats, permanently.** `f32` = IEEE binary32 on every target
 that provides it, forever; `p32` = posit32 if it ever ships. A
