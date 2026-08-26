@@ -97,7 +97,7 @@ pub fn validate_terminal_register_homes(
     Ok(ValidatedTerminalRegisterHomes { plan, receipt })
 }
 
-fn replay_function(
+pub(crate) fn replay_function(
     function_index: usize,
     legality: &crate::TerminalFunctionAllocationLegality,
     ranges: &crate::TerminalFunctionLiveRanges,

@@ -272,6 +272,17 @@ distinct homes, while mutually exclusive leaf result intervals expire and
 reuse the same return view on both ISAs. This is not yet pressure-driven spill
 selection, general splitting, or a complete linear-scan allocator.
 
+The allocator core also has a validated miniature two-register pressure model
+with no fixed operands. Production and independent replay both assign two
+overlapping flexible intervals to stable views 0 and 1, expire them before a
+later interval reuses view 0, and reject three pairwise-overlapping intervals
+at the same stable VReg because a spill would be required. This is deliberately
+not described as production pressure coverage: the current selected
+instruction catalog has no ordinary two-input arithmetic row capable of
+forming that flexible case from Terminal operations. That target-owned row and
+its end-to-end source/selection validation must land before spill policy is
+enabled.
+
 The resulting register-home plan has its own versioned canonical artifact
 codec. It carries those three roots plus the exact ordered machine, VReg,
 register-class, and physical-view assignments, and recomputes a stored content

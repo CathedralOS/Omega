@@ -262,3 +262,155 @@ fn footprints_overlap(left: &RegisterView, right: &RegisterView) -> bool {
         .chain(&left.write_units)
         .any(|unit| right.units.contains(unit) || right.write_units.contains(unit))
 }
+
+#[cfg(test)]
+mod tests {
+    use omega_register_model::{
+        PhysicalRegisterModel, RegisterClass, RegisterClassId, RegisterUnit, RegisterUnitId,
+        RegisterUnitKind, RegisterView, RegisterViewId, RegisterWriteSemantics,
+        validate_physical_register_model,
+    };
+    use omega_terminal_selected_instructions::{
+        TerminalSelectedBlockId, TerminalVirtualRegisterId,
+    };
+    use psi_core::MachineId;
+
+    use super::*;
+    use crate::{
+        TerminalFunctionAllocationLegality, TerminalFunctionLiveRanges, TerminalVirtualLiveRange,
+        TerminalVirtualPointLegality, TerminalVirtualRegisterAllocationLegality,
+    };
+
+    fn physical() -> ValidatedPhysicalRegisterModel {
+        validate_physical_register_model(PhysicalRegisterModel {
+            architecture: omega_target::Architecture::X86_64,
+            units: (0..2)
+                .map(|index| RegisterUnit {
+                    id: RegisterUnitId(index),
+                    name: format!("r{index}.storage"),
+                    bits: 64,
+                    kind: RegisterUnitKind::IntegerLane,
+                })
+                .collect(),
+            views: (0..2)
+                .map(|index| RegisterView {
+                    id: RegisterViewId(index),
+                    name: format!("r{index}"),
+                    class: RegisterClassId(0),
+                    units: vec![RegisterUnitId(index)],
+                    write_units: vec![RegisterUnitId(index)],
+                    bits: 64,
+                    write_semantics: RegisterWriteSemantics::ExactView,
+                    allocatable: true,
+                })
+                .collect(),
+            classes: vec![RegisterClass {
+                id: RegisterClassId(0),
+                name: "integer".into(),
+                views: vec![RegisterViewId(0), RegisterViewId(1)],
+            }],
+            conventions: Vec::new(),
+            reservations: Vec::new(),
+        })
+        .unwrap()
+    }
+
+    fn legality(points: &[(u32, u32)]) -> TerminalFunctionAllocationLegality {
+        TerminalFunctionAllocationLegality {
+            machine: MachineId::new(1).unwrap(),
+            virtual_registers: points
+                .iter()
+                .enumerate()
+                .map(
+                    |(register, (start, end))| TerminalVirtualRegisterAllocationLegality {
+                        virtual_register: TerminalVirtualRegisterId(register as u32),
+                        class: RegisterClassId(0),
+                        points: (*start..=*end)
+                            .map(|point| TerminalVirtualPointLegality {
+                                block: TerminalSelectedBlockId(0),
+                                point: TerminalLiveRangePoint(point),
+                                candidates: vec![RegisterViewId(0), RegisterViewId(1)],
+                            })
+                            .collect(),
+                        entry_transitions: Vec::new(),
+                    },
+                )
+                .collect(),
+        }
+    }
+
+    fn ranges(interference: &[(u32, u32)]) -> TerminalFunctionLiveRanges {
+        TerminalFunctionLiveRanges {
+            machine: MachineId::new(1).unwrap(),
+            block_domains: Vec::new(),
+            virtual_registers: (0..3)
+                .map(|register| TerminalVirtualLiveRange {
+                    virtual_register: TerminalVirtualRegisterId(register),
+                    class: RegisterClassId(0),
+                    occurrences: Vec::new(),
+                    fixed_constraints: Vec::new(),
+                    fragments: Vec::new(),
+                    edge_connectors: Vec::new(),
+                })
+                .collect(),
+            architectural_units: Vec::new(),
+            interference: interference
+                .iter()
+                .map(|(lower, higher)| TerminalVirtualInterference {
+                    lower: TerminalVirtualRegisterId(*lower),
+                    higher: TerminalVirtualRegisterId(*higher),
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn flexible_competitors_rank_stably_expire_and_fail_at_exact_pressure() {
+        let physical = physical();
+        let reusable = compute_function(
+            0,
+            &legality(&[(0, 2), (1, 2), (3, 4)]),
+            &ranges(&[(0, 1)]),
+            &physical,
+        )
+        .unwrap();
+        assert_eq!(
+            reusable
+                .assignments
+                .iter()
+                .map(|assignment| assignment.view)
+                .collect::<Vec<_>>(),
+            vec![RegisterViewId(0), RegisterViewId(1), RegisterViewId(0)]
+        );
+        assert_eq!(
+            crate::home_assignment_validate::replay_function(
+                0,
+                &legality(&[(0, 2), (1, 2), (3, 4)]),
+                &ranges(&[(0, 1)]),
+                &physical,
+            )
+            .unwrap(),
+            reusable
+        );
+
+        let expected_pressure = Err(TerminalRegisterHomeError::NoCompatibleHome {
+            function: 0,
+            register: 2,
+        });
+        let pressure_legality = legality(&[(0, 3), (1, 3), (2, 3)]);
+        let pressure_ranges = ranges(&[(0, 1), (0, 2), (1, 2)]);
+        assert_eq!(
+            compute_function(0, &pressure_legality, &pressure_ranges, &physical),
+            expected_pressure
+        );
+        assert_eq!(
+            crate::home_assignment_validate::replay_function(
+                0,
+                &pressure_legality,
+                &pressure_ranges,
+                &physical,
+            ),
+            expected_pressure
+        );
+    }
+}
