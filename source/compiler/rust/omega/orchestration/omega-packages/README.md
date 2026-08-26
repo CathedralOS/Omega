@@ -218,11 +218,16 @@ executor grants exactly one Git protocol per validated request (`https` or
 key and exact metadata bind that execution profile even when hosted-repository
 lineage normalizes HTTPS and SSH clone spellings together. Resolved-source
 diagnostics retain the profile separately. This closes ambient parent-executable,
-environment, and cross-protocol selection. SSH additionally retains and
-rechecks the selected client's exact path and content under the same Unix
-custody floor as the parent Git executable. This does not certify either
-executable or bind HTTPS transport helpers. SSH is noninteractive and strict
-about host keys, but still consumes
+environment, and cross-protocol selection. HTTPS additionally resolves
+`git-remote-https` from a closed install-relative candidate set, retains its
+invocation entry and canonical target, and exposes only that observed helper
+directory through `GIT_EXEC_PATH` and `PATH`. SSH retains and rechecks the
+selected client's exact path and content. Both use the same Unix custody floor
+as the parent Git executable and are rechecked around every launch and at
+completion. Cache policy v12 separates entries predating this transport-
+executable floor. This does not certify any executable, bind other Git
+components, or establish TLS/endpoint custody. SSH is noninteractive and
+strict about host keys, but still consumes
 the user's default known-host and key files. Strict OS confinement, explicit
 credential custody and during-write byte/resource enforcement remain. Ordinary
 resolution is now bounded to 64 Git launches, independent of package file
