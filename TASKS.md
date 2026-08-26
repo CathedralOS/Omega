@@ -115,11 +115,13 @@ Remaining:
   the hosted entrypoint under `source/compiler/omega/`. It includes source/span,
   token, and lexical-diagnostic representations; Unicode 17 XID tables; nested
   comments; numeric metadata; cooked/raw strings; punctuation; deterministic
-  capacity failures; and a native acceptance/status adapter. Its provisional
+  capacity failures; and a native adapter publishing the versioned structural
+  `OMGLEX1` lexical observation. Its provisional
   feature census is
-  `source/compiler/omega/source-checkpoints/profile-000001.md`. The adapter still needs a
-  canonical structural token/diagnostic observation and Rust-comparator
-  differential. Parsing and every later Psi/Omega phase remain open; this
+  `source/compiler/omega/source-checkpoints/profile-000001.md`. The complete gate now
+  compares an independently encoded Rust observation across accepted,
+  retained-prefix rejection, invalid-UTF-8, token-capacity, and source-capacity
+  cases and rejects a tampered stream. Parsing and every later Psi/Omega phase remain open; this
   checkpoint does not complete the product compiler task.
 
   Checkpoint 000001's manifest, profile, Cargo/provider provenance, and exact

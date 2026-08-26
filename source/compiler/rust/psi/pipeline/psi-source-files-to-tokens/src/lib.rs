@@ -4,6 +4,7 @@
 
 pub mod lex_error;
 pub mod lexer;
+pub mod observation;
 
 pub use lex_error::LexError;
-pub use lexer::Lexer;
+pub use lexer::{Lexer, Tokenization};

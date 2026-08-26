@@ -102,8 +102,8 @@ data TokenKind [copy] {
         has_suffix: bool
     );
     case StringLiteral;
-    case Keyword(kind: KeywordKind);
-    case Punctuation(kind: PunctuationKind);
+    case Keyword(keyword: KeywordKind);
+    case Punctuation(punctuation: PunctuationKind);
     case Whitespace;
     case LineComment;
     case BlockComment;
@@ -144,8 +144,24 @@ data LexDiagnostic [copy] {
     source_span: SourceSpan;
 }
 
+// A deliberately flat projection used only at the product/checkpoint
+// observation boundary. Keeping this separate from Token avoids copying its
+// nested TokenKind sum through a runtime-selected array element.
+data TokenObservation [copy] {
+    tag: u8;
+    first: u8;
+    second: u8;
+    third: u8;
+    source: u32 in Trapping;
+    start: u64 in Trapping;
+    end: u64 in Trapping;
+    decoded_start: u64 in Trapping;
+    decoded_length: u64 in Trapping;
+}
+
 data TokenStream {
     tokens: [Token; 16384] in Trapping;
+    observations: [TokenObservation; 16384] in Trapping;
     token_count: u64 [0..=16384];
     decoded: [u8; 65536] in Trapping;
     decoded_length: u64 [0..=65536];
@@ -186,7 +202,11 @@ machine TokenStream::push(
     start: u64 in Trapping,
     end: u64 in Trapping,
     decoded_start: u64 in Trapping,
-    decoded_length: u64 in Trapping
+    token_decoded_length: u64 in Trapping,
+    observation_tag: u8,
+    observation_first: u8,
+    observation_second: u8,
+    observation_third: u8
 ) {
     self.last_retained = false;
     transition self.token_count < 16384 {
@@ -200,7 +220,16 @@ machine TokenStream::push(
         self.tokens[self.token_count].source_span.span.start = start;
         self.tokens[self.token_count].source_span.span.end = end;
         self.tokens[self.token_count].decoded_start = decoded_start;
-        self.tokens[self.token_count].decoded_length = decoded_length;
+        self.tokens[self.token_count].decoded_length = token_decoded_length;
+        self.observations[self.token_count].tag = observation_tag;
+        self.observations[self.token_count].first = observation_first;
+        self.observations[self.token_count].second = observation_second;
+        self.observations[self.token_count].third = observation_third;
+        self.observations[self.token_count].source = source.value;
+        self.observations[self.token_count].start = start;
+        self.observations[self.token_count].end = end;
+        self.observations[self.token_count].decoded_start = decoded_start;
+        self.observations[self.token_count].decoded_length = token_decoded_length;
         self.token_count = self.token_count + 1;
         self.last_retained = true;
     }

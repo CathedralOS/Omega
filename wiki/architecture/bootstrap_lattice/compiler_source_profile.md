@@ -266,15 +266,13 @@ mechanically binds its provisional normalized-syntax/resource admission rules,
 census, canaries, and ceilings; and
 [`profile-000001.md`](../../../source/compiler/omega/source-checkpoints/profile-000001.md)
 explains the evidence and unresolved decisions. The snapshot remains bounded
-evidence for the pinned source it describes, but its fast gate currently
-rejects compiled-source drift in `source/compiler/omega/psi/lex/lexer.omg`,
-`source/compiler/omega/psi/tokens/tokens.omg`, and `omega/language/std/console.omg`, plus
-provenance drift in `Cargo.lock` and
-`source/compiler/rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs`.
-That stages provider also differs from the pinned
-`source/compiler/omega/source-checkpoints/inputs/build-prelude.omg` snapshot. It must not be
-presented as the current coherent product closure until the product owner
-refreshes the manifest and profile together. The published evidence is enough
+evidence for the pinned source it describes. Its manifest, profile,
+Cargo/provider provenance, and extracted build prelude are refreshed
+coherently, and its complete gate compares the product compiler's versioned
+structural lexical observation with an independently encoded Rust observation
+across success, retained-prefix rejection, and capacity cases. The fast gate
+rejects later compiled-source, provenance, prelude, feature, or resource drift
+until the evidence set is refreshed again. The published evidence is enough
 to begin evidence-led bridge work for those facilities only.
 It supplies no evidence for
 later parser, checker, terminal-Psi, optimizer, or emitter source needs, and it

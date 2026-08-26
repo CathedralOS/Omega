@@ -30,8 +30,11 @@ provenance, including the exact `BUILD_PRELUDE` extracted from
 The refreshed snapshot includes the prelude's public build vocabulary and
 package-identity declaration. Future drift must again refresh the manifest,
 profile, and prelude together; verification must never be weakened or stopped
-after the first mismatch. The census remains bounded checkpoint evidence for
-bridge cost work, not authority for later compiler phases.
+after the first mismatch. The hosted adapter publishes the versioned structural
+`OMGLEX1` observation, and the complete gate compares it byte for byte with an
+independent Rust encoder across accepted, rejected-prefix, and capacity cases,
+then proves a tampered stream is rejected. The census remains bounded checkpoint
+evidence for bridge cost work, not authority for later compiler phases.
 
 Run `source/compiler/omega/source-checkpoints/verify.sh` for the fast gate: it composes the
 resolver-exact manifest/provenance gate with every-target profile census,
@@ -40,6 +43,6 @@ profile mutation teeth. It is part of `bootstrap/verify-lattice.sh`.
 
 Run `source/compiler/omega/source-checkpoints/checkpoint-000001.sh` for the complete product
 checkpoint: it also reproduces generated Unicode source, compiles the hosted
-native adapter, and runs the acceptance/rejection matrix. The explicit
+native adapter, and runs the differential lexical-observation matrix. The explicit
 `verify_manifest.py --content-only` mode deliberately skips resolver replay and
 is never checkpoint acceptance.

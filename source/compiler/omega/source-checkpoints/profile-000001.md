@@ -28,9 +28,9 @@ checkpoint targets currently yield the same feature and resource census.
 
 ## Exact observed shape
 
-The closure has 12 source units, 109 root items, 160,133 source bytes in total,
-and a largest source unit of 78,952 bytes. Its root items are 21 data
-declarations, 70 machines, four targets, one trait, and ten imports. The machine
+The closure has 12 source units, 115 root items, 178,366 source bytes in total,
+and a largest source unit of 78,952 bytes. Its root items are 24 data
+declarations, 76 machines, four targets, one trait, and ten imports. The machine
 surface includes 20 target-qualified machines, 18 `satisfies` clauses, 16
 bodyless target leaves, and 16 `Binding::CompilerIntrinsic` realizations. These
 forms were invisible in snapshot v1 and are retained candidates required by the
@@ -41,14 +41,14 @@ The largest observed compositional resources are:
 
 | Resource | Observed maximum | Provisional general ceiling |
 | --- | ---: | ---: |
-| source units / total bytes / bytes per unit | 12 / 160,133 / 78,952 | 16 / 262,144 / 131,072 |
-| root items / data members / variant payload fields | 109 / 42 / 3 | 128 / 64 / 4 |
-| machine states / state parameters / state statements | 64 / 7 / 26 | 128 / 8 / 32 |
-| call arguments / static arguments / transition arguments | 6 / 2 / 4 | 8 / 2 / 4 |
-| path components / identifier bytes | 6 / 49 | 8 / 64 |
+| source units / total bytes / bytes per unit | 12 / 178,366 / 78,952 | 16 / 262,144 / 131,072 |
+| root items / data members / variant payload fields | 115 / 42 / 3 | 128 / 64 / 4 |
+| machine states / state parameters / state statements | 64 / 11 / 43 | 128 / 16 / 64 |
+| call arguments / static arguments / transition arguments | 10 / 2 / 5 | 16 / 2 / 8 |
+| path components / identifier bytes | 6 / 78 | 8 / 128 |
 | array-literal elements / declared fixed-array length | 806 / 65,536 | 1,024 / 65,536 |
 | struct-literal fields / string-literal bytes | 3 / 18 | 4 / 32 |
-| normalized expression nesting depth | 7 | 8 |
+| normalized expression nesting depth | 8 | 8 |
 
 The ceilings are rounded, path-independent admission candidates, not exact
 closure fingerprints. The profile evaluator now has exact-limit and adjacent-
@@ -99,10 +99,13 @@ accepted only when all of the following hold:
 2. The hosted entry compiles through native emission for its selected target.
 3. Empty input, identifiers, integers, punctuation, whitespace, representative
    Omega source with a Unicode identifier, nested block comments, and
-   cooked/raw strings accept with status 0.
+   consecutive cooked/raw/non-string tokens accept with status 0 and publish
+   the exact version-1 lexical observation independently encoded by Rust.
 4. Invalid UTF-8, unterminated nested comments, invalid cooked-string escapes,
-   and unsupported punctuation reject with status 251 and publish no token
-   observation as success.
+   unsupported punctuation, the 16,384-token boundary, and the 65,536-byte
+   source boundary reject with their specified status while preserving the
+   exact diagnostic coordinates, retained source bytes, and completed token
+   prefix. A tampered observation must fail the byte comparison.
 
 These observations do not settle conflicting language-surface claims. Unicode
 XID identifiers contradict the guide's ASCII-transparent/source-payload-only
@@ -130,9 +133,14 @@ counts. Typed semantic distinctions, ABI/layout, lowering coverage, Delta
 capacity behavior, and measured bridge costs remain explicitly unresolved and
 are not claimed by this artifact.
 
-The adapter does not publish the complete canonical token/diagnostic byte
-stream. This checkpoint therefore claims no such observation contract or
-cross-producer comparison.
+The adapter publishes a versioned structural lexical observation beginning
+with `OMGLEX1\0` and version 1. It records acceptance, diagnostic identity and
+source coordinates, exact retained source bytes, token kind metadata, token
+coordinates and raw spelling, and exact decoded string bytes. The encoding is
+checkpoint tooling rather than an Omega ABI or enum-layout claim. The Rust
+producer independently maps its token vocabulary into the same schema; the
+complete gate compares accepted, rejected-prefix, invalid-UTF-8, token-capacity,
+and source-capacity observations byte for byte and includes a tamper tooth.
 
 ## Measured performance
 
