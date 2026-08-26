@@ -13,7 +13,8 @@ pub use boundary::{
 };
 pub use data::{
     AbstractDataObject, AbstractDataObjectHandle, AbstractDataObjectKind, AbstractDataPlan,
-    TargetDataObject, TargetDataObjectHandle, TargetDataObjectKind, TargetDataPlan,
+    AbstractDynamicConformanceTable, AbstractDynamicConformanceTableRow, TargetDataObject,
+    TargetDataObjectHandle, TargetDataObjectKind, TargetDataPlan,
 };
 pub use guard::{StateGuardLowering, StateGuardOperator};
 pub use instruction::{

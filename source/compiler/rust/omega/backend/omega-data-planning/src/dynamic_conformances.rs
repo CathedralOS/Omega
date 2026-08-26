@@ -66,6 +66,8 @@ pub(super) fn collect_dynamic_conformance_tables(
             data.dynamic_conformance_tables
                 .insert(DynamicConformanceTable {
                     object,
+                    target_trait: descriptor.target_trait,
+                    conformance: descriptor.conformance,
                     trait_identity: Arc::from(trait_identity),
                     conformance_identity: Arc::from(conformance_identity),
                     rows,

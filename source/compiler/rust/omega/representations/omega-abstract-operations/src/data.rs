@@ -6,6 +6,11 @@ use std::sync::Arc;
 pub struct AbstractDataPlan {
     pub objects: Arena<AbstractDataObject>,
     pub bytes: Arena<u8>,
+    /// Artifact-private selected-conformance tables retained for transitional
+    /// instruction selection. `object` is the exact immutable data object whose
+    /// pointer becomes the descriptor's table word; semantic rows remain
+    /// address-free until object relocation planning.
+    pub dynamic_conformance_tables: Arena<AbstractDynamicConformanceTable>,
 }
 
 impl Default for AbstractDataPlan {
@@ -19,8 +24,50 @@ impl AbstractDataPlan {
         Self {
             objects: Arena::with_capacity(object_capacity),
             bytes: Arena::with_capacity(byte_capacity),
+            dynamic_conformance_tables: Arena::new(),
         }
     }
+
+    /// Resolve one exact selected-conformance table. Missing, duplicate, or
+    /// malformed bindings all return `None`: lowering must never guess a table
+    /// from a carrier spelling or accept a stale ordinary data object.
+    pub fn dynamic_conformance_table_object(
+        &self,
+        target_trait: psi_symbols::SymbolHandle,
+        conformance: psi_symbols::SymbolHandle,
+    ) -> Option<AbstractDataObjectHandle> {
+        let mut matches = self
+            .dynamic_conformance_tables
+            .iter()
+            .map(|(_, table)| table)
+            .filter(|table| table.target_trait == target_trait && table.conformance == conformance);
+        let table = matches.next()?;
+        if matches.next().is_some()
+            || !self.objects.is_valid(table.object)
+            || self.objects.get(table.object).kind
+                != AbstractDataObjectKind::DynamicConformanceTable
+        {
+            return None;
+        }
+        Some(table.object)
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AbstractDynamicConformanceTable {
+    pub object: AbstractDataObjectHandle,
+    pub target_trait: psi_symbols::SymbolHandle,
+    pub conformance: psi_symbols::SymbolHandle,
+    pub trait_identity: Arc<str>,
+    pub conformance_identity: Arc<str>,
+    pub rows: Vec<AbstractDynamicConformanceTableRow>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbstractDynamicConformanceTableRow {
+    pub requirement_identity: Arc<str>,
+    pub realization_identity: Arc<str>,
+    pub realization: StateKey,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,6 +88,7 @@ pub enum AbstractDataObjectKind {
     StaticString,
     RuntimeTextBuffer,
     HostNewline,
+    DynamicConformanceTable,
     #[default]
     Other,
 }

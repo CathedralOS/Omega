@@ -150,6 +150,8 @@ mod tests {
         data.dynamic_conformance_tables
             .insert(DynamicConformanceTable {
                 object: object_handle,
+                target_trait: psi_symbols::SymbolHandle::invalid(),
+                conformance: psi_symbols::SymbolHandle::invalid(),
                 trait_identity: Arc::from("Shape"),
                 conformance_identity: Arc::from("Item::Primary"),
                 rows: vec![

@@ -17,4 +17,5 @@ psi-arena = { path = "../../../psi/foundation/psi-arena" }
 psi-language-core = { path = "../../../psi/foundation/psi-language-core" }
 psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
 psi-numerics = { path = "../../../psi/foundation/psi-numerics" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 omega-target = { path = "../../foundation/omega-target" }
