@@ -25,8 +25,8 @@ pub use identities::{
     OptimizationIdentityBundleIdentity, OptimizationPassIdentity, OptimizationRuleIdentity,
     OptimizationRuleSetIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
     OptimizationWorkloadProfileIdentity, OptimizedAbstractPlanProjectionIdentity,
-    OwnershipFrontierFactIdentity, ScalarConstantFactIdentity, TargetCostModelIdentity,
-    TransformationLedgerIdentity,
+    OwnershipFrontierFactIdentity, PrePhysicalOptimizationManifestIdentity,
+    ScalarConstantFactIdentity, TargetCostModelIdentity, TransformationLedgerIdentity,
 };
 pub use manifest::{
     InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,

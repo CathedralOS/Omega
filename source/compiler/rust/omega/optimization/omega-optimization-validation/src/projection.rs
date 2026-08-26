@@ -215,7 +215,7 @@ pub fn validate_optimized_abstract_plan_projection(
     })
 }
 
-fn validate_manifests(
+pub(super) fn validate_manifests(
     manifests: &[OptimizationPassManifestRecord],
     expected_rule_set: OptimizationRuleSetIdentity,
     ledger: &PsiTransformationLedger,
