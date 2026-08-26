@@ -67,6 +67,15 @@ validate the independently supplied SHA-256 commitment, accept a resolver/lock
 receipt, resolve source names, inspect source semantics, compare CKIR, or
 authorize an emitted artifact. Those joins remain mandatory below.
 
+The companion bounded
+[`omega-bootstrap-sha256.alp`](omega-bootstrap-sha256.alp) producer and
+[`SHA-256 contract`](OMEGA_BOOTSTRAP_SHA256.md) close exact hashing of any raw
+envelope extent through this transport ceiling. Their fixed-vector,
+native/self-built, and lower-rung evidence proves only the hash computation and
+fixture-digest consistency. The expected digest still must be independently
+reconstructed from the future accepted closure; hashing a receipt supplied
+beside untrusted envelope bytes grants no authority.
+
 Exceeding a declared ceiling is checked exhaustion (`252`). Malformed,
 noncanonical, inconsistent, or unsupported input is rejection (`251`). No
 normalized source or artifact may be published on either failure. Arithmetic

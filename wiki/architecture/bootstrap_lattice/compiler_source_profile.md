@@ -3,8 +3,8 @@
 [Lattice overview](bootstrap_lattice.md) | [Standing decisions](decisions.md) |
 [Delta rung](rungs/delta.md) | [Psi/Omega toolchain](omega_toolchain.md)
 
-The final bootstrap makes exactly two bootstrap feature-inventory decisions:
-the literal Delta language used to write the Delta compiler and bridge, and the
+The final bootstrap has exactly two source-surface inventories to settle: the
+literal Delta language used to write the Delta compiler and bridge, and the
 ordinary-Omega profile used to write the product compiler. The first is a
 language design; the second is an authoring choice inside an existing language.
 Full Omega is already the product language specification; generated-code
@@ -259,7 +259,7 @@ from the cost and robustness of the production compiler source. Neither
 contract should be made artificially resemble the other, and no exact source
 manifest is allowed to stand in for a language/profile definition.
 
-That gives the design loop exactly two feature inventories:
+That gives the design loop exactly two source-surface inventories:
 
 1. What literal facilities must Delta provide so its canonical compiler and the
    bridge can both be implemented robustly?
@@ -316,49 +316,22 @@ compiler task. Bootstrap work consumes the resulting checkpoint, measures and
 implements the profile, and validates the hosted edge. Neither queue may create
 a third language inventory to avoid coordinating those two responsibilities.
 
-Until measurements overturn them, use these authoring defaults:
+The topology itself is settled: Delta is independent rather than an Omega
+subset; `Ωself` is a profile rather than a rung; production `omega` implements
+full Omega; conservative generation is sufficient; and the Omega→Omega rebuild
+is optional. What remains open is the exact Delta-v1 facility inventory and the
+exact `Ωself` disposition, each closed from its complete sources and measured
+cost rather than intuition.
 
-- keep proof-program mathematics and dependent or proof-indexed typing,
-  including linear-dependent forms, out of the production compiler's own
-  source;
-- use ordinary compiler data and control facilities where they materially help
-  clarity and robustness—especially named records, payload sums, basic
-  generics, concrete domains, ownership, mutation, calls, and explicit
-  arenas—rather than hand-expanding them away;
-- measure domain polymorphism, advanced generic constraints, numeric schema
-  tags, mixed record/sum declarations, and aggregate transition payloads
-  against simpler encodings; and
-- do not remove a facility from the product source unless the simpler source
-  remains regular, maintainable, and cheaper to compile and assure.
-
-These are working biases, not final profile rulings. In particular, ordinary
-named fields and numeric tags such as `0:` are different facilities. Omitting
-numeric tags does not require positional records. Likewise, splitting a mixed
-field-plus-case declaration into a record and a sum is an available refactor,
-not a standing requirement.
-
-| Question | Decision state |
-| --- | --- |
-| Is Delta an Omega subset? | settled: no requirement; Delta is an independent literal language |
-| What kind of language is Delta? | settled constraints: a robust, deterministic C-class compiler host, Omega-shaped where cheap; exact facilities remain open |
-| Is `Ωself` a new language or rung? | settled: no; it is a compositional restriction of ordinary Omega |
-| Must the product compiler implement full Omega? | settled: yes; this is not selected by bootstrap profiling |
-| Must the first product-compiler binary be optimized? | settled: no; conservative generation is sufficient |
-| Must an Omega→Omega rebuild occur? | settled: no; it is optional optimization and reproducibility work |
-| Which facilities belong to Delta v1? | open until both required Delta source closures and compiler-host arguments close |
-| Which ordinary Omega facilities belong to `Ωself`? | open until the complete product closure and measured bridge join close |
-
-Named fields, payload sums, generics, domains, schema tags, and transition
-shapes remain entries in the measured disposition table below, not decisions
-made by the lattice topology. The topology settles how they are decided; the
-complete source and bridge evidence settle their disposition.
-
-This is also the answer to the apparent “Omega bootstrap language” question:
-there is no third literal specification to design. Delta is the literal
-implementation language. `Ωself` is the incidental subset of already-valid
-Omega used by the production compiler source. `omega-bootstrap` is the compiler
-artifact joining them, not a language whose feature list must be chosen
-separately.
+Until those measurements close, keep proof-program mathematics and dependent
+or proof-indexed typing, including linear-dependent forms, out of the product
+compiler's own source. Retain ordinary compiler data and control when they make
+that source clearer and more robust. Domain polymorphism, advanced generic
+constraints, numeric schema tags, mixed record/sum declarations, and aggregate
+transition payloads remain explicit simplification candidates. Ordinary named
+fields are distinct from numeric tags such as `0:`, and splitting a mixed
+declaration into a record and a sum is an available refactor rather than a
+standing requirement.
 
 For every disputed `Ωself` facility, use one decision procedure:
 
@@ -464,9 +437,12 @@ Structural multi-unit custody is separately closed by
 [`OMEGA_BOOTSTRAP_COMPILATION.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md)
 and the exact target/configuration successor
 [`OMEGA_BOOTSTRAP_COMPILATION_V2.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V2.md).
-Neither grants source semantics, provider selection, or accepted-lock authority;
-that join remains an external compilation-authority dependency rather than an
-`Ωself` feature.
+The bounded Delta
+[`SHA-256 producer`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_SHA256.md)
+also closes exact hashing of any raw envelope through their public ceiling.
+None grants source semantics, provider selection, the independently expected
+commitment, or accepted-lock authority; that join remains an external
+compilation-authority dependency rather than an `Ωself` feature.
 
 The OMGCOMP2 provider fixture deliberately reduces `Console` to one requirement.
 It may support a bounded requirement/realization/call-resolution witness, but

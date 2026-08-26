@@ -362,6 +362,8 @@ step "omega-bootstrap Delta compilation-envelope checker — structural native/s
 step "omega-bootstrap Delta compilation-envelope meaning (RUST-FREE) — structural 0/251/252 through Gamma" omega-bootstrap-gates delta-compilation-envelope-meaning.sh omega-bootstrap-meaning gamma
 precise_step "omega-bootstrap OMGCOMP2 custody — exact Linux-x86-64/native-provider target configuration with opaque source semantics" omega-bootstrap-gates delta-compilation-envelope-v2.sh omega-bootstrap-omgcomp2
 step "omega-bootstrap two-package fixture — pinned deterministic OMGCOMP and semantic negatives" omega-bootstrap-gates two-unit-compilation-fixture.sh omega-bootstrap-compiler
+precise_step "omega-bootstrap bounded SHA-256 — exact raw-envelope digest native/self and resource boundary" omega-bootstrap-gates delta-sha256.sh omega-bootstrap-sha256
+precise_step "omega-bootstrap bounded SHA-256 meaning (RUST-FREE) — exact abc digest through Gamma" omega-bootstrap-gates delta-sha256-meaning.sh omega-bootstrap-sha256
 step "omega-bootstrap Delta resolution handoff — exact OMGCOMP to canonical OMGRSW1, native/self/resource agreement" omega-bootstrap-gates delta-resolution-handoff.sh omega-bootstrap-compiler delta-rust
 step "omega-bootstrap resolution meaning (RUST-FREE) — canonical 0/251/252 through Gamma" omega-bootstrap-gates delta-resolution-handoff-meaning.sh omega-bootstrap-compiler omega-bootstrap-meaning delta-rust gamma
 step "omega-bootstrap resolved-source lowerer — exact OMGLOW1 to CKIR1, native/self relation and resource agreement" omega-bootstrap-gates delta-resolved-to-ckir.sh omega-bootstrap-compiler delta-rust
