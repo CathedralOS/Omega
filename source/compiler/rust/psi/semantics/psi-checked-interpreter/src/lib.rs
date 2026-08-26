@@ -1298,11 +1298,9 @@ impl FilesystemReplayReadRecord {
     }
 }
 
-/// Typed input used to reconstruct the first replay rung after its canonical
-/// compiler record has crossed a process boundary. Construction validates the
-/// same closed source-read sequence; it grants no host filesystem authority.
+/// One closed source-read chain reconstructed from canonical compiler custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FilesystemSourceReadSequenceReplayRecord {
+pub struct FilesystemSourceReadChainReplayRecord {
     source_root: FilesystemGrantRootIdentity,
     source_relative_path: Vec<u8>,
     logical_handle_identity: FilesystemLogicalHandleIdentity,
@@ -1311,7 +1309,7 @@ pub struct FilesystemSourceReadSequenceReplayRecord {
     close_post_error: i32,
 }
 
-impl FilesystemSourceReadSequenceReplayRecord {
+impl FilesystemSourceReadChainReplayRecord {
     pub fn new(
         source_root: FilesystemGrantRootIdentity,
         source_relative_path: Vec<u8>,
@@ -1336,8 +1334,36 @@ impl FilesystemSourceReadSequenceReplayRecord {
     }
 }
 
+/// Typed input used to reconstruct the first replay rung after its canonical
+/// compiler record has crossed a process boundary. Construction validates a
+/// nonempty set of closed, descriptor-disjoint source-read chains; it grants no
+/// host filesystem authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemSourceReadChainsReplayRecord {
+    chains: Vec<FilesystemSourceReadChainReplayRecord>,
+}
+
+impl FilesystemSourceReadChainsReplayRecord {
+    pub fn new(chains: Vec<FilesystemSourceReadChainReplayRecord>) -> Result<Self, String> {
+        if chains.is_empty() {
+            return Err("filesystem replay requires at least one source-read chain".to_owned());
+        }
+        for (index, chain) in chains.iter().enumerate() {
+            if chains[..index]
+                .iter()
+                .any(|prior| prior.logical_handle_identity == chain.logical_handle_identity)
+            {
+                return Err(
+                    "filesystem replay source-read chains must use distinct handles".to_owned(),
+                );
+            }
+        }
+        Ok(Self { chains })
+    }
+}
+
 impl FilesystemReplay {
-    pub fn from_source_read_sequence_observations(
+    pub fn from_source_read_chains_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
         if observations.filesystem_operation_schema_version()
@@ -1346,25 +1372,36 @@ impl FilesystemReplay {
             return Err("filesystem replay observation schema is not current".to_owned());
         }
         let attempts = observations.filesystem_operation_attempts();
-        let Some((open, remainder)) = attempts.split_first() else {
+        let mut cursor = 0;
+        let mut chain_count = 0;
+        while cursor < attempts.len() {
+            if attempts[cursor].operation_tag() != 2 {
+                return Err(
+                    "bounded filesystem replay requires one or more closed source-read chains"
+                        .to_owned(),
+                );
+            }
+            cursor += 1;
+            let reads_start = cursor;
+            while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 4 | 6) {
+                cursor += 1;
+            }
+            if cursor == reads_start
+                || cursor == attempts.len()
+                || attempts[cursor].operation_tag() != 8
+            {
+                return Err(
+                    "bounded filesystem replay requires one or more closed source-read chains"
+                        .to_owned(),
+                );
+            }
+            cursor += 1;
+            chain_count += 1;
+        }
+        if chain_count == 0 {
             return Err(
-                "bounded filesystem replay requires open, one or more reads, and close".to_owned(),
-            );
-        };
-        let Some((close, reads)) = remainder.split_last() else {
-            return Err(
-                "bounded filesystem replay requires open, one or more reads, and close".to_owned(),
-            );
-        };
-        if open.operation_tag() != 2
-            || close.operation_tag() != 8
-            || reads.is_empty()
-            || reads
-                .iter()
-                .any(|read| !matches!(read.operation_tag(), 4 | 6))
-        {
-            return Err(
-                "bounded filesystem replay requires open, one or more reads, and close".to_owned(),
+                "bounded filesystem replay requires one or more closed source-read chains"
+                    .to_owned(),
             );
         }
         for (index, attempt) in attempts.iter().enumerate() {
@@ -1386,136 +1423,121 @@ impl FilesystemReplay {
         &self.attempts
     }
 
-    pub fn from_source_read_sequence_record(
-        record: FilesystemSourceReadSequenceReplayRecord,
-    ) -> Self {
-        let identity = record.logical_handle_identity;
-        let open = FilesystemOperationAttempt {
-            operation_tag: 2,
-            provider: FilesystemObservationProvider::RealScoped,
-            outcome: Some(FilesystemOperationAttemptOutcome::Returned {
-                result: FilesystemOperationResult::LogicalHandle(identity),
-                post_error: record.open_post_error,
-            }),
-            scalar_operands: vec![FilesystemScalarOperand {
-                operand_ordinal: 1,
-                value: FilesystemScalarOperandValue::I32(0),
-            }],
-            byte_operands: Vec::new(),
-            path_like_operands: Vec::new(),
-            rooted_path_operand_resolutions: vec![FilesystemRootedPathOperandResolution {
-                operand_ordinal: 0,
-                root: record.source_root,
-                relative_path: record.source_relative_path.clone(),
-            }],
-            returned_paths: Vec::new(),
-            observed_byte_regions: Vec::new(),
-            metadata_observations: Vec::new(),
-            mutable_byte_operand_resolutions: Vec::new(),
-            mutable_i64_operand_resolutions: Vec::new(),
-            mutable_byte_operands: Vec::new(),
-            mutable_i64_operands: Vec::new(),
-            authorized_paths: vec![FilesystemAuthorizedPath {
-                operand_ordinal: 0,
-                access: FilesystemGrantAccess::Read,
-                root: record.source_root,
-                relative_path: record.source_relative_path,
-            }],
-            logical_handle_inputs: Vec::new(),
-            logical_handle_output: Some(FilesystemLogicalHandleOutput {
-                kind: FilesystemLogicalHandleKind::Descriptor,
-                identity,
-                source: FilesystemLogicalHandleOutputSource::Created,
-            }),
-            retired_logical_handles: Vec::new(),
-            grant_refusals: Vec::new(),
-        };
-        let read_count = record.reads.len();
-        let reads = record.reads.into_iter().map(|read| {
-            let read_length =
-                usize::try_from(read.read_result).expect("validated replay read result fits usize");
-            let (operation_tag, scalar_operands, region_kind) = match read.read_kind {
-                FilesystemReplayReadKind::Positioned { offset } => (
-                    6,
-                    vec![
-                        FilesystemScalarOperand {
-                            operand_ordinal: 2,
-                            value: FilesystemScalarOperandValue::U64(read.requested_count),
-                        },
-                        FilesystemScalarOperand {
-                            operand_ordinal: 3,
-                            value: FilesystemScalarOperandValue::I64(offset),
-                        },
-                    ],
-                    FilesystemObservedByteRegionKind::PositionedFileRead,
-                ),
-                FilesystemReplayReadKind::Sequential => (
-                    4,
-                    vec![FilesystemScalarOperand {
+    pub fn from_source_read_chains_record(record: FilesystemSourceReadChainsReplayRecord) -> Self {
+        let attempt_count = record
+            .chains
+            .iter()
+            .map(|chain| chain.reads.len() + 2)
+            .sum();
+        let mut attempts = Vec::with_capacity(attempt_count);
+        for chain in record.chains {
+            attempts.extend(source_read_chain_attempts(chain));
+        }
+        Self { attempts }
+    }
+}
+
+fn source_read_chain_attempts(
+    record: FilesystemSourceReadChainReplayRecord,
+) -> Vec<FilesystemOperationAttempt> {
+    let identity = record.logical_handle_identity;
+    let open = FilesystemOperationAttempt {
+        operation_tag: 2,
+        provider: FilesystemObservationProvider::RealScoped,
+        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::LogicalHandle(identity),
+            post_error: record.open_post_error,
+        }),
+        scalar_operands: vec![FilesystemScalarOperand {
+            operand_ordinal: 1,
+            value: FilesystemScalarOperandValue::I32(0),
+        }],
+        byte_operands: Vec::new(),
+        path_like_operands: Vec::new(),
+        rooted_path_operand_resolutions: vec![FilesystemRootedPathOperandResolution {
+            operand_ordinal: 0,
+            root: record.source_root,
+            relative_path: record.source_relative_path.clone(),
+        }],
+        returned_paths: Vec::new(),
+        observed_byte_regions: Vec::new(),
+        metadata_observations: Vec::new(),
+        mutable_byte_operand_resolutions: Vec::new(),
+        mutable_i64_operand_resolutions: Vec::new(),
+        mutable_byte_operands: Vec::new(),
+        mutable_i64_operands: Vec::new(),
+        authorized_paths: vec![FilesystemAuthorizedPath {
+            operand_ordinal: 0,
+            access: FilesystemGrantAccess::Read,
+            root: record.source_root,
+            relative_path: record.source_relative_path,
+        }],
+        logical_handle_inputs: Vec::new(),
+        logical_handle_output: Some(FilesystemLogicalHandleOutput {
+            kind: FilesystemLogicalHandleKind::Descriptor,
+            identity,
+            source: FilesystemLogicalHandleOutputSource::Created,
+        }),
+        retired_logical_handles: Vec::new(),
+        grant_refusals: Vec::new(),
+    };
+    let read_count = record.reads.len();
+    let reads = record.reads.into_iter().map(|read| {
+        let read_length =
+            usize::try_from(read.read_result).expect("validated replay read result fits usize");
+        let (operation_tag, scalar_operands, region_kind) = match read.read_kind {
+            FilesystemReplayReadKind::Positioned { offset } => (
+                6,
+                vec![
+                    FilesystemScalarOperand {
                         operand_ordinal: 2,
                         value: FilesystemScalarOperandValue::U64(read.requested_count),
-                    }],
-                    FilesystemObservedByteRegionKind::SequentialFileRead,
-                ),
-            };
-            FilesystemOperationAttempt {
-                operation_tag,
-                provider: FilesystemObservationProvider::RealScoped,
-                outcome: Some(FilesystemOperationAttemptOutcome::Returned {
-                    result: FilesystemOperationResult::Scalar(read.read_result),
-                    post_error: read.read_post_error,
-                }),
-                scalar_operands,
-                byte_operands: Vec::new(),
-                path_like_operands: Vec::new(),
-                rooted_path_operand_resolutions: Vec::new(),
-                returned_paths: Vec::new(),
-                observed_byte_regions: vec![FilesystemObservedByteRegion {
-                    output_operand_ordinal: 1,
-                    kind: region_kind,
-                    offset: 0,
-                    length: read_length,
+                    },
+                    FilesystemScalarOperand {
+                        operand_ordinal: 3,
+                        value: FilesystemScalarOperandValue::I64(offset),
+                    },
+                ],
+                FilesystemObservedByteRegionKind::PositionedFileRead,
+            ),
+            FilesystemReplayReadKind::Sequential => (
+                4,
+                vec![FilesystemScalarOperand {
+                    operand_ordinal: 2,
+                    value: FilesystemScalarOperandValue::U64(read.requested_count),
                 }],
-                metadata_observations: Vec::new(),
-                mutable_byte_operand_resolutions: vec![FilesystemMutableByteOperandResolution {
-                    operand_ordinal: 1,
-                    bytes: read.mutable_resolution,
-                }],
-                mutable_i64_operand_resolutions: Vec::new(),
-                mutable_byte_operands: vec![FilesystemMutableByteOperand {
-                    operand_ordinal: 1,
-                    pre_bytes: read.mutable_pre_state,
-                    post_bytes: read.mutable_post_state,
-                }],
-                mutable_i64_operands: Vec::new(),
-                authorized_paths: Vec::new(),
-                logical_handle_inputs: vec![FilesystemLogicalHandleInput {
-                    operand_ordinal: 0,
-                    kind: FilesystemLogicalHandleKind::Descriptor,
-                    resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
-                }],
-                logical_handle_output: None,
-                retired_logical_handles: Vec::new(),
-                grant_refusals: Vec::new(),
-            }
-        });
-        let close = FilesystemOperationAttempt {
-            operation_tag: 8,
+                FilesystemObservedByteRegionKind::SequentialFileRead,
+            ),
+        };
+        FilesystemOperationAttempt {
+            operation_tag,
             provider: FilesystemObservationProvider::RealScoped,
             outcome: Some(FilesystemOperationAttemptOutcome::Returned {
-                result: FilesystemOperationResult::Scalar(0),
-                post_error: record.close_post_error,
+                result: FilesystemOperationResult::Scalar(read.read_result),
+                post_error: read.read_post_error,
             }),
-            scalar_operands: Vec::new(),
+            scalar_operands,
             byte_operands: Vec::new(),
             path_like_operands: Vec::new(),
             rooted_path_operand_resolutions: Vec::new(),
             returned_paths: Vec::new(),
-            observed_byte_regions: Vec::new(),
+            observed_byte_regions: vec![FilesystemObservedByteRegion {
+                output_operand_ordinal: 1,
+                kind: region_kind,
+                offset: 0,
+                length: read_length,
+            }],
             metadata_observations: Vec::new(),
-            mutable_byte_operand_resolutions: Vec::new(),
+            mutable_byte_operand_resolutions: vec![FilesystemMutableByteOperandResolution {
+                operand_ordinal: 1,
+                bytes: read.mutable_resolution,
+            }],
             mutable_i64_operand_resolutions: Vec::new(),
-            mutable_byte_operands: Vec::new(),
+            mutable_byte_operands: vec![FilesystemMutableByteOperand {
+                operand_ordinal: 1,
+                pre_bytes: read.mutable_pre_state,
+                post_bytes: read.mutable_post_state,
+            }],
             mutable_i64_operands: Vec::new(),
             authorized_paths: Vec::new(),
             logical_handle_inputs: vec![FilesystemLogicalHandleInput {
@@ -1524,15 +1546,43 @@ impl FilesystemReplay {
                 resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
             }],
             logical_handle_output: None,
-            retired_logical_handles: vec![identity],
+            retired_logical_handles: Vec::new(),
             grant_refusals: Vec::new(),
-        };
-        let mut attempts = Vec::with_capacity(read_count + 2);
-        attempts.push(open);
-        attempts.extend(reads);
-        attempts.push(close);
-        Self { attempts }
-    }
+        }
+    });
+    let close = FilesystemOperationAttempt {
+        operation_tag: 8,
+        provider: FilesystemObservationProvider::RealScoped,
+        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::Scalar(0),
+            post_error: record.close_post_error,
+        }),
+        scalar_operands: Vec::new(),
+        byte_operands: Vec::new(),
+        path_like_operands: Vec::new(),
+        rooted_path_operand_resolutions: Vec::new(),
+        returned_paths: Vec::new(),
+        observed_byte_regions: Vec::new(),
+        metadata_observations: Vec::new(),
+        mutable_byte_operand_resolutions: Vec::new(),
+        mutable_i64_operand_resolutions: Vec::new(),
+        mutable_byte_operands: Vec::new(),
+        mutable_i64_operands: Vec::new(),
+        authorized_paths: Vec::new(),
+        logical_handle_inputs: vec![FilesystemLogicalHandleInput {
+            operand_ordinal: 0,
+            kind: FilesystemLogicalHandleKind::Descriptor,
+            resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
+        }],
+        logical_handle_output: None,
+        retired_logical_handles: vec![identity],
+        grant_refusals: Vec::new(),
+    };
+    let mut attempts = Vec::with_capacity(read_count + 2);
+    attempts.push(open);
+    attempts.extend(reads);
+    attempts.push(close);
+    attempts
 }
 
 impl Default for EvaluationObservations {
@@ -1928,10 +1978,10 @@ pub enum FilesystemAccess {
         grants: FsGrants,
         sponsor: FilesystemSponsor,
     },
-    /// Consume one compiler-produced source-read sequence without
+    /// Consume compiler-produced source-read chains without
     /// installing virtual or real filesystem authority. Every event and lane
     /// must match exactly and the record must be exhausted.
-    ReplaySourceReadSequence(FilesystemReplay),
+    ReplaySourceReadChains(FilesystemReplay),
 }
 
 /// Path grants for [`FilesystemAccess::RealScoped`]. Roots are canonicalized

@@ -357,7 +357,7 @@ pub(crate) fn run_granted_build_machine_arguments(
                 evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
                 let replaying = matches!(
                     &options.filesystem,
-                    FilesystemAccess::ReplaySourceReadSequence(_)
+                    FilesystemAccess::ReplaySourceReadChains(_)
                 );
                 match options.filesystem {
                     FilesystemAccess::Virtual => {}
@@ -389,7 +389,7 @@ pub(crate) fn run_granted_build_machine_arguments(
                             )?,
                         );
                     }
-                    FilesystemAccess::ReplaySourceReadSequence(replay) => {
+                    FilesystemAccess::ReplaySourceReadChains(replay) => {
                         evaluator.filesystem_replay = Some(replay);
                     }
                 }
@@ -530,7 +530,7 @@ fn run_on_current_thread(
             };
             evaluator.real_fs = Some(filesystem);
         }
-        FilesystemAccess::ReplaySourceReadSequence(replay) => {
+        FilesystemAccess::ReplaySourceReadChains(replay) => {
             evaluator.filesystem_replay = Some(replay);
         }
     }

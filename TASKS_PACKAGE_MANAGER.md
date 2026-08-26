@@ -1861,6 +1861,18 @@ complete.
   without changing operation schema v18, package review v69/row v27, or review-
   baseline capsule v2. This is still review-only, `Volatile`, and neither broad
   filesystem replay nor a `Receipted` claim.
+  Milestone 2026-08-26: the same rung now accepts one or more complete,
+  non-interleaved source-read chains. Each chain owns one distinct created
+  descriptor, one Source-rooted flags-zero `open`, one or more ordered
+  `read`/`read_at` calls, and its exact retiring `close`. Summary v22 binds the
+  plural replay fact and replay-record v4 canonically retains every chain in
+  order. Each chain starts its own sequential cursor at zero; positioned reads
+  remain cursor-neutral. Descriptor identity reuse across chains, cross-chain
+  reads or closes, interleaving, reordered/removed chains, and trailing
+  incomplete chains reject. Provider-free reopening can now serve multiple
+  retained source files. Operation schema v18, package review v69/row v27, and
+  review-baseline capsule v2 remain unchanged; the result is still review-only,
+  `Volatile`, and not a complete filesystem replay verdict.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker

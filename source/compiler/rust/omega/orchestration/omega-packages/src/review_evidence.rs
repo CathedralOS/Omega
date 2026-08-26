@@ -194,7 +194,7 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
     digest.update([observation_class_tag(summary.ceiling())]);
     digest.update([observation_class_tag(summary.realized())]);
     digest.update(summary.filesystem_operation_schema_version().to_le_bytes());
-    digest.update([u8::from(summary.source_read_sequence_replay_verified())]);
+    digest.update([u8::from(summary.source_read_chains_replay_verified())]);
     match summary.staged_output_tree() {
         None => digest.update([0]),
         Some(tree) => {
@@ -786,7 +786,7 @@ reaches FilesystemHost
             build_observation_commitment(&bytes_changed),
             "one changed immutable byte operand changes observation identity"
         );
-        assert_eq!(first.schema_version(), 21);
+        assert_eq!(first.schema_version(), 22);
         assert_eq!(first.filesystem_operation_schema_version(), 18);
         assert!(first.staged_output_tree().is_none());
         assert!(relocated.staged_output_tree().is_none());
