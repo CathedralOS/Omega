@@ -8,12 +8,19 @@ boundary trait WindowProcedure {
     machine call(message: u64) -> u64;
 }
 
+boundary trait UnusedProcedure {
+    machine call(message: u64) -> u64;
+}
+
 data Spread {
     entries: [FieldEntry; 64];
 }
 
 WndClassWindowProcedureSlot:
     Spread satisfies PrivateCallbackSlot<WindowProcedure::call>;
+
+UnusedWindowProcedureSlot:
+    Spread satisfies PrivateCallbackSlot<UnusedProcedure::call>;
 
 machine Spread::plan(&mut self, schema: Schema) -> Plan {
     self.entries[0] = FieldEntry {

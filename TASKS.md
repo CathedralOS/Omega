@@ -7208,13 +7208,17 @@ Owners:
   remains demand-free, and only the authoritative `LayoutPlan` may close it.
   Private relocation/emission remains subsequent.
 
-  Add pass canaries for direct parameters, one nested slot, multiple explicitly
-  named slots, an inert uncited third-party conformance, and the same
-  target-neutral requirement placed at different x86/x64 offsets. Add fail
-  canaries for an uncited demand assumption, ambiguous requirement path,
-  conformance/layout-subject mismatch, wrong requirement, missing/duplicate or
-  overlapping supply, semantic projection/read/write/serialization, raw
-  calling-plan offset, selected-machine-as-slot identity, and replay drift.
+  The first source canary cohort is live: the exact target-selected registrar
+  closes one nested private slot while an independently named, uncited
+  third-party `PrivateCallbackSlot` conformance remains inert. Focused negative
+  canaries reject an uncited demand assumption, an overloaded signature-free
+  requirement path, and a cited conformance whose layout subject differs from
+  the active policy owner. Add pass canaries for direct parameters, multiple
+  explicitly named slots, and the same target-neutral requirement placed at
+  different x86/x64 offsets. Add the remaining fail canaries for wrong
+  requirement, missing/duplicate or overlapping supply, semantic
+  projection/read/write/serialization, raw calling-plan offset,
+  selected-machine-as-slot identity, and replay drift.
 - **REGISTERED-CALLBACK-LIFETIME — implement the runtime protocol.** A
   successful registrar call establishes one future external root represented
   by a linear `Registration`; rejection establishes none. Successful
