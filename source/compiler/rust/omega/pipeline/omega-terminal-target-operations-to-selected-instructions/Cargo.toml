@@ -1,0 +1,23 @@
+[package]
+name = "omega-terminal-target-operations-to-selected-instructions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_terminal_target_operations_to_selected_instructions"
+path = "src/lib.rs"
+
+[dependencies]
+omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
+omega-optimization-validation = { path = "../../optimization/omega-optimization-validation" }
+omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
+omega-register-model = { path = "../../representations/omega-register-model" }
+omega-target = { path = "../../foundation/omega-target" }
+omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
+omega-terminal-selected-instructions = { path = "../../representations/omega-terminal-selected-instructions" }
+omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+
+[dev-dependencies]
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }

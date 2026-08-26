@@ -3,15 +3,21 @@ use omega_register_model::{
     RegisterInstructionConstraint, RegisterModelValidationError, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, validate_physical_register_model,
 };
-use omega_target::{Architecture, NativeTarget};
+use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_isa_aarch64::{
-    Aarch64RegisterConstraintCatalogValidationError, aarch64_physical_register_model,
-    aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
+    AARCH64_AAPCS64_RETURN, AARCH64_COMPARE_I64_ZERO, AARCH64_CONDITIONAL_BRANCH,
+    AARCH64_DARWIN_RETURN, AARCH64_MATERIALIZE_I64,
+    Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view,
+    aarch64_physical_register_model, aarch64_register_constraint_catalog,
+    validate_aarch64_register_constraint_catalog,
 };
 use omega_terminal_isa_x86_64::{
+    X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH, X86_64_MATERIALIZE_I64,
+    X86_64_MICROSOFT_RETURN, X86_64_SYSTEM_V_RETURN,
     X86_64RegisterConstraintCatalogValidationError, validate_x86_64_register_constraint_catalog,
-    x86_64_physical_register_model, x86_64_register_constraint_catalog,
+    x86_64_fixed_register_view, x86_64_physical_register_model, x86_64_register_constraint_catalog,
 };
+use omega_terminal_selected_instructions::TerminalSelectedConstraintKeys;
 
 /// Clean-lane custody of the exact target, independently validated physical
 /// register model, and target-semantic instruction constraint catalog.
@@ -23,6 +29,7 @@ pub struct ValidatedTargetRegisterEnvironment {
     target: NativeTarget,
     physical: ValidatedPhysicalRegisterModel,
     constraints: ValidatedRegisterConstraintCatalog,
+    selected_keys: TerminalSelectedConstraintKeys,
 }
 
 impl ValidatedTargetRegisterEnvironment {
@@ -45,6 +52,20 @@ impl ValidatedTargetRegisterEnvironment {
             .iter()
             .find(|constraint| constraint.key == key)
     }
+
+    pub const fn selected_keys(&self) -> TerminalSelectedConstraintKeys {
+        self.selected_keys
+    }
+
+    pub fn fixed_register_view(
+        &self,
+        register: omega_terminal_target_operations::MachineRegister,
+    ) -> Option<omega_register_model::RegisterViewId> {
+        match self.target.architecture {
+            Architecture::X86_64 => x86_64_fixed_register_view(&self.physical, register),
+            Architecture::Aarch64 => aarch64_fixed_register_view(&self.physical, register),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,6 +77,7 @@ pub enum TargetRegisterEnvironmentValidationError {
     },
     X86_64(X86_64RegisterConstraintCatalogValidationError),
     Aarch64(Aarch64RegisterConstraintCatalogValidationError),
+    UnsupportedSelectedInstructionAbi,
 }
 
 impl std::fmt::Display for TargetRegisterEnvironmentValidationError {
@@ -110,11 +132,44 @@ pub fn validate_target_register_environment(
                 .map_err(TargetRegisterEnvironmentValidationError::Aarch64)?
         }
     };
+    let selected_keys = selected_constraint_keys(target)
+        .ok_or(TargetRegisterEnvironmentValidationError::UnsupportedSelectedInstructionAbi)?;
     Ok(ValidatedTargetRegisterEnvironment {
         target,
         physical,
         constraints,
+        selected_keys,
     })
+}
+
+fn selected_constraint_keys(target: NativeTarget) -> Option<TerminalSelectedConstraintKeys> {
+    match (target.architecture, target.object_format) {
+        (Architecture::X86_64, ObjectFormat::Elf) => Some(TerminalSelectedConstraintKeys {
+            materialize_i64: X86_64_MATERIALIZE_I64,
+            compare_i64_zero: X86_64_COMPARE_I64_ZERO,
+            conditional_branch: X86_64_CONDITIONAL_BRANCH,
+            return_i64: X86_64_SYSTEM_V_RETURN,
+        }),
+        (Architecture::X86_64, ObjectFormat::Coff) => Some(TerminalSelectedConstraintKeys {
+            materialize_i64: X86_64_MATERIALIZE_I64,
+            compare_i64_zero: X86_64_COMPARE_I64_ZERO,
+            conditional_branch: X86_64_CONDITIONAL_BRANCH,
+            return_i64: X86_64_MICROSOFT_RETURN,
+        }),
+        (Architecture::Aarch64, ObjectFormat::Elf) => Some(TerminalSelectedConstraintKeys {
+            materialize_i64: AARCH64_MATERIALIZE_I64,
+            compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
+            conditional_branch: AARCH64_CONDITIONAL_BRANCH,
+            return_i64: AARCH64_AAPCS64_RETURN,
+        }),
+        (Architecture::Aarch64, ObjectFormat::MachO) => Some(TerminalSelectedConstraintKeys {
+            materialize_i64: AARCH64_MATERIALIZE_I64,
+            compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
+            conditional_branch: AARCH64_CONDITIONAL_BRANCH,
+            return_i64: AARCH64_DARWIN_RETURN,
+        }),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -192,5 +247,21 @@ mod tests {
                 )
             ))
         ));
+
+        let canonical = x86_64_physical_register_model();
+        let canonical_validated = validate_physical_register_model(canonical.clone()).unwrap();
+        let canonical_catalog = x86_64_register_constraint_catalog(&canonical_validated);
+        let mut forged = canonical;
+        forged.views[0].name = "forged.rax".into();
+        assert_eq!(
+            validate_target_register_environment(
+                NativeTarget::linux_x64(),
+                forged,
+                canonical_catalog,
+            ),
+            Err(TargetRegisterEnvironmentValidationError::X86_64(
+                X86_64RegisterConstraintCatalogValidationError::NonCanonicalPhysicalModel,
+            ))
+        );
     }
 }

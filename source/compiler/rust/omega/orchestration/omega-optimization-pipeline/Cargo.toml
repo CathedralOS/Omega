@@ -13,10 +13,13 @@ omega-lowering-optimizer = { path = "../../optimization/omega-lowering-optimizer
 omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
 omega-psi-optimizer = { path = "../../optimization/omega-psi-optimizer" }
 omega-register-model = { path = "../../representations/omega-register-model" }
+omega-terminal-selected-instructions = { path = "../../representations/omega-terminal-selected-instructions" }
 omega-terminal-assigned-target-operations = { path = "../../representations/omega-terminal-assigned-target-operations" }
 omega-terminal-abstract-operations-to-target-operations = { path = "../../pipeline/omega-terminal-abstract-operations-to-target-operations" }
 omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
 omega-terminal-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-terminal-target-operations-to-assigned-target-operations" }
+omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
+omega-terminal-target-operations-to-selected-instructions = { path = "../../pipeline/omega-terminal-target-operations-to-selected-instructions" }
 omega-terminal-isa-aarch64 = { path = "../../backend/instruction_set_architectures/omega-terminal-isa-aarch64" }
 omega-terminal-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-terminal-isa-x86_64" }
 omega-target = { path = "../../foundation/omega-target" }
@@ -26,6 +29,7 @@ psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }
 
 [dev-dependencies]
+omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
 psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
 psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }

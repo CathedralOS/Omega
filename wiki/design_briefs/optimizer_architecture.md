@@ -616,6 +616,23 @@ Instruction selection should produce virtual registers in explicit register
 classes plus machine-state uses/defs. It must not preassign arbitrary scratch
 registers in ways that hide interference from the allocator.
 
+The first production slice makes that boundary concrete without claiming a
+general selector. `omega-terminal-selected-instructions` is the data-only
+representation owner, while
+`omega-terminal-target-operations-to-selected-instructions` produces and
+independently validates a three-block runtime conditional whose two leaves
+materialize unsigned 64-bit constants and return. Each virtual register retains
+its exact Psi value and definition site; each instruction retains its catalog
+constraint, explicit and implicit state footprint, and semantic provenance;
+branch-edge fuel remains attached to the corresponding selected successor so
+only the taken edge is charged. ISA-owned orchestration injects the exact
+constraint keys and ABI live-in views instead of asking a target-neutral stage
+to infer them from names or coincident numeric variants. The opaque staged
+carrier also owns the final optimized unit, independent abstract projection,
+target plan, and validated register environment. This is allocator input only:
+it grants no liveness, physical-home, emission, or publication authority and
+fails closed for every other source shape.
+
 ## Register allocation
 
 Register allocation is the transformation from target operations with virtual
@@ -657,6 +674,13 @@ The first ordinary rows cover i64 materialization, i64 copy, compare with zero,
 and conditional branch; compare defines RFLAGS/NZCV, while branch explicitly
 uses that state and updates RIP/PC. They are not yet a complete ordinary-
 instruction or feature-profile inventory.
+The current target-owned validators also require the supplied physical model
+to equal the ISA's canonical declaration before constructing or comparing
+constraint rows. This prevents a self-consistent forged model and catalog from
+redefining the expected target semantics; fixed-register view resolution fails
+closed for the same noncanonical input. Selected staging reruns its independent
+projection validator against the exact retained environment before issuing its
+cross-stage custody receipt.
 These declarations do not alter the current scratch-cycling assignment lane
 and are not allocator output evidence. The selected optimizer lane may retain
 that transitional
@@ -887,6 +911,8 @@ omega/
   foundation/omega-optimization-core/
   representations/omega-optimization-unit/
   representations/omega-register-model/
+  representations/omega-terminal-selected-instructions/
+  pipeline/omega-terminal-target-operations-to-selected-instructions/
   optimization/
     omega-psi-optimizer/
     omega-lowering-optimizer/

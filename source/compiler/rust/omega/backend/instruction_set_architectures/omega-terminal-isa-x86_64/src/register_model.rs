@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use omega_calling_conventions::MachineRegister;
 use omega_register_model::{
     PhysicalRegisterModel, PreservationConvention, RegisterClass, RegisterClassId,
     RegisterConstraintCatalog, RegisterConstraintCatalogValidationError, RegisterConstraintFamily,
@@ -19,6 +20,42 @@ const GPR8_HIGH: RegisterClassId = RegisterClassId(4);
 const VECTOR128: RegisterClassId = RegisterClassId(5);
 const FLAGS: RegisterClassId = RegisterClassId(6);
 const INSTRUCTION_POINTER: RegisterClassId = RegisterClassId(7);
+
+/// Resolve one ABI-visible register through the x86-64 target owner's
+/// canonical model. Target-neutral selection consumes the resulting fixed
+/// constraint and never infers register names.
+pub fn x86_64_fixed_register_view(
+    model: &ValidatedPhysicalRegisterModel,
+    register: MachineRegister,
+) -> Option<RegisterViewId> {
+    if model.model() != &x86_64_physical_register_model() {
+        return None;
+    }
+    let name = match register {
+        MachineRegister::X86Rax => "rax",
+        MachineRegister::X86Rcx => "rcx",
+        MachineRegister::X86Rdx => "rdx",
+        MachineRegister::X86Rbx => "rbx",
+        MachineRegister::X86Rsp => "rsp",
+        MachineRegister::X86Rbp => "rbp",
+        MachineRegister::X86Rsi => "rsi",
+        MachineRegister::X86Rdi => "rdi",
+        MachineRegister::X86R8 => "r8",
+        MachineRegister::X86R9 => "r9",
+        MachineRegister::X86R10 => "r10",
+        MachineRegister::X86R11 => "r11",
+        MachineRegister::X86R12 => "r12",
+        MachineRegister::X86R13 => "r13",
+        MachineRegister::X86R14 => "r14",
+        MachineRegister::X86R15 => "r15",
+        MachineRegister::X86Xmm(_)
+        | MachineRegister::Aarch64X(_)
+        | MachineRegister::Aarch64V(_) => {
+            return None;
+        }
+    };
+    model.model().view_named(name).map(|view| view.id)
+}
 
 pub const X86_64_SYSTEM_V_CALL: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Call,
@@ -571,6 +608,7 @@ pub fn x86_64_register_constraint_catalog(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum X86_64RegisterConstraintCatalogValidationError {
     PhysicalModelArchitectureMismatch,
+    NonCanonicalPhysicalModel,
     Structural(RegisterConstraintCatalogValidationError),
     TargetSemanticMismatch(RegisterConstraintKey),
 }
@@ -598,6 +636,9 @@ pub fn validate_x86_64_register_constraint_catalog(
         return Err(
             X86_64RegisterConstraintCatalogValidationError::PhysicalModelArchitectureMismatch,
         );
+    }
+    if model.model() != &x86_64_physical_register_model() {
+        return Err(X86_64RegisterConstraintCatalogValidationError::NonCanonicalPhysicalModel);
     }
     let validated = validate_register_constraint_catalog(catalog, model)
         .map_err(X86_64RegisterConstraintCatalogValidationError::Structural)?;
@@ -683,6 +724,19 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn fixed_machine_register_views_are_target_owned() {
+        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        assert_eq!(
+            x86_64_fixed_register_view(&model, MachineRegister::X86Rdi),
+            model.model().view_named("rdi").map(|view| view.id)
+        );
+        assert_eq!(
+            x86_64_fixed_register_view(&model, MachineRegister::Aarch64X(0)),
+            None
+        );
+    }
 
     #[test]
     fn model_validates_and_partial_register_aliases_are_exact() {
@@ -908,6 +962,23 @@ mod tests {
                     X86_64_CONDITIONAL_BRANCH,
                 )
             )
+        );
+    }
+
+    #[test]
+    fn x86_64_catalog_validation_rejects_same_architecture_forged_physical_model() {
+        let canonical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let catalog = x86_64_register_constraint_catalog(&canonical);
+        let mut forged = x86_64_physical_register_model();
+        forged.views[0].name = "forged.rax".into();
+        let forged = validate_physical_register_model(forged).unwrap();
+        assert_eq!(
+            x86_64_fixed_register_view(&forged, MachineRegister::X86Rax),
+            None
+        );
+        assert_eq!(
+            validate_x86_64_register_constraint_catalog(catalog, &forged),
+            Err(X86_64RegisterConstraintCatalogValidationError::NonCanonicalPhysicalModel)
         );
     }
 

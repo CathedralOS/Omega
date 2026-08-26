@@ -75,11 +75,15 @@ These facts constrain the work below.
   root build selection and proves that dependency build companions cannot
   contribute one. The legacy compiler still rejects every nonempty set before
   emission. The clean selected staging lane now enters verified optimization,
-  target-operation lowering, and the existing scratch-cycling assignment stage
-  while an opaque `StagedOptimizedAssignedOperations` carrier retains the
-  optimizer run, ledger, projection receipt, target plan, assigned plan, and
-  independently reconstructed root/function provenance custody. This is not
-  allocator validation: the lane still fails closed before machine emission,
+  target-operation lowering, a bounded typed virtual-register instruction CFG,
+  and the existing scratch-cycling assignment stage. An opaque
+  `StagedOptimizedSelectedInstructions` carrier retains the optimizer run,
+  final optimization unit, independent abstract projection, target plan, exact
+  validated register environment, selected plan, and a content-identity-bound
+  validation receipt. A separate `StagedOptimizedAssignedOperations` carrier
+  retains the optimizer run, ledger, projection receipt, target plan, assigned
+  plan, and independently reconstructed root/function provenance custody. This
+  is not allocator validation: the lane still fails closed before machine emission,
   object/image construction, component construction, or installation because
   no independent liveness/interference or physical-realization validator yet
   authorizes those records. Checked compilation
@@ -691,14 +695,24 @@ dependency.
   temporary scratch needs are visible to liveness; instruction encoders receive
   only assigned physical operands later.
 
-  Current prerequisite slice: clean Terminal ISA crates now own the physical
-  models and catalogs, avoiding a dependency from optimized orchestration into
-  legacy target operations. The retained target-register environment includes
-  ordinary materialize-i64, copy-i64, compare-zero, and conditional-branch
-  rows; compare/branch explicitly cross RFLAGS/RIP or NZCV/PC state. Remaining
-  to begin the actual item: add the production selected-instruction/VReg
-  representation and independently validated CFG projection before invoking
-  liveness. A detached use/def toy graph is not acceptable evidence.
+  Current slice: `omega-terminal-selected-instructions` owns a data-only,
+  target-neutral selected CFG with typed virtual registers, exact definition
+  sites, explicit operand access/class/fixed-view constraints, machine-state
+  uses/defs/clobbers, source block/edge/value/operation provenance, and
+  path-specific logical-fuel settlements. The separate
+  `omega-terminal-target-operations-to-selected-instructions` stage produces
+  and independently validates the first deliberately bounded production shape:
+  one runtime Boolean parameter, a three-block conditional, and two leaf-local
+  unsigned-i64 constants followed by cleanup-free returns. Both x86-64 and
+  AArch64 use ISA-owned constraint rows and fixed-register view resolvers;
+  compare/branch explicitly cross RFLAGS/RIP or NZCV/PC, and fixed ABI operands
+  remain constraints rather than assigned homes. The opt-in orchestration
+  carrier owns the complete optimized-lowering and register-environment custody
+  and grants no liveness, allocation, emission, or publication authority.
+  Unsupported source shapes fail closed. Remaining to close: generalize the
+  selected CFG across the complete legalized operation vocabulary and retain
+  cleanup, call, suspension, memory, proof, and effect frontiers before all
+  selected programs can enter liveness.
 
 - **OPT-TARGET-LEGALIZATION.** Separate target legalization from physical home
   assignment.
@@ -745,7 +759,11 @@ dependency.
   the existing System V, Microsoft, AAPCS64, and Darwin conventions. The
   declarations live in clean Terminal ISA crates and are joined into a
   validated target-register environment retained by optimized staging. Both
-  generic structural and ISA-semantic corruption suites are required.
+  generic structural and ISA-semantic corruption suites are required. The ISA
+  validators now reject a structurally valid but semantically altered
+  same-architecture physical model before constructing canonical constraint
+  rows, and fixed-register resolvers refuse noncanonical models; selected
+  custody then revalidates against the exact retained environment.
   Remaining to close: the rest of the ordinary instruction keys and fixed/tied
   constraints, complete integer/vector/aggregate ABI banks, feature-profile
   variants (including extended vector/floating control state), and dynamic
@@ -757,11 +775,13 @@ dependency.
   Acceptance: conditionals, loops, crash exits, calls, cleanup blocks,
   suspension frontiers, and disconnected functions have focused tests.
 
-  Sequencing: this remains an engineering dependency on
-  `OPT-VIRTUAL-REGISTERS`. The current clean target representation is a nested
-  expression tree with ABI placements, not an instruction CFG with typed
-  virtual defs/uses; liveness must not be faked over already assigned scratch
-  homes or a disconnected toy IR.
+  Sequencing: the first real selected-instruction CFG now exists for the bounded
+  three-block conditional-return slice, so liveness can begin against that
+  production carrier. It must still fail closed outside the independently
+  validated slice and must not infer evidence from already assigned scratch
+  homes. General liveness remains dependent on completing
+  `OPT-VIRTUAL-REGISTERS` for calls, cleanup, suspension, memory, loops, and the
+  rest of the legalized instruction vocabulary.
 
 - **OPT-LINEAR-SCAN.** Implement deterministic linear-scan allocation with
   class constraints and stable tie breaks.

@@ -21,6 +21,7 @@ use psi_proof_admission::AdmissionProfile;
 
 mod assignment;
 mod register_environment;
+mod selection;
 
 pub use assignment::{
     OptimizedAssignmentCustodyError, OptimizedAssignmentPipelineError,
@@ -31,6 +32,11 @@ pub use assignment::{
 pub use register_environment::{
     TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnvironment,
     baseline_target_register_environment, validate_target_register_environment,
+};
+pub use selection::{
+    OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
+    StagedOptimizedSelectedInstructions, StagedOptimizedSelectionCustodyReceipt,
+    stage_optimized_instruction_selection, validate_optimized_selection_custody,
 };
 
 /// Exact optimizer inputs chosen by compiler orchestration.
@@ -134,17 +140,27 @@ pub fn optimize_verified_terminal_input(
 #[cfg(test)]
 mod tests {
     use omega_optimization_core::{Optimization, OptimizationSelections};
+    use omega_optimization_unit::ValueDefinitionSite;
     use omega_psi_optimizer::{OptimizationRunError, RuleRegistryError};
+    use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
     use omega_target::NativeTarget;
-    use omega_terminal_abstract_operations::TerminalAbstractOperation;
+    use omega_terminal_abstract_operations::{TerminalAbstractOperation, TerminalValueBinding};
+    use omega_terminal_selected_instructions::{
+        TerminalSelectedInstructionKind, TerminalSelectedTerminator,
+    };
+    use omega_terminal_target_operations_to_selected_instructions::{
+        SelectedInstructionError, terminal_selected_instruction_plan_identity,
+        validate_terminal_selected_instructions,
+    };
     use psi_core::{
         BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
         ObligationId, OperationId, ScalarType, ValueId,
     };
     use psi_proof_admission::{EvidenceRoute, PrimitiveJudgment};
     use psi_terminal::{
-        Block, MachineContract, Operation, OperationKind, OperationResult, TerminalMachine,
-        TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+        Block, MachineContract, Operation, OperationKind, OperationResult, SuccessorEdge,
+        TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+        VocabularyMarker,
     };
     use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 
@@ -264,6 +280,141 @@ mod tests {
             psi_terminal_codec::encode_module(&module).unwrap(),
             psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
         )
+    }
+
+    fn conditional_immediate_artifact() -> (Vec<u8>, Vec<u8>) {
+        conditional_immediate_artifact_with_type(
+            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        )
+    }
+
+    fn conditional_immediate_artifact_with_type(integer_type: IntegerType) -> (Vec<u8>, Vec<u8>) {
+        let machine = MachineId::new(3_001).unwrap();
+        let entry = BlockId::new(3_002).unwrap();
+        let when_true = BlockId::new(3_003).unwrap();
+        let when_false = BlockId::new(3_004).unwrap();
+        let condition = ValueId::new(3_005).unwrap();
+        let true_value = ValueId::new(3_006).unwrap();
+        let false_value = ValueId::new(3_007).unwrap();
+        let result = ValueId::new(3_008).unwrap();
+        let scalar_type = ScalarType::Integer(integer_type);
+        let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                parameters: vec![declaration(condition, ScalarType::Boolean)],
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Scalar(declaration(result, scalar_type)),
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry,
+                blocks: vec![
+                    Block {
+                        id: entry,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Conditional {
+                            condition,
+                            when_true: SuccessorEdge {
+                                edge: EdgeId::new(3_011).unwrap(),
+                                target: when_true,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                            when_false: SuccessorEdge {
+                                edge: EdgeId::new(3_012).unwrap(),
+                                target: when_false,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                        },
+                    },
+                    Block {
+                        id: when_true,
+                        parameters: Vec::new(),
+                        operations: vec![Operation {
+                            id: OperationId::new(3_009).unwrap(),
+                            result: OperationResult::Scalar(declaration(true_value, scalar_type)),
+                            kind: OperationKind::IntegerConstant {
+                                value: IntegerValue::Unsigned(7),
+                            },
+                        }],
+                        terminator: Terminator::Return {
+                            edge: EdgeId::new(3_013).unwrap(),
+                            value: true_value,
+                            cleanup_actions: Vec::new(),
+                        },
+                    },
+                    Block {
+                        id: when_false,
+                        parameters: Vec::new(),
+                        operations: vec![Operation {
+                            id: OperationId::new(3_010).unwrap(),
+                            result: OperationResult::Scalar(declaration(false_value, scalar_type)),
+                            kind: OperationKind::IntegerConstant {
+                                value: IntegerValue::Unsigned(9),
+                            },
+                        }],
+                        terminator: Terminator::Return {
+                            edge: EdgeId::new(3_014).unwrap(),
+                            value: false_value,
+                            cleanup_actions: Vec::new(),
+                        },
+                    },
+                ],
+                contract: MachineContract {
+                    id: ContractId::new(3_015).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        };
+        let proof = ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: Vec::new(),
+        };
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        )
+    }
+
+    fn staged_conditional(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
+        let (semantic, proof) = conditional_immediate_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target =
+            omega_lowering_optimizer::lower_optimized_to_target_operations(optimized, target)
+                .unwrap();
+        stage_optimized_instruction_selection(target).unwrap()
     }
 
     fn request(selections: OptimizationSelections) -> ExplicitOptimizationRequest {
@@ -404,6 +555,54 @@ mod tests {
             error,
             OptimizationPipelineError::Run(OptimizationRunError::RegistryConstruction(
                 RuleRegistryError::UnsupportedOptimization(Optimization::ControlFlowCleanup)
+            ))
+        ));
+    }
+
+    #[test]
+    fn unsupported_selected_instruction_source_shape_fails_at_selection_boundary() {
+        let (semantic, proof) = artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target = omega_lowering_optimizer::lower_optimized_to_target_operations(
+            optimized,
+            NativeTarget::linux_x64(),
+        )
+        .unwrap();
+        assert!(matches!(
+            stage_optimized_instruction_selection(target),
+            Err(OptimizedSelectionPipelineError::Selection(
+                SelectedInstructionError::UnsupportedSourceShape { function: 0 }
+            ))
+        ));
+    }
+
+    #[test]
+    fn non_u64_conditional_fails_at_named_integer_selection_boundary() {
+        let (semantic, proof) = conditional_immediate_artifact_with_type(
+            IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+        );
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target = omega_lowering_optimizer::lower_optimized_to_target_operations(
+            optimized,
+            NativeTarget::linux_x64(),
+        )
+        .unwrap();
+        assert!(matches!(
+            stage_optimized_instruction_selection(target),
+            Err(OptimizedSelectionPipelineError::Selection(
+                SelectedInstructionError::UnsupportedIntegerShape { function: 0 }
             ))
         ));
     }
@@ -587,6 +786,460 @@ mod tests {
                 &corrupted,
             ),
             Err(OptimizedAssignmentCustodyError::FunctionProvenanceMismatch { position: 0 })
+        );
+    }
+
+    #[test]
+    fn verified_three_block_conditional_selects_typed_vregs_on_both_architectures() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let staged = staged_conditional(target);
+            let plan = staged.selected().plan();
+            assert_eq!(plan.functions.len(), 1);
+            assert_eq!(plan.functions[0].blocks.len(), 3);
+            assert_eq!(plan.functions[0].virtual_registers.len(), 3);
+            assert_eq!(staged.selected().receipt().instruction_count(), 6);
+            assert_eq!(
+                staged.custody().optimization_unit(),
+                staged.optimized_target().optimized().unit().identity
+            );
+            assert_eq!(staged.custody().fuel_schedule(), plan.fuel_schedule);
+            assert_eq!(
+                staged.custody().selected(),
+                staged.selected().receipt().identity()
+            );
+
+            let entry = &plan.functions[0].blocks[0];
+            assert_eq!(
+                entry.instructions[0].kind,
+                TerminalSelectedInstructionKind::CompareI64Zero
+            );
+            assert!(entry.instructions[0].provenance.fuel.is_empty());
+            let TerminalSelectedTerminator::ConditionalBranch {
+                instruction,
+                when_nonzero,
+                when_zero,
+            } = &entry.terminator
+            else {
+                panic!("entry must branch")
+            };
+            assert_eq!(
+                instruction.kind,
+                TerminalSelectedInstructionKind::ConditionalBranchNonZero
+            );
+            assert!(instruction.provenance.fuel.is_empty());
+            assert_eq!(when_nonzero.fuel.len(), 1);
+            assert_eq!(when_zero.fuel.len(), 1);
+            assert_ne!(when_nonzero.psi_edge, when_zero.psi_edge);
+            for block in &plan.functions[0].blocks[1..] {
+                assert!(matches!(
+                    block.instructions[0].kind,
+                    TerminalSelectedInstructionKind::MaterializeI64 { .. }
+                ));
+                assert_eq!(block.instructions[0].provenance.operations.len(), 1);
+                assert_eq!(block.instructions[0].provenance.fuel.len(), 1);
+                let TerminalSelectedTerminator::Return { instruction, .. } = &block.terminator
+                else {
+                    panic!("leaf must return")
+                };
+                assert!(instruction.operands[0].fixed_view.is_some());
+                assert_eq!(instruction.provenance.fuel.len(), 1);
+            }
+        }
+    }
+
+    fn validate_raw_selection(
+        staged: &StagedOptimizedSelectedInstructions,
+        raw: omega_terminal_selected_instructions::TerminalSelectedInstructionPlan,
+    ) -> Result<
+        omega_terminal_target_operations_to_selected_instructions::ValidatedTerminalSelectedInstructions,
+        SelectedInstructionError,
+    >{
+        let constraints = crate::selection::selection_constraints(
+            staged.optimized_target(),
+            staged.register_environment(),
+        );
+        validate_terminal_selected_instructions(
+            staged.optimized_target().target_operations(),
+            staged.optimized_target().optimized().plan(),
+            staged.optimized_target().optimized().unit(),
+            &constraints,
+            staged.register_environment().physical(),
+            staged.register_environment().constraints(),
+            raw,
+        )
+    }
+
+    #[test]
+    fn selected_cfg_validator_rejects_target_state_path_and_value_corruption() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let staged = staged_conditional(target);
+
+            let mut corrupted = staged.selected().plan().clone();
+            corrupted.functions[0].blocks[0].instructions[0]
+                .implicit_defs
+                .clear();
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::ConstraintEffectMismatch { .. })
+            ));
+
+            let mut corrupted = staged.selected().plan().clone();
+            let TerminalSelectedTerminator::ConditionalBranch {
+                when_nonzero,
+                when_zero,
+                ..
+            } = &mut corrupted.functions[0].blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            std::mem::swap(when_nonzero, when_zero);
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::SuccessorProjectionMismatch { .. })
+            ));
+
+            let mut corrupted = staged.selected().plan().clone();
+            corrupted.functions[0].virtual_registers[0].entry_fixed_view = None;
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::VirtualRegisterProjectionMismatch { .. })
+            ));
+
+            let mut corrupted = staged.selected().plan().clone();
+            let TerminalSelectedTerminator::Return { instruction, .. } =
+                &mut corrupted.functions[0].blocks[1].terminator
+            else {
+                unreachable!()
+            };
+            instruction.operands[0].fixed_view = None;
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+                    | Err(SelectedInstructionError::ConstraintOperandMismatch { .. })
+            ));
+
+            let mut corrupted = staged.selected().plan().clone();
+            corrupted.functions[0].blocks[1].instructions[0].operands[0].tied_to = Some(0);
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+                    | Err(SelectedInstructionError::ConstraintOperandMismatch { .. })
+            ));
+
+            let mut corrupted = staged.selected().plan().clone();
+            corrupted.functions[0].blocks[1].instructions[0].operands[0].early_clobber = true;
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+                    | Err(SelectedInstructionError::ConstraintOperandMismatch { .. })
+            ));
+
+            let mut corrupted = staged.selected().plan().clone();
+            let TerminalSelectedTerminator::Return { instruction, .. } =
+                &mut corrupted.functions[0].blocks[1].terminator
+            else {
+                unreachable!()
+            };
+            instruction.operands[0].virtual_register =
+                omega_terminal_selected_instructions::TerminalVirtualRegisterId(2);
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+                    | Err(SelectedInstructionError::UseBeforeDefinition { .. })
+            ));
+
+            let mut corrupted = staged.selected().plan().clone();
+            corrupted.functions[0].blocks[1].instructions[0].kind =
+                TerminalSelectedInstructionKind::MaterializeI64 {
+                    value: IntegerValue::Unsigned(11),
+                };
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            ));
+
+            let mut corrupted = staged.selected().plan().clone();
+            corrupted.functions[0].blocks[1].instructions[0]
+                .provenance
+                .values[0] = ValueId::new(8_001).unwrap();
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            ));
+
+            let mut corrupted = staged.selected().plan().clone();
+            let TerminalSelectedTerminator::ConditionalBranch { when_nonzero, .. } =
+                &mut corrupted.functions[0].blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            when_nonzero.psi_edge = EdgeId::new(8_002).unwrap();
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::SuccessorProjectionMismatch { .. })
+            ));
+
+            let mut corrupted = staged.selected().plan().clone();
+            let TerminalSelectedTerminator::ConditionalBranch { when_zero, .. } =
+                &mut corrupted.functions[0].blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            when_zero.fuel[0].units += 1;
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::SuccessorProjectionMismatch { .. })
+                    | Err(SelectedInstructionError::ProvenancePartitionMismatch { .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn selected_content_identity_binds_every_retained_field_class() {
+        let staged = staged_conditional(NativeTarget::linux_x64());
+        let original = staged.selected().plan();
+        let identity = terminal_selected_instruction_plan_identity(original);
+        let mut mutations = Vec::new();
+
+        let mut changed = original.clone();
+        changed.target = NativeTarget::windows_x64();
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.entry = MachineId::new(8_009).unwrap();
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].machine = MachineId::new(8_018).unwrap();
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].attachment = Some(psi_core::StructuralTypeId::new(8_010).unwrap());
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0]
+            .provenance
+            .operations
+            .push(OperationId::new(8_011).unwrap());
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0]
+            .provenance
+            .edges
+            .push(EdgeId::new(8_019).unwrap());
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].entry_block.0 += 1;
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].virtual_registers[1].scalar_type = ScalarType::Boolean;
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].virtual_registers[1].id.0 += 1;
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].virtual_registers[1].class.0 += 1;
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].virtual_registers[1].origin =
+            omega_terminal_selected_instructions::TerminalVirtualRegisterOrigin::InstructionResult {
+                instruction: omega_terminal_selected_instructions::TerminalSelectedInstructionId(4),
+                source_value: ValueId::new(8_012).unwrap(),
+            };
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].virtual_registers[1].definition_site = ValueDefinitionSite::Node {
+            block: BlockId::new(8_013).unwrap(),
+            node: 7,
+        };
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].virtual_registers[0].entry_fixed_view = None;
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].id.0 += 1;
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].source_block = BlockId::new(8_020).unwrap();
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].instructions.clear();
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].instructions[0].id.0 += 1;
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].instructions[0].kind =
+            TerminalSelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(12),
+            };
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].instructions[0]
+            .constraint
+            .variant += 1;
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].instructions[0].operands[0].access =
+            RegisterOperandAccess::Use;
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].instructions[0].operands[0].tied_to = Some(0);
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].instructions[0].operands[0].early_clobber = true;
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].instructions[0]
+            .implicit_uses
+            .push(RegisterUnitId(999));
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[0].instructions[0]
+            .implicit_defs
+            .clear();
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].instructions[0]
+            .clobbers
+            .push(RegisterUnitId(998));
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].instructions[0]
+            .provenance
+            .operations
+            .push(OperationId::new(8_021).unwrap());
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].instructions[0]
+            .provenance
+            .values
+            .push(ValueId::new(8_022).unwrap());
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].instructions[0]
+            .provenance
+            .edges
+            .push(EdgeId::new(8_023).unwrap());
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].instructions[0]
+            .provenance
+            .obligations
+            .push(ObligationId::new(8_014).unwrap());
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.functions[0].blocks[1].instructions[0]
+            .provenance
+            .fuel[0]
+            .units += 1;
+        mutations.push(changed);
+        let mut changed = original.clone();
+        let TerminalSelectedTerminator::ConditionalBranch { when_nonzero, .. } =
+            &mut changed.functions[0].blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        when_nonzero.bindings.push(TerminalValueBinding {
+            parameter: ValueId::new(8_015).unwrap(),
+            argument: ValueId::new(8_016).unwrap(),
+            scalar_type: ScalarType::Boolean,
+        });
+        mutations.push(changed);
+        let mut changed = original.clone();
+        let TerminalSelectedTerminator::ConditionalBranch { when_nonzero, .. } =
+            &mut changed.functions[0].blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        when_nonzero.source_target = BlockId::new(8_024).unwrap();
+        mutations.push(changed);
+        let mut changed = original.clone();
+        let TerminalSelectedTerminator::ConditionalBranch { when_zero, .. } =
+            &mut changed.functions[0].blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        when_zero.fuel[0].units += 1;
+        mutations.push(changed);
+        let mut changed = original.clone();
+        let TerminalSelectedTerminator::Return {
+            psi_return_edge, ..
+        } = &mut changed.functions[0].blocks[1].terminator
+        else {
+            unreachable!()
+        };
+        *psi_return_edge = EdgeId::new(8_017).unwrap();
+        mutations.push(changed);
+
+        for mutation in mutations {
+            assert_ne!(
+                terminal_selected_instruction_plan_identity(&mutation),
+                identity
+            );
+        }
+    }
+
+    #[test]
+    fn staged_selection_custody_rejects_detached_environment_and_selected_plan() {
+        let x86 = staged_conditional(NativeTarget::linux_x64());
+        let arm = staged_conditional(NativeTarget::linux_arm64());
+        assert_eq!(
+            validate_optimized_selection_custody(
+                x86.optimized_target(),
+                arm.register_environment(),
+                x86.selected(),
+            ),
+            Err(OptimizedSelectionCustodyError::RegisterEnvironmentTargetMismatch)
+        );
+        assert_eq!(
+            validate_optimized_selection_custody(
+                x86.optimized_target(),
+                x86.register_environment(),
+                arm.selected(),
+            ),
+            Err(OptimizedSelectionCustodyError::RootMismatch)
+        );
+
+        let mut target = x86.optimized_target().target_operations().clone();
+        let forged_operation = OperationId::new(8_030).unwrap();
+        target.functions[0]
+            .provenance
+            .operations
+            .push(forged_operation);
+        let mut selected = x86.selected().plan().clone();
+        selected.functions[0]
+            .provenance
+            .operations
+            .push(forged_operation);
+        let constraints = crate::selection::selection_constraints(
+            x86.optimized_target(),
+            x86.register_environment(),
+        );
+        assert_eq!(
+            validate_terminal_selected_instructions(
+                &target,
+                x86.optimized_target().optimized().plan(),
+                x86.optimized_target().optimized().unit(),
+                &constraints,
+                x86.register_environment().physical(),
+                x86.register_environment().constraints(),
+                selected,
+            ),
+            Err(SelectedInstructionError::SourceCustodyMismatch)
+        );
+
+        let mut unit = x86.optimized_target().optimized().unit().clone();
+        unit.functions[0].blocks[0].nodes[0].effect.output += 1_000;
+        unit.identity = omega_optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+        assert_eq!(
+            validate_terminal_selected_instructions(
+                x86.optimized_target().target_operations(),
+                x86.optimized_target().optimized().plan(),
+                &unit,
+                &constraints,
+                x86.register_environment().physical(),
+                x86.register_environment().constraints(),
+                x86.selected().plan().clone(),
+            ),
+            Err(SelectedInstructionError::SourceCustodyMismatch)
         );
     }
 }

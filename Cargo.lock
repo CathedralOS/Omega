@@ -1123,6 +1123,7 @@ version = "0.1.0"
 dependencies = [
  "omega-lowering-optimizer",
  "omega-optimization-core",
+ "omega-optimization-unit",
  "omega-psi-optimizer",
  "omega-register-model",
  "omega-target",
@@ -1132,7 +1133,10 @@ dependencies = [
  "omega-terminal-isa-aarch64",
  "omega-terminal-isa-x86_64",
  "omega-terminal-psi-to-abstract-operations",
+ "omega-terminal-selected-instructions",
+ "omega-terminal-target-operations",
  "omega-terminal-target-operations-to-assigned-target-operations",
+ "omega-terminal-target-operations-to-selected-instructions",
  "psi-core",
  "psi-proof-admission",
  "psi-terminal",
@@ -1686,6 +1690,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-terminal-selected-instructions"
+version = "0.1.0"
+dependencies = [
+ "omega-optimization-unit",
+ "omega-register-model",
+ "omega-target",
+ "omega-terminal-abstract-operations",
+ "omega-terminal-target-operations",
+ "psi-core",
+ "psi-terminal",
+ "sha2",
+]
+
+[[package]]
 name = "omega-terminal-target-operations"
 version = "0.1.0"
 dependencies = [
@@ -1703,6 +1721,22 @@ dependencies = [
  "omega-calling-conventions",
  "omega-target",
  "omega-terminal-assigned-target-operations",
+ "omega-terminal-target-operations",
+ "psi-core",
+ "psi-terminal",
+]
+
+[[package]]
+name = "omega-terminal-target-operations-to-selected-instructions"
+version = "0.1.0"
+dependencies = [
+ "omega-optimization-core",
+ "omega-optimization-unit",
+ "omega-optimization-validation",
+ "omega-register-model",
+ "omega-target",
+ "omega-terminal-abstract-operations",
+ "omega-terminal-selected-instructions",
  "omega-terminal-target-operations",
  "psi-core",
  "psi-terminal",
