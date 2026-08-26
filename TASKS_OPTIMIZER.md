@@ -443,15 +443,17 @@ These facts constrain the work below.
   downstream records and compiler artifact/rebuild-metadata integration.
   The first independently validated post-allocation extension is now retained
   by both strict register-home carriers. It joins the pre-physical manifest to
-  the exact target, selected plan, optional fixed-view-copy transformation,
+  the exact target, selected plan, ordered typed selected-transformation ledger,
   liveness/range/legality/environment/home identities, and exact function,
   assignment, distinct-view, interference, and zero-transition counts. It may
   state that spills were not required for that validated home plan, but marks
   frame, emission, and publication unavailable. Its human renderer is again a
-  projection of the content-identified record. A versioned canonical codec
-  round-trips both direct and post-copy forms, reconstructs typed target and
-  stage fields, and rejects identity tampering, unknown tags, truncation, and
-  trailing bytes. Decoding remains non-authoritative. Final physical/
+  projection of the content-identified record. The transformation ledger
+  distinguishes fixed-view-copy and literal-fold identities in application
+  order and rejects exact duplicates. A versioned canonical codec round-trips
+  direct and transformed forms, reconstructs typed target and stage fields,
+  and rejects identity tampering, unknown tags, truncation, and trailing bytes.
+  Decoding remains non-authoritative. Final physical/
   publication and artifact metadata remain open.
 - `omega-lowering-optimizer` now owns a custody-preserving bridge from a
   completed `OptimizationRun` to a clean `TerminalAbstractOperationPlan`.
@@ -954,9 +956,10 @@ dependency.
   returns only the plain plan; independent home validation remains required
   before custody can accept artifact or cache bytes.
   Both direct and post-copy home carriers now retain an independently
-  reconstructed post-allocation manifest identity. The post-copy record binds
-  both the transformed selected-plan identity and the exact fixed-view-copy
-  transformation identity; it cannot masquerade as an untransformed home plan.
+  reconstructed post-allocation manifest identity. The record binds the final
+  selected-plan identity plus an ordered typed transformation ledger; fixed-
+  view-copy and literal-fold identities cannot masquerade as each other or as
+  an untransformed home plan.
   The record exposes exact assignment/view/interference statistics and marks
   frame, emission, and publication unavailable rather than inventing them.
   The exact named `LeafLocalBeforeFixedUseV1` artifact now closes the admitted

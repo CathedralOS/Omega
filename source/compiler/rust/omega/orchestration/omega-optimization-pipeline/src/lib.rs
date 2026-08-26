@@ -185,11 +185,12 @@ mod tests {
     use omega_psi_optimizer::{OptimizationRunError, RuleRegistryError};
     use omega_regalloc::{
         PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
-        TerminalAllocationLegalityError, TerminalAllocatorAvailabilityError,
-        TerminalAllocatorAvailabilityPolicy, TerminalArchitecturalUnitActionKind,
-        TerminalFixedViewCopyError, TerminalFixedViewCopyPolicy, TerminalLiteralFoldPlan,
-        TerminalLiteralFoldPolicy, TerminalLiveRangeError, TerminalLiveRangeFragment,
-        TerminalLiveRangePoint, TerminalLivenessError, TerminalRecoveryClassification,
+        PostAllocationSelectedTransformation, TerminalAllocationLegalityError,
+        TerminalAllocatorAvailabilityError, TerminalAllocatorAvailabilityPolicy,
+        TerminalArchitecturalUnitActionKind, TerminalFixedViewCopyError,
+        TerminalFixedViewCopyPolicy, TerminalLiteralFoldPlan, TerminalLiteralFoldPolicy,
+        TerminalLiveRangeError, TerminalLiveRangeFragment, TerminalLiveRangePoint,
+        TerminalLivenessError, TerminalRecoveryClassification,
         TerminalRecoveryClassificationPolicy, TerminalRecoveryVictimRole,
         TerminalRegisterHomeError, TerminalRegisterHomePlan, TerminalSpillChoicePolicy,
         TerminalVirtualFixedConstraintSite, TerminalVirtualInterference,
@@ -2919,7 +2920,7 @@ mod tests {
             );
             assert_eq!(manifest.pre_physical, staged.custody().manifest());
             assert_eq!(manifest.target, target);
-            assert_eq!(manifest.fixed_view_copy, None);
+            assert!(manifest.selected_transformations.is_empty());
             assert_eq!(manifest.homes, staged.homes().receipt().identity());
             assert_eq!(manifest.statistics.functions, 1);
             assert_eq!(manifest.statistics.assignments, 3);
@@ -2942,7 +2943,7 @@ mod tests {
                 validate_post_allocation_optimization_manifest(
                     manifest,
                     staged.custody().manifest(),
-                    None,
+                    &[],
                     ranges.ranges(),
                     legality.legality(),
                     staged.homes(),
@@ -2956,7 +2957,7 @@ mod tests {
                 validate_post_allocation_optimization_manifest(
                     &corrupted,
                     staged.custody().manifest(),
-                    None,
+                    &[],
                     ranges.ranges(),
                     legality.legality(),
                     staged.homes(),
@@ -2968,7 +2969,7 @@ mod tests {
                 validate_post_allocation_optimization_manifest(
                     &corrupted,
                     staged.custody().manifest(),
-                    None,
+                    &[],
                     ranges.ranges(),
                     legality.legality(),
                     staged.homes(),
@@ -3313,8 +3314,10 @@ mod tests {
                 Ok(manifest.clone())
             );
             assert_eq!(
-                manifest.fixed_view_copy,
-                Some(homes.custody().source().source().transformation())
+                manifest.selected_transformations,
+                vec![PostAllocationSelectedTransformation::FixedViewCopy(
+                    homes.custody().source().source().transformation()
+                )]
             );
             assert_eq!(
                 manifest.selected,
@@ -3322,6 +3325,20 @@ mod tests {
             );
             assert_eq!(manifest.statistics.assignments, 4);
             assert_eq!(manifest.statistics.virtual_interferences, 1);
+            let transformation = PostAllocationSelectedTransformation::FixedViewCopy(
+                homes.custody().source().source().transformation(),
+            );
+            assert_eq!(
+                validate_post_allocation_optimization_manifest(
+                    manifest,
+                    homes.custody().source().source().manifest(),
+                    &[transformation, transformation],
+                    homes.reanalysis_stage().ranges(),
+                    homes.reanalysis_stage().legality(),
+                    homes.homes(),
+                ),
+                Err(PostAllocationOptimizationManifestError::NonCanonicalTransformationLedger)
+            );
             assert_eq!(
                 homes.custody().post_allocation_manifest(),
                 manifest.identity

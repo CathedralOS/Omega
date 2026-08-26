@@ -10,13 +10,13 @@ use omega_terminal_selected_instructions::TerminalSelectedInstructionPlanIdentit
 
 use crate::{
     TerminalAllocationLegalityIdentity, TerminalAllocatorAvailabilityIdentity,
-    TerminalFixedViewCopyIdentity, TerminalLiveRangeIdentity, TerminalLivenessIdentity,
-    TerminalRegisterHomeIdentity, ValidatedTerminalAllocationLegality, ValidatedTerminalLiveRanges,
-    ValidatedTerminalRegisterHomes,
+    TerminalFixedViewCopyIdentity, TerminalLiteralFoldIdentity, TerminalLiveRangeIdentity,
+    TerminalLivenessIdentity, TerminalRegisterHomeIdentity, ValidatedTerminalAllocationLegality,
+    ValidatedTerminalLiveRanges, ValidatedTerminalRegisterHomes,
 };
 
 const POST_ALLOCATION_MANIFEST_MAGIC: &[u8; 8] = b"OMGPAO\0\0";
-const POST_ALLOCATION_MANIFEST_VERSION: u32 = 2;
+const POST_ALLOCATION_MANIFEST_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostAllocationManifestStage {
@@ -42,6 +42,15 @@ pub struct PostAllocationStatistics {
     pub fixed_view_transitions: u64,
 }
 
+/// Ordered physical-form rewrites applied to the selected CFG before the
+/// rooted liveness/range/legality/home chain. Order is semantic custody; this
+/// is not an unordered feature or optimization-level set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PostAllocationSelectedTransformation {
+    FixedViewCopy(TerminalFixedViewCopyIdentity),
+    LiteralFold(TerminalLiteralFoldIdentity),
+}
+
 /// Structured report at the first independently validated physical-home
 /// boundary. This record is not machine-emission or publication authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,7 +60,7 @@ pub struct PostAllocationOptimizationManifest {
     pub pre_physical: PrePhysicalOptimizationManifestIdentity,
     pub target: NativeTarget,
     pub selected: TerminalSelectedInstructionPlanIdentity,
-    pub fixed_view_copy: Option<TerminalFixedViewCopyIdentity>,
+    pub selected_transformations: Vec<PostAllocationSelectedTransformation>,
     pub liveness: TerminalLivenessIdentity,
     pub ranges: TerminalLiveRangeIdentity,
     pub legality: TerminalAllocationLegalityIdentity,
@@ -68,7 +77,7 @@ pub struct PostAllocationOptimizationManifest {
 impl PostAllocationOptimizationManifest {
     pub fn recomputed_identity(&self) -> PostAllocationOptimizationManifestIdentity {
         let mut canonical = Vec::new();
-        canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v2\0");
+        canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v3\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         PostAllocationOptimizationManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -106,13 +115,26 @@ impl PostAllocationOptimizationManifest {
         let pre_physical = PrePhysicalOptimizationManifestIdentity::from_bytes(cursor.array()?);
         let target = decode_target(&mut cursor)?;
         let selected = TerminalSelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
-        let fixed_view_copy = match cursor.byte()? {
-            0 => None,
-            1 => Some(TerminalFixedViewCopyIdentity::from_bytes(cursor.array()?)),
-            tag => {
-                return Err(PostAllocationOptimizationManifestDecodeError::UnknownOptionalTag(tag));
-            }
-        };
+        let transformation_count = cursor.length()?;
+        let mut selected_transformations =
+            Vec::with_capacity(transformation_count.min(cursor.remaining()));
+        for _ in 0..transformation_count {
+            selected_transformations.push(match cursor.byte()? {
+                1 => PostAllocationSelectedTransformation::FixedViewCopy(
+                    TerminalFixedViewCopyIdentity::from_bytes(cursor.array()?),
+                ),
+                2 => PostAllocationSelectedTransformation::LiteralFold(
+                    TerminalLiteralFoldIdentity::from_bytes(cursor.array()?),
+                ),
+                tag => {
+                    return Err(
+                        PostAllocationOptimizationManifestDecodeError::UnknownTransformationTag(
+                            tag,
+                        ),
+                    );
+                }
+            });
+        }
         let liveness = TerminalLivenessIdentity::from_bytes(cursor.array()?);
         let ranges = TerminalLiveRangeIdentity::from_bytes(cursor.array()?);
         let legality = TerminalAllocationLegalityIdentity::from_bytes(cursor.array()?);
@@ -145,7 +167,7 @@ impl PostAllocationOptimizationManifest {
             pre_physical,
             target,
             selected,
-            fixed_view_copy,
+            selected_transformations,
             liveness,
             ranges,
             legality,
@@ -184,12 +206,26 @@ impl PostAllocationOptimizationManifest {
         writeln!(output, "selected plan: {}", hex(&self.selected.bytes())).unwrap();
         writeln!(
             output,
-            "fixed-view copy: {}",
-            self.fixed_view_copy
-                .map(|identity| hex(&identity.bytes()))
-                .unwrap_or_else(|| "absent".into())
+            "selected transformations: {}",
+            self.selected_transformations.len()
         )
         .unwrap();
+        for (index, transformation) in self.selected_transformations.iter().enumerate() {
+            let (kind, identity) = match transformation {
+                PostAllocationSelectedTransformation::FixedViewCopy(identity) => {
+                    ("fixed-view-copy", identity.bytes())
+                }
+                PostAllocationSelectedTransformation::LiteralFold(identity) => {
+                    ("literal-fold", identity.bytes())
+                }
+            };
+            writeln!(
+                output,
+                "selected transformation {index}: {kind} {}",
+                hex(&identity)
+            )
+            .unwrap();
+        }
         writeln!(output, "register homes: {}", hex(&self.homes.bytes())).unwrap();
         writeln!(
             output,
@@ -241,6 +277,7 @@ pub enum PostAllocationOptimizationManifestError {
     RootMismatch,
     UnresolvedFixedViewTransitions,
     StatisticsOverflow,
+    NonCanonicalTransformationLedger,
     IdentityMismatch,
     ContentMismatch,
 }
@@ -265,7 +302,8 @@ pub enum PostAllocationOptimizationManifestDecodeError {
     UnknownArchitecture(u8),
     UnknownObjectFormat(u8),
     TargetLayoutOverflow,
-    UnknownOptionalTag(u8),
+    LengthOverflow,
+    UnknownTransformationTag(u8),
     UnknownSpillStatus(u8),
     UnknownUnavailableStatus(u8),
     IdentityMismatch,
@@ -285,19 +323,25 @@ impl std::error::Error for PostAllocationOptimizationManifestDecodeError {}
 
 pub fn project_post_allocation_optimization_manifest(
     pre_physical: PrePhysicalOptimizationManifestIdentity,
-    fixed_view_copy: Option<TerminalFixedViewCopyIdentity>,
+    selected_transformations: &[PostAllocationSelectedTransformation],
     ranges: &ValidatedTerminalLiveRanges,
     legality: &ValidatedTerminalAllocationLegality,
     homes: &ValidatedTerminalRegisterHomes,
 ) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
-    let record = expected_record(pre_physical, fixed_view_copy, ranges, legality, homes)?;
+    let record = expected_record(
+        pre_physical,
+        selected_transformations,
+        ranges,
+        legality,
+        homes,
+    )?;
     Ok(ValidatedPostAllocationOptimizationManifest { record })
 }
 
 pub fn validate_post_allocation_optimization_manifest(
     candidate: &PostAllocationOptimizationManifest,
     pre_physical: PrePhysicalOptimizationManifestIdentity,
-    fixed_view_copy: Option<TerminalFixedViewCopyIdentity>,
+    selected_transformations: &[PostAllocationSelectedTransformation],
     ranges: &ValidatedTerminalLiveRanges,
     legality: &ValidatedTerminalAllocationLegality,
     homes: &ValidatedTerminalRegisterHomes,
@@ -305,7 +349,13 @@ pub fn validate_post_allocation_optimization_manifest(
     if candidate.identity != candidate.recomputed_identity() {
         return Err(PostAllocationOptimizationManifestError::IdentityMismatch);
     }
-    let expected = expected_record(pre_physical, fixed_view_copy, ranges, legality, homes)?;
+    let expected = expected_record(
+        pre_physical,
+        selected_transformations,
+        ranges,
+        legality,
+        homes,
+    )?;
     if candidate != &expected {
         return Err(PostAllocationOptimizationManifestError::ContentMismatch);
     }
@@ -316,11 +366,23 @@ pub fn validate_post_allocation_optimization_manifest(
 
 fn expected_record(
     pre_physical: PrePhysicalOptimizationManifestIdentity,
-    fixed_view_copy: Option<TerminalFixedViewCopyIdentity>,
+    selected_transformations: &[PostAllocationSelectedTransformation],
     ranges: &ValidatedTerminalLiveRanges,
     legality: &ValidatedTerminalAllocationLegality,
     homes: &ValidatedTerminalRegisterHomes,
 ) -> Result<PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
+    let mut unique_transformations = BTreeSet::new();
+    if selected_transformations.iter().any(|transformation| {
+        let key = match transformation {
+            PostAllocationSelectedTransformation::FixedViewCopy(identity) => {
+                (1_u8, identity.bytes())
+            }
+            PostAllocationSelectedTransformation::LiteralFold(identity) => (2_u8, identity.bytes()),
+        };
+        !unique_transformations.insert(key)
+    }) {
+        return Err(PostAllocationOptimizationManifestError::NonCanonicalTransformationLedger);
+    }
     if legality.receipt().ranges() != ranges.receipt().identity()
         || homes.receipt().legality() != legality.receipt().identity()
         || homes.receipt().ranges() != ranges.receipt().identity()
@@ -368,7 +430,7 @@ fn expected_record(
         pre_physical,
         target: ranges.plan().target,
         selected: ranges.plan().selected,
-        fixed_view_copy,
+        selected_transformations: selected_transformations.to_vec(),
         liveness: ranges.receipt().liveness(),
         ranges: ranges.receipt().identity(),
         legality: legality.receipt().identity(),
@@ -407,11 +469,21 @@ fn encode_manifest_content(manifest: &PostAllocationOptimizationManifest) -> Vec
     canonical.extend_from_slice(&manifest.pre_physical.bytes());
     encode_target(&mut canonical, manifest.target);
     canonical.extend_from_slice(&manifest.selected.bytes());
-    match manifest.fixed_view_copy {
-        None => canonical.push(0),
-        Some(identity) => {
-            canonical.push(1);
-            canonical.extend_from_slice(&identity.bytes());
+    canonical.extend_from_slice(
+        &u64::try_from(manifest.selected_transformations.len())
+            .expect("post-allocation transformation length fits u64")
+            .to_le_bytes(),
+    );
+    for transformation in &manifest.selected_transformations {
+        match transformation {
+            PostAllocationSelectedTransformation::FixedViewCopy(identity) => {
+                canonical.push(1);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            PostAllocationSelectedTransformation::LiteralFold(identity) => {
+                canonical.push(2);
+                canonical.extend_from_slice(&identity.bytes());
+            }
         }
     }
     canonical.extend_from_slice(&manifest.liveness.bytes());
@@ -533,6 +605,11 @@ impl<'encoded> PostAllocationManifestCursor<'encoded> {
         Ok(self.array::<1>()?[0])
     }
 
+    fn length(&mut self) -> Result<usize, PostAllocationOptimizationManifestDecodeError> {
+        usize::try_from(u64::from_le_bytes(self.array()?))
+            .map_err(|_| PostAllocationOptimizationManifestDecodeError::LengthOverflow)
+    }
+
     fn remaining(&self) -> usize {
         self.encoded.len() - self.offset
     }
@@ -566,7 +643,7 @@ mod tests {
             pre_physical: PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"pre"),
             target: NativeTarget::linux_x64(),
             selected: TerminalSelectedInstructionPlanIdentity::from_canonical_bytes(b"selected"),
-            fixed_view_copy: None,
+            selected_transformations: Vec::new(),
             liveness: TerminalLivenessIdentity([1; 32]),
             ranges: TerminalLiveRangeIdentity::from_bytes([2; 32]),
             legality: TerminalAllocationLegalityIdentity::from_bytes([3; 32]),
@@ -603,7 +680,20 @@ mod tests {
                 record.selected =
                     TerminalSelectedInstructionPlanIdentity::from_canonical_bytes(b"other")
             },
-            |record| record.fixed_view_copy = Some(TerminalFixedViewCopyIdentity([6; 32])),
+            |record| {
+                record.selected_transformations.push(
+                    PostAllocationSelectedTransformation::FixedViewCopy(
+                        TerminalFixedViewCopyIdentity([6; 32]),
+                    ),
+                )
+            },
+            |record| {
+                record.selected_transformations.push(
+                    PostAllocationSelectedTransformation::LiteralFold(
+                        TerminalLiteralFoldIdentity::from_bytes([13; 32]),
+                    ),
+                )
+            },
             |record| record.liveness = TerminalLivenessIdentity([7; 32]),
             |record| record.ranges = TerminalLiveRangeIdentity::from_bytes([8; 32]),
             |record| record.legality = TerminalAllocationLegalityIdentity::from_bytes([9; 32]),
@@ -641,12 +731,19 @@ mod tests {
             Ok(direct)
         );
 
-        let mut post_copy = record();
-        post_copy.fixed_view_copy = Some(TerminalFixedViewCopyIdentity([12; 32]));
-        post_copy.identity = post_copy.recomputed_identity();
+        let mut transformed = record();
+        transformed.selected_transformations = vec![
+            PostAllocationSelectedTransformation::FixedViewCopy(TerminalFixedViewCopyIdentity(
+                [12; 32],
+            )),
+            PostAllocationSelectedTransformation::LiteralFold(
+                TerminalLiteralFoldIdentity::from_bytes([13; 32]),
+            ),
+        ];
+        transformed.identity = transformed.recomputed_identity();
         assert_eq!(
-            PostAllocationOptimizationManifest::decode(&post_copy.encode()),
-            Ok(post_copy)
+            PostAllocationOptimizationManifest::decode(&transformed.encode()),
+            Ok(transformed)
         );
 
         let mut identity_tamper = encoded.clone();
@@ -672,10 +769,10 @@ mod tests {
             Err(PostAllocationOptimizationManifestDecodeError::WrongMagic)
         );
         let mut wrong_version = encoded.clone();
-        wrong_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
         assert_eq!(
             PostAllocationOptimizationManifest::decode(&wrong_version),
-            Err(PostAllocationOptimizationManifestDecodeError::UnsupportedVersion(3))
+            Err(PostAllocationOptimizationManifestDecodeError::UnsupportedVersion(4))
         );
         let content_offset = 8 + 4 + 32;
         let mut unknown_architecture = encoded.clone();
@@ -684,12 +781,18 @@ mod tests {
             PostAllocationOptimizationManifest::decode(&unknown_architecture),
             Err(PostAllocationOptimizationManifestDecodeError::UnknownArchitecture(9))
         );
-        let mut unknown_optional = encoded;
-        let optional_offset = content_offset + 1 + 32 + 18 + 32;
-        unknown_optional[optional_offset] = 9;
+        let mut one_transformation = record();
+        one_transformation.selected_transformations =
+            vec![PostAllocationSelectedTransformation::FixedViewCopy(
+                TerminalFixedViewCopyIdentity([12; 32]),
+            )];
+        one_transformation.identity = one_transformation.recomputed_identity();
+        let mut unknown_transformation = one_transformation.encode();
+        let transformation_tag_offset = content_offset + 1 + 32 + 18 + 32 + 8;
+        unknown_transformation[transformation_tag_offset] = 9;
         assert_eq!(
-            PostAllocationOptimizationManifest::decode(&unknown_optional),
-            Err(PostAllocationOptimizationManifestDecodeError::UnknownOptionalTag(9))
+            PostAllocationOptimizationManifest::decode(&unknown_transformation),
+            Err(PostAllocationOptimizationManifestDecodeError::UnknownTransformationTag(9))
         );
     }
 }
