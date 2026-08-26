@@ -3,7 +3,8 @@ use omega_terminal_selected_instructions::{TerminalSelectedBlockId, TerminalVirt
 use psi_core::MachineId;
 
 use crate::{
-    TerminalLiveRangeIdentity, TerminalLiveRangePoint, TerminalVirtualFixedConstraintSite,
+    TerminalAllocatorAvailabilityIdentity, TerminalLiveRangeIdentity, TerminalLiveRangePoint,
+    TerminalVirtualFixedConstraintSite,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -26,6 +27,7 @@ impl TerminalAllocationLegalityIdentity {
 pub struct TerminalAllocationLegalityPlan {
     pub ranges: TerminalLiveRangeIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
+    pub allocator_availability: TerminalAllocatorAvailabilityIdentity,
     pub functions: Vec<TerminalFunctionAllocationLegality>,
 }
 
@@ -63,6 +65,7 @@ pub struct TerminalAllocationLegalityValidationReceipt {
     pub(crate) identity: TerminalAllocationLegalityIdentity,
     pub(crate) ranges: TerminalLiveRangeIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
+    pub(crate) allocator_availability: TerminalAllocatorAvailabilityIdentity,
     pub(crate) function_count: usize,
     pub(crate) virtual_register_count: usize,
     pub(crate) point_count: usize,
@@ -79,6 +82,9 @@ impl TerminalAllocationLegalityValidationReceipt {
     }
     pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
         self.register_environment
+    }
+    pub const fn allocator_availability(self) -> TerminalAllocatorAvailabilityIdentity {
+        self.allocator_availability
     }
     pub const fn function_count(self) -> usize {
         self.function_count

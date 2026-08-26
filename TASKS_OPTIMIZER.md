@@ -47,6 +47,13 @@ These facts constrain the work below.
   pressure-victim decision. It is not yet a general allocator: the latter is
   evidence about which value could leave the current homes, not authority to
   spill, reload, rematerialize, allocate a frame, or emit instructions.
+  A separate validated allocator-availability artifact now narrows only
+  unconstrained allocator candidates under either the named
+  `AllEnvironmentAllocatableViewsV1` baseline or an explicit canonical view
+  allowlist. It is compiler-internal policy, not target capability, a hardware
+  reservation, a public build optimization selection, or an optimization
+  level. Fixed ABI/operand views bypass the flexible allowlist but remain
+  subject to reservation and architectural-state conflicts.
   Clean Terminal-ISA-owned x86-64 declarations split every GPR into exact
   byte/word/dword/qword storage lanes, retain non-allocatable high-byte views,
   model 32-bit zero-extension, and cover XMM, RFLAGS, and RIP state. AArch64
@@ -926,6 +933,14 @@ dependency.
   two explicit entry-to-return transition requirements (`RSI -> RAX` or
   `X1 -> X0`), while the constant fixture exposes none. This artifact grants no
   split, copy insertion, home, spill, frame, emission, or publication authority.
+  Legality now directly binds an independently validated allocator-availability
+  identity. The baseline admits every structurally allocatable view whose full
+  storage/write footprint avoids active reservations; an explicit allowlist may
+  only remove from that set and fails closed if an unconstrained point becomes
+  empty. The artifact has a strict v1 codec, while legality and every dependent
+  fixed-copy/home/pressure/recovery/post-allocation identities and applicable
+  codecs moved to a new schema domain/version so cached custody cannot silently
+  cross policies.
   A subsequent bounded home artifact accepts only transition-free plans,
   chooses the lowest stable shared legal view in first-live-point/VReg order,
   checks exact interference and complete write footprints, and is independently
@@ -1020,8 +1035,14 @@ dependency.
   victim gets an exact no-admitted-recovery reason, never an inferred spill.
   The identity-bound codec and structurally separate replay grant no strategy,
   code mutation, fuel movement, storage, frame, emission, or publication
-  authority. Next add an explicit allocator-availability policy for a
-  production pressure vertical, then implement a separately named literal
+  authority. The separately validated allocator-availability boundary now
+  supplies that production pressure vertical without misusing reservation
+  overlays: retaining only `rdi` on x86-64 or `x0` on AArch64 makes the second
+  exact-add literal the deterministic incoming victim on both targets, while
+  fixed views outside the flexible allowlist remain exact and legal. The victim
+  is positively classified as the immediate-u64 literal `8`. Default staging
+  retains every environment-allocatable view and preserves the former
+  spill-free homes. Next implement a separately named literal
   sink/rematerialization transform with complete reanalysis. Selected-value
   ownership/proof custody and target frame policy must still join before any
   victim can become a typed spill or reload.

@@ -15,12 +15,12 @@ use psi_core::{
 
 use crate::recovery_classification_identity::encode_terminal_recovery_classification_content;
 use crate::{
-    TerminalAllocationLegalityIdentity, TerminalLiveRangeIdentity, TerminalLiveRangePoint,
-    TerminalSpillChoiceIdentity,
+    TerminalAllocationLegalityIdentity, TerminalAllocatorAvailabilityIdentity,
+    TerminalLiveRangeIdentity, TerminalLiveRangePoint, TerminalSpillChoiceIdentity,
 };
 
 const RECOVERY_CLASSIFICATION_MAGIC: &[u8; 8] = b"OMGRCV\0\0";
-const RECOVERY_CLASSIFICATION_VERSION: u32 = 1;
+const RECOVERY_CLASSIFICATION_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalRecoveryClassificationIdentity(pub(crate) [u8; 32]);
@@ -55,6 +55,7 @@ pub struct TerminalRecoveryClassificationPlan {
     pub ranges: TerminalLiveRangeIdentity,
     pub legality: TerminalAllocationLegalityIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
+    pub allocator_availability: TerminalAllocatorAvailabilityIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
     pub fuel_schedule: FuelScheduleIdentity,
     pub policy: TerminalRecoveryClassificationPolicy,
@@ -93,6 +94,8 @@ impl TerminalRecoveryClassificationPlan {
         let ranges = TerminalLiveRangeIdentity::from_bytes(cursor.array()?);
         let legality = TerminalAllocationLegalityIdentity::from_bytes(cursor.array()?);
         let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
+        let allocator_availability =
+            TerminalAllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
         let optimization_unit = OptimizationUnitIdentity::from_bytes(cursor.array()?);
         let raw_fuel_schedule = u32::from_le_bytes(cursor.array()?);
         let fuel_schedule = FuelScheduleIdentity::new(raw_fuel_schedule).ok_or(
@@ -137,6 +140,7 @@ impl TerminalRecoveryClassificationPlan {
             ranges,
             legality,
             register_environment,
+            allocator_availability,
             optimization_unit,
             fuel_schedule,
             policy,
@@ -224,6 +228,7 @@ pub struct TerminalRecoveryClassificationValidationReceipt {
     pub(crate) ranges: TerminalLiveRangeIdentity,
     pub(crate) legality: TerminalAllocationLegalityIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
+    pub(crate) allocator_availability: TerminalAllocatorAvailabilityIdentity,
     pub(crate) optimization_unit: OptimizationUnitIdentity,
     pub(crate) fuel_schedule: FuelScheduleIdentity,
     pub(crate) policy: TerminalRecoveryClassificationPolicy,
@@ -251,6 +256,9 @@ impl TerminalRecoveryClassificationValidationReceipt {
     }
     pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
         self.register_environment
+    }
+    pub const fn allocator_availability(self) -> TerminalAllocatorAvailabilityIdentity {
+        self.allocator_availability
     }
     pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
         self.optimization_unit

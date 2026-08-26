@@ -6,7 +6,7 @@ pub fn terminal_register_home_identity(
     plan: &TerminalRegisterHomePlan,
 ) -> TerminalRegisterHomeIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-register-homes.v1\0");
+    bytes.extend_from_slice(b"omega.terminal-register-homes.v2\0");
     bytes.extend_from_slice(&encode_terminal_register_home_content(plan));
     TerminalRegisterHomeIdentity(Sha256::digest(bytes).into())
 }
@@ -16,6 +16,7 @@ pub(crate) fn encode_terminal_register_home_content(plan: &TerminalRegisterHomeP
     bytes.extend_from_slice(&plan.legality.bytes());
     bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
+    bytes.extend_from_slice(&plan.allocator_availability.bytes());
     encode_len(&mut bytes, plan.functions.len());
     for function in &plan.functions {
         bytes.extend_from_slice(&function.machine.get().to_le_bytes());
@@ -59,6 +60,9 @@ mod tests {
             legality: TerminalAllocationLegalityIdentity([1; 32]),
             ranges: TerminalLiveRangeIdentity([2; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([3; 32]),
+            allocator_availability: crate::TerminalAllocatorAvailabilityIdentity::from_bytes(
+                [4; 32],
+            ),
             functions: vec![TerminalFunctionRegisterHomes {
                 machine: MachineId::new(1).unwrap(),
                 assignments: vec![TerminalVirtualRegisterHome {
@@ -79,6 +83,10 @@ mod tests {
             |plan| plan.ranges = TerminalLiveRangeIdentity([5; 32]),
             |plan| {
                 plan.register_environment = TargetRegisterEnvironmentIdentity::from_bytes([6; 32])
+            },
+            |plan| {
+                plan.allocator_availability =
+                    crate::TerminalAllocatorAvailabilityIdentity::from_bytes([7; 32])
             },
             |plan| plan.functions[0].machine = MachineId::new(2).unwrap(),
             |plan| plan.functions[0].assignments[0].virtual_register = TerminalVirtualRegisterId(1),
@@ -123,13 +131,13 @@ mod tests {
             Err(TerminalRegisterHomeDecodeError::WrongMagic)
         );
         let mut wrong_version = encoded.clone();
-        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
         assert_eq!(
             TerminalRegisterHomePlan::decode(&wrong_version),
-            Err(TerminalRegisterHomeDecodeError::UnsupportedVersion(2))
+            Err(TerminalRegisterHomeDecodeError::UnsupportedVersion(3))
         );
         let mut invalid_machine = encoded;
-        let machine_offset = 8 + 4 + 32 + (3 * 32) + 8;
+        let machine_offset = 8 + 4 + 32 + (4 * 32) + 8;
         invalid_machine[machine_offset..machine_offset + 8].copy_from_slice(&0_u64.to_le_bytes());
         assert_eq!(
             TerminalRegisterHomePlan::decode(&invalid_machine),

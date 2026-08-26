@@ -32,6 +32,7 @@ mod selection;
 pub use allocation_legality::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
     StagedOptimizedAllocationLegalityCustodyReceipt, stage_optimized_allocation_legality,
+    stage_optimized_allocation_legality_with_availability,
     validate_optimized_allocation_legality_custody,
 };
 pub use assignment::{
@@ -184,21 +185,24 @@ mod tests {
     use omega_psi_optimizer::{OptimizationRunError, RuleRegistryError};
     use omega_regalloc::{
         PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
-        TerminalAllocationLegalityError, TerminalArchitecturalUnitActionKind,
+        TerminalAllocationLegalityError, TerminalAllocatorAvailabilityError,
+        TerminalAllocatorAvailabilityPolicy, TerminalArchitecturalUnitActionKind,
         TerminalFixedViewCopyError, TerminalFixedViewCopyPolicy, TerminalLiveRangeError,
         TerminalLiveRangeFragment, TerminalLiveRangePoint, TerminalLivenessError,
-        TerminalRecoveryClassificationPolicy, TerminalRegisterHomeError, TerminalRegisterHomePlan,
+        TerminalRecoveryClassification, TerminalRecoveryClassificationPolicy,
+        TerminalRecoveryVictimRole, TerminalRegisterHomeError, TerminalRegisterHomePlan,
         TerminalSpillChoicePolicy, TerminalVirtualFixedConstraintSite, TerminalVirtualInterference,
         analyze_terminal_live_ranges, analyze_terminal_liveness, choose_terminal_spill_victims,
-        classify_terminal_pressure_recovery, terminal_allocation_legality_identity,
-        terminal_fixed_view_copy_identity, terminal_live_range_identity,
-        terminal_liveness_identity, terminal_register_home_identity,
+        classify_terminal_pressure_recovery, materialize_terminal_allocator_availability,
+        terminal_allocation_legality_identity, terminal_fixed_view_copy_identity,
+        terminal_live_range_identity, terminal_liveness_identity, terminal_register_home_identity,
         validate_post_allocation_optimization_manifest, validate_terminal_allocation_legality,
-        validate_terminal_fixed_view_copies, validate_terminal_live_ranges,
-        validate_terminal_liveness, validate_terminal_register_homes,
+        validate_terminal_allocator_availability, validate_terminal_fixed_view_copies,
+        validate_terminal_live_ranges, validate_terminal_liveness,
+        validate_terminal_register_homes,
     };
     use omega_register_model::{
-        RegisterOperandAccess, RegisterReservationProfile, RegisterUnitId,
+        RegisterOperandAccess, RegisterReservationProfile, RegisterUnitId, RegisterViewId,
         target_register_environment_identity, validate_register_reservation_profile,
     };
     use omega_target::NativeTarget;
@@ -1531,6 +1535,184 @@ mod tests {
         }
     }
 
+    #[test]
+    fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_architectures() {
+        for (target, sole_view_name) in [
+            (NativeTarget::linux_x64(), "rdi"),
+            (NativeTarget::linux_arm64(), "x0"),
+        ] {
+            let ranges = stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_exact_add_conditional(target)).unwrap(),
+            )
+            .unwrap();
+            let environment = ranges
+                .liveness_stage()
+                .selected_stage()
+                .register_environment();
+            let sole_view = environment
+                .physical()
+                .model()
+                .view_named(sole_view_name)
+                .unwrap()
+                .id;
+            let fixed_return = (target == NativeTarget::linux_x64())
+                .then(|| environment.physical().model().view_named("rax").unwrap().id);
+            assert!(matches!(
+                materialize_terminal_allocator_availability(
+                    environment.identity(),
+                    environment.target(),
+                    environment.physical(),
+                    environment.constraints(),
+                    environment.reservations(),
+                    environment.allocation_constraint_keys(),
+                    TerminalAllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
+                        views: vec![sole_view, sole_view],
+                    },
+                ),
+                Err(TerminalAllocatorAvailabilityError::NonCanonicalAllowlist)
+            ));
+            assert!(matches!(
+                materialize_terminal_allocator_availability(
+                    environment.identity(),
+                    environment.target(),
+                    environment.physical(),
+                    environment.constraints(),
+                    environment.reservations(),
+                    environment.allocation_constraint_keys(),
+                    TerminalAllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
+                        views: vec![RegisterViewId(u16::MAX)],
+                    },
+                ),
+                Err(TerminalAllocatorAvailabilityError::UnknownView { .. })
+            ));
+            let reserved_view =
+                environment
+                    .physical()
+                    .model()
+                    .views
+                    .iter()
+                    .find(|view| {
+                        view.allocatable
+                            && view.units.iter().chain(&view.write_units).any(|unit| {
+                                environment.reservations().reserved_units().contains(unit)
+                            })
+                    })
+                    .unwrap();
+            assert!(matches!(
+                materialize_terminal_allocator_availability(
+                    environment.identity(),
+                    environment.target(),
+                    environment.physical(),
+                    environment.constraints(),
+                    environment.reservations(),
+                    environment.allocation_constraint_keys(),
+                    TerminalAllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
+                        views: vec![reserved_view.id],
+                    },
+                ),
+                Err(TerminalAllocatorAvailabilityError::ViewNotEnvironmentAllocatable { .. })
+            ));
+            let availability = materialize_terminal_allocator_availability(
+                environment.identity(),
+                environment.target(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+                TerminalAllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
+                    views: vec![sole_view],
+                },
+            )
+            .unwrap();
+            let mut noncanonical = availability.plan().clone();
+            let retained_row = noncanonical
+                .classes
+                .iter_mut()
+                .find(|row| !row.unconstrained_views.is_empty())
+                .unwrap();
+            retained_row.unconstrained_views.push(sole_view);
+            assert_eq!(
+                validate_terminal_allocator_availability(
+                    environment.identity(),
+                    environment.target(),
+                    environment.physical(),
+                    environment.constraints(),
+                    environment.reservations(),
+                    environment.allocation_constraint_keys(),
+                    noncanonical,
+                ),
+                Err(TerminalAllocatorAvailabilityError::NonCanonicalPlan)
+            );
+            let encoded = availability.plan().encode();
+            assert_eq!(
+                omega_regalloc::TerminalAllocatorAvailabilityPlan::decode(&encoded).unwrap(),
+                *availability.plan()
+            );
+            let legality =
+                stage_optimized_allocation_legality_with_availability(ranges, availability)
+                    .unwrap();
+            if let Some(fixed_return) = fixed_return {
+                assert_ne!(fixed_return, sole_view);
+                assert!(
+                    legality
+                        .legality()
+                        .plan()
+                        .functions
+                        .iter()
+                        .flat_map(|function| &function.virtual_registers)
+                        .flat_map(|register| &register.points)
+                        .any(|point| point.candidates == vec![fixed_return])
+                );
+            }
+            assert_eq!(
+                legality.custody().allocator_availability(),
+                legality.allocator_availability().receipt().identity()
+            );
+            let ranges = legality.live_range_stage();
+            let selected = ranges.liveness_stage().selected_stage();
+            let environment = selected.register_environment();
+            let choices = choose_terminal_spill_victims(
+                legality.legality(),
+                ranges.ranges(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+                TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                OptimizationWorkBudget::new(100, 100, 1_000, 100, 1).unwrap(),
+            )
+            .unwrap();
+            let choice = choices.plan().functions[0].choice.as_ref().unwrap();
+            assert_eq!(choice.incoming, TerminalVirtualRegisterId(2));
+            assert_eq!(choice.selected_victim, choice.incoming);
+            assert_eq!(choice.incoming_common_candidates, vec![sole_view]);
+
+            let recovery = classify_terminal_pressure_recovery(
+                selected.selected(),
+                ranges.ranges(),
+                legality.legality(),
+                &choices,
+                TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                OptimizationWorkBudget::new(100, 100, 1_000, 100, 1).unwrap(),
+            )
+            .unwrap();
+            let row = recovery.plan().functions[0]
+                .classification
+                .as_ref()
+                .unwrap();
+            assert_eq!(row.victim, TerminalVirtualRegisterId(2));
+            assert_eq!(row.role, TerminalRecoveryVictimRole::Incoming);
+            assert!(matches!(
+                row.classification,
+                TerminalRecoveryClassification::ImmediateU64RematerializationCandidate {
+                    value: IntegerValue::Unsigned(8),
+                    ..
+                }
+            ));
+        }
+    }
+
     fn validate_raw_selection(
         staged: &StagedOptimizedSelectedInstructions,
         raw: omega_terminal_selected_instructions::TerminalSelectedInstructionPlan,
@@ -2357,8 +2539,19 @@ mod tests {
                     &reduced,
                     environment.allocation_constraint_keys(),
                 );
+                let reduced_availability = materialize_terminal_allocator_availability(
+                    reduced_identity,
+                    target,
+                    environment.physical(),
+                    environment.constraints(),
+                    &reduced,
+                    environment.allocation_constraint_keys(),
+                    TerminalAllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1,
+                )
+                .unwrap();
                 let reduced_legality = omega_regalloc::analyze_terminal_allocation_legality(
                     staged.live_range_stage().ranges(),
+                    &reduced_availability,
                     reduced_identity,
                     environment.physical(),
                     environment.constraints(),
@@ -2409,6 +2602,7 @@ mod tests {
             assert!(matches!(
                 validate_terminal_allocation_legality(
                     ranges.ranges(),
+                    staged.allocator_availability(),
                     environment.identity(),
                     environment.physical(),
                     environment.constraints(),

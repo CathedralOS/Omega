@@ -13,6 +13,10 @@ mod allocation_legality_compute;
 mod allocation_legality_identity;
 mod allocation_legality_model;
 mod allocation_legality_validate;
+mod allocator_availability_compute;
+mod allocator_availability_identity;
+mod allocator_availability_model;
+mod allocator_availability_validate;
 mod compute;
 mod fixed_view_copy_compute;
 mod fixed_view_copy_identity;
@@ -43,6 +47,9 @@ mod validate;
 pub use allocation_legality_identity::terminal_allocation_legality_identity;
 pub use allocation_legality_model::*;
 pub use allocation_legality_validate::validate_terminal_allocation_legality;
+pub use allocator_availability_identity::terminal_allocator_availability_identity;
+pub use allocator_availability_model::*;
+pub use allocator_availability_validate::validate_terminal_allocator_availability;
 pub use fixed_view_copy_identity::terminal_fixed_view_copy_identity;
 pub use fixed_view_copy_model::*;
 pub use fixed_view_copy_validate::validate_terminal_fixed_view_copies;
@@ -66,6 +73,38 @@ pub use spill_choice_validate::validate_terminal_spill_choices;
 pub use validate::validate_terminal_liveness;
 
 use omega_terminal_target_operations_to_selected_instructions::ValidatedTerminalSelectedInstructions;
+
+/// Materialize and independently replay one exact named policy controlling
+/// unconstrained physical-view availability. This is allocator input only; it
+/// grants no fixed-operand override, home assignment, or emission authority.
+pub fn materialize_terminal_allocator_availability(
+    register_environment: TargetRegisterEnvironmentIdentity,
+    target: omega_target::NativeTarget,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    reservations: &ValidatedRegisterReservationProfile,
+    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    policy: TerminalAllocatorAvailabilityPolicy,
+) -> Result<ValidatedTerminalAllocatorAvailability, TerminalAllocatorAvailabilityError> {
+    let plan = allocator_availability_compute::compute_terminal_allocator_availability(
+        register_environment,
+        target,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+        policy,
+    )?;
+    validate_terminal_allocator_availability(
+        register_environment,
+        target,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+        plan,
+    )
+}
 
 /// Compute and then independently replay the bounded selected-CFG liveness
 /// analysis. The result grants no interval, allocation, emission, or
@@ -95,6 +134,7 @@ pub fn analyze_terminal_live_ranges<S: ValidatedTerminalSelectedAnalysis>(
 /// or copy-insertion authority.
 pub fn analyze_terminal_allocation_legality(
     ranges: &ValidatedTerminalLiveRanges,
+    availability: &ValidatedTerminalAllocatorAvailability,
     register_environment: TargetRegisterEnvironmentIdentity,
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
@@ -103,6 +143,7 @@ pub fn analyze_terminal_allocation_legality(
 ) -> Result<ValidatedTerminalAllocationLegality, TerminalAllocationLegalityError> {
     let plan = allocation_legality_compute::compute_terminal_allocation_legality(
         ranges,
+        availability,
         register_environment,
         physical,
         constraints,
@@ -111,6 +152,7 @@ pub fn analyze_terminal_allocation_legality(
     )?;
     validate_terminal_allocation_legality(
         ranges,
+        availability,
         register_environment,
         physical,
         constraints,

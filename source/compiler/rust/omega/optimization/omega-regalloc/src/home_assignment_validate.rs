@@ -36,6 +36,7 @@ pub fn validate_terminal_register_homes(
     if plan.legality != legality.receipt().identity()
         || plan.ranges != ranges.receipt().identity()
         || plan.register_environment != register_environment
+        || plan.allocator_availability != legality.receipt().allocator_availability()
         || legality.receipt().ranges() != ranges.receipt().identity()
         || legality.receipt().register_environment() != register_environment
         || constraints.physical_identity() != physical.identity()
@@ -87,6 +88,7 @@ pub fn validate_terminal_register_homes(
         legality: plan.legality,
         ranges: plan.ranges,
         register_environment: plan.register_environment,
+        allocator_availability: plan.allocator_availability,
         function_count: plan.functions.len(),
         assignment_count: plan
             .functions

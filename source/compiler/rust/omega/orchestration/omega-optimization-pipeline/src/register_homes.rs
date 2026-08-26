@@ -59,6 +59,7 @@ pub struct StagedOptimizedRegisterHomeCustodyReceipt {
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
     register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
+    allocator_availability: omega_regalloc::TerminalAllocatorAvailabilityIdentity,
     selected: TerminalSelectedInstructionPlanIdentity,
     liveness: omega_regalloc::TerminalLivenessIdentity,
     ranges: omega_regalloc::TerminalLiveRangeIdentity,
@@ -98,6 +99,11 @@ impl StagedOptimizedRegisterHomeCustodyReceipt {
         self,
     ) -> omega_register_model::TargetRegisterEnvironmentIdentity {
         self.register_environment
+    }
+    pub const fn allocator_availability(
+        self,
+    ) -> omega_regalloc::TerminalAllocatorAvailabilityIdentity {
+        self.allocator_availability
     }
     pub const fn selected(self) -> TerminalSelectedInstructionPlanIdentity {
         self.selected
@@ -150,6 +156,7 @@ pub fn stage_optimized_register_homes(
 ) -> Result<StagedOptimizedRegisterHomes, OptimizedRegisterHomeCustodyError> {
     let upstream = validate_optimized_allocation_legality_custody(
         legality.live_range_stage(),
+        legality.allocator_availability(),
         legality.legality(),
     )
     .map_err(OptimizedRegisterHomeCustodyError::UpstreamLegality)?;
@@ -206,6 +213,7 @@ pub fn validate_optimized_register_home_custody(
 ) -> Result<StagedOptimizedRegisterHomeCustodyReceipt, OptimizedRegisterHomeCustodyError> {
     let upstream = validate_optimized_allocation_legality_custody(
         legality.live_range_stage(),
+        legality.allocator_availability(),
         legality.legality(),
     )
     .map_err(OptimizedRegisterHomeCustodyError::UpstreamLegality)?;
@@ -259,6 +267,7 @@ fn custody_receipt(
         optimization_unit: upstream.optimization_unit(),
         fuel_schedule: upstream.fuel_schedule(),
         register_environment: upstream.register_environment(),
+        allocator_availability: upstream.allocator_availability(),
         selected: upstream.selected(),
         liveness: upstream.liveness(),
         ranges: upstream.ranges(),

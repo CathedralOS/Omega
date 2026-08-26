@@ -9,13 +9,14 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_selected_instructions::TerminalSelectedInstructionPlanIdentity;
 
 use crate::{
-    TerminalAllocationLegalityIdentity, TerminalFixedViewCopyIdentity, TerminalLiveRangeIdentity,
-    TerminalLivenessIdentity, TerminalRegisterHomeIdentity, ValidatedTerminalAllocationLegality,
-    ValidatedTerminalLiveRanges, ValidatedTerminalRegisterHomes,
+    TerminalAllocationLegalityIdentity, TerminalAllocatorAvailabilityIdentity,
+    TerminalFixedViewCopyIdentity, TerminalLiveRangeIdentity, TerminalLivenessIdentity,
+    TerminalRegisterHomeIdentity, ValidatedTerminalAllocationLegality, ValidatedTerminalLiveRanges,
+    ValidatedTerminalRegisterHomes,
 };
 
 const POST_ALLOCATION_MANIFEST_MAGIC: &[u8; 8] = b"OMGPAO\0\0";
-const POST_ALLOCATION_MANIFEST_VERSION: u32 = 1;
+const POST_ALLOCATION_MANIFEST_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostAllocationManifestStage {
@@ -55,6 +56,7 @@ pub struct PostAllocationOptimizationManifest {
     pub ranges: TerminalLiveRangeIdentity,
     pub legality: TerminalAllocationLegalityIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
+    pub allocator_availability: TerminalAllocatorAvailabilityIdentity,
     pub homes: TerminalRegisterHomeIdentity,
     pub spills: PostAllocationSpillStatus,
     pub frame: PostAllocationUnavailableData,
@@ -66,7 +68,7 @@ pub struct PostAllocationOptimizationManifest {
 impl PostAllocationOptimizationManifest {
     pub fn recomputed_identity(&self) -> PostAllocationOptimizationManifestIdentity {
         let mut canonical = Vec::new();
-        canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v1\0");
+        canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v2\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         PostAllocationOptimizationManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -115,6 +117,8 @@ impl PostAllocationOptimizationManifest {
         let ranges = TerminalLiveRangeIdentity::from_bytes(cursor.array()?);
         let legality = TerminalAllocationLegalityIdentity::from_bytes(cursor.array()?);
         let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
+        let allocator_availability =
+            TerminalAllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
         let homes = TerminalRegisterHomeIdentity::from_bytes(cursor.array()?);
         let spills = match cursor.byte()? {
             1 => PostAllocationSpillStatus::NotRequiredForValidatedHomePlan,
@@ -146,6 +150,7 @@ impl PostAllocationOptimizationManifest {
             ranges,
             legality,
             register_environment,
+            allocator_availability,
             homes,
             spills,
             frame,
@@ -186,6 +191,12 @@ impl PostAllocationOptimizationManifest {
         )
         .unwrap();
         writeln!(output, "register homes: {}", hex(&self.homes.bytes())).unwrap();
+        writeln!(
+            output,
+            "allocator availability: {}",
+            hex(&self.allocator_availability.bytes())
+        )
+        .unwrap();
         writeln!(output, "spills: not required for validated home plan").unwrap();
         writeln!(output, "frame: unavailable").unwrap();
         writeln!(output, "emission: unavailable").unwrap();
@@ -314,6 +325,7 @@ fn expected_record(
         || homes.receipt().legality() != legality.receipt().identity()
         || homes.receipt().ranges() != ranges.receipt().identity()
         || homes.receipt().register_environment() != legality.receipt().register_environment()
+        || homes.receipt().allocator_availability() != legality.receipt().allocator_availability()
         || homes.plan().functions.len() != ranges.plan().functions.len()
         || homes.plan().functions.len() != legality.plan().functions.len()
     {
@@ -361,6 +373,7 @@ fn expected_record(
         ranges: ranges.receipt().identity(),
         legality: legality.receipt().identity(),
         register_environment: legality.receipt().register_environment(),
+        allocator_availability: legality.receipt().allocator_availability(),
         homes: homes.receipt().identity(),
         spills: PostAllocationSpillStatus::NotRequiredForValidatedHomePlan,
         frame: PostAllocationUnavailableData::Unavailable,
@@ -405,6 +418,7 @@ fn encode_manifest_content(manifest: &PostAllocationOptimizationManifest) -> Vec
     canonical.extend_from_slice(&manifest.ranges.bytes());
     canonical.extend_from_slice(&manifest.legality.bytes());
     canonical.extend_from_slice(&manifest.register_environment.bytes());
+    canonical.extend_from_slice(&manifest.allocator_availability.bytes());
     canonical.extend_from_slice(&manifest.homes.bytes());
     canonical.push(match manifest.spills {
         PostAllocationSpillStatus::NotRequiredForValidatedHomePlan => 1,
@@ -557,6 +571,7 @@ mod tests {
             ranges: TerminalLiveRangeIdentity::from_bytes([2; 32]),
             legality: TerminalAllocationLegalityIdentity::from_bytes([3; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
+            allocator_availability: TerminalAllocatorAvailabilityIdentity::from_bytes([6; 32]),
             homes: TerminalRegisterHomeIdentity::from_bytes([5; 32]),
             spills: PostAllocationSpillStatus::NotRequiredForValidatedHomePlan,
             frame: PostAllocationUnavailableData::Unavailable,
@@ -595,6 +610,10 @@ mod tests {
             |record| {
                 record.register_environment =
                     TargetRegisterEnvironmentIdentity::from_bytes([10; 32])
+            },
+            |record| {
+                record.allocator_availability =
+                    TerminalAllocatorAvailabilityIdentity::from_bytes([12; 32])
             },
             |record| record.homes = TerminalRegisterHomeIdentity::from_bytes([11; 32]),
             |record| record.statistics.functions += 1,
@@ -653,10 +672,10 @@ mod tests {
             Err(PostAllocationOptimizationManifestDecodeError::WrongMagic)
         );
         let mut wrong_version = encoded.clone();
-        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
         assert_eq!(
             PostAllocationOptimizationManifest::decode(&wrong_version),
-            Err(PostAllocationOptimizationManifestDecodeError::UnsupportedVersion(2))
+            Err(PostAllocationOptimizationManifestDecodeError::UnsupportedVersion(3))
         );
         let content_offset = 8 + 4 + 32;
         let mut unknown_architecture = encoded.clone();

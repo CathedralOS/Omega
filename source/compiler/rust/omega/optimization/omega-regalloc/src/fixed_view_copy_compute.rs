@@ -181,6 +181,7 @@ pub(crate) fn compute_terminal_fixed_view_copies(
         source_ranges: ranges.receipt().identity(),
         source_legality: legality.receipt().identity(),
         register_environment,
+        allocator_availability: legality.receipt().allocator_availability(),
         policy,
         budget,
         usage,

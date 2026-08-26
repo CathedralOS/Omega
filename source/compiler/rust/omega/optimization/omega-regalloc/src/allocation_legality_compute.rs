@@ -12,18 +12,26 @@ use crate::{
     TerminalEntryFixedViewTransition, TerminalFunctionAllocationLegality,
     TerminalFunctionLiveRanges, TerminalLiveRangePoint, TerminalVirtualFixedConstraintSite,
     TerminalVirtualPointLegality, TerminalVirtualRegisterAllocationLegality,
-    ValidatedTerminalLiveRanges,
+    ValidatedTerminalAllocatorAvailability, ValidatedTerminalLiveRanges,
 };
 
 pub(crate) fn compute_terminal_allocation_legality(
     ranges: &ValidatedTerminalLiveRanges,
+    availability: &ValidatedTerminalAllocatorAvailability,
     register_environment: TargetRegisterEnvironmentIdentity,
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<TerminalAllocationLegalityPlan, TerminalAllocationLegalityError> {
-    validate_roots(ranges, physical, constraints, reservations)?;
+    validate_roots(
+        ranges,
+        availability,
+        register_environment,
+        physical,
+        constraints,
+        reservations,
+    )?;
     let environment = target_register_environment_identity(
         ranges.plan().target,
         physical,
@@ -40,18 +48,27 @@ pub(crate) fn compute_terminal_allocation_legality(
         .iter()
         .enumerate()
         .map(|(function_index, function)| {
-            compute_function(function_index, function, physical, reservations)
+            compute_function(
+                function_index,
+                function,
+                availability,
+                physical,
+                reservations,
+            )
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(TerminalAllocationLegalityPlan {
         ranges: ranges.receipt().identity(),
         register_environment,
+        allocator_availability: availability.receipt().identity(),
         functions,
     })
 }
 
 fn validate_roots(
     ranges: &ValidatedTerminalLiveRanges,
+    availability: &ValidatedTerminalAllocatorAvailability,
+    register_environment: TargetRegisterEnvironmentIdentity,
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
@@ -61,6 +78,8 @@ fn validate_roots(
         || constraints.physical_identity() != physical_identity
         || reservations.physical_identity() != physical_identity
         || reservations.target() != ranges.plan().target
+        || availability.receipt().register_environment() != register_environment
+        || availability.receipt().physical() != physical_identity
     {
         return Err(TerminalAllocationLegalityError::RootMismatch);
     }
@@ -70,6 +89,7 @@ fn validate_roots(
 fn compute_function(
     function_index: usize,
     function: &TerminalFunctionLiveRanges,
+    availability: &ValidatedTerminalAllocatorAvailability,
     physical: &ValidatedPhysicalRegisterModel,
     reservations: &ValidatedRegisterReservationProfile,
 ) -> Result<TerminalFunctionAllocationLegality, TerminalAllocationLegalityError> {
@@ -91,6 +111,13 @@ fn compute_function(
                 .fragments
                 .first()
                 .map(|fragment| (fragment.block, fragment.start));
+            let available = availability.unconstrained_views(register.class).ok_or(
+                TerminalAllocationLegalityError::UnknownClass {
+                    function: function_index,
+                    register: register.virtual_register.0,
+                    class: register.class.0,
+                },
+            )?;
             let mut points = Vec::new();
             for fragment in &register.fragments {
                 for raw_point in fragment.start.0..fragment.end.0 {
@@ -106,6 +133,7 @@ fn compute_function(
                         .views
                         .iter()
                         .copied()
+                        .filter(|view_id| available.binary_search(view_id).is_ok())
                         .filter(|view_id| {
                             physical
                                 .model()

@@ -103,6 +103,7 @@ pub(crate) fn compute_terminal_spill_choices(
         legality: legality.receipt().identity(),
         ranges: ranges.receipt().identity(),
         register_environment,
+        allocator_availability: legality.receipt().allocator_availability(),
         policy,
         budget,
         usage,

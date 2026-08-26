@@ -50,6 +50,7 @@ pub struct StagedOptimizedFixedViewCopyCustodyReceipt {
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
     register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
+    allocator_availability: omega_regalloc::TerminalAllocatorAvailabilityIdentity,
     source_selected: TerminalSelectedInstructionPlanIdentity,
     source_liveness: omega_regalloc::TerminalLivenessIdentity,
     source_ranges: omega_regalloc::TerminalLiveRangeIdentity,
@@ -91,6 +92,11 @@ impl StagedOptimizedFixedViewCopyCustodyReceipt {
         self,
     ) -> omega_register_model::TargetRegisterEnvironmentIdentity {
         self.register_environment
+    }
+    pub const fn allocator_availability(
+        self,
+    ) -> omega_regalloc::TerminalAllocatorAvailabilityIdentity {
+        self.allocator_availability
     }
     pub const fn source_selected(self) -> TerminalSelectedInstructionPlanIdentity {
         self.source_selected
@@ -150,6 +156,7 @@ pub fn stage_optimized_fixed_view_copies(
 ) -> Result<StagedOptimizedFixedViewCopies, OptimizedFixedViewCopyCustodyError> {
     let upstream = validate_optimized_allocation_legality_custody(
         source.live_range_stage(),
+        source.allocator_availability(),
         source.legality(),
     )
     .map_err(OptimizedFixedViewCopyCustodyError::UpstreamLegality)?;
@@ -187,6 +194,7 @@ pub fn validate_optimized_fixed_view_copy_custody(
 ) -> Result<StagedOptimizedFixedViewCopyCustodyReceipt, OptimizedFixedViewCopyCustodyError> {
     let upstream = validate_optimized_allocation_legality_custody(
         source.live_range_stage(),
+        source.allocator_availability(),
         source.legality(),
     )
     .map_err(OptimizedFixedViewCopyCustodyError::UpstreamLegality)?;
@@ -231,6 +239,7 @@ fn custody_receipt(
         optimization_unit: upstream.optimization_unit(),
         fuel_schedule: upstream.fuel_schedule(),
         register_environment: upstream.register_environment(),
+        allocator_availability: upstream.allocator_availability(),
         source_selected: upstream.selected(),
         source_liveness: upstream.liveness(),
         source_ranges: upstream.ranges(),
