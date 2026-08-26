@@ -24,7 +24,7 @@ pub(crate) fn check_flow_call_borrows(
     if !retained_diagnostics.is_empty() {
         return Err(retained_diagnostics);
     }
-    resources::replay_checked_direct_borrow_resources(facts)?;
+    resources::replay_checked_direct_borrow_resources(program, facts)?;
     let mut diagnostics = Vec::new();
     let mut compatibility_certificates = Vec::new();
 
@@ -73,9 +73,10 @@ pub(crate) fn check_flow_call_borrows(
 }
 
 pub(super) fn initialize_checked_direct_borrow_resources(
+    program: &psi_typed_trees::TypedTrees,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    resources::initialize_checked_direct_borrow_resources(facts)
+    resources::initialize_checked_direct_borrow_resources(program, facts)
 }
 
 fn validate_checked_borrow_compatibility_certificates(

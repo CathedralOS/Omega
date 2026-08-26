@@ -35,14 +35,15 @@ pub(crate) fn check_unretained_borrow_fixture_facts(
     facts: &psi_checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut scratch = facts.clone();
-    borrows::initialize_checked_direct_borrow_resources(&mut scratch)?;
+    borrows::initialize_checked_direct_borrow_resources(program, &mut scratch)?;
     check_checked_facts_recording(program, &mut scratch)
 }
 
 pub(crate) fn initialize_checked_direct_borrow_resources(
+    program: &psi_typed_trees::TypedTrees,
     facts: &mut psi_checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    borrows::initialize_checked_direct_borrow_resources(facts)
+    borrows::initialize_checked_direct_borrow_resources(program, facts)
 }
 
 pub(crate) fn check_checked_facts_recording(

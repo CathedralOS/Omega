@@ -204,10 +204,15 @@ Current ownership is:
   Independent checked replay rejects missing, duplicate, or drifted rows, and
   direct-root compatibility certificates consume these joined place/access
   rows rather than manufacturing resource facts. This carrier remains
-  non-authorizing and is not Terminal evidence. Reborrow and borrow-carrying
-  transfer rows remain excluded until exact parent/source occurrences are
-  retained; their lineage, restoration replay, and Terminal resource authority
-  are still open.
+  non-authorizing and is not Terminal evidence. One further checked formation
+  rung now classifies loans as `DirectRoot`, exact `Reborrow { parent_loan }`,
+  or `UnretainedDerived`. Only an explicit reference-local reborrow with one
+  unique prior state-owned loan retains its immediate parent; multihop chains
+  name each immediate parent independently. Checked replay rederives the source
+  occurrence, owner projection, formation order, and rebased captured place and
+  rejects parent or lineage-tag substitution. Aggregate/helper transfers,
+  ambiguous or reassigned aliases, and all reborrow lifetime/restoration rows
+  remain excluded. No lineage row is Terminal resource authority.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
   owns call-site borrow-check coordination,
   `checks/borrows/calls/conflicts.rs` owns call-site access/access and
