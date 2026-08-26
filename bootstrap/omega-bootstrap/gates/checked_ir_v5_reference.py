@@ -88,6 +88,8 @@ class SchemaCapabilities:
     require_trapping_add: bool = False
     require_full_u32_arithmetic: bool = False
     generalized_nonempty_edges: bool = False
+    require_generalized_nonempty_edges: bool = False
+    full_width_u64_less: bool = False
 
 
 _BASE_OPCODES = frozenset(range(1, 15))
@@ -117,13 +119,31 @@ SCHEMA_CAPABILITIES = {
         allow_static_byte_view=True,
         full_width_u32=True,
         generalized_nonempty_edges=True,
+        require_generalized_nonempty_edges=True,
+    ),
+    16: SchemaCapabilities(
+        _BASE_OPCODES | set(range(15, 28)),
+        allow_static_byte_view=True,
+        full_width_u32=True,
+        generalized_nonempty_edges=True,
+        full_width_u64_less=True,
     ),
 }
 
 
+def _u64_words(low: int, high: int) -> int:
+    """Reconstruct one unsigned u64 from its little-endian semantic words."""
+    return low | (high << 32)
+
+
+def _u64_type_bounds(row: tuple[int, ...]) -> tuple[int, int]:
+    """Return the kind-8 inclusive interval from the four positional words."""
+    return _u64_words(row[4], row[5]), _u64_words(row[6], row[7])
+
+
 def _project_declarations(
     entry: int, flags: int, tables: dict[str, list[tuple[int, ...]]],
-    *, full_width_u32: bool = False,
+    *, full_width_u32: bool = False, full_width_u64: bool = False,
 ) -> None:
     """Ask CKIR4's frozen projection to recheck inherited declarations.
 
@@ -160,6 +180,21 @@ def _project_declarations(
                 proxy_low = 0 if row[6] == 0 else next_scalar_proxy
             rewritten.append((*row[:6], proxy_low, next_scalar_proxy))
             projection_keys.add((row[1], row[2], row[4], row[5],
+                                 proxy_low, next_scalar_proxy))
+            next_scalar_proxy -= 1
+        elif full_width_u64 and row[1] == 8:
+            # The frozen CKIR4 declaration projection has no u64 kind. Give
+            # each independently checked kind-8 row a distinct scalar proxy;
+            # no u64 endpoint or runtime value is taken from this projection.
+            range_low, _ = _u64_type_bounds(row)
+            proxy_low = 0 if range_low == 0 else next_scalar_proxy
+            while (2, row[2], 0, 0, proxy_low,
+                   next_scalar_proxy) in projection_keys:
+                next_scalar_proxy -= 1
+                proxy_low = 0 if range_low == 0 else next_scalar_proxy
+            rewritten.append((row[0], 2, row[2], row[3], 0, 0,
+                              proxy_low, next_scalar_proxy))
+            projection_keys.add((2, row[2], 0, 0,
                                  proxy_low, next_scalar_proxy))
             next_scalar_proxy -= 1
         else:
@@ -259,9 +294,13 @@ def decode(contents: bytes, *, expected_major: int = 5,
     nominal_sums: dict[int, int] = {}
     type_keys: set[tuple[int, ...]] = set()
     for type_id, kind, type_flags, reserved, payload0, payload1, low, high in types:
-        require(kind in range(1, 8 if allow_static_byte_view else 7)
+        maximum_kind = 8 if capabilities.full_width_u64_less else (
+            7 if allow_static_byte_view else 6
+        )
+        require(kind in range(1, maximum_kind + 1)
                 and reserved == 0 and type_flags <= 1, "bad type row")
-        require(kind not in (3, 4, 6, 7) or type_flags == 0, "forbidden type flag")
+        require(kind not in (3, 4, 6, 7, 8) or type_flags == 0,
+                "forbidden type flag")
         if kind in (1, 2, 3):
             require(payload0 == payload1 == 0 and low <= high, "bad scalar type")
             require(high <= (255 if kind == 1 else 1 if kind == 3 else
@@ -282,6 +321,13 @@ def decode(contents: bytes, *, expected_major: int = 5,
                     "bad sum type")
             require(payload0 not in nominal_sums, "duplicate sum nominal")
             nominal_sums[payload0] = type_id
+        elif kind == 8:
+            range_low, range_high = _u64_type_bounds(
+                (type_id, kind, type_flags, reserved,
+                 payload0, payload1, low, high)
+            )
+            require(capabilities.full_width_u64_less
+                    and range_low <= range_high, "bad u64 type")
         else:
             require(payload0 < len(types) and payload1 == low == high == 0,
                     "bad shared byte-slice type")
@@ -348,6 +394,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
             result = (1, 1)
         elif kind == 2:
             result = (4, 4)
+        elif kind == 8:
+            result = (8, 8)
         elif kind == 7:
             result = (16, 8)
         elif kind == 5:
@@ -388,6 +436,18 @@ def decode(contents: bytes, *, expected_major: int = 5,
 
     layouts = tuple(type_layout(type_id) for type_id in range(len(types)))
 
+    def scalar_interval_contains(wanted: int, actual: int) -> bool:
+        wanted_kind, actual_kind = types[wanted][1], types[actual][1]
+        if wanted_kind != actual_kind or wanted_kind not in (1, 2, 3, 8):
+            return False
+        if wanted_kind == 8:
+            wanted_low, wanted_high = _u64_type_bounds(types[wanted])
+            actual_low, actual_high = _u64_type_bounds(types[actual])
+        else:
+            wanted_low, wanted_high = types[wanted][6:8]
+            actual_low, actual_high = types[actual][6:8]
+        return wanted_low <= actual_low and actual_high <= wanted_high
+
     copy_cache: dict[int, bool] = {}
     copy_active: set[int] = set()
 
@@ -397,7 +457,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
         require(type_id not in copy_active, "recursive copyability")
         copy_active.add(type_id)
         kind, payload0 = types[type_id][1], types[type_id][4]
-        if kind in (1, 2, 3, 7):
+        if kind in (1, 2, 3, 7, 8):
             result = True
         elif kind == 5:
             result = copyable(payload0)
@@ -426,8 +486,11 @@ def decode(contents: bytes, *, expected_major: int = 5,
         if sum_row[4] & 1:
             require(copyable(sum_row[1]), "invalid [copy] sum")
 
-    _project_declarations(entry, flags, tables,
-                          full_width_u32=capabilities.full_width_u32)
+    _project_declarations(
+        entry, flags, tables,
+        full_width_u32=capabilities.full_width_u32,
+        full_width_u64=capabilities.full_width_u64_less,
+    )
 
     def contains_sum(type_id: int, active: set[int] | None = None) -> bool:
         active = set() if active is None else active
@@ -473,6 +536,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
                         "scalar constant")
                 height = 0
                 key = (height, type_id, scalar)
+            elif kind == 8:
+                raise Ckir5Error("u64 constant DAG node")
             else:
                 require(scalar == 0, "structural constant scalar")
                 if kind == 4:
@@ -517,7 +582,10 @@ def decode(contents: bytes, *, expected_major: int = 5,
         machine_id, owner, access, machine_flags, reserved, result = machine[:6]
         require(owner < len(records) and access in (1, 2)
                 and machine_flags == reserved == 0, "bad machine")
-        require(result == NO_ID or result < len(types) and types[result][1] in (1, 2, 3),
+        require(result == NO_ID or result < len(types)
+                and types[result][1] in ((1, 2, 3, 8)
+                                         if capabilities.full_width_u64_less
+                                         else (1, 2, 3)),
                 "machine result")
         require(machine[6] == next_machine_param and machine[7] <= 7,
                 "machine parameter partition")
@@ -606,6 +674,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
             (2, 1, 0, 0, 0, 0, 0xFFFF_FFFF))
     }
     byte_view_counts = {opcode: 0 for opcode in range(22, 26)}
+    u64_less_count = 0
     for operation in operations:
         (op_id, owner, block, opcode, result_kind, op_flags, result_id,
          result_type, operand_start, operand_count, imm0, imm1) = operation
@@ -650,8 +719,17 @@ def decode(contents: bytes, *, expected_major: int = 5,
             require(operand_count == expected_operands, "operation arity")
 
         if opcode == 1:
-            require(imm1 == 0 and types[result_type][1] in (1, 2, 3), "const type")
-            require(types[result_type][6] <= imm0 <= types[result_type][7], "const range")
+            result_kind_tag = types[result_type][1]
+            require(result_kind_tag in (1, 2, 3, 8), "const type")
+            if result_kind_tag == 8:
+                require(capabilities.full_width_u64_less, "u64 const schema")
+                magnitude = _u64_words(imm0, imm1)
+                range_low, range_high = _u64_type_bounds(types[result_type])
+                require(range_low <= magnitude <= range_high, "u64 const range")
+            else:
+                require(imm1 == 0, "const reserved high word")
+                require(types[result_type][6] <= imm0 <= types[result_type][7],
+                        "const range")
             if (capabilities.full_width_u32 and
                     types[result_type][1:] ==
                     (2, 1, 0, 0, 0, 0, 0xFFFF_FFFF)):
@@ -681,7 +759,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
             require(imm0 == imm1 == 0 and visible_place(op_values[0], block, op_id),
                     "load ref")
             require(result_type == place_types[op_values[0]]
-                    and types[result_type][1] in (1, 2, 3), "load type")
+                    and types[result_type][1] in (1, 2, 3, 8), "load type")
             if (capabilities.full_width_u32 and
                     types[result_type][1:] ==
                     (2, 1, 0, 0, 0, 0, 0xFFFF_FFFF)
@@ -691,7 +769,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
             require(imm0 == imm1 == 0 and visible_place(op_values[0], block, op_id)
                     and visible_value(op_values[1], owner, block, op_id), "store refs")
             require(types[place_types[op_values[0]]][1] == types[value_types[op_values[1]]][1]
-                    and types[place_types[op_values[0]]][1] in (1, 2, 3), "store type")
+                    and types[place_types[op_values[0]]][1] in (1, 2, 3, 8),
+                    "store type")
             require(place_mutable[op_values[0]], "shared place store")
         elif opcode == 7:
             require(imm0 in (1, 2) and imm1 == 0
@@ -707,9 +786,12 @@ def decode(contents: bytes, *, expected_major: int = 5,
             require(imm0 == imm1 == 0
                     and all(visible_value(value, owner, block, op_id) for value in op_values),
                     "arithmetic refs")
-            require(types[value_types[op_values[0]]][1]
-                    == types[value_types[op_values[1]]][1]
-                    and types[value_types[op_values[0]]][1] in (1, 2), "arithmetic type")
+            operand_kind = types[value_types[op_values[0]]][1]
+            require(operand_kind == types[value_types[op_values[1]]][1]
+                    and (operand_kind in (1, 2)
+                         or (opcode == 9
+                             and capabilities.full_width_u64_less
+                             and operand_kind == 8)), "arithmetic type")
             if opcode in (8, 26, 27):
                 require(types[result_type][1] == types[value_types[op_values[0]]][1],
                         "arithmetic result")
@@ -737,6 +819,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
                     full_u32_arithmetic_values.add(result_id)
             else:
                 require(types[result_type][1] == 3, "comparison result")
+                if opcode == 9 and operand_kind == 8:
+                    u64_less_count += 1
         elif opcode == 15:
             require(imm0 == imm1 == 0
                     and visible_value(op_values[0], owner, block, op_id),
@@ -826,7 +910,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
                 require(value_types[argument] == machine_params[parameter_id][3],
                         "call argument type")
             if callee[5] != NO_ID:
-                require(result_type == callee[5] and types[result_type][1] in (1, 2, 3),
+                require(result_type == callee[5]
+                        and types[result_type][1] in (1, 2, 3, 8),
                         "call result type")
             call_graph[owner].add(imm0)
         elif opcode == 11:
@@ -853,10 +938,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
                 require(visible_value(argument, owner, block, op_id),
                         "ConstructRecord operand visibility")
                 actual = value_types[argument]
-                require(actual == wanted if types[wanted][1] not in (1, 2, 3)
-                        else types[actual][1] == types[wanted][1]
-                        and types[actual][6] >= types[wanted][6]
-                        and types[actual][7] <= types[wanted][7],
+                require(actual == wanted if types[wanted][1] not in (1, 2, 3, 8)
+                        else scalar_interval_contains(wanted, actual),
                         "ConstructRecord operand type")
             constructor_results.add(result_id)
         elif opcode == 14:
@@ -873,10 +956,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
                 require(visible_value(argument, owner, block, op_id),
                         "ConstructCase operand visibility")
                 actual, wanted = value_types[argument], payloads[payload_id][3]
-                require(actual == wanted if types[wanted][1] not in (1, 2, 3)
-                        else types[actual][1] == types[wanted][1]
-                        and types[actual][6] >= types[wanted][6]
-                        and types[actual][7] <= types[wanted][7],
+                require(actual == wanted if types[wanted][1] not in (1, 2, 3, 8)
+                        else scalar_interval_contains(wanted, actual),
                         "ConstructCase operand type")
             constructor_results.add(result_id)
         else:
@@ -894,6 +975,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
         require(greater_count > 0, "CKIR9 requires Greater or GreaterEqual")
     elif expected_major == 10:
         require(integer_widen_count > 0, "CKIR10 requires IntegerWiden")
+    elif expected_major == 16:
+        require(u64_less_count > 0, "CKIR16 requires u64 Less")
     elif expected_major == 11:
         require(trapping_add_count > 0, "CKIR11 requires canonical u32 Trapping Add")
     byte_view_selected = (
@@ -901,7 +984,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
         or any(block[3] & 1 for block in blocks)
         or any(byte_view_counts.values())
     )
-    if capabilities.generalized_nonempty_edges:
+    if capabilities.require_generalized_nonempty_edges:
         require(byte_view_selected, "CKIR15 requires generalized byte-view edges")
     if capabilities.require_static_byte_view:
         require(all(byte_view_counts.values()), "CKIR12 requires byte-view operations 22-25")
@@ -1022,7 +1105,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
     require(next_arm == len(arms) and next_arm_arg == len(arm_args),
             "unused case arm rows")
 
-    if capabilities.generalized_nonempty_edges:
+    if capabilities.generalized_nonempty_edges and byte_view_selected:
         synthetic = [block[0] for block in blocks if block[3] & 1]
         require(len(synthetic) >= 2, "multiple synthetic nonempty-edge blocks")
         total_pass_parameters = 0
@@ -1195,6 +1278,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
     if entry != NO_ID:
         require(entry < len(machines) and machines[entry][7] == 0
                 and machines[entry][5] != NO_ID, "selected entry signature")
+        require(types[machines[entry][5]][1] in (1, 2, 3),
+                "selected entry scalar ABI")
         owner_type = records[machines[entry][1]][1]
         require(layouts[owner_type][0] <= 131_072, "entry layout ceiling")
 
@@ -1225,7 +1310,7 @@ def interpret(module: Module, step_limit: int = 65_536, frame_limit: int = 64) -
 
     def scalar_leaves(type_id: int, image: bytes, base: int = 0):
         kind, payload0, payload1 = types[type_id][1], types[type_id][4], types[type_id][5]
-        if kind in (1, 2, 3):
+        if kind in (1, 2, 3, 8):
             yield base, module.layouts[type_id][0]
         elif kind == 7:
             yield base, 16
@@ -1262,6 +1347,13 @@ def interpret(module: Module, step_limit: int = 65_536, frame_limit: int = 64) -
         machine_values: dict[int, tuple[int, int | bytes]] = {}
         for ordinal, argument in enumerate(arguments):
             parameter = tables["machine_params"][machine[6] + ordinal]
+            parameter_type = parameter[3]
+            if types[parameter_type][1] in (1, 2, 3, 8):
+                scalar = int(argument[1])
+                low, high = (_u64_type_bounds(types[parameter_type])
+                             if types[parameter_type][1] == 8
+                             else types[parameter_type][6:8])
+                require(low <= scalar <= high, "runtime call parameter range")
             machine_values[parameter[4]] = argument
         block_values: dict[int, tuple[int, int | bytes]] = {}
         block_id = machine[10]
@@ -1277,7 +1369,9 @@ def interpret(module: Module, step_limit: int = 65_536, frame_limit: int = 64) -
                 opcode, result_id, result_type = op[3], op[6], op[7]
                 args = operands[op[8]:op[8] + op[9]]
                 if opcode == 1:
-                    values[result_id] = (result_type, op[10])
+                    magnitude = (_u64_words(op[10], op[11])
+                                 if types[result_type][1] == 8 else op[10])
+                    values[result_id] = (result_type, magnitude)
                 elif opcode == 2:
                     places[result_id] = (result_type, receiver)
                 elif opcode == 3:
@@ -1297,8 +1391,10 @@ def interpret(module: Module, step_limit: int = 65_536, frame_limit: int = 64) -
                 elif opcode == 6:
                     place_type, address = places[args[0]]
                     value = int(values[args[1]][1])
-                    require(types[place_type][6] <= value <= types[place_type][7],
-                            "runtime store range")
+                    low, high = (_u64_type_bounds(types[place_type])
+                                 if types[place_type][1] == 8
+                                 else types[place_type][6:8])
+                    require(low <= value <= high, "runtime store range")
                     size = module.layouts[place_type][0]
                     memory[address:address + size] = value.to_bytes(size, "little")
                 elif opcode == 7:
@@ -1394,9 +1490,15 @@ def interpret(module: Module, step_limit: int = 65_536, frame_limit: int = 64) -
                         field_type = fields[field_id][3]
                         actual, value = values[argument]
                         offset = module.field_offsets[field_id]
-                        if types[field_type][1] in (1, 2, 3):
+                        if types[field_type][1] in (1, 2, 3, 8):
+                            scalar = int(value)
+                            low, high = (_u64_type_bounds(types[field_type])
+                                         if types[field_type][1] == 8
+                                         else types[field_type][6:8])
+                            require(low <= scalar <= high,
+                                    "runtime record field range")
                             size = module.layouts[field_type][0]
-                            image[offset:offset + size] = int(value).to_bytes(size, "little")
+                            image[offset:offset + size] = scalar.to_bytes(size, "little")
                         else:
                             require(actual == field_type and isinstance(value, bytes),
                                     "runtime record structural value")
@@ -1413,10 +1515,12 @@ def interpret(module: Module, step_limit: int = 65_536, frame_limit: int = 64) -
                         field_type = payloads[payload_id][3]
                         actual, value = values[argument]
                         offset = payload_base + module.payload_offsets[payload_id]
-                        if types[field_type][1] in (1, 2, 3):
+                        if types[field_type][1] in (1, 2, 3, 8):
                             scalar = int(value)
-                            require(types[field_type][6] <= scalar <= types[field_type][7],
-                                    "runtime case payload range")
+                            low, high = (_u64_type_bounds(types[field_type])
+                                         if types[field_type][1] == 8
+                                         else types[field_type][6:8])
+                            require(low <= scalar <= high, "runtime case payload range")
                             size = module.layouts[field_type][0]
                             image[offset:offset + size] = scalar.to_bytes(size, "little")
                         else:
@@ -1437,11 +1541,25 @@ def interpret(module: Module, step_limit: int = 65_536, frame_limit: int = 64) -
                     for arg, param_id in zip(operands[start:start + count],
                         span(blocks[target][5], count, len(block_params), "runtime edge"))
                 }
+                for param_id in span(blocks[target][5], count, len(block_params),
+                                     "runtime edge ranges"):
+                    parameter = block_params[param_id]
+                    type_id = parameter[3]
+                    if types[type_id][1] in (1, 2, 3, 8):
+                        scalar = int(assigned[parameter[4]][1])
+                        low, high = (_u64_type_bounds(types[type_id])
+                                     if types[type_id][1] == 8 else types[type_id][6:8])
+                        require(low <= scalar <= high, "runtime edge parameter range")
                 block_values, block_id = assigned, target
             elif term[3] == 3:
                 return None
             elif term[3] == 4:
-                return int(values[term[6]][1])
+                scalar = int(values[term[6]][1])
+                result_type = machine[5]
+                low, high = (_u64_type_bounds(types[result_type])
+                             if types[result_type][1] == 8 else types[result_type][6:8])
+                require(low <= scalar <= high, "runtime return range")
+                return scalar
             else:
                 subject_type, subject = ((values[term[6]]) if term[4] == 1 else
                     (places[term[6]][0], bytes(memory[
@@ -1464,17 +1582,27 @@ def interpret(module: Module, step_limit: int = 65_536, frame_limit: int = 64) -
                         payload_id = argument[2]
                         field_type = payloads[payload_id][3]
                         offset = payload_base + module.payload_offsets[payload_id]
-                        if types[field_type][1] in (1, 2, 3):
+                        if types[field_type][1] in (1, 2, 3, 8):
                             size = module.layouts[field_type][0]
                             scalar = int.from_bytes(subject[offset:offset + size], "little")
-                            require(types[field_type][6] <= scalar <= types[field_type][7],
-                                    "runtime bound payload range")
+                            low, high = (_u64_type_bounds(types[field_type])
+                                         if types[field_type][1] == 8
+                                         else types[field_type][6:8])
+                            require(low <= scalar <= high, "runtime bound payload range")
                             value = (field_type, scalar)
                         else:
                             snapshot = bytearray(module.layouts[field_type][0])
                             semantic_copy(snapshot, 0, field_type, subject[offset:])
                             value = (field_type, bytes(snapshot))
                     assigned[block_params[parameter_id][4]] = value
+                    parameter_type = block_params[parameter_id][3]
+                    if types[parameter_type][1] in (1, 2, 3, 8):
+                        scalar = int(value[1])
+                        low, high = (_u64_type_bounds(types[parameter_type])
+                                     if types[parameter_type][1] == 8
+                                     else types[parameter_type][6:8])
+                        require(low <= scalar <= high,
+                                "runtime case-edge parameter range")
                 block_values, block_id = assigned, target
 
     return run_machine(module.entry, 0, [], 1)

@@ -1,5 +1,5 @@
 // Standalone multi-unit Omega source resolver.  Exact OMGCOMP input produces
-// the least canonical OMGRSW1/2/3/4/6/7 normalized frontend handoff.  No output is published
+// the least canonical OMGRSW1/2/3/4/6/7/8 normalized frontend handoff.  No output is published
 // until framing, independent source lexing, module/use/pub resolution, static
 // bindings, signatures, body spans, canonical types, and the exact root pass.
 // Status 251 is malformed/unsupported; 252 is declared carrier exhaustion.
@@ -14,7 +14,9 @@ data Main {
     status: i32; c: i32; n: i32; decoded: i32;
     i: i32; j: i32; k: i32; x: i32; y: i32; scan_index: i32;
     pos: i32; limit: i32; current_source: i32; literal_seen: i32; high_literal_seen: i32;
+    wide_literal_seen: i32;
     tok: i32; tok_start: i32; tok_len: i32; int_value: i32; int_high: i32;
+    int_limb2: i32; int_limb3: i32; int_upper_value: i32;
     match_ok: i32; depth: i32; saved_start: i32; saved_len: i32;
     saved_type: i32; result_id: i32; found_count: i32;
     current_visibility: i32; current_record: i32; current_sum: i32;
@@ -67,7 +69,7 @@ data Main {
     tables: [i32; 262749];
 
 
-    words: [u8; 201];
+    words: [u8; 214];
     path_count: i32;
 
     // Unit and import rows.
@@ -109,12 +111,20 @@ data Main {
     v7_pending_opcode: i32;
     v7_stack_used: i32; v7_previous_tok: i32; v7_previous_start: i32; v7_previous_len: i32;
     v7_probe_pos: i32; v7_probe_tok: i32; v7_probe_start: i32; v7_probe_len: i32;
-    v7_probe_value: i32; v7_probe_high: i32;
+    v7_probe_value: i32; v7_probe_high: i32; v7_probe_upper: i32;
     v7_valid_stack: [i32; 128]; v7_has_op_stack: [i32; 128];
     v7_need_stack: [i32; 128]; v7_high_stack: [i32; 128];
     v7_kind_stack: [i32; 128]; v7_depth_stack: [i32; 128];
     v7_const_stack: [i32; 128]; v7_value_stack: [i32; 128];
     v7_opcode_stack: [i32; 128];
+
+    // OMGRSW8 selection is deliberately narrower than general expression
+    // parsing.  The resolver only owns the exact authored `<` token and the
+    // presence of an unqualified u64 source carrier; the lowerer replays exact
+    // binder identity, purity, and same-carrier custody before CKIR exists.
+    v8_found: i32; v8_u64_seen: i32; v8_valid: i32; v8_kind: i32;
+    v8_left_kind: i32;
+    v8_previous_tok: i32; v8_previous_start: i32; v8_previous_len: i32;
 }
 
 machine Main::reject(&mut self) {
@@ -167,6 +177,9 @@ machine Main::init_words(&mut self) {
     self.words[187]=109; self.words[188]=97; self.words[189]=105; self.words[190]=110;
     self.words[191]=99; self.words[192]=111; self.words[193]=110; self.words[194]=115; self.words[195]=111; self.words[196]=108; self.words[197]=101;
     self.words[198]=97; self.words[199]=112; self.words[200]=112;
+    self.words[201]=117; self.words[202]=54; self.words[203]=52;
+    self.words[204]=116; self.words[205]=114; self.words[206]=97; self.words[207]=110; self.words[208]=115;
+    self.words[209]=105; self.words[210]=116; self.words[211]=105; self.words[212]=111; self.words[213]=110;
 }
 
 machine Main::slurp(&mut self) {
@@ -385,6 +398,7 @@ machine Main::skip_block_comment(&mut self) {
 
 machine Main::next_token(&mut self) {
     self.tok=0; self.tok_start=self.pos; self.tok_len=0; self.int_value=0; self.int_high=0;
+    self.int_limb2=0; self.int_limb3=0; self.int_upper_value=0;
     transition self.status==0 { true -> skip() _ -> done() }
     state skip() { transition self.pos<self.limit { true -> whitespace() _ -> eof() } }
     state whitespace() { self.c=self.input[self.pos]; transition self.c==32 { true -> skip_one() _ -> tab() } }
@@ -427,19 +441,27 @@ machine Main::next_token(&mut self) {
     state raw_prefix_hash() { transition self.input[self.pos]==35 { true -> bad() _ -> done() } }
     state digit0() { transition self.c>=48 { true -> digit1() _ -> punctuation() } }
     state digit1() { transition self.c<58 { true -> integer_begin() _ -> punctuation() } }
-    // Accumulate the complete unsigned 32-bit decimal carrier as two base-65536
-    // limbs.  No Delta arithmetic in this tokenizer exceeds 655,359.
-    state integer_begin() { self.int_value=0; self.int_high=0; transition 0 { _ -> integer() } }
+    // Accumulate the complete unsigned 64-bit decimal carrier as four
+    // base-65536 limbs.  No Delta arithmetic in this tokenizer exceeds
+    // 655,359.  Legacy consumers continue to use int_value/int_high and must
+    // explicitly require int_upper_value == 0.
+    state integer_begin() { self.int_value=0; self.int_high=0; self.int_limb2=0; self.int_limb3=0; transition 0 { _ -> integer() } }
     state integer() { transition self.pos<self.limit { true -> integer_byte() _ -> integer_done() } }
     state integer_byte() { self.c=self.input[self.pos]; transition self.c>=48 { true -> integer_digit_hi() _ -> integer_done() } }
     state integer_digit_hi() { transition self.c<58 { true -> integer_low() _ -> integer_done() } }
     state integer_low() { self.decoded=self.int_value*10+self.c-48; self.int_value=self.decoded%65536; self.decoded=self.decoded/65536; transition 0 { _ -> integer_high_limb() } }
-    state integer_high_limb() { self.decoded=self.int_high*10+self.decoded; transition self.decoded<=65535 { true -> integer_add() _ -> bad() } }
-    state integer_add() { self.int_high=self.decoded; self.pos=self.pos+1; transition 0 { _ -> integer() } }
+    state integer_high_limb() { self.decoded=self.int_high*10+self.decoded; self.int_high=self.decoded%65536; self.decoded=self.decoded/65536; transition 0 { _ -> integer_limb2() } }
+    state integer_limb2() { self.decoded=self.int_limb2*10+self.decoded; self.int_limb2=self.decoded%65536; self.decoded=self.decoded/65536; transition 0 { _ -> integer_limb3() } }
+    state integer_limb3() { self.decoded=self.int_limb3*10+self.decoded; transition self.decoded<=65535 { true -> integer_add() _ -> bad() } }
+    state integer_add() { self.int_limb3=self.decoded; self.pos=self.pos+1; transition 0 { _ -> integer() } }
     state integer_done() { transition self.int_high<32768 { true -> integer_pack_low() _ -> integer_pack_high() } }
     state integer_pack_low() { self.int_value=self.int_value+self.int_high*65536; transition 0 { _ -> integer_token() } }
     state integer_pack_high() { self.int_value=self.int_value+(self.int_high-32768)*65536-2147483647-1; self.high_literal_seen=1; transition 0 { _ -> integer_token() } }
-    state integer_token() { self.tok=257; self.tok_len=self.pos-self.tok_start; transition 0 { _ -> done() } }
+    state integer_token() { transition self.int_limb3<32768 { true -> integer_upper_low() _ -> integer_upper_high() } }
+    state integer_upper_low() { self.int_upper_value=self.int_limb2+self.int_limb3*65536; transition 0 { _ -> integer_token_done() } }
+    state integer_upper_high() { self.int_upper_value=self.int_limb2+(self.int_limb3-32768)*65536-2147483647-1; transition 0 { _ -> integer_token_done() } }
+    state integer_token_done() { self.tok=257; self.tok_len=self.pos-self.tok_start; transition self.int_upper_value==0 { true -> done() _ -> integer_wide() } }
+    state integer_wide() { self.wide_literal_seen=1; transition 0 { _ -> done() } }
     state punctuation() { transition self.c<128 { true -> punctuation_save() _ -> bad() } }
     state punctuation_save() { self.tok=self.c; self.tok_len=1; self.pos=self.pos+1; transition 0 { _ -> done() } }
     state eof() { self.tok=0; self.tok_start=self.limit; self.tok_len=0; transition 0 { _ -> done() } }
@@ -577,7 +599,8 @@ machine Main::v7_combine(&mut self) {
 machine Main::v7_parse_primary(&mut self) {
     self.v7_valid=0; self.v7_has_op=0; self.v7_need=0; self.v7_high=0;
     self.v7_kind=0; self.v7_depth=1; self.v7_const=0; self.v7_value=0;
-    transition self.tok==257 { true -> literal() _ -> identifier() }
+    transition self.tok==257 { true -> literal_width() _ -> identifier() }
+    state literal_width() { transition self.int_upper_value==0 { true -> literal() _ -> done() } }
     state literal() {
         self.v7_valid=1; self.v7_kind=1; self.v7_const=1; self.v7_value=self.int_value;
         transition self.int_value<0 { true -> literal_high() _ -> literal_advance() }
@@ -692,6 +715,7 @@ machine Main::scan_v7_block(&mut self, block: i32) {
     state save() {
         self.v7_probe_pos=self.pos; self.v7_probe_tok=self.tok; self.v7_probe_start=self.tok_start;
         self.v7_probe_len=self.tok_len; self.v7_probe_value=self.int_value; self.v7_probe_high=self.int_high;
+        self.v7_probe_upper=self.int_upper_value;
         self.v7_stack_used=0; self.v7_parse_expression();
         transition self.status==0 { true -> candidate() _ -> done() }
     }
@@ -703,6 +727,7 @@ machine Main::scan_v7_block(&mut self, block: i32) {
     state restore() {
         self.pos=self.v7_probe_pos; self.tok=self.v7_probe_tok; self.tok_start=self.v7_probe_start;
         self.tok_len=self.v7_probe_len; self.int_value=self.v7_probe_value; self.int_high=self.v7_probe_high;
+        self.int_upper_value=self.v7_probe_upper;
         transition 0 { _ -> advance() }
     }
     state advance() {
@@ -720,8 +745,99 @@ machine Main::select_v7_relation(&mut self) {
     state found_check() { transition self.v7_found==1 { true -> select() _ -> next() } }
     state next() { self.scan_index=self.scan_index+1; transition 0 { _ -> loop() } }
     state select() { self.resolution_version=7; transition 0 { _ -> done() } }
-    state selected() { transition self.high_literal_seen==1 { true -> bad() _ -> done() } }
+    // A full-u64 token is responsibility of the later V8 selector.  Preserve
+    // the historical high-u32 rejection only when no upper word was present.
+    state selected() { transition self.high_literal_seen==1 { true -> selected_high() _ -> done() } }
+    state selected_high() { transition self.wide_literal_seen==0 { true -> bad() _ -> done() } }
     state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::v8_parse_operand(&mut self) {
+    self.v8_valid=0; self.v8_kind=0-1;
+    transition self.tok==257 { true -> literal() _ -> identifier() }
+    state literal() { self.v8_valid=1; self.v8_kind=0-2; self.next_token(); transition 0 { _ -> done() } }
+    state identifier() { transition self.tok==256 { true -> self_check() _ -> done() } }
+    state self_check() { self.token_word(30,4); transition self.match_ok==1 { true -> self_word() _ -> parameter() } }
+    state parameter() { self.v7_find_parameter(self.tok_start,self.tok_len); transition self.result_id>=0 { true -> parameter_type() _ -> done() } }
+    state parameter_type() { self.v8_kind=self.tables[114592+self.result_id]; self.v8_valid=1; self.next_token(); transition 0 { _ -> done() } }
+    state self_word() { self.next_token(); transition self.tok==46 { true -> field_token() _ -> done() } }
+    state field_token() { self.next_token(); transition self.tok==256 { true -> field_find() _ -> done() } }
+    state field_find() { self.v7_find_direct_field(self.tok_start,self.tok_len); transition self.result_id>=0 { true -> field_type() _ -> done() } }
+    state field_type() { self.v8_kind=self.tables[114592+self.result_id]; self.v8_valid=1; self.next_token(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::scan_v8_block(&mut self, block: i32) {
+    self.current_block=block; self.current_machine=self.tables[71584+block];
+    self.x=self.tables[57888+self.current_machine]; self.current_source=self.tables[31520+self.x];
+    self.pos=self.tables[336+self.current_source]+self.tables[77728+block];
+    self.limit=self.tables[336+self.current_source]+self.tables[79776+block];
+    self.v8_previous_tok=0; self.v8_previous_start=0; self.v8_previous_len=0;
+    self.next_token(); transition self.status==0 { true -> loop() _ -> done() }
+    state loop() { transition self.tok==0 { true -> done() _ -> remember() } }
+    state remember() {
+        self.v7_probe_pos=self.pos; self.v7_probe_tok=self.tok; self.v7_probe_start=self.tok_start;
+        self.v7_probe_len=self.tok_len; self.v7_probe_value=self.int_value; self.v7_probe_high=self.int_high;
+        self.v7_probe_upper=self.int_upper_value; transition 0 { _ -> start_punctuation() }
+    }
+    state start_punctuation() { transition (self.v8_previous_tok==0)+(self.v8_previous_tok==123)+(self.v8_previous_tok==59)>0 { true -> save() _ -> start_transition() } }
+    state start_transition() {
+        self.tok=self.v8_previous_tok; self.tok_start=self.v8_previous_start; self.tok_len=self.v8_previous_len;
+        self.token_word(204,10); transition self.match_ok==1 { true -> restore_current() _ -> restore_current_advance() }
+    }
+    state restore_current() {
+        self.tok=self.v7_probe_tok; self.tok_start=self.v7_probe_start; self.tok_len=self.v7_probe_len;
+        self.int_value=self.v7_probe_value; self.int_high=self.v7_probe_high; self.int_upper_value=self.v7_probe_upper;
+        transition 0 { _ -> save() }
+    }
+    state restore_current_advance() {
+        self.tok=self.v7_probe_tok; self.tok_start=self.v7_probe_start; self.tok_len=self.v7_probe_len;
+        self.int_value=self.v7_probe_value; self.int_high=self.v7_probe_high; self.int_upper_value=self.v7_probe_upper;
+        transition 0 { _ -> advance() }
+    }
+    state save() {
+        self.v7_probe_pos=self.pos; self.v7_probe_tok=self.tok; self.v7_probe_start=self.tok_start;
+        self.v7_probe_len=self.tok_len; self.v7_probe_value=self.int_value; self.v7_probe_high=self.int_high;
+        self.v7_probe_upper=self.int_upper_value;
+        self.v8_parse_operand(); transition self.status==0 { true -> left_valid() _ -> done() }
+    }
+    state left_valid() { transition self.v8_valid==1 { true -> less() _ -> restore() } }
+    state less() { transition self.tok==60 { true -> less_next() _ -> restore() } }
+    state less_next() { self.next_token(); transition self.status==0 { true -> inclusive() _ -> done() } }
+    state inclusive() { transition self.tok==61 { true -> restore() _ -> right() } }
+    state right() { self.v8_left_kind=self.v8_kind; self.v8_parse_operand(); transition self.status==0 { true -> right_valid() _ -> done() } }
+    state right_valid() { transition self.v8_valid==1 { true -> typed_left() _ -> restore() } }
+    state typed_left() { transition self.v8_left_kind==10 { true -> right_peer() _ -> typed_right() } }
+    state typed_right() { transition self.v8_kind==10 { true -> left_literal() _ -> restore() } }
+    state left_literal() { transition self.v8_left_kind==0-2 { true -> found() _ -> restore() } }
+    state right_peer() { transition self.v8_kind==10 { true -> end_boundary() _ -> right_literal() } }
+    state right_literal() { transition self.v8_kind==0-2 { true -> end_boundary() _ -> restore() } }
+    state end_boundary() { transition (self.tok==123)+(self.tok==59)+(self.tok==44)+(self.tok==0)>0 { true -> found() _ -> restore() } }
+    state found() { self.v8_found=1; transition 0 { _ -> done() } }
+    state restore() {
+        self.pos=self.v7_probe_pos; self.tok=self.v7_probe_tok; self.tok_start=self.v7_probe_start;
+        self.tok_len=self.v7_probe_len; self.int_value=self.v7_probe_value; self.int_high=self.v7_probe_high;
+        self.int_upper_value=self.v7_probe_upper; transition 0 { _ -> advance() }
+    }
+    state advance() {
+        self.v8_previous_tok=self.tok; self.v8_previous_start=self.tok_start; self.v8_previous_len=self.tok_len;
+        self.next_token(); transition self.status==0 { true -> loop() _ -> done() }
+    }
+    state done() { }
+}
+
+machine Main::select_v8_relation(&mut self) {
+    self.v8_found=0; self.scan_index=0;
+    transition self.v8_u64_seen==1 { true -> loop() _ -> no_u64() }
+    state loop() { transition self.scan_index<self.block_count { true -> block() _ -> selected() } }
+    state block() { self.scan_v8_block(self.scan_index); transition self.status==0 { true -> found_check() _ -> done() } }
+    state found_check() { transition self.v8_found==1 { true -> select() _ -> next() } }
+    state next() { self.scan_index=self.scan_index+1; transition 0 { _ -> loop() } }
+    state select() { self.resolution_version=8; transition 0 { _ -> done() } }
+    // u64 is introduced only by the selected relation in this source family.
+    state selected() { self.reject(); transition 0 { _ -> done() } }
+    state no_u64() { transition self.wide_literal_seen==1 { true -> selected() _ -> done() } }
     state done() { }
 }
 
@@ -859,19 +975,39 @@ machine Main::parse_type_constraints(&mut self, raw: i32) {
     transition self.status==0 { true -> trapping_check() _ -> done() }
     state trapping_check() { self.token_word(48,2); transition self.match_ok==1 { true -> trapping_in() _ -> range_check() } }
     state trapping_in() { self.next_token(); self.token_word(50,8); transition self.match_ok==1 { true -> trapping_kind() _ -> bad() } }
-    state trapping_kind() { transition self.tables[114592+raw]==3 { true -> bad() _ -> trapping_nominal() } }
+    state trapping_kind() { transition self.tables[114592+raw]==10 { true -> bad() _ -> trapping_bool() } }
+    state trapping_bool() { transition self.tables[114592+raw]==3 { true -> bad() _ -> trapping_nominal() } }
     state trapping_nominal() { transition self.tables[114592+raw]==4 { true -> bad() _ -> trapping_save() } }
     state trapping_save() { self.tables[122784+raw]=1; self.next_token(); transition 0 { _ -> range_check() } }
     state range_check() { transition self.tok==91 { true -> range_kind() _ -> done() } }
-    state range_kind() { transition self.tables[114592+raw]==2 { true -> range_open() _ -> bad() } }
+    state range_kind() { transition self.tables[114592+raw]==2 { true -> range_open() _ -> range_u64() } }
+    state range_u64() { transition self.tables[114592+raw]==10 { true -> range_open() _ -> bad() } }
     state range_open() { self.tables[254508+raw]=1; self.next_token(); transition self.tok==257 { true -> range_low_bound() _ -> bad() } }
-    state range_low_bound() { transition self.int_value>=0 { true -> range_low() _ -> bad() } }
-    state range_low() { self.tables[147360+raw]=self.int_value; self.next_token(); self.expect_token(46); transition self.status==0 { true -> dot2() _ -> done() } }
+    state range_low_bound() { transition self.tables[114592+raw]==10 { true -> range_low_u64() _ -> range_low_u32() } }
+    state range_low_u32() { transition self.int_upper_value==0 { true -> range_low_u32_sign() _ -> bad() } }
+    state range_low_u32_sign() { transition self.int_value>=0 { true -> range_low() _ -> bad() } }
+    state range_low() { self.tables[147360+raw]=self.int_value; transition 0 { _ -> range_low_next() } }
+    state range_low_u64() { self.tables[130976+raw]=self.int_value; self.tables[139168+raw]=self.int_upper_value; transition 0 { _ -> range_low_next() } }
+    state range_low_next() { self.next_token(); self.expect_token(46); transition self.status==0 { true -> dot2() _ -> done() } }
     state dot2() { self.expect_token(46); transition self.status==0 { true -> equal() _ -> done() } }
     state equal() { self.expect_token(61); transition self.status==0 { true -> high_token() _ -> done() } }
     state high_token() { transition self.tok==257 { true -> range_high_bound() _ -> bad() } }
-    state range_high_bound() { transition self.int_value>=0 { true -> range_high() _ -> bad() } }
-    state range_high() { self.tables[155552+raw]=self.int_value; self.next_token(); self.expect_token(93); transition self.status==0 { true -> order() _ -> done() } }
+    state range_high_bound() { transition self.tables[114592+raw]==10 { true -> range_high_u64() _ -> range_high_u32() } }
+    state range_high_u32() { transition self.int_upper_value==0 { true -> range_high_u32_sign() _ -> bad() } }
+    state range_high_u32_sign() { transition self.int_value>=0 { true -> range_high() _ -> bad() } }
+    state range_high() { self.tables[155552+raw]=self.int_value; transition 0 { _ -> range_high_next() } }
+    state range_high_u64() { self.tables[147360+raw]=self.int_value; self.tables[155552+raw]=self.int_upper_value; transition 0 { _ -> range_high_next() } }
+    state range_high_next() { self.next_token(); self.expect_token(93); transition self.status==0 { true -> order_kind() _ -> done() } }
+    state order_kind() { transition self.tables[114592+raw]==10 { true -> order_u64_high() _ -> order() } }
+    // Keep x intact: parse_type owns it as the raw type id across this call.
+    // Compare endpoint words in place using unsigned-u32 order.
+    state order_u64_high() { transition (self.tables[139168+raw]<0)==(self.tables[155552+raw]<0) { true -> order_u64_same_sign() _ -> order_u64_sign() } }
+    state order_u64_sign() { transition self.tables[139168+raw]<0 { true -> bad() _ -> done() } }
+    state order_u64_same_sign() { transition self.tables[139168+raw]<self.tables[155552+raw] { true -> done() _ -> order_u64_high_equal() } }
+    state order_u64_high_equal() { transition self.tables[139168+raw]==self.tables[155552+raw] { true -> order_u64_low_sign() _ -> bad() } }
+    state order_u64_low_sign() { transition (self.tables[130976+raw]<0)==(self.tables[147360+raw]<0) { true -> order_u64_low_same() _ -> order_u64_low_category() } }
+    state order_u64_low_category() { transition self.tables[130976+raw]<0 { true -> bad() _ -> done() } }
+    state order_u64_low_same() { transition self.tables[130976+raw]<=self.tables[147360+raw] { true -> done() _ -> bad() } }
     state order() { transition self.tables[147360+raw]<=self.tables[155552+raw] { true -> done() _ -> bad() } }
     state bad() { self.reject(); transition 0 { _ -> done() } }
     state done() { }
@@ -885,8 +1021,15 @@ machine Main::parse_type(&mut self) {
     state scalar_allocate() { self.allocate_raw_type(); transition self.status==0 { true -> scalar_classify() _ -> done() } }
     state scalar_classify() { self.token_word(39,2); transition self.match_ok==1 { true -> u8_type() _ -> u32_check() } }
     state u8_type() { self.tables[114592+self.raw_type_result]=1; self.tables[155552+self.raw_type_result]=255; self.next_token(); transition 0 { _ -> scalar_constraints() } }
-    state u32_check() { self.token_word(41,3); transition self.match_ok==1 { true -> u32_type() _ -> bool_check() } }
+    state u32_check() { self.token_word(41,3); transition self.match_ok==1 { true -> u32_type() _ -> u64_check() } }
     state u32_type() { self.tables[114592+self.raw_type_result]=2; self.tables[155552+self.raw_type_result]=2147483647; self.next_token(); transition 0 { _ -> scalar_constraints() } }
+    state u64_check() { self.token_word(201,3); transition self.match_ok==1 { true -> u64_type() _ -> bool_check() } }
+    state u64_type() {
+        self.tables[114592+self.raw_type_result]=10; self.tables[122784+self.raw_type_result]=0;
+        self.tables[130976+self.raw_type_result]=0; self.tables[139168+self.raw_type_result]=0;
+        self.tables[147360+self.raw_type_result]=0-1; self.tables[155552+self.raw_type_result]=0-1;
+        self.v8_u64_seen=1; self.next_token(); transition 0 { _ -> scalar_constraints() }
+    }
     state bool_check() { self.token_word(44,4); transition self.match_ok==1 { true -> bool_type() _ -> i32_check() } }
     state bool_type() { self.tables[114592+self.raw_type_result]=3; self.tables[155552+self.raw_type_result]=1; self.next_token(); transition 0 { _ -> scalar_constraints() } }
     state i32_check() { self.token_word(129,3); transition self.match_ok==1 { true -> i32_profile() _ -> nominal() } }
@@ -908,7 +1051,8 @@ machine Main::parse_type(&mut self) {
     state array_element_kind() { transition self.tables[114592+self.raw_type_result]==7 { true -> bad() _ -> array_element() } }
     state array_element() { self.saved_type=self.raw_type_result; self.expect_token(59); transition self.status==0 { true -> array_length_token() _ -> done() } }
     state array_length_token() { transition self.tok==257 { true -> array_length_bound() _ -> bad() } }
-    state array_length_bound() { transition self.int_value>=0 { true -> array_length_ceiling() _ -> over() } }
+    state array_length_bound() { transition self.int_upper_value==0 { true -> array_length_sign() _ -> over() } }
+    state array_length_sign() { transition self.int_value>=0 { true -> array_length_ceiling() _ -> over() } }
     state array_length_ceiling() { transition self.int_value<=65536 { true -> array_length_save() _ -> over() } }
     state array_length_save() { self.y=self.int_value; self.next_token(); self.expect_token(93); transition self.status==0 { true -> array_allocate() _ -> done() } }
     state array_allocate() { self.allocate_raw_type(); transition self.status==0 { true -> array_save() _ -> done() } }
@@ -1187,7 +1331,7 @@ machine Main::skip_balanced_body(&mut self) {
 machine Main::parse_requirement_call_arguments(&mut self) {
     self.expect_token(40); transition self.status==0 { true -> literal() _ -> done() }
     state literal() { transition self.tok==257 { true -> literal_value() _ -> bad() } }
-    state literal_value() { transition (self.int_high==0)*(self.int_value==70) { true -> literal_next() _ -> bad() } }
+    state literal_value() { transition (self.int_upper_value==0)*(self.int_high==0)*(self.int_value==70) { true -> literal_next() _ -> bad() } }
     state literal_next() { self.next_token(); self.expect_token(41); transition self.status==0 { true -> semicolon() _ -> done() } }
     state semicolon() { self.expect_token(59); transition 0 { _ -> done() } }
     state bad() { self.reject(); transition 0 { _ -> done() } }
@@ -1855,9 +1999,17 @@ machine Main::canonicalize_raw(&mut self, raw: i32) {
     }
     state scalar() {
         self.candidate_kind=self.tables[114592+raw]; self.candidate_flags=self.tables[122784+raw];
+        transition self.candidate_kind==10 { true -> scalar_u64() _ -> scalar_legacy() }
+    }
+    state scalar_u64() {
+        self.candidate_payload0=self.tables[130976+raw]; self.candidate_payload1=self.tables[139168+raw];
+        self.candidate_lo=self.tables[147360+raw]; self.candidate_hi=self.tables[155552+raw];
+        transition self.candidate_flags==0 { true -> intern() _ -> bad() }
+    }
+    state scalar_legacy() {
         self.candidate_payload0=0; self.candidate_payload1=0;
         self.candidate_lo=self.tables[147360+raw]; self.candidate_hi=self.tables[155552+raw];
-        transition self.resolution_version==7 { true -> scalar_v7_u32() _ -> intern() }
+        transition self.resolution_version>=7 { true -> scalar_v7_u32() _ -> intern() }
     }
     state scalar_v7_u32() { transition self.candidate_kind==2 { true -> scalar_v7_unconstrained() _ -> intern() } }
     state scalar_v7_unconstrained() { transition self.tables[254508+raw]==0 { true -> scalar_v7_full() _ -> intern() } }
@@ -1926,7 +2078,7 @@ machine Main::build_canonical_types(&mut self) {
     state u32_type() {
         self.tables[180128+self.type_count]=2; self.tables[182176+self.type_count]=0; self.tables[184224+self.type_count]=0;
         self.tables[186272+self.type_count]=0; self.tables[188320+self.type_count]=0;
-        transition self.resolution_version==7 { true -> u32_type_v7() _ -> u32_type_legacy() }
+        transition self.resolution_version>=7 { true -> u32_type_v7() _ -> u32_type_legacy() }
     }
     state u32_type_legacy() { self.tables[190368+self.type_count]=2147483647; transition 0 { _ -> u32_type_done() } }
     state u32_type_v7() { self.tables[190368+self.type_count]=0-1; transition 0 { _ -> u32_type_done() } }
@@ -2107,6 +2259,11 @@ machine Main::emit_u32(&mut self, value: i32) {
     state done() { }
 }
 
+machine Main::emit_scalar_u32(&mut self, value: i32) {
+    write_byte(value&255); write_byte((value>>8)&255);
+    write_byte((value>>16)&255); write_byte((value>>24)&255);
+}
+
 machine Main::publish_witness(&mut self) {
     // OMGRSW1 retains its exact frozen relation.  A source using the admitted
     // direct field-receiver form selects OMGRSW2; an admitted sum selects
@@ -2207,8 +2364,19 @@ machine Main::publish_witness(&mut self) {
     state types() { transition self.i<self.type_count { true -> type() _ -> records_begin() } }
     state type() {
         self.emit_u32(self.i); write_byte(self.tables[180128+self.i]); write_byte(self.tables[182176+self.i]); write_byte(0); write_byte(0);
+        transition self.tables[180128+self.i]==10 { true -> type_u64() _ -> type_legacy() }
+    }
+    state type_u64() {
+        self.emit_scalar_u32(self.tables[184224+self.i]); self.emit_scalar_u32(self.tables[186272+self.i]);
+        self.emit_scalar_u32(self.tables[188320+self.i]); self.emit_scalar_u32(self.tables[190368+self.i]);
+        transition 0 { _ -> type_next() }
+    }
+    state type_legacy() {
         self.emit_u32(self.tables[184224+self.i]); self.emit_u32(self.tables[186272+self.i]);
         self.emit_u32(self.tables[188320+self.i]); self.emit_u32(self.tables[190368+self.i]);
+        transition 0 { _ -> type_next() }
+    }
+    state type_next() {
         self.i=self.i+1; transition 0 { _ -> types() }
     }
     state records_begin() { self.i=0; transition 0 { _ -> records() } }
@@ -2335,6 +2503,7 @@ machine Main::main(&mut self) {
     self.record_count=0; self.field_count=0; self.sum_count=0; self.case_count=0; self.payload_count=0;
     self.machine_count=0; self.machine_parameter_count=0;
     self.block_count=0; self.block_parameter_count=0; self.raw_type_count=0; self.literal_seen=0; self.high_literal_seen=0;
+    self.wide_literal_seen=0; self.v8_u64_seen=0;
     self.boundary_trait_count=0; self.requirement_count=0; self.requirement_parameter_count=0;
     self.reach_count=0; self.realization_count=0; self.realization_parameter_count=0; self.requirement_call_count=0;
     self.resolution_version=1;
@@ -2344,7 +2513,8 @@ machine Main::main(&mut self) {
     state imports() { self.resolve_imports(); transition self.status==0 { true -> bindings() _ -> finish() } }
     state bindings() { self.resolve_bindings(); transition self.status==0 { true -> provider_profile() _ -> finish() } }
     state provider_profile() { self.validate_v6_provider_profile(); transition self.status==0 { true -> v7_relation() _ -> finish() } }
-    state v7_relation() { self.select_v7_relation(); transition self.status==0 { true -> literal_check() _ -> finish() } }
+    state v7_relation() { self.select_v7_relation(); transition self.status==0 { true -> v8_relation() _ -> finish() } }
+    state v8_relation() { self.select_v8_relation(); transition self.status==0 { true -> literal_check() _ -> finish() } }
     // A bounded quoted literal is inherited custody for either an independently
     // selected shared-view closure or an arithmetic-selected OMGRSW7 closure.
     // Test it only after deferred V7 least-selection; a literal alone still

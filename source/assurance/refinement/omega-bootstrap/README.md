@@ -1,6 +1,18 @@
 # Bridge refinement reconstruction
 
 The active successor is
+[`OMGRFN18`](OMGCOMP_REFINEMENT_WITNESS_V18.md): `OMGRFNI\0` / version 18 binds
+exact OMGCOMP1 and canonical OMGRSW8 to CKIR16's direct pure full-width
+same-carrier `u64 < u64` relation, conservative unsigned artifact, and
+true-edge range custody. Eight responsibility-local Python owners are the
+exhaustive cheap oracle; ten smaller persisted-Beta projections retain actual
+Alpha/Beta seed lineage below the tape ceiling. A separate producer composite
+carries actual native/self resolver and lowerer output through the production
+backend, while R5 independently reconstructs the ELF byte for byte. Product
+admission remains separate, so this is bounded cost evidence rather than a
+complete product-closure claim.
+
+The immediately preceding recurrent-view carrier remains
 [`OMGRFN17`](OMGCOMP_REFINEMENT_WITNESS_V17.md): `OMGRFNH\0` / version 17 binds
 exact OMGCOMP1 and OMGRSW4 to CKIR15's recurrent guarded shared-byte-view
 relation and conservative artifact. Eight responsibility-local Python owners

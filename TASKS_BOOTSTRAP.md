@@ -293,19 +293,22 @@ evidence stay in
 
 | Open implementation lane | Checkpoint forms to carry generally | Known boundary |
 | --- | --- | --- |
-| compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; recurrent guarded head/tail over a runtime-capable direct `&[u8]`, with ordered direct-binder pass-through vectors, is closed through CKIR15/OMGRFN17; mutable views, dynamic indexing, computed/effectful siblings, and the product source's same-carrier `u64` collection operations remain open |
-| compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, remaining concrete Trapping arithmetic/casts, and the observed ranking clause | exact widening, canonical leaf-plus-literal addition, and one recursive pure full-width `u32 in Trapping` `+`/`-`/`*` tree are closed through persisted lower-rooted OMGRFN16. Call and CaseDispatch argument vectors are exact when they contain at most one potentially trapping argument and pure/nontrapping siblings; multiple observable trap sites still require the unresolved order ruling. Broader receivers, recursion, and packages remain separate |
+| compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; recurrent guarded head/tail over a runtime-capable direct `&[u8]`, with ordered direct-binder pass-through vectors, is closed through CKIR15/OMGRFN17. Its direct pure full-width `u64 < u64` prerequisite and true-edge range custody are closed through CKIR16/OMGRFN18; mutable views, dynamic indexing, computed/effectful siblings, and the remaining same-carrier `u64` collection operations remain open |
+| compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, remaining concrete Trapping arithmetic/casts, and the observed ranking clause | exact widening, canonical leaf-plus-literal addition, one recursive pure full-width `u32 in Trapping` `+`/`-`/`*` tree, and direct pure full-width `u64 < u64` with true-edge range custody are closed through persisted lower-rooted OMGRFN18. Call and CaseDispatch argument vectors are exact when they contain at most one potentially trapping argument and pure/nontrapping siblings; multiple observable trap sites still require the unresolved order ruling. Other `u64` operations, broader receivers, recursion, and packages remain separate |
 | source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; the product build now uses normative explicit provider selection, but the one-requirement OMGCOMP2 fixture is still only cost evidence for the six-requirement product `Console` closure; do not infer target-default semantics or import general boundary traits into Delta |
 
 The next actions are intentionally capability-shaped. Exact version identities,
 fixture matrices, and byte ceilings remain with their contracts and gates.
 
-- [ ] Take the next scalar/control slice as direct pure same-carrier `u64 < u64`
+- [x] Take the next scalar/control slice as direct pure same-carrier `u64 < u64`
   with full-width operands and true-edge range custody. Carry both halves through
   storage, calls/edges where exercised, meaning, emission, and reconstruction;
   do not widen this into arithmetic, mixed carriers, dynamic indexing, or other
   comparisons. Preserve the current restriction on multiple observably trapping
-  call/transition arguments until evaluation order is ruled.
+  call/transition arguments until evaluation order is ruled. OMGRSW8,
+  OMGLOWH/CKIR16, the conservative backend, and persisted lower-rooted OMGRFN18
+  close this bounded relation; final `Ωself` admission and the remaining `u64`
+  collection surface stay open.
 - [ ] Add an explicit authoritative build-source identity to the compilation
   envelope, then carry the product build's explicit six-requirement `Console`
   selection through one complete `ProviderPlan`, checked calls, conservative
