@@ -9,15 +9,15 @@ use omega_compiler::{
     PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
     PackageReviewDangerousAuthorityClass, PackageReviewDataMember, PackageReviewDomainAliasAtom,
     PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
-    PackageReviewMachineParameterContract, PackageReviewNominalOwner,
-    PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
-    PackageReviewPropositionEvidence, PackageReviewPublicPropositionBody,
-    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
-    PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
-    PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
-    PackageReviewSynchronousInvocation, PackageReviewSyntheticSourceKind,
-    PackageReviewTypeParameterKind, PackageSourceBinding, compile_to_checked_with_packages,
-    project_checked_package_review,
+    PackageReviewDomainSemanticRole, PackageReviewMachineParameterContract,
+    PackageReviewNominalOwner, PackageReviewPropositionBinderKind,
+    PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
+    PackageReviewPublicPropositionBody, PackageReviewRepresentationAbiCommitment,
+    PackageReviewRepresentationMechanism, PackageReviewSemanticDependencyExposure,
+    PackageReviewSemanticDependencyKind, PackageReviewSourceLocationOwner,
+    PackageReviewSourceLocationRole, PackageReviewSynchronousInvocation,
+    PackageReviewSyntheticSourceKind, PackageReviewTypeParameterKind, PackageSourceBinding,
+    compile_to_checked_with_packages, project_checked_package_review,
 };
 use psi_core::PackageKeyIdentity;
 use std::fs;
@@ -1052,7 +1052,7 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 57);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 58);
     assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 16);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
@@ -5127,6 +5127,101 @@ machine build(builder: &mut Build) { }
     };
 
     assert_ne!(encode(&first), encode(&second));
+}
+
+#[test]
+fn public_domain_semantic_roles_project_from_exact_typed_identity() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub domain i32::Degrees;
+pub domain i32::Radians;
+
+pub operator + add(
+    left: i32 in Degrees,
+    right: i32 in Degrees
+) -> i32 in Degrees;
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("public semantic-role fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("exact typed semantic roles should project");
+    let degrees = review
+        .public_domains()
+        .iter()
+        .find(|domain| domain.identity().path() == "i32::Degrees")
+        .expect("public Degrees domain row");
+    assert_eq!(
+        degrees.semantic_roles(),
+        &[PackageReviewDomainSemanticRole::DenotationDimension]
+    );
+    let radians = review
+        .public_domains()
+        .iter()
+        .find(|domain| domain.identity().path() == "i32::Radians")
+        .expect("public Radians domain row");
+    assert!(radians.semantic_roles().is_empty());
+    assert!(review.public_operators().iter().any(|operator| {
+        operator.coordinate().identity().path().ends_with("::add")
+            || operator.coordinate().identity().path() == "add"
+    }));
+
+    let mut role_removed = checked.clone();
+    role_removed
+        .typed
+        .domain_definitions
+        .for_each_mut(|_, domain| {
+            if domain.name.as_str() == "i32::Degrees" {
+                domain.semantic_roles.denotation_dimension = None;
+            }
+        });
+    let role_removed = project_checked_package_review(&role_removed)
+        .expect("an absent semantic role remains a coherent distinct declaration");
+    assert_ne!(
+        review.canonical_review_bytes().unwrap(),
+        role_removed.canonical_review_bytes().unwrap(),
+        "semantic-role presence must change canonical package-review identity"
+    );
+
+    let wrong_identity = checked
+        .typed
+        .domain_definitions
+        .iter()
+        .find(|(_, domain)| domain.name.as_str() == "i32::Radians")
+        .expect("typed Radians declaration")
+        .1
+        .semantic_id;
+    let mut spoofed = checked.clone();
+    spoofed.typed.domain_definitions.for_each_mut(|_, domain| {
+        if domain.name.as_str() == "i32::Degrees" {
+            domain.semantic_roles.denotation_dimension = Some(wrong_identity);
+        }
+    });
+    let diagnostics = project_checked_package_review(&spoofed)
+        .expect_err("a semantic role pointing at another typed domain must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("semantic role does not name its exact typed semantic identity")
+    }));
 }
 
 #[test]

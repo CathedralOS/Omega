@@ -1234,8 +1234,13 @@ complete.
   call row does not confuse signature identity with implementation identity.
   Symbolic const declarations or expressions, proposition/evidence static
   arguments, quotient calls, true nested machine/conformance applications,
-  other compiler-intrinsic calls, semantic roles, and domain operators still
-  reject until their exact canonical rows are settled.
+  and other compiler-intrinsic calls still reject until their exact canonical
+  rows are settled. Public domain semantic roles now project from the exact
+  typed declaration as a closed role set. The projector requires every retained
+  role to name that declaration's own semantic identity, then persists the
+  package-qualified domain plus the closed role tag rather than the private
+  semantic-domain ID. Public domain operators remain independently covered by
+  the exact `PublicOperator` rows.
   Package-owned public traits now project exact identity, boundary status,
   alpha-normalized lifetime/type/const binders, ordered package-qualified
   parent edges, and ordered machine/operator requirement signatures including

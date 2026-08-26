@@ -637,9 +637,13 @@ qualified entry target, and ordinary arguments after joining one public-
 interface declaration-selection row. The whole-source commitment separately
 pins the helper body; a callable signature is not body identity. Symbolic const
 declarations or expressions, proposition/evidence static arguments, quotient
-calls, true nested machine/conformance applications, other compiler-intrinsic
-calls, semantic roles, and domain operators reject until exact rows are
-settled; none is inferred from the domain name.
+calls, true nested machine/conformance applications, and other compiler-
+intrinsic calls reject until exact rows are settled. Public domain semantic
+roles project from the exact typed declaration as closed compiler-owned tags.
+Each contribution must point back to the declaration's own typed semantic
+identity; canonical evidence retains the package-qualified domain and role,
+never the compiler-private semantic ID or a role inferred from its name.
+Public domain operators remain separate exact `PublicOperator` rows.
 Compiler-owned
 classifications and authorized establishment routes retain the exact route kind and
 package-qualified trait/requirement identities; alternative routes normalize
