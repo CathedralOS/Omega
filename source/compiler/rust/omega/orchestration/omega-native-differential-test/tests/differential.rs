@@ -17,7 +17,7 @@
 
 use omega_compiler::{
     ArtifactEmissionPolicy, CheckedCompilation, CompileHarnessRequest, CompileOptions,
-    CompileRequest, compile_harness, compile_request, compile_to_checked,
+    CompileRequest, compile, compile_harness, compile_to_checked,
 };
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::fs;
@@ -2934,7 +2934,7 @@ fn try_compile_and_run_native_with_stdin(
                 .with_worker_count(worker_count)
                 .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
         ),
-        (true, None) => compile_request(
+        (true, None) => compile(
             CompileRequest::new(options).with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
         ),
         (false, Some(worker_count)) => compile_harness(

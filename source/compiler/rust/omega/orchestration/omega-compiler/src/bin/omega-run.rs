@@ -16,7 +16,7 @@
 //! compile failure, 201 on native/interp disagreement under `--both`.
 
 use omega_compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, compile_request, compile_to_checked,
+    ArtifactEmissionPolicy, CompileOptions, CompileRequest, compile, compile_to_checked,
 };
 use std::process::Command;
 
@@ -46,7 +46,7 @@ fn main() {
     let _ = std::fs::remove_dir_all(&build_dir);
 
     let artifact_policy = probe_artifact_policy(keep);
-    let report = match compile_request(
+    let report = match compile(
         CompileRequest::new(CompileOptions {
             root_path: main_path.clone(),
             build_dir: Some(build_dir.clone()),

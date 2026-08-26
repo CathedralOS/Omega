@@ -15,8 +15,8 @@ use omega_compiler::{
     BuildFilesystemReturnedPathKind, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
     BuildObservationClass, CheckedCompilation, CompileOptions, FilesystemSponsor,
     PackageCompilationInputs, PackageSourceBinding,
-    capture_verified_build_filesystem_replay_record, compile, compile_to_checked,
-    compile_to_checked_with_packages_in_build_dir,
+    capture_verified_build_filesystem_replay_record, compile_options as compile,
+    compile_to_checked, compile_to_checked_with_packages_in_build_dir,
     compile_to_checked_with_packages_in_sponsored_build_dir, compile_to_checked_with_replay_record,
     recover_review_only_build_filesystem_replay_record,
 };

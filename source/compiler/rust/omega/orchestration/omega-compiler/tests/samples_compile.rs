@@ -66,7 +66,7 @@
 //!    that text — exit code alone passes even when a RENDERER silently draws
 //!    nothing (a broken carrier render), so the renderers assert a glyph they draw.
 
-use omega_compiler::{CompileOptions, compile as compile_program, compile_to_checked};
+use omega_compiler::{CompileOptions, compile_options as compile_program, compile_to_checked};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};

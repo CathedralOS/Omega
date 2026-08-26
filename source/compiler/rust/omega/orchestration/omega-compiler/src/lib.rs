@@ -158,7 +158,7 @@ pub use pipeline::{
     bind_recorded_program_local_storage_entry_whole_root_arguments,
     bind_recorded_program_storage_entry_whole_root_arguments,
     capture_verified_build_filesystem_replay_record, census_source_closure, compile,
-    compile_harness, compile_request, compile_to_checked, compile_to_checked_with_packages,
+    compile_harness, compile_options, compile_to_checked, compile_to_checked_with_packages,
     compile_to_checked_with_packages_and_replay_record,
     compile_to_checked_with_packages_in_build_dir,
     compile_to_checked_with_packages_in_sponsored_build_dir, compile_to_checked_with_replay_record,

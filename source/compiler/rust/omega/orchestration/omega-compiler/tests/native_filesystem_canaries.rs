@@ -7,7 +7,7 @@
 // dir ops. (These canaries signal success via "PASS: …" on stdout and exit with the
 // final write's byte count, so the assertion is on stdout, not the exit code.)
 #![cfg(target_os = "macos")]
-use omega_compiler::{CompileOptions, compile as compile_program};
+use omega_compiler::{CompileOptions, compile_options as compile_program};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};

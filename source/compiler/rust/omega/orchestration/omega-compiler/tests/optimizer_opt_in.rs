@@ -1,6 +1,7 @@
 use omega_compiler::{
     CompileOptions, Optimization, PackageCompilationInputs, PackageDependencyBinding,
-    PackageSourceBinding, compile, compile_to_checked, compile_to_checked_with_packages,
+    PackageSourceBinding, compile_options as compile, compile_to_checked,
+    compile_to_checked_with_packages,
 };
 use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;

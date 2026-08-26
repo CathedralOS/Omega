@@ -2,8 +2,8 @@ use std::fmt::Write;
 use std::path::PathBuf;
 
 use omega_compiler::{
-    ArtifactEmissionPolicy, CompileHarnessRequest, CompileOptions, CompileRequest, compile_harness,
-    compile_request, compile_to_checked,
+    ArtifactEmissionPolicy, CompileHarnessRequest, CompileOptions, CompileRequest, compile,
+    compile_harness, compile_to_checked,
 };
 use omega_core::allocations::CountingAllocator;
 use psi_core::{ServiceId, StructuralTypeId};
@@ -76,7 +76,7 @@ fn main() {
     } else {
         ArtifactEmissionPolicy::Full
     };
-    match compile_request(CompileRequest::new(options).with_artifact_policy(artifact_policy)) {
+    match compile(CompileRequest::new(options).with_artifact_policy(artifact_policy)) {
         Ok(report) => {
             println!("{}", report.summary());
         }
