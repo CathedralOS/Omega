@@ -1866,9 +1866,19 @@ replays the canonical installation/image join, stages and validates the exact
 sealed bytes and executable mode before atomic rename, replays the visible
 file, and returns a non-clonable installation/image/path receipt while retaining
 the runnable. Every failure returns the exact runnable and requested path for
-retry; receipt replay detects later byte or mode drift. The legacy direct
-`write_output` route remains fenced until production orchestration supplies the
-real deployment inputs and retains this non-clonable result in its report.
+retry; receipt replay detects later byte or mode drift.
+
+The compiler now also exposes one typed transaction above those deployment
+stages. Its input owns the candidate, real installed-code occurrence, exact
+provider-occurrence bindings, exact progress attestations, and profile
+decision. It consumes them in order through begin, provider closure, progress
+closure, finalization, and flat output. Rejection is stage-typed and retains the
+exact current deployment carrier plus every unconsumed later input; no path
+converts a linear failure into diagnostics alone. Progress-free rejection and
+progress-bearing success canaries cross this transaction. The legacy direct
+`write_output` route remains fenced until the production driver obtains those
+inputs from their real owners and retains the non-clonable transaction result
+in its report.
 Compact record identities remain report keys and grant no authority.
 
 ### Placed-occurrence and resident-custody slice

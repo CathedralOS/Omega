@@ -9,8 +9,10 @@ use omega_calling_conventions::{
     evaluate_ordinary_boundary_entry_plan, validate_entry_stack_domain_closure,
 };
 use omega_compiler::{
-    CompileOptions, TerminalComponentProviderSettlement, compile_to_checked,
-    stage_terminal_component, write_finalized_terminal_component_output,
+    CompileOptions, TerminalComponentDeploymentInputs, TerminalComponentDeploymentOutputError,
+    TerminalComponentDeploymentOutputStage, TerminalComponentProviderSettlement,
+    compile_to_checked, deploy_and_write_terminal_component_output, stage_terminal_component,
+    write_finalized_terminal_component_output,
 };
 use omega_component_deployment::{
     ComponentProgressAttestationBinding, begin_terminal_component_deployment,
@@ -774,6 +776,93 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
     }
 }
 
+#[cfg(unix)]
+#[test]
+fn compiler_deployment_transaction_requires_real_installation_and_retains_failure_custody() {
+    let source = progress_free_selected_source_canary();
+    let checked = compile_to_checked(&source, Some("linux_x64"))
+        .expect("selected progress-free source entry should compile");
+    let candidate = stage_terminal_component(
+        &checked,
+        NativeTarget::linux_x64(),
+        3,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .expect("selected progress-free source should stage one terminal candidate");
+    let entry_offset = u64::try_from(candidate.object().entry_function().text_offset)
+        .expect("terminal entry offset fits installation geometry");
+    let mut wrong_text = candidate.object().text_bytes().to_vec();
+    wrong_text[0] ^= 0x01;
+    let (wrong_installed, _) =
+        install_terminal_object(candidate.object(), wrong_text, entry_offset);
+    let scratch = ScratchDirectory(fresh_scratch_directory(
+        "omega-compiler-terminal-deployment-transaction",
+    ));
+    let options = CompileOptions {
+        root_path: source,
+        build_dir: Some(scratch.0.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    };
+    let profile_decision =
+        ProfileDecisionId::new(0x55f3).expect("compiler deployment profile decision");
+    let error = deploy_and_write_terminal_component_output(
+        &options,
+        TerminalComponentDeploymentInputs::new(
+            candidate,
+            wrong_installed,
+            Vec::new(),
+            Vec::new(),
+            profile_decision,
+        ),
+    )
+    .expect_err("compiler transaction must reject substituted installed bytes");
+    assert_eq!(error.stage(), TerminalComponentDeploymentOutputStage::Begin);
+    assert!(error.diagnostic().contains("exact unrelocated"));
+    let (candidate, _wrong_installed) = match *error {
+        TerminalComponentDeploymentOutputError::Begin {
+            error,
+            provider_occurrences,
+            progress_attestations,
+            profile_decision: returned_profile,
+        } => {
+            assert!(provider_occurrences.is_empty());
+            assert!(progress_attestations.is_empty());
+            assert_eq!(returned_profile, profile_decision);
+            error.into_parts()
+        }
+        other => panic!("expected begin-stage deployment recovery, got {other:?}"),
+    };
+
+    let (installed, _) = install_terminal_object(
+        candidate.object(),
+        candidate.object().text_bytes().to_vec(),
+        entry_offset,
+    );
+    let installed_identity = installed.identity();
+    let expected_path = options
+        .build_dir()
+        .join(&candidate.image().output().file_name);
+    let published = deploy_and_write_terminal_component_output(
+        &options,
+        TerminalComponentDeploymentInputs::new(
+            candidate,
+            installed,
+            Vec::new(),
+            Vec::new(),
+            profile_decision,
+        ),
+    )
+    .expect("recovered compiler deployment transaction should publish exactly");
+    assert_eq!(published.runnable().installed_code(), installed_identity);
+    assert_eq!(published.receipt().output_path(), expected_path);
+    assert!(published.runnable().progress().is_none());
+    published
+        .validate()
+        .expect("compiler deployment transaction receipt should replay");
+}
+
 #[test]
 fn selected_optimizer_source_reaches_staged_assignment_but_not_publication() {
     let checked = compile_to_checked(&selected_optimizer_source_canary(), Some("linux_x64"))
@@ -1097,6 +1186,89 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             .fingerprint(),
         progress_fingerprint
     );
+
+    #[cfg(unix)]
+    {
+        let candidate = stage_terminal_component(
+            &checked,
+            target,
+            3,
+            &AdmissionProfile::default(),
+            &[TerminalComponentProviderSettlement {
+                provider_execution: &provider,
+                realization: TerminalLinuxExitGroupI32Realization.into(),
+            }],
+        )
+        .expect("compiler transaction should restage the progress-bearing candidate");
+        let entry_offset = u64::try_from(candidate.object().entry_function().text_offset)
+            .expect("progress transaction entry offset fits installation geometry");
+        let (installed, _) = install_terminal_object(
+            candidate.object(),
+            candidate.object().text_bytes().to_vec(),
+            entry_offset,
+        );
+        let installed_identity = installed.identity();
+        let occurrence = InstalledProviderOccurrenceId::from_normalized_identity(0x5430)
+            .expect("compiler transaction provider occurrence");
+        let provider_bindings = vec![ProviderOccurrencePlanBinding::new(
+            demand.provider_plan_identity,
+            ProviderOccurrenceInstallationReceipt::from_provider(
+                ProviderOccurrenceInstallationReceiptId::from_normalized_identity(0x5431)
+                    .expect("compiler transaction provider receipt"),
+                &installed,
+                occurrence,
+                selected_plan.provider_type.clone(),
+            ),
+        )];
+        let progress_bindings = vec![ComponentProgressAttestationBinding::new(
+            ComponentProgressDemandIdentity::from_demand(demand),
+            ProgressProfileEstablishmentAttestation::from_provider(
+                ProgressProfileEstablishmentReceiptId::from_normalized_identity(0x5432)
+                    .expect("compiler transaction progress receipt"),
+                &installed,
+                occurrence,
+                occurrence,
+                demand.provider_plan_identity,
+                ProgressProfileGrantInvocationId::from_normalized_identity(0x5433)
+                    .expect("compiler transaction grant invocation"),
+                demand.profile_identity.clone(),
+                demand.subject_projections.clone(),
+                demand.establishment_routes[0].clone(),
+            ),
+        )];
+        let scratch = ScratchDirectory(fresh_scratch_directory(
+            "omega-compiler-progress-deployment-transaction",
+        ));
+        let options = CompileOptions {
+            root_path: progress_source_canary(),
+            build_dir: Some(scratch.0.clone()),
+            target_name: Some("linux_x64".into()),
+            write_output: true,
+        };
+        let published = deploy_and_write_terminal_component_output(
+            &options,
+            TerminalComponentDeploymentInputs::new(
+                candidate,
+                installed,
+                provider_bindings,
+                progress_bindings,
+                ProfileDecisionId::new(0x5434).expect("compiler transaction profile decision"),
+            ),
+        )
+        .expect("compiler transaction should deploy accepted progress inputs");
+        assert_eq!(published.runnable().installed_code(), installed_identity);
+        assert!(
+            published
+                .runnable()
+                .terminal_artifact()
+                .installation()
+                .component_progress()
+                .is_some()
+        );
+        published
+            .validate()
+            .expect("compiler progress transaction should retain replayable custody");
+    }
 }
 
 #[cfg(target_os = "macos")]
