@@ -202,6 +202,153 @@ impl PsiOptimizationRule for ExactIntegerCastConstantsRule {
     }
 }
 
+macro_rules! integer_unary_rule {
+    ($name:ident, $rule_name:literal, $kind:expr) => {
+        #[derive(Debug, Clone, Copy, Default)]
+        pub struct $name;
+
+        impl $name {
+            pub fn contract() -> OptimizationRuleContract {
+                integer_evaluation_contract(
+                    $rule_name,
+                    OptimizationSafetyClass::ExactOperationSemantics,
+                )
+            }
+        }
+
+        impl PsiOptimizationRule for $name {
+            fn contract(&self) -> OptimizationRuleContract {
+                Self::contract()
+            }
+
+            fn propose(
+                &self,
+                unit: &PsiOptimizationUnit,
+                analyses: RuleAnalysisView<'_>,
+            ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+                propose_integer_unary_constants(unit, analyses, Self::contract(), $kind)
+            }
+        }
+    };
+}
+
+integer_unary_rule!(
+    IntegerWidenConstantsRule,
+    b"omega.psi-rule.integer-widen-constants.v1",
+    IntegerUnaryKind::Widen
+);
+integer_unary_rule!(
+    IntegerBitwiseNotConstantsRule,
+    b"omega.psi-rule.integer-bitwise-not-constants.v1",
+    IntegerUnaryKind::BitwiseNot
+);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IntegerUnaryKind {
+    Widen,
+    BitwiseNot,
+}
+
+fn propose_integer_unary_constants(
+    unit: &PsiOptimizationUnit,
+    analyses: RuleAnalysisView<'_>,
+    contract: OptimizationRuleContract,
+    kind: IntegerUnaryKind,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+    let Some(AnalysisProduct::ScalarConstants(constants)) =
+        analyses.get(AnalysisKind::ScalarConstants)
+    else {
+        return Err(RuleProposalError::MissingAnalysis(
+            AnalysisKind::ScalarConstants,
+        ));
+    };
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let (source_operation, result, source_type, target_type, operand) =
+                    match (&node.operation, kind) {
+                        (
+                            O::IntegerWiden {
+                                psi_operation,
+                                result,
+                                source_type,
+                                target_type,
+                                operand,
+                            },
+                            IntegerUnaryKind::Widen,
+                        ) => (
+                            *psi_operation,
+                            *result,
+                            *source_type,
+                            *target_type,
+                            *operand,
+                        ),
+                        (
+                            O::IntegerBitwiseNot {
+                                psi_operation,
+                                result,
+                                scalar_type,
+                                operand,
+                            },
+                            IntegerUnaryKind::BitwiseNot,
+                        ) => (
+                            *psi_operation,
+                            *result,
+                            *scalar_type,
+                            *scalar_type,
+                            *operand,
+                        ),
+                        _ => continue,
+                    };
+                let Some((operand_value, operand_support)) =
+                    integer_constant(constants, function.machine, operand)
+                else {
+                    continue;
+                };
+                let constant = match kind {
+                    IntegerUnaryKind::Widen => {
+                        source_type.widen_value_to(target_type, operand_value)
+                    }
+                    IntegerUnaryKind::BitwiseNot => source_type.bitwise_not(operand_value),
+                };
+                let Some(constant) = constant else {
+                    continue;
+                };
+                let location = NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: u32::try_from(node_index).expect("optimization node indices are u32"),
+                };
+                candidates.push(
+                    PsiRewriteCandidate::new_integer_evaluation(
+                        unit.identity,
+                        contract,
+                        vec![block.id],
+                        Vec::new(),
+                        vec![ProvenanceRewrite {
+                            output: location,
+                            sources: node.provenance.clone(),
+                            fuel: node.fuel.clone(),
+                        }],
+                        IntegerEvaluationWitness::Unary { operand_support },
+                        -1,
+                        IntegerConstantRewrite {
+                            location,
+                            source_operation,
+                            result,
+                            scalar_type: target_type,
+                            constant,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+    }
+    Ok(candidates)
+}
+
 fn propose_exact_integer_cast_constants(
     unit: &PsiOptimizationUnit,
     analyses: RuleAnalysisView<'_>,
@@ -781,6 +928,8 @@ pub fn built_in_psi_registry(
         rules.push(Arc::new(WrappingIntegerShiftLeftConstantsRule));
         rules.push(Arc::new(WrappingIntegerShiftRightConstantsRule));
         rules.push(Arc::new(ExactIntegerCastConstantsRule));
+        rules.push(Arc::new(IntegerWidenConstantsRule));
+        rules.push(Arc::new(IntegerBitwiseNotConstantsRule));
     }
     OrderedRuleRegistry::new(rules)
 }
@@ -1164,6 +1313,83 @@ pub(crate) mod tests {
         .unwrap()
     }
 
+    fn goal_free_unary_unit(widen: bool) -> PsiOptimizationUnit {
+        let machine = id(331, MachineId::new);
+        let block = id(332, BlockId::new);
+        let operand = id(333, ValueId::new);
+        let result = id(334, ValueId::new);
+        let source_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let target_type = if widen {
+            IntegerType::new(IntegerSign::Unsigned, 16).unwrap()
+        } else {
+            source_type
+        };
+        let unary = if widen {
+            TerminalAbstractOperation::IntegerWiden {
+                psi_operation: id(336, OperationId::new),
+                result,
+                source_type,
+                target_type,
+                operand,
+            }
+        } else {
+            TerminalAbstractOperation::IntegerBitwiseNot {
+                psi_operation: id(336, OperationId::new),
+                result,
+                scalar_type: source_type,
+                operand,
+            }
+        };
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([15; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry: block,
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: result,
+                        scalar_type: ScalarType::Integer(target_type),
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        TerminalAbstractOperation::IntegerConstant {
+                            psi_operation: id(335, OperationId::new),
+                            result: operand,
+                            scalar_type: ScalarType::Integer(source_type),
+                            value: IntegerValue::Unsigned(15),
+                        },
+                        unary,
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(337, EdgeId::new),
+                            result,
+                            value: result,
+                            scalar_type: ScalarType::Integer(target_type),
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
     #[test]
     fn selected_builtin_proposes_one_independently_validated_exact_fold() {
         let unit = exact_add_unit();
@@ -1173,7 +1399,7 @@ pub(crate) mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        assert_eq!(registry.len(), 20);
+        assert_eq!(registry.len(), 22);
         let mut dispatched = 0usize;
         let mut candidates = Vec::new();
         for rule in registry.iter() {
@@ -1387,6 +1613,39 @@ pub(crate) mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn widen_and_bitwise_not_rules_reuse_typed_unary_evidence() {
+        let cases: [(bool, &dyn PsiOptimizationRule, u128, u16); 2] = [
+            (true, &IntegerWidenConstantsRule, 15, 16),
+            (false, &IntegerBitwiseNotConstantsRule, 240, 8),
+        ];
+        for (widen, rule, expected, expected_bits) in cases {
+            let unit = goal_free_unary_unit(widen);
+            let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
+            let candidates = rule
+                .propose(&unit, RuleAnalysisView::new(&[constants]))
+                .unwrap();
+            assert_eq!(candidates.len(), 1);
+            assert_eq!(
+                candidates[0].safety_class(),
+                OptimizationSafetyClass::ExactOperationSemantics
+            );
+            assert!(matches!(
+                candidates[0].witness(),
+                IntegerEvaluationWitness::Unary { .. }
+            ));
+            let accepted = validate_integer_evaluation_candidate(&unit, &candidates[0]).unwrap();
+            assert!(matches!(
+                accepted.unit().functions[0].blocks[0].nodes[1].operation,
+                TerminalAbstractOperation::IntegerConstant {
+                    scalar_type: ScalarType::Integer(scalar_type),
+                    value: IntegerValue::Unsigned(value),
+                    ..
+                } if value == expected && scalar_type.bits() == expected_bits
+            ));
+        }
     }
 
     #[test]
