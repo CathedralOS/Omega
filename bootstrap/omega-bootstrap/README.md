@@ -60,7 +60,7 @@ The repository has working bounded slices, not the complete bridge:
 | resolution | selected public multi-unit, call, data, receiver, scalar, and view relations; each widening is bounded by its own least-version contract | versioned `OMEGA_BOOTSTRAP_RESOLUTION*.md` contracts under [`compiler/`](compiler/) |
 | checked lowering and conservative emission | private versioned vertical slices preserve prior admitted forms while adding one selected compositional relation at a time | versioned `OMEGA_BOOTSTRAP_CHECKED_IR*.md` and backend contracts under [`compiler/`](compiler/) |
 | lower-rooted reconstruction | selected source/checked-IR/artifact closures have independent R1–R5 reconstruction through the latest published witness | [`../assurance/refinement/omega-bootstrap/README.md`](../assurance/refinement/omega-bootstrap/README.md) and its versioned witness contracts |
-| product-source coverage | checkpoint 000001 supplies bounded published source/profile evidence but is stale against current `main` pending a product-owned refresh; typed semantics, later phases, general lowering, and final profile remain open | [`../../compiler/source-checkpoints/README.md`](../../compiler/source-checkpoints/README.md) |
+| product-source coverage | checkpoint 000001 has source/profile evidence; typed semantics, later phases, general lowering, and final profile remain open | [`../../compiler/source-checkpoints/README.md`](../../compiler/source-checkpoints/README.md) |
 | compilation authority | waiting for the canonical accepted-lock/closure projection and exact envelope-commitment join | [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md#external-contract-dependency) |
 
 Each bounded slice measures implementation and assurance cost. It does not

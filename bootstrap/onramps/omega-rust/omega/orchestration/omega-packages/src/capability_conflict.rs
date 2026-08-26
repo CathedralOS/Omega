@@ -20,10 +20,10 @@ use std::cmp::Ordering;
 use std::fmt;
 
 const CONFLICT_FINGERPRINT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CAPABILITY-CONFLICT\0";
-const CONFLICT_FINGERPRINT_VERSION: u16 = 5;
+const CONFLICT_FINGERPRINT_VERSION: u16 = 4;
 const CANDIDATE_CLOSURE_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CANDIDATE-CLOSURE\0";
-const CANDIDATE_CLOSURE_VERSION: u16 = 2;
-const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V4\n";
+const CANDIDATE_CLOSURE_VERSION: u16 = 1;
+const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V3\n";
 
 /// Resource ceilings for exact review-row comparison.
 ///
@@ -333,244 +333,6 @@ impl ReviewOnlyCapabilityConflictSet {
     }
 }
 
-/// One root-policy decision about one exact blocking candidate row.
-///
-/// The fingerprint already binds the package, baseline and candidate rows,
-/// source coordinates, compiler and source-consumption commitments, and the
-/// complete candidate closure. The closed disposition deliberately carries no
-/// package-authored text and makes no claim that a human or model performed an
-/// audit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ReviewOnlyCapabilityConflictDecision {
-    fingerprint: ReviewOnlyCapabilityConflictFingerprint,
-    disposition: ReviewOnlyCapabilityConflictDisposition,
-}
-
-impl ReviewOnlyCapabilityConflictDecision {
-    pub const fn new(
-        fingerprint: ReviewOnlyCapabilityConflictFingerprint,
-        disposition: ReviewOnlyCapabilityConflictDisposition,
-    ) -> Self {
-        Self {
-            fingerprint,
-            disposition,
-        }
-    }
-
-    pub const fn fingerprint(self) -> ReviewOnlyCapabilityConflictFingerprint {
-        self.fingerprint
-    }
-
-    pub const fn disposition(self) -> ReviewOnlyCapabilityConflictDisposition {
-        self.disposition
-    }
-}
-
-/// Root policy's closed decision for an exact candidate row.
-///
-/// `AcceptCandidate` accepts the candidate side of that row, including a
-/// removal. `RejectCandidate` records that the candidate transaction must not
-/// proceed. Neither disposition certifies review.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ReviewOnlyCapabilityConflictDisposition {
-    AcceptCandidate,
-    RejectCandidate,
-}
-
-/// A complete, candidate-bound root-policy resolution for blocking conflicts.
-///
-/// This remains review-only state. It cannot mint accepted package evidence or
-/// a lock entry; the future install/update transaction must revalidate it while
-/// sealing the admitted candidate.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReviewOnlyCapabilityResolution {
-    candidate_closure: ReviewOnlyCandidateClosureCommitment,
-    decisions: Vec<ReviewOnlyCapabilityConflictDecision>,
-}
-
-impl ReviewOnlyCapabilityResolution {
-    pub fn from_decisions(
-        conflicts: &ReviewOnlyCapabilityConflictSet,
-        candidate_closure: ReviewOnlyCandidateClosureCommitment,
-        mut decisions: Vec<ReviewOnlyCapabilityConflictDecision>,
-    ) -> Result<Self, ReviewOnlyCapabilityResolutionError> {
-        let Some(expected_candidate_closure) = conflicts
-            .packages
-            .first()
-            .map(|package| package.candidate_closure)
-        else {
-            return Err(ReviewOnlyCapabilityResolutionError::NoConflicts);
-        };
-        if conflicts
-            .packages
-            .iter()
-            .any(|package| package.candidate_closure != expected_candidate_closure)
-        {
-            return Err(ReviewOnlyCapabilityResolutionError::InconsistentConflictSet);
-        }
-        if candidate_closure != expected_candidate_closure {
-            return Err(
-                ReviewOnlyCapabilityResolutionError::CandidateClosureMismatch {
-                    expected: expected_candidate_closure,
-                    supplied: candidate_closure,
-                },
-            );
-        }
-
-        let maximum_decisions = conflicts.conflict_count();
-        if decisions.len() > maximum_decisions {
-            return Err(ReviewOnlyCapabilityResolutionError::TooManyDecisions {
-                maximum: maximum_decisions,
-            });
-        }
-
-        decisions.sort_unstable_by_key(|decision| decision.fingerprint);
-        if let Some(repeated) = decisions
-            .windows(2)
-            .find(|pair| pair[0].fingerprint == pair[1].fingerprint)
-            .map(|pair| pair[0].fingerprint)
-        {
-            return Err(ReviewOnlyCapabilityResolutionError::DuplicateDecision {
-                fingerprint: repeated,
-            });
-        }
-
-        let mut blocking = Vec::new();
-        blocking
-            .try_reserve_exact(maximum_decisions)
-            .map_err(|_| ReviewOnlyCapabilityResolutionError::AllocationFailed)?;
-        blocking.extend(
-            conflicts
-                .packages
-                .iter()
-                .flat_map(|package| package.conflicts.iter())
-                .filter(|conflict| conflict.is_blocking())
-                .map(|conflict| conflict.fingerprint),
-        );
-        blocking.sort_unstable();
-        if blocking.windows(2).any(|pair| pair[0] == pair[1]) {
-            return Err(ReviewOnlyCapabilityResolutionError::InconsistentConflictSet);
-        }
-
-        for decision in &decisions {
-            if blocking.binary_search(&decision.fingerprint).is_ok() {
-                continue;
-            }
-            let is_non_blocking = conflicts
-                .packages
-                .iter()
-                .flat_map(|package| package.conflicts.iter())
-                .any(|conflict| {
-                    conflict.fingerprint == decision.fingerprint && !conflict.is_blocking()
-                });
-            return Err(if is_non_blocking {
-                ReviewOnlyCapabilityResolutionError::NonBlockingDecision {
-                    fingerprint: decision.fingerprint,
-                }
-            } else {
-                ReviewOnlyCapabilityResolutionError::UnknownDecision {
-                    fingerprint: decision.fingerprint,
-                }
-            });
-        }
-
-        if blocking.is_empty() {
-            return Err(ReviewOnlyCapabilityResolutionError::NoBlockingConflicts);
-        }
-        for fingerprint in blocking {
-            if decisions
-                .binary_search_by_key(&fingerprint, |decision| decision.fingerprint)
-                .is_err()
-            {
-                return Err(ReviewOnlyCapabilityResolutionError::MissingDecision { fingerprint });
-            }
-        }
-
-        Ok(Self {
-            candidate_closure,
-            decisions,
-        })
-    }
-
-    pub const fn candidate_closure(&self) -> ReviewOnlyCandidateClosureCommitment {
-        self.candidate_closure
-    }
-
-    pub fn decisions(&self) -> &[ReviewOnlyCapabilityConflictDecision] {
-        &self.decisions
-    }
-
-    pub fn all_blocking_rows_accepted(&self) -> bool {
-        self.decisions.iter().all(|decision| {
-            decision.disposition == ReviewOnlyCapabilityConflictDisposition::AcceptCandidate
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReviewOnlyCapabilityResolutionError {
-    NoConflicts,
-    InconsistentConflictSet,
-    CandidateClosureMismatch {
-        expected: ReviewOnlyCandidateClosureCommitment,
-        supplied: ReviewOnlyCandidateClosureCommitment,
-    },
-    TooManyDecisions {
-        maximum: usize,
-    },
-    DuplicateDecision {
-        fingerprint: ReviewOnlyCapabilityConflictFingerprint,
-    },
-    NonBlockingDecision {
-        fingerprint: ReviewOnlyCapabilityConflictFingerprint,
-    },
-    UnknownDecision {
-        fingerprint: ReviewOnlyCapabilityConflictFingerprint,
-    },
-    NoBlockingConflicts,
-    MissingDecision {
-        fingerprint: ReviewOnlyCapabilityConflictFingerprint,
-    },
-    AllocationFailed,
-}
-
-impl fmt::Display for ReviewOnlyCapabilityResolutionError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::NoConflicts => formatter.write_str("cannot resolve an empty conflict set"),
-            Self::InconsistentConflictSet => formatter
-                .write_str("conflict set contains more than one candidate closure commitment"),
-            Self::CandidateClosureMismatch { .. } => {
-                formatter.write_str("resolution candidate closure does not match the conflict set")
-            }
-            Self::TooManyDecisions { maximum } => write!(
-                formatter,
-                "resolution has more decisions than the conflict-set ceiling of {maximum}"
-            ),
-            Self::DuplicateDecision { .. } => {
-                formatter.write_str("resolution repeats one conflict fingerprint")
-            }
-            Self::NonBlockingDecision { .. } => formatter.write_str(
-                "resolution attempts to approve an audit recommendation that does not block",
-            ),
-            Self::UnknownDecision { .. } => {
-                formatter.write_str("resolution contains a stale or foreign conflict fingerprint")
-            }
-            Self::NoBlockingConflicts => {
-                formatter.write_str("conflict set has no blocking rows to resolve")
-            }
-            Self::MissingDecision { .. } => {
-                formatter.write_str("resolution omits one blocking conflict fingerprint")
-            }
-            Self::AllocationFailed => {
-                formatter.write_str("resolution validation could not allocate bounded state")
-            }
-        }
-    }
-}
-
-impl std::error::Error for ReviewOnlyCapabilityResolutionError {}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReviewSetRole {
     Baseline,
@@ -839,8 +601,7 @@ pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
     let candidate_by_key = validate_review_only_closure(candidate_sources, candidate)
         .map_err(map_candidate_closure_validation_error)?
         .into_reviews_by_key();
-    let candidate_closure =
-        derive_candidate_closure_commitment(candidate_sources, &candidate_by_key)?;
+    let candidate_closure = derive_candidate_closure_commitment(candidate_sources)?;
 
     let mut packages = Vec::new();
     packages
@@ -1298,8 +1059,24 @@ fn derive_conflict_fingerprint<B: PackageReviewEvidence, C: PackageReviewEvidenc
     hash_field(&mut digest, &key.identity().digest());
     hash_resolution(&mut digest, baseline_review.resolution());
     hash_resolution(&mut digest, candidate_review.resolution());
-    hash_review_evidence_commitments(&mut digest, baseline_review);
-    hash_review_evidence_commitments(&mut digest, candidate_review);
+    hash_field(
+        &mut digest,
+        &PackageReviewEvidence::compiler_executable_commitment(baseline_review).digest(),
+    );
+    hash_field(
+        &mut digest,
+        &PackageReviewEvidence::compiler_executable_commitment(candidate_review).digest(),
+    );
+    hash_field(
+        &mut digest,
+        &PackageReviewEvidence::source_consumption_commitment(baseline_review).digest(),
+    );
+    hash_field(
+        &mut digest,
+        &PackageReviewEvidence::source_consumption_commitment(candidate_review).digest(),
+    );
+    hash_field(&mut digest, &baseline_review.whole_review_commitment());
+    hash_field(&mut digest, &candidate_review.whole_review_commitment());
     hash_field(&mut digest, &candidate_closure.digest());
     hash_dependency_path(&mut digest, dependency_path);
     digest.update([row_kind_tag(kind), row_risk_tag(risk), change_tag(change)]);
@@ -1311,9 +1088,8 @@ fn derive_conflict_fingerprint<B: PackageReviewEvidence, C: PackageReviewEvidenc
     ReviewOnlyCapabilityConflictFingerprint(digest.finalize().into())
 }
 
-fn derive_candidate_closure_commitment<C: PackageReviewEvidence>(
+fn derive_candidate_closure_commitment(
     closure: &ResolvedPackageSourceClosure,
-    candidate_reviews: &[&C],
 ) -> Result<ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictError> {
     let mut digest = Sha256::new();
     hash_field(&mut digest, CANDIDATE_CLOSURE_DOMAIN);
@@ -1348,31 +1124,9 @@ fn derive_candidate_closure_commitment<C: PackageReviewEvidence>(
             hash_field(&mut digest, &dependency.target().identity().digest());
         }
     }
-    digest.update(
-        u64::try_from(candidate_reviews.len())
-            .expect("bounded candidate review count fits u64")
-            .to_le_bytes(),
-    );
-    for review in candidate_reviews {
-        hash_field(&mut digest, &review.key().identity().digest());
-        hash_resolution(&mut digest, review.resolution());
-        hash_field(&mut digest, review.target_name().as_bytes());
-        hash_review_evidence_commitments(&mut digest, *review);
-    }
     Ok(ReviewOnlyCandidateClosureCommitment(
         digest.finalize().into(),
     ))
-}
-
-fn hash_review_evidence_commitments(digest: &mut Sha256, review: &impl PackageReviewEvidence) {
-    hash_field(digest, &review.compiler_executable_commitment().digest());
-    hash_field(digest, &review.source_consumption_commitment().digest());
-    let build_observation = review.build_observation_commitment();
-    hash_optional_field(
-        digest,
-        build_observation.as_ref().map(|commitment| &commitment[..]),
-    );
-    hash_field(digest, &review.whole_review_commitment());
 }
 
 fn hash_resolution(digest: &mut Sha256, resolution: &ImmutableSourceResolution) {
@@ -1874,68 +1628,5 @@ const fn source_location_role_token(role: PackageReviewSourceLocationRole) -> &'
         PackageReviewSourceLocationRole::SemanticDependencyDeclaration => {
             "semantic_dependency_declaration"
         }
-    }
-}
-
-#[cfg(test)]
-mod resolution_binding_tests {
-    use super::*;
-
-    struct CommitmentProbe {
-        build_observation: Option<[u8; 32]>,
-    }
-
-    impl PackageReviewEvidence for CommitmentProbe {
-        fn key(&self) -> &PackageKey {
-            unreachable!("commitment probe has no package graph")
-        }
-
-        fn resolution(&self) -> &ImmutableSourceResolution {
-            unreachable!("commitment probe has no source resolution")
-        }
-
-        fn projection_identity_matches(&self) -> bool {
-            true
-        }
-
-        fn target_name(&self) -> &str {
-            "probe"
-        }
-
-        fn compiler_executable_commitment(&self) -> ReviewOnlyCompilerExecutableCommitment {
-            ReviewOnlyCompilerExecutableCommitment::from_recovered_digest([1; 32])
-        }
-
-        fn source_consumption_commitment(&self) -> ReviewOnlySourceConsumptionCommitment {
-            ReviewOnlySourceConsumptionCommitment::from_recovered_digest([2; 32])
-        }
-
-        fn build_observation_commitment(&self) -> Option<[u8; 32]> {
-            self.build_observation
-        }
-
-        fn whole_review_commitment(&self) -> [u8; 32] {
-            [3; 32]
-        }
-
-        fn canonical_rows(&self) -> &[ReviewOnlyCanonicalRow] {
-            &[]
-        }
-    }
-
-    fn commitment_digest(build_observation: Option<[u8; 32]>) -> [u8; 32] {
-        let mut digest = Sha256::new();
-        hash_review_evidence_commitments(&mut digest, &CommitmentProbe { build_observation });
-        digest.finalize().into()
-    }
-
-    #[test]
-    fn exact_evidence_binding_distinguishes_absent_and_changed_build_observations() {
-        let absent = commitment_digest(None);
-        let first = commitment_digest(Some([4; 32]));
-        let changed = commitment_digest(Some([5; 32]));
-        assert_ne!(absent, first);
-        assert_ne!(first, changed);
-        assert_eq!(first, commitment_digest(Some([4; 32])));
     }
 }

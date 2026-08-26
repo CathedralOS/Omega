@@ -94,8 +94,7 @@ suffix marks an on-ramp, not every source directory.
   release builds once the hosted compiler closes, even if retained in the
   repository for differential bug finding.
 - `compiler/psi/` and `compiler/omega/` own Omega-written product source.
-  `compiler/psi/` contains the first source-to-token slice; its published
-  checkpoint currently awaits a product-owned exact-closure refresh.
+  `compiler/psi/` contains the first source-to-token checkpoint;
   `compiler/omega/` remains an open product owner, not a Rust migration root.
   These names survive the hosted transition because they identify product
   responsibilities rather than the compiler that happened to build them.
@@ -150,7 +149,7 @@ that the language, compiler, or assurance work in that directory is finished.
 | Beta-source/Alpha-artifact refinement | `bootstrap/assurance/refinement/beta/` | complete |
 | bridge meaning/artifact reconstruction and gates | `bootstrap/assurance/refinement/omega-bootstrap/` | complete; bridge assurance remains open |
 | shared lattice corpus | `bootstrap/corpus/` | complete |
-| Omega-written Psi/Omega compiler | `compiler/{psi,omega}/` | first Psi lexical source slice landed; its checkpoint refresh and remaining phases are open |
+| Omega-written Psi/Omega compiler | `compiler/{psi,omega}/` | first Psi lexical checkpoint landed; remaining phases open |
 | product compiler closure/profile checkpoints | `compiler/source-checkpoints/` | active |
 | hosted product compiler entrypoint | `apps/omega-compiler/` | active |
 

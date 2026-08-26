@@ -23,15 +23,6 @@ The manifest and census are evidence, never an allowlist for `omega-bootstrap`.
 The bridge must implement the published profile generally and reject excluded
 Omega before publication.
 
-Current status: checkpoint 000001 passed at publication but is not a coherent
-checkpoint of current `main`. The fast gate rejects compiled-source drift in
-`compiler/psi/lex/lexer.omg`, `compiler/psi/tokens/tokens.omg`, and
-`omega/language/std/console.omg`, plus provenance drift in `Cargo.lock` and
-`omega-compiler/src/pipeline/stages.rs`. Refresh the manifest and profile as one
-product-owned closure; do not weaken verification or update only the first
-mismatch. Its pinned census remains bounded historical evidence for bridge
-cost work, not current source-closure evidence.
-
 Run `compiler/source-checkpoints/verify.sh` for the fast gate: it composes the
 resolver-exact manifest/provenance gate with every-target profile census,
 checked-Omega admission canaries, resource ceilings, and both manifest and

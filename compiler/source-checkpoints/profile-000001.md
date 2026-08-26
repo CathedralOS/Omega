@@ -7,13 +7,6 @@ machinery. The hosted adapter reads one source unit, exits with its accepted
 status 0, rejects lexical errors with status 251, and rejects source capacity
 exhaustion with status 252.
 
-Status against current `main`: stale pending a product-owned refresh. The fast
-gate currently rejects compiled-source drift in `compiler/psi/lex/lexer.omg`,
-`compiler/psi/tokens/tokens.omg`, and `omega/language/std/console.omg`, plus
-provenance drift in `Cargo.lock` and `omega-compiler/src/pipeline/stages.rs`.
-The measurements below describe the published pinned snapshot; they do not
-claim that the current product source has the same exact closure.
-
 This is a mechanically enforced provisional profile, not the final `Ωself`
 freeze. It records general facilities used by the exact manifest in
 `checkpoint-000001.json`; `profile-000001.json` is the canonical admission
@@ -79,7 +72,7 @@ capacity remain separate gates.
 | generated ordinary-Omega data | Unicode XID range arrays | retain generated-source closure rules; generator and external data stay pinned inputs |
 | propositions, proof facts, proof contracts, quotients, and proof-program mathematics | unused in checkpoint | reject provisionally for this checkpoint; final disposition belongs to the complete source/bridge join |
 | termination/ranking clauses | one ranking clause | retain candidate; ranking is executable compiler control evidence and must not be swept into the proof-surface exclusion |
-| dependent/proof-indexed types, including linear-dependent forms | unused in checkpoint | reject provisionally for this checkpoint; distinguish them from ordinary ownership, linearity, and multiplicity when later source arrives |
+| dependent bounds and linear types | unused in checkpoint | reject provisionally for this checkpoint; distinguish dependent/proof-indexed forms from ordinary ownership when later source arrives |
 | domains and authored generic domain families | unused in checkpoint | reject provisionally; the canary isolates a generic domain declaration, while typed semantic use remains unresolved |
 | advanced authored generic constraints | unused in checkpoint | reject provisionally; final disposition awaits later source closures and bridge cost |
 | specialization and reflection | no distinct accepted authored syntax to census | no profile claim yet; add a row only when Omega has an accepted source spelling |

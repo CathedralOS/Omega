@@ -348,6 +348,11 @@ complete.
   data and require exactly one `const PACKAGE: Package` in each package
   `build.omg`.
 
+  **Superseded 2026-08-25 by P8.** Identity is declared through
+  `builder.package("name")` on the ordinary build surface; the `const PACKAGE`
+  literal and its bespoke static parser are retired. The completion note below
+  records what was built, not the settled model.
+
   Acceptance: extraction occurs hermetically before dependency resolution or
   build execution and rejects missing, duplicate, effectful, generated,
   dependency-dependent, or invalidly spelled declarations.
