@@ -8457,16 +8457,32 @@ boundary without its corresponding checked law.
   the primary System V ABI [section-header, type, flag, link, and info
   rules](https://gabi.xinuos.com/elf/03-sheader.html) and the LSB [GNU section
   type assignments](https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/sections.html).
+  The first address-free procedure-linkage relocation rung now consumes those
+  descriptors and joins every private import binding back to its exact
+  canonical request and source call sites. It admits only intact unresolved
+  x86-64 `CALL rel32` or AArch64 `BL` placeholders with the matching four-byte,
+  zero-addend text relocation, assigns one canonical logical PLT/GOT slot per
+  imported dynamic symbol, and seals one semantic RELA `JUMP_SLOT` requirement
+  per slot (`R_X86_64_JUMP_SLOT` or `R_AARCH64_JUMP_SLOT`). Multiple calls to
+  one import share that slot; target drift, non-procedure uses, malformed or
+  overlapping sites, and binding/slot/relocation drift reject while returning
+  the exact descriptor carrier. Because every unresolved use is accounted for
+  as a procedure call, this plan proves that the current admitted image needs
+  no general `.rela.dyn` row. It follows the primary [x86-64
+  psABI](https://gitlab.com/x86-psABIs/x86-64-ABI) and [AArch64 ELF
+  ABI](https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst),
+  but assigns no address or physical GOT/PLT/section index and emits no bytes.
   The exact `DT_NEEDED` roster remains typed until all `Elf64_Dyn` tags can be
   planned together; no partial `.dynamic` payload is claimed. Runnable ELF
   emission remains fail closed before image mutation: the final section roster
   and completed `.shstrtab`, numeric `sh_name`/`sh_link`/`e_shstrndx`, section-
   header serialization, placement, `PT_INTERP` program-header placement,
   `PT_DYNAMIC`, `.dynamic` addresses/tags, optional `.gnu.hash`, the selected
-  GOT/PLT arrangement, `.rela.dyn`/`.rela.plt`, architecture-specific
-  relocation lowering, complete load/program-header layout, image mutation,
-  and independent final-byte replay remain unimplemented. Validated section
-  descriptors do not constitute a dynamic image.
+  target GOT/PLT templates and reserved entries, address-bearing `.rela.plt`
+  serialization, architecture-specific PLT fixups, complete load/program-
+  header layout, image mutation, and independent final-byte replay remain
+  unimplemented. Validated semantic procedure linkage does not constitute a
+  dynamic image.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes
