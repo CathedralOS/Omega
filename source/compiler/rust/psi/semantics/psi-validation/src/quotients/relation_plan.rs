@@ -22,6 +22,7 @@ mod result_flow;
 mod runtime_correspondence;
 mod static_application;
 mod theorem;
+mod theorem_schema;
 
 use precondition::{
     DefinePreconditionCorrespondence, RepresentativePreconditionPartition,
@@ -43,6 +44,7 @@ use runtime_correspondence::{DefineRuntimeCorrespondence, derive_define_runtime_
 #[cfg(test)]
 use theorem::derive_selected_theorem_telescope;
 use theorem::{SelectedTheoremPurity, SelectedTheoremTelescope, SelectedTheoremTermination};
+use theorem_schema::{ExpectedTheoremSchema, derive_expected_theorem_schema};
 
 #[cfg(test)]
 use result_flow::{
@@ -87,6 +89,9 @@ pub(super) struct DirectTerminalRelationPlan {
     pub(super) selected_theorem_termination: Option<SelectedTheoremTermination>,
     pub(super) selected_theorem_purity: Option<SelectedTheoremPurity>,
     pub(super) selected_theorem_crash_free: bool,
+    /// Exact compiler-derived contract expected from the selected theorem.
+    /// Selection verification remains a later fail-closed stage.
+    expected_theorem_schema: ExpectedTheoremSchema,
     pub(super) define_correspondence: Option<DefineRuntimeCorrespondence>,
     pub(super) public_precondition: Option<RepresentativePreconditionPartition>,
     pub(super) representative_precondition: Option<RepresentativePreconditionPartition>,
@@ -130,6 +135,7 @@ pub(super) enum RelationPlanError {
     TheoremMustBeCheckedBody,
     TheoremMustBeResultless,
     TheoremStaticApplicationInvalid,
+    TheoremSchemaRuntimeArityMismatch,
     DefineOwnerRequiresSubstitution,
     DefineRuntimeArityMismatch,
     DefineParameterIdentityNotUnique,
@@ -193,6 +199,9 @@ impl fmt::Display for RelationPlanError {
             ),
             Self::TheoremStaticApplicationInvalid => formatter.write_str(
                 "the selected theorem's complete static application is open, mismatched, or otherwise unresolved",
+            ),
+            Self::TheoremSchemaRuntimeArityMismatch => formatter.write_str(
+                "the representative runtime telescope does not match the quotient operation argument telescope",
             ),
             Self::DefineOwnerRequiresSubstitution => formatter.write_str(
                 "the quotient-facing definition is generic and requires exact owner-telescope substitution",
@@ -284,6 +293,12 @@ pub(super) fn derive_direct_terminal_plan(
         selected_theorem.machine_symbol,
         &theorem_operational,
     );
+    let expected_theorem_schema = derive_expected_theorem_schema(
+        program,
+        &input_relations,
+        result_relation,
+        &representative,
+    )?;
     let define_correspondence = (request.kind == QuotientOperationKind::Define)
         .then(|| {
             derive_define_runtime_correspondence(
@@ -334,6 +349,7 @@ pub(super) fn derive_direct_terminal_plan(
         selected_theorem_termination,
         selected_theorem_purity,
         selected_theorem_crash_free,
+        expected_theorem_schema,
         define_correspondence,
         public_precondition,
         representative_precondition,
@@ -454,6 +470,17 @@ impl DirectTerminalRelationPlan {
             self.selected_theorem.machine_symbol.arena_index(),
             self.selected_theorem.state_symbol.arena_index(),
             self.selected_theorem.static_application.bindings.len(),
+        )
+    }
+
+    pub(super) fn render_expected_theorem_schema(&self) -> String {
+        // Diagnostic summary only. Canonical equality is the structural
+        // `ExpectedTheoremSchema`; equal counts never imply equal schemas.
+        format!(
+            "theorem-schema=[parameters:{}, relations:{}, legality:{}, applications:2, conclusion:1]",
+            self.expected_theorem_schema.parameters.len(),
+            self.expected_theorem_schema.relation_premises.len(),
+            self.expected_theorem_schema.legality_premises.len(),
         )
     }
 

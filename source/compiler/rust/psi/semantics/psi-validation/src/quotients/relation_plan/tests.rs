@@ -31,6 +31,11 @@ use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{StatementNode, TableLocalData, TableTransition};
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
+use super::theorem_schema::{
+    TheoremApplicationSide, TheoremContractFactLocation, TheoremContractOwner,
+    TheoremParameterRole, derive_expected_theorem_schema,
+};
+
 fn symbol(index: u32) -> SymbolHandle {
     SymbolHandle::from_arena_index(index)
 }
@@ -537,6 +542,241 @@ fn direct_plan_retains_exact_input_and_result_quotient_identities() {
     assert_eq!(plan.representative.return_type, representative_carrier);
     assert_eq!(plan.representative.machine_contracts.count(), 1);
     assert_eq!(plan.representative.state_contracts.count(), 1);
+}
+
+#[test]
+fn expected_theorem_schema_pairs_quotient_positions_and_shares_ordinary_positions() {
+    let mut program = TypedTrees::default();
+    let carrier = carrier_type(&mut program);
+    let ordinary = program.type_reference_table.insert(TypeReferenceNode::Unit);
+    let relation = ExactQuotientRelation {
+        quotient_type: carrier,
+        quotient_symbol: symbol(800),
+        relation_symbol: symbol(801),
+    };
+    let result_relation = ExactQuotientRelation {
+        quotient_type: carrier,
+        quotient_symbol: symbol(802),
+        relation_symbol: symbol(803),
+    };
+    let representative = RepresentativeTelescope {
+        machine_symbol: symbol(804),
+        state_symbol: symbol(805),
+        parameters: vec![
+            RepresentativeRuntimeParameter {
+                symbol: symbol(806),
+                type_reference: carrier,
+                is_mutable: false,
+                is_self: false,
+            },
+            RepresentativeRuntimeParameter {
+                symbol: symbol(807),
+                type_reference: ordinary,
+                is_mutable: false,
+                is_self: false,
+            },
+        ],
+        return_type: carrier,
+        machine_contracts: HandleSpan::empty(),
+        state_contracts: HandleSpan::empty(),
+        static_application: RepresentativeStaticApplication {
+            lifetime_arguments: Vec::new(),
+            bindings: Vec::new(),
+        },
+    };
+
+    let schema = derive_expected_theorem_schema(
+        &program,
+        &[
+            InputRelation::Quotient(relation),
+            InputRelation::ExactEquality(ordinary),
+        ],
+        result_relation,
+        &representative,
+    )
+    .expect("one quotient position and one ordinary position form an exact schema");
+
+    assert_eq!(schema.parameters.len(), 3);
+    assert_eq!(
+        schema.parameters[0].role,
+        TheoremParameterRole::QuotientLeft
+    );
+    assert_eq!(
+        schema.parameters[1].role,
+        TheoremParameterRole::QuotientRight
+    );
+    assert_eq!(schema.parameters[2].role, TheoremParameterRole::Shared);
+    assert_eq!(schema.parameters[0].representative_position, 0);
+    assert_eq!(schema.parameters[1].representative_position, 0);
+    assert_eq!(schema.parameters[2].representative_position, 1);
+    assert_eq!(schema.left_application.machine_symbol, symbol(804));
+    assert_eq!(schema.left_application.state_symbol, symbol(805));
+    assert_eq!(schema.left_application.arguments, vec![0, 2]);
+    assert_eq!(schema.right_application.arguments, vec![1, 2]);
+    assert_eq!(schema.relation_premises.len(), 1);
+    assert_eq!(schema.relation_premises[0].relation, relation);
+    assert_eq!(schema.relation_premises[0].left_parameter, 0);
+    assert_eq!(schema.relation_premises[0].right_parameter, 1);
+    assert_eq!(schema.result_relation, result_relation);
+}
+
+#[test]
+fn expected_theorem_schema_identity_rejects_same_count_relation_and_mapping_drift() {
+    let mut program = TypedTrees::default();
+    let carrier = carrier_type(&mut program);
+    let ordinary = program.type_reference_table.insert(TypeReferenceNode::Unit);
+    let relation = ExactQuotientRelation {
+        quotient_type: carrier,
+        quotient_symbol: symbol(810),
+        relation_symbol: symbol(811),
+    };
+    let representative = RepresentativeTelescope {
+        machine_symbol: symbol(812),
+        state_symbol: symbol(813),
+        parameters: vec![
+            RepresentativeRuntimeParameter {
+                symbol: symbol(814),
+                type_reference: carrier,
+                is_mutable: false,
+                is_self: false,
+            },
+            RepresentativeRuntimeParameter {
+                symbol: symbol(815),
+                type_reference: ordinary,
+                is_mutable: false,
+                is_self: false,
+            },
+        ],
+        return_type: carrier,
+        machine_contracts: HandleSpan::empty(),
+        state_contracts: HandleSpan::empty(),
+        static_application: RepresentativeStaticApplication {
+            lifetime_arguments: Vec::new(),
+            bindings: Vec::new(),
+        },
+    };
+    let schema = derive_expected_theorem_schema(
+        &program,
+        &[
+            InputRelation::Quotient(relation),
+            InputRelation::ExactEquality(ordinary),
+        ],
+        relation,
+        &representative,
+    )
+    .expect("baseline structural schema");
+
+    let mut changed_relation = schema.clone();
+    changed_relation.relation_premises[0]
+        .relation
+        .relation_symbol = symbol(816);
+    assert_eq!(
+        changed_relation.relation_premises.len(),
+        schema.relation_premises.len()
+    );
+    assert_ne!(changed_relation, schema);
+
+    let mut changed_mapping = schema.clone();
+    changed_mapping.right_application.arguments.swap(0, 1);
+    assert_eq!(
+        changed_mapping.right_application.arguments.len(),
+        schema.right_application.arguments.len()
+    );
+    assert_ne!(changed_mapping, schema);
+}
+
+#[test]
+fn expected_theorem_schema_retains_each_representative_requires_for_both_calls() {
+    let mut program = TypedTrees::default();
+    let carrier = carrier_type(&mut program);
+    let first = named_argument(&mut program, "first", symbol(820));
+    let second = named_argument(&mut program, "second", symbol(821));
+    let machine_facts = program
+        .proof_facts
+        .insert_many([ProofFact::Expression(first)]);
+    let state_facts = program
+        .proof_facts
+        .insert_many([ProofFact::Expression(first), ProofFact::Expression(second)]);
+    let ignored_ensures = program
+        .proof_facts
+        .insert_many([ProofFact::Expression(second)]);
+    let machine_contracts = program.signature_contracts.insert_many([
+        SignatureContract {
+            kind: SignatureContractKind::Requires,
+            facts: machine_facts,
+            ..Default::default()
+        },
+        SignatureContract {
+            kind: SignatureContractKind::Ensures,
+            facts: ignored_ensures,
+            ..Default::default()
+        },
+    ]);
+    let state_contracts = program.signature_contracts.insert_many([SignatureContract {
+        kind: SignatureContractKind::Requires,
+        facts: state_facts,
+        ..Default::default()
+    }]);
+    let representative = RepresentativeTelescope {
+        machine_symbol: symbol(822),
+        state_symbol: symbol(823),
+        parameters: vec![RepresentativeRuntimeParameter {
+            symbol: symbol(820),
+            type_reference: carrier,
+            is_mutable: false,
+            is_self: false,
+        }],
+        return_type: carrier,
+        machine_contracts,
+        state_contracts,
+        static_application: RepresentativeStaticApplication {
+            lifetime_arguments: Vec::new(),
+            bindings: Vec::new(),
+        },
+    };
+    let relation = ExactQuotientRelation {
+        quotient_type: carrier,
+        quotient_symbol: symbol(824),
+        relation_symbol: symbol(825),
+    };
+
+    let schema = derive_expected_theorem_schema(
+        &program,
+        &[InputRelation::Quotient(relation)],
+        relation,
+        &representative,
+    )
+    .expect("all exact representative requires should enter both legality applications");
+
+    assert_eq!(schema.legality_premises.len(), 6);
+    assert_eq!(
+        schema.legality_premises[0].fact,
+        TheoremContractFactLocation {
+            owner: TheoremContractOwner::Machine,
+            contract_position: 0,
+            fact_position: 0,
+        }
+    );
+    assert_eq!(
+        schema.legality_premises[0].application,
+        TheoremApplicationSide::Left
+    );
+    assert_eq!(
+        schema.legality_premises[1].application,
+        TheoremApplicationSide::Right
+    );
+    assert_eq!(
+        schema.legality_premises[4].fact,
+        TheoremContractFactLocation {
+            owner: TheoremContractOwner::State,
+            contract_position: 0,
+            fact_position: 1,
+        }
+    );
+    assert_eq!(
+        schema.legality_premises[5].application,
+        TheoremApplicationSide::Right
+    );
 }
 
 #[test]
@@ -1536,6 +1776,14 @@ fn derived_direct_terminal_plan_remains_non_executable() {
     assert!(diagnostics[0].message.contains("Q=[dependent:0, fixed:0]"));
     assert!(diagnostics[0].message.contains("P=[dependent:0, fixed:0]"));
     assert!(diagnostics[0].message.contains("Q<->P=[dependent:0]"));
+    assert!(diagnostics[0].message.contains(
+        "theorem-schema=[parameters:2, relations:1, legality:0, applications:2, conclusion:1]"
+    ));
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("exact selected theorem schema verification")
+    );
     assert!(
         diagnostics[0]
             .message
