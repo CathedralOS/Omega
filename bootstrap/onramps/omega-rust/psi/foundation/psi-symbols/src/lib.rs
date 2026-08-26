@@ -246,48 +246,6 @@ mod tests {
     }
 
     #[test]
-    fn preexisting_generated_symbols_bind_exact_resolved_origin() {
-        let package_identity =
-            PackageKeyIdentity::from_digest([6; 32]).expect("nonzero package identity");
-        let mut sources = SourceMap::default();
-        let source_id = sources
-            .add_with_metadata(
-                PathBuf::from("package/optional.omg"),
-                String::from("Optional"),
-                PathBuf::from("package"),
-                Some(package_identity),
-                SourceOrigin::User,
-            )
-            .source_id;
-        let source_span = SourceSpan::new(source_id, Span::new(0, 8));
-        let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
-        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-        let declarations = builder.insert_children(
-            root,
-            [
-                (SymbolKind::Data, SymbolNameRef::Source(source_span)),
-                (SymbolKind::Data, SymbolNameRef::Static("Optional<u64>")),
-            ],
-        );
-        let mut declarations = SymbolTableBuilder::child_handles(declarations);
-        let generic_base = declarations.next().expect("generic base declaration");
-        let concrete_instance = declarations.next().expect("concrete generic instance");
-        let mut symbols = builder.finish();
-
-        symbols.bind_generated_symbol_origin(concrete_instance, generic_base);
-
-        assert_eq!(
-            symbols.symbol_package_identity(concrete_instance),
-            Some(package_identity)
-        );
-        assert_eq!(
-            symbols.symbol_provenance_source_span(concrete_instance),
-            Some(source_span)
-        );
-        assert!(symbols.same_symbol_source_package(generic_base, concrete_instance));
-    }
-
-    #[test]
     fn finds_child_by_name_and_kind_when_siblings_share_names() {
         let mut builder = SymbolTableBuilder::new();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));

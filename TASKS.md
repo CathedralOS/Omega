@@ -104,10 +104,9 @@ Remaining:
   for that checkpoint; the final manifest and profile freeze only at the
   completed bridge join.
 
-  Last published checkpoint: at its pinned publication state,
-  `compiler/source-checkpoints/checkpoint-000001.json` closed the first real
-  Psi source-to-token slice under `compiler/psi/` plus the hosted entrypoint
-  under `apps/omega-compiler/`. It includes source/span,
+  Current checkpoint: `compiler/source-checkpoints/checkpoint-000001.json`
+  closes the first real Psi source-to-token slice under `compiler/psi/` plus
+  the hosted entrypoint under `apps/omega-compiler/`. It includes source/span,
   token, and lexical-diagnostic representations; Unicode 17 XID tables; nested
   comments; numeric metadata; cooked/raw strings; punctuation; deterministic
   capacity failures; and a native acceptance/status adapter. Its provisional
@@ -115,17 +114,14 @@ Remaining:
   `compiler/source-checkpoints/profile-000001.md`. The adapter still needs a
   canonical structural token/diagnostic observation and Rust-comparator
   differential. Parsing and every later Psi/Omega phase remain open; this
-  checkpoint does not complete the product compiler task. It is not a coherent
-  checkpoint of current `main` until the refresh below passes both gates.
+  checkpoint does not complete the product compiler task.
 
   Before publishing the next coherent checkpoint, refresh checkpoint 000001's
-  closure and provenance after the current product changes. The fast gate
-  currently rejects drift in compiled `compiler/psi/lex/lexer.omg`,
-  `compiler/psi/tokens/tokens.omg`, and `omega/language/std/console.omg`, plus
-  the pinned `Cargo.lock` and `omega-compiler/src/pipeline/stages.rs`
-  provenance digests. Regenerate and review the checkpoint/profile artifacts
-  as one closure; do not loosen the gate or hand-edit only the first mismatch.
-  Also replace
+  provenance after the current product changes. Its compiled and virtual source
+  contents still match, but the gate currently rejects the stale `Cargo.lock`
+  and `omega-compiler/src/pipeline/stages.rs` provenance digests. Regenerate and
+  review the checkpoint/profile artifacts; do not loosen the provenance gate or
+  hand-edit only the first mismatch. Also replace
   `apps/omega-compiler/build.omg`'s legacy `target ... {}` blocks with the
   ordinary `Build` target-selection form already required by the build/extern
   design. Resolve the target-package default source convention at the same

@@ -1,12 +1,10 @@
 # Psi product source
 
 This root owns the Omega-written, target-neutral Psi half of the production
-compiler. The first source slice contains final source/span and token
+compiler. The first source checkpoint contains final source/span and token
 representations plus the complete Unicode-aware source-to-token phase. Its
-published checkpoint-000001 manifest is currently stale against `main` and
-awaits a product-owned closure/profile refresh. Its source closure is
-constrained to provisional `Ωself` and will be compiled by `omega-bootstrap`;
-it is not the Delta implementation of the bridge frontend.
+source closure is constrained to provisional `Ωself` and will be compiled by
+`omega-bootstrap`; it is not the Delta implementation of the bridge frontend.
 
 The `Ωself` constraint governs features used by this compiler source, not the
 Omega programs the resulting compiler accepts. Standalone terminal-Psi
