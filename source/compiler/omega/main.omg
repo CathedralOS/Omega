@@ -37,6 +37,7 @@ machine Main::main(&mut self) {
             self.lexer.source.length,
             self.lexer.source.length
         );
+        self.write_observation();
         self.console.exit_process(252);
     }
 
@@ -49,10 +50,259 @@ machine Main::main(&mut self) {
     }
 
     state accepted(&mut self) {
+        self.write_observation();
         self.console.exit_process(0);
     }
 
     state rejected(&mut self) {
+        self.write_observation();
         self.console.exit_process(251);
     }
+}
+
+// Versioned canonical lexical observation. Every scalar coordinate/count is
+// little-endian u64. The stream begins with `OMGLEX1\0`, version 1, then:
+// accepted byte, diagnostic tag, diagnostic source/start/end, exact retained
+// source bytes, and every retained token. Each token carries a structural kind
+// tag plus three metadata bytes, source/start/end, raw spelling, and decoded
+// bytes. This is checkpoint tooling, not an Omega ABI or an enum layout.
+machine Main::write_observation(&mut self) {
+    self.write_byte(79);
+    self.write_byte(77);
+    self.write_byte(71);
+    self.write_byte(76);
+    self.write_byte(69);
+    self.write_byte(88);
+    self.write_byte(49);
+    self.write_byte(0);
+    self.write_u64(1);
+    transition self.lexer.output.accepted {
+        true -> accepted_header()
+        _ -> rejected_header()
+    }
+
+    state accepted_header(&mut self) {
+        self.write_byte(1);
+        transition { _ -> diagnostic_none() }
+    }
+
+    state rejected_header(&mut self) {
+        self.write_byte(0);
+        transition self.lexer.output.diagnostic.code {
+            LexDiagnosticCode::None -> diagnostic_none()
+            LexDiagnosticCode::InvalidUtf8 -> diagnostic(1)
+            LexDiagnosticCode::UnsupportedPunctuation -> diagnostic(2)
+            LexDiagnosticCode::UnterminatedBlockComment -> diagnostic(3)
+            LexDiagnosticCode::UnterminatedStringLiteral -> diagnostic(4)
+            LexDiagnosticCode::UnterminatedStringEscape -> diagnostic(5)
+            LexDiagnosticCode::UnsupportedEscape -> diagnostic(6)
+            LexDiagnosticCode::UnterminatedHexEscape -> diagnostic(7)
+            LexDiagnosticCode::InvalidHexEscapeDigit -> diagnostic(8)
+            LexDiagnosticCode::UnterminatedUnicodeEscape -> diagnostic(9)
+            LexDiagnosticCode::ExpectedUnicodeEscapeBrace -> diagnostic(10)
+            LexDiagnosticCode::EmptyUnicodeEscape -> diagnostic(11)
+            LexDiagnosticCode::InvalidUnicodeEscapeDigit -> diagnostic(12)
+            LexDiagnosticCode::InvalidUnicodeEscapeValue -> diagnostic(13)
+            LexDiagnosticCode::InvalidUnicodeScalar -> diagnostic(14)
+            LexDiagnosticCode::InvalidRawStringDelimiter -> diagnostic(15)
+            LexDiagnosticCode::UnterminatedRawString -> diagnostic(16)
+            LexDiagnosticCode::TokenCapacityExceeded -> diagnostic(17)
+            LexDiagnosticCode::SourceCapacityExceeded -> diagnostic(18)
+            LexDiagnosticCode::DecodedCapacityExceeded -> diagnostic(19)
+        }
+    }
+
+    state diagnostic_none(&mut self) {
+        self.write_byte(0);
+        transition { _ -> diagnostic_coordinates() }
+    }
+
+    state diagnostic(&mut self, tag: u8) {
+        self.write_byte(tag);
+        transition { _ -> diagnostic_coordinates() }
+    }
+
+    state diagnostic_coordinates(&mut self) {
+        self.write_u64(self.lexer.output.diagnostic.source_span.source.value as u64);
+        self.write_u64(self.lexer.output.diagnostic.source_span.span.start);
+        self.write_u64(self.lexer.output.diagnostic.source_span.span.end);
+        self.write_u64(self.lexer.source.length);
+        transition self.lexer.source.length > 0 {
+            true -> source_byte(0)
+            _ -> token_count()
+        }
+    }
+
+    state source_byte(&mut self, index: u64 [0..=65535]) {
+        self.write_byte(self.lexer.source.bytes[index]);
+        let next: u64 = index + 1;
+        transition next < self.lexer.source.length {
+            true -> source_bound(next)
+            _ -> token_count()
+        }
+    }
+
+    state source_bound(&mut self, next: u64) {
+        transition next < 65536 {
+            true -> source_byte(next)
+            _ -> token_count()
+        }
+    }
+
+    state token_count(&mut self) {
+        self.write_u64(self.lexer.output.token_count);
+        transition self.lexer.output.token_count > 0 {
+            true -> token(0)
+            _ -> done()
+        }
+    }
+
+    state token(&mut self, index: u64 [0..=16383]) {
+        let observation: TokenObservation = self.lexer.output.observations[index];
+        let tag: u8 = observation.tag;
+        let first: u8 = observation.first;
+        let second: u8 = observation.second;
+        let third: u8 = observation.third;
+        let source_id: u32 in Trapping = observation.source;
+        let start: u64 in Trapping = observation.start;
+        let end: u64 in Trapping = observation.end;
+        let decoded_start: u64 in Trapping = observation.decoded_start;
+        let decoded_length: u64 in Trapping = observation.decoded_length;
+        self.write_byte(tag);
+        self.write_byte(first);
+        self.write_byte(second);
+        self.write_byte(third);
+        self.write_token_payload(
+            source_id,
+            start,
+            end,
+            decoded_start,
+            decoded_length
+        );
+        let next: u64 = index + 1;
+        transition next < self.lexer.output.token_count {
+            true -> token_bound(next)
+            _ -> done()
+        }
+    }
+
+    state token_bound(&mut self, next: u64) {
+        transition next < 16384 {
+            true -> token(next)
+            _ -> done()
+        }
+    }
+
+    state done(&mut self) { }
+}
+
+machine Main::write_token_payload(
+    &mut self,
+    source_id: u32 in Trapping,
+    start: u64 in Trapping,
+    end: u64 in Trapping,
+    decoded_start: u64 in Trapping,
+    decoded_length: u64 in Trapping
+) {
+    self.write_u64(source_id as u64);
+    self.write_u64(start);
+    self.write_u64(end);
+    self.write_u64(end - start);
+    transition start < end {
+        true -> raw_start(start as u64)
+        _ -> decoded_count()
+    }
+
+    state raw_start(&mut self, byte_index: u64) {
+        transition byte_index < 65536 {
+            true -> raw_byte(byte_index)
+            _ -> decoded_count()
+        }
+    }
+
+    state raw_byte(&mut self, byte_index: u64 [0..=65535]) {
+        self.write_byte(self.lexer.source.bytes[byte_index]);
+        let next: u64 = byte_index + 1;
+        transition next < end {
+            true -> raw_bound(next)
+            _ -> decoded_count()
+        }
+    }
+
+    state raw_bound(&mut self, next: u64) {
+        transition next < 65536 {
+            true -> raw_byte(next)
+            _ -> decoded_count()
+        }
+    }
+
+    state decoded_count(&mut self) {
+        self.write_u64(decoded_length);
+        transition decoded_length > 0 {
+            true -> decoded_start_bound(decoded_start as u64, decoded_length)
+            _ -> done()
+        }
+    }
+
+    state decoded_start_bound(
+        &mut self,
+        byte_index: u64,
+        remaining: u64 in Trapping
+    ) {
+        transition byte_index < 65536 {
+            true -> decoded_byte(byte_index, remaining)
+            _ -> done()
+        }
+    }
+
+    state decoded_byte(
+        &mut self,
+        byte_index: u64 [0..=65535],
+        remaining: u64 in Trapping
+    ) {
+        self.write_byte(self.lexer.output.decoded[byte_index]);
+        transition remaining > 1 {
+            true -> decoded_next(byte_index, remaining)
+            _ -> done()
+        }
+    }
+
+    state decoded_next(
+        &mut self,
+        byte_index: u64 [0..=65535],
+        remaining: u64 in Trapping
+    ) {
+        let next: u64 = byte_index + 1;
+        transition next < 65536 {
+            true -> decoded_decrement(next, remaining)
+            _ -> done()
+        }
+    }
+
+    state decoded_decrement(
+        &mut self,
+        next: u64 [0..=65535],
+        remaining: u64 in Trapping
+    ) {
+        let next_remaining: u64 in Trapping = remaining - 1;
+        transition { _ -> decoded_byte(next, next_remaining) }
+    }
+
+    state done(&mut self) { }
+}
+
+machine Main::write_u64(&mut self, value: u64 in Trapping) {
+    self.write_byte((value % 256) as u8);
+    self.write_byte((value / 256 % 256) as u8);
+    self.write_byte((value / 65536 % 256) as u8);
+    self.write_byte((value / 16777216 % 256) as u8);
+    self.write_byte((value / 4294967296 % 256) as u8);
+    self.write_byte((value / 1099511627776 % 256) as u8);
+    self.write_byte((value / 281474976710656 % 256) as u8);
+    self.write_byte((value / 72057594037927936 % 256) as u8);
+}
+
+machine Main::write_byte(&mut self, value: u8) {
+    let mut output: u8 = value;
+    self.console.write_byte(output);
 }

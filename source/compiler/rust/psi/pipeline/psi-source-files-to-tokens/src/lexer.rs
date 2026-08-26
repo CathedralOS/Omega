@@ -17,6 +17,12 @@ pub struct Lexer<'source> {
     chars: Peekable<CharIndices<'source>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Tokenization<'source> {
+    pub tokens: TokenStream<'source>,
+    pub diagnostic: Option<LexError>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct LexedToken {
     kind: TokenKind,
@@ -31,15 +37,46 @@ impl<'source> Lexer<'source> {
         }
     }
 
-    pub fn tokenize(mut self) -> Result<TokenStream<'source>, LexError> {
+    pub fn tokenize(self) -> Result<TokenStream<'source>, LexError> {
+        let observation = self.tokenize_with_diagnostic();
+        match observation.diagnostic {
+            Some(error) => Err(error),
+            None => Ok(observation.tokens),
+        }
+    }
+
+    /// Retains the successfully completed token prefix when lexical analysis
+    /// rejects. This is observation data only; callers must still treat a
+    /// present diagnostic as rejection rather than a usable token stream.
+    pub fn tokenize_with_diagnostic(mut self) -> Tokenization<'source> {
         let estimated_token_count = self.source.len().saturating_div(4).max(16);
         let mut tokens = Vec::with_capacity(estimated_token_count);
 
-        while let Some(token) = self.lex_next_token()? {
-            tokens.push(self.build_token(token)?);
+        loop {
+            match self.lex_next_token() {
+                Ok(Some(token)) => match self.build_token(token) {
+                    Ok(token) => tokens.push(token),
+                    Err(error) => {
+                        return Tokenization {
+                            tokens: TokenStream::new(tokens),
+                            diagnostic: Some(error),
+                        };
+                    }
+                },
+                Ok(None) => {
+                    return Tokenization {
+                        tokens: TokenStream::new(tokens),
+                        diagnostic: None,
+                    };
+                }
+                Err(error) => {
+                    return Tokenization {
+                        tokens: TokenStream::new(tokens),
+                        diagnostic: Some(error),
+                    };
+                }
+            }
         }
-
-        Ok(TokenStream::new(tokens))
     }
 
     fn lex_next_token(&mut self) -> Result<Option<LexedToken>, LexError> {

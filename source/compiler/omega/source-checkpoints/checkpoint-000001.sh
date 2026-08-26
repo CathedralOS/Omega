@@ -26,7 +26,7 @@ case "$(uname -s):$(uname -m)" in
 esac
 
 cargo run -q --locked --offline -p omega-cli -- \
-    --target "$checkpoint_target" --build-dir "$checkpoint_tmp/build" \
+    --target "$checkpoint_target" --build-dir "$checkpoint_tmp/build" --output-only \
     source/compiler/omega/main.omg
 
 checkpoint_program="$checkpoint_tmp/build/omega-program"
@@ -38,65 +38,67 @@ if [ ! -x "$checkpoint_program" ]; then
     exit 1
 fi
 
-expect_text_status() {
+compare_input_observation() {
     label=$1
     expected=$2
-    input=$3
-    : > "$checkpoint_tmp/runtime.out"
+    input_file=$3
+    : > "$checkpoint_tmp/product.observation"
     set +e
-    printf '%s' "$input" | "$checkpoint_program" \
-        > "$checkpoint_tmp/runtime.out" 2>/dev/null
+    "$checkpoint_program" < "$input_file" \
+        > "$checkpoint_tmp/product.observation" 2>/dev/null
     actual=$?
     set -e
     if [ "$actual" -ne "$expected" ]; then
         echo "checkpoint 000001: $label exited $actual, expected $expected" >&2
         exit 1
     fi
-    if [ -s "$checkpoint_tmp/runtime.out" ]; then
-        echo "checkpoint 000001: $label published unexpected stdout" >&2
+
+    cargo run -q --locked --offline -p psi-source-files-to-tokens \
+        --bin observe_omega_lexer \
+        < "$input_file" > "$checkpoint_tmp/rust.observation"
+    if ! cmp "$checkpoint_tmp/product.observation" "$checkpoint_tmp/rust.observation"; then
+        echo "checkpoint 000001: $label lexical observation mismatch" >&2
         exit 1
     fi
 }
 
-expect_text_status "empty input" 0 ''
-expect_text_status "Unicode identifier" 0 'alpha_π'
-expect_text_status "integer" 0 '42'
-expect_text_status "punctuation" 0 '::'
-expect_text_status "whitespace" 0 '   '
-expect_text_status "representative Omega source" 0 'data π { case Zero; }'
-expect_text_status "nested block comment" 0 '/* outer /* inner */ end */alpha'
-expect_text_status "cooked and raw strings" 0 '"line\n" r#"raw"#'
-expect_text_status "unterminated block comment" 251 '/* unterminated'
-expect_text_status "invalid cooked-string escape" 251 '"\q"'
-expect_text_status "unsupported punctuation" 251 '@'
+compare_text_observation() {
+    label=$1
+    expected=$2
+    input=$3
+    printf '%s' "$input" > "$checkpoint_tmp/input"
+    compare_input_observation "$label" "$expected" "$checkpoint_tmp/input"
+}
 
-set +e
-: > "$checkpoint_tmp/runtime.out"
-printf '\377' | "$checkpoint_program" > "$checkpoint_tmp/runtime.out" 2>/dev/null
-invalid_utf8_status=$?
-set -e
-if [ "$invalid_utf8_status" -ne 251 ]; then
-    echo "checkpoint 000001: invalid UTF-8 exited $invalid_utf8_status, expected 251" >&2
-    exit 1
-fi
-if [ -s "$checkpoint_tmp/runtime.out" ]; then
-    echo "checkpoint 000001: invalid UTF-8 published unexpected stdout" >&2
-    exit 1
-fi
+compare_text_observation "empty input" 0 ''
+compare_text_observation "Unicode identifier" 0 'alpha_π'
+compare_text_observation "integer" 0 '42'
+compare_text_observation "punctuation" 0 '::'
+compare_text_observation "whitespace" 0 '   '
+compare_text_observation "representative Omega source" 0 \
+    'data π { case Zero; } "line\n" r#"raw"#'
+compare_text_observation "nested block comment" 0 \
+    '/* outer /* inner */ end */alpha'
+compare_text_observation "lexical rejection with retained prefix" 251 'alpha @'
+compare_text_observation "unterminated block comment" 251 '/* unterminated'
+compare_text_observation "invalid cooked-string escape" 251 '"\q"'
 
-set +e
-: > "$checkpoint_tmp/runtime.out"
-dd if=/dev/zero bs=65537 count=1 2>/dev/null \
-    | "$checkpoint_program" > "$checkpoint_tmp/runtime.out" 2>/dev/null
-capacity_status=$?
-set -e
-if [ "$capacity_status" -ne 252 ]; then
-    echo "checkpoint 000001: source overflow exited $capacity_status, expected 252" >&2
-    exit 1
-fi
-if [ -s "$checkpoint_tmp/runtime.out" ]; then
-    echo "checkpoint 000001: source overflow published unexpected stdout" >&2
+printf 'ok\377tail' > "$checkpoint_tmp/input"
+compare_input_observation "invalid UTF-8" 251 "$checkpoint_tmp/input"
+
+awk 'BEGIN { for (i = 0; i < 16385; i++) printf "; " }' \
+    > "$checkpoint_tmp/input"
+compare_input_observation "token capacity" 251 "$checkpoint_tmp/input"
+
+dd if=/dev/zero of="$checkpoint_tmp/input" bs=65537 count=1 2>/dev/null
+compare_input_observation "source capacity" 252 "$checkpoint_tmp/input"
+
+cp "$checkpoint_tmp/product.observation" "$checkpoint_tmp/tampered.observation"
+printf '\000' | dd of="$checkpoint_tmp/tampered.observation" \
+    bs=1 seek=0 conv=notrunc 2>/dev/null
+if cmp -s "$checkpoint_tmp/tampered.observation" "$checkpoint_tmp/rust.observation"; then
+    echo "checkpoint 000001: tampered lexical observation was accepted" >&2
     exit 1
 fi
 
-echo "checkpoint 000001: manifest, generator, native build, and runtime matrix passed"
+echo "checkpoint 000001: manifest, generator, native build, and differential lexical observation matrix passed"

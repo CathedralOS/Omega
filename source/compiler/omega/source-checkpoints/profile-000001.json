@@ -3,8 +3,8 @@
   "checkpoint": 1,
   "status": "provisional",
   "checkpoint_manifest": "source/compiler/omega/source-checkpoints/checkpoint-000001.json",
-  "checkpoint_closure_sha256": "f244ca144c2912a208cc017a82c56074423087fee358c2e59a1d7687de917a31",
-  "checkpoint_content_set_sha256": "7960a4e215a9ff3427a69feab58b41e32e4fe136d10077e9167414e85eebb698",
+  "checkpoint_closure_sha256": "0e18097b9ef5d7cc1ba67d04c0814d71d856c6246bfd6b7f50f15d3f67d64bb8",
+  "checkpoint_content_set_sha256": "17a52ec4ff9c9699b3fb3d6d47d0de193f86fca6661c70467086200162df15cd",
   "feature_catalog": "omega.omega-self-feature-catalog.v2",
   "census_schema": "omega.omega-source-feature-census.v2",
   "configuration_policy": {
@@ -244,8 +244,8 @@
       "unit": "arguments",
       "scope": "per_call",
       "comparison": "lte",
-      "observed_max": 6,
-      "limit": 8
+      "observed_max": 10,
+      "limit": 16
     },
     {
       "id": "call.static_arguments",
@@ -284,7 +284,7 @@
       "unit": "levels",
       "scope": "per_expression_tree",
       "comparison": "lte",
-      "observed_max": 7,
+      "observed_max": 8,
       "limit": 8
     },
     {
@@ -308,8 +308,8 @@
       "unit": "bytes",
       "scope": "per_identifier",
       "comparison": "lte",
-      "observed_max": 49,
-      "limit": 64
+      "observed_max": 78,
+      "limit": 128
     },
     {
       "id": "machine.states",
@@ -340,7 +340,7 @@
       "unit": "bytes",
       "scope": "per_compilation",
       "comparison": "lte",
-      "observed_max": 160133,
+      "observed_max": 178366,
       "limit": 262144
     },
     {
@@ -356,23 +356,23 @@
       "unit": "parameters",
       "scope": "per_state",
       "comparison": "lte",
-      "observed_max": 7,
-      "limit": 8
+      "observed_max": 11,
+      "limit": 16
     },
     {
       "id": "state.statements",
       "unit": "statements",
       "scope": "per_state",
       "comparison": "lte",
-      "observed_max": 26,
-      "limit": 32
+      "observed_max": 43,
+      "limit": 64
     },
     {
       "id": "syntax.root_items",
       "unit": "items",
       "scope": "per_compilation",
       "comparison": "lte",
-      "observed_max": 109,
+      "observed_max": 115,
       "limit": 128
     },
     {
@@ -380,8 +380,8 @@
       "unit": "arguments",
       "scope": "per_transition",
       "comparison": "lte",
-      "observed_max": 4,
-      "limit": 4
+      "observed_max": 5,
+      "limit": 8
     },
     {
       "id": "type.fixed_array_length",
@@ -524,5 +524,5 @@
       "missing_evidence": "typed census facts beyond syntax-spelled data where, domain, generic, and inline aggregate forms"
     }
   ],
-  "profile_sha256": "c255ed89da06d03d7ebb99d526f2d0a08a7e1145fa181c4c413ba1a5aa7bb1ae"
+  "profile_sha256": "7d22d7b0dcaefdf7564a60bac722790582958897023a4b2da2361ad12726a103"
 }
