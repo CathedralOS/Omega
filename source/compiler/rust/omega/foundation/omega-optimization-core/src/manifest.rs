@@ -2,16 +2,21 @@ use crate::{
     AnalysisSet, CoreContractDecodeError, OptimizationCandidateIdentity,
     OptimizationCandidateVerdict, OptimizationDecisionIdentity, OptimizationPassIdentity,
     OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationUnitIdentity,
-    OptimizationValidatorIdentity, OptimizationWorkBudget,
+    OptimizationValidatorIdentity, OptimizationWorkBudget, ScalarConstantFactIdentity,
 };
 use std::collections::BTreeSet;
 use std::fmt;
 
 const DECISION_MAGIC: &[u8; 8] = b"OMGDEC\0\0";
-const DECISION_VERSION: u32 = 1;
+const DECISION_VERSION: u32 = 2;
 const PASS_RECORD_MAGIC: &[u8; 8] = b"OMGPAR\0\0";
 const PASS_RECORD_VERSION: u32 = 1;
-const DECISION_FIXED_WIDTH: usize = 119;
+const DECISION_FIXED_WIDTH: usize = 155;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum OptimizationFactReference {
+    ScalarConstant(ScalarConstantFactIdentity),
+}
 
 /// Actual work consumed by one pass. Zero is valid; publication separately
 /// proves that every axis stayed within the selected nonzero budget.
@@ -75,48 +80,77 @@ impl OptimizationWorkUsage {
 }
 
 /// Canonical machine record for one policy/validation decision.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OptimizationDecisionRecord {
     identity: OptimizationDecisionIdentity,
+    input: OptimizationUnitIdentity,
     candidate: OptimizationCandidateIdentity,
     rule: OptimizationRuleIdentity,
     verdict: OptimizationCandidateVerdict,
     consumed_analyses: AnalysisSet,
+    consumed_facts: Vec<OptimizationFactReference>,
     validator: Option<OptimizationValidatorIdentity>,
 }
 
 impl OptimizationDecisionRecord {
     pub fn new(
-        identity: OptimizationDecisionIdentity,
+        input: OptimizationUnitIdentity,
         candidate: OptimizationCandidateIdentity,
         rule: OptimizationRuleIdentity,
         verdict: OptimizationCandidateVerdict,
         consumed_analyses: AnalysisSet,
+        consumed_facts: Vec<OptimizationFactReference>,
         validator: Option<OptimizationValidatorIdentity>,
     ) -> Result<Self, InvalidOptimizationManifestRecord> {
         if verdict == OptimizationCandidateVerdict::Applied && validator.is_none() {
             return Err(InvalidOptimizationManifestRecord::AppliedWithoutValidator);
         }
-        Ok(Self {
-            identity,
+        if consumed_facts.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(InvalidOptimizationManifestRecord::NonCanonicalConsumedFacts);
+        }
+        let identity = decision_identity(
+            input,
             candidate,
             rule,
             verdict,
             consumed_analyses,
+            &consumed_facts,
+            validator,
+        );
+        Ok(Self {
+            identity,
+            input,
+            candidate,
+            rule,
+            verdict,
+            consumed_analyses,
+            consumed_facts,
             validator,
         })
     }
 
-    pub fn encode(self) -> Vec<u8> {
-        let mut encoded =
-            Vec::with_capacity(DECISION_FIXED_WIDTH + usize::from(self.validator.is_some()) * 32);
+    pub fn encode(&self) -> Vec<u8> {
+        let mut encoded = Vec::with_capacity(
+            DECISION_FIXED_WIDTH
+                + self.consumed_facts.len() * 33
+                + usize::from(self.validator.is_some()) * 32,
+        );
         encoded.extend_from_slice(DECISION_MAGIC);
         encoded.extend_from_slice(&DECISION_VERSION.to_le_bytes());
         encoded.extend_from_slice(&self.identity.bytes());
+        encoded.extend_from_slice(&self.input.bytes());
         encoded.extend_from_slice(&self.candidate.bytes());
         encoded.extend_from_slice(&self.rule.bytes());
         encoded.extend_from_slice(&self.verdict.encode());
         encoded.extend_from_slice(&self.consumed_analyses.encode());
+        encoded.extend_from_slice(
+            &u32::try_from(self.consumed_facts.len())
+                .expect("consumed fact count fits u32")
+                .to_le_bytes(),
+        );
+        for fact in &self.consumed_facts {
+            encode_fact_reference(&mut encoded, *fact);
+        }
         match self.validator {
             None => encoded.push(0),
             Some(validator) => {
@@ -127,89 +161,139 @@ impl OptimizationDecisionRecord {
         encoded
     }
 
-    pub const fn identity(self) -> OptimizationDecisionIdentity {
+    pub const fn identity(&self) -> OptimizationDecisionIdentity {
         self.identity
     }
 
-    pub const fn candidate(self) -> OptimizationCandidateIdentity {
+    pub const fn input(&self) -> OptimizationUnitIdentity {
+        self.input
+    }
+
+    pub const fn candidate(&self) -> OptimizationCandidateIdentity {
         self.candidate
     }
 
-    pub const fn rule(self) -> OptimizationRuleIdentity {
+    pub const fn rule(&self) -> OptimizationRuleIdentity {
         self.rule
     }
 
-    pub const fn verdict(self) -> OptimizationCandidateVerdict {
+    pub const fn verdict(&self) -> OptimizationCandidateVerdict {
         self.verdict
     }
 
-    pub const fn consumed_analyses(self) -> AnalysisSet {
+    pub const fn consumed_analyses(&self) -> AnalysisSet {
         self.consumed_analyses
     }
 
-    pub const fn validator(self) -> Option<OptimizationValidatorIdentity> {
+    pub fn consumed_facts(&self) -> &[OptimizationFactReference] {
+        &self.consumed_facts
+    }
+
+    pub const fn validator(&self) -> Option<OptimizationValidatorIdentity> {
         self.validator
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, OptimizationManifestDecodeError> {
-        if encoded.len() < DECISION_FIXED_WIDTH {
-            return Err(OptimizationManifestDecodeError::Truncated);
-        }
-        if &encoded[..8] != DECISION_MAGIC {
+        let mut cursor = ManifestCursor::new(encoded);
+        if cursor.take(8)? != DECISION_MAGIC {
             return Err(OptimizationManifestDecodeError::WrongMagic);
         }
-        let version = u32::from_le_bytes(encoded[8..12].try_into().expect("fixed version width"));
+        let version = u32::from_le_bytes(cursor.array()?);
         if version != DECISION_VERSION {
             return Err(OptimizationManifestDecodeError::UnsupportedVersion(version));
         }
-        let identity = OptimizationDecisionIdentity::from_bytes(
-            encoded[12..44]
-                .try_into()
-                .expect("fixed decision identity width"),
-        );
-        let candidate = OptimizationCandidateIdentity::from_bytes(
-            encoded[44..76]
-                .try_into()
-                .expect("fixed candidate identity width"),
-        );
-        let rule = OptimizationRuleIdentity::from_bytes(
-            encoded[76..108]
-                .try_into()
-                .expect("fixed rule identity width"),
-        );
-        let verdict = OptimizationCandidateVerdict::decode(&encoded[108..110])
+        let encoded_identity = OptimizationDecisionIdentity::from_bytes(cursor.array()?);
+        let input = OptimizationUnitIdentity::from_bytes(cursor.array()?);
+        let candidate = OptimizationCandidateIdentity::from_bytes(cursor.array()?);
+        let rule = OptimizationRuleIdentity::from_bytes(cursor.array()?);
+        let verdict = OptimizationCandidateVerdict::decode(cursor.take(2)?)
             .map_err(OptimizationManifestDecodeError::CoreContract)?;
-        let consumed_analyses = AnalysisSet::decode(&encoded[110..118])
+        let consumed_analyses = AnalysisSet::decode(cursor.take(8)?)
             .map_err(OptimizationManifestDecodeError::CoreContract)?;
-        let (validator, expected) = match encoded[118] {
-            0 => (None, DECISION_FIXED_WIDTH),
-            1 => {
-                if encoded.len() < DECISION_FIXED_WIDTH + 32 {
-                    return Err(OptimizationManifestDecodeError::Truncated);
-                }
-                (
-                    Some(OptimizationValidatorIdentity::from_bytes(
-                        encoded[119..151]
-                            .try_into()
-                            .expect("fixed validator identity width"),
-                    )),
-                    DECISION_FIXED_WIDTH + 32,
-                )
-            }
+        let fact_count = u32::from_le_bytes(cursor.array()?) as usize;
+        if fact_count > cursor.remaining().saturating_sub(1) / 33 {
+            return Err(OptimizationManifestDecodeError::Truncated);
+        }
+        let mut consumed_facts = Vec::with_capacity(fact_count);
+        for _ in 0..fact_count {
+            consumed_facts.push(decode_fact_reference(&mut cursor)?);
+        }
+        let validator = match cursor.take(1)?[0] {
+            0 => None,
+            1 => Some(OptimizationValidatorIdentity::from_bytes(cursor.array()?)),
             tag => return Err(OptimizationManifestDecodeError::InvalidOptionalTag(tag)),
         };
-        if encoded.len() != expected {
+        if cursor.remaining() != 0 {
             return Err(OptimizationManifestDecodeError::TrailingBytes);
         }
-        Self::new(
-            identity,
+        let record = Self::new(
+            input,
             candidate,
             rule,
             verdict,
             consumed_analyses,
+            consumed_facts,
             validator,
         )
-        .map_err(OptimizationManifestDecodeError::InvalidRecord)
+        .map_err(OptimizationManifestDecodeError::InvalidRecord)?;
+        if record.identity != encoded_identity {
+            return Err(OptimizationManifestDecodeError::DecisionIdentityMismatch);
+        }
+        Ok(record)
+    }
+}
+
+fn decision_identity(
+    input: OptimizationUnitIdentity,
+    candidate: OptimizationCandidateIdentity,
+    rule: OptimizationRuleIdentity,
+    verdict: OptimizationCandidateVerdict,
+    consumed_analyses: AnalysisSet,
+    consumed_facts: &[OptimizationFactReference],
+    validator: Option<OptimizationValidatorIdentity>,
+) -> OptimizationDecisionIdentity {
+    let mut canonical = Vec::new();
+    canonical.extend_from_slice(b"omega.optimization-manifest-decision.v2\0");
+    canonical.extend_from_slice(&input.bytes());
+    canonical.extend_from_slice(&candidate.bytes());
+    canonical.extend_from_slice(&rule.bytes());
+    canonical.extend_from_slice(&verdict.encode());
+    canonical.extend_from_slice(&consumed_analyses.encode());
+    canonical.extend_from_slice(
+        &u64::try_from(consumed_facts.len())
+            .expect("consumed fact count fits u64")
+            .to_le_bytes(),
+    );
+    for fact in consumed_facts {
+        encode_fact_reference(&mut canonical, *fact);
+    }
+    match validator {
+        None => canonical.push(0),
+        Some(validator) => {
+            canonical.push(1);
+            canonical.extend_from_slice(&validator.bytes());
+        }
+    }
+    OptimizationDecisionIdentity::from_canonical_bytes(&canonical)
+}
+
+fn encode_fact_reference(encoded: &mut Vec<u8>, fact: OptimizationFactReference) {
+    match fact {
+        OptimizationFactReference::ScalarConstant(identity) => {
+            encoded.push(1);
+            encoded.extend_from_slice(&identity.bytes());
+        }
+    }
+}
+
+fn decode_fact_reference(
+    cursor: &mut ManifestCursor<'_>,
+) -> Result<OptimizationFactReference, OptimizationManifestDecodeError> {
+    match cursor.take(1)?[0] {
+        1 => Ok(OptimizationFactReference::ScalarConstant(
+            ScalarConstantFactIdentity::from_bytes(cursor.array()?),
+        )),
+        tag => Err(OptimizationManifestDecodeError::UnknownFactReference(tag)),
     }
 }
 
@@ -426,6 +510,7 @@ impl<'a> ManifestCursor<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvalidOptimizationManifestRecord {
     AppliedWithoutValidator,
+    NonCanonicalConsumedFacts,
     DuplicateRuleIdentity,
     RuleSetIdentityMismatch,
     DecisionNamesUnscheduledRule,
@@ -448,6 +533,8 @@ pub enum OptimizationManifestDecodeError {
     WrongMagic,
     UnsupportedVersion(u32),
     InvalidOptionalTag(u8),
+    UnknownFactReference(u8),
+    DecisionIdentityMismatch,
     TrailingBytes,
     CoreContract(CoreContractDecodeError),
     InvalidRecord(InvalidOptimizationManifestRecord),
@@ -473,13 +560,20 @@ mod tests {
         OptimizationRuleIdentity::from_canonical_bytes(name)
     }
 
+    fn fact(name: &[u8]) -> OptimizationFactReference {
+        OptimizationFactReference::ScalarConstant(ScalarConstantFactIdentity::from_canonical_bytes(
+            name,
+        ))
+    }
+
     fn decision(rule: OptimizationRuleIdentity) -> OptimizationDecisionRecord {
         OptimizationDecisionRecord::new(
-            OptimizationDecisionIdentity::from_canonical_bytes(b"decision"),
+            OptimizationUnitIdentity::from_canonical_bytes(b"input"),
             OptimizationCandidateIdentity::from_canonical_bytes(b"candidate"),
             rule,
             OptimizationCandidateVerdict::Applied,
             AnalysisSet::new([AnalysisKind::ControlFlowGraph]),
+            vec![fact(b"fact")],
             Some(OptimizationValidatorIdentity::from_canonical_bytes(
                 b"validator",
             )),
@@ -492,11 +586,12 @@ mod tests {
         let rule = rule(b"rule");
         assert_eq!(
             OptimizationDecisionRecord::new(
-                OptimizationDecisionIdentity::from_canonical_bytes(b"decision"),
+                OptimizationUnitIdentity::from_canonical_bytes(b"input"),
                 OptimizationCandidateIdentity::from_canonical_bytes(b"candidate"),
                 rule,
                 OptimizationCandidateVerdict::Applied,
                 AnalysisSet::default(),
+                Vec::new(),
                 None,
             ),
             Err(InvalidOptimizationManifestRecord::AppliedWithoutValidator)
@@ -505,6 +600,149 @@ mod tests {
         assert_eq!(
             OptimizationDecisionRecord::decode(&decision.encode()),
             Ok(decision)
+        );
+    }
+
+    #[test]
+    fn decision_identity_binds_every_authoritative_field_and_rejects_tamper() {
+        let validator = OptimizationValidatorIdentity::from_canonical_bytes(b"validator-a");
+        let base = OptimizationDecisionRecord::new(
+            OptimizationUnitIdentity::from_canonical_bytes(b"input-a"),
+            OptimizationCandidateIdentity::from_canonical_bytes(b"candidate-a"),
+            rule(b"rule-a"),
+            OptimizationCandidateVerdict::Applied,
+            AnalysisSet::new([AnalysisKind::ScalarConstants]),
+            vec![fact(b"fact-a")],
+            Some(validator),
+        )
+        .unwrap();
+        let variants = [
+            OptimizationDecisionRecord::new(
+                OptimizationUnitIdentity::from_canonical_bytes(b"input-b"),
+                base.candidate(),
+                base.rule(),
+                base.verdict(),
+                base.consumed_analyses(),
+                base.consumed_facts().to_vec(),
+                base.validator(),
+            )
+            .unwrap(),
+            OptimizationDecisionRecord::new(
+                base.input(),
+                OptimizationCandidateIdentity::from_canonical_bytes(b"candidate-b"),
+                base.rule(),
+                base.verdict(),
+                base.consumed_analyses(),
+                base.consumed_facts().to_vec(),
+                base.validator(),
+            )
+            .unwrap(),
+            OptimizationDecisionRecord::new(
+                base.input(),
+                base.candidate(),
+                rule(b"rule-b"),
+                base.verdict(),
+                base.consumed_analyses(),
+                base.consumed_facts().to_vec(),
+                base.validator(),
+            )
+            .unwrap(),
+            OptimizationDecisionRecord::new(
+                base.input(),
+                base.candidate(),
+                base.rule(),
+                OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::Superseded),
+                base.consumed_analyses(),
+                base.consumed_facts().to_vec(),
+                base.validator(),
+            )
+            .unwrap(),
+            OptimizationDecisionRecord::new(
+                base.input(),
+                base.candidate(),
+                base.rule(),
+                base.verdict(),
+                AnalysisSet::new([AnalysisKind::ValueRanges]),
+                base.consumed_facts().to_vec(),
+                base.validator(),
+            )
+            .unwrap(),
+            OptimizationDecisionRecord::new(
+                base.input(),
+                base.candidate(),
+                base.rule(),
+                base.verdict(),
+                base.consumed_analyses(),
+                vec![fact(b"fact-b")],
+                base.validator(),
+            )
+            .unwrap(),
+            OptimizationDecisionRecord::new(
+                base.input(),
+                base.candidate(),
+                base.rule(),
+                base.verdict(),
+                base.consumed_analyses(),
+                base.consumed_facts().to_vec(),
+                Some(OptimizationValidatorIdentity::from_canonical_bytes(
+                    b"validator-b",
+                )),
+            )
+            .unwrap(),
+        ];
+        assert!(
+            variants
+                .iter()
+                .all(|variant| variant.identity() != base.identity())
+        );
+
+        let mut tampered = base.encode();
+        tampered[12] ^= 1;
+        assert_eq!(
+            OptimizationDecisionRecord::decode(&tampered),
+            Err(OptimizationManifestDecodeError::DecisionIdentityMismatch)
+        );
+    }
+
+    #[test]
+    fn consumed_fact_references_must_be_canonical_and_known() {
+        let first = fact(b"first");
+        let second = fact(b"second");
+        let mut canonical = vec![first, second];
+        canonical.sort_unstable();
+        let duplicate = vec![canonical[0], canonical[0]];
+        assert_eq!(
+            OptimizationDecisionRecord::new(
+                OptimizationUnitIdentity::from_canonical_bytes(b"input"),
+                OptimizationCandidateIdentity::from_canonical_bytes(b"candidate"),
+                rule(b"rule"),
+                OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::Superseded),
+                AnalysisSet::default(),
+                duplicate,
+                None,
+            ),
+            Err(InvalidOptimizationManifestRecord::NonCanonicalConsumedFacts)
+        );
+        canonical.reverse();
+        assert_eq!(
+            OptimizationDecisionRecord::new(
+                OptimizationUnitIdentity::from_canonical_bytes(b"input"),
+                OptimizationCandidateIdentity::from_canonical_bytes(b"candidate"),
+                rule(b"rule"),
+                OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::Superseded),
+                AnalysisSet::default(),
+                canonical,
+                None,
+            ),
+            Err(InvalidOptimizationManifestRecord::NonCanonicalConsumedFacts)
+        );
+
+        let record = decision(rule(b"rule"));
+        let mut unknown = record.encode();
+        unknown[154] = 99;
+        assert_eq!(
+            OptimizationDecisionRecord::decode(&unknown),
+            Err(OptimizationManifestDecodeError::UnknownFactReference(99))
         );
     }
 
@@ -574,13 +812,14 @@ mod tests {
                 OptimizationRuleSetIdentity::from_ordered_rules(&listed).unwrap(),
                 listed,
                 vec![OptimizationDecisionRecord::new(
-                    OptimizationDecisionIdentity::from_canonical_bytes(b"skip"),
+                    OptimizationUnitIdentity::from_canonical_bytes(b"input"),
                     OptimizationCandidateIdentity::from_canonical_bytes(b"candidate"),
                     unscheduled,
                     OptimizationCandidateVerdict::Skipped(
                         OptimizationReasonCode::Inapplicable,
                     ),
                     AnalysisSet::default(),
+                    Vec::new(),
                     None,
                 )
                 .unwrap()],

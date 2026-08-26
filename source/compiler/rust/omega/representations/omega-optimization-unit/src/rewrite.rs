@@ -1,9 +1,9 @@
 use std::collections::BTreeSet;
 
 use omega_optimization_core::{
-    AnalysisInvalidationSet, AnalysisSet, OptimizationCandidateIdentity, OptimizationRuleContract,
-    OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationUnitIdentity,
-    ScalarConstantFactIdentity,
+    AnalysisInvalidationSet, AnalysisSet, OptimizationCandidateIdentity, OptimizationFactReference,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+    OptimizationUnitIdentity, ScalarConstantFactIdentity,
 };
 use psi_core::{
     BlockId, EdgeId, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId,
@@ -462,6 +462,24 @@ impl PsiRewriteCandidate {
 
     pub const fn witness(&self) -> ScalarEvaluationWitness {
         self.witness
+    }
+
+    pub fn consumed_facts(&self) -> Vec<OptimizationFactReference> {
+        let mut facts = match self.witness {
+            ScalarEvaluationWitness::Unary { operand_fact } => {
+                vec![OptimizationFactReference::ScalarConstant(operand_fact)]
+            }
+            ScalarEvaluationWitness::Binary {
+                left_fact,
+                right_fact,
+            } => vec![
+                OptimizationFactReference::ScalarConstant(left_fact),
+                OptimizationFactReference::ScalarConstant(right_fact),
+            ],
+        };
+        facts.sort_unstable();
+        facts.dedup();
+        facts
     }
 
     pub const fn predicted_cost_delta(&self) -> i64 {
