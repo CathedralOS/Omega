@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use omega_calling_conventions::MachineRegister;
 use omega_register_model::{
     PhysicalRegisterModel, PreservationConvention, RegisterClass, RegisterClassId,
     RegisterConstraintCatalog, RegisterConstraintCatalogValidationError, RegisterConstraintFamily,
@@ -22,6 +23,24 @@ const STACK32: RegisterClassId = RegisterClassId(7);
 const ZERO: RegisterClassId = RegisterClassId(8);
 const FLOAT_CONTROL: RegisterClassId = RegisterClassId(9);
 const INSTRUCTION_POINTER: RegisterClassId = RegisterClassId(10);
+
+/// Resolve one ABI-visible register through the AArch64 target owner's
+/// canonical model.
+pub fn aarch64_fixed_register_view(
+    model: &ValidatedPhysicalRegisterModel,
+    register: MachineRegister,
+) -> Option<RegisterViewId> {
+    if model.model() != &aarch64_physical_register_model() {
+        return None;
+    }
+    let MachineRegister::Aarch64X(index @ 0..=30) = register else {
+        return None;
+    };
+    model
+        .model()
+        .view_named(&format!("x{index}"))
+        .map(|view| view.id)
+}
 
 pub const AARCH64_AAPCS64_CALL: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Call,
@@ -83,6 +102,8 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 10] = [
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Aarch64RegisterConstraintCatalogValidationError {
+    PhysicalModelArchitectureMismatch,
+    NonCanonicalPhysicalModel,
     Structural(RegisterConstraintCatalogValidationError),
     TargetSemantics(RegisterConstraintKey),
 }
@@ -617,6 +638,14 @@ pub fn validate_aarch64_register_constraint_catalog(
     catalog: RegisterConstraintCatalog,
     model: &ValidatedPhysicalRegisterModel,
 ) -> Result<ValidatedRegisterConstraintCatalog, Aarch64RegisterConstraintCatalogValidationError> {
+    if model.model().architecture != Architecture::Aarch64 {
+        return Err(
+            Aarch64RegisterConstraintCatalogValidationError::PhysicalModelArchitectureMismatch,
+        );
+    }
+    if model.model() != &aarch64_physical_register_model() {
+        return Err(Aarch64RegisterConstraintCatalogValidationError::NonCanonicalPhysicalModel);
+    }
     let validated = validate_register_constraint_catalog(catalog, model)
         .map_err(Aarch64RegisterConstraintCatalogValidationError::Structural)?;
     let canonical = aarch64_register_constraint_catalog(model);
@@ -693,6 +722,19 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn fixed_machine_register_views_are_target_owned() {
+        let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        assert_eq!(
+            aarch64_fixed_register_view(&model, MachineRegister::Aarch64X(0)),
+            model.model().view_named("x0").map(|view| view.id)
+        );
+        assert_eq!(
+            aarch64_fixed_register_view(&model, MachineRegister::X86Rdi),
+            None
+        );
+    }
 
     #[test]
     fn model_validates_without_collapsing_stack_and_zero_registers() {
@@ -896,6 +938,24 @@ mod tests {
                     AARCH64_COMPARE_I64_ZERO,
                 )
             )
+        );
+    }
+
+    #[test]
+    fn aarch64_catalog_validation_rejects_same_architecture_forged_physical_model() {
+        let canonical =
+            validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let catalog = aarch64_register_constraint_catalog(&canonical);
+        let mut forged = aarch64_physical_register_model();
+        forged.views[0].name = "forged.x0".into();
+        let forged = validate_physical_register_model(forged).unwrap();
+        assert_eq!(
+            aarch64_fixed_register_view(&forged, MachineRegister::Aarch64X(0)),
+            None
+        );
+        assert_eq!(
+            validate_aarch64_register_constraint_catalog(catalog, &forged),
+            Err(Aarch64RegisterConstraintCatalogValidationError::NonCanonicalPhysicalModel)
         );
     }
 

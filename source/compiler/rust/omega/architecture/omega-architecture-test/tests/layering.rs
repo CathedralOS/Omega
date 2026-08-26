@@ -935,6 +935,47 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
         );
     }
 
+    let selection_manifest = root.join(
+        "source/compiler/rust/omega/pipeline/omega-terminal-target-operations-to-selected-instructions/Cargo.toml",
+    );
+    let selection_manifest_source = std::fs::read_to_string(&selection_manifest)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", selection_manifest.display()));
+    for forbidden in [
+        "omega-regalloc",
+        "omega-terminal-isa-x86_64",
+        "omega-terminal-isa-aarch64",
+        "omega-isa-x86_64",
+        "omega-isa-aarch64",
+    ] {
+        assert!(
+            !selection_manifest_source
+                .lines()
+                .any(|line| line.trim_start().starts_with(forbidden)),
+            "target-neutral selected-instruction pipeline must receive target semantics from orchestration, not depend upward on {forbidden}"
+        );
+    }
+
+    let selected_representation = root.join(
+        "source/compiler/rust/omega/representations/omega-terminal-selected-instructions/src/lib.rs",
+    );
+    let selected_representation_source = std::fs::read_to_string(&selected_representation)
+        .unwrap_or_else(|error| {
+            panic!(
+                "failed to read {}: {error}",
+                selected_representation.display()
+            )
+        });
+    for forbidden in [
+        "fn select_terminal_instructions",
+        "fn validate_terminal_selected_instructions",
+        "ValidatedTerminalSelectedInstructions",
+    ] {
+        assert!(
+            !selected_representation_source.contains(forbidden),
+            "selected-instruction representation must remain data-only; found {forbidden}"
+        );
+    }
+
     let graph = load_graph();
     assert_eq!(
         graph.get("omega-register-model").map(|krate| krate.layer),

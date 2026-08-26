@@ -13,8 +13,8 @@ pub use register_model::{
     AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_I64, AARCH64_DARWIN_CALL, AARCH64_DARWIN_RETURN,
     AARCH64_INLINE_ASSEMBLY_DEFAULT, AARCH64_LINUX_SYSTEM_CALL, AARCH64_MATERIALIZE_I64,
     AARCH64_REQUIRED_REGISTER_CONSTRAINTS, Aarch64RegisterConstraintCatalogValidationError,
-    aarch64_physical_register_model, aarch64_register_constraint_catalog,
-    validate_aarch64_register_constraint_catalog,
+    aarch64_fixed_register_view, aarch64_physical_register_model,
+    aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
 };
 
 use omega_calling_conventions::{MachineRegister, RegisterSet};
