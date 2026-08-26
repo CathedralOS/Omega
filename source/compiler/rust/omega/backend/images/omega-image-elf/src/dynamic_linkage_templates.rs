@@ -96,7 +96,6 @@ impl ValidatedElfProcedureLinkageTemplatePlan {
         self.template_identity
     }
 
-    #[allow(dead_code)]
     pub(crate) const fn contents(&self) -> &ElfProcedureLinkageTemplateContents {
         &self.contents
     }

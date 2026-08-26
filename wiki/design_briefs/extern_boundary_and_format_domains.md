@@ -229,14 +229,27 @@ rules](https://github.com/ARM-software/abi-aa/blob/main/sysvabi64/sysvabi64.rst#
 They still grant no address, physical section index, placement, resolved fixup,
 image mutation, or runnable-image authority.
 
+The following address-free descriptor rung retains those templates and extends
+the owning section-name seed append-only from 69 to 93 bytes with `.plt`,
+`.got.plt`, and `.rela.plt` at offsets 69, 74, and 83. The three semantic rows
+bind the exact template payload sizes to their ABI section types, flags,
+alignments, and entry sizes. AArch64 `.plt` retains
+`SHF_AARCH64_PURECODE`; `.rela.plt` retains typed `.dynsym` `sh_link` and
+`.got.plt` `sh_info` meaning together with `SHF_INFO_LINK`, without assigning
+either numeric index. Independent replay checks the unchanged six-row seed
+prefix, every appended name and metadata field, row order, target distinction,
+and deterministic identity while preserving template custody on rejection.
+The result is a nine-semantic-section view, not a completed section roster or
+`.shstrtab`.
+
 The exact `DT_NEEDED` roster stays typed until all `Elf64_Dyn` tags can be
 planned together; this rung does not claim a partial `.dynamic` payload.
 The final section roster and completed `.shstrtab`, numeric
 `sh_name`/`sh_link`/`e_shstrndx`, section-header serialization, placement,
 `PT_INTERP` program-header placement, `PT_DYNAMIC`, `.dynamic` addresses/tags,
-optional `.gnu.hash`, final descriptors and numeric indexes for
-`.plt`/`.got.plt`/`.rela.plt`, address-resolved fixup application and
-`.rela.plt` payloads, complete load/program-header layout, image mutation, and
+optional `.gnu.hash`, final descriptors for `.dynamic` and `.shstrtab`,
+numeric indexes for `.plt`/`.got.plt`/`.rela.plt`, address-resolved fixup
+application, complete load/program-header layout, image mutation, and
 independent final-byte replay remain open. Validated target templates still
 grant no layout, loader, publication, or runnable-image authority. An owned
 direct `[u8; N]` destination now contextually

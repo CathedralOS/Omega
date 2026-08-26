@@ -8502,15 +8502,27 @@ boundary without its corresponding checked law.
   rules](https://gitlab.com/x86-psABIs/x86-64-ABI/-/blob/master/x86-64-ABI/dl.tex)
   and [AArch64 procedure-linkage-table
   rules](https://github.com/ARM-software/abi-aa/blob/main/sysvabi64/sysvabi64.rst#procedure-linkage-table).
+  A following linkage-descriptor rung now retains those exact templates while
+  extending the existing section-name seed append-only from 69 to 93 bytes and
+  sealing the semantic `.plt`, `.got.plt`, and `.rela.plt` rows. It binds each
+  target template's exact payload size to its ABI section type, flags,
+  alignment, and entry size. The AArch64 `.plt` additionally retains
+  `SHF_AARCH64_PURECODE`; `.rela.plt` retains typed `.dynsym` `sh_link` and
+  `.got.plt` `sh_info` meaning plus `SHF_INFO_LINK`, rather than premature
+  numeric indexes. Independent replay checks the unchanged six-row prefix,
+  exact appended names and offsets, row order, every metadata field, target
+  distinction, and deterministic identity while preserving template custody on
+  rejection. This produces a nine-semantic-section address-free view, not a
+  final ELF section roster.
   The exact `DT_NEEDED` roster remains typed until all `Elf64_Dyn` tags can be
   planned together; no partial `.dynamic` payload is claimed. Runnable ELF
   emission remains fail closed before image mutation: the final section roster
   and completed `.shstrtab`, numeric `sh_name`/`sh_link`/`e_shstrndx`, section-
   header serialization, placement, `PT_INTERP` program-header placement,
   `PT_DYNAMIC`, `.dynamic` addresses/tags, optional `.gnu.hash`, final
-  descriptors and numeric indexes for `.plt`/`.got.plt`/`.rela.plt`, address-
-  resolved fixup application and `.rela.plt` payloads, complete load/program-
-  header layout, image mutation, and independent final-byte replay remain
+  descriptors for `.dynamic` and `.shstrtab`, numeric indexes for
+  `.plt`/`.got.plt`/`.rela.plt`, address-resolved fixup application, complete
+  load/program-header layout, image mutation, and independent final-byte replay remain
   unimplemented. Validated target templates do not constitute a dynamic image.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
