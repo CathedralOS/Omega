@@ -269,8 +269,10 @@ and full physical footprints. The independent validator reconstructs interval
 bounds and active expiration separately. After the fixed-view-copy transform,
 the condition and forwarded value form one real interference pair and receive
 distinct homes, while mutually exclusive leaf result intervals expire and
-reuse the same return view on both ISAs. This is not yet pressure-driven spill
-selection, general splitting, or a complete linear-scan allocator.
+reuse the same return view on both ISAs. This remains a strict spill-free home
+path, not general splitting or a complete linear-scan allocator. Pressure
+decisions are represented by the separate bounded artifact below rather than
+changing this path's failure semantics.
 
 The allocator core also has a validated miniature two-register pressure model
 with no fixed operands. Production and independent replay both assign two
@@ -284,10 +286,34 @@ three-address `add_i64` row, and returns the result. Selection retains both the
 obligation and its accepted verifier-fact identity. Liveness exposes exactly one
 flexible interference pair per leaf; allocation assigns distinct homes and then
 reuses the same pair across mutually exclusive leaves on x86-64 and AArch64.
-The miniature three-way failure remains the exact spill-choice boundary; no
-spill is yet invented. Stable x86-64 ordering currently chooses `rbx` as the
-second home, which is legality evidence only; callee-save and frame cost do not
-exist until the frame/cost-model joins are implemented.
+The miniature three-way failure now feeds the first named pressure policy,
+`SingleBlockFarthestEndThenHighestVregV1`. It walks the same canonical interval
+order but stops at the first supported pressure point. The artifact records the
+incoming VReg and common candidates, every active resident and provisional
+home, and only those victim contenders whose hypothetical removal actually
+recovers a legal incoming view. The incoming value is also a contender, with no
+reclaimed view. Ranking chooses the farthest exclusive end and breaks exact
+ties by the highest VReg ID. Equal-end three-way pressure therefore keeps the
+two existing homes and selects the incoming VReg; a farther-ending resident is
+selected when removing it exposes a legal view.
+
+Production and a structurally separate replay implementation reconstruct this
+decision under explicit five-axis work accounting. The policy is deliberately
+limited to single-block, one-fragment values without edge connectors at the
+pressure point; it fails closed rather than ranking flattened CFG layout. Its
+domain-separated identity and canonical codec bind legality, ranges, register
+environment, named policy, budget, usage, complete function roster, pressure
+witnesses, contenders, and chosen victim. Decode returns a plain plan requiring
+independent replay validation.
+
+Despite its historical spill-choice name, this is recovery-victim evidence,
+not permission to mutate the program. It chooses neither memory nor
+rematerialization and has no spill/reload sites, stack slots, frame offsets,
+callee-save costs, or emission authority. Actual materialization must first
+join selected-value types, ownership/borrow and proof custody, cleanup/address
+stability, target frame policy, and a named placement/cost rule. Stable x86-64
+ordering currently chooses `rbx` as the second home in the production exact-add
+fixture; that remains legality evidence only.
 
 The resulting register-home plan has its own versioned canonical artifact
 codec. It carries those three roots plus the exact ordered machine, VReg,

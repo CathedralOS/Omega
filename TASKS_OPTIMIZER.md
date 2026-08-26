@@ -42,8 +42,11 @@ These facts constrain the work below.
 - `omega-register-model` now owns separate target-neutral declarative physical-
   register and instruction-constraint vocabularies with total structural
   validators. `omega-regalloc` now consumes the opaque validated selected CFG
-  for bounded liveness, ranges, candidate legality, and the first strict
-  transition-free physical-home assignment. It is not yet a general allocator.
+  for bounded liveness, ranges, candidate legality, the first strict
+  transition-free physical-home assignment, and a separately validated local
+  pressure-victim decision. It is not yet a general allocator: the latter is
+  evidence about which value could leave the current homes, not authority to
+  spill, reload, rematerialize, allocate a frame, or emit instructions.
   Clean Terminal-ISA-owned x86-64 declarations split every GPR into exact
   byte/word/dword/qword storage lanes, retain non-allocatable high-byte views,
   model 32-bit zero-extension, and cover XMM, RFLAGS, and RIP state. AArch64
@@ -1002,9 +1005,16 @@ dependency.
   reconstruction, complete reanalysis, post-copy homes, active expiration, and
   the first real competing pair now exist. Flexible candidate ranking and the
   deterministic pressure failure are covered at allocator-core level, and the
-  two-way flexible case now has a production source-to-home vertical. Next
-  implement deterministic spill choice and its independently replayed cost and
-  placement evidence without weakening the current fail-closed pressure result.
+  two-way flexible case now has a production source-to-home vertical. The named
+  `SingleBlockFarthestEndThenHighestVregV1` policy now records the first
+  supported local pressure point, active residents, all victims whose removal
+  really recovers a legal incoming view, and the deterministic selected victim
+  under an explicit work budget. Its separate replay implementation and
+  versioned identity/codec fail closed on cross-block or connected pressure and
+  do not weaken the existing home assigner's `NoCompatibleHome` result. Next
+  join selected-value type/ownership/proof custody and target frame policy
+  before any chosen victim can become a typed spill, reload, or
+  rematerialization.
   Provider/runtime reservation requirements must either join the active profile
   or fail closed.
 
@@ -1024,6 +1034,13 @@ dependency.
 
   Acceptance: spill code obeys effect and trap ordering, retains source value
   identity, and cannot use placed/volatile memory as a private spill location.
+
+  Current boundary: `SingleBlockFarthestEndThenHighestVregV1` is an explicit
+  structural recovery-victim policy only. It considers the incoming VReg and
+  exactly those active residents whose hypothetical removal exposes a legal
+  incoming view, ranks farthest exclusive end then highest VReg ID, and records
+  no memory/rematerialization choice or placement. This closes deterministic
+  victim selection, not spill materialization.
 
 - **OPT-STACK-SLOTS.** Assign aligned frame slots with lifetime-based reuse,
   outgoing-call areas, ABI shadow space/red-zone policy, dynamic restrictions,
