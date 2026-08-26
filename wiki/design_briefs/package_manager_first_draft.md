@@ -1022,9 +1022,29 @@ canonical fixed-vocabulary text record: candidate closure, sorted conflict
 fingerprint plus closed disposition rows, and the reconstructed resolution
 commitment. Strict recovery maps every row back to the current compiler-derived
 conflict and owning package, reruns the complete validator, and requires
-byte-identical canonical re-encoding. This closes restart-stable encoding, not
-policy-origin/file custody, governance evidence, accepted-lock reference, or
-transaction authority.
+byte-identical canonical re-encoding. At that layer this closed restart-stable
+encoding, not policy-origin/file custody, governance evidence, accepted-lock
+reference, or transaction authority.
+
+Policy-directory file custody now wraps that record without changing its
+meaning. Trusted command orchestration supplies an already-open root-owned
+directory capability and one bounded lowercase portable canonical filename;
+nested paths are unrepresentable and package dependencies are never searched
+for policy. Every operation is a direct child of that handle. Case-alias,
+symlink/non-regular-leaf, and existing-destination forms reject. Reads retain
+the file through semantic recovery, then reread and compare its bytes and live
+name identity. Persistence prepares and synchronizes a private same-directory
+stage before atomic no-overwrite hard-link publication, then requires directory
+synchronization. A later failure reports `published but unconfirmed`, because
+the complete canonical file may remain recoverable. The library cannot prove
+that an arbitrary caller supplied a root-owned command directory. This provides
+filesystem
+custody, not proof of review, governance, accepted-lock state, or permission for
+the install/update transaction; no final UX directory or filename is fixed yet.
+The reread and identity checks detect ordinary concurrent change, not a hostile
+process already holding the root author's filesystem credentials and alternating
+valid states between observations. Final command transaction locking and
+immediate policy revalidation own that boundary.
 
 An update derives candidate evidence and compares it with the normalized
 accepted baseline in `omega.lock`:

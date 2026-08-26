@@ -936,13 +936,32 @@ fixed-vocabulary canonical text record containing only candidate, fingerprint,
 closed disposition, and resolution-commitment fields. Recovery strictly
 validates framing and resource ceilings, maps every fingerprint back to the
 current compiler-derived conflict and owning package, reruns complete
-resolution, and requires byte-identical canonical re-encoding. The record is
-restart-stable policy state, not policy-origin custody, governance evidence,
+resolution, and requires byte-identical canonical re-encoding. The record alone
+is restart-stable policy state, not policy-origin custody, governance evidence,
 accepted package evidence, or transaction authorization.
 Candidate-closure commitment v2 binds source topology and immutable resolution
 plus every candidate package's target, compiler executable, source consumption,
 optional build observation, and whole-review commitment, even when that package
 has no blocking row.
+The record now also has an explicit policy-directory file-custody layer. Trusted
+command orchestration supplies an already-open root-owned directory capability
+and one bounded lowercase portable canonical filename; nested paths are not
+representable and dependency source is never searched for policy. Every
+operation is a direct-child operation relative to that handle. Symlink or
+non-regular leaves, case aliases, and existing destinations reject. Reads retain
+the opened file through semantic recovery, reread and compare its bytes, and
+then recheck its live filename. New files use a private same-directory stage:
+write, file synchronization, reread, and identity verification all precede
+atomic no-overwrite hard-link publication. Directory synchronization follows.
+A failure after publication reports `published but unconfirmed`, because the
+complete canonical file may remain recoverable. Command integration must supply
+the actual root-owned directory. This custody neither proves an audit nor
+authorizes the wider transaction, and it deliberately leaves the eventual
+command directory and filename open.
+The reread and identity checks detect ordinary concurrent change, not a hostile
+process already holding the root author's filesystem credentials and deliberately
+alternating valid states between observations. Final command transaction locking
+and immediate revalidation own that boundary.
 
 The former commands accepting `manifest.json`, `receipt.json`, `--package`, or
 mandatory `--alias` were removed from the production CLI. Their name-keyed
@@ -992,6 +1011,7 @@ omega-packages/
 |   |-- source.rs          # Source requests and immutable snapshots.
 |   |-- package_source.rs  # Snapshot-to-declared-PackageKey custody.
 |   |-- resolver.rs        # Fetch/cache boundary and transport receipts.
+|   |-- record_file.rs     # Private bounded path and directory-capability persistence.
 |   |-- declaration.rs     # Hermetic builder.package projection.
 |   |-- dependency_projection.rs # Hermetic literal source requests.
 |   |-- dependency_edit.rs # Digest-bound conservative build.omg edit plans.

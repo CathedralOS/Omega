@@ -2046,9 +2046,9 @@ complete.
   provider review row can therefore combine authored coordinates with compiler-
   derived reasons without reconstructing either from names, schemas, or
   fingerprints. Free external providers and an empty selected set also carry
-  closed reasons. Exact nested clause/use-site anchors and durable root-policy
-  file custody remain engineering work. Canonical recovery is recorded below;
-  neither concern requires nominal Chi or a new owner decision.
+  closed reasons. Exact nested clause/use-site anchors remain engineering work.
+  Canonical recovery and root-project file custody are recorded below; none of
+  these concerns requires nominal Chi or a new owner decision.
 
   Milestone 2026-08-25: review-only root policy now records one closed
   accept-candidate-change or reject-candidate-change disposition for every exact
@@ -2077,8 +2077,32 @@ complete.
   whole-review commitment in addition to exact source topology and resolution,
   including packages that produce no blocking conflict. A policy record cannot
   therefore omit unchanged or recommendation-only candidate evidence.
-  Durable policy-origin/file custody, optional governance metadata, accepted-
-  lock reference, and install/update transaction revalidation remain open.
+  At that milestone, root-project file custody, optional governance metadata,
+  accepted-lock reference, and install/update transaction revalidation remained
+  open.
+
+  Milestone 2026-08-26: canonical resolution records now have a bounded
+  policy-directory custody layer. Trusted command orchestration supplies an
+  already-open, root-owned directory capability plus one lowercase portable
+  canonical filename; nested paths, absolute/empty/dot forms, separators,
+  controls, overlong names, case aliases, Windows device aliases, symlink
+  leaves, and existing destinations reject. Every root-policy operation is a
+  direct-child operation relative to that handle. Persistence writes and
+  synchronizes a private same-directory stage, rereads it, then atomically
+  publishes one no-overwrite hard link. Reads retain their open file, rerun the
+  exact semantic recovery, reread the bytes, and recheck the live filename.
+  Directory synchronization is required rather than silently skipped; a failure
+  after atomic publication reports `published but unconfirmed`, since complete
+  canonical bytes may remain recoverable. Command integration must supply the
+  actual root-owned directory; this library does not discover policy under
+  dependencies or prescribe a final UX filename or directory.
+  This detects ordinary concurrent replacement and in-place change; it does not
+  claim linearizability against a hostile process already holding the root
+  author's filesystem credentials. Final install/update transaction locking and
+  immediate policy revalidation own that boundary.
+  Directory custody proves neither an audit nor admission and does not authorize
+  mutation or replace optional governance metadata, accepted-lock reference,
+  and final install/update transaction revalidation.
 
 - **DANGEROUS-AUTHORITY-CLASSIFICATION.** Classify risk from compiler-owned
   nominal metadata.
