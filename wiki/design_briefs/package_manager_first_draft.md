@@ -235,8 +235,9 @@ then executes exactly once and joins only explicit Output-rooted
 `include_source` handoffs to retained staged-tree bytes. Those bytes receive
 ordinary final parsing, resolution, typing, checking, and the repeated
 selection gate without rerunning dependency discovery or build execution. The
-native-image command remains gated until it consumes the same sponsored package
-transaction.
+native-image command remains gated until
+`PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION` consumes the same sponsored
+package transaction.
 
 Psi's target-neutral const-generic, fixed-array, const-domain, laid/placed
 layout, wire-policy, and calling-policy evaluators consume the same reconciled
