@@ -13,9 +13,10 @@ use omega_optimization_core::{
     OptimizationValidatorIdentity,
 };
 use omega_optimization_unit::{
-    IntegerConstantRewrite, OptimizationEdge, OptimizationFact, OwnershipEvent,
+    IntegerConstantRewrite, OptimizationEdge, OptimizationFact, OwnershipEvent, PsiNodeObservation,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate,
     PsiRewritePatch, ValueDefinition, ValueDefinitionSite, ValueUse,
+    reconstruct_psi_observation_model,
 };
 use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ScalarType, ValueId};
 use psi_terminal_fuel::TerminalFuelSchedule;
@@ -152,6 +153,7 @@ pub enum OptimizationUnitValidationError {
     CandidateOperandFactMismatch,
     CandidateEvaluationMismatch,
     CandidateFactReplacementMissing,
+    CandidateObservationMismatch,
 }
 
 impl std::fmt::Display for OptimizationUnitValidationError {
@@ -252,6 +254,8 @@ pub fn validate_integer_evaluation_candidate(
         .nodes
         .get(usize::try_from(patch.location.node).expect("u32 fits usize"))
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let input_observation = observation_at(input, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let [provenance] = candidate.provenance() else {
         return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
     };
@@ -323,6 +327,11 @@ pub fn validate_integer_evaluation_candidate(
     };
     output.identity = candidate.output();
     validate_psi_optimization_unit(&output)?;
+    let output_observation = observation_at(&output, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if !same_closed_scalar_observation(&input_observation, &output_observation) {
+        return Err(OptimizationUnitValidationError::CandidateObservationMismatch);
+    }
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),
@@ -330,6 +339,34 @@ pub fn validate_integer_evaluation_candidate(
             b"omega.validator.exact-integer-evaluation.v1",
         ),
     })
+}
+
+fn observation_at(
+    unit: &PsiOptimizationUnit,
+    location: omega_optimization_unit::NodeLocation,
+) -> Option<PsiNodeObservation> {
+    reconstruct_psi_observation_model(unit)
+        .nodes
+        .into_iter()
+        .find(|row| {
+            row.machine == location.machine
+                && row.block == location.block
+                && row.node == location.node
+        })
+}
+
+fn same_closed_scalar_observation(input: &PsiNodeObservation, output: &PsiNodeObservation) -> bool {
+    input.machine == output.machine
+        && input.block == output.block
+        && input.node == output.node
+        && input.definitions == output.definitions
+        && input.effect == output.effect
+        && input.ownership == output.ownership
+        && input.provenance == output.provenance
+        && input.fuel == output.fuel
+        && input.crash == output.crash
+        && input.suspension == output.suspension
+        && input.events == output.events
 }
 
 fn evaluate_exact_binary(
