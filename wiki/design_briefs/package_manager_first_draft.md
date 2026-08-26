@@ -786,7 +786,8 @@ except that generic binder-free requirements, explicit evidence binders, and
 selected conformances with representable complete applications use the same
 canonical conformance row as public traits. Review v71/canonical row v29 also
 binds an unaliased checked-body realization to the exact package-qualified
-coordinate of one public ordinary named, nongeneric, lifetime-free operator. Checked lowering
+coordinate of one public ordinary nongeneric, lifetime-free operator, whether
+or not that declaration owns a fixed token. Checked lowering
 retains the exact machine/operator symbols, conformance/admission form,
 normalized overload shape plus exact lifetime-bearing type nodes, both complete canonical contract sets, and exact
 typed semantic snapshots of their contract graphs in full; projection requires
@@ -798,9 +799,11 @@ evidence, and trusted compiler components remain inside the TCB. Operators with
 outcome-specific or crash contracts, and providers with any nonempty checked
 crash behavior, reject until their refinement rules exist.
 Private, generic/lifetime-parameterized, aliased, bodyless, and operator-bound
-external realizations remain fail-closed. Boundary and fixed-token realizations
-remain outside this first lane pending positive selected-provider and spelling
-canaries. The projection never substitutes an overload
+external realizations remain fail-closed. A fixed-token realization points to
+the same exact declaration coordinate as its named call surface; the joined
+public-operator row owns the closed compiler spelling. The callable edge does
+not duplicate it or create another identity. Boundary realizations remain
+outside this lane pending selected-provider canaries. The projection never substitutes an overload
 display name or a runtime-layout-only
 type identity for this contract surface.
 

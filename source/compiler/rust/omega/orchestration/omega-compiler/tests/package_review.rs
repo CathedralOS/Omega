@@ -4942,6 +4942,62 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
+fn review_projects_fixed_token_checked_operator_realization_by_declaration_coordinate() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data CheckedMath {}
+pub operator - CheckedMath::subtract(left: i32, right: i32) -> i32;
+
+pub machine provide_subtract(left: i32, right: i32) -> i32
+satisfies CheckedMath::subtract
+{
+    transition { _ -> left }
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("fixed-token checked operator realization fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("fixed-token checked operator realization should project exactly");
+    let callable = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "provide_subtract")
+        .expect("public provider callable row");
+    let [realization] = callable.operator_realizations() else {
+        panic!("one exact fixed-token operator realization")
+    };
+    let declaration = review
+        .public_operators()
+        .iter()
+        .find(|shape| shape.coordinate().identity().path() == "CheckedMath::subtract")
+        .expect("public fixed-token operator declaration row");
+    assert_eq!(
+        declaration.spelling(),
+        Some(psi_language_core::OperatorSpelling::Subtract)
+    );
+    assert_eq!(realization, declaration.coordinate());
+}
+
+#[test]
 fn changing_checked_operator_realization_changes_only_the_callable_value() {
     let Some(target) = host_target_name() else {
         return;
@@ -5330,6 +5386,36 @@ crashes Trap
         )
         .expect("operator admission-drift control fixture should check")
     };
+
+    let mut boundary_drift = compile_admission_control(
+        r#"pub data CheckedMath {}
+pub operator CheckedMath::identity(value: i32) -> i32;
+pub machine provide_identity(input: i32) -> i32
+satisfies CheckedMath::identity
+{ input }
+"#,
+    );
+    let operator_roots = boundary_drift.typed.roots.operators;
+    boundary_drift
+        .typed
+        .tables
+        .operators
+        .span_mut_or_empty(operator_roots)[0]
+        .is_boundary = true;
+    boundary_drift
+        .facts
+        .operators
+        .operator_realization_contracts =
+        psi_typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(
+            &boundary_drift.typed,
+        );
+    let diagnostics = project_checked_package_review(&boundary_drift)
+        .expect_err("boundary operator realization must remain fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("realizes boundary operator `CheckedMath::identity`")
+    }));
 
     let mut visibility_drift = compile_admission_control(
         r#"data CheckedMath {}
