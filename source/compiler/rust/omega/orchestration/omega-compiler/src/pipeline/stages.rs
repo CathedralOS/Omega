@@ -215,20 +215,12 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
             SourceStorage::for_compilation(root_package, toolchain_root)
         }
     };
-    // Legacy standalone depend mapping: explicit
-    // `builder.depend_as("alias", Source::Path { location: "dir" })` rows
-    // collected from every loaded build machine, alias -> directory. Each
-    // frontier collects BEFORE resolving its uses, so a build.omg companion
-    // maps aliases for the sources loaded alongside it.
-    let mut depend_aliases: Vec<(String, PathBuf)> = Vec::new();
-
     load_pending_imports(
         &mut source_storage,
         &mut imports,
         root_path,
         target_name,
         package_inputs,
-        &mut depend_aliases,
         timings,
     )?;
 
@@ -265,7 +257,6 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
             root_path,
             target_name,
             package_inputs,
-            &mut depend_aliases,
             timings,
         )?;
     }
@@ -277,7 +268,6 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
             target_name,
             &mut imports,
             package_inputs,
-            &mut depend_aliases,
             timings,
         )?;
     }
@@ -348,7 +338,6 @@ fn load_pending_imports(
     root_path: &Path,
     target_name: Option<&str>,
     package_inputs: Option<&PackageCompilationInputs>,
-    depend_aliases: &mut Vec<(String, PathBuf)>,
     timings: &mut CompileTimings,
 ) -> Result<(), Vec<Diagnostic>> {
     while imports.has_pending() {
@@ -372,23 +361,12 @@ fn load_pending_imports(
                 target_name,
                 package_inputs,
             )?,
-            None => {
-                crate::pipeline::frontend::collect_depend_aliases(
-                    &parsed,
-                    &source_storage.syntax_trees,
-                    depend_aliases,
-                );
-                for (_, directory) in depend_aliases.iter() {
-                    source_storage.register_package_root(directory.clone());
-                }
-                discover_imports(
-                    &parsed,
-                    &source_storage.syntax_trees,
-                    root_path,
-                    target_name,
-                    depend_aliases,
-                )?
-            }
+            None => discover_imports(
+                &parsed,
+                &source_storage.syntax_trees,
+                root_path,
+                target_name,
+            )?,
         };
 
         imports.enqueue(discovered_imports)?;
@@ -723,7 +701,6 @@ fn substitute_native_gui_provider(
     target_name: Option<&str>,
     imports: &mut ImportQueue,
     package_inputs: Option<&PackageCompilationInputs>,
-    depend_aliases: &mut Vec<(String, PathBuf)>,
     timings: &mut CompileTimings,
 ) -> Result<(), Vec<Diagnostic>> {
     // Gate strictly on darwin/Mach-O: on Windows `Gui`/`Input` have real Win32 host
@@ -786,23 +763,12 @@ fn substitute_native_gui_provider(
                 target_name,
                 package_inputs,
             )?,
-            None => {
-                crate::pipeline::frontend::collect_depend_aliases(
-                    &parsed,
-                    &source_storage.syntax_trees,
-                    depend_aliases,
-                );
-                for (_, directory) in depend_aliases.iter() {
-                    source_storage.register_package_root(directory.clone());
-                }
-                discover_imports(
-                    &parsed,
-                    &source_storage.syntax_trees,
-                    root_path,
-                    target_name,
-                    depend_aliases,
-                )?
-            }
+            None => discover_imports(
+                &parsed,
+                &source_storage.syntax_trees,
+                root_path,
+                target_name,
+            )?,
         };
         imports.enqueue(discovered_imports)?;
         extend_source_storage(source_storage, parsed)?;
@@ -812,7 +778,6 @@ fn substitute_native_gui_provider(
             root_path,
             target_name,
             package_inputs,
-            depend_aliases,
             timings,
         )?;
     }

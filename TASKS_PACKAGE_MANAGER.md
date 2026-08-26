@@ -706,9 +706,10 @@ complete.
 
   This gate deliberately reads the earliest coherent private typed/probe state
   owned by the compiler. It need not wait for public or Terminal Psi, and it is
-  allowed to move with compiler internals. There is no nominal Chi stage: add
-  one only if later implementation discovers an independent consumer, shared
-  invariant, or transformation boundary with actual semantics.
+  allowed to move with compiler internals. There is no nominal Chi stage. Add a
+  named stage only if implementation discovers a genuine reusable semantic
+  invariant boundary. Additional consumers or transformations may reveal such
+  a boundary; stability, layer purity, or local simplification alone do not.
 
   Milestone 2026-08-25: symbol-resolved nominal type references now retain
   exact authored-selection rows as they enter typed trees. Public `data`,
@@ -1042,12 +1043,27 @@ complete.
   returning. The compiler has separate native and checked package-aware
   entrypoints that accept only a validated, closed, requester-local
   alias-to-`PackageKeyIdentity` graph and canonical source roots; this mode never
-  invokes or combines syntactic discovery. Legacy standalone compilation keeps
-  only an explicit `depend_as(..., Source::Path { ... })` compatibility canary.
+  invokes or combines syntactic discovery.
   A transport-neutral package-side resolver recursively closes those projected
   requests through an adapter callback before returning any graph. The narrow
-  standalone compatibility scanner remains tracked as compiler cleanup but is
-  not consulted by package-aware compilation or package source projection.
+  standalone compatibility scanner was removed 2026-08-26: standalone
+  compilation now resolves only ordinary root-relative and toolchain imports,
+  while requester-local aliases require validated `PackageCompilationInputs`.
+  No compiler path reparses dependency build files, silently skips malformed
+  rows, installs identity-free package roots, or shares aliases globally.
+  Scanner-dependent placed-access canaries now use a closed package graph. The
+  migration also rejects ambiguous policy/schema spellings, retains their exact
+  source identities, and checks both declarations' package visibility and
+  direct-dependency authority before synthesis. Because `Placed<P, S>` is
+  erased before ordinary type-selection capture, both nominal inputs must be
+  public even for local use; this prevents a public signature from laundering a
+  private declaration through the source-free shell. Its inert opaque field
+  carriers follow shell visibility, while callable operation visibility follows
+  exact `AccessExposure` and retains `BindingPrivate`. Statement-position
+  accessor calls resolve to their exact generated state. Pre-check operator
+  execution is intrinsic only when no authored declaration candidate exists;
+  final checking still validates builtin semantics and authored operator
+  selection. No owner decision was required.
 
 - [x] **CLOSURE-RECONCILIATION.** Resolve the complete source closure before any
   dependency build receives providers.
@@ -1115,8 +1131,10 @@ complete.
 - **PACKAGE-ADMISSION-COMPILATION.** Add a library/package compilation profile
   independent of executable entry selection.
 
-  Acceptance: the compiler derives a total `PackageAdmissionProjection` from
-  checked semantic state for every public callable and build machine. It
+  Acceptance: after successful checking, the compiler derives a total
+  `PackageAdmissionProjection` for every public callable and build machine by
+  joining each fact from its earliest semantically complete compiler-owned
+  representation. It
   includes declared and realized reach, authority flows, provider realization/
   provenance, trust/claims, proof status, installation rows, operational
   contracts, executable TCB, observations, and reproducibility. Required
@@ -1130,15 +1148,17 @@ complete.
   or justify nominal Chi merely for stability. Unchecked syntax, diagnostics,
   or a merely convenient earlier shape are never admission evidence.
 
-  Progress 2026-08-24: checked trees already own the useful semantic core. A
+  Progress 2026-08-24: checked trees own much of the current semantic core and
+  are one input to the target-scoped admission projection; other facts may come
+  from earlier semantically complete compiler-owned representations. A
   `RealizedMachineContractEnvelope` retains contract identity, effective and
   concrete reach, unresolved installation rows, synchronous invocation,
   suspension, blocking, termination, crashes, mutation, and exact capability
   flows. Source-authored symbols can be joined back to their opaque
   `PackageKeyIdentity` through the retained source map, and underdeclared reach
-  already fails checking. This is the intended source for a compiler-owned,
-  target-scoped admission projection, but the current implementation is not yet
-  admissible. The unused `export path [as alias]` item is retired through
+  already fails checking. The resulting compiler-owned, target-scoped admission
+  projection is not yet admissible. The unused `export path [as alias]` item is
+  retired through
   parser, syntax identity/snapshot, visualization, and source-profile rows;
   `pub` is the sole package-owned API marker. Ordinary `pub machine` visibility
   is now retained through syntax,
@@ -2165,7 +2185,8 @@ complete.
   requester-local alias edge.
   Recovered row envelopes establish canonical framing only and must be joined
   to the separately reconstructed closure. The selected local compiler
-  reconstructs the complete ledger from checked semantics and requires exact
+  reconstructs the complete ledger from the earliest semantically complete
+  compiler-owned representations after successful checking and requires exact
   equality; missing, reordered, stale, mixed-package, mixed-target, renamed-
   alias, and changed-closure subjects reject. Relocating the same graph does not
   change this coordinate. Fresh closure-review publication passes through this
@@ -2279,11 +2300,11 @@ complete.
   representations because the projection moves with the compiler; only the
   versioned, source-handle-free row encoding crosses into package
   orchestration. Do not create nominal Chi solely to make this internal join
-  look stable. Introduce another semantic stage only if implementation
-  discovers a real shared invariant, transformation boundary, independent
-  consumer, or simplification, and freely collapse rows into an existing
-  coherent representation (for example `Exact`) when that removes machinery
-  without losing meaning.
+  look stable. Add a named stage only if implementation discovers a genuine
+  reusable semantic invariant boundary. Additional consumers or transformations
+  may reveal such a boundary; stability, layer purity, or local simplification
+  alone do not. Freely collapse rows into an existing coherent representation
+  (for example `Exact`) when that removes machinery without losing meaning.
 
   Progress 2026-08-24: the review projection exposes independently framed,
   compiler-owned rows for the projection header, public traits, domains, data,

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use psi_access_plans::{ExternalRead, FieldAccess, ValidatedPlacementPlan};
+use psi_access_plans::{AccessExposure, ExternalRead, FieldAccess, ValidatedPlacementPlan};
 use psi_arena::{Handle, HandleSpan};
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{DataSupplyMode, Multiplicity};
@@ -40,7 +40,12 @@ pub(super) fn synthesize_probe_records(
                 })
             })
             .collect::<Vec<_>>();
-        push_record(syntax, &application.synthetic_name, members);
+        push_record(
+            syntax,
+            &application.synthetic_name,
+            members,
+            application.generated_is_public,
+        );
     }
     rewrite_applications(syntax, rewrites);
 }
@@ -91,9 +96,14 @@ pub(super) fn synthesize_exact_records(
             }
 
             let accessor_name = accessor_name(syntax, application, field, entry.access())?;
+            let is_exported = access_is_exported(entry.access());
             syntax.push_root_item(Item::Data(DataDefinition {
                 name: Identifier::generated(accessor_name.clone()),
-                is_public: false,
+                // A published shell must be well-formed even when one field's
+                // operations are binding-private. The opaque carrier itself
+                // grants no operation; cloned machine visibility and the
+                // exact installed AccessExposure row retain that authority.
+                is_public: application.generated_is_public,
                 supply_mode: DataSupplyMode::BoundaryOpaque,
                 lifetime_parameters: Vec::new(),
                 type_parameters: HandleSpan::empty(),
@@ -122,6 +132,7 @@ pub(super) fn synthesize_exact_records(
                     machine,
                     &accessor_name,
                     field.type_reference,
+                    is_exported && application.generated_is_public,
                 );
             }
             let field_type = syntax
@@ -135,7 +146,12 @@ pub(super) fn synthesize_exact_records(
                 type_reference: field_type,
             }));
         }
-        push_record(syntax, &application.synthetic_name, members);
+        push_record(
+            syntax,
+            &application.synthetic_name,
+            members,
+            application.generated_is_public,
+        );
     }
     rewrite_applications(syntax, rewrites);
     retire_accessor_templates(syntax);
@@ -243,6 +259,7 @@ fn clone_accessor_machine(
     machine: &Machine,
     accessor_name: &str,
     field_type: TypeReferenceHandle,
+    is_public: bool,
 ) {
     let watermark = syntax.tables.type_references.node_count();
     let Item::Machine(mut clone) = syntax.copy_item_from(template, &Item::Machine(machine.clone()))
@@ -257,6 +274,7 @@ fn clone_accessor_machine(
         .expect("accessor template operation");
     clone.name = Identifier::generated(format!("{accessor_name}::{operation}"));
     clone.attached_data = Some(Identifier::generated(accessor_name));
+    clone.is_public = is_public;
     clone.type_parameters = HandleSpan::empty();
     let replacement = syntax
         .tables
@@ -274,7 +292,23 @@ fn clone_accessor_machine(
     syntax.push_root_item(Item::Machine(clone));
 }
 
-fn push_record(syntax: &mut SyntaxTrees, name: &str, members: Vec<DataMember>) {
+fn access_is_exported(access: &FieldAccess) -> bool {
+    matches!(
+        access,
+        FieldAccess::Stable {
+            exposure: AccessExposure::Exported,
+            ..
+        } | FieldAccess::External {
+            exposure: AccessExposure::Exported,
+            ..
+        } | FieldAccess::Atomic {
+            exposure: AccessExposure::Exported,
+            ..
+        }
+    )
+}
+
+fn push_record(syntax: &mut SyntaxTrees, name: &str, members: Vec<DataMember>, is_public: bool) {
     let mut first = Handle::invalid();
     let mut count = 0u32;
     for member in members {
@@ -285,8 +319,12 @@ fn push_record(syntax: &mut SyntaxTrees, name: &str, members: Vec<DataMember>) {
         count += 1;
     }
     syntax.push_root_item(Item::Data(DataDefinition {
+        // The shell is compiler-owned rather than a declaration published by
+        // either input package. Discovery has already retained the exact
+        // policy/schema identities and enforced their visibility; field
+        // operation visibility is governed separately by AccessExposure.
         name: Identifier::generated(name),
-        is_public: false,
+        is_public,
         supply_mode: DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),

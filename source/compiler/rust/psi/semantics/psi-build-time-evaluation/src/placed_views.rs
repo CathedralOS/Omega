@@ -22,7 +22,7 @@
 //! route; the synthesized placed record contains opaque accessor fields and is
 //! linear.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use psi_access_plans::PlacementPlanId;
@@ -49,6 +49,9 @@ pub struct PlacedViewRecord {
     pub schema_data: String,
     pub normalized_placement: PlacementPlanId,
     pub invocation_sources: Vec<psi_source::SourceSpan>,
+    policy_source: psi_source::SourceSpan,
+    policy_machine_source: psi_source::SourceSpan,
+    schema_source: psi_source::SourceSpan,
 }
 
 #[derive(Clone)]
@@ -56,11 +59,32 @@ struct SchemaRecord {
     fields: Vec<DataField>,
 }
 
+#[derive(Clone)]
+struct DataCandidate {
+    name: String,
+    source: psi_source::SourceSpan,
+    is_public: bool,
+    plain: bool,
+    supply_mode: DataSupplyMode,
+    fields: Vec<DataField>,
+    member_count: usize,
+}
+
+#[derive(Clone)]
+struct PolicyMachineCandidate {
+    policy: String,
+    machine_source: psi_source::SourceSpan,
+}
+
 #[derive(Debug, Clone)]
 struct Application {
     synthetic_name: String,
     policy: String,
     schema: String,
+    policy_source: psi_source::SourceSpan,
+    policy_machine_source: psi_source::SourceSpan,
+    schema_source: psi_source::SourceSpan,
+    generated_is_public: bool,
     invocation_sources: Vec<psi_source::SourceSpan>,
 }
 
@@ -87,7 +111,8 @@ pub(crate) fn desugar_placed_views_with_optional_sources(
     sources: Option<Arc<psi_source::SourceMap>>,
     selection_authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<Vec<PlacedViewRecord>, Vec<Diagnostic>> {
-    let (applications, rewrites, schemas) = discover_applications(syntax)?;
+    let (applications, rewrites, schemas) =
+        discover_applications(syntax, sources.as_deref(), selection_authority.as_deref())?;
     if applications.is_empty() {
         // The generic boundary templates exist only as compiler input for
         // cloning exact accessor machines. Leaving them active when a program
@@ -150,6 +175,9 @@ pub(crate) fn desugar_placed_views_with_optional_sources(
                 schema_data: application.schema,
                 normalized_placement: plan.identity(),
                 invocation_sources: application.invocation_sources,
+                policy_source: application.policy_source,
+                policy_machine_source: application.policy_machine_source,
+                schema_source: application.schema_source,
             }
         })
         .collect())
@@ -227,9 +255,13 @@ fn admit_policy_invocations(
     Ok(())
 }
 
-fn discover_applications(syntax: &SyntaxTrees) -> Result<Discovery, Vec<Diagnostic>> {
-    let mut data = BTreeMap::new();
-    let mut placement_policies = BTreeSet::new();
+fn discover_applications(
+    syntax: &SyntaxTrees,
+    sources: Option<&psi_source::SourceMap>,
+    selection_authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+) -> Result<Discovery, Vec<Diagnostic>> {
+    let mut data = Vec::new();
+    let mut placement_policies = Vec::new();
     for item in syntax.root_items() {
         match item {
             Item::Data(definition) => {
@@ -243,29 +275,30 @@ fn discover_applications(syntax: &SyntaxTrees) -> Result<Discovery, Vec<Diagnost
                         DataMember::Variant(_) | DataMember::Retired(_) => None,
                     })
                     .collect::<Vec<_>>();
-                data.insert(
-                    definition.name.as_str().to_owned(),
-                    (
-                        definition.type_parameters.is_empty(),
-                        definition.supply_mode,
-                        fields,
-                        syntax.tables.items.data_members(definition.members).len(),
-                    ),
-                );
+                data.push(DataCandidate {
+                    name: definition.name.as_str().to_owned(),
+                    source: definition.name.source_span(),
+                    is_public: definition.is_public,
+                    plain: definition.type_parameters.is_empty(),
+                    supply_mode: definition.supply_mode,
+                    fields,
+                    member_count: syntax.tables.items.data_members(definition.members).len(),
+                });
             }
             Item::Machine(machine)
                 if machine.attached_data.as_ref().is_some_and(|attached| {
                     machine.name.as_str() == format!("{}::plan", attached.as_str())
                 }) =>
             {
-                placement_policies.insert(
-                    machine
+                placement_policies.push(PolicyMachineCandidate {
+                    policy: machine
                         .attached_data
                         .as_ref()
                         .expect("matched attached machine")
                         .as_str()
                         .to_owned(),
-                );
+                    machine_source: machine.name.source_span(),
+                });
             }
             _ => {}
         }
@@ -309,28 +342,141 @@ fn discover_applications(syntax: &SyntaxTrees) -> Result<Discovery, Vec<Diagnost
             ));
             continue;
         };
-        let Some((schema, _)) = named_argument(syntax, *schema_handle) else {
+        let Some((schema, schema_use_source)) = named_argument(syntax, *schema_handle) else {
             diagnostics.push(Diagnostic::error(
                 "the second `Placed` argument must be a plain schema data name",
             ));
             continue;
         };
-        if !placement_policies.contains(&policy) {
-            diagnostics.push(Diagnostic::error(format!(
-                "`Placed<{policy}, {schema}>` names `{policy}`, but it has no attached `{policy}::plan` machine"
-            )));
-            continue;
-        }
-        let Some((plain, supply_mode, fields, member_count)) = data.get(&schema) else {
-            diagnostics.push(Diagnostic::error(format!(
-                "`Placed<{policy}, {schema}>` names an unknown schema `{schema}`"
-            )));
+        let policy_candidates = data
+            .iter()
+            .filter(|candidate| candidate.name == policy)
+            .collect::<Vec<_>>();
+        let [policy_data] = policy_candidates.as_slice() else {
+            diagnostics.push(
+                Diagnostic::error(if policy_candidates.is_empty() {
+                    format!("`Placed<{policy}, {schema}>` names an unknown placement policy `{policy}`")
+                } else {
+                    format!("`Placed<{policy}, {schema}>` cannot select one exact placement policy `{policy}`")
+                })
+                .with_source_span(policy_source),
+            );
             continue;
         };
-        if !*plain
-            || *supply_mode == DataSupplyMode::BoundaryOpaque
-            || fields.is_empty()
-            || fields.len() != *member_count
+        let policy_machines = placement_policies
+            .iter()
+            .filter(|candidate| candidate.policy == policy)
+            .collect::<Vec<_>>();
+        let [policy_machine] = policy_machines.as_slice() else {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "`Placed<{policy}, {schema}>` must select one exact `{policy}::plan` machine"
+                ))
+                .with_source_span(policy_source),
+            );
+            continue;
+        };
+        if !same_package(sources, policy_data.source, policy_machine.machine_source) {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "`Placed<{policy}, {schema}>` cannot pair placement policy `{policy}` with a `{policy}::plan` machine from another package"
+                ))
+                .with_source_span(policy_source),
+            );
+            continue;
+        }
+        let schema_candidates = data
+            .iter()
+            .filter(|candidate| candidate.name == schema)
+            .collect::<Vec<_>>();
+        let [schema_data] = schema_candidates.as_slice() else {
+            diagnostics.push(
+                Diagnostic::error(if schema_candidates.is_empty() {
+                    format!("`Placed<{policy}, {schema}>` names an unknown schema `{schema}`")
+                } else {
+                    format!(
+                        "`Placed<{policy}, {schema}>` cannot select one exact schema `{schema}`"
+                    )
+                })
+                .with_source_span(schema_use_source),
+            );
+            continue;
+        };
+        if !declaration_is_visible(
+            sources,
+            policy_source,
+            policy_data.source,
+            policy_data.is_public,
+        ) {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "`Placed<{policy}, {schema}>` cannot use private placement policy `{policy}` from another package"
+                ))
+                .with_source_span(policy_source),
+            );
+            continue;
+        }
+        if !declaration_is_visible(
+            sources,
+            schema_use_source,
+            schema_data.source,
+            schema_data.is_public,
+        ) {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "`Placed<{policy}, {schema}>` cannot use private schema `{schema}` from another package"
+                ))
+                .with_source_span(schema_use_source),
+            );
+            continue;
+        }
+        if let Err(reason) = require_declaration_selection_authority(
+            sources,
+            selection_authority,
+            policy_source,
+            policy_data.source,
+            "placement policy",
+        ) {
+            diagnostics.push(Diagnostic::error(reason).with_source_span(policy_source));
+            continue;
+        }
+        if let Err(reason) = require_declaration_selection_authority(
+            sources,
+            selection_authority,
+            schema_use_source,
+            schema_data.source,
+            "placed schema",
+        ) {
+            diagnostics.push(Diagnostic::error(reason).with_source_span(schema_use_source));
+            continue;
+        }
+        // `Placed<P, S>` is erased before ordinary authored type-selection
+        // capture. Until that erasure retains interface exposure directly,
+        // require both nominal inputs to be publishable even for a local use;
+        // otherwise a public signature could launder a private declaration
+        // through the source-free compiler shell.
+        if !policy_data.is_public {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "placement policy `{policy}` used by `Placed<{policy}, {schema}>` must be public"
+                ))
+                .with_source_span(policy_source),
+            );
+            continue;
+        }
+        if !schema_data.is_public {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "schema `{schema}` used by `Placed<{policy}, {schema}>` must be public"
+                ))
+                .with_source_span(schema_use_source),
+            );
+            continue;
+        }
+        if !schema_data.plain
+            || schema_data.supply_mode == DataSupplyMode::BoundaryOpaque
+            || schema_data.fields.is_empty()
+            || schema_data.fields.len() != schema_data.member_count
         {
             diagnostics.push(Diagnostic::error(format!(
                 "placed schema `{schema}` must be a nonempty, non-generic transparent record"
@@ -346,7 +492,7 @@ fn discover_applications(syntax: &SyntaxTrees) -> Result<Discovery, Vec<Diagnost
         schemas
             .entry(schema.clone())
             .or_insert_with(|| SchemaRecord {
-                fields: fields.clone(),
+                fields: schema_data.fields.clone(),
             });
         if let Some(application) = applications
             .iter_mut()
@@ -360,6 +506,10 @@ fn discover_applications(syntax: &SyntaxTrees) -> Result<Discovery, Vec<Diagnost
                 synthetic_name,
                 policy,
                 schema,
+                policy_source: policy_data.source,
+                policy_machine_source: policy_machine.machine_source,
+                schema_source: schema_data.source,
+                generated_is_public: policy_data.is_public && schema_data.is_public,
                 invocation_sources: vec![policy_source],
             });
         }
@@ -369,6 +519,73 @@ fn discover_applications(syntax: &SyntaxTrees) -> Result<Discovery, Vec<Diagnost
     } else {
         Err(diagnostics)
     }
+}
+
+fn same_package(
+    sources: Option<&psi_source::SourceMap>,
+    left: psi_source::SourceSpan,
+    right: psi_source::SourceSpan,
+) -> bool {
+    sources.is_none_or(|sources| sources.same_package(left, right))
+}
+
+fn declaration_is_visible(
+    sources: Option<&psi_source::SourceMap>,
+    requester: psi_source::SourceSpan,
+    declaration: psi_source::SourceSpan,
+    is_public: bool,
+) -> bool {
+    is_public || same_package(sources, requester, declaration)
+}
+
+fn require_declaration_selection_authority(
+    sources: Option<&psi_source::SourceMap>,
+    authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+    requester: psi_source::SourceSpan,
+    declaration: psi_source::SourceSpan,
+    context: &str,
+) -> Result<(), String> {
+    let Some(authority) = authority else {
+        return Ok(());
+    };
+    let Some(sources) = sources else {
+        return Err(format!(
+            "{context} selection lacks compiler-owned source/package provenance"
+        ));
+    };
+    let Some(requester_file) = sources.file_at(requester) else {
+        return Err(format!(
+            "{context} selection lacks requesting source/package provenance"
+        ));
+    };
+    let Some(declaration_file) = sources.file_at(declaration) else {
+        return Err(format!(
+            "{context} selection lacks declaration source/package provenance"
+        ));
+    };
+    if requester_file.origin == psi_source::SourceOrigin::Toolchain
+        || declaration_file.origin == psi_source::SourceOrigin::Toolchain
+    {
+        return Ok(());
+    }
+    let Some(requester_package) = requester_file.package_identity else {
+        return Err(format!(
+            "{context} selection has user source without reconciled requesting package custody"
+        ));
+    };
+    let Some(declaration_package) = declaration_file.package_identity else {
+        return Err(format!(
+            "{context} selection has user declaration without reconciled package custody"
+        ));
+    };
+    if authority.allows_declaration_selection(requester_package, declaration_package) {
+        return Ok(());
+    }
+    Err(format!(
+        "{context} selects package {} from package {} without direct dependency authority",
+        authority.package_label(declaration_package),
+        authority.package_label(requester_package),
+    ))
 }
 
 fn named_argument(

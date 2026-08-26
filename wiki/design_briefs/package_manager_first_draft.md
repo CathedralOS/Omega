@@ -385,15 +385,15 @@ not a promise that those representations are stable public APIs. Unchecked
 syntax, diagnostic renderings, and convenient-but-unsettled shapes are not
 admission evidence. The projection and its tests move with the representations.
 
-There is no nominal Chi stage merely to collect or stabilize this report. A
-distinct IR is justified later only if multiple independent consumers need the
-same semantic boundary or it acquires its own transformations, invariants, and
-verification rules. Implementation discovery may also collapse rows into an
-existing coherent representation, including `Exact`, when that removes
-machinery without losing semantic distinctions. Psi may independently repeat
-an invariant as a downstream backstop; that does not require the package
-checker to discard an earlier semantically complete fact and reconstruct it
-from Psi.
+There is no nominal Chi stage merely to collect or stabilize this report. Add a
+named stage only if implementation discovers a genuine reusable semantic
+invariant boundary. Additional consumers or transformations may reveal such a
+boundary; stability, layer purity, or local simplification alone do not.
+Implementation discovery may also collapse rows into an existing coherent
+representation, including `Exact`, when that removes machinery without losing
+semantic distinctions. Psi may independently repeat an invariant as a
+downstream backstop; that does not require the package checker to discard an
+earlier semantically complete fact and reconstruct it from Psi.
 
 Conflict explanation follows the same ownership rule. The compiler attaches
 canonical package-relative UTF-8 paths and exact byte spans to its canonical
@@ -1390,10 +1390,11 @@ building blocks for immutable source custody, typed identity and closure,
 compiler handoff/review, exact row conflicts, and review-only triage. Its final
 admission model is not yet accepted. The legacy manifest, name-keyed lock,
 whole-section receipt, caller-constructed instance, and install/update
-scaffolding were deleted rather than retained as compatibility paths. The
-remaining standalone dependency scanner is explicitly non-authoritative and
-must also disappear before mutation. Production code must not reintroduce or
-depend on any path that:
+scaffolding and standalone dependency scanner were deleted rather than retained
+as compatibility paths. Standalone compilation now resolves only ordinary
+root-relative and toolchain imports; package aliases exist only in the
+validated requester-local compiler handoff. Production code must not
+reintroduce or depend on any path that:
 
 - key locks or symbols by package-authored name alone;
 - ask the installer for both alias and package name;

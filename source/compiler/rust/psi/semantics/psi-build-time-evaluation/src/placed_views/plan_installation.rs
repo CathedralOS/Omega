@@ -20,7 +20,10 @@ pub(super) fn install_placed_view_plan(
     let policy = typed
         .data_definitions()
         .iter()
-        .find(|definition| definition.name.as_str() == policy_name)
+        .find(|definition| {
+            definition.name.as_str() == policy_name
+                && typed.symbols.symbol_source_span(definition.symbol) == Some(record.policy_source)
+        })
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "placed view `{}` lost nominal policy `{}` after typing",
@@ -30,7 +33,11 @@ pub(super) fn install_placed_view_plan(
     let policy_plan_machine = typed
         .machines()
         .iter()
-        .find(|machine| machine.name.as_str() == record.policy_machine)
+        .find(|machine| {
+            machine.name.as_str() == record.policy_machine
+                && typed.symbols.symbol_source_span(machine.symbol)
+                    == Some(record.policy_machine_source)
+        })
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "placed view `{}` lost exact policy machine `{}` after typing",
@@ -40,7 +47,10 @@ pub(super) fn install_placed_view_plan(
     let schema = typed
         .data_definitions()
         .iter()
-        .find(|definition| definition.name.as_str() == record.schema_data)
+        .find(|definition| {
+            definition.name.as_str() == record.schema_data
+                && typed.symbols.symbol_source_span(definition.symbol) == Some(record.schema_source)
+        })
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "placed view `{}` lost schema `{}` after typing",

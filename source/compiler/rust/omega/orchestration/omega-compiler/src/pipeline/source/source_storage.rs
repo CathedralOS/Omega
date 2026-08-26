@@ -47,10 +47,6 @@ impl SourceStorage {
         }
     }
 
-    pub fn register_package_root(&mut self, package_root: PathBuf) {
-        self.register_package_source(package_root, None);
-    }
-
     pub fn register_reconciled_package_root(
         &mut self,
         package_root: PathBuf,

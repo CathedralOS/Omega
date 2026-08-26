@@ -187,7 +187,7 @@ fn expression_selection_violation(
             psi_typed_trees::AuthoredDeclarationSelectionTarget::LateBound(binding) => {
                 if binding
                     == psi_typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedOperator
-                    && psi_typed_trees_to_checked_trees::typed_operator_is_definitely_intrinsic(
+                    && psi_typed_trees_to_checked_trees::typed_operator_has_no_authored_selection(
                         program, expression,
                     )
                 {

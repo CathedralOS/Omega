@@ -192,152 +192,13 @@ pub fn parse_sources(
     })
 }
 
-/// Legacy standalone depend mapping: collect canonical explicit
-/// `builder.depend_as("alias", Source::Path { location: "dir" })` rows from
-/// every `machine build(builder: &mut Build)` in this batch, resolving
-/// the directory against the DECLARING FILE's parent (each package's
-/// build.omg maps its own reach). Purely syntactic -- the vocabulary types
-/// exist for validation; the toolchain reads the calls as data
-/// (build_and_package_model.md: authored as code, consumed as data).
-/// Out-of-band scan of a DEPENDED package's build.omg for ITS depend rows
-/// (transitive reach). The file parses into a throwaway tree -- its `build`
-/// machine never joins the program (each package has one; two would
-/// collide). Unreadable/unparsable package builds are skipped here; the
-/// package's own compile surfaces them.
-fn collect_package_build_aliases(directory: &Path, depend_aliases: &mut Vec<(String, PathBuf)>) {
-    let package_build = directory.join("build.omg");
-    if !package_build.is_file() {
-        return;
-    }
-    let Ok(loaded) = load_sources(vec![package_build], 0) else {
-        return;
-    };
-    let Ok(lexed) = lex_sources(loaded) else {
-        return;
-    };
-    let mut scratch = SyntaxTrees::default();
-    let Ok(parsed) = parse_sources(lexed, &mut scratch) else {
-        return;
-    };
-    collect_depend_aliases(&parsed, &scratch, depend_aliases);
-}
-
-pub fn collect_depend_aliases(
-    parsed: &ParsedSources,
-    syntax_trees: &SyntaxTrees,
-    depend_aliases: &mut Vec<(String, PathBuf)>,
-) {
-    use psi_syntax_trees::expression::ExpressionNode;
-    use psi_syntax_trees::statement::StatementNode;
-    for parsed_source in parsed.sources.span_or_empty(parsed.batch) {
-        let base_dir = parsed_source
-            .path
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| PathBuf::from("."));
-        for root_item in &parsed_source.root_items {
-            let Item::Machine(machine) = syntax_trees.root_item(*root_item) else {
-                continue;
-            };
-            if machine.name.as_str() != "build" || machine.attached_data.is_some() {
-                continue;
-            }
-            for state_handle in syntax_trees.items.state_handles(machine.states) {
-                let state = syntax_trees.items.state(*state_handle);
-                let Some(build_param) = syntax_trees
-                    .items
-                    .state_parameters(state.parameters)
-                    .first()
-                    .map(|handle| syntax_trees.items.state_parameter(*handle).name.clone())
-                else {
-                    continue;
-                };
-                for statement_handle in syntax_trees.items.statements(state.statements) {
-                    let StatementNode::Call(call) =
-                        syntax_trees.statements.statement(*statement_handle)
-                    else {
-                        continue;
-                    };
-                    if call.target.as_str() != "depend_as" {
-                        continue;
-                    }
-                    let receiver_is_build_param = syntax_trees
-                        .statements
-                        .identifier_path_members(call.receiver)
-                        .last()
-                        .is_some_and(|name| name.as_str() == build_param.as_str());
-                    if !receiver_is_build_param {
-                        continue;
-                    }
-                    let arguments = syntax_trees.statements.expression_handles(call.arguments);
-                    let [alias, source] = arguments else {
-                        continue;
-                    };
-                    let ExpressionNode::String(alias) = syntax_trees.expressions.expression(*alias)
-                    else {
-                        continue;
-                    };
-                    let ExpressionNode::StructLiteral(source) =
-                        syntax_trees.expressions.expression(*source)
-                    else {
-                        continue;
-                    };
-                    if source.type_name.as_str() != "Source"
-                        || source.case_name.as_ref().map(|name| name.as_str()) != Some("Path")
-                    {
-                        continue;
-                    }
-                    let [location] = syntax_trees.expressions.struct_fields(source.fields) else {
-                        continue;
-                    };
-                    if location.name.as_str() != "location" {
-                        continue;
-                    }
-                    let ExpressionNode::String(location) =
-                        syntax_trees.expressions.expression(location.value)
-                    else {
-                        continue;
-                    };
-                    // Dependency aliases and filesystem paths are textual build
-                    // metadata, not arbitrary byte payloads. Validate this
-                    // boundary explicitly; never repair invalid bytes lossily.
-                    let (Ok(location), Ok(alias)) =
-                        (std::str::from_utf8(&location), std::str::from_utf8(alias))
-                    else {
-                        continue;
-                    };
-                    if !is_dependency_alias(alias) {
-                        continue;
-                    }
-                    let directory = base_dir.join(location);
-                    let alias = alias.to_owned();
-                    if !depend_aliases
-                        .iter()
-                        .any(|(existing, _)| existing == &alias)
-                    {
-                        depend_aliases.push((alias, directory));
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn is_dependency_alias(value: &str) -> bool {
-    value.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
-        && !value.ends_with('_')
-        && !value.contains("__")
-        && value.chars().all(|character| {
-            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'
-        })
-}
-
+/// Discover standalone imports without interpreting dependency declarations.
+/// Package aliases are meaningful only on the reconciled package-aware path.
 pub fn discover_imports(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
     root_path: &Path,
     selected_target_name: Option<&str>,
-    depend_aliases: &mut Vec<(String, PathBuf)>,
 ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
     let root_dir = root_path
         .parent()
@@ -352,35 +213,6 @@ pub fn discover_imports(
             match item {
                 Item::Use(use_item) => {
                     let members = syntax_trees.items.identifier_path_members(use_item.path);
-                    // depend-mapping: a use whose FIRST segment is a declared
-                    // alias resolves into the aliased directory (and that
-                    // package's build.omg loads with it, so its own depends
-                    // chain transitively).
-                    let aliased = members.first().and_then(|first| {
-                        depend_aliases
-                            .iter()
-                            .find(|(alias, _)| alias == first.as_str())
-                            .map(|(_, directory)| directory.clone())
-                    });
-                    if let Some(directory) = aliased {
-                        let mut path = directory.clone();
-                        for segment in &members[1..] {
-                            path.push(segment.as_str());
-                        }
-                        for candidate in source_path_candidates(&path) {
-                            if candidate.exists() {
-                                imports.push(normalize_path(&candidate)?);
-                                break;
-                            }
-                        }
-                        // The depended package's build.omg is read AS DATA
-                        // (each package declares its own `machine build`;
-                        // loading two into one program would collide) --
-                        // parse it out-of-band purely for its depend rows,
-                        // so chains resolve transitively.
-                        collect_package_build_aliases(&directory, depend_aliases);
-                        continue;
-                    }
                     imports.push(normalize_path(&resolve_source_path(&root_dir, members))?);
                 }
                 Item::Target(target) => {

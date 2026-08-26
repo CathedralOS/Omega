@@ -1233,20 +1233,15 @@ fn expression_is_intrinsic_primitive_without_origin(
         .is_some()
 }
 
-pub(crate) fn typed_operator_is_definitely_intrinsic(
+/// Return whether an early typed operator expression cannot select an authored
+/// operator declaration. Ordinary checked lowering remains responsible for
+/// rejecting a semantically invalid builtin use.
+pub(crate) fn typed_operator_has_no_authored_selection(
     program: &TypedTrees,
     expression: psi_typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let node = program.expression_table.expression(expression);
-    let operand = match node {
-        ExpressionNode::Binary(binary) => binary.left,
-        ExpressionNode::Indexed(_) => {
-            return operator_has_no_authored_spelling_candidate(program, node);
-        }
-        ExpressionNode::Unary(unary) => unary.operand,
-        _ => return false,
-    };
-    expression_is_intrinsic_primitive_without_origin(program, operand)
+    operator_has_no_authored_spelling_candidate(program, node)
 }
 
 fn type_reference_for_symbol(
