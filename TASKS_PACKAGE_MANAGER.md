@@ -2865,9 +2865,23 @@ complete.
   independently recommends audit for retained process authority, and emits one
   ordinary `main.omg` source patch rather than a standalone or lineage-
   replacement packet.
-  Still remaining: canonical observation transcripts/receipts, sealed
-  representation mechanism/ABI evidence, and remote compiler-backed transport
-  normalization. Successful
+  Progress 2026-08-26: `generated-table` exercises canonical observation-
+  summary v24 and replay-record v6 evidence and becomes `Receipted` only after
+  exact no-host replay reproduces its generated file and `include_source`
+  handoff. Its package-level review baseline now captures, canonically encodes,
+  recovers, and rejoins that verified replay record instead of limiting capsule
+  coverage to hermetic fixtures. Broader receipted operation/output grammars
+  remain.
+  Remote fixture infrastructure now proves without network access that every
+  pinned CathedralOS SSH and HTTPS locator normalizes to one lineage. Its
+  credential-gated test resolves each standalone private mirror through SSH,
+  compiles the complete resolved custody through package-aware review, and
+  checks that compiler-issued identity, resolution, and source consumption
+  remain bound to that normalized lineage. `graph-workbench` remains a local
+  workspace-closure fixture because its byte-identical standalone mirror names
+  sibling Path dependencies that are intentionally unavailable outside the
+  workspace. Sealed representation mechanism/ABI evidence remains.
+  Successful
   portable fixture execution now exercises
   package-facing Source/Output resolution, exact rooted evidence, explicit
   generated-source publication, and the frozen build/final checked split.
