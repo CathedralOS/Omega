@@ -534,7 +534,7 @@ mod tests {
     }
 
     #[test]
-    fn x86_lea_add_rejects_two_r12_inputs_but_accepts_a_swappable_index() {
+    fn x86_lea_add_accepts_r12_as_a_rex_extended_sib_index() {
         let physical = physical();
         let rax = view(&physical, "rax");
         let r12 = view(&physical, "r12");
@@ -543,12 +543,7 @@ mod tests {
                 family: TerminalMachineAlternativeFamily::ExactAddI64,
                 variant: 0,
             },
-            applicability:
-                TerminalMachineAlternativeApplicability::AtLeastOneOperandDoesNotAliasView {
-                    left: 0,
-                    right: 1,
-                    excluded_view: r12,
-                },
+            applicability: TerminalMachineAlternativeApplicability::Always,
             size: TerminalMachineSizeKnowledge::EncoderResolved {
                 minimum_bytes: 4,
                 maximum_bytes: Some(5),
@@ -556,11 +551,6 @@ mod tests {
             latency: TerminalMachineLatencyKnowledge::StableBaselineUnavailable,
         };
         let operands = [operand(0, r12), operand(1, r12), operand(2, rax)];
-        assert_eq!(
-            choose_alternative(8, &operands, &[add], &physical),
-            Err(TerminalPostAllocationMachineError::NoApplicableAlternative { instruction: 8 })
-        );
-        let operands = [operand(0, r12), operand(1, rax), operand(2, rax)];
         assert_eq!(
             choose_alternative(8, &operands, &[add], &physical)
                 .unwrap()

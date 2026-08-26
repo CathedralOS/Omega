@@ -7,6 +7,7 @@
 mod machine_effects;
 mod native_fuel_runtime;
 mod register_model;
+mod selected_form_encoding;
 
 pub use machine_effects::{
     X86_64TerminalMachineEffectCatalogValidationError,
@@ -23,6 +24,11 @@ pub use register_model::{
     X86_64_SYSTEM_V_RETURN, X86_64RegisterConstraintCatalogValidationError,
     validate_x86_64_register_constraint_catalog, x86_64_fixed_register_view,
     x86_64_physical_register_model, x86_64_register_constraint_catalog,
+};
+pub use selected_form_encoding::{
+    ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
+    X86_64SelectedFormFootprint, encode_x86_64_terminal_selected_form,
+    validate_x86_64_terminal_selected_form_encoding,
 };
 
 use omega_calling_conventions::{MachineRegister, RegisterSet};

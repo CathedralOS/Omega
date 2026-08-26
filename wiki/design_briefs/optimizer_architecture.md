@@ -1174,8 +1174,10 @@ and retains that form's independently replayed receipt, so a transformed CFG
 cannot inherit the source CFG's machine facts by shape or convention.
 
 Target alternatives state uncertainty instead of guessing. AArch64 arbitrary
-i64 materialization is encoder-resolved because it may expand to a MOVZ/MOVN/
-MOVK sequence. x86 branch and register-dependent forms remain encoder-resolved.
+i64 materialization is encoder-resolved because its current canonical variant
+may expand from one zero-seeded MOVZ through three ascending nonzero MOVKs. A
+future MOVN/minimal-seed materializer must use a separately named/versioned
+policy. x86 branch and register-dependent forms remain encoder-resolved.
 The x86 exact-subtract pseudo exposes ordered alias-safe cases, including the
 right-alias case only when the left input is distinct, and carries the RFLAGS
 clobber from its constraint row. AArch64 exposes one flag-transparent SUB
@@ -1194,20 +1196,43 @@ use/def/clobber sets.
 The initial choice rule is named `UniqueApplicableInCatalogOrderV1`. It is a
 legality partition, not a performance heuristic: exactly one declared form
 must apply, while zero or multiple forms reject. All four x86 subtraction
-alias cases are tested as a disjoint partition. x86 LEA addition also declares
-its SIB feasibility constraint explicitly: at least one commutative source
-must not alias R12. Thus an unencodable pair of R12 sources is rejected at the
-home join instead of silently changing to flag-writing ADD. Once a target has
-multiple simultaneously legal forms with a performance tradeoff, choosing
-among them becomes an explicit named policy decision with its own receipt.
+alias cases are tested as a disjoint partition. x86 LEA addition has one
+always-applicable alternative for allocator-produced GPR64 homes: R12 is a
+valid SIB index when `REX.X=1`, while reserved RSP is the no-index encoding.
+Thus R12+R12 remains legal without silently changing to flag-writing ADD. Once
+a target has multiple simultaneously legal forms with a performance tradeoff,
+choosing among them becomes an explicit named policy decision with its own
+receipt.
 
 Orchestration reconstructs this sidecar for ordinary selected homes,
 fixed-view-copy output, and an explicit literal-fold sequence, always retaining
 the matching transformed custody and validated post-allocation manifest. This
-still grants no emission authority. Clean target-owned selected-form encoders,
-layout-resolved branch choices, byte-level footprint evidence, and an
-independent encoded-form verifier remain required before the legacy assigned-
-operation emitter can be bypassed.
+still grants no emission authority.
+
+The next boundary is implemented for layout-independent scalar forms in each
+clean ISA owner's `selected_form_encoding` module. Physical `RegisterViewId`s
+are resolved by exhaustive target-owned architectural-name tables rather than
+model ordering. Encoders emit one canonical schema: AArch64 fixed words plus
+zero-seeded materialization, and x86 exact-width moves/tests, deterministic
+LEAs, and alias-partitioned subtraction sequences. Separate limited decoders
+parse opcode and operand fields, reconstruct immediates, reject trailing or
+noncanonical bytes, and publish decoded register/flag footprints.
+
+`omega-optimization-pipeline` then builds an immutable pre-layout fragment
+artifact rooted in both the selected plan and post-allocation machine sidecar.
+Every row binds its instruction, chosen alternative, canonical bytes, resolved
+size, and decoded footprint. Replayed validation compares explicit reads and
+writes, flag defs/clobbers, and catalog size bounds with the post-allocation
+sidecar. Conditional branches are explicit layout-deferred rows. Returns are
+separately effect-deferred because a raw return has control, stack, memory, and
+trap behavior beyond the current minimal semantic catalog. Consequently this
+artifact is neither a concatenated code section nor emission/publication
+authority.
+
+Before the legacy assigned-operation emitter can be bypassed, the clean lane
+still needs expanded encoded-effect refinements (including zero idioms),
+layout-resolved branches, truthful return effects, whole-program spans and
+relocations, and publication enforcement of the independent verifier receipt.
 
 ## Decision policy, search, and ML
 

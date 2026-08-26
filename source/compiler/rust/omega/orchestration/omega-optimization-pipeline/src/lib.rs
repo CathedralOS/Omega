@@ -28,6 +28,7 @@ mod live_ranges;
 mod liveness;
 mod machine_effects;
 mod post_allocation_machine_effects;
+mod post_allocation_selected_form_encoding;
 mod register_environment;
 mod register_homes;
 mod selected_reanalysis;
@@ -88,6 +89,13 @@ pub use post_allocation_machine_effects::{
     validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody,
     validate_optimized_post_allocation_machine_plan_after_literal_fold_custody,
     validate_optimized_post_allocation_machine_plan_custody,
+};
+pub use post_allocation_selected_form_encoding::{
+    DeferredTerminalControlEncodingReason, OptimizedSelectedFormEncodingError,
+    StagedOptimizedSelectedFormEncoding, TerminalSelectedFormDecodedFootprint,
+    TerminalSelectedFormEncodingIdentity, TerminalSelectedFormEncodingRow,
+    TerminalSelectedFormEncodingState, stage_optimized_layout_independent_selected_form_encoding,
+    validate_optimized_layout_independent_selected_form_encoding,
 };
 pub use register_environment::{
     TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnvironment,
@@ -1582,6 +1590,42 @@ mod tests {
                 &validate_optimized_post_allocation_machine_plan_custody(&homes, &post).unwrap(),
                 post.custody()
             );
+            let selected_stage = homes
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage();
+            let encodings = stage_optimized_layout_independent_selected_form_encoding(
+                selected_stage.selected(),
+                &post,
+                selected_stage.register_environment().physical(),
+            )
+            .unwrap();
+            assert_eq!(encodings.selected(), post.machine().receipt().selected());
+            assert_eq!(encodings.machine(), post.machine().receipt().identity());
+            assert_eq!(encodings.rows().len(), 10);
+            assert_eq!(
+                encodings
+                    .rows()
+                    .iter()
+                    .filter(|row| matches!(
+                        row.state,
+                        TerminalSelectedFormEncodingState::DeferredControl { .. }
+                    ))
+                    .count(),
+                3
+            );
+            assert!(encodings.rows().iter().all(|row| match &row.state {
+                TerminalSelectedFormEncodingState::Encoded { bytes, .. } => !bytes.is_empty(),
+                TerminalSelectedFormEncodingState::DeferredControl { .. } => true,
+            }));
+            validate_optimized_layout_independent_selected_form_encoding(
+                selected_stage.selected(),
+                &post,
+                selected_stage.register_environment().physical(),
+                &encodings,
+            )
+            .unwrap();
             let subtracts = post
                 .machine()
                 .plan()
