@@ -194,6 +194,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub copy_i64: RegisterConstraintKey,
     pub add_i64: RegisterConstraintKey,
     pub add_i64_immediate: RegisterConstraintKey,
+    pub subtract_i64: RegisterConstraintKey,
     pub compare_i64_zero: RegisterConstraintKey,
     pub conditional_branch: RegisterConstraintKey,
     pub return_i64: RegisterConstraintKey,
@@ -1596,6 +1597,7 @@ mod tests {
             copy_i64: instruction_key(5),
             add_i64: instruction_key(6),
             add_i64_immediate: instruction_key(7),
+            subtract_i64: instruction_key(8),
             compare_i64_zero: instruction_key(2),
             conditional_branch: instruction_key(3),
             return_i64: instruction_key(4),
@@ -1663,6 +1665,10 @@ mod tests {
             },
             TargetRegisterEnvironmentConstraintKeys {
                 add_i64_immediate: instruction_key(17),
+                ..keys
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                subtract_i64: instruction_key(18),
                 ..keys
             },
             TargetRegisterEnvironmentConstraintKeys {

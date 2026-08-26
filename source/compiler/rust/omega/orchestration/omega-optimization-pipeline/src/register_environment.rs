@@ -11,15 +11,16 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_isa_aarch64::{
     AARCH64_AAPCS64_RETURN, AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64_ZERO,
     AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_I64, AARCH64_DARWIN_RETURN, AARCH64_MATERIALIZE_I64,
-    Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view,
-    aarch64_physical_register_model, aarch64_register_constraint_catalog,
-    validate_aarch64_register_constraint_catalog,
+    AARCH64_SUBTRACT_I64, Aarch64RegisterConstraintCatalogValidationError,
+    aarch64_fixed_register_view, aarch64_physical_register_model,
+    aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
 };
 use omega_terminal_isa_x86_64::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH,
-    X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_RETURN, X86_64_SYSTEM_V_RETURN,
-    X86_64RegisterConstraintCatalogValidationError, validate_x86_64_register_constraint_catalog,
-    x86_64_fixed_register_view, x86_64_physical_register_model, x86_64_register_constraint_catalog,
+    X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_RETURN, X86_64_SUBTRACT_I64,
+    X86_64_SYSTEM_V_RETURN, X86_64RegisterConstraintCatalogValidationError,
+    validate_x86_64_register_constraint_catalog, x86_64_fixed_register_view,
+    x86_64_physical_register_model, x86_64_register_constraint_catalog,
 };
 use omega_terminal_selected_instructions::TerminalSelectedConstraintKeys;
 
@@ -232,6 +233,7 @@ const fn selected_environment_keys(
         copy_i64: keys.copy_i64,
         add_i64: keys.add_i64,
         add_i64_immediate: keys.add_i64_immediate,
+        subtract_i64: keys.subtract_i64,
         compare_i64_zero: keys.compare_i64_zero,
         conditional_branch: keys.conditional_branch,
         return_i64: keys.return_i64,
@@ -245,6 +247,7 @@ fn selected_constraint_keys(target: NativeTarget) -> Option<TerminalSelectedCons
             copy_i64: X86_64_COPY_I64,
             add_i64: X86_64_ADD_I64,
             add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
+            subtract_i64: X86_64_SUBTRACT_I64,
             compare_i64_zero: X86_64_COMPARE_I64_ZERO,
             conditional_branch: X86_64_CONDITIONAL_BRANCH,
             return_i64: X86_64_SYSTEM_V_RETURN,
@@ -254,6 +257,7 @@ fn selected_constraint_keys(target: NativeTarget) -> Option<TerminalSelectedCons
             copy_i64: X86_64_COPY_I64,
             add_i64: X86_64_ADD_I64,
             add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
+            subtract_i64: X86_64_SUBTRACT_I64,
             compare_i64_zero: X86_64_COMPARE_I64_ZERO,
             conditional_branch: X86_64_CONDITIONAL_BRANCH,
             return_i64: X86_64_MICROSOFT_RETURN,
@@ -263,6 +267,7 @@ fn selected_constraint_keys(target: NativeTarget) -> Option<TerminalSelectedCons
             copy_i64: AARCH64_COPY_I64,
             add_i64: AARCH64_ADD_I64,
             add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
+            subtract_i64: AARCH64_SUBTRACT_I64,
             compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
             conditional_branch: AARCH64_CONDITIONAL_BRANCH,
             return_i64: AARCH64_AAPCS64_RETURN,
@@ -272,6 +277,7 @@ fn selected_constraint_keys(target: NativeTarget) -> Option<TerminalSelectedCons
             copy_i64: AARCH64_COPY_I64,
             add_i64: AARCH64_ADD_I64,
             add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
+            subtract_i64: AARCH64_SUBTRACT_I64,
             compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
             conditional_branch: AARCH64_CONDITIONAL_BRANCH,
             return_i64: AARCH64_DARWIN_RETURN,
@@ -324,18 +330,28 @@ mod tests {
                     .unwrap()
                     .identity()
             );
-            let (expected_copy, expected_add, expected_add_immediate) = match target.architecture {
-                Architecture::X86_64 => (X86_64_COPY_I64, X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE),
-                Architecture::Aarch64 => {
-                    (AARCH64_COPY_I64, AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE)
-                }
-            };
+            let (expected_copy, expected_add, expected_add_immediate, expected_subtract) =
+                match target.architecture {
+                    Architecture::X86_64 => (
+                        X86_64_COPY_I64,
+                        X86_64_ADD_I64,
+                        X86_64_ADD_I64_IMMEDIATE,
+                        X86_64_SUBTRACT_I64,
+                    ),
+                    Architecture::Aarch64 => (
+                        AARCH64_COPY_I64,
+                        AARCH64_ADD_I64,
+                        AARCH64_ADD_I64_IMMEDIATE,
+                        AARCH64_SUBTRACT_I64,
+                    ),
+                };
             assert_eq!(environment.selected_keys().copy_i64, expected_copy);
             assert_eq!(environment.selected_keys().add_i64, expected_add);
             assert_eq!(
                 environment.selected_keys().add_i64_immediate,
                 expected_add_immediate
             );
+            assert_eq!(environment.selected_keys().subtract_i64, expected_subtract);
             assert_eq!(
                 environment.allocation_constraint_keys().copy_i64,
                 expected_copy
@@ -348,9 +364,14 @@ mod tests {
                 environment.allocation_constraint_keys().add_i64_immediate,
                 expected_add_immediate
             );
+            assert_eq!(
+                environment.allocation_constraint_keys().subtract_i64,
+                expected_subtract
+            );
             assert!(environment.constraint(expected_copy).is_some());
             assert!(environment.constraint(expected_add).is_some());
             assert!(environment.constraint(expected_add_immediate).is_some());
+            assert!(environment.constraint(expected_subtract).is_some());
         }
     }
 

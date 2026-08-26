@@ -300,7 +300,8 @@ fn replay_classification(
     }
     let value = match defining.kind {
         TerminalSelectedInstructionKind::ExactAddI64 { .. }
-        | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => {
+        | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. }
+        | TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => {
             return replay_no(TerminalNoAdmittedRecoveryReason::ProofBearingDefinition);
         }
         TerminalSelectedInstructionKind::MaterializeI64 { value } => value,

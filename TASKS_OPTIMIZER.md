@@ -823,13 +823,16 @@ dependency.
   uses/defs/clobbers, source block/edge/value/operation provenance, and
   path-specific logical-fuel settlements. The separate
   `omega-terminal-target-operations-to-selected-instructions` stage produces
-  and independently validates three deliberately bounded production shapes
+  and independently validates four deliberately bounded production shapes
   over one runtime Boolean parameter and a three-block conditional: leaf-local
   unsigned-i64 constants, one shared returned entry parameter, or two
-  leaf-local constants followed by one proof-bearing exact add and a cleanup-
-  free return. The exact-add selected kind retains both its obligation and the
-  verifier-owned accepted-fact identity while consuming the target-owned
-  flag-transparent `add_i64` row. Both x86-64 and
+  leaf-local constants followed by one proof-bearing exact add or exact
+  subtract and a cleanup-free return. Both exact selected kinds retain their
+  obligation and verifier-owned accepted-fact identity. Addition consumes the
+  target-owned flag-transparent `add_i64` row. AArch64 subtraction consumes a
+  flag-transparent three-address `SUB` row; x86-64 subtraction consumes an
+  alias-safe three-address pseudo row and honestly clobbers RFLAGS rather than
+  pretending general subtraction is an LEA. Both x86-64 and
   AArch64 use ISA-owned constraint rows and fixed-register view resolvers;
   compare/branch explicitly cross RFLAGS/RIP or NZCV/PC, and fixed ABI operands
   remain constraints rather than assigned homes. The opt-in orchestration
@@ -881,8 +884,8 @@ dependency.
   Current slice: independently validated physical models and the closed
   Register Constraint Catalog v1 substrate are landed. Required target-owned
   keys currently cover scalar call/return, Linux syscall, conservative inline
-  assembly, and the first ordinary materialize/copy/three-address-add/compare/
-  branch forms for
+  assembly, and the first ordinary materialize/copy/three-address-add/
+  three-address-subtract/compare/branch forms for
   the existing System V, Microsoft, AAPCS64, and Darwin conventions. The
   declarations live in clean Terminal ISA crates and are joined into a
   validated target-register environment retained by optimized staging. Both
@@ -1018,6 +1021,17 @@ dependency.
   The x86-64 stable-order fixture currently chooses `rbx` as its second home;
   this is deterministic legality evidence, not yet a callee-save/frame cost
   claim.
+
+  The sibling production exact-subtract conditional now carries proof-bearing
+  `ExactSubtractI64` through the same source-to-home vertical on both targets.
+  The selected-plan identity has a distinct subtract kind and roots its
+  obligation and accepted fact. The target-register environment has a named
+  `subtract_i64` key in both its selected and allocation rosters. AArch64
+  records no NZCV effect for ordinary `SUB`; x86-64 records the exact RFLAGS
+  clobber required by its alias-safe `SUB` / `NEG; ADD` / `MOV; SUB` pseudo
+  realizations. Liveness, ranges, legality, recovery replay, and deterministic
+  homes therefore consume the target fact without weakening proof custody or
+  silently extending the add-immediate fold to subtraction.
 
   Sequencing: the exact named forwarded-value copy/split base case, copy-key
   identity, fresh split-result VRegs, provenance/fuel custody, independent

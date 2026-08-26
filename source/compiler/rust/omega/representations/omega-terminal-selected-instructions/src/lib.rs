@@ -55,6 +55,7 @@ pub struct TerminalSelectedConstraintKeys {
     pub materialize_i64: RegisterConstraintKey,
     pub copy_i64: RegisterConstraintKey,
     pub add_i64: RegisterConstraintKey,
+    pub subtract_i64: RegisterConstraintKey,
     pub add_i64_immediate: RegisterConstraintKey,
     pub compare_i64_zero: RegisterConstraintKey,
     pub conditional_branch: RegisterConstraintKey,
@@ -163,6 +164,13 @@ pub enum TerminalSelectedInstructionKind {
     /// before target lowering. The obligation remains semantic custody even
     /// when the target uses the same physical row as wrapping addition.
     ExactAddI64 {
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
+    /// Exact mathematical subtraction whose Psi proof obligation was
+    /// discharged before target lowering. Target constraints retain any
+    /// architectural flag writes needed by its physical realization.
+    ExactSubtractI64 {
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,
     },

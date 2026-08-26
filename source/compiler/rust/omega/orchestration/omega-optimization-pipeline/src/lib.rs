@@ -616,7 +616,7 @@ mod tests {
         stage_optimized_instruction_selection(target).unwrap()
     }
 
-    fn conditional_exact_add_artifact() -> (Vec<u8>, Vec<u8>) {
+    fn conditional_exact_binary_artifact(subtract: bool) -> (Vec<u8>, Vec<u8>) {
         let machine = MachineId::new(5_001).unwrap();
         let entry = BlockId::new(5_002).unwrap();
         let when_true = BlockId::new(5_003).unwrap();
@@ -703,23 +703,31 @@ mod tests {
                                 true_left_operation,
                                 true_left,
                                 OperationKind::IntegerConstant {
-                                    value: IntegerValue::Unsigned(7),
+                                    value: IntegerValue::Unsigned(if subtract { 13 } else { 7 }),
                                 },
                             ),
                             integer_operation(
                                 true_right_operation,
                                 true_right,
                                 OperationKind::IntegerConstant {
-                                    value: IntegerValue::Unsigned(8),
+                                    value: IntegerValue::Unsigned(if subtract { 5 } else { 8 }),
                                 },
                             ),
                             integer_operation(
                                 true_add_operation,
                                 true_sum,
-                                OperationKind::ExactIntegerAdd {
-                                    left: true_left,
-                                    right: true_right,
-                                    obligation: true_obligation,
+                                if subtract {
+                                    OperationKind::ExactIntegerSubtract {
+                                        left: true_left,
+                                        right: true_right,
+                                        obligation: true_obligation,
+                                    }
+                                } else {
+                                    OperationKind::ExactIntegerAdd {
+                                        left: true_left,
+                                        right: true_right,
+                                        obligation: true_obligation,
+                                    }
                                 },
                             ),
                         ],
@@ -737,23 +745,31 @@ mod tests {
                                 false_left_operation,
                                 false_left,
                                 OperationKind::IntegerConstant {
-                                    value: IntegerValue::Unsigned(11),
+                                    value: IntegerValue::Unsigned(if subtract { 21 } else { 11 }),
                                 },
                             ),
                             integer_operation(
                                 false_right_operation,
                                 false_right,
                                 OperationKind::IntegerConstant {
-                                    value: IntegerValue::Unsigned(13),
+                                    value: IntegerValue::Unsigned(if subtract { 8 } else { 13 }),
                                 },
                             ),
                             integer_operation(
                                 false_add_operation,
                                 false_sum,
-                                OperationKind::ExactIntegerAdd {
-                                    left: false_left,
-                                    right: false_right,
-                                    obligation: false_obligation,
+                                if subtract {
+                                    OperationKind::ExactIntegerSubtract {
+                                        left: false_left,
+                                        right: false_right,
+                                        obligation: false_obligation,
+                                    }
+                                } else {
+                                    OperationKind::ExactIntegerAdd {
+                                        left: false_left,
+                                        right: false_right,
+                                        obligation: false_obligation,
+                                    }
                                 },
                             ),
                         ],
@@ -790,7 +806,24 @@ mod tests {
     }
 
     fn staged_exact_add_conditional(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
-        let (semantic, proof) = conditional_exact_add_artifact();
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target =
+            omega_lowering_optimizer::lower_optimized_to_target_operations(optimized, target)
+                .unwrap();
+        stage_optimized_instruction_selection(target).unwrap()
+    }
+
+    fn staged_exact_subtract_conditional(
+        target: NativeTarget,
+    ) -> StagedOptimizedSelectedInstructions {
+        let (semantic, proof) = conditional_exact_binary_artifact(true);
         let optimized = optimize_artifact_sections(
             &semantic,
             &proof,
@@ -1405,6 +1438,117 @@ mod tests {
                 Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
                     | Err(SelectedInstructionError::ProvenancePartitionMismatch { .. })
             ));
+        }
+    }
+
+    #[test]
+    fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let staged = staged_exact_subtract_conditional(target);
+            let plan = staged.selected().plan();
+            assert_eq!(plan.functions[0].virtual_registers.len(), 7);
+            assert_eq!(staged.selected().receipt().instruction_count(), 10);
+            let accepted = &staged
+                .optimized_target()
+                .optimized()
+                .unit()
+                .accepted_obligation_facts;
+            for (block, expected_obligation) in plan.functions[0].blocks[1..].iter().zip([
+                ObligationId::new(5_031).unwrap(),
+                ObligationId::new(5_032).unwrap(),
+            ]) {
+                let subtract = &block.instructions[2];
+                let TerminalSelectedInstructionKind::ExactSubtractI64 {
+                    obligation,
+                    accepted_fact,
+                } = subtract.kind
+                else {
+                    panic!("leaf arithmetic must retain exact-subtract semantics")
+                };
+                assert_eq!(obligation, expected_obligation);
+                let fact = accepted
+                    .iter()
+                    .find(|fact| fact.identity == accepted_fact)
+                    .expect("selected fact must remain verifier-owned");
+                assert_eq!(fact.operation, subtract.provenance.operations[0]);
+                assert_eq!(fact.obligation, obligation);
+                assert_eq!(
+                    subtract.constraint,
+                    staged.register_environment().selected_keys().subtract_i64
+                );
+                assert_eq!(
+                    subtract
+                        .operands
+                        .iter()
+                        .map(|operand| operand.access)
+                        .collect::<Vec<_>>(),
+                    vec![
+                        RegisterOperandAccess::Use,
+                        RegisterOperandAccess::Use,
+                        RegisterOperandAccess::Def,
+                    ]
+                );
+                assert!(subtract.implicit_uses.is_empty());
+                assert!(subtract.implicit_defs.is_empty());
+                if target.architecture == omega_target::Architecture::X86_64 {
+                    assert!(!subtract.clobbers.is_empty());
+                } else {
+                    assert!(subtract.clobbers.is_empty());
+                }
+                assert_eq!(subtract.provenance.obligations, vec![obligation]);
+                assert_eq!(subtract.provenance.fuel.len(), 1);
+            }
+
+            let identity = staged.selected().receipt().identity();
+            let mut corrupted = plan.clone();
+            let TerminalSelectedInstructionKind::ExactSubtractI64 { obligation, .. } =
+                &mut corrupted.functions[0].blocks[1].instructions[2].kind
+            else {
+                unreachable!()
+            };
+            *obligation = ObligationId::new(9_504).unwrap();
+            assert_ne!(
+                terminal_selected_instruction_plan_identity(&corrupted),
+                identity
+            );
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            ));
+
+            let mut corrupted = plan.clone();
+            let TerminalSelectedInstructionKind::ExactSubtractI64 {
+                obligation,
+                accepted_fact,
+            } = corrupted.functions[0].blocks[1].instructions[2].kind
+            else {
+                unreachable!()
+            };
+            corrupted.functions[0].blocks[1].instructions[2].kind =
+                TerminalSelectedInstructionKind::ExactAddI64 {
+                    obligation,
+                    accepted_fact,
+                };
+            assert_ne!(
+                terminal_selected_instruction_plan_identity(&corrupted),
+                identity
+            );
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            ));
+
+            let homes = stage_optimized_register_homes(
+                stage_optimized_allocation_legality(
+                    stage_optimized_live_ranges(
+                        stage_optimized_liveness(staged).expect("subtract liveness"),
+                    )
+                    .expect("subtract ranges"),
+                )
+                .expect("subtract legality"),
+            )
+            .expect("subtract homes");
+            assert_eq!(homes.custody().assignment_count(), 7);
         }
     }
 

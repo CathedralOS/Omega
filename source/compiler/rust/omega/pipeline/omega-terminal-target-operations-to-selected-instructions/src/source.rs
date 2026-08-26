@@ -65,6 +65,15 @@ pub(crate) enum SourceLeafValue {
         left: SourceImmediate,
         right: SourceImmediate,
     },
+    ExactSubtract {
+        obligation: ObligationId,
+        accepted_fact: omega_optimization_core::AcceptedObligationFactIdentity,
+        subtract_operation: OperationId,
+        definition_site: ValueDefinitionSite,
+        subtract_fuel: Vec<FuelSettlement>,
+        left: SourceImmediate,
+        right: SourceImmediate,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -212,11 +221,40 @@ fn derive_source_function(
             )
         )
     );
+    let exact_subtract_leaves = matches!(
+        (when_true.control.as_ref(), when_false.control.as_ref()),
+        (
+            TerminalTargetIntegerControl::Return {
+                expression: TerminalTargetIntegerExpression::ExactSubtract {
+                    left,
+                    right,
+                    ..
+                },
+                ..
+            },
+            TerminalTargetIntegerControl::Return {
+                expression: TerminalTargetIntegerExpression::ExactSubtract {
+                    left: false_left,
+                    right: false_right,
+                    ..
+                },
+                ..
+            }
+        ) if matches!(
+            (left.as_ref(), right.as_ref(), false_left.as_ref(), false_right.as_ref()),
+            (
+                TerminalTargetIntegerExpression::Immediate { .. },
+                TerminalTargetIntegerExpression::Immediate { .. },
+                TerminalTargetIntegerExpression::Immediate { .. },
+                TerminalTargetIntegerExpression::Immediate { .. },
+            )
+        )
+    );
     let expected_offsets = if constant_leaves {
         [0, 1, 3]
     } else if parameter_leaves {
         [0, 1, 2]
-    } else if exact_add_leaves {
+    } else if exact_add_leaves || exact_subtract_leaves {
         [0, 1, 5]
     } else {
         return Err(Error::UnsupportedSourceShape { function });
@@ -531,6 +569,72 @@ fn derive_leaf(
                 },
             )
         }
+        TerminalTargetIntegerExpression::ExactSubtract {
+            psi_operation,
+            obligation,
+            left,
+            right,
+        } => {
+            if nodes.len() != 4 {
+                return Err(Error::UnsupportedSourceShape { function });
+            }
+            let left = derive_immediate(function, arm_edge, left, &nodes[0], u64_type)?;
+            let right = derive_immediate(function, arm_edge, right, &nodes[1], u64_type)?;
+            let TerminalAbstractOperation::ExactIntegerSubtract {
+                psi_operation: abstract_operation,
+                obligation: abstract_obligation,
+                result,
+                scalar_type,
+                left: abstract_left,
+                right: abstract_right,
+            } = &nodes[2].operation
+            else {
+                return Err(Error::UnsupportedSourceShape { function });
+            };
+            if abstract_operation != psi_operation
+                || abstract_obligation != obligation
+                || *result != *source_value
+                || *scalar_type != u64_integer_type
+                || *abstract_left != left.source_value
+                || *abstract_right != right.source_value
+                || nodes[2].definitions.len() != 1
+                || nodes[2].definitions[0].value != *source_value
+                || nodes[2].provenance != vec![PsiProvenance::Operation(*psi_operation)]
+            {
+                return Err(Error::UnsupportedSourceShape { function });
+            }
+            let subtract_fuel = exact_operation_fuel(&nodes[2], *psi_operation, function)?;
+            let Some(accepted_fact) = accepted_obligation_facts.iter().find(|fact| {
+                fact.machine == optimized.machine
+                    && fact.operation == *psi_operation
+                    && fact.obligation == *obligation
+            }) else {
+                return Err(Error::SourceCustodyMismatch);
+            };
+            if !optimized.facts.iter().any(|fact| {
+                matches!(
+                    fact,
+                    OptimizationFact::OperationObligationReference {
+                        obligation: referenced_obligation,
+                        support,
+                    } if *referenced_obligation == *obligation && *support == *psi_operation
+                )
+            }) {
+                return Err(Error::SourceCustodyMismatch);
+            }
+            (
+                &nodes[3],
+                SourceLeafValue::ExactSubtract {
+                    obligation: *obligation,
+                    accepted_fact: accepted_fact.identity,
+                    subtract_operation: *psi_operation,
+                    definition_site: nodes[2].definitions[0].site,
+                    subtract_fuel,
+                    left,
+                    right,
+                },
+            )
+        }
         _ => return Err(Error::UnsupportedSourceShape { function }),
     };
     let TerminalAbstractOperation::Return {
@@ -579,6 +683,16 @@ impl SourceLeafValue {
                 left.constant_operation,
                 right.constant_operation,
                 *add_operation,
+            ],
+            Self::ExactSubtract {
+                subtract_operation,
+                left,
+                right,
+                ..
+            } => vec![
+                left.constant_operation,
+                right.constant_operation,
+                *subtract_operation,
             ],
         }
     }
