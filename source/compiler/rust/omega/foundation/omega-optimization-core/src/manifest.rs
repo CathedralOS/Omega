@@ -3,13 +3,13 @@ use crate::{
     OptimizationCandidateIdentity, OptimizationCandidateVerdict, OptimizationDecisionIdentity,
     OptimizationPassIdentity, OptimizationRuleIdentity, OptimizationRuleSetIdentity,
     OptimizationUnitIdentity, OptimizationValidatorIdentity, OptimizationWorkBudget,
-    ScalarConstantFactIdentity,
+    OwnershipFrontierFactIdentity, ScalarConstantFactIdentity,
 };
 use std::collections::BTreeSet;
 use std::fmt;
 
 const DECISION_MAGIC: &[u8; 8] = b"OMGDEC\0\0";
-const DECISION_VERSION: u32 = 3;
+const DECISION_VERSION: u32 = 4;
 const PASS_RECORD_MAGIC: &[u8; 8] = b"OMGPAR\0\0";
 const PASS_RECORD_VERSION: u32 = 1;
 const DECISION_FIXED_WIDTH: usize = 155;
@@ -18,6 +18,7 @@ const DECISION_FIXED_WIDTH: usize = 155;
 pub enum OptimizationFactReference {
     ScalarConstant(ScalarConstantFactIdentity),
     AcceptedObligation(AcceptedObligationFactIdentity),
+    OwnershipFrontier(OwnershipFrontierFactIdentity),
 }
 
 /// Actual work consumed by one pass. Zero is valid; publication separately
@@ -255,7 +256,7 @@ fn decision_identity(
     validator: Option<OptimizationValidatorIdentity>,
 ) -> OptimizationDecisionIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.optimization-manifest-decision.v3\0");
+    canonical.extend_from_slice(b"omega.optimization-manifest-decision.v4\0");
     canonical.extend_from_slice(&input.bytes());
     canonical.extend_from_slice(&candidate.bytes());
     canonical.extend_from_slice(&rule.bytes());
@@ -289,6 +290,10 @@ fn encode_fact_reference(encoded: &mut Vec<u8>, fact: OptimizationFactReference)
             encoded.push(2);
             encoded.extend_from_slice(&identity.bytes());
         }
+        OptimizationFactReference::OwnershipFrontier(identity) => {
+            encoded.push(3);
+            encoded.extend_from_slice(&identity.bytes());
+        }
     }
 }
 
@@ -301,6 +306,9 @@ fn decode_fact_reference(
         )),
         2 => Ok(OptimizationFactReference::AcceptedObligation(
             AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+        )),
+        3 => Ok(OptimizationFactReference::OwnershipFrontier(
+            OwnershipFrontierFactIdentity::from_bytes(cursor.array()?),
         )),
         tag => Err(OptimizationManifestDecodeError::UnknownFactReference(tag)),
     }
@@ -581,6 +589,12 @@ mod tests {
         )
     }
 
+    fn ownership_fact(name: &[u8]) -> OptimizationFactReference {
+        OptimizationFactReference::OwnershipFrontier(
+            OwnershipFrontierFactIdentity::from_canonical_bytes(name),
+        )
+    }
+
     fn decision(rule: OptimizationRuleIdentity) -> OptimizationDecisionRecord {
         OptimizationDecisionRecord::new(
             OptimizationUnitIdentity::from_canonical_bytes(b"input"),
@@ -760,7 +774,11 @@ mod tests {
             Err(OptimizationManifestDecodeError::UnknownFactReference(99))
         );
 
-        let mut mixed = vec![fact(b"operand"), obligation_fact(b"proof")];
+        let mut mixed = vec![
+            fact(b"operand"),
+            obligation_fact(b"proof"),
+            ownership_fact(b"ownership"),
+        ];
         mixed.sort_unstable();
         let mixed_record = OptimizationDecisionRecord::new(
             OptimizationUnitIdentity::from_canonical_bytes(b"mixed-input"),
