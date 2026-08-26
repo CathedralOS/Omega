@@ -109,6 +109,15 @@ pub const X86_64_ADD_I64_IMMEDIATE: RegisterConstraintKey = RegisterConstraintKe
     family: RegisterConstraintFamily::Instruction,
     variant: 5,
 };
+/// Exact `result = left - right` three-address pseudo. Its realization must be
+/// alias-safe for every allocator result: `XOR result, result` when both inputs
+/// share a view, `SUB` when the result is only the left input, `NEG; ADD` when
+/// it is only the right input, and `MOV; SUB` otherwise. Those alternatives do
+/// not preserve one common flags value, so the row explicitly clobbers RFLAGS.
+pub const X86_64_SUBTRACT_I64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 6,
+};
 
 /// Closed v1 inventory owned by the x86-64 target.
 ///
@@ -116,7 +125,7 @@ pub const X86_64_ADD_I64_IMMEDIATE: RegisterConstraintKey = RegisterConstraintKe
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 12] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 13] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_RETURN,
@@ -129,6 +138,7 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 12] = [
     X86_64_CONDITIONAL_BRANCH,
     X86_64_ADD_I64,
     X86_64_ADD_I64_IMMEDIATE,
+    X86_64_SUBTRACT_I64,
 ];
 
 struct ModelBuilder {
@@ -634,6 +644,18 @@ pub fn x86_64_register_constraint_catalog(
             implicit_defs: Vec::new(),
             clobbers: Vec::new(),
         },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(12),
+            key: X86_64_SUBTRACT_I64,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Use, GPR64),
+                allocatable(2, RegisterOperandAccess::Def, GPR64),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: view("rflags").units.clone(),
+        },
     ];
 
     RegisterConstraintCatalog {
@@ -907,6 +929,28 @@ mod tests {
         assert!(add_immediate.implicit_uses.is_empty());
         assert!(add_immediate.implicit_defs.is_empty());
         assert!(add_immediate.clobbers.is_empty());
+
+        let subtract = &catalog.constraints[12];
+        assert_eq!(subtract.key, X86_64_SUBTRACT_I64);
+        assert_eq!(subtract.operands.len(), 3);
+        assert_eq!(subtract.operands[0].access, RegisterOperandAccess::Use);
+        assert_eq!(subtract.operands[1].access, RegisterOperandAccess::Use);
+        assert_eq!(subtract.operands[2].access, RegisterOperandAccess::Def);
+        assert!(
+            subtract
+                .operands
+                .iter()
+                .all(|operand| operand.class == GPR64
+                    && operand.fixed_view.is_none()
+                    && operand.tied_to.is_none()
+                    && !operand.early_clobber)
+        );
+        assert!(subtract.implicit_uses.is_empty());
+        assert!(subtract.implicit_defs.is_empty());
+        assert_eq!(
+            subtract.clobbers,
+            model.model().view_named("rflags").unwrap().units
+        );
         assert_eq!(
             branch.implicit_defs,
             model.model().view_named("rip").unwrap().units
@@ -1032,6 +1076,28 @@ mod tests {
             Err(
                 X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
                     X86_64_ADD_I64_IMMEDIATE,
+                )
+            )
+        );
+
+        let mut wrong_subtract_role = x86_64_register_constraint_catalog(&model);
+        wrong_subtract_role.constraints[12].operands[1].access = RegisterOperandAccess::Def;
+        assert_eq!(
+            validate_x86_64_register_constraint_catalog(wrong_subtract_role, &model),
+            Err(
+                X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
+                    X86_64_SUBTRACT_I64,
+                )
+            )
+        );
+
+        let mut missing_subtract_flags = x86_64_register_constraint_catalog(&model);
+        missing_subtract_flags.constraints[12].clobbers.clear();
+        assert_eq!(
+            validate_x86_64_register_constraint_catalog(missing_subtract_flags, &model),
+            Err(
+                X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
+                    X86_64_SUBTRACT_I64,
                 )
             )
         );

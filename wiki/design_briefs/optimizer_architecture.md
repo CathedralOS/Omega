@@ -984,16 +984,24 @@ views distinct units, aliases `Wn`/`Xn`, and splits vector halves so the AAPCS64
 low-half preservation rule is not inflated to all 128 bits. These declarations
 currently include closed scalar call/return rows for System V, Microsoft,
 AAPCS64, and Darwin plus Linux syscall and conservative inline-assembly rows.
-The first ordinary rows cover i64 materialization, i64 copy, flag-transparent
-three-address i64 addition, compare with zero, and conditional branch. AArch64
-maps addition directly to its register ADD form; x86-64 can realize the same
-constraint with LEA without inventing a two-address tie. Compare defines
-RFLAGS/NZCV, while branch explicitly uses that state and updates RIP/PC. The
-selected vocabulary now emits the exact-add base case; these rows are not yet a
-complete ordinary-instruction or feature-profile inventory. The add constraint
-describes physical shape, not arithmetic policy: exact, wrapping, and trapping
-semantics remain distinct in semantic lowering, and this flag-transparent row
-is usable only after any required overflow obligation has been discharged.
+The first ordinary rows cover i64 materialization, i64 copy, three-address i64
+addition and subtraction, compare with zero, and conditional branch. AArch64
+maps addition and subtraction directly to flag-transparent register ADD/SUB
+forms; x86-64 realizes flag-transparent addition with LEA without inventing a
+two-address tie. Its subtraction row is instead an alias-safe three-address
+pseudo: `SUB` when the result aliases the left input, `NEG; ADD` when it aliases
+the right input, and `MOV; SUB` when distinct. Because those realizations do not
+produce one common arithmetic-flags value, the row explicitly clobbers RFLAGS.
+Compare defines RFLAGS/NZCV, while branch explicitly uses that state and
+updates RIP/PC. The selected vocabulary now emits proof-bearing exact-add and
+exact-subtract base cases; these rows are not yet a complete ordinary-
+instruction or feature-profile inventory. Arithmetic constraints describe
+physical shape, not arithmetic policy: exact, wrapping, and trapping semantics
+remain distinct in semantic lowering, and an exact row is usable only after
+its required overflow obligation has been discharged. The selected-plan
+identity roots each obligation and verifier-owned accepted fact, and target-
+owned state effects flow unchanged through liveness, legality, and
+deterministic homes.
 The current target-owned validators also require the supplied physical model
 to equal the ISA's canonical declaration before constructing or comparing
 constraint rows. This prevents a self-consistent forged model and catalog from
@@ -1011,7 +1019,8 @@ An active-reservation-profile identity covers a named, strictly sorted subset
 of reservation overlays and the independently recomputed effective unit union;
 declaration alone never activates an overlay. Finally, the environment identity
 binds the exact native target, the three component identities, and the selected
-materialize/copy/add/compare/branch/return keys. Selection, liveness, live-range, and
+materialize/copy/add/subtract/compare/branch/return keys. Selection, liveness,
+live-range, and
 transitional-assignment custody all retain this joined identity. Those receipts
 also retain the validated pre-physical optimization-manifest identity required
 by a later physical/publication manifest join.

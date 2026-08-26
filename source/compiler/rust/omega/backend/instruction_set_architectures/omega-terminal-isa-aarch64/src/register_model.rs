@@ -94,13 +94,19 @@ pub const AARCH64_ADD_I64_IMMEDIATE: RegisterConstraintKey = RegisterConstraintK
     family: RegisterConstraintFamily::Instruction,
     variant: 5,
 };
+/// Flag-transparent three-address exact i64 subtraction, matching the
+/// ordinary AArch64 `SUB` register form.
+pub const AARCH64_SUBTRACT_I64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 6,
+};
 
 /// Closed baseline constraint inventory currently owned by the AArch64 target.
 /// The ordinary rows are limited to the baseline operations required by a
 /// register-passed scalar conditional-return CFG plus the first arithmetic row
 /// needed by the pressure vertical. Other ordinary and feature-specific
 /// instruction rows remain intentionally absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 12] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 13] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_RETURN,
@@ -113,6 +119,7 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 12] = [
     AARCH64_CONDITIONAL_BRANCH,
     AARCH64_ADD_I64,
     AARCH64_ADD_I64_IMMEDIATE,
+    AARCH64_SUBTRACT_I64,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -661,6 +668,18 @@ pub fn aarch64_register_constraint_catalog(
             implicit_defs: Vec::new(),
             clobbers: Vec::new(),
         },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(12),
+            key: AARCH64_SUBTRACT_I64,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Use, GPR64),
+                allocatable(2, RegisterOperandAccess::Def, GPR64),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        },
     ];
 
     RegisterConstraintCatalog {
@@ -925,6 +944,25 @@ mod tests {
         assert!(add_immediate.implicit_uses.is_empty());
         assert!(add_immediate.implicit_defs.is_empty());
         assert!(add_immediate.clobbers.is_empty());
+
+        let subtract = &catalog.constraints[12];
+        assert_eq!(subtract.key, AARCH64_SUBTRACT_I64);
+        assert_eq!(subtract.operands.len(), 3);
+        assert_eq!(subtract.operands[0].access, RegisterOperandAccess::Use);
+        assert_eq!(subtract.operands[1].access, RegisterOperandAccess::Use);
+        assert_eq!(subtract.operands[2].access, RegisterOperandAccess::Def);
+        assert!(
+            subtract
+                .operands
+                .iter()
+                .all(|operand| operand.class == GPR64
+                    && operand.fixed_view.is_none()
+                    && operand.tied_to.is_none()
+                    && !operand.early_clobber)
+        );
+        assert!(subtract.implicit_uses.is_empty());
+        assert!(subtract.implicit_defs.is_empty());
+        assert!(subtract.clobbers.is_empty());
         assert_eq!(
             branch.implicit_defs,
             model.model().view_named("pc").unwrap().units
@@ -1028,6 +1066,29 @@ mod tests {
         assert_eq!(
             validate_aarch64_register_constraint_catalog(catalog, &model),
             Err(Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(AARCH64_ADD_I64,))
+        );
+
+        let mut subtract = aarch64_register_constraint_catalog(&model);
+        subtract.constraints[12].operands[1].access = RegisterOperandAccess::Def;
+        assert_eq!(
+            validate_aarch64_register_constraint_catalog(subtract, &model),
+            Err(
+                Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(
+                    AARCH64_SUBTRACT_I64,
+                )
+            )
+        );
+
+        let mut flag_clobber = aarch64_register_constraint_catalog(&model);
+        flag_clobber.constraints[12].clobbers =
+            model.model().view_named("nzcv").unwrap().units.clone();
+        assert_eq!(
+            validate_aarch64_register_constraint_catalog(flag_clobber, &model),
+            Err(
+                Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(
+                    AARCH64_SUBTRACT_I64,
+                )
+            )
         );
     }
 
