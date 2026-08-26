@@ -5285,14 +5285,16 @@ Owners:
   and record siblings. Symbolic or open-ended ranges remain fenced. Non-byte
   arrays, constrained or erased fields, and non-discardable leaves still
   reject.
-  A direct `&write [u8]` root may read its exact `.len` descriptor metadata;
-  this does not inspect the referenced bytes. It may replace one byte through
-  a runtime index whose ordinary range obligation is proved against that
-  length. The checked mutation and caller-visible write frame retain a runtime
-  `Index`, which existing overlap and invalidation conservatively treat as the
-  whole slice. Other descriptor/member names, fixed-array or record fields
-  named `len`, metadata or elements reached through a record-held slice
-  descriptor, whole-slice replacement, and slice ranges remain fenced.
+  A direct `&write [u8]` root may read its exact `.len` descriptor metadata,
+  and a direct literal fixed byte-array root may read `.len` as static type
+  metadata; neither inspects the referenced bytes. The slice may replace one
+  byte through a runtime index whose ordinary range obligation is proved
+  against that length. The checked mutation and caller-visible write frame
+  retain a runtime `Index`, which existing overlap and invalidation
+  conservatively treat as the whole slice. Other descriptor/member names,
+  record fields named `len`, metadata reached through a record-held slice or
+  fixed-array field, elements reached through a record-held slice descriptor,
+  whole-slice replacement, and slice ranges remain fenced.
   Whole-record replacement still requires an unrestricted/discardable root.
   Referent observation, readable
   widening, implicit `&mut` attenuation, symbolic/open-ended ranges, sum

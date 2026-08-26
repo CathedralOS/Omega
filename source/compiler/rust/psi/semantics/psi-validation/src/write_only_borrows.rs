@@ -124,6 +124,19 @@ fn is_byte_slice(program: &TypedTrees, type_reference: TypeReferenceHandle) -> b
     )
 }
 
+fn is_direct_write_only_length_metadata(
+    program: &TypedTrees,
+    member: &psi_typed_trees::expression::TableMemberExpression,
+    roots: &[WriteOnlyRoot],
+) -> bool {
+    member.case_variant.is_none()
+        && member.member.as_str() == "len"
+        && direct_write_only_root(program, member.receiver, roots).is_some_and(|root| {
+            is_byte_slice(program, root.referee)
+                || fixed_byte_array_length(program, root.referee).is_some()
+        })
+}
+
 /// The first aggregate rung is deliberately nominal and closed. It admits an
 /// ordinary checked record only when its shape is known without substitution
 /// and no authored default-domain fact can couple a field write to retained
@@ -604,15 +617,12 @@ fn validate_expression(
             }
         },
         ExpressionNode::Member(member) => {
-            if member.case_variant.is_none()
-                && member.member.as_str() == "len"
-                && direct_write_only_root(program, member.receiver, roots)
-                    .is_some_and(|root| is_byte_slice(program, root.referee))
-            {
-                // The length belongs to the direct slice descriptor carried by
-                // the reference, not to the referent's byte content. Do not
-                // recurse into the receiver: doing so would misclassify this
-                // one admitted metadata read as referent observation.
+            if is_direct_write_only_length_metadata(program, member, roots) {
+                // A direct slice length belongs to its descriptor; a literal
+                // fixed-array length belongs to its static type. Neither reads
+                // the referent's byte content. Do not recurse into the receiver:
+                // doing so would misclassify this exact metadata read as
+                // referent observation.
             } else if let Some(root) = mentioned_write_only_root(program, member.receiver, roots) {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{machine}` state `{state}` reads field `{}` from write-only parameter `{}`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation",

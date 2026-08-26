@@ -422,19 +422,28 @@ fn direct_write_only_byte_slice_other_metadata_remains_rejected() {
 }
 
 #[test]
-fn direct_write_only_fixed_array_length_remains_outside_slice_metadata_rung() {
-    let rendered = rendered_rejection(
+fn direct_write_only_fixed_array_length_metadata_is_readable() {
+    lower_typed_trees(typed(
         r#"
             machine observe_length(bytes: &write [u8; 4]) {
                 let length: u64 = bytes.len;
             }
         "#,
-    );
-    assert!(
-        rendered.contains("reads field `len` from write-only parameter `bytes`")
-            && rendered.contains("never grants observation"),
-        "unexpected diagnostic: {rendered}"
-    );
+    ))
+    .expect("the direct fixed byte-array length is static type metadata, not content");
+}
+
+#[test]
+fn direct_write_only_fixed_array_length_supports_a_proven_element_store() {
+    lower_typed_trees(typed(
+        r#"
+            machine fill(bytes: &write [u8; 4], index: u64 [0..bytes.len]) {
+                let length: u64 = bytes.len;
+                bytes[index] = 7;
+            }
+        "#,
+    ))
+    .expect("fixed-array length metadata should support its ordinary proven index bound");
 }
 
 #[test]
@@ -450,6 +459,24 @@ fn direct_write_only_record_field_named_len_remains_content() {
     );
     assert!(
         rendered.contains("reads field `len` from write-only parameter `header`")
+            && rendered.contains("never grants observation"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn nested_write_only_fixed_array_length_remains_outside_direct_metadata_rung() {
+    let rendered = rendered_rejection(
+        r#"
+            data Holder { bytes: [u8; 4]; }
+
+            machine observe_length(holder: &write Holder) {
+                let length: u64 = holder.bytes.len;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("reads field `len` from write-only parameter `holder`")
             && rendered.contains("never grants observation"),
         "unexpected diagnostic: {rendered}"
     );
