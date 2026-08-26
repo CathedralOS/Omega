@@ -1,3 +1,4 @@
+use crate::dynamic_conformances::collect_dynamic_conformance_tables;
 use crate::host_calls::{
     collect_host_call_data, collect_newline_data, collect_runtime_text_buffer_data,
 };
@@ -45,6 +46,28 @@ pub fn build_target_data_plan(
     collect_static_string_branch_target_data(runtime_branching, &mut data_plan);
 
     data_plan
+}
+
+pub fn build_target_data_plan_with_dynamic_conformances(
+    program: &CheckedTrees,
+    host_calls: &HostCallPlan,
+    state_storage: &StateStoragePlan,
+    state_values: &StateValuePlan,
+    runtime_branching: &RuntimeBranchingCallPlan,
+    runtime_text: &RuntimeTextPlan,
+    state_calls: &omega_state_calls::StateCallPlan,
+    runtime_abi: omega_runtime_abi::RuntimeAbiPlan,
+) -> Result<TargetDataPlan, psi_diagnostics::Diagnostic> {
+    let mut data_plan = build_target_data_plan(
+        program,
+        host_calls,
+        state_storage,
+        state_values,
+        runtime_branching,
+        runtime_text,
+    );
+    collect_dynamic_conformance_tables(program, state_calls, runtime_abi, &mut data_plan)?;
+    Ok(data_plan)
 }
 
 #[derive(Debug, Clone, Copy, Default)]

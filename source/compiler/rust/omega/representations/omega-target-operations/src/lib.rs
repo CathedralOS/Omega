@@ -2,8 +2,8 @@ pub mod data;
 pub mod instruction;
 
 pub use data::{
-    TargetDataObject, TargetDataObjectHandle, TargetDataObjectKind, TargetDataPlan,
-    target_data_handle_from_abstract,
+    DynamicConformanceTable, DynamicConformanceTableRow, TargetDataObject, TargetDataObjectHandle,
+    TargetDataObjectKind, TargetDataPlan, target_data_handle_from_abstract,
 };
 pub use instruction::{
     AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, AbstractDataObjectHandle,

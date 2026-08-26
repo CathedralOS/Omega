@@ -693,14 +693,27 @@ name = "omega-data-planning"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-checked-trees-to-state-graph",
  "omega-control-flow",
  "omega-platform-interface",
+ "omega-runtime-abi",
  "omega-runtime-branching",
  "omega-runtime-text",
+ "omega-state-calls",
+ "omega-state-graph",
+ "omega-state-graph-to-control-flow",
  "omega-state-storage",
  "omega-state-values",
  "omega-target-operations",
  "psi-checked-trees",
+ "psi-diagnostics",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-symbols",
+ "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees-to-checked-trees",
+ "psi-validation",
 ]
 
 [[package]]
