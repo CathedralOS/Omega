@@ -1514,10 +1514,17 @@ Owners:
   observing decisive `try_exchange`, and non-observing single-attempt
   `try_exchange_once`. Build-time evaluation, permission containment,
   resource/access identity, and checked placed-field plans preserve those rows
-  without cross-axis substitution. Only the existing observing-decisive call is
-  currently derivable; the other three remain unavailable until their
-  comparison-key/selected-encoding-law, result-custody, operation-carrier, and
-  lowering slices land.
+  without cross-axis substitution. Checked placed fields with either observing
+  permission now also retain a non-authorizing resident/result contract: exact
+  field symbol, resident type, normalized unrestricted multiplicity, transfer
+  width, decisive/single-attempt axes, and their distinct closed result shapes
+  are independently replayed. Affine or linear observing residents reject;
+  `try_exchange*`-only fields remain rowless and gain neither observing nor
+  selected-encoding authority. Only the existing observing-decisive call is
+  currently derivable. Source calls for the other families, runtime result and
+  resident custody, an atomic attempt or retry, the non-observing comparison
+  key/selected-encoding law, Terminal rows, provider binding, backend operation
+  identity, and lowering remain open.
 - Close generic `ResidentContentTransfer<P, T>` applications at final
   composition from concrete and symbolic artifact demand, verify one selected
   provider covers the reconstructed application set, and bind exact issuance

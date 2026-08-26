@@ -2096,8 +2096,17 @@ accepts no operation-wide label as a substitute for those claim-local facts.
 
 `AtomicCompareExchange<T>` is observing and decisive;
 `AtomicCompareExchangeOnce<T>` is observing and single-attempt. Their failure
-cases expose `observed: T`, so the resident must be copyable. The independent
-non-observing pair, `AtomicTryExchange<T, Key>` and
+cases expose `observed: T`, so the resident must be copyable. The checked typed
+placed-field boundary now retains this as a non-authorizing contract for each
+admitted observing axis: exact field and resident type, normalized unrestricted
+multiplicity, transfer width, permission identity, and the distinct decisive or
+single-attempt closed result shape are independently replayed. Affine or linear
+observing residents reject. A `try_exchange*`-only field retains no such row and
+gains no observing or selected-encoding authority. This contract is not a
+Terminal row and carries no source call, runtime result or resident custody,
+atomic attempt or retry, key/encoding law, provider operation, backend identity,
+or lowering authority. The independent non-observing pair,
+`AtomicTryExchange<T, Key>` and
 `AtomicTryExchangeOnce<T, Key>`, returns the proposed value on mismatch or an
 uncommitted attempt and can transfer affine or linear residents. The copyable
 key and selected raw-transition law determine the comparison without

@@ -29,6 +29,40 @@ pub enum AtomicOrderingPlan {
     },
 }
 
+/// The observing compare-exchange operation whose result shape is retained by
+/// a checked placed-field contract.
+///
+/// This identifies source semantics only. It does not authorize an atomic
+/// attempt or describe a target retry strategy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AtomicObservingCompareExchangeOperation {
+    Decisive,
+    SingleAttempt,
+}
+
+/// Closed result-shape identity for one observing compare-exchange operation.
+///
+/// `Observed` means that the failure arm carries the exact resident type. The
+/// carrier that retains this shape must separately prove that resident is
+/// copyable; this enum carries no value custody.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AtomicObservingCompareExchangeResultShape {
+    ExchangedOrMismatchedObserved,
+    ExchangedOrMismatchedOrUncommittedObserved,
+}
+
+impl AtomicObservingCompareExchangeOperation {
+    pub const fn result_shape(self) -> AtomicObservingCompareExchangeResultShape {
+        match self {
+            Self::Decisive => {
+                AtomicObservingCompareExchangeResultShape::ExchangedOrMismatchedObserved
+            }
+            Self::SingleAttempt => AtomicObservingCompareExchangeResultShape::
+                ExchangedOrMismatchedOrUncommittedObserved,
+        }
+    }
+}
+
 impl AtomicOrderingPlan {
     pub const fn success(self) -> MemoryOrdering {
         match self {
@@ -129,6 +163,23 @@ mod tests {
         assert_eq!(
             super::AtomicOrderingPlan::Load(O::GlobalOrder).failure(),
             None
+        );
+    }
+
+    #[test]
+    fn observing_compare_exchange_operations_have_closed_distinct_result_shapes() {
+        use super::{
+            AtomicObservingCompareExchangeOperation as Operation,
+            AtomicObservingCompareExchangeResultShape as Shape,
+        };
+
+        assert_eq!(
+            Operation::Decisive.result_shape(),
+            Shape::ExchangedOrMismatchedObserved
+        );
+        assert_eq!(
+            Operation::SingleAttempt.result_shape(),
+            Shape::ExchangedOrMismatchedOrUncommittedObserved
         );
     }
 }

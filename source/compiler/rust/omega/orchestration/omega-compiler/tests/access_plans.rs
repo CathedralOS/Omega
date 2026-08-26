@@ -27,6 +27,10 @@ use psi_extents::{
     ExtentContentValidityReceiptId, ExtentLineageId, ExtentProvenanceId, ExtentProviderIssuance,
     ExtentRightId, ExtentRights, ExtentRootGrant, MappingEraId, ResidentClaimId,
 };
+use psi_language_core::atomic::{
+    AtomicObservingCompareExchangeOperation, AtomicObservingCompareExchangeResultShape,
+};
+use psi_language_semantics::Multiplicity;
 
 fn write_program(name: &str, source: &str) -> PathBuf {
     let directory =
@@ -1398,6 +1402,189 @@ data Main {}
                 && !operations.compare_exchange_once
                 && !operations.try_exchange_once
     ));
+    assert!(
+        field.atomic_resident.is_none(),
+        "source-formable try-only access retains no observing or selected-encoding authority"
+    );
+}
+
+#[test]
+fn checked_atomic_resident_contract_replays_observing_axes_and_result_shapes() {
+    let source = POLICY_SOURCE
+        .replace("compare_exchange: false", "compare_exchange: true")
+        .replace(
+            "compare_exchange_once: false",
+            "compare_exchange_once: true",
+        )
+        .replace(
+            "data Main {}",
+            "machine retain(view: &Placed<UartPlacement, Registers>) {}\n\ndata Main {}",
+        );
+    let main = write_program("placed-atomic-resident-contract", &source);
+    let mut checked = compile_to_checked(&main, None)
+        .expect("copyable resident should retain both observing result contracts");
+    let view_index = checked
+        .typed
+        .placed_view_plans
+        .iter()
+        .position(|view| {
+            view.fields
+                .iter()
+                .any(|field| field.field_name == "counter")
+        })
+        .expect("Registers placed-view plan with its Atomic counter");
+    let field_index = checked.typed.placed_view_plans[view_index]
+        .fields
+        .iter()
+        .position(|field| field.field_name == "counter")
+        .expect("retained Atomic counter field");
+    let field = &checked.typed.placed_view_plans[view_index].fields[field_index];
+    let retained = field
+        .atomic_resident
+        .as_ref()
+        .expect("Atomic field retains a checked resident contract");
+    assert_eq!(retained.field_symbol, field.field_symbol);
+    assert_eq!(retained.resident_type, field.value_type);
+    assert_eq!(retained.multiplicity, Multiplicity::Unrestricted);
+    assert_eq!(retained.transfer_width_bits, 64);
+    assert!(retained.compare_exchange);
+    assert!(retained.compare_exchange_once);
+    assert_eq!(
+        retained
+            .observing_results
+            .iter()
+            .map(|row| (row.operation, row.result_shape))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                AtomicObservingCompareExchangeOperation::Decisive,
+                AtomicObservingCompareExchangeResultShape::ExchangedOrMismatchedObserved,
+            ),
+            (
+                AtomicObservingCompareExchangeOperation::SingleAttempt,
+                AtomicObservingCompareExchangeResultShape::
+                    ExchangedOrMismatchedOrUncommittedObserved,
+            ),
+        ]
+    );
+    psi_validation::validate_program(&checked.typed)
+        .expect("independent replay accepts the exact resident contract");
+
+    for (permission, expected_operation, expected_shape) in [
+        (
+            "compare_exchange",
+            AtomicObservingCompareExchangeOperation::Decisive,
+            AtomicObservingCompareExchangeResultShape::ExchangedOrMismatchedObserved,
+        ),
+        (
+            "compare_exchange_once",
+            AtomicObservingCompareExchangeOperation::SingleAttempt,
+            AtomicObservingCompareExchangeResultShape::ExchangedOrMismatchedOrUncommittedObserved,
+        ),
+    ] {
+        let source = POLICY_SOURCE
+            .replace(
+                &format!("{permission}: false"),
+                &format!("{permission}: true"),
+            )
+            .replace(
+                "data Main {}",
+                "machine retain(view: &Placed<UartPlacement, Registers>) {}\n\ndata Main {}",
+            );
+        let main = write_program(&format!("placed-atomic-resident-{permission}"), &source);
+        let checked = compile_to_checked(&main, None)
+            .expect("each observing permission forms one exact resident/result row");
+        let resident = checked
+            .typed
+            .placed_view_plans
+            .iter()
+            .flat_map(|view| view.fields.iter())
+            .find(|field| field.field_name == "counter")
+            .and_then(|field| field.atomic_resident.as_ref())
+            .expect("independent observing resident contract");
+        assert_eq!(resident.compare_exchange, permission == "compare_exchange");
+        assert_eq!(
+            resident.compare_exchange_once,
+            permission == "compare_exchange_once"
+        );
+        assert_eq!(resident.observing_results.len(), 1);
+        assert_eq!(resident.observing_results[0].operation, expected_operation);
+        assert_eq!(resident.observing_results[0].result_shape, expected_shape);
+    }
+
+    let original = retained.clone();
+    let sibling_symbol = checked.typed.placed_view_plans[view_index]
+        .fields
+        .iter()
+        .find(|field| field.field_name == "status")
+        .expect("sibling status field")
+        .field_symbol;
+    let sibling_type = checked.typed.placed_view_plans[view_index]
+        .fields
+        .iter()
+        .find(|field| field.field_name == "status")
+        .expect("sibling status field")
+        .value_type;
+
+    let mut reject_drift = |mutated: psi_typed_trees::typed_trees::PlacedAtomicResidentContract,
+                            description: &str| {
+        checked.typed.placed_view_plans[view_index].fields[field_index].atomic_resident =
+            Some(mutated);
+        let diagnostics = psi_validation::validate_program(&checked.typed)
+            .expect_err("resident-contract drift must fail closed");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("changed its checked Atomic resident/result contract")),
+            "{description}: {diagnostics:?}"
+        );
+        checked.typed.placed_view_plans[view_index].fields[field_index].atomic_resident =
+            Some(original.clone());
+    };
+
+    let mut drifted = original.clone();
+    drifted.field_symbol = sibling_symbol;
+    reject_drift(drifted, "sibling field substitution");
+    let mut drifted = original.clone();
+    drifted.resident_type = sibling_type;
+    reject_drift(drifted, "resident type substitution");
+    let mut drifted = original.clone();
+    drifted.multiplicity = Multiplicity::Affine;
+    reject_drift(drifted, "multiplicity substitution");
+    let mut drifted = original.clone();
+    drifted.transfer_width_bits = 32;
+    reject_drift(drifted, "transfer-width substitution");
+    let mut drifted = original.clone();
+    drifted.compare_exchange = false;
+    reject_drift(drifted, "decisive observing permission-axis substitution");
+    let mut drifted = original.clone();
+    drifted.compare_exchange_once = false;
+    reject_drift(
+        drifted,
+        "single-attempt observing permission-axis substitution",
+    );
+    let mut drifted = original.clone();
+    drifted.observing_results.push(drifted.observing_results[0]);
+    reject_drift(drifted, "duplicate observing result row");
+    let mut drifted = original.clone();
+    drifted.observing_results.swap(0, 1);
+    reject_drift(drifted, "canonical result-row order substitution");
+    let mut drifted = original.clone();
+    drifted.observing_results[0].operation = AtomicObservingCompareExchangeOperation::SingleAttempt;
+    reject_drift(drifted, "observing operation-identity substitution");
+    let mut drifted = original.clone();
+    drifted.observing_results[1].result_shape =
+        AtomicObservingCompareExchangeResultShape::ExchangedOrMismatchedObserved;
+    reject_drift(drifted, "single-attempt result-shape substitution");
+
+    checked.typed.placed_view_plans[view_index].fields[field_index].atomic_resident = None;
+    let diagnostics = psi_validation::validate_program(&checked.typed)
+        .expect_err("missing resident contract must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("changed its checked Atomic resident/result contract")
+    }));
 }
 
 #[test]
