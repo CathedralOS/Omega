@@ -10,6 +10,7 @@ use omega_effects::provider_plan::ProviderBinding;
 use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::expression::ExpressionNode;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct OperatorAdapterRewrite {
@@ -18,10 +19,23 @@ struct OperatorAdapterRewrite {
     entry_symbol: psi_symbols::SymbolHandle,
 }
 
-pub(crate) fn rewrite_selected_operator_adapter_calls(
-    checked: &mut CheckedTrees,
+pub(crate) fn settle_selected_operator_adapter_dispatch(
+    checked: &mut Arc<CheckedTrees>,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    let rewrites = plan_selected_operator_adapter_rewrites(checked, selected_provider_plans)?;
+    if rewrites.is_empty() {
+        return Ok(());
+    }
+
+    apply_selected_operator_adapter_rewrites(Arc::make_mut(checked), rewrites);
+    Ok(())
+}
+
+fn plan_selected_operator_adapter_rewrites(
+    checked: &CheckedTrees,
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+) -> Result<Vec<OperatorAdapterRewrite>, Vec<Diagnostic>> {
     let mut rewrites = Vec::new();
     let mut diagnostics = Vec::new();
 
@@ -61,6 +75,13 @@ pub(crate) fn rewrite_selected_operator_adapter_calls(
         return Err(diagnostics);
     }
 
+    Ok(rewrites)
+}
+
+fn apply_selected_operator_adapter_rewrites(
+    checked: &mut CheckedTrees,
+    rewrites: Vec<OperatorAdapterRewrite>,
+) {
     for rewrite in rewrites {
         let ExpressionNode::Call(mut call) = checked
             .typed
@@ -78,8 +99,6 @@ pub(crate) fn rewrite_selected_operator_adapter_calls(
             .expression_table
             .expression_mut(rewrite.expression) = ExpressionNode::Call(call);
     }
-
-    Ok(())
 }
 
 fn resolve_selected_operator_adapter_call(
@@ -551,7 +570,7 @@ mod tests {
     }
 
     #[test]
-    fn exact_rewrite_changes_only_call_execution_target() {
+    fn shared_success_clones_only_after_complete_preflight() {
         let mut fixture = fixture();
         let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
             std::slice::from_ref(&fixture.checked_plan),
@@ -569,20 +588,30 @@ mod tests {
             .expect("fixture checked use");
         retained.provider_plan_identity = fixture.checked_plan.identity_fingerprint();
         *fixture.checked.facts.operators.named_uses.get_mut(handle) = retained;
+        let original_contents = fixture.checked.clone();
+        let original = Arc::new(fixture.checked);
+        let mut settled = Arc::clone(&original);
 
-        rewrite_selected_operator_adapter_calls(&mut fixture.checked, &selected)
+        settle_selected_operator_adapter_dispatch(&mut settled, &selected)
             .expect("exact selected adapter rewrites");
 
-        let rewritten = fixture
-            .checked
+        assert!(
+            !Arc::ptr_eq(&settled, &original),
+            "a shared successful settlement must publish through a fresh Arc"
+        );
+        assert_eq!(
+            original.as_ref(),
+            &original_contents,
+            "successful settlement must not mutate retained shared custody"
+        );
+        let rewritten = settled
             .typed
             .expression_table
             .expression(retained.expression);
         let ExpressionNode::Call(rewritten) = rewritten else {
             panic!("rewritten expression is not a call");
         };
-        let provider = fixture
-            .checked
+        let provider = settled
             .typed
             .machines()
             .iter()
@@ -591,17 +620,17 @@ mod tests {
         assert_eq!(rewritten.target.as_str(), provider.name.as_str());
         assert_eq!(
             rewritten.target_symbol,
-            fixture.checked.typed.machine_states(provider)[0].symbol,
+            settled.typed.machine_states(provider)[0].symbol,
         );
         assert_eq!(
-            fixture.checked.facts.operators.named_uses.get(handle),
+            settled.facts.operators.named_uses.get(handle),
             &retained,
             "execution redirection must not rewrite retained semantic evidence",
         );
     }
 
     #[test]
-    fn any_invalid_use_prevents_every_staged_rewrite() {
+    fn shared_rejection_preserves_arc_identity_and_complete_contents() {
         let mut fixture = fixture();
         let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
             std::slice::from_ref(&fixture.checked_plan),
@@ -625,14 +654,11 @@ mod tests {
         let mut invalid = valid;
         invalid.provider_plan_identity = u64::MAX;
         fixture.checked.facts.operators.named_uses.append(invalid);
-        let before = fixture
-            .checked
-            .typed
-            .expression_table
-            .expression(valid.expression)
-            .clone();
+        let before = fixture.checked.clone();
+        let original = Arc::new(fixture.checked);
+        let mut rejected = Arc::clone(&original);
 
-        let diagnostics = rewrite_selected_operator_adapter_calls(&mut fixture.checked, &selected)
+        let diagnostics = settle_selected_operator_adapter_dispatch(&mut rejected, &selected)
             .expect_err("one invalid use rejects the complete rewrite batch");
         assert!(
             diagnostics[0]
@@ -640,13 +666,30 @@ mod tests {
                 .contains("unknown ProviderPlan identity")
         );
         assert_eq!(
-            fixture
-                .checked
-                .typed
-                .expression_table
-                .expression(valid.expression),
+            rejected.as_ref(),
             &before,
             "a later failure must not publish an earlier staged rewrite",
         );
+        assert!(
+            Arc::ptr_eq(&rejected, &original),
+            "rejection must preserve exact shared program custody"
+        );
+    }
+
+    #[test]
+    fn empty_settlement_preserves_shared_arc_identity_and_contents() {
+        let fixture = fixture();
+        let original_contents = fixture.checked.clone();
+        let original = Arc::new(fixture.checked);
+        let mut settled = Arc::clone(&original);
+
+        settle_selected_operator_adapter_dispatch(
+            &mut settled,
+            &omega_effects::SelectedProviderPlanFacts::default(),
+        )
+        .expect("a program without selected operator adapters is already settled");
+
+        assert!(Arc::ptr_eq(&settled, &original));
+        assert_eq!(settled.as_ref(), &original_contents);
     }
 }
