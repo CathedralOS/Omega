@@ -912,8 +912,12 @@ default call sites or a closed reason for an implicit unique choice. The single
 selected-provider row may therefore contain both authored coordinates and
 compiler-derived reasons; free external providers and empty sets also have
 closed reasons. Exact nested clause/use-site coordinates and durable root-policy
-resolutions remain unfinished engineering work; none independently motivates
-nominal Chi.
+custody remain unfinished engineering work; none independently motivates
+nominal Chi. The package layer does now validate a complete in-memory
+root-policy disposition for every exact blocking fingerprint. It canonicalizes
+and candidate-binds the decision set, rejects non-blocking or stale decisions,
+and reports only whether root policy permits all blocking rows. It does not
+prove review or authorize admission.
 
 The former commands accepting `manifest.json`, `receipt.json`, `--package`, or
 mandatory `--alias` were removed from the production CLI. Their name-keyed
@@ -980,7 +984,7 @@ omega-packages/
 |   |-- capability_conflict.rs # Bounded review-only exact row conflicts.
 |   |-- evidence.rs        # Compiler-issued package admission evidence.
 |   |-- lock.rs            # Accepted closure and evidence baseline.
-|   |-- conflict.rs        # Future durable root-policy resolutions.
+|   |-- conflict.rs        # Candidate-bound review-only root-policy decisions.
 |   |-- audit.rs           # Source/provenance/capability audit rendering.
 |   |-- install.rs         # Fetch, derive, admit, then edit/write.
 |   |-- update.rs          # Candidate reconciliation and admission.

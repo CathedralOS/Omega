@@ -2021,17 +2021,19 @@ complete.
   derived reasons without reconstructing either from names, schemas, or
   fingerprints. Free external providers and an empty selected set also carry
   closed reasons. Exact nested clause/use-site anchors and durable root-policy
-  resolutions remain engineering work. They do not require nominal Chi or a
-  new owner decision.
+  custody/encoding remain engineering work. They do not require nominal Chi or
+  a new owner decision.
 
-  Remaining: add one closed root-policy disposition for each exact blocking
-  fingerprint and bind the complete decision set to the candidate-closure
-  commitment. Construction must reject empty, incomplete, duplicate,
-  stale/foreign, wrong-candidate, and non-blocking decisions. The result may
-  report only whether root policy resolved every blocking row; it must not claim
-  that the wider transaction may proceed or that an audit occurred. Durable
-  encoding, governance metadata, root-policy custody, and install/update
-  transaction revalidation remain separate work.
+  Milestone 2026-08-25: review-only root policy now records one closed
+  accept-candidate-change or reject-candidate-change disposition for every exact
+  blocking fingerprint. Decisions can be constructed only from a conflict in
+  its owning package set. The complete canonical decision set is bound to the
+  candidate-closure commitment and rejects empty, incomplete, duplicate,
+  stale/foreign, wrong-candidate, and non-blocking inputs. Its sole aggregate
+  outcome is whether root policy permits every blocking row; it cannot mint
+  evidence, authorize the wider transaction, or claim that an audit occurred.
+  Durable encoding, governance metadata, root-policy custody, and
+  install/update transaction revalidation remain separate work.
 
 - **DANGEROUS-AUTHORITY-CLASSIFICATION.** Classify risk from compiler-owned
   nominal metadata.
