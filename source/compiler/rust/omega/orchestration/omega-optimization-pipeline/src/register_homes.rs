@@ -4,11 +4,11 @@ use omega_optimization_core::{
     PrePhysicalOptimizationManifestIdentity,
 };
 use omega_regalloc::{
-    PostAllocationOptimizationManifestError, TerminalRegisterHomeError,
-    TerminalRegisterHomeIdentity, ValidatedPostAllocationOptimizationManifest,
-    ValidatedTerminalRegisterHomes, assign_terminal_register_homes,
-    project_post_allocation_optimization_manifest, validate_post_allocation_optimization_manifest,
-    validate_terminal_register_homes,
+    PostAllocationOptimizationManifestError, PostAllocationSelectedTransformation,
+    TerminalRegisterHomeError, TerminalRegisterHomeIdentity,
+    ValidatedPostAllocationOptimizationManifest, ValidatedTerminalRegisterHomes,
+    assign_terminal_register_homes, project_post_allocation_optimization_manifest,
+    validate_post_allocation_optimization_manifest, validate_terminal_register_homes,
 };
 use omega_terminal_selected_instructions::TerminalSelectedInstructionPlanIdentity;
 use psi_core::{FuelScheduleIdentity, MachineId};
@@ -191,7 +191,7 @@ pub fn stage_optimized_register_homes(
     }
     let manifest = project_post_allocation_optimization_manifest(
         upstream.manifest(),
-        None,
+        &[],
         ranges.ranges(),
         legality.legality(),
         &homes,
@@ -239,7 +239,7 @@ pub fn validate_optimized_register_home_custody(
     let manifest = validate_post_allocation_optimization_manifest(
         manifest.record(),
         upstream.manifest(),
-        None,
+        &[],
         ranges.ranges(),
         legality.legality(),
         &replayed,
@@ -397,7 +397,9 @@ pub fn stage_optimized_register_homes_after_fixed_view_copies(
     }
     let manifest = project_post_allocation_optimization_manifest(
         source.source().manifest(),
-        Some(source.source().transformation()),
+        &[PostAllocationSelectedTransformation::FixedViewCopy(
+            source.source().transformation(),
+        )],
         reanalysis.ranges(),
         reanalysis.legality(),
         &homes,
@@ -451,7 +453,9 @@ pub fn validate_optimized_register_home_after_fixed_view_copy_custody(
     let manifest = validate_post_allocation_optimization_manifest(
         manifest.record(),
         source.source().manifest(),
-        Some(source.source().transformation()),
+        &[PostAllocationSelectedTransformation::FixedViewCopy(
+            source.source().transformation(),
+        )],
         reanalysis.ranges(),
         reanalysis.legality(),
         &replayed,

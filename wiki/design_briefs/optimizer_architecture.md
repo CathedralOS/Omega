@@ -423,9 +423,12 @@ Both strict home paths now construct and independently replay a structured
 post-allocation manifest. It extends, rather than replaces, the validated
 pre-physical manifest identity and binds the target, selected CFG, liveness,
 range, allocation-legality, register-environment, and register-home identities.
-The post-copy route additionally binds the exact fixed-view-copy transformation
-identity as well as the transformed selected CFG; absence versus presence is
-canonical identity input. Exact function, assignment, distinct-view,
+Transformed routes additionally bind an ordered typed selected-transformation
+ledger. Its current variants distinguish fixed-view-copy identities from
+literal-fold identities; order, kind, and identity are all canonical inputs,
+and exact duplicate identities reject rather than being silently collapsed.
+The selected root is always the final transformed CFG. Exact function,
+assignment, distinct-view,
 interference, and remaining-transition counts are structured fields. Because
 the strict home allocator rejects pressure and unresolved transitions, this
 record may truthfully say no spill was required for the admitted plan. Frame
@@ -433,9 +436,9 @@ layout, machine emission, and publication remain explicitly unavailable, so
 the record grants none of those authorities.
 
 The post-allocation record also has a versioned canonical codec. It reconstructs
-the typed target, direct-versus-post-copy presence, every upstream identity,
+the typed target, ordered transformation roster, every upstream identity,
 availability status, and statistic, then recomputes the stored manifest
-identity. Unknown stage, target, optional, spill, or availability tags,
+identity. Unknown stage, target, transformation, spill, or availability tags,
 identity tampering, truncation, and trailing bytes reject. Decode still returns
 the plain record; only independent replay against the validated range,
 legality, and home carriers can produce its validated wrapper.
