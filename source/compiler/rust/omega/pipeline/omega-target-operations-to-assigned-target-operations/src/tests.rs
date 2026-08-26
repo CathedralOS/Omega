@@ -1,7 +1,8 @@
 use crate::build_assigned_target_operations;
 use omega_abstract_operations::{
     AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, AbstractPermissionEvent,
-    AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
+    AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole, BoundaryFootprintPlan,
+    CallbackBoundaryFootprintPlan,
 };
 use omega_control_flow::{MachineFunctionIdentity, StateKey};
 use omega_target_operations::TargetOperationFunction;
@@ -140,6 +141,27 @@ fn copies_target_boundary_policy_checks_to_assigned_plan() {
             verdict: AbstractBoundaryPolicyVerdict::Accepted,
             ..Default::default()
         });
+    let callback_identity = MachineFunctionIdentity::callback_thunk(
+        StateKey {
+            machine: SymbolHandle::from_arena_index(8),
+            state: SymbolHandle::from_arena_index(9),
+            segment_index: 0,
+        },
+        0,
+    )
+    .expect("callback identity");
+    target_operations
+        .semantics
+        .boundaries
+        .callback_footprints
+        .push(CallbackBoundaryFootprintPlan {
+            placement_index: 0,
+            function_identity: callback_identity,
+            footprints: BoundaryFootprintPlan {
+                boundary_contract_fingerprint: Some(0x6789),
+                ..Default::default()
+            },
+        });
 
     let assigned_operations = build_assigned_target_operations(&target_operations);
 
@@ -167,5 +189,18 @@ fn copies_target_boundary_policy_checks_to_assigned_plan() {
             .footprints
             .boundary_contract_fingerprint,
         Some(0x2345)
+    );
+    let [callback] = assigned_operations
+        .semantics
+        .boundaries
+        .callback_footprints
+        .as_slice()
+    else {
+        panic!("one assigned callback footprint")
+    };
+    assert_eq!(callback.function_identity, callback_identity);
+    assert_eq!(
+        callback.footprints.boundary_contract_fingerprint,
+        Some(0x6789)
     );
 }

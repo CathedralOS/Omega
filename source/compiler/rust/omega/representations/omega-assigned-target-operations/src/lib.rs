@@ -19,7 +19,7 @@ pub use value_operands::*;
 
 pub use omega_target_operations::{
     AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, BoundaryFootprintFragment,
-    BoundaryFootprintFragmentOrigin, BoundaryFootprintPlan, CopyPlacesRole, HostOperationKey,
-    RuntimeStorageRegion, RuntimeTextReadSource, RuntimeTextReadTarget, StateGuardLowering,
-    StateGuardOperator, TargetHostBinding,
+    BoundaryFootprintFragmentOrigin, BoundaryFootprintPlan, CallbackBoundaryFootprintPlan,
+    CopyPlacesRole, HostOperationKey, RuntimeStorageRegion, RuntimeTextReadSource,
+    RuntimeTextReadTarget, StateGuardLowering, StateGuardOperator, TargetHostBinding,
 };

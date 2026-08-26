@@ -426,6 +426,8 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 entry_key: backend_plan.entry_key,
                 entry_boundary_plan: backend_plan.entry_boundary_plan.as_ref(),
                 entry_symbol: entry_symbol_name(backend_plan.target).into(),
+                callback_placements: &backend_plan.callback_placements,
+                callback_thunks: &backend_plan.callback_thunks,
                 program: program.as_ref(),
                 selected_provider_plans: selected_provider_plans.as_ref(),
                 control_flow: &backend_plan.control_flow,

@@ -18,7 +18,7 @@ pub use instruction::{
 };
 pub use omega_abstract_operations::{
     BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin, BoundaryFootprintPlan,
-    CopyPlacesRole, PLACE_MAX_STEPS, Place, PlaceStep, RuntimeBitFieldFragment, StateGuardLowering,
-    StateGuardOperator,
+    CallbackBoundaryFootprintPlan, CopyPlacesRole, PLACE_MAX_STEPS, Place, PlaceStep,
+    RuntimeBitFieldFragment, StateGuardLowering, StateGuardOperator,
 };
 pub use psi_language_semantics::wire::WireScalarRange;

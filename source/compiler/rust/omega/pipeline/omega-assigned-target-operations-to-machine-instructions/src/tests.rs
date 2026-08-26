@@ -2,6 +2,7 @@ use crate::build_machine_instructions;
 use omega_abstract_operations::{
     AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, AbstractPermissionEvent,
     AbstractSourceBoundaryEdge, AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
+    BoundaryFootprintPlan, CallbackBoundaryFootprintPlan,
 };
 use omega_assigned_target_operations::{
     AssignedTargetOperationFunction, AssignedTargetOperationPlan,
@@ -450,6 +451,27 @@ fn copies_assigned_boundary_summary_to_machine_instruction_plan() {
         .boundaries
         .footprints
         .boundary_contract_fingerprint = Some(0x3456);
+    let callback_identity = MachineFunctionIdentity::callback_thunk(
+        StateKey {
+            machine: SymbolHandle::from_arena_index(8),
+            state: SymbolHandle::from_arena_index(9),
+            segment_index: 0,
+        },
+        0,
+    )
+    .expect("callback identity");
+    assigned_operations
+        .semantics
+        .boundaries
+        .callback_footprints
+        .push(CallbackBoundaryFootprintPlan {
+            placement_index: 0,
+            function_identity: callback_identity,
+            footprints: BoundaryFootprintPlan {
+                boundary_contract_fingerprint: Some(0x789a),
+                ..Default::default()
+            },
+        });
 
     let machine_instructions =
         build_machine_instructions(&assigned_operations).expect("machine instructions");
@@ -477,6 +499,19 @@ fn copies_assigned_boundary_summary_to_machine_instruction_plan() {
             .footprints
             .boundary_contract_fingerprint,
         Some(0x3456)
+    );
+    let [callback] = machine_instructions
+        .semantics
+        .boundaries
+        .callback_footprints
+        .as_slice()
+    else {
+        panic!("one machine callback footprint")
+    };
+    assert_eq!(callback.function_identity, callback_identity);
+    assert_eq!(
+        callback.footprints.boundary_contract_fingerprint,
+        Some(0x789a)
     );
 }
 

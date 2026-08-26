@@ -206,8 +206,14 @@ entry and one deterministic private thunk symbol, failing closed if the entry
 was lost. Each thunk now also owns one address-free callback-root schedule:
 the exact canonical entry, activation-local runtime-flow/dispatch/storage/frame
 identities, validated boundary entry plan, and its internal argument/result
-bridge replay together before target instruction selection. This is still
-address-free planning: multi-entry code emission and
+bridge replay together before target instruction selection. Selection now
+consumes that schedule for the first complete callback body class: a
+zero-parameter, resultless, ordinary call-return terminal leaf emits one exact
+private function with validated enter/leave mechanics. Its boundary footprint
+is retained in canonical placement order under the callback function identity,
+separate from the process-entry footprint, through machine emission. Callbacks
+with parameters, results, body operations, transitions, or hidden semantic
+state continue to reject. General multi-entry/re-entrant code emission and
 placement of the private symbol into the registrar's declared native slot are
 separate lowering steps. The placement step consumes only a complete validated
 outbound plan: missing, duplicate, overlapping, shape-incompatible, or

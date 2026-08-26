@@ -7159,8 +7159,16 @@ Owners:
   minting the private thunk identity. Final emission repeats that replay before
   accepting encoded-function/object evidence, so plan, canonical-form, or
   fingerprint drift rejects even when copied thunk and object rows agree. This
-  retains plan custody only; multi-entry/re-entrant body lowering and the
-  private registration relocation remain separate frontiers. Callback thunk
+  originally retained plan custody only. Instruction selection now consumes
+  that schedule for the first complete body slice: a zero-parameter,
+  resultless, ordinary call-return callback whose canonical entry is a
+  bodyless terminal leaf emits its exact private callback function with real
+  enter/leave operations. Each callback retains an ordered, identity-bound
+  boundary-footprint row separate from the process-entry contract through
+  machine emission. Parameter, result, operation, transition, hidden-semantic,
+  order, identity, and schedule drift reject. General multi-entry/re-entrant
+  body lowering and the private registration relocation remain separate
+  frontiers. Callback thunk
   planning now also requires the selected control-flow entry to be the
   canonical segment-zero `StateKey`. Final emission independently reconstructs
   that whole selected entry and rejects segment drift even when the callback
@@ -7215,9 +7223,12 @@ Owners:
   independently replayed canonical entry, activation-local
   runtime-flow/dispatch/storage/frame identity set, validated boundary plan,
   and exact internal argument/result bridge. It owns no bytes, native address,
-  relocation, resources, or registration authority. The remaining body rung
-  must consume that schedule while selecting multi-entry/re-entrant target
-  instructions; placeholder enter/call/return bodies remain unsound. This
+  relocation, resources, or registration authority. The first body rung now
+  consumes that schedule for exact payloadless, resultless terminal leaves and
+  emits only their validated enter/leave mechanics. The remaining body rung
+  must extend selection to parameter/result bridges, body operations, and
+  multi-entry/re-entrant target instructions; placeholder calls or invented
+  activation state remain unsound. This
   prerequisite is independent of private registration placement and checked
   resource ceilings. Registration lease/unregister machinery is already complete below
   source binding: an exact provider registration receipt owns an installed-root
@@ -7227,8 +7238,8 @@ Owners:
   binding that can mint that receipt, plus a checked linear source carrier;
   creating a detached lease earlier would invent authority. The
   remaining slices are
-  resource-ceiling aggregation, multi-entry/re-entrant target instruction
-  lowering, and the
+  resource-ceiling aggregation, general callback body and multi-entry/re-entrant
+  target instruction lowering, and the
   private registration relocation from the now-settled binder-slot/native-place
   row,
   registration leases/unregister,
