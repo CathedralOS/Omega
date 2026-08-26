@@ -1877,6 +1877,18 @@ graph, so welding it enforces something real instead of hoping a resolver agrees
 `omega::language::std` is an ordinary fetchable package with its own version
 line, which freestanding builds already demonstrate is optional.
 
+The first vertical implementation canary resolves the repository's real std
+directory as an ordinary local package, derives its default
+`omega_language_std` alias from its own declaration, compiles a consumer from
+resolver snapshots, and retains imported std declarations under std's exact
+user-package identity. Omitting the dependency edge rejects the import rather
+than consulting bundled std. This establishes the package and compiler-handoff
+model independently of remote workspace-member selection and final application
+identity. It does not complete the production migration: legacy
+`omega::language::std` import routing, build-filesystem seeding, macOS GUI
+injection, and core/std toolchain-source classification remain explicit seams
+to remove. Only `omega::language::core` keeps its magic toolchain mount.
+
 ## Current engineering delta
 
 The scoped filesystem executor and real/virtual filesystem modes are the live
