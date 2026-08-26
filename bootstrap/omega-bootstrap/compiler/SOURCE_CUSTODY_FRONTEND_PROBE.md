@@ -8,7 +8,7 @@ replacement for the canonical source bundle.
 
 `omega-bootstrap-source-custody-check.alp` reads one ordinary Omega source unit
 from standard input and checks the compositional source families isolated by
-`compiler/psi/source/source.omg`:
+`source/compiler/omega/psi/source/source.omg`:
 
 - named record data, `[copy]`, named fields, and forward nominal references;
 - `u8`, `u32`, `bool`, fixed arrays, `in Trapping`, and literal inclusive scalar
@@ -100,7 +100,7 @@ normalized expression-depth ceiling: each suffix adds one AST level.
 
 ## Evidence required for this probe
 
-1. The exact `compiler/psi/source/source.omg` unit checks successfully.
+1. The exact `source/compiler/omega/psi/source/source.omg` unit checks successfully.
 2. Renamed and declaration/state-reordered equivalents check through the same
    implementation.
 3. Phase-isolated syntax, duplicate/unknown name, type, mutability, copy,

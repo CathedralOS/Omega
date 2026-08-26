@@ -238,7 +238,7 @@ source manifests and the feature inventory, remove accidental producer
 behavior, then specify the retained grammar and edge cases independently of
 those particular files. The working inventory lives in
 the Delta rung's
-[`FEATURE_LEDGER.md`](../../../bootstrap/rungs/delta/FEATURE_LEDGER.md).
+[`FEATURE_LEDGER.md`](../../../bootstrap/delta/FEATURE_LEDGER.md).
 
 ## Working `Ωself` policy
 
@@ -249,16 +249,16 @@ written. The working policy is specific enough to guide the first snapshot;
 each later snapshot reruns the same feature census and retain/refactor analysis.
 
 The first measured snapshot now exists:
-[`checkpoint-000001.json`](../../../compiler/source-checkpoints/checkpoint-000001.json)
+[`checkpoint-000001.json`](../../../source/compiler/omega/source-checkpoints/checkpoint-000001.json)
 closes the product Psi source-to-token phase;
-[`profile-000001.json`](../../../compiler/source-checkpoints/profile-000001.json)
+[`profile-000001.json`](../../../source/compiler/omega/source-checkpoints/profile-000001.json)
 mechanically binds its provisional normalized-syntax/resource admission rules,
 census, canaries, and ceilings; and
-[`profile-000001.md`](../../../compiler/source-checkpoints/profile-000001.md)
+[`profile-000001.md`](../../../source/compiler/omega/source-checkpoints/profile-000001.md)
 explains the evidence and unresolved decisions. The snapshot remains bounded
 evidence for the pinned source it describes. Its manifest, profile,
 Cargo/provider provenance, and extracted
-`compiler/source-checkpoints/inputs/build-prelude.omg` are refreshed as one
+`source/compiler/omega/source-checkpoints/inputs/build-prelude.omg` are refreshed as one
 coherent closure; the prelude now retains its public build vocabulary and
 package-identity declaration. The fast gate rejects any later source,
 provenance, prelude, feature-partition, or resource drift until the product
@@ -448,14 +448,14 @@ gates rather than being repeated in this decision document.
 | Selected capability evidence | Closed bounded path | Detail owner |
 | --- | --- | --- |
 | finite calls, constant aggregates, runtime named records, and same-module direct-field receivers | source production through CKIR4, Rust-free meaning, conservative artifacts, and lower-rooted reconstruction | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](../../../bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md) and versioned checked-IR contracts under [`bootstrap/omega-bootstrap/compiler/`](../../../bootstrap/omega-bootstrap/compiler/) |
-| payload-bearing pure sums | OMGRSW3, CKIR5, conservative backend, and OMGRFN7 R1–R5 | versioned checked-IR contracts and [`OMGCOMP_REFINEMENT_WITNESS_V7.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md) |
-| bool-only logical negation | CKIR6 and OMGRFN8 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V6.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V6.md) and [`OMGCOMP_REFINEMENT_WITNESS_V8.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V8.md) |
-| pure, total, nontrapping bool-only `&&` and `||` | CKIR7 and OMGRFN9 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V7.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V7.md) and [`OMGCOMP_REFINEMENT_WITNESS_V9.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V9.md) |
-| exact primitive same-carrier `bool`/`u8`/`u32` equality | CKIR8 and OMGRFN10 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V8.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V8.md) and [`OMGCOMP_REFINEMENT_WITNESS_V10.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V10.md) |
-| pure, total, nontrapping same-carrier unsigned `u8`/`u32` `>` and `>=` | CKIR9 and OMGRFN11 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V9.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V9.md) and [`OMGCOMP_REFINEMENT_WITNESS_V11.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V11.md) |
-| explicit exact pure-leaf `u8 as u32 in Trapping` | CKIR10 and OMGRFN12 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V10.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V10.md) and [`OMGCOMP_REFINEMENT_WITNESS_V12.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V12.md) |
-| canonical `u32 in Trapping` leaf-plus-anonymous-literal addition | CKIR11 and OMGRFN13 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V11.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V11.md) and [`OMGCOMP_REFINEMENT_WITNESS_V13.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V13.md) |
-| program-static shared byte views with a guarded head and one-byte tail | OMGRSW4, OMGLOWD/CKIR12, conservative backend, and OMGRFN14 R1–R5 | [`OMEGA_BOOTSTRAP_RESOLUTION_V4.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V4.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V12.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V12.md), and [`OMGCOMP_REFINEMENT_WITNESS_V14.md`](../../../bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V14.md) |
+| payload-bearing pure sums | OMGRSW3, CKIR5, conservative backend, and OMGRFN7 R1–R5 | versioned checked-IR contracts and [`OMGCOMP_REFINEMENT_WITNESS_V7.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V7.md) |
+| bool-only logical negation | CKIR6 and OMGRFN8 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V6.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V6.md) and [`OMGCOMP_REFINEMENT_WITNESS_V8.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V8.md) |
+| pure, total, nontrapping bool-only `&&` and `||` | CKIR7 and OMGRFN9 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V7.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V7.md) and [`OMGCOMP_REFINEMENT_WITNESS_V9.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V9.md) |
+| exact primitive same-carrier `bool`/`u8`/`u32` equality | CKIR8 and OMGRFN10 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V8.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V8.md) and [`OMGCOMP_REFINEMENT_WITNESS_V10.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V10.md) |
+| pure, total, nontrapping same-carrier unsigned `u8`/`u32` `>` and `>=` | CKIR9 and OMGRFN11 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V9.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V9.md) and [`OMGCOMP_REFINEMENT_WITNESS_V11.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V11.md) |
+| explicit exact pure-leaf `u8 as u32 in Trapping` | CKIR10 and OMGRFN12 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V10.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V10.md) and [`OMGCOMP_REFINEMENT_WITNESS_V12.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V12.md) |
+| canonical `u32 in Trapping` leaf-plus-anonymous-literal addition | CKIR11 and OMGRFN13 R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V11.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V11.md) and [`OMGCOMP_REFINEMENT_WITNESS_V13.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V13.md) |
+| program-static shared byte views with a guarded head and one-byte tail | OMGRSW4, OMGLOWD/CKIR12, conservative backend, and OMGRFN14 R1–R5 | [`OMEGA_BOOTSTRAP_RESOLUTION_V4.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V4.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V12.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V12.md), and [`OMGCOMP_REFINEMENT_WITNESS_V14.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V14.md) |
 | one exact boundary requirement, applicable bodyless intrinsic candidate, and call-to-requirement | OMGCOMP2 custody plus OMGRSW6 independent exact-byte, native/self, negative/resource, and Rust-free resolution evidence; candidate remains unselected | [`OMEGA_BOOTSTRAP_COMPILATION_V2.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V2.md) and [`OMEGA_BOOTSTRAP_RESOLUTION_V6.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V6.md) |
 | generated ordinary-Omega source custody for the exact Unicode tuple | sealed locked/offline two-run reproduction, generic provenance roles, bounded/no-publication teeth, exact OMGCOMP1 source extent, and CKIR3/OMGRFN4 preflight composition | [`OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md`](../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md); checkpoint 000001 is refreshed, while an explicit bridge-to-checkpoint composition over the same tuple remains open |
 

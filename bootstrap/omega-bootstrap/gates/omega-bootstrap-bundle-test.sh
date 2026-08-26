@@ -11,7 +11,7 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   done
 fi
 . "$OMEGA_REPO_ROOT/bootstrap/paths.sh" || exit $?
-BUNDLE_TOOL="$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py"
+BUNDLE_TOOL="$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega_bootstrap_bundle.py"
 command -v python3 >/dev/null 2>&1 || { echo "omega-bootstrap bundle: skipped (python3 absent)"; exit 0; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 

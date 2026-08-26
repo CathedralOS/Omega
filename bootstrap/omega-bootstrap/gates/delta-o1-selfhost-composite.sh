@@ -39,9 +39,9 @@ cargo build -q --manifest-path "$OMEGA_PATH_DELTA_RUST/Cargo.toml"
 DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
   "$OMEGA_PATH_DELTA/samples/lowermachine.alp" "$T/lowermachine" >/dev/null
 DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
-  "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega-bootstrap-frontend.alp" "$T/native-frontend" >/dev/null
+  "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega-bootstrap-frontend.alp" "$T/native-frontend" >/dev/null
 DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
-  "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega-bootstrap-terminal-to-elf.alp" "$T/native-backend" >/dev/null
+  "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega-bootstrap-terminal-to-elf.alp" "$T/native-backend" >/dev/null
 
 compile_through_lowermachine() {
   SOURCE=$1
@@ -52,9 +52,9 @@ compile_through_lowermachine() {
 }
 
 compile_through_lowermachine \
-  "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega-bootstrap-frontend.alp" "$T/frontend"
+  "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega-bootstrap-frontend.alp" "$T/frontend"
 compile_through_lowermachine \
-  "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega-bootstrap-terminal-to-elf.alp" "$T/backend"
+  "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega-bootstrap-terminal-to-elf.alp" "$T/backend"
 
 # These exporters independently travel through the product source-to-terminal
 # and terminal-to-image paths. The gate uses them only as differential fixtures.
@@ -66,7 +66,7 @@ OMEGA1_WRITE_REFERENCE_DIR="$T/product-refs" cargo test -q \
   straight_line_console_o1_agrees_for_zero_one_two_and_sixteen_writes -- --exact
 
 bundle_one() {
-  python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" \
+  python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega_bootstrap_bundle.py" \
     pack main.omg="$1" > "$2"
 }
 
@@ -165,7 +165,7 @@ done
 : > "$T/empty.omg"
 printf '// auxiliary transport /* remains line text' > "$T/comment.omg"
 printf '/* outer auxiliary // remains block text /* nested */ tail */' > "$T/block-comment.omg"
-python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega_bootstrap_bundle.py" pack \
   a/empty.omg="$T/empty.omg" b/block.omg="$T/block-comment.omg" \
   m/program.omg="$T/writes-1.omg" \
   z/comment.omg="$T/comment.omg" > "$T/auxiliary.bundle"
@@ -259,19 +259,19 @@ run_frontend_rejection write-exhaust "$T/write-exhaust.omg" 252
 } > "$T/text-exhaust.omg"
 run_frontend_rejection text-exhaust "$T/text-exhaust.omg" 252
 
-python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega_bootstrap_bundle.py" pack \
   a.omg="$T/writes-0.omg" b.omg="$T/writes-1.omg" > "$T/two-program.bundle"
 run_frontend_bundle_rejection two-program "$T/two-program.bundle" 251
 
 printf '\377' > "$T/invalid-auxiliary.omg"
-python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega_bootstrap_bundle.py" pack \
   a/program.omg="$T/writes-1.omg" z/invalid.omg="$T/invalid-auxiliary.omg" \
   > "$T/invalid-auxiliary.bundle"
 run_frontend_bundle_rejection invalid-auxiliary "$T/invalid-auxiliary.bundle" 251
 
 printf '/*' > "$T/comment-open.omg"
 printf '*/' > "$T/comment-close.omg"
-python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega_bootstrap_bundle.py" pack \
   a/open.omg="$T/comment-open.omg" b/close.omg="$T/comment-close.omg" \
   z/program.omg="$T/writes-1.omg" > "$T/cross-unit-comment.bundle"
 run_frontend_bundle_rejection cross-unit-comment "$T/cross-unit-comment.bundle" 251

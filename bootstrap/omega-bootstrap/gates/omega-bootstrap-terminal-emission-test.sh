@@ -30,8 +30,8 @@ OMEGA_BOOTSTRAP_WRITE_VARIANT_TERMINAL="$T/variant-shared.psi" \
     source_projection_is_the_shared_o0_fixture_and_perturbations_fail_closed -- --exact
 cargo build -q --manifest-path "$OMEGA_PATH_DELTA_RUST/Cargo.toml"
 DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
-  "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega-bootstrap-frontend.alp" "$T/frontend" >/dev/null
-python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+  "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega-bootstrap-frontend.alp" "$T/frontend" >/dev/null
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega_bootstrap_bundle.py" pack \
   main.omg="$OMEGA_PATH_CORPUS/cli_mvp/main.omg" > "$T/canonical.bundle"
 
 python3 - "$OMEGA_PATH_OMEGA_BOOTSTRAP/gates/fixtures/omega-bootstrap-terminal-v28.hex" "$T/frozen.psi" <<'PY'
@@ -72,7 +72,7 @@ set -e
 cmp "$T/frozen.psi" "$T/emitted.psi"
 
 printf 'use omega::language::std::console; data Main{console:Console;} machine Main::main(&mut self){self.console.write_line("A\\n");self.console.exit_process(2);}' > "$T/variant.omg"
-python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega_bootstrap_bundle.py" pack \
   main.omg="$T/variant.omg" > "$T/variant.bundle"
 "$TERMINAL_PUBLISHER" --success-exit 77 --expect "$T/variant-shared.psi" \
   "$T/variant.psi" -- "$T/frontend" < "$T/variant.bundle"

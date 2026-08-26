@@ -143,7 +143,7 @@ complete.
   unverified caller-constructed security artifact.
 
   Completed 2026-08-23: the file-by-file and trust-path classification is in
-  [`omega-packages/SCAFFOLDING_AUDIT.md`](bootstrap/onramps/omega-rust/omega/orchestration/omega-packages/SCAFFOLDING_AUDIT.md).
+  [`omega-packages/SCAFFOLDING_AUDIT.md`](source/compiler/rust/omega/orchestration/omega-packages/SCAFFOLDING_AUDIT.md).
 
   Cleanup 2026-08-25: the name-keyed manifest/lock, Rust-`Debug` diff,
   free-form receipt, fabricated install/update, legacy audit, and test-only
@@ -169,7 +169,7 @@ complete.
   hostile-input boundary.
 
   The production helper/snapshot/receipt contract is recorded in
-  [`SOURCE_RESOLVER_SECURITY.md`](bootstrap/onramps/omega-rust/omega/orchestration/omega-packages/SOURCE_RESOLVER_SECURITY.md).
+  [`SOURCE_RESOLVER_SECURITY.md`](source/compiler/rust/omega/orchestration/omega-packages/SOURCE_RESOLVER_SECURITY.md).
 
   Progress 2026-08-23: diagnostic source commands now require an explicit
   `local` or `git` adapter; unknown URLs are no longer guessed to be Git. Local
@@ -2375,14 +2375,14 @@ standard library by path.
       or more direct canonical member paths as the explicit workspace kind and
       rejects mixed, hidden, malformed, or duplicate declarations. The root
       manifest lists std, Psi, and the compiler application in authored order.
-- [x] **Add `builder.application(name)`.** `apps/omega-compiler/build.omg` is
+- [x] **Add `builder.application(name)`.** `source/compiler/omega/build.omg` is
       currently an application by *absence* of a package declaration, and the
       same absence is `MissingPackageDeclaration` — an error — in the package
       reader. One file shape must not mean "fine" or "broken" depending on the
       caller.
 
       Completed 2026-08-25: `Build::application` is compiler-owned ordinary
-      vocabulary and `apps/omega-compiler/build.omg` declares
+      vocabulary and `source/compiler/omega/build.omg` declares
       `omega-compiler`. The unified projector distinguishes package,
       application, and workspace builds without executing them. The product
       compiler checkpoint and feature/resource profile pin the expanded build
@@ -2464,6 +2464,7 @@ standard library by path.
       handwritten; the two runtime source-reading parity tests and four-way
       catalog mirror are gone.
 
-Repository relocation (`bootstrap/onramps/omega-rust` out of `bootstrap/`,
-`compiler/` naming, `canaries` + `fixtures`) is tracked separately and depends
+Repository relocation (`source/compiler/rust` out of `bootstrap/`,
+Omega product source under `source/compiler/omega`, and `tests/` ownership of
+canaries and fixtures) is tracked separately and depends
 on nothing here except that the standard library stop being reached by path.

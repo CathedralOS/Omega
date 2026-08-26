@@ -25,7 +25,7 @@ done
 
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
-FRONTEND="$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega-bootstrap-frontend.alp"
+FRONTEND="$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega-bootstrap-frontend.alp"
 FIXTURE="$OMEGA_PATH_OMEGA_BOOTSTRAP/gates/fixtures/omega-bootstrap-scalar-call-v28.hex"
 PRODUCT_CASE_DIR="$T/product-scalar-cases"
 mkdir -p "$PRODUCT_CASE_DIR"
@@ -45,7 +45,7 @@ PY
 bundle_file() {
   SOURCE=$1
   OUTPUT=$2
-  python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" \
+  python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega_bootstrap_bundle.py" \
     pack main.omg="$SOURCE" > "$OUTPUT"
 }
 
@@ -135,7 +135,7 @@ PY
 : > "$T/empty.omg"
 printf '/* auxiliary /* nested */ tail */' > "$T/comment.omg"
 printf '%s' "$CANONICAL" > "$T/canonical.omg"
-python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_bundle.py" pack \
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega_bootstrap_bundle.py" pack \
   a/empty.omg="$T/empty.omg" m/program.omg="$T/canonical.omg" \
   z/comment.omg="$T/comment.omg" > "$T/auxiliary.bundle"
 "$T/frontend" < "$T/auxiliary.bundle" > "$T/auxiliary.terminal"

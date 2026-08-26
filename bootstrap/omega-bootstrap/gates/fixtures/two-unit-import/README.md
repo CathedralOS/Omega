@@ -69,4 +69,4 @@ source ownership failure from the semantic selected-source/entry failure.
 
 The lower-rooted checker decomposition and normalized-resolution carrier for
 this fixture are specified in
-[`OMGCOMP_REFINEMENT_WITNESS.md`](../../../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md).
+[`OMGCOMP_REFINEMENT_WITNESS.md`](../../../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md).

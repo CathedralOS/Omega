@@ -41,12 +41,12 @@ scanners, or receipts.
 Remaining:
 
 - **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as
-  Omega source under `compiler/psi/` and `compiler/omega/`, with hosted product
+  Omega source under `source/compiler/omega/psi/` and `source/compiler/omega/omega/`, with hosted product
   entrypoints under `apps/`. Preserve the Psi/Omega ownership firewall: Psi owns
   parsing and target-neutral semantics through terminal Psi; Omega owns
   provider installation, optimization, target realization, and artifact
   emission. The current implementation under
-  `bootstrap/onramps/omega-rust/` is a migration/reference producer, not the
+  `source/compiler/rust/` is a migration/reference producer, not the
   source tree for this task.
 
   Acceptance: the exact Omega source tree builds a compiler that implements the
@@ -104,14 +104,14 @@ Remaining:
   for that checkpoint; the final manifest and profile freeze only at the
   completed bridge join.
 
-  Current checkpoint: `compiler/source-checkpoints/checkpoint-000001.json`
-  closes the first real Psi source-to-token slice under `compiler/psi/` plus
-  the hosted entrypoint under `apps/omega-compiler/`. It includes source/span,
+  Current checkpoint: `source/compiler/omega/source-checkpoints/checkpoint-000001.json`
+  closes the first real Psi source-to-token slice under `source/compiler/omega/psi/` plus
+  the hosted entrypoint under `source/compiler/omega/`. It includes source/span,
   token, and lexical-diagnostic representations; Unicode 17 XID tables; nested
   comments; numeric metadata; cooked/raw strings; punctuation; deterministic
   capacity failures; and a native acceptance/status adapter. Its provisional
   feature census is
-  `compiler/source-checkpoints/profile-000001.md`. The adapter still needs a
+  `source/compiler/omega/source-checkpoints/profile-000001.md`. The adapter still needs a
   canonical structural token/diagnostic observation and Rust-comparator
   differential. Parsing and every later Psi/Omega phase remain open; this
   checkpoint does not complete the product compiler task.
@@ -121,7 +121,7 @@ Remaining:
   changes. The fast gate now accepts that coherent closure and rejects later
   source, provenance, prelude, feature-partition, or resource drift until the
   complete evidence set is reviewed and refreshed again. Still replace
-  `apps/omega-compiler/build.omg`'s legacy `target ... {}` blocks with the
+  `source/compiler/omega/build.omg`'s legacy `target ... {}` blocks with the
   ordinary `Build` target-selection form already required by the build/extern
   design. Resolve the target-package default source convention at the same
   boundary: the current `Owner::provider_defaults(defaults: &mut Owner)`
@@ -157,7 +157,7 @@ Remaining:
   layout become the public Omega ABI by accident.
 
 - **OMEGA-RUST-COMPARATOR.** Maintain the current Rust Psi/Omega compiler under
-  `bootstrap/onramps/omega-rust/` as a parallel differential implementation
+  `source/compiler/rust/` as a parallel differential implementation
   while its bug-finding value justifies its cost. It may compare diagnostics,
   normalized semantics, artifacts, and execution observations against the
   Omega-written product compiler, but it grants no authority and must be
@@ -166,7 +166,7 @@ Remaining:
   Acceptance: shared product suites can exercise both implementations without
   making Rust agreement or availability a correctness, bootstrap, or release
   condition. Rust-specific maintenance stays in its suffixed on-ramp and never
-  moves into `compiler/{psi,omega}/`.
+  moves into `source/compiler/omega/{psi,omega}/`.
 
 ## Execution order
 

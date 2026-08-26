@@ -28,7 +28,7 @@ command -v python3 >/dev/null 2>&1 || {
 }
 
 CHECKER="$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-source-custody-check.alp"
-ACTUAL="$OMEGA_REPO_ROOT/compiler/psi/source/source.omg"
+ACTUAL="$OMEGA_REPO_ROOT/source/compiler/omega/psi/source/source.omg"
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
 ASM="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 [ -f "$CHECKER" ] || { echo "source-custody meaning: checker source absent" >&2; exit 1; }

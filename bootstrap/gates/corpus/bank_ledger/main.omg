@@ -1,0 +1,138 @@
+// Bank ledger with fixed-capacity transaction list.
+//
+// Stresses: [i32 in Saturating; 8] fixed-array with const-indexed reads/writes, running
+// balance accumulation, deposit/withdraw operations, and multi-step arithmetic.
+//
+// Workaround note: a native miscompile triggers when a let-bound local is
+// captured and then passed as an argument to a nested dispatch state within
+// the same machine call. Specifically `let slot = count; ... try1(slot, val)`
+// produces wrong slot values on repeated calls. Worked around by re-reading
+// self.ledger.count from the field in guards instead of binding it as a local.
+// See tests/canaries/pending/calls/let_local_passed_to_nested_state_arg_wrong.
+//
+// Transactions (positive=deposit, negative=withdraw):
+//   txns[0] = +500   deposit 500
+//   txns[1] = +200   deposit 200  -> cumulative = 700
+//   txns[2] = -150   withdraw 150 -> cumulative = 550
+//   txns[3] = +300   deposit 300  -> cumulative = 850
+//   txns[4] = -80    withdraw 80  -> cumulative = 770
+//   txns[5] = -700   withdraw 700 -> cumulative = 70
+//
+// Final balance = 70. Exit 70.
+//
+// Expected exit: 70.
+
+use omega::language::std::console;
+
+data Ledger [copy] {
+    txns: [i32 in Saturating; 8];
+    count: i32 in Saturating;
+    balance: i32 in Saturating;
+}
+
+data Main {
+    console: Console;
+    ledger: Ledger;
+}
+
+machine Main::main(&mut self) {
+    self.deposit(500);
+    self.deposit(200);
+    self.withdraw(150);
+    self.deposit(300);
+    self.withdraw(80);
+    self.withdraw(700);
+
+    // Compute balance from transaction list (const-indexed reads).
+    let sum: i32 in Saturating = self.ledger.txns[0]
+                 + self.ledger.txns[1]
+                 + self.ledger.txns[2]
+                 + self.ledger.txns[3]
+                 + self.ledger.txns[4]
+                 + self.ledger.txns[5];
+    self.ledger.balance = sum;
+
+    transition self.ledger.balance == 70 {
+        true -> check_count()
+        _ -> bad_balance()
+    }
+
+    state check_count(&mut self) {
+        transition self.ledger.count == 6 {
+            true -> good()
+            _ -> bad_count()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad_balance(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state bad_count(&mut self) {
+        self.console.exit_process(72);
+    }
+}
+
+// Deposit: write amount to slot given by count, then increment count.
+// Workaround: guard on (count+1) after increment to pick the target slot.
+machine Main::deposit(&mut self, amount: i32 in Saturating) {
+    self.ledger.count = self.ledger.count + 1;
+    transition self.ledger.count == 1 {
+        true -> write0(amount)
+        _ -> check2(amount)
+    }
+
+    state write0(&mut self, amount: i32 in Saturating) { self.ledger.txns[0] = amount; }
+
+    state check2(&mut self, amount: i32 in Saturating) {
+        transition self.ledger.count == 2 {
+            true -> write1(amount)
+            _ -> check3(amount)
+        }
+    }
+    state write1(&mut self, amount: i32 in Saturating) { self.ledger.txns[1] = amount; }
+
+    state check3(&mut self, amount: i32 in Saturating) {
+        transition self.ledger.count == 3 {
+            true -> write2(amount)
+            _ -> check4(amount)
+        }
+    }
+    state write2(&mut self, amount: i32 in Saturating) { self.ledger.txns[2] = amount; }
+
+    state check4(&mut self, amount: i32 in Saturating) {
+        transition self.ledger.count == 4 {
+            true -> write3(amount)
+            _ -> check5(amount)
+        }
+    }
+    state write3(&mut self, amount: i32 in Saturating) { self.ledger.txns[3] = amount; }
+
+    state check5(&mut self, amount: i32 in Saturating) {
+        transition self.ledger.count == 5 {
+            true -> write4(amount)
+            _ -> check6(amount)
+        }
+    }
+    state write4(&mut self, amount: i32 in Saturating) { self.ledger.txns[4] = amount; }
+
+    state check6(&mut self, amount: i32 in Saturating) {
+        transition self.ledger.count == 6 {
+            true -> write5(amount)
+            _ -> done()
+        }
+    }
+    state write5(&mut self, amount: i32 in Saturating) { self.ledger.txns[5] = amount; }
+
+    state done(&mut self) {}
+}
+
+// Withdraw: store as negative amount.
+machine Main::withdraw(&mut self, amount: i32 in Saturating) {
+    let neg: i32 in Saturating = 0 - amount;
+    self.deposit(neg);
+}

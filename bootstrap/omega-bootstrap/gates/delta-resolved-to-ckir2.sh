@@ -25,8 +25,8 @@ done
 
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
-DELTA_MANIFEST="$OMEGA_REPO_ROOT/bootstrap/onramps/delta-rust/Cargo.toml"
-DELTA="$OMEGA_REPO_ROOT/bootstrap/onramps/delta-rust/target/debug/delta"
+DELTA_MANIFEST="$OMEGA_REPO_ROOT/bootstrap/delta/rust/Cargo.toml"
+DELTA="$OMEGA_REPO_ROOT/bootstrap/delta/rust/target/debug/delta"
 RESOLVER="$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-resolve.alp"
 LOWERER1="$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-resolved-to-ckir.alp"
 LOWERER2="$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-resolved-to-ckir2.alp"

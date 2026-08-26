@@ -1,1 +1,1 @@
-../../assurance/refinement/omega-bootstrap/meaning-cert-diamond.sh
+../../../source/assurance/refinement/omega-bootstrap/meaning-cert-diamond.sh

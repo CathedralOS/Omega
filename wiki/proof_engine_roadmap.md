@@ -7,7 +7,7 @@ and the certificate work queue is in [`../TASKS.md`](../TASKS.md).
 
 ## Live automation
 
-`bootstrap/onramps/omega-rust/psi/semantics/psi-validation/src/contract_entailment.rs` checks the
+`source/compiler/rust/psi/semantics/psi-validation/src/contract_entailment.rs` checks the
 supported contract fragment rather than accepting unsupported conclusions as
 proof. Its current vocabulary includes:
 
@@ -24,9 +24,9 @@ proof. Its current vocabulary includes:
 
 The L0-L7 corpus covers constant arithmetic, order reasoning, range sums,
 polynomial identities, square bounds, remainder bounds, and ranked inductive
-theorems. True programs live under `canaries/pass/proofs`; false twins under
-`canaries/fail/proofs` must reject. The sample and lattice copies under
-`samples/cli/proofs/math_proofs` and `bootstrap/corpus/math_proofs` are
+theorems. True programs live under `tests/canaries/pass/proofs`; false twins under
+`tests/canaries/fail/proofs` must reject. The sample and lattice copies under
+`samples/cli/proofs/math_proofs` and `bootstrap/gates/corpus/math_proofs` are
 readable demonstrations, not a second specification.
 
 ## Trust boundary

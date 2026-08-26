@@ -30,7 +30,7 @@ trap 'rm -rf "$T"' EXIT
 cargo build -q --manifest-path "$OMEGA_PATH_DELTA_RUST/Cargo.toml"
 if [ "$DELTA_NATIVE" -eq 1 ]; then
   DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
-    "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega-bootstrap-terminal-to-elf.alp" "$T/backend" >/dev/null
+    "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega-bootstrap-terminal-to-elf.alp" "$T/backend" >/dev/null
 fi
 
 stamp_beta_compiler "$T/bc.exe" >/dev/null \
@@ -50,7 +50,7 @@ build_beta "$OMEGA_PATH_GAMMA/interp.beta" "$T/interp.exe" \
 # Compiler-sized elaboration is itself bounded evidence. Reuse this one result
 # for every input so the gate measures backend meaning, not repeated translation.
 perl -e 'alarm 10; exec @ARGV' "$T/elaborate.exe" \
-  < "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega-bootstrap-terminal-to-elf.alp" > "$T/backend.gamma"
+  < "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega-bootstrap-terminal-to-elf.alp" > "$T/backend.gamma"
 [ -s "$T/backend.gamma" ] && ! grep -q 'E2G-UNSUPPORTED' "$T/backend.gamma" \
   || { echo "delta bounded artifact meaning FAIL — backend elaboration unsupported"; exit 1; }
 gamma_bytes=$(wc -c < "$T/backend.gamma" | tr -d ' ')

@@ -1,0 +1,56 @@
+// RUN CANARY (exit 70) + interpreter differential. Adversarial wire bytes
+// 0xFF 0xFF decode into a `&[u8] in Utf8` field with verdict INVALID on
+// ALL THREE engines -- the decode-boundary domain validation that closed
+// the original both-engines-wrong soundness hole (the decoder never ran
+// the domain predicate on untrusted bytes; valid_utf8 existed only in the
+// compile-time proof machinery). The interp evaluates the shared
+// ByteSequencePredicate; aarch64 and x86_64 emit mask-selected validation
+// blocks over the decoded content (utf8 = a label-resolved compare/branch
+// walk on both, single-scratch lead-first dispatch on x86). PROMOTED from
+// tests/canaries/pending when the x86_64 sequences landed; the linux_x64 ELF pin
+// asserts the emitted block prefix. Edge classes pinned separately by
+// runtime_wire_utf8_edge_verdicts_exit.
+// exits: 71 = the invalid bytes were accepted as Sound.
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+use omega::language::std::console;
+data LabelMessage {
+    #0 count: u32;
+    #1 label: &[u8] in Utf8;
+}
+data LabelSample {
+    count: u32;
+    label: &[u8] in Utf8;
+}
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    read: u64;
+    verdict: WireVerdict;
+}
+machine Main::main(&mut self) {
+    self.buffer[0] = 0;
+    self.buffer[1] = 0;
+    self.buffer[2] = 7;
+    self.buffer[3] = 1;
+    self.buffer[4] = 2;
+    self.buffer[5] = 255;
+    self.buffer[6] = 255;
+
+    let decoded: LabelSample;
+    decoded.count = 0;
+    decoded.label = "";
+    LabelMessage::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
+
+    transition self.verdict == WireVerdict::Invalid {
+        true -> refused()
+        false -> accepted_invalid_utf8()
+    }
+    state refused(&mut self)              { self.console.exit_process(70); }
+    state accepted_invalid_utf8(&mut self){ self.console.exit_process(71); }
+}

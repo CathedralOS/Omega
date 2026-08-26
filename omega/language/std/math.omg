@@ -4,7 +4,7 @@
 // both engines then execute the IDENTICAL IEEE op sequence, so native and
 // interpreter agree bit-for-bit by construction (the property the task
 // named "a polynomial matching interp precision"). Exercised natively by
-// canaries/pass/calls/runtime_std_math_sin_cos_exit.
+// tests/canaries/pass/calls/runtime_std_math_sin_cos_exit.
 
 use omega::language::core::float_operations;
 //
@@ -84,7 +84,7 @@ machine is_finite(x: f64) -> bool {
     // spelling on both engines. The hoisted let keeps the guard subject a
     // slotted place (the guard encoder compares places, not computed
     // expressions), same as sin's ladder locals above. Exercised natively by
-    // canaries/pass/float/runtime_std_is_finite_exit (finite/inf/NaN legs).
+    // tests/canaries/pass/float/runtime_std_is_finite_exit (finite/inf/NaN legs).
     let d: f64 = x - x;
     transition d == 0.0 { true -> yes() _ -> no() }
     state yes() -> bool { true }

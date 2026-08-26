@@ -708,7 +708,7 @@ differential evidence, not bootstrap authority.
 The following are mandatory; a fixture and a successful run alone do not close
 the contract:
 
-1. The Delta source producer accepts the exact `compiler/psi/source/source.omg`
+1. The Delta source producer accepts the exact `source/compiler/omega/psi/source/source.omg`
    library shape and a self-contained renamed/reordered conformance program
    through the same compositional path. Native and `lowermachine`-built producers
    emit identical CKIR for each exact input, and repeated production is

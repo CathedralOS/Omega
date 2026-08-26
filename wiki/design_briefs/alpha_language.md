@@ -9,7 +9,7 @@ Canonical architecture and executable details live in:
 
 - [Bootstrap lattice](../architecture/bootstrap_lattice/bootstrap_lattice.md)
 - [Alpha rung](../architecture/bootstrap_lattice/rungs/alpha.md)
-- [`bootstrap/rungs/alpha/SEMANTICS.md`](../../bootstrap/rungs/alpha/SEMANTICS.md)
+- [`bootstrap/alpha/SEMANTICS.md`](../../bootstrap/alpha/SEMANTICS.md)
 
 ## Responsibility
 
@@ -24,7 +24,7 @@ Alpha supplies raw deterministic computation:
 
 It does not parse Omega, check proofs, define higher-language meaning, manage
 ownership, allocate objects, or optimize code. The Alpha assembler is the next
-tool above the VM and lives at `bootstrap/rungs/alpha/assembler/`; the former
+tool above the VM and lives at `bootstrap/alpha/assembler/`; the former
 `compiler/beta` compatibility entry has been retired.
 
 ## Auditability constraints

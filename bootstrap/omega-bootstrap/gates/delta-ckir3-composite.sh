@@ -38,7 +38,7 @@ IR_REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_ir_v3_reference.py"
 ELF_REFERENCE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/checked_elf_v3_reference.py"
 LOWERMACHINE="$OMEGA_PATH_DELTA/samples/lowermachine.alp"
 FIXTURES="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/ckir3-constant-aggregates"
-UNICODE="$OMEGA_REPO_ROOT/compiler/psi/generated/unicode_tables.omg"
+UNICODE="$OMEGA_REPO_ROOT/source/compiler/omega/psi/generated/unicode_tables.omg"
 GENERATED_CUSTODY="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/generated_source_custody.py"
 GENERATED_RECIPE="$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/fixtures/generated-source-custody/unicode-tables.recipe.json"
 for REQUIRED in "$RESOLVER" "$PRODUCER" "$BACKEND" "$FRAME" "$FIXTURE" \

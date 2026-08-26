@@ -25,7 +25,7 @@
   },
   "generator": {
     "role": "generated_source_provider",
-    "path": "bootstrap/onramps/omega-rust/psi/pipeline/psi-source-files-to-tokens/src/bin/generate_omega_unicode.rs",
+    "path": "source/compiler/rust/psi/pipeline/psi-source-files-to-tokens/src/bin/generate_omega_unicode.rs",
     "byte_length": 6112,
     "sha256": "6db15698819b33b436daef8419fb889ba7da427dcf605015ca8fb509909aac78"
   },
@@ -44,7 +44,7 @@
     },
     {
       "role": "generator_package_manifest",
-      "path": "bootstrap/onramps/omega-rust/psi/pipeline/psi-source-files-to-tokens/Cargo.toml",
+      "path": "source/compiler/rust/psi/pipeline/psi-source-files-to-tokens/Cargo.toml",
       "byte_length": 333,
       "sha256": "1d7eefdf864a036c9be999a0605ad6f30e57fc9d326e261c59a320d2c266fa94"
     }
@@ -60,7 +60,7 @@
     }
   ],
   "output": {
-    "path": "compiler/psi/generated/unicode_tables.omg",
+    "path": "source/compiler/omega/psi/generated/unicode_tables.omg",
     "byte_length": 78952,
     "sha256": "e279fd658ad5adaf72e7a79b9af1fd4c94c12d9e165d18ea3f90d5d502d7979d",
     "media_type": "text/x-omega"

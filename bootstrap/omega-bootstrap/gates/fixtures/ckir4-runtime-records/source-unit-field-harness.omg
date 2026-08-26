@@ -1,4 +1,4 @@
-// Same logical module as compiler/psi/source/source.omg.  The leading scalar
+// Same logical module as source/compiler/omega/psi/source/source.omg.  The leading scalar
 // makes the SourceUnit receiver address observably distinct from the root.
 data SourceHost {
     prefix: u8;

@@ -268,7 +268,7 @@ machine Duration::checked_add(&self, other: Duration) -> DurationResult {
 // `self.field`/`other.field` reads in POST-ENTRY states resolve against the
 // CALLER's frame (receiver substitution reaches only the entry) -- a silent
 // wrong-read. Parked repro:
-// canaries/pending/time/value_machine_receiver_field_postentry. Until the
+// tests/canaries/pending/time/value_machine_receiver_field_postentry. Until the
 // backend lowers (or fences) it, every machine here reads fields ONLY in its
 // entry and threads scalars/booleans; post-entry states consume params only.
 machine Duration::checked_subtract(&self, other: Duration) -> DurationResult {

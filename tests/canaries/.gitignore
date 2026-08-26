@@ -1,0 +1,5 @@
+# Canary compiler OUTPUT directories: tests/canaries/<kind>/<category>/<name>/build/.
+# Depth-anchored on purpose -- `**/build/` also swallowed the fail/build/
+# CATEGORY (the build.omg canaries), which twice caused committed FAIL_CANARIES
+# list entries whose canary files silently never made it into git.
+*/*/*/build/

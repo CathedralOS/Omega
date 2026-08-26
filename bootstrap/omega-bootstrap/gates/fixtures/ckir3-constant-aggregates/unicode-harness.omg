@@ -1,5 +1,5 @@
 // Compose this source as a distinct source unit in the same logical module as
-// the exact compiler/psi/generated/unicode_tables.omg source. The sole scalar
+// the exact source/compiler/omega/psi/generated/unicode_tables.omg source. The sole scalar
 // result machine is the executable adapter for the focused bootstrap gate.
 
 machine UnicodeTables::bootstrap_constant_aggregate_probe(&mut self) -> u8 {

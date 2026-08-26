@@ -16,7 +16,7 @@ command -v python3 >/dev/null 2>&1 \
 
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
-export OMEGA_COMPILATION_TOOL="$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega_bootstrap_compilation.py"
+export OMEGA_COMPILATION_TOOL="$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega_bootstrap_compilation.py"
 export OMEGA_COMPILATION_TMP="$T"
 
 python3 - <<'PY'

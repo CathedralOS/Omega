@@ -4,7 +4,7 @@
 [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 [`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](OMEGA_BOOTSTRAP_CHECKED_IR_V2.md) |
 [`OMGRSW2`](OMEGA_BOOTSTRAP_RESOLUTION_V2.md) |
-[`OMGCOMP refinement`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md)
+[`OMGCOMP refinement`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md)
 
 This contract fixes the bridge-private boundary between multi-unit Omega source
 resolution and checked-IR lowering:
@@ -25,7 +25,7 @@ units, imports, every non-builtin static binding, semantic-order declarations,
 normalized types and signatures, exact body spans, and the selected machine.
 It deliberately contains no body operations. The exact row schemas, ordering,
 relations, and version-1 ceilings are specified in
-[`OMGCOMP_REFINEMENT_WITNESS.md`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md#omgrsw1-header--72-bytes).
+[`OMGCOMP_REFINEMENT_WITNESS.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS.md#omgrsw1-header--72-bytes).
 
 The same exact bytes have two roles without acquiring authority from either:
 
