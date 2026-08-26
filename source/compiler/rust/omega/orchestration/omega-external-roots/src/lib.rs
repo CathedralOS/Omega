@@ -1180,6 +1180,16 @@ impl InstalledRootLedger {
         self.roots.values()
     }
 
+    /// Whether all runtime-live external-root custody has left this registry.
+    /// Sealed installation history deliberately does not participate: it
+    /// remains bound to this exact already-claimed ledger across teardown.
+    pub fn live_external_roots_are_empty(&self) -> bool {
+        self.roots.is_empty()
+            && self.root_evidence.is_empty()
+            && self.slots.is_empty()
+            && self.active_interrupts.is_empty()
+    }
+
     pub fn record(&self, root: ExternalRootId) -> Option<&InstalledRootRecord> {
         self.roots.get(&root)
     }
@@ -1616,6 +1626,164 @@ impl InstalledRootLedger {
             owner: root.owner,
         })
     }
+
+    /// Transactionally tear down the complete live installed-root set.
+    ///
+    /// Every owned row is preflighted before any ledger state changes. This
+    /// whole-registry operation intentionally permits members of a sealed
+    /// required-slot closure: the closure remains as installation history,
+    /// while all runtime root, evidence, slot, and interrupt state leaves.
+    pub fn teardown_installed_roots<'code>(
+        mut self,
+        rows: Vec<InstalledRootRemoval<'code>>,
+    ) -> Result<(InstalledRootLedger, Vec<RootSlotAuthority>), Box<InstalledRootTeardownError<'code>>>
+    {
+        if let Err(diagnostic) = self.preflight_installed_root_teardown(&rows) {
+            return Err(Box::new(InstalledRootTeardownError {
+                ledger: self,
+                rows,
+                diagnostic,
+            }));
+        }
+
+        let authorities = rows
+            .iter()
+            .map(|row| RootSlotAuthority {
+                slot: row.root.slot,
+                owner: row.root.owner,
+            })
+            .collect();
+        self.roots.clear();
+        self.root_evidence.clear();
+        self.slots.clear();
+        self.active_interrupts.clear();
+        debug_assert!(self.live_external_roots_are_empty());
+        drop(rows);
+        Ok((self, authorities))
+    }
+
+    fn preflight_installed_root_teardown(
+        &self,
+        rows: &[InstalledRootRemoval<'_>],
+    ) -> Result<(), ExternalRootDiagnostic> {
+        let recorded_slots = self
+            .roots
+            .values()
+            .map(|record| record.slot)
+            .collect::<BTreeSet<_>>();
+        if self.root_evidence.len() != self.roots.len()
+            || recorded_slots.len() != self.roots.len()
+            || self
+                .roots
+                .keys()
+                .any(|identity| !self.root_evidence.contains_key(identity))
+            || self.slots != recorded_slots
+        {
+            return Err(ExternalRootDiagnostic(
+                "installed-root teardown requires exact live root, evidence, and slot state".into(),
+            ));
+        }
+        let mut seen = BTreeSet::new();
+        for row in rows {
+            let root = &row.root;
+            let receipt = &row.receipt;
+            if !self.registry.matches(root.installed_code)
+                || self.installed_context != root.installed_code.receipt_context()
+            {
+                return Err(ExternalRootDiagnostic(
+                    "installed-root teardown row belongs to a different installed-code occurrence"
+                        .into(),
+                ));
+            }
+            if !seen.insert(root.root) {
+                return Err(ExternalRootDiagnostic(
+                    "installed-root teardown contains a duplicate root row".into(),
+                ));
+            }
+            let Some(record) = self.roots.get(&root.root) else {
+                return Err(ExternalRootDiagnostic(
+                    "installed-root teardown contains a root outside the live ledger".into(),
+                ));
+            };
+            let exact_row = root.root == record.root
+                && root.slot == record.slot
+                && root.owner == record.owner
+                && root.installed_code.identity() == record.installed_code
+                && self
+                    .root_evidence
+                    .get(&root.root)
+                    .is_some_and(|evidence| evidence == &root.evidence)
+                && self.slots.contains(&root.slot)
+                && receipt.root == root.root
+                && receipt.slot == root.slot
+                && receipt.installed_code == root.installed_code.identity()
+                && receipt.installed_root == root.evidence;
+            if !exact_row {
+                return Err(ExternalRootDiagnostic(
+                    "installed-root teardown row does not bind the exact root, evidence, slot, owner, code, and receipt"
+                        .into(),
+                ));
+            }
+            if !receipt.entry_unreachable {
+                return Err(ExternalRootDiagnostic(
+                    "installed-root teardown requires every entry to be unreachable".into(),
+                ));
+            }
+            if !receipt.executions_quiesced {
+                return Err(ExternalRootDiagnostic(
+                    "installed-root teardown requires every execution to be quiesced".into(),
+                ));
+            }
+            if self
+                .active_interrupts
+                .iter()
+                .any(|(active_root, _)| *active_root == root.root)
+            {
+                return Err(ExternalRootDiagnostic(
+                    "installed-root teardown rejects roots with an active interrupt invocation"
+                        .into(),
+                ));
+            }
+        }
+        if seen.len() != self.roots.len()
+            || self.roots.keys().any(|identity| !seen.contains(identity))
+        {
+            return Err(ExternalRootDiagnostic(
+                "installed-root teardown rows do not completely cover the live ledger".into(),
+            ));
+        }
+        if !self.active_interrupts.is_empty() {
+            return Err(ExternalRootDiagnostic(
+                "installed-root teardown rejects a ledger with active interrupt invocations".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// One owned root handle paired with the provider's exact removal evidence.
+#[derive(Debug)]
+pub struct InstalledRootRemoval<'code> {
+    root: InstalledExternalRoot<'code>,
+    receipt: RootRemovalReceipt,
+}
+
+impl<'code> InstalledRootRemoval<'code> {
+    pub fn new(root: InstalledExternalRoot<'code>, receipt: RootRemovalReceipt) -> Self {
+        Self { root, receipt }
+    }
+
+    pub const fn root(&self) -> ExternalRootId {
+        self.root.root
+    }
+
+    pub const fn receipt(&self) -> &RootRemovalReceipt {
+        &self.receipt
+    }
+
+    pub fn into_parts(self) -> (InstalledExternalRoot<'code>, RootRemovalReceipt) {
+        (self.root, self.receipt)
+    }
 }
 
 #[derive(Debug)]
@@ -1651,6 +1819,31 @@ impl RootRemovalReceipt {
         self.identity
     }
 }
+
+#[derive(Debug)]
+pub struct InstalledRootTeardownError<'code> {
+    ledger: InstalledRootLedger,
+    rows: Vec<InstalledRootRemoval<'code>>,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl<'code> InstalledRootTeardownError<'code> {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (InstalledRootLedger, Vec<InstalledRootRemoval<'code>>) {
+        (self.ledger, self.rows)
+    }
+}
+
+impl std::fmt::Display for InstalledRootTeardownError<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic.0.fmt(formatter)
+    }
+}
+
+impl std::error::Error for InstalledRootTeardownError<'_> {}
 
 #[derive(Debug)]
 pub struct RootInstallError {

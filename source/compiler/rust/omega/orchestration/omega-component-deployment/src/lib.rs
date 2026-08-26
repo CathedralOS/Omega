@@ -113,6 +113,35 @@ impl std::fmt::Display for BeginDeploymentError {
 
 impl std::error::Error for BeginDeploymentError {}
 
+fn preflight_terminal_component_deployment(
+    candidate: &TerminalComponentCandidate,
+    installed: &InstalledCode,
+) -> Result<(), String> {
+    if candidate.target().architecture != installed.architecture() {
+        return Err(
+            "terminal component target differs from the installed-code architecture".into(),
+        );
+    }
+    let Some(final_compiler_text) = candidate
+        .image()
+        .output()
+        .final_text_bytes
+        .get(..candidate.object().text_bytes().len())
+    else {
+        return Err("terminal component image truncates its compiler-authored object text".into());
+    };
+    if !installed.binds_exact_materialized_artifact_bytes(
+        candidate.object().text_bytes(),
+        final_compiler_text,
+    ) {
+        return Err(
+            "installed code does not contain the candidate's exact unrelocated and materialized text"
+                .into(),
+        );
+    }
+    Ok(())
+}
+
 /// Preflight exact target and byte custody before burning the one-shot
 /// registry claim, then transfer the compiler candidate into deployment.
 pub fn begin_terminal_component_deployment(
@@ -126,40 +155,89 @@ pub fn begin_terminal_component_deployment(
             diagnostic,
         }))
     };
-    if candidate.target().architecture != installed.architecture() {
-        return reject(
-            candidate,
-            installed,
-            "terminal component target differs from the installed-code architecture".into(),
-        );
-    }
-    let Some(final_compiler_text) = candidate
-        .image()
-        .output()
-        .final_text_bytes
-        .get(..candidate.object().text_bytes().len())
-    else {
-        return reject(
-            candidate,
-            installed,
-            "terminal component image truncates its compiler-authored object text".into(),
-        );
-    };
-    if !installed.binds_exact_materialized_artifact_bytes(
-        candidate.object().text_bytes(),
-        final_compiler_text,
-    ) {
-        return reject(
-            candidate,
-            installed,
-            "installed code does not contain the candidate's exact unrelocated and materialized text"
-                .into(),
-        );
+    if let Err(diagnostic) = preflight_terminal_component_deployment(&candidate, &installed) {
+        return reject(candidate, installed, diagnostic);
     }
     let roots = match InstalledRootLedger::claim(&mut installed) {
         Ok(roots) => roots,
         Err(diagnostic) => return reject(candidate, installed, diagnostic.0),
     };
+    Ok(TerminalComponentDeploymentSession {
+        candidate: candidate.into_parts(),
+        installed,
+        roots,
+    })
+}
+
+/// Rejected handoff of an already-claimed, completely torn-down root ledger.
+/// All three linear inputs remain available for an exact retry.
+#[derive(Debug)]
+pub struct BeginClaimedDeploymentError {
+    candidate: TerminalComponentCandidate,
+    installed: InstalledCode,
+    roots: InstalledRootLedger,
+    diagnostic: String,
+}
+
+impl BeginClaimedDeploymentError {
+    pub fn diagnostic(&self) -> &str {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        TerminalComponentCandidate,
+        InstalledCode,
+        InstalledRootLedger,
+    ) {
+        (self.candidate, self.installed, self.roots)
+    }
+}
+
+impl std::fmt::Display for BeginClaimedDeploymentError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic.fmt(formatter)
+    }
+}
+
+impl std::error::Error for BeginClaimedDeploymentError {}
+
+/// Join a candidate to the exact empty ledger that already owns this
+/// installed occurrence's one-shot registry claim. This path never attempts a
+/// second claim; rejection returns all custody unchanged.
+pub fn begin_terminal_component_deployment_with_claimed_registry(
+    candidate: TerminalComponentCandidate,
+    installed: InstalledCode,
+    roots: InstalledRootLedger,
+) -> Result<TerminalComponentDeploymentSession, Box<BeginClaimedDeploymentError>> {
+    let reject = |candidate, installed, roots, diagnostic| {
+        Err(Box::new(BeginClaimedDeploymentError {
+            candidate,
+            installed,
+            roots,
+            diagnostic,
+        }))
+    };
+    if let Err(diagnostic) = preflight_terminal_component_deployment(&candidate, &installed) {
+        return reject(candidate, installed, roots, diagnostic);
+    }
+    if !roots.binds_installed_code(&installed) {
+        return reject(
+            candidate,
+            installed,
+            roots,
+            "claimed installation registry names a different installed-code occurrence".into(),
+        );
+    }
+    if !roots.live_external_roots_are_empty() {
+        return reject(
+            candidate,
+            installed,
+            roots,
+            "claimed installation registry still contains live external-root custody".into(),
+        );
+    }
     Ok(TerminalComponentDeploymentSession {
         candidate: candidate.into_parts(),
         installed,

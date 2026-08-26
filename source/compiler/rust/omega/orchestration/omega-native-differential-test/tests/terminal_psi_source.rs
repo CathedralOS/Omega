@@ -13,6 +13,7 @@ use omega_compiler::{
 };
 use omega_component_deployment::{
     ComponentProgressAttestationBinding, begin_terminal_component_deployment,
+    begin_terminal_component_deployment_with_claimed_registry,
 };
 use omega_component_publication::{RunnableComponentEraLedger, bind_installed_runnable_component};
 use omega_effects::{
@@ -66,9 +67,9 @@ use omega_terminal_assigned_target_operations::{
 };
 use omega_terminal_image_emission::{
     TerminalObjectArtifact, bind_installed_terminal_artifact, build_terminal_installation_record,
-    build_terminal_installation_record_with_evidence, build_terminal_object_artifact,
-    decode_terminal_installation_record, derive_terminal_installation_stack_demand,
-    derive_terminal_stack_demand, emit_terminal_executable_image, emit_terminal_object_container,
+    build_terminal_object_artifact, decode_terminal_installation_record,
+    derive_terminal_installation_stack_demand, derive_terminal_stack_demand,
+    emit_terminal_executable_image, emit_terminal_object_container,
     encode_terminal_installation_record, validate_terminal_installation_record,
 };
 use omega_terminal_machine_emission::emit_machine_code;
@@ -608,6 +609,30 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
         candidate.object().text_bytes().to_vec(),
         entry_offset,
     );
+    let mut other_text = candidate.object().text_bytes().to_vec();
+    other_text[0] ^= 0x01;
+    let (mut other_installed, _) =
+        install_terminal_object(candidate.object(), other_text, entry_offset);
+    let other_roots = InstalledRootLedger::claim(&mut other_installed)
+        .expect("different installation claims its registry");
+    let claimed_error = begin_terminal_component_deployment_with_claimed_registry(
+        candidate,
+        installed,
+        other_roots,
+    )
+    .expect_err("claimed deployment rejects a different full installation context");
+    assert!(
+        claimed_error
+            .diagnostic()
+            .contains("different installed-code")
+    );
+    let (candidate, mut installed, other_roots) = claimed_error.into_parts();
+    assert!(other_roots.binds_installed_code(&other_installed));
+    assert!(!other_roots.binds_installed_code(&installed));
+    drop(other_roots);
+
+    let roots = InstalledRootLedger::claim(&mut installed)
+        .expect("exact installation claims its registry before deployment");
     let stray_binding = ProviderOccurrencePlanBinding::new(
         0x55ff,
         ProviderOccurrenceInstallationReceipt::from_provider(
@@ -619,8 +644,9 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
             "StrayProvider",
         ),
     );
-    let session = begin_terminal_component_deployment(candidate, installed)
-        .expect("exact progress-free deployment begins");
+    let session =
+        begin_terminal_component_deployment_with_claimed_registry(candidate, installed, roots)
+            .expect("exact progress-free deployment reuses the existing registry claim");
     let provider_error = session
         .seal_provider_occurrences(vec![stray_binding])
         .expect_err("extra provider occurrence must reject against an empty selected closure");
@@ -638,7 +664,7 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
         .finalize(ProfileDecisionId::new(0x55f2).expect("progress-free deployment profile"))
         .expect("progress-free production deployment finalizes");
     assert!(runnable.progress().is_none());
-    assert!(runnable.roots().records().next().is_none());
+    assert!(runnable.roots().live_external_roots_are_empty());
 }
 
 #[test]

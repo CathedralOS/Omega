@@ -7451,21 +7451,25 @@ compiler concept is introduced.
   builds and decodes installation metadata, and binds the complete
   object/image/code join. Selected but unexecuted plans remain in installation
   identity; executions must be a selected subset and must exactly cover image
-  settlements. Runnable binding retains the live registry and checks its exact
-  selected closure even for progress-free artifacts. The current owner rejects
-  ledgers containing installed external-root records: their handles borrow
-  `InstalledCode`, so owned teardown must land before that custody can join the
-  movable runnable carrier. Successful era retirement is the sole public
-  decomposition path for runnable code and registry custody.
+  settlements. Complete installed-root teardown now consumes the full owned
+  root/receipt set transactionally, preflights every row and the exact private
+  live root/evidence/slot/interrupt state before mutation, and returns both the
+  same emptied already-claimed ledger and its slot authorities in caller order.
+  Rejection returns the untouched ledger and every original row for exact
+  retry; successful teardown preserves sealed required-slot, provider,
+  progress, cohort, and one-shot interrupt history. Deployment can consume that
+  exact emptied ledger beside its matching `InstalledCode` and candidate
+  without attempting a second registry claim. Runnable binding retains the
+  live registry and checks its canonical exact-empty predicate and selected
+  closure even for progress-free artifacts. Successful era retirement is the
+  sole public decomposition path for runnable code and registry custody.
 
   Remaining TPR6-B engineering: retire the legacy compiler's temporary final-
   output rejection only after `write_output` delegates to this deployment
   lane. The current path still publishes a native executable directly and
   carries neither the manifest nor an installation acceptance, so removing
   the fence there would erase the obligation; selected plans and authorized
-  routes remain insufficient. Add owned installed-root teardown before
-  extending the deployment composer beyond provider-occurrence/progress-only
-  registries.
+  routes remain insufficient.
   Independently add authored
   qualification-preserving correspondence beyond direct parameter/field
   identity. `QualificationEvidence` retains evidence kind and source
