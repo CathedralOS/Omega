@@ -1,0 +1,15 @@
+# Precise cache profile for the bounded OMGCOMP2 -> OMGRSW6 resolution-only
+# provider candidate graph. Selection and downstream lowering are absent.
+script bootstrap/omega-bootstrap/gates/delta-provider-resolution-v6-reference.sh
+script bootstrap/omega-bootstrap/gates/delta-provider-resolution-v6-handoff.sh
+
+input bootstrap/delta/rust
+input bootstrap/delta/samples/lowermachine.alp
+input bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V6.md
+input bootstrap/omega-bootstrap/compiler/omega-bootstrap-resolve.alp
+input bootstrap/omega-bootstrap/compiler/omega_bootstrap_bundle.py
+input bootstrap/omega-bootstrap/compiler/omega_bootstrap_compilation.py
+input bootstrap/omega-bootstrap/compiler/omega_bootstrap_compilation_v2.py
+input bootstrap/omega-bootstrap/gates/delta-provider-resolution-v6-fixture.py
+input bootstrap/omega-bootstrap/gates/omgrsw6_provider_resolution_reference.py
+input bootstrap/omega-bootstrap/gates/fixtures/omgrsw6-console-provider

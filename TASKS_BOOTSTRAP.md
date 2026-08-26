@@ -43,7 +43,7 @@ The queue has only two source contracts:
 The exact feature procedure lives only in
 [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md);
 Delta evidence lives only in
-[`FEATURE_LEDGER.md`](bootstrap/rungs/delta/FEATURE_LEDGER.md). D0 and O0/O1 are
+[`FEATURE_LEDGER.md`](bootstrap/delta/FEATURE_LEDGER.md). D0 and O0/O1 are
 bounded implementation canaries, not languages, inventories, or steps toward a
 hidden Omega0/Omega1 chain.
 
@@ -53,8 +53,8 @@ Queue invariants:
   proof-kernel implementation. Proof checking remains cross-cutting assurance.
 - Direct lower-rooted source-to-artifact refinement closes provenance. Do not
   create a DDC lane or make Rust agreement a bootstrap/release requirement.
-- `compiler/{psi,omega}/` are permanent Omega-written product owners;
-  external-language implementations live under suffixed `bootstrap/onramps/`.
+- `source/compiler/omega/{psi,omega}/` are permanent Omega-written product owners;
+  the current external-language implementation lives at `source/compiler/rust/`.
 - Only source transitively imported by the compiler belongs to the hosted
   closure. Standalone interpreters, REPLs, proof explorers, viewers, debuggers,
   and similar tools do not.
@@ -298,7 +298,7 @@ accepts, not which full-Omega features the resulting compiler implements.
   D0, corpus, and Rust-producer behavior.
 - [ ] Publish versioned normative grammar, static and dynamic semantics,
   representation/ABI, source-bundle, resource, and sealed-host-interface
-  contracts under `bootstrap/rungs/delta/`.
+  contracts under `bootstrap/delta/`.
 - [ ] Reject every excluded source, type, module, boundary, and resource form
   explicitly.
 - [ ] Publish a classified conformance corpus and feature manifest with positive

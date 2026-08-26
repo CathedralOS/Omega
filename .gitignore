@@ -7,7 +7,7 @@
 /compiler/.lattice-cache/
 /samples/*/build/
 /samples/*/build_win/
-/canaries/*/*/build/
+/tests/canaries/*/*/build/
 
 # Claude Code local worktrees and settings
 .claude/

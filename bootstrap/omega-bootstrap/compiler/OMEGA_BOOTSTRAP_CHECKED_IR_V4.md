@@ -365,7 +365,7 @@ distinct-module, imported, and cross-package receivers remain excluded.
 It also leaves unchanged the inherited exclusions of general boundary calls,
 generics, domains, proofs, atomics, threads, exceptions, target generality,
 optimization, debug information, and full-width authored `u32` beyond the
-signed-D0 carrier. The exact `compiler/psi/source/source.omg` evidence uses a
+signed-D0 carrier. The exact `source/compiler/omega/psi/source/source.omg` evidence uses a
 same-logical-module, same-owner harness and does not rule on those surfaces.
 
 Frame object offsets, padding, anchors, pointer slots, and instruction bytes are
@@ -381,7 +381,7 @@ All inherited CKIR3 producer, backend, self-build, Rust-free meaning, mutation,
 resource, and lower-rooted obligations remain mandatory. CKIR4 additionally
 requires:
 
-1. The exact `compiler/psi/source/source.omg` bytes plus a same-logical-module
+1. The exact `source/compiler/omega/psi/source/source.omg` bytes plus a same-logical-module
    harness compile through OMGLOW4. A harness machine attached to `SourceUnit`
    passes `SourceId { value: runtime_scalar }` through the existing same-owner
    structural `Call` transport to `SourceUnit::clear`, then observes the copied
@@ -425,7 +425,7 @@ requires:
    transport, destination copy, selected result, and exhaustion. A Rust product
    compiler remains differential evidence only.
 7. Lower-rooted refinement uses the distinct
-   [`OMGRFN5`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md)
+   [`OMGRFN5`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V5.md)
    carrier embedding each selected exact unchanged OMGCOMP, exact unchanged
    OMGRSW1, CKIR4, ELF, and claimed
    result. Independent responsibilities establish: frame/component custody;

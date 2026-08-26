@@ -115,9 +115,9 @@ def run_gate() -> None:
 
     resolver_source = COMPILER / "omega-bootstrap-resolve.alp"
     lowerer_source = COMPILER / "omega-bootstrap-resolved-to-ckir4.alp"
-    lowermachine_source = REPO / "bootstrap/rungs/delta/samples/lowermachine.alp"
-    delta_manifest = REPO / "bootstrap/onramps/delta-rust/Cargo.toml"
-    delta = REPO / "bootstrap/onramps/delta-rust/target/debug/delta"
+    lowermachine_source = REPO / "bootstrap/delta/samples/lowermachine.alp"
+    delta_manifest = REPO / "bootstrap/delta/rust/Cargo.toml"
+    delta = REPO / "bootstrap/delta/rust/target/debug/delta"
     for path in (resolver_source, lowerer_source, lowermachine_source,
                  ONE_BYTE_SOURCE, EMPTY_SOURCE):
         require(path.is_file(), f"missing {path}")

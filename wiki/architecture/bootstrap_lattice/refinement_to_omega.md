@@ -1,6 +1,6 @@
 # Refinement → omega-bootstrap → production Omega
 
-[Lattice overview](bootstrap_lattice.md) · [Decisions](decisions.md) · [Refinement pillar](../../../bootstrap/assurance/refinement/beta/REFINEMENT.md)
+[Lattice overview](bootstrap_lattice.md) · [Decisions](decisions.md) · [Refinement pillar](../../../source/assurance/refinement/beta/REFINEMENT.md)
 
 The instruction-level refinement pillar is structurally complete: for a substantial Beta fragment, the
 compiled alpha machine code is **kernel-proven** to compute its source meaning, for all inputs, without
@@ -11,8 +11,8 @@ Delta-built `omega-bootstrap` compiler and then across the hosted production
 compile.**
 
 The current Rust reference producer under
-`bootstrap/onramps/omega-rust/{psi,omega}/` already sketches the destination in
-`bootstrap/onramps/omega-rust/psi/semantics/psi-proof/src/`: `obligations.rs` (proof obligations
+`source/compiler/rust/{psi,omega}/` already sketches the destination in
+`source/compiler/rust/psi/semantics/psi-proof/src/`: `obligations.rs` (proof obligations
 attached to compilation), `boundary.rs` (boundary obligations at capability
 seams), `lemmas.rs`, and `checker.rs`. The lattice's job is to reach that shape
 with *its own trust story* — obligations discharged by certificates the
@@ -40,7 +40,7 @@ independent low-rung proof kernel checks, not by trusting the Rust producer.
 2. **Compound values.** Peano nats + pairs + streams got us here; Omega's structs/cases/strings need a
    principled value encoding in the meaning language (likely constructor families again — but the *evaluator*
    work is substantial).
-3. **Obligation generation.** `bootstrap/onramps/omega-rust/psi/semantics/psi-proof/` defines and
+3. **Obligation generation.** `source/compiler/rust/psi/semantics/psi-proof/` defines and
    checks compilation obligations. The lattice's analogue is
    the elaboration route (D2): `omega2gamma` should eventually *emit certificates alongside code* the way
    delta's convergence certifiers do — the proof-carrying-Omega target. Today's TV gate re-evaluates

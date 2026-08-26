@@ -26,49 +26,49 @@ reject_role() {
   fi
 }
 
-[ "$OMEGA_PATH_ALPHA" = "$OMEGA_REPO_ROOT/bootstrap/rungs/alpha" ] ||
+[ "$OMEGA_PATH_ALPHA" = "$OMEGA_REPO_ROOT/bootstrap/alpha" ] ||
   fail "Alpha owner is $OMEGA_PATH_ALPHA"
 [ "$OMEGA_PATH_ALPHA_ASSEMBLER" = "$OMEGA_PATH_ALPHA/assembler" ] ||
   fail "Alpha assembler owner is $OMEGA_PATH_ALPHA_ASSEMBLER"
-[ "$OMEGA_PATH_ALPHA_ASSEMBLER_RUST" = "$OMEGA_REPO_ROOT/bootstrap/onramps/alpha-assembler-rust" ] ||
+[ "$OMEGA_PATH_ALPHA_ASSEMBLER_RUST" = "$OMEGA_REPO_ROOT/bootstrap/alpha/assembler-rust" ] ||
   fail "Alpha assembler Rust on-ramp is $OMEGA_PATH_ALPHA_ASSEMBLER_RUST"
-[ "$OMEGA_PATH_BETA" = "$OMEGA_REPO_ROOT/bootstrap/rungs/beta" ] ||
+[ "$OMEGA_PATH_BETA" = "$OMEGA_REPO_ROOT/bootstrap/beta" ] ||
   fail "Beta owner is $OMEGA_PATH_BETA"
-[ "$OMEGA_PATH_BETA_RUST" = "$OMEGA_REPO_ROOT/bootstrap/onramps/beta-rust" ] ||
+[ "$OMEGA_PATH_BETA_RUST" = "$OMEGA_REPO_ROOT/bootstrap/beta/rust" ] ||
   fail "Beta Rust on-ramp is $OMEGA_PATH_BETA_RUST"
 [ "$OMEGA_PATH_BETA_REFERENCE" = "$OMEGA_PATH_BETA/reference" ] ||
   fail "Beta reference owner is $OMEGA_PATH_BETA_REFERENCE"
-[ "$OMEGA_PATH_BETA_REFINEMENT" = "$OMEGA_REPO_ROOT/bootstrap/assurance/refinement/beta" ] ||
+[ "$OMEGA_PATH_BETA_REFINEMENT" = "$OMEGA_REPO_ROOT/source/assurance/refinement/beta" ] ||
   fail "Beta refinement owner is $OMEGA_PATH_BETA_REFINEMENT"
-[ "$OMEGA_PATH_GAMMA" = "$OMEGA_REPO_ROOT/bootstrap/rungs/gamma" ] ||
+[ "$OMEGA_PATH_GAMMA" = "$OMEGA_REPO_ROOT/bootstrap/gamma" ] ||
   fail "Gamma owner is $OMEGA_PATH_GAMMA"
-[ "$OMEGA_PATH_DELTA" = "$OMEGA_REPO_ROOT/bootstrap/rungs/delta" ] ||
+[ "$OMEGA_PATH_DELTA" = "$OMEGA_REPO_ROOT/bootstrap/delta" ] ||
   fail "Delta owner is $OMEGA_PATH_DELTA"
-[ "$OMEGA_PATH_DELTA_RUST" = "$OMEGA_REPO_ROOT/bootstrap/onramps/delta-rust" ] ||
+[ "$OMEGA_PATH_DELTA_RUST" = "$OMEGA_REPO_ROOT/bootstrap/delta/rust" ] ||
   fail "Delta Rust on-ramp is $OMEGA_PATH_DELTA_RUST"
-[ "$OMEGA_PATH_PROOF_KERNEL" = "$OMEGA_REPO_ROOT/bootstrap/assurance/proof-kernel" ] ||
+[ "$OMEGA_PATH_PROOF_KERNEL" = "$OMEGA_REPO_ROOT/source/assurance/proof-kernel" ] ||
   fail "proof-kernel owner is $OMEGA_PATH_PROOF_KERNEL"
 [ "$OMEGA_PATH_PROOF_KERNEL_GATES" = "$OMEGA_PATH_PROOF_KERNEL/gates" ] ||
   fail "proof-kernel gate owner is $OMEGA_PATH_PROOF_KERNEL_GATES"
-[ "$OMEGA_PATH_REFINEMENT_ROOT" = "$OMEGA_REPO_ROOT/bootstrap/assurance/refinement" ] ||
+[ "$OMEGA_PATH_REFINEMENT_ROOT" = "$OMEGA_REPO_ROOT/source/assurance/refinement" ] ||
   fail "refinement root is $OMEGA_PATH_REFINEMENT_ROOT"
 [ "$OMEGA_PATH_OMEGA_BOOTSTRAP" = "$OMEGA_REPO_ROOT/bootstrap/omega-bootstrap" ] ||
   fail "omega-bootstrap owner is $OMEGA_PATH_OMEGA_BOOTSTRAP"
 [ "$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT" = "$OMEGA_PATH_REFINEMENT_ROOT/omega-bootstrap" ] ||
   fail "omega-bootstrap refinement owner is $OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT"
-[ "$OMEGA_PATH_CORPUS" = "$OMEGA_REPO_ROOT/bootstrap/corpus" ] ||
+[ "$OMEGA_PATH_CORPUS" = "$OMEGA_REPO_ROOT/bootstrap/gates/corpus" ] ||
   fail "shared corpus owner is $OMEGA_PATH_CORPUS"
-[ "$OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT" = "$OMEGA_REPO_ROOT/bootstrap/onramps/omega-rust" ] ||
+[ "$OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT" = "$OMEGA_REPO_ROOT/source/compiler/rust" ] ||
   fail "Omega Rust on-ramp root is $OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT"
 [ "$OMEGA_PATH_PSI_RUST" = "$OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT/psi" ] ||
   fail "Psi Rust on-ramp is $OMEGA_PATH_PSI_RUST"
 [ "$OMEGA_PATH_OMEGA_RUST" = "$OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT/omega" ] ||
   fail "Omega Rust on-ramp is $OMEGA_PATH_OMEGA_RUST"
-[ "$OMEGA_PATH_PSI_PRODUCT" = "$OMEGA_REPO_ROOT/compiler/psi" ] ||
+[ "$OMEGA_PATH_PSI_PRODUCT" = "$OMEGA_REPO_ROOT/source/compiler/omega/psi" ] ||
   fail "Psi product owner is $OMEGA_PATH_PSI_PRODUCT"
-[ "$OMEGA_PATH_OMEGA_PRODUCT" = "$OMEGA_REPO_ROOT/compiler/omega" ] ||
+[ "$OMEGA_PATH_OMEGA_PRODUCT" = "$OMEGA_REPO_ROOT/source/compiler/omega/omega" ] ||
   fail "Omega product owner is $OMEGA_PATH_OMEGA_PRODUCT"
-[ "$OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS" = "$OMEGA_REPO_ROOT/compiler/source-checkpoints" ] ||
+[ "$OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS" = "$OMEGA_REPO_ROOT/source/compiler/omega/source-checkpoints" ] ||
   fail "product source-checkpoint owner is $OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS"
 
 for owner in \
@@ -85,7 +85,7 @@ for owner in \
   [ -d "$owner" ] && [ ! -L "$owner" ] || fail "canonical owner is not a physical directory: $owner"
 done
 
-# compiler/ owns product compiler source and its checkpoint evidence only. Test
+# source/compiler/omega owns product compiler source, entrypoint, and checkpoint evidence. Test
 # both predicates because -e is false for a broken symlink.
 for entry in alpha beta beta-rs beta-lang beta-lang-rs beta-lang-py gamma \
   delta delta-rs proof-kernel lattice-corpus verify-lattice.sh; do
@@ -96,7 +96,8 @@ done
 [ -z "$(find "$OMEGA_PATH_COMPILER_ROOT" -mindepth 1 -maxdepth 1 -type l -print)" ] ||
   fail "compiler contains a top-level symlink"
 unexpected=$(find "$OMEGA_PATH_COMPILER_ROOT" -mindepth 1 -maxdepth 1 \
-  ! -name README.md ! -name psi ! -name omega ! -name source-checkpoints \
+  ! -name README.md ! -name ENTRYPOINT.md ! -name build.omg ! -name main.omg \
+  ! -name psi ! -name omega ! -name source-checkpoints \
   ! -name .lattice-cache ! -name .DS_Store -print)
 [ -z "$unexpected" ] || fail "compiler contains non-product top-level entries: $unexpected"
 

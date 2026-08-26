@@ -136,7 +136,7 @@ The focused evidence is:
   isolated mutations;
 - `../gates/delta-checked-ir-v7-backend.sh`: Delta-native/self artifact
   identity, pinned instruction templates, and artifact mutations; and
-- `../../assurance/refinement/omega-bootstrap/omgrfn9-same-frame-composite.sh`:
+- `../../../source/assurance/refinement/omega-bootstrap/omgrfn9-same-frame-composite.sh`:
   persisted-Beta R1–R5 reconstruction over one immutable carrier with compact
   least-OMGRSW1/2 controls and exact result/ELF identity.
 

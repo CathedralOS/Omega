@@ -1,4 +1,4 @@
-// Same logical module and owner as exact compiler/psi/source/source.omg.
+// Same logical module and owner as exact source/compiler/omega/psi/source/source.omg.
 machine SourceUnit::bootstrap_runtime_record_probe(&mut self) -> u32 {
     transition { _ -> run(70) }
 

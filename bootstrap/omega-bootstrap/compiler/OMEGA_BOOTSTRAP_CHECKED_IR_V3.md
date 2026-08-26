@@ -477,7 +477,7 @@ All CKIR2 producer, self-build, Rust-free meaning, mutation, and lower-rooted
 obligations remain mandatory. CKIR3 additionally requires:
 
 1. The exact standalone
-   `compiler/psi/generated/unicode_tables.omg` bytes plus a same-logical-module
+   `source/compiler/omega/psi/generated/unicode_tables.omg` bytes plus a same-logical-module
    result harness compile through OMGLOW3 and produce a deterministic ELF that
    exits 70 with empty stdout/stderr. The harness exercises initialization,
    first/last elements, present/absent start and continue lookups, looped state
@@ -526,7 +526,7 @@ obligations remain mandatory. CKIR3 additionally requires:
    product compiler may remain differential evidence only.
 8. Lower-rooted CKIR3 refinement uses the distinct `OMGRFN4` version-4 carrier
    and exact 4,497,544-byte simultaneous ceiling defined by
-   [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md).
+   [`OMGCOMP_REFINEMENT_WITNESS_V4.md`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V4.md).
    The five logical responsibilities and the constant-table/source-root/
    artifact-root ownership boundary are normative there. Earlier OMGRFN
    carriers and checkers remain frozen and reject CKIR3.

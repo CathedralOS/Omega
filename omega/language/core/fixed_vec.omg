@@ -20,7 +20,7 @@
 // `T`" because the receiver's `[T; N]` field has no concrete extent. The
 // machine-shaped implementation pattern (real bodies, real proofs, real
 // runtime) is therefore pinned CONCRETELY in
-// canaries/pass/collections/runtime_fixed_vec_round_trip_exit (i32, N = 4):
+// tests/canaries/pass/collections/runtime_fixed_vec_round_trip_exit (i32, N = 4):
 // a hand instantiation of exactly the contracts declared here. When generic
 // machine instantiation lands, those machine bodies move into this file
 // verbatim (modulo `i32` -> `T`, `4` -> `N`).

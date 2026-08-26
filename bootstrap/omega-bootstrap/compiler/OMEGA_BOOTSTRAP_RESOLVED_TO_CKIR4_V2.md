@@ -2,7 +2,7 @@
 
 [`OMGRSW2`](OMEGA_BOOTSTRAP_RESOLUTION_V2.md) |
 [`CKIR4`](OMEGA_BOOTSTRAP_CHECKED_IR_V4.md) |
-[`OMGRFN6`](../../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V6.md)
+[`OMGRFN6`](../../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V6.md)
 
 This contract versions the accepted source/resolution relation without
 inventing CKIR5. The lowerer consumes `OMGLOW5` and emits the unchanged CKIR

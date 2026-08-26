@@ -128,7 +128,7 @@ The focused evidence is:
   mutations; and
 - `../gates/delta-checked-ir-v6-backend.sh`: Delta-native/self backend identity,
   the pinned logical-not instruction template, and artifact mutations.
-- `../../assurance/refinement/omega-bootstrap/omgrfn8-same-frame-composite.sh`:
+- `../../../source/assurance/refinement/omega-bootstrap/omgrfn8-same-frame-composite.sh`:
   persisted-Beta R1–R5 reconstruction over one immutable payload-sum carrier,
   compact least-OMGRSW1/2 controls, result 70, ownership mutations, version
   cross-pairs, and exact ELF identity.

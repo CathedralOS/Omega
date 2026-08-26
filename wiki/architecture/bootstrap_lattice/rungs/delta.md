@@ -2,9 +2,9 @@
 
 [Lattice overview](../bootstrap_lattice.md) | Prev: [Gamma](gamma.md) | Next: —
 
-> **Status: WORKING RUNG.** `bootstrap/rungs/delta/` owns the language corpus,
+> **Status: WORKING RUNG.** `bootstrap/delta/` owns the language corpus,
 > Delta-written compiler, and lattice-built artifacts. The disposable Rust
-> producer lives separately under `bootstrap/onramps/delta-rust/`. Native,
+> producer lives separately under `bootstrap/delta/rust/`. Native,
 > self-hosting, and Delta-to-Gamma meaning gates exist today; exact lower-rung
 > coverage of the eventual `omega-bootstrap` compiler remains open.
 
@@ -64,10 +64,10 @@ substitute for this required publication and refinement join.
 
 ## Implementation
 
-- `bootstrap/rungs/delta/samples/` is the canonical executable language corpus.
-- `bootstrap/rungs/delta/samples/lowermachine.alp` is the self-hosting compiler
+- `bootstrap/delta/samples/` is the canonical executable language corpus.
+- `bootstrap/delta/samples/lowermachine.alp` is the self-hosting compiler
   written in Delta.
-- `bootstrap/onramps/delta-rust/` is the current disposable Rust producer and
+- `bootstrap/delta/rust/` is the current disposable Rust producer and
   executable reference. The former `compiler/delta-rs` entry is retired.
 - `DELTA_EMIT=gamma` exposes the Rust reference elaborator. The
   `delta-meaning-diamond.sh` gate compares it with native execution; it is useful
@@ -76,12 +76,12 @@ substitute for this required publication and refinement join.
   the shared Delta/Omega machine surface. Gamma's `interp.beta` executes its
   result. Exact coverage of the Delta source eventually used by
   both the Delta compiler and `omega-bootstrap` remains the closure criterion.
-- `bootstrap/rungs/delta/build/` contains the checked-in bootstrap binaries
+- `bootstrap/delta/build/` contains the checked-in bootstrap binaries
   produced by this work.
-- `bootstrap/rungs/delta/samples/bootstrap-storage.alp` is the first fixed-backing
+- `bootstrap/delta/samples/bootstrap-storage.alp` is the first fixed-backing
   storage profile canary. It uses checked integer-offset reservations and bulk
   reset without adding pointers or a general heap to Delta.
-- `bootstrap/onramps/delta-rust/delta-storage-meaning.sh` evaluates that canary and a
+- `bootstrap/delta/rust/delta-storage-meaning.sh` evaluates that canary and a
   perturbation through `omega2gamma.beta` and Gamma's `interp.beta`, without the
   Rust Gamma emitter defining the result.
 - `bootstrap/omega-bootstrap/compiler/omega-bootstrap-frontend.alp` is the

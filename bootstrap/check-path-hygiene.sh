@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
-# Reject executable bootstrap gates that reach across the historical flat
-# compiler tree with sibling-relative paths.  Local paths remain legitimate;
+# Reject executable bootstrap gates that reach across ownership roots with
+# sibling-relative paths. Local paths remain legitimate;
 # cross-owner paths must come from bootstrap/paths.sh.
 set -eu
 
@@ -17,9 +17,9 @@ pattern='\.\./(alpha|beta|beta-rs|beta-lang|beta-lang-rs|beta-lang-py|gamma|delt
 if command -v rg >/dev/null 2>&1; then
   violations=$(rg -n --glob '*.sh' --glob '*.py' \
     --glob '!**/target/**' --glob '!**/build/**' "$pattern" \
-    "$OMEGA_PATH_COMPILER_ROOT" "$OMEGA_REPO_ROOT/bootstrap" || true)
+    "$OMEGA_REPO_ROOT/source" "$OMEGA_REPO_ROOT/bootstrap" || true)
 else
-  violations=$(find "$OMEGA_PATH_COMPILER_ROOT" "$OMEGA_REPO_ROOT/bootstrap" \
+  violations=$(find "$OMEGA_REPO_ROOT/source" "$OMEGA_REPO_ROOT/bootstrap" \
     \( -path '*/target' -o -path '*/build' \) -prune -o \
     -type f \( -name '*.sh' -o -name '*.py' \) \
     -exec grep -En "$pattern" {} + || true)

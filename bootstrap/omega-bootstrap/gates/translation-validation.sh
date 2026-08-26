@@ -1,1 +1,1 @@
-../../assurance/refinement/omega-bootstrap/translation-validation.sh
+../../../source/assurance/refinement/omega-bootstrap/translation-validation.sh

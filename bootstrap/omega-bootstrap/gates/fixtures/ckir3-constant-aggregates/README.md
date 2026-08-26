@@ -9,7 +9,7 @@ versioned lowering/checked-IR contracts.
 
 | Source | Composition | Expected observation |
 | --- | --- | --- |
-| `unicode-harness.omg` | Compile as a separate source unit in the **same logical module** as the exact `compiler/psi/generated/unicode_tables.omg`. | status 0 from compilation and executable result 70 |
+| `unicode-harness.omg` | Compile as a separate source unit in the **same logical module** as the exact `source/compiler/omega/psi/generated/unicode_tables.omg`. | status 0 from compilation and executable result 70 |
 | `renamed-reordered-nested.omg` | Standalone source unit. | status 0 from compilation and executable result 70 |
 | `guardless-transition.omg` | Standalone focused control. | status 0, one canonical CKIR `Jump`, and executable result 70 |
 | `cyclic-range-custody.omg` | Standalone renamed and declaration-reordered control. | status 0 from compilation and executable result 70 |

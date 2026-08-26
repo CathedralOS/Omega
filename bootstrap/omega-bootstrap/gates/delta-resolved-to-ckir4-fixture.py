@@ -182,11 +182,11 @@ def gate() -> None:
     resolver_source = HERE.parent / "compiler" / "omega-bootstrap-resolve.alp"
     frame_tool = HERE / "delta-resolved-to-ckir4-frame.py"
     reference = HERE / "checked_ir_v4_reference.py"
-    lowermachine_source = repo / "bootstrap/rungs/delta/samples/lowermachine.alp"
-    delta_manifest = repo / "bootstrap/onramps/delta-rust/Cargo.toml"
-    delta = repo / "bootstrap/onramps/delta-rust/target/debug/delta"
+    lowermachine_source = repo / "bootstrap/delta/samples/lowermachine.alp"
+    delta_manifest = repo / "bootstrap/delta/rust/Cargo.toml"
+    delta = repo / "bootstrap/delta/rust/target/debug/delta"
     fixtures = HERE / "fixtures/ckir4-runtime-records"
-    exact_source = repo / "compiler/psi/source/source.omg"
+    exact_source = repo / "source/compiler/omega/psi/source/source.omg"
     fields, locals_used, procedures = producer_metadata(producer)
     if fields >= 256 or locals_used > 32 or procedures > 128:
         raise ValueError(f"lowermachine ceiling fields={fields} locals={locals_used} procedures={procedures}")

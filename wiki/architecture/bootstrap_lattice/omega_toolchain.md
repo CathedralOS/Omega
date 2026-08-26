@@ -97,25 +97,24 @@ The distinction is architectural:
 
 ## Current repository roles
 
-- `bootstrap/onramps/omega-rust/{psi,omega}/` is the current working Rust
+- `source/compiler/rust/{psi,omega}/` is the current working Rust
   compiler and executable reference producer;
-  `bootstrap/onramps/omega-rust/apps/omega-cli/` is its user-facing executable.
-- `compiler/{psi,omega}/` owns the Omega-written product source. Checkpoint
+  `source/compiler/rust/apps/omega-cli/` is its user-facing executable.
+- `source/compiler/omega/{psi,omega}/` owns the Omega-written product source. Checkpoint
   000001 implements the complete Psi source-to-token spelling phase under
-  `compiler/psi/`; later Psi phases and `compiler/omega/` remain open. Hosted
-  product entrypoints live under `apps/omega-compiler/`, and exact closure and
-  profile snapshots live under `compiler/source-checkpoints/`.
+  `source/compiler/omega/psi/`; later Psi phases and `source/compiler/omega/omega/` remain open. Hosted
+  product entrypoints live under `source/compiler/omega/`, and exact closure and
+  profile snapshots live under `source/compiler/omega/source-checkpoints/`.
 - `bootstrap/omega-bootstrap/` is the owner for Rust-free meaning,
   Delta-written bridge-compiler slices/profiles, and bootstrap validation.
-- `bootstrap/rungs/delta/` owns the bootstrap language corpus and Delta-written
-  compiler; `bootstrap/onramps/delta-rust/` is its disposable Rust producer.
+- `bootstrap/delta/` owns the bootstrap language corpus and Delta-written
+  compiler; `bootstrap/delta/rust/` is its disposable Rust producer.
   Together their current gates are growing toward `omega-bootstrap` without
   assigning language ownership to Rust.
 
-All Rust bootstrap/reference producers now live under explicitly suffixed
-`bootstrap/onramps/` directories. In particular, the current Psi/Omega crates
-do not claim the permanent unsuffixed product roots. See the [repository
-structure](repository_structure.md).
+Role-local Rust bootstrap producers live beneath their rung; the current Rust
+Psi/Omega compiler lives at `source/compiler/rust/`. Neither location grants
+semantic authority. See the [repository structure](repository_structure.md).
 
 Hosting does not by itself prove compiler correctness. A defect in
 `omega-bootstrap` can reproduce while it builds production Omega. The value of

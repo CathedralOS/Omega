@@ -25,7 +25,7 @@ done
 REFERENCE=$GATE_DIR/omgrsw6_provider_resolution_reference.py
 FIXTURE=$GATE_DIR/delta-provider-resolution-v6-fixture.py
 RESOLVER=$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-resolve.alp
-LOWERMACHINE=$OMEGA_REPO_ROOT/bootstrap/rungs/delta/samples/lowermachine.alp
+LOWERMACHINE=$OMEGA_REPO_ROOT/bootstrap/delta/samples/lowermachine.alp
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 

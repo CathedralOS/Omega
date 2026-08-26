@@ -3,7 +3,7 @@
 // about PROOF-ONLY recursive data -- Peano `Nat` and generic `Seq<T>` from
 // omega::language::core -- through the structural entailment judge. Every
 // theorem here is TRUE (the file compiles under `omega --check`); the FALSE
-// twins live in canaries/fail/proofs/. Proof machines emit no runtime code.
+// twins live in tests/canaries/fail/proofs/. Proof machines emit no runtime code.
 //
 //   omega --check samples/cli/proofs/structural_proofs/main.omg
 //

@@ -1,0 +1,57 @@
+// RUN CANARY (exit 70) -- a SELF value-call that forwards a PATH LITERAL to a
+// raw host call. This is the observable twin of
+// tests/canaries/pending/host/self_value_call_literal_arg: there the forwarded
+// literal reached no data object and the host call had "no encodable call
+// sequence"; here we PROVE the bytes reach the syscall by creating a file with
+// the literal directly, then reopening it THROUGH the self value call.
+//
+// If the self-call forwards the literal correctly, `open` finds the file
+// (fd >= 0) and `probe` returns 0 -> exit 70. A dropped/garbled literal would
+// fail the open -> return 1 -> exit 71. The interpreter's virtual fs is the
+// differential oracle (same create + same reopen path).
+//
+// exit 70 = self-call literal reached open and the file opened;
+//      71 = create failed (setup); 72 = self-call open failed (the bug);
+//      73 = cleanup remove failed.
+
+use omega::language::std::filesystem_host;
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    raw: FilesystemHost;
+    fd: i32;
+    rc: i32;
+}
+
+// SELF value call: `path` is a param aliased to the caller's literal, forwarded
+// into the raw host call `self.raw.open`. Returns the fd (>= 0 on success). The
+// open is in the ENTRY body (not an arm), so no effectful-arm fence applies.
+machine Main::probe(&mut self, path: &[u8] in Path) -> i32 {
+    let opened: i32 = self.raw.open(path, 32768);
+    transition true { _ -> opened }
+}
+
+machine Main::main(&mut self) {
+    self.fd = self.raw.create("omega_selfcall_probe.txt", 438);
+    self.rc = self.raw.close(self.fd);
+    transition self.fd >= 0 { true -> reopen() _ -> bad(71) }
+
+    state reopen(&mut self) {
+        // The shape under test: a literal argument forwarded through a SELF
+        // value call into a raw host call. The returned fd is captured to a
+        // field so the close/remove happen as ordinary statements.
+        self.fd = self.probe("omega_selfcall_probe.txt");
+        transition self.fd >= 0 { true -> opened_ok() _ -> bad(72) }
+    }
+
+    state opened_ok(&mut self) {
+        self.rc = self.raw.close(self.fd);
+        self.rc = self.raw.remove("omega_selfcall_probe.txt");
+        transition self.rc == 0 { true -> good() _ -> bad(73) }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

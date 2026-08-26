@@ -39,7 +39,7 @@ fi
 cd "$OMEGA_GATE_DIR"
 fail=0
 CACHE="$OMEGA_REPO_ROOT/.lattice-cache"
-CACHE_PROFILE_DIR=${LATTICE_CACHE_PROFILE_DIR:-"$OMEGA_REPO_ROOT/bootstrap/lattice-cache-deps"}
+CACHE_PROFILE_DIR=${LATTICE_CACHE_PROFILE_DIR:-"$OMEGA_REPO_ROOT/bootstrap/gates/lattice-cache-deps"}
 mkdir -p "$CACHE"
 
 if [ "${LATTICE_CACHE_CHECK_ONLY:-0}" != "1" ]; then
@@ -155,7 +155,8 @@ fi
 # The language spine and its shared path plumbing sit under every step. Assurance
 # services are deliberately excluded here: steps that consume the proof kernel
 # declare the proof-kernel role and hash it independently.
-CORE=$(hash_inputs "$OMEGA_PATH_RUNGS_ROOT" \
+CORE=$(hash_inputs "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA" \
+  "$OMEGA_PATH_GAMMA" "$OMEGA_PATH_DELTA" \
   "$OMEGA_PATH_BOOTSTRAP_ROOT/paths.sh" \
   "$OMEGA_PATH_BOOTSTRAP_ROOT/check-path-hygiene.sh" \
   "$OMEGA_PATH_BOOTSTRAP_ROOT/test-paths.sh")
@@ -390,10 +391,10 @@ step "omega-bootstrap CKIR3 producer composite — native/self/mixed producer-ba
   "$OMEGA_REPO_ROOT/bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md" \
   "$OMEGA_REPO_ROOT/bootstrap/omega-bootstrap/gates/fixtures/generated-source-custody/unicode-tables.recipe.json" \
   "$OMEGA_REPO_ROOT/bootstrap/omega-bootstrap/gates/generated_source_custody.py" \
-  "$OMEGA_REPO_ROOT/bootstrap/onramps/omega-rust/psi/pipeline/psi-source-files-to-tokens/src/bin/generate_omega_unicode.rs" \
-  "$OMEGA_REPO_ROOT/bootstrap/onramps/omega-rust/psi/pipeline/psi-source-files-to-tokens/Cargo.toml" \
+  "$OMEGA_REPO_ROOT/source/compiler/rust/psi/pipeline/psi-source-files-to-tokens/src/bin/generate_omega_unicode.rs" \
+  "$OMEGA_REPO_ROOT/source/compiler/rust/psi/pipeline/psi-source-files-to-tokens/Cargo.toml" \
   "$OMEGA_REPO_ROOT/Cargo.toml" "$OMEGA_REPO_ROOT/Cargo.lock" \
-  "$OMEGA_REPO_ROOT/compiler/psi/generated/unicode_tables.omg"
+  "$OMEGA_REPO_ROOT/source/compiler/omega/psi/generated/unicode_tables.omg"
 step "omega-bootstrap OMGRFN2 layer 1 — exact frame, OMGCOMP graph, nested bundle, and source custody below Delta" omega-bootstrap-refinement omgrfn2-frame-omgcomp-custody.sh alpha alpha-assembler beta omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN2 layer 2 — independent first-artifact source-to-witness resolution below Delta" omega-bootstrap-refinement omgrfn2-source-witness-independent.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
 step "omega-bootstrap OMGRFN2 layer 3 — independent witness-to-CKIR declarations, layout, and root below Delta" omega-bootstrap-refinement omgrfn2-witness-ckir-tables.sh alpha alpha-assembler beta delta-rust omega-bootstrap omega-bootstrap-gates
@@ -419,10 +420,10 @@ step "omega-bootstrap OMGRFN4 composite — all five independent responsibilitie
   "$OMEGA_REPO_ROOT/bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md" \
   "$OMEGA_REPO_ROOT/bootstrap/omega-bootstrap/gates/fixtures/generated-source-custody/unicode-tables.recipe.json" \
   "$OMEGA_REPO_ROOT/bootstrap/omega-bootstrap/gates/generated_source_custody.py" \
-  "$OMEGA_REPO_ROOT/bootstrap/onramps/omega-rust/psi/pipeline/psi-source-files-to-tokens/src/bin/generate_omega_unicode.rs" \
-  "$OMEGA_REPO_ROOT/bootstrap/onramps/omega-rust/psi/pipeline/psi-source-files-to-tokens/Cargo.toml" \
+  "$OMEGA_REPO_ROOT/source/compiler/rust/psi/pipeline/psi-source-files-to-tokens/src/bin/generate_omega_unicode.rs" \
+  "$OMEGA_REPO_ROOT/source/compiler/rust/psi/pipeline/psi-source-files-to-tokens/Cargo.toml" \
   "$OMEGA_REPO_ROOT/Cargo.toml" "$OMEGA_REPO_ROOT/Cargo.lock" \
-  "$OMEGA_REPO_ROOT/compiler/psi/generated/unicode_tables.omg"
+  "$OMEGA_REPO_ROOT/source/compiler/omega/psi/generated/unicode_tables.omg"
 precise_step "omega-bootstrap CKIR4 resolved-source lowerer — runtime records plus versioned direct field receivers" omega-bootstrap-gates delta-resolved-to-ckir4.sh omega-bootstrap-ckir4-7
 precise_step "omega-bootstrap CKIR4 lowering meaning (RUST-FREE) — constructor/field-receiver/Call 0/251/252 through Gamma" omega-bootstrap-gates delta-resolved-to-ckir4-meaning.sh omega-bootstrap-ckir4-7
 precise_step "omega-bootstrap CKIR4 independent reference — constructor objects, result, exact ELF, and mutation sweep" omega-bootstrap-gates delta-checked-ir-v4-reference.sh omega-bootstrap-ckir4-7

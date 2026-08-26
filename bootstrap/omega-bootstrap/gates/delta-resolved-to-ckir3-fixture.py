@@ -228,12 +228,12 @@ def gate() -> None:
     producer = HERE.parent / "compiler" / "omega-bootstrap-resolved-to-ckir3.alp"
     resolver_source = HERE.parent / "compiler" / "omega-bootstrap-resolve.alp"
     frame_tool = HERE / "delta-resolved-to-ckir3-frame.py"
-    lowermachine_source = repo / "bootstrap/rungs/delta/samples/lowermachine.alp"
-    delta_manifest = repo / "bootstrap/onramps/delta-rust/Cargo.toml"
-    delta = repo / "bootstrap/onramps/delta-rust/target/debug/delta"
+    lowermachine_source = repo / "bootstrap/delta/samples/lowermachine.alp"
+    delta_manifest = repo / "bootstrap/delta/rust/Cargo.toml"
+    delta = repo / "bootstrap/delta/rust/target/debug/delta"
     fixtures = HERE / "fixtures/ckir3-constant-aggregates"
     reference = HERE / "checked_ir_v3_reference.py"
-    unicode_source = repo / "compiler/psi/generated/unicode_tables.omg"
+    unicode_source = repo / "source/compiler/omega/psi/generated/unicode_tables.omg"
     fields, locals_used = producer_metadata(producer)
     if fields >= 256 or locals_used > 32:
         raise ValueError(f"lowermachine metadata ceiling: fields={fields}, locals={locals_used}")

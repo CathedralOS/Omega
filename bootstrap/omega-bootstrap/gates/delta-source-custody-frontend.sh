@@ -31,7 +31,7 @@ for TOOL in cargo python3 clang codesign; do
 done
 
 CHECKER="$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-source-custody-check.alp"
-ACTUAL="$OMEGA_REPO_ROOT/compiler/psi/source/source.omg"
+ACTUAL="$OMEGA_REPO_ROOT/source/compiler/omega/psi/source/source.omg"
 [ -f "$CHECKER" ] || { echo "source-custody frontend: checker source absent" >&2; exit 1; }
 [ -f "$ACTUAL" ] || { echo "source-custody frontend: product source fixture absent" >&2; exit 1; }
 

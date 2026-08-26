@@ -119,7 +119,7 @@ reset(mark)
 Zero-sized allocations succeed at the aligned cursor. Successful allocations
 are deterministic, monotonic, aligned, and disjoint until a valid bulk reset.
 Handles are indices, not host addresses. The executable canary is
-[`../../rungs/delta/samples/bootstrap-storage.alp`](../../rungs/delta/samples/bootstrap-storage.alp).
+[`../../delta/samples/bootstrap-storage.alp`](../../delta/samples/bootstrap-storage.alp).
 The Delta-written `lowermachine.alp` now applies the same convention at compiler
 scale: one explicitly reserved typed extent is partitioned into integer-offset
 logical tables, while source bytes reserve contiguous cells at runtime in a
@@ -136,7 +136,7 @@ bridge cost, not by extending the numbered canaries.
 The single architectural policy and feature-disposition table live in
 [`compiler_source_profile.md`](../../../wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
 Checkpoint 000001's exact closure and provisional census live under
-[`compiler/source-checkpoints/`](../../../compiler/source-checkpoints/), while
+[`source/compiler/omega/source-checkpoints/`](../../../source/compiler/omega/source-checkpoints/), while
 the first Delta frontend cost measurement and its exact resource observations
 live in [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](SOURCE_CUSTODY_FRONTEND_PROBE.md).
 The versioned checked-IR and refinement contracts own later selected artifact
@@ -146,7 +146,7 @@ freezes `Ωself`, or creates another language rung.
 ## Legacy O0 canary — fixed console acceptance
 
 O0 is exactly the single-file console program shape represented by
-[`../../corpus/cli_mvp/main.omg`](../../corpus/cli_mvp/main.omg):
+[`../../gates/corpus/cli_mvp/main.omg`](../../gates/corpus/cli_mvp/main.omg):
 
 - UTF-8 source with whitespace, line comments, nested block comments,
   identifiers, integer literals, string literals, and the punctuation used by
@@ -164,9 +164,9 @@ unknown names, wrong receiver types, wrong argument types/counts, malformed
 strings, and a missing entry are negative gates.
 
 [`omega-bootstrap-frontend.alp`](omega-bootstrap-frontend.alp) now implements
-that front end in D0. `bootstrap/rungs/delta/samples/omega-bootstrap-frontend.alp`
+that front end in D0. `bootstrap/delta/samples/omega-bootstrap-frontend.alp`
 is a rung-local symlink for the shared compiler slice. The historical
-`bootstrap/rungs/delta/samples/omega0-frontend.alp` entry remains a role-local
+`bootstrap/delta/samples/omega0-frontend.alp` entry remains a role-local
 compatibility path; the former top-level `compiler/delta-rs` facade is retired.
 The frozen O0/O1 program remains one source unit. The frontend now decodes the
 complete bounded canonical bundle first, retains every label and exact source

@@ -20,7 +20,7 @@ Generated compiler output belongs in local `build/` beside the sample
 entrypoint. Do not check it in and do not make sample source depend on it.
 
 Samples should read like code someone might write. If a sample exposes a small
-missing compiler behavior, pin that behavior in `canaries/` with the smallest
+missing compiler behavior, pin that behavior in `tests/canaries/` with the smallest
 feature-shaped program, then come back to the sample.
 
 The corpus is migrating from temporary `main`/`Main::main` discovery to explicit

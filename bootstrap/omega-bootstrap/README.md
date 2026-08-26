@@ -41,9 +41,9 @@ reproducibility work, not another bootstrap rung.
 | [`meaning/`](meaning/) | lower-rung, Rust-free meaning used to check the bridge and Delta compiler |
 | [`compiler/`](compiler/) | Delta bridge source, private versioned handoffs, source-bundle contracts, and bounded historical profiles |
 | [`gates/`](gates/) | focused producer, meaning, resource, composition, and regression gates plus private fixtures |
-| [`../assurance/refinement/omega-bootstrap/`](../assurance/refinement/omega-bootstrap/) | independent lower-rooted reconstruction and source-to-artifact refinement |
+| [`../../source/assurance/refinement/omega-bootstrap/`](../../source/assurance/refinement/omega-bootstrap/) | independent lower-rooted reconstruction and source-to-artifact refinement |
 | [`../../compiler/{psi,omega}/`](../../compiler/) | Omega-written production compiler source; not owned here |
-| [`../../compiler/source-checkpoints/`](../../compiler/source-checkpoints/) | exact product-source closures and provisional `Ωself` evidence |
+| [`../../source/compiler/omega/source-checkpoints/`](../../source/compiler/omega/source-checkpoints/) | exact product-source closures and provisional `Ωself` evidence |
 
 Some fixtures and compatibility inputs retain O0/O1 or `omega0` filenames.
 They are historical vertical canaries, not compiler generations, language
@@ -60,8 +60,8 @@ The repository has working bounded slices, not the complete bridge:
 | generated ordinary-source custody | closed for the exact Unicode tuple through a sealed locked/offline recipe, generic provenance roles, two-run reproduction, bounded/no-publication teeth, exact OMGCOMP1 extent, and CKIR3/OMGRFN4 preflight composition; refreshed checkpoint 000001 now binds the current generated source and Cargo/provider provenance coherently | [`OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md`](compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md) |
 | resolution | selected public multi-unit, call, data, receiver, scalar, and view relations; each widening is bounded by its own least-version contract | versioned `OMEGA_BOOTSTRAP_RESOLUTION*.md` contracts under [`compiler/`](compiler/) |
 | checked lowering and conservative emission | private versioned vertical slices preserve prior admitted forms while adding one selected compositional relation at a time; the current admitted frontier is CKIR12, and the next unblocked gap is recursive full-width trapping-`u32` `+`/`-`/`*` composition over that frontier | [`OMEGA_BOOTSTRAP_CHECKED_IR_V12.md`](compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V12.md) and its versioned predecessors/backend contracts under [`compiler/`](compiler/) |
-| lower-rooted reconstruction | selected source/checked-IR/artifact closures have independent R1–R5 reconstruction through OMGRFN14 | [`OMGCOMP_REFINEMENT_WITNESS_V14.md`](../assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V14.md) and the [assurance index](../assurance/refinement/omega-bootstrap/README.md) |
-| product-source coverage | checkpoint 000001 has source/profile evidence; typed semantics, later phases, general lowering, and final profile remain open | [`../../compiler/source-checkpoints/README.md`](../../compiler/source-checkpoints/README.md) |
+| lower-rooted reconstruction | selected source/checked-IR/artifact closures have independent R1–R5 reconstruction through OMGRFN14 | [`OMGCOMP_REFINEMENT_WITNESS_V14.md`](../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V14.md) and the [assurance index](../../source/assurance/refinement/omega-bootstrap/README.md) |
+| product-source coverage | checkpoint 000001 has source/profile evidence; typed semantics, later phases, general lowering, and final profile remain open | [`../../source/compiler/omega/source-checkpoints/README.md`](../../source/compiler/omega/source-checkpoints/README.md) |
 | compilation authority | waiting for the canonical accepted-lock/closure projection and exact envelope-commitment join | [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md#external-contract-dependency) |
 
 Each bounded slice measures implementation and assurance cost. It does not
@@ -103,7 +103,7 @@ linked contracts and beside the gates that enforce them—not in this index.
   interpreter form the Rust-free meaning route being widened with the bridge.
 - [`gates/lowermachine-meaning.sh`](gates/lowermachine-meaning.sh) checks the
   actual Delta compiler through that route, including buffered byte output.
-- [`../assurance/refinement/omega-bootstrap/`](../assurance/refinement/omega-bootstrap/)
+- [`../../source/assurance/refinement/omega-bootstrap/`](../../source/assurance/refinement/omega-bootstrap/)
   owns artifact-specific reconstruction and refinement gates.
 
 The live order and acceptance conditions exist only in

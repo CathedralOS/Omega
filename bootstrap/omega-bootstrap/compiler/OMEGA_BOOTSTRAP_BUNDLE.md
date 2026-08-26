@@ -54,7 +54,7 @@ The gate proves invocation-order independence, exact-byte round trips (including
 NUL and missing final newline), canonical manifest order, and rejection of
 duplicates, unsafe labels, truncation, and trailing data. The Delta-written
 decoder canary is
-[`../../rungs/delta/samples/omega-bootstrap-bundle-decode.alp`](../../rungs/delta/samples/omega-bootstrap-bundle-decode.alp).
+[`../../delta/samples/omega-bootstrap-bundle-decode.alp`](../../delta/samples/omega-bootstrap-bundle-decode.alp).
 It streams the format with checked `i32` lengths, canonical path/order checks,
 exact EOF, and an explicit local label-storage exhaustion result at 64 label
 bytes in this first canary. Native and Rust-free meaning gates cover canonical

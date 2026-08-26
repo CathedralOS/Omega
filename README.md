@@ -158,8 +158,8 @@ Current samples:
 - `samples/uefi/`: firmware-targeted samples.
 
 Canaries are not samples. They isolate one compiler capability at a time.
-They live under `canaries/pass/<feature>/main.omg` when the compiler should accept them and `canaries/fail/<feature>/main.omg` plus `expected.txt` when the compiler should reject them.
-Future executable behavior canaries live under `canaries/run/<feature>/` with small input/output expectation files.
+They live under `tests/canaries/pass/<feature>/main.omg` when the compiler should accept them and `tests/canaries/fail/<feature>/main.omg` plus `expected.txt` when the compiler should reject them.
+Future executable behavior canaries live under `tests/canaries/run/<feature>/` with small input/output expectation files.
 
 Canary names should describe the compiler behavior being pinned down, not the sample that exposed it. A dungeon crawler blocker should become a feature canary such as `runtime_text_builder`, not `dungeon_step_04`.
 

@@ -29,7 +29,7 @@ trap 'rm -rf "$T"' EXIT
 
 cargo build -q --manifest-path "$OMEGA_PATH_DELTA_RUST/Cargo.toml"
 DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
-  "$OMEGA_PATH_OMEGA_BOOTSTRAP/compiler/omega-bootstrap-terminal-to-elf.alp" "$T/backend" >/dev/null
+  "$OMEGA_PATH_OMEGA_BOOTSTRAP/source/compiler/omega/omega-bootstrap-terminal-to-elf.alp" "$T/backend" >/dev/null
 
 # The profile-neutral scalar lane is distinguished from O1 by its empty top-
 # level structural tables. Exercise general IDs and both call directions, then
