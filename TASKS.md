@@ -7455,19 +7455,19 @@ compiler concept is introduced.
   or indexing shells without widening that call budget.
   One top-level concrete primitive-only record or selected-case literal may
   likewise contain an independently bounded non-reference call tree in each
-  direct common or payload field while publishing every write. One direct
-  field may instead contain a second concrete primitive-only record or
-  selected-case literal whose direct fields obey the same rule; this aggregate
-  depth-two rail does not widen the depth-four call budget. A declared
-  primitive field at either level may wrap independently bounded call operands
+  direct common or payload field while publishing every write. Direct typed
+  assignment values may nest those concrete aggregates through depth three;
+  every primitive leaf obeys the same rule, and this rail does not widen the
+  depth-four call budget. A declared primitive field at any admitted level may
+  wrap independently bounded call operands
   in up to two nested scalar-computation shells made from unary/binary
   operators, primitive value casts, member projections, or indexing without
   widening that budget. Literal-length caller-isolated fixed-array assignment
-  values preserve the same relation through one nested array level; every
+  values preserve the same relation through two nested array levels; every
   element retains the same call and primitive-computation budgets. Within that
-  same two-level aggregate budget, fixed arrays may contain concrete record or
-  selected-case literals, and concrete record or selected-case fields may
-  contain literal fixed arrays. A primitive scalar assignment value may also
+  same three-level direct aggregate budget, fixed arrays may contain concrete
+  record or selected-case literals, and concrete record or selected-case
+  fields may contain literal fixed arrays. A primitive scalar assignment value may also
   select one direct member from a concrete caller-isolated record or
   selected-case literal whose effectful primitive fields are bounded
   direct-call trees or use one scalar-computation shell around those calls;
@@ -7493,8 +7493,9 @@ compiler concept is introduced.
   Continue with representable relational candidates. Boundary,
   beyond-per-position-budget, binding-reborrow, reference-valued/opaque,
   escaped, non-bijective, generic, recursive or reference-bearing aggregate
-  literals, third aggregate or computed shells, other computed field shapes,
-  and out-of-isolated-root shapes remain conservative fences. Do not restore
+  literals, a fourth direct aggregate level, a third projected aggregate or
+  computed shell, other computed field shapes, and out-of-isolated-root shapes
+  remain conservative fences. Do not restore
   authored `stores` clauses or treat lifetime elision as evidence; Git carries
   individual evidence cohorts.
 - **TPR6 — finish subject-bearing progress-premise normalization and coverage.**

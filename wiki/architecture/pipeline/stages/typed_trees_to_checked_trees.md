@@ -300,16 +300,20 @@ Current ownership is:
   conservative.
   One top-level concrete primitive-only record or
   selected-case literal may likewise contain an independently bounded call
-  tree in each direct common or payload field. A direct field may instead be
-  one nested concrete primitive-only record or selected-case literal whose
-  direct common or payload fields obey the same rule. A declared primitive
-  field at either aggregate level may also contain up to two nested scalar
+  tree in each direct common or payload field. Direct typed assignment values
+  may nest concrete primitive-only record, selected-case, and literal
+  fixed-array aggregates through depth three, with the same rule at every
+  primitive leaf. A declared primitive field at any admitted aggregate level
+  may also contain up to two nested scalar
   computation shells made from unary or binary operators, primitive value
   casts, member projections, or indexing; their effectful leaves are
-  independently bounded non-reference call trees. This aggregate depth-two rail
-  and computed depth-two rail do not change the depth-four call budget. A third
-  aggregate or computed level, generic, recursive, or reference-bearing call
-  results, and other computed field shapes remain fences.
+  independently bounded non-reference call trees. This direct aggregate
+  depth-three rail and computed depth-two rail do not change the depth-four call
+  budget. A fourth direct aggregate level, generic, recursive, or
+  reference-bearing call result, and other computed field shapes remain
+  fences. Projected record/case fields and direct fixed-array indexing retain
+  their separate aggregate-depth-two rail, so a third projected aggregate also
+  remains conservative.
   A primitive assignment may also project one direct field from a concrete
   caller-isolated record or selected-case literal whose effectful fields are
   bounded direct-call trees. That projection may sit below one further unary,
@@ -319,9 +323,8 @@ Current ownership is:
   follows the same shared budget. Every eagerly evaluated element publishes
   its bounded call writes; either one element computation shell or one outer
   scalar shell may use the remaining depth, while combining both remains a
-  third-shell fence. Nested array literals remain conservative at this
-  projection site because no independent contextual aggregate type is retained
-  there.
+  third-shell fence. A third aggregate level remains conservative at this
+  projection site.
   Targets may project through a stable helper-local
   mutable alias or an exact transparent call-produced place. An indexed target
   may contain one or more indexes whose non-rebinding direct-call trees are
