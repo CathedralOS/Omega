@@ -1,0 +1,12 @@
+linux_x64 machine ConsoleNativeProvider::read_line(out_line: &mut [u8])
+    satisfies Console::read_line
+    via Binding::CompilerIntrinsic;
+linux_x64 machine ConsoleNativeProvider::read_byte() -> ByteRead
+    satisfies Console::read_byte
+    via Binding::CompilerIntrinsic;
+linux_x64 machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte
+    via Binding::CompilerIntrinsic;
+linux_x64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via Binding::CompilerIntrinsic;
