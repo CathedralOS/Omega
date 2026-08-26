@@ -437,6 +437,7 @@ pub data Optimization {
     case SelectedIncomingU12ExactAddImmediate;
 }
 pub data Optimizations {
+    human_report: u8 in Trapping;
     control_flow_cleanup: u8 in Trapping;
     sparse_conditional_constant_propagation: u8 in Trapping;
     copy_propagation: u8 in Trapping;
@@ -503,6 +504,9 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
         self.selected_incoming_u12_exact_add_immediate = self.selected_incoming_u12_exact_add_immediate + 1;
     }
 }
+pub machine Optimizations::emit_report(&mut self) {
+    self.human_report = self.human_report + 1;
+}
 "#;
 
 const FILESYSTEM_BUILD_PRELUDE: &str = r#"
@@ -523,6 +527,7 @@ pub data Optimization {
     case SelectedIncomingU12ExactAddImmediate;
 }
 pub data Optimizations {
+    human_report: u8 in Trapping;
     control_flow_cleanup: u8 in Trapping;
     sparse_conditional_constant_propagation: u8 in Trapping;
     copy_propagation: u8 in Trapping;
@@ -603,6 +608,9 @@ pub machine BuildOutput::resolve<'path>(&self, relative: &'path [u8] in Path) ->
     relative
 }
 pub machine BuildOutput::include_source(&mut self, generated: &[u8] in Path) {
+}
+pub machine Optimizations::emit_report(&mut self) {
+    self.human_report = self.human_report + 1;
 }
 "#;
 
@@ -1495,6 +1503,7 @@ mod tests {
                     })
                     .collect::<Vec<_>>(),
                 [
+                    "human_report",
                     "control_flow_cleanup",
                     "sparse_conditional_constant_propagation",
                     "copy_propagation",
@@ -1528,6 +1537,11 @@ mod tests {
                 item,
                 psi_syntax_trees::item::Item::Machine(machine)
                     if machine.name.as_str() == "Optimizations::enable"
+            )));
+            assert!(syntax_trees.root_items().any(|item| matches!(
+                item,
+                psi_syntax_trees::item::Item::Machine(machine)
+                    if machine.name.as_str() == "Optimizations::emit_report"
             )));
         }
     }

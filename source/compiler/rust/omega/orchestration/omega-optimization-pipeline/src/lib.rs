@@ -33,6 +33,7 @@ mod post_allocation_machine_effects;
 mod post_allocation_selected_form_encoding;
 mod register_environment;
 mod register_homes;
+mod report;
 mod resolved_selected_form_layout;
 mod selected_reanalysis;
 mod selection;
@@ -143,6 +144,9 @@ pub use register_homes::{
     stage_optimized_register_homes, stage_optimized_register_homes_after_fixed_view_copies,
     validate_optimized_register_home_after_fixed_view_copy_custody,
     validate_optimized_register_home_custody,
+};
+pub use report::{
+    OptimizationPipelineReport, OptimizationReportRequest, optimization_pipeline_report,
 };
 pub use resolved_selected_form_layout::{
     OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,
@@ -3398,6 +3402,26 @@ mod tests {
             assert_eq!(staged.selections(), psi_only_selections.identity());
             assert_eq!(staged.selected_lowering_completion(), None);
             assert!(staged.function_relative_realization().is_none());
+            let report = optimization_pipeline_report(&staged);
+            assert_eq!(
+                report.pre_physical().identity,
+                staged.pre_physical_manifest().record().identity
+            );
+            assert_eq!(
+                report.post_allocation().identity,
+                staged.post_allocation_manifest().record().identity
+            );
+            assert!(report.function_relative().is_none());
+            assert_eq!(
+                report.render_human_text(OptimizationReportRequest::Suppressed),
+                None
+            );
+            let text = report
+                .render_human_text(OptimizationReportRequest::EmitHumanText)
+                .expect("explicit human report projection");
+            assert!(text.contains("[pre-physical]"));
+            assert!(text.contains("[post-allocation]"));
+            assert!(!text.contains("[function-relative realization]"));
 
             for selections in [
                 OptimizationSelections::new([
@@ -3453,6 +3477,28 @@ mod tests {
                 assert_eq!(
                     realization.manifest().record().publication,
                     FunctionRelativeOptimizationUnavailableData::Unavailable
+                );
+                let report = optimization_pipeline_report(&staged);
+                assert_eq!(
+                    report.pre_physical().identity,
+                    staged.pre_physical_manifest().record().identity
+                );
+                assert_eq!(
+                    report.post_allocation().identity,
+                    staged.post_allocation_manifest().record().identity
+                );
+                assert_eq!(
+                    report
+                        .function_relative()
+                        .expect("selected lowering has function-relative custody")
+                        .identity,
+                    realization.manifest().record().identity
+                );
+                assert!(
+                    report
+                        .render_human_text(OptimizationReportRequest::EmitHumanText)
+                        .expect("explicit human report projection")
+                        .contains("[function-relative realization]")
                 );
             }
         }

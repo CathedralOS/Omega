@@ -1487,9 +1487,8 @@ Rules:
   Psi slices, and
   failed validation reject the optimized build rather than silently falling
   back to a different artifact;
-- check-only compilation may validate the setting but does not require native
-  optimization work unless it is explicitly asked to emit an optimization
-  report;
+- check-only compilation validates and retains the report request but does not
+  enter native optimization merely to satisfy a report-only build;
 - the exact selected set, normalized rule set, decision log, target cost model,
   and transformation-ledger identities enter cache and artifact/rebuild
   metadata;
@@ -1531,6 +1530,18 @@ Human text/HTML views are projections of a structured compiler-owned record.
 They do not enter semantic identity. The report must be suppressible without
 changing optimization decisions.
 
+The first compiler-facing report switch is the exact root-build call
+`builder.optimizations.emit_report()`. It requests only the human text
+projection and is stored independently from `OptimizationSelections`; a
+report-only build still has the empty transformation set. Absence and legacy
+authored `Build` shapes suppress it, duplicate requests reject, and dependency
+build machines cannot set the root request. The optimization pipeline derives
+one cumulative carrier from its opaque staged result, joining the complete
+validated pre-physical and post-allocation records and, for the selected-
+lowering route, the function-relative realization record. Suppression returns
+no text from that same carrier after all decisions, so it cannot affect a
+candidate, register home, layout, or emitted byte.
+
 The current Rust slice implements structured/text projections through the
 validated abstract-plan and strict spill-free register-home boundaries, plus a
 selected-lowering-only function-relative/whole-exit realization projection.
@@ -1542,12 +1553,12 @@ validated final selected CFG, machine effects, post-allocation machine,
 canonical encoding, named layout policy, resolved fragments, exact code-size
 statistics, and the frameless whole-function exit contract. It explicitly
 marks frame, section, relocation, image, installation, and publication fields
-unavailable. All three records have strict self-authenticating codecs, but none
-is yet wired into a compiler-owned artifact or rebuild-metadata section.
+unavailable. All three records have strict self-authenticating codecs and are
+now joined by the pipeline-owned cumulative report carrier, but none is yet
+wired into a compiler-owned artifact or rebuild-metadata section.
 `OPT-MANIFEST-SCHEMA` remains open until later manifests join frame/emission/
-publication records, enter that metadata path, and the compiler exposes a
-suppressible report request without entering native optimization during
-ordinary check-only builds.
+publication records and enter that metadata path; successful native compiler
+publication must then materialize the already-retained report request.
 
 The decision-row substrate is self-authenticating rather than caller-stamped.
 Each row derives its identity from the exact input unit, candidate, rule,
