@@ -1847,6 +1847,20 @@ complete.
   Changed authored offsets and relabeled operation/region kinds reject. This is
   still one read-family event, not broad filesystem replay or a `Receipted`
   claim.
+  Milestone 2026-08-26: the closed rung now accepts one Source-rooted,
+  flags-zero `open`, one or more ordered `read`/`read_at` calls on that exact
+  descriptor, and one retiring `close`. Summary v21 binds the broadened partial
+  replay fact and replay-record v3 strictly retains every read in order.
+  Sequential reads advance an implicit zero-based cursor by their exact
+  successful result; positioned reads retain a nonnegative offset and do not
+  advance that cursor. No cursor field is trusted or persisted because the
+  ordered operation kinds, counts, positioned offsets, results, carrier states,
+  and observed regions determine it completely. Empty sequences, failed reads,
+  another descriptor, and any non-read middle operation reject. EOF rows remain
+  exact. Canonical recovery and provider-free reopening support mixed sequences
+  without changing operation schema v18, package review v69/row v27, or review-
+  baseline capsule v2. This is still review-only, `Volatile`, and neither broad
+  filesystem replay nor a `Receipted` claim.
   The granted evaluator's structured failure now retains partial usage and
   operation evidence, with each active call explicitly `Returned` or
   evaluator-halted rather than represented by placeholder zeroes. Worker

@@ -219,7 +219,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 20);
+    assert_eq!(checked_observations.schema_version(), 21);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -1365,7 +1365,7 @@ fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(summary.open_read_close_replay_verified());
+    assert!(summary.source_read_sequence_replay_verified());
     assert_eq!(
         summary
             .filesystem_operation_attempts()
@@ -1450,7 +1450,7 @@ fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("reopened replay retains observations");
-    assert!(replayed_summary.open_read_close_replay_verified());
+    assert!(replayed_summary.source_read_sequence_replay_verified());
     assert_eq!(replayed_summary.ceiling(), BuildObservationClass::Volatile);
     assert_eq!(replayed_summary.realized(), BuildObservationClass::Volatile);
     let [_, replayed_read, _] = replayed_summary.filesystem_operation_attempts() else {
@@ -1502,7 +1502,7 @@ fn source_open_read_at_close_is_replayed_without_a_filesystem_provider() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(summary.open_read_close_replay_verified());
+    assert!(summary.source_read_sequence_replay_verified());
     assert_eq!(
         summary
             .filesystem_operation_attempts()
@@ -1619,6 +1619,109 @@ fn source_open_read_at_close_is_replayed_without_a_filesystem_provider() {
 }
 
 #[test]
+fn source_open_mixed_read_sequence_close_replays_exact_cursor_semantics() {
+    let (project, profile) = rooted_build_probe_project(
+        "open-mixed-read-sequence-close-replay",
+        r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 5);
+    self.result = self.filesystem.read_at(self.descriptor, &mut self.buffer, 4, 10);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 5);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 4096);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 1);
+    self.code = self.filesystem.close(self.descriptor);"#,
+    );
+    let compilation = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("mixed source-read sequence should compile and replay");
+    let summary = compilation
+        .build_observation_summary()
+        .expect("filesystem build retains observations");
+    assert!(summary.source_read_sequence_replay_verified());
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 6, 4, 4, 4, 8]
+    );
+    let reads = &summary.filesystem_operation_attempts()[1..6];
+    assert_eq!(
+        reads
+            .iter()
+            .map(|read| match read.result() {
+                BuildFilesystemOperationResult::Scalar(result) => result,
+                BuildFilesystemOperationResult::LogicalHandle(_) => {
+                    panic!("read returned a logical handle")
+                }
+            })
+            .collect::<Vec<_>>(),
+        vec![5, 4, 5, 15, 0]
+    );
+    assert_eq!(
+        reads[0].observed_bytes(&reads[0].observed_byte_regions()[0]),
+        Some(&b"data "[..])
+    );
+    assert_eq!(
+        reads[1].observed_bytes(&reads[1].observed_byte_regions()[0]),
+        Some(&b"{ va"[..])
+    );
+    assert_eq!(
+        reads[2].observed_bytes(&reads[2].observed_byte_regions()[0]),
+        Some(&b"Main "[..]),
+        "positioned read must not advance the sequential cursor"
+    );
+    assert_eq!(reads[4].observed_byte_regions()[0].length(), 0);
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("verified read sequence must encode")
+        .expect("verified read sequence must retain review-only custody");
+    recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+        .expect("canonical mixed read sequence must recover");
+
+    std::fs::write(project.join("main.omg"), "data Drifted { value: u64; }\n")
+        .expect("change host source after mixed replay capture");
+    let replayed = compile_to_checked_with_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        record.clone(),
+    )
+    .expect("reopened mixed replay must not consult changed host source");
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("reopened mixed replay retains observations");
+    assert!(replayed_summary.source_read_sequence_replay_verified());
+    assert_eq!(
+        replayed_summary.filesystem_operation_attempts(),
+        summary.filesystem_operation_attempts(),
+        "reopened replay must reproduce every ordered read lane exactly"
+    );
+
+    let build_path = project.join("build.omg");
+    let original_build = std::fs::read_to_string(&build_path).expect("read build probe");
+    let changed_build = original_build.replace(
+        "self.filesystem.read_at(self.descriptor, &mut self.buffer, 4, 10)",
+        "self.filesystem.read_at(self.descriptor, &mut self.buffer, 4, 11)",
+    );
+    assert_ne!(changed_build, original_build, "fixture must change offset");
+    std::fs::write(&build_path, changed_build).expect("change middle positioned offset");
+    let diagnostics = compile_to_checked_with_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        record,
+    )
+    .expect_err("changed middle read input must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("prepared inputs changed")),
+        "middle-read mismatch must identify changed prepared inputs: {diagnostics:?}"
+    );
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
 fn failed_source_read_at_does_not_claim_bounded_replay() {
     let (project, profile) = rooted_build_probe_project(
         "failed-read-at-no-replay",
@@ -1632,7 +1735,7 @@ fn failed_source_read_at_does_not_claim_bounded_replay() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(!summary.open_read_close_replay_verified());
+    assert!(!summary.source_read_sequence_replay_verified());
     assert!(
         capture_verified_build_filesystem_replay_record(
             summary,
@@ -1642,6 +1745,45 @@ fn failed_source_read_at_does_not_claim_bounded_replay() {
         .is_none()
     );
     let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn empty_or_non_read_middle_source_sequences_do_not_claim_bounded_replay() {
+    for (label, body) in [
+        (
+            "open-close-no-replay",
+            r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 0);
+    self.code = self.filesystem.close(self.descriptor);"#,
+        ),
+        (
+            "open-read-sync-close-no-replay",
+            r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 1);
+    self.code = self.filesystem.sync(self.descriptor);
+    self.code = self.filesystem.close(self.descriptor);"#,
+        ),
+    ] {
+        let (project, profile) = rooted_build_probe_project(label, body);
+        let compilation =
+            compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+                .expect("out-of-grammar source sequence remains an ordinary observed build");
+        let summary = compilation
+            .build_observation_summary()
+            .expect("filesystem build retains observations");
+        assert!(!summary.source_read_sequence_replay_verified(), "{label}");
+        assert!(
+            capture_verified_build_filesystem_replay_record(
+                summary,
+                BuildFilesystemReplayRecordLimits::default(),
+            )
+            .expect("non-replayed summary is not a codec error")
+            .is_none(),
+            "{label}"
+        );
+        let _ = std::fs::remove_dir_all(&project);
+    }
 }
 
 #[test]
@@ -1658,7 +1800,7 @@ fn write_like_source_open_does_not_claim_bounded_replay() {
     let summary = compilation
         .build_observation_summary()
         .expect("filesystem build retains observations");
-    assert!(!summary.open_read_close_replay_verified());
+    assert!(!summary.source_read_sequence_replay_verified());
     assert!(
         capture_verified_build_filesystem_replay_record(
             summary,

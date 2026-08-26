@@ -973,20 +973,24 @@ replay only. Canonical operation replay, recorded observed inputs, generated-
 output handoff, and the complete record replay checker remain required before
 any `Receipted` verdict. This rung does not claim hostile same-user race
 exclusion.
-For exactly one successful Source-rooted, flags-zero `open` -> (`read` or
-`read_at`) -> `close` chain, the compiler performs one bounded replay with no
-filesystem provider. It consumes rows in order, supplies recorded results and
-read bytes, reconstructs logical descriptors, and requires exact event
-exhaustion, observations, and final result. The positioned form additionally
-binds its exact count, signed nonnegative file offset, and positioned region
-kind. Summary v20 binds that partial replay fact. Compiler replay-record v2
-preserves every lane of either verified chain in a bounded canonical binary
-form, rejects stale semantic schemas and inconsistent operation-specific state,
-and is retained by review-baseline capsule v2 under
+For one successful Source-rooted, flags-zero `open` -> (`read` or `read_at`)+ ->
+`close` chain, the compiler performs one bounded replay with no filesystem
+provider. Every read consumes the created descriptor. Sequential reads advance
+an implicit zero-based cursor by their successful result; positioned reads bind
+an exact nonnegative offset without advancing that cursor. Ordered operation
+kinds, counts, offsets, results, carriers, and observed regions determine cursor
+semantics without a separately trusted field. Zero reads, failed reads, another
+descriptor, and non-read middle operations reject. Replay consumes rows in
+order, supplies recorded results and read bytes, reconstructs descriptor
+lifetime, and requires exact event exhaustion, observations, and final result.
+Summary v21 binds that partial replay fact. Compiler replay-record v3 preserves
+every lane of the verified sequence in a bounded canonical binary form, rejects
+stale semantic schemas and inconsistent operation-specific state, and is
+retained by review-baseline capsule v2 under
 a parent-observation association and aggregate byte ceiling. This is durable
 review-only custody, not proof of authenticity, review, or admission. Checked
 compilation can now strictly decode the reopened bytes into the PSI executor's
-exact typed three-event replay and evaluate the build machine without a host
+exact typed source-read sequence and evaluate the build machine without a host
 filesystem provider. Retained source bytes serve the replay even after host
 source drift; changed authored paths, counts, positioned offsets, operation or
 region kinds, and event structure reject. No public

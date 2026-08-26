@@ -12,7 +12,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 2;
+const VERSION: u16 = 3;
 
 /// Resource ceilings for compiler-owned recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -92,7 +92,7 @@ pub fn capture_verified_build_filesystem_replay_record(
     summary: &BuildObservationSummary,
     limits: BuildFilesystemReplayRecordLimits,
 ) -> Result<Option<ReviewOnlyBuildFilesystemReplayRecord>, BuildFilesystemReplayRecordError> {
-    if !summary.open_read_close_replay_verified() {
+    if !summary.source_read_sequence_replay_verified() {
         return Ok(None);
     }
     let mut encoder = Encoder::new(limits.maximum_bytes);
@@ -127,56 +127,75 @@ pub(super) fn rehydrate_review_only_build_filesystem_replay_record(
     limits: BuildFilesystemReplayRecordLimits,
 ) -> Result<psi_checked_interpreter::FilesystemReplay, BuildFilesystemReplayRecordError> {
     let shapes = decode_shapes(record.canonical_bytes(), limits)?;
-    let [open, read, close] = shapes.as_slice() else {
-        unreachable!("validated bounded replay has exactly three attempts")
-    };
+    let (open, remainder) = shapes
+        .split_first()
+        .expect("validated bounded replay has an open attempt");
+    let (close, read_shapes) = remainder
+        .split_last()
+        .expect("validated bounded replay has a close attempt");
     let ShapeResult::Handle(logical_handle_identity) = open.result else {
         unreachable!("validated bounded replay open returns a handle")
-    };
-    let ShapeResult::Scalar(read_result) = read.result else {
-        unreachable!("validated bounded replay read returns a scalar")
-    };
-    let (read_kind, requested_count) = match read.scalars.as_slice() {
-        [(2, ShapeScalar::U64(requested_count))] => (
-            psi_checked_interpreter::FilesystemReplayReadKind::Sequential,
-            requested_count,
-        ),
-        [
-            (2, ShapeScalar::U64(requested_count)),
-            (3, ShapeScalar::I64(offset)),
-        ] => (
-            psi_checked_interpreter::FilesystemReplayReadKind::Positioned { offset: *offset },
-            requested_count,
-        ),
-        _ => unreachable!("validated bounded replay read has exact count and optional offset"),
     };
     let [source_path] = open.rooted_paths.as_slice() else {
         unreachable!("validated bounded replay open has one rooted path")
     };
-    let [(1, mutable_resolution)] = read.mutable_byte_resolutions.as_slice() else {
-        unreachable!("validated bounded replay read has one mutable resolution")
-    };
-    let [mutable_carrier] = read.mutable_bytes.as_slice() else {
-        unreachable!("validated bounded replay read has one mutable carrier")
-    };
-    let typed_record = psi_checked_interpreter::FilesystemOpenReadCloseReplayRecord::new(
+    let mut reads = Vec::new();
+    reads.try_reserve_exact(read_shapes.len()).map_err(|_| {
+        BuildFilesystemReplayRecordError::new("filesystem replay read allocation failed")
+    })?;
+    for read in read_shapes {
+        let ShapeResult::Scalar(read_result) = read.result else {
+            unreachable!("validated bounded replay read returns a scalar")
+        };
+        let (read_kind, requested_count) = match read.scalars.as_slice() {
+            [(2, ShapeScalar::U64(requested_count))] => (
+                psi_checked_interpreter::FilesystemReplayReadKind::Sequential,
+                requested_count,
+            ),
+            [
+                (2, ShapeScalar::U64(requested_count)),
+                (3, ShapeScalar::I64(offset)),
+            ] => (
+                psi_checked_interpreter::FilesystemReplayReadKind::Positioned { offset: *offset },
+                requested_count,
+            ),
+            _ => unreachable!("validated bounded replay read has exact count and optional offset"),
+        };
+        let [(1, mutable_resolution)] = read.mutable_byte_resolutions.as_slice() else {
+            unreachable!("validated bounded replay read has one mutable resolution")
+        };
+        let [mutable_carrier] = read.mutable_bytes.as_slice() else {
+            unreachable!("validated bounded replay read has one mutable carrier")
+        };
+        reads.push(
+            psi_checked_interpreter::FilesystemReplayReadRecord::new(
+                read_kind,
+                *requested_count,
+                read_result,
+                read.post_error,
+                clone_bytes(mutable_resolution)?,
+                clone_bytes(mutable_carrier.pre)?,
+                clone_bytes(mutable_carrier.post)?,
+            )
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay read could not be rehydrated",
+                )
+            })?,
+        );
+    }
+    let typed_record = psi_checked_interpreter::FilesystemSourceReadSequenceReplayRecord::new(
         super::build_config::BUILD_SOURCE_ROOT_IDENTITY,
         clone_bytes(source_path.bytes)?,
         logical_handle_identity,
         open.post_error,
-        read_kind,
-        *requested_count,
-        read_result,
-        read.post_error,
-        clone_bytes(mutable_resolution)?,
-        clone_bytes(mutable_carrier.pre)?,
-        clone_bytes(mutable_carrier.post)?,
+        reads,
         close.post_error,
     )
     .map_err(|_| {
         BuildFilesystemReplayRecordError::new("filesystem replay record could not be rehydrated")
     })?;
-    Ok(psi_checked_interpreter::FilesystemReplay::from_open_read_close_record(typed_record))
+    Ok(psi_checked_interpreter::FilesystemReplay::from_source_read_sequence_record(typed_record))
 }
 
 fn decode_shapes(
@@ -203,9 +222,9 @@ fn decode_shapes(
         ));
     }
     let attempt_count = decoder.count()?;
-    if attempt_count != 3 {
+    if attempt_count < 3 {
         return Err(BuildFilesystemReplayRecordError::new(
-            "bounded filesystem replay record must contain three attempts",
+            "bounded filesystem replay record must contain open, reads, and close",
         ));
     }
     let mut shapes = Vec::new();
@@ -686,14 +705,20 @@ fn decode_ordinal_bytes_lane(
 fn validate_first_rung(
     shapes: &[AttemptShape<'_>],
 ) -> Result<(), BuildFilesystemReplayRecordError> {
-    let [open, read, close] = shapes else {
+    let Some((open, remainder)) = shapes.split_first() else {
         return Err(BuildFilesystemReplayRecordError::new(
             "bounded replay shape is incomplete",
         ));
     };
-    let operations = [open.operation, read.operation, close.operation];
-    if (operations != [2, 4, 8] && operations != [2, 6, 8])
-        || [open.provider, read.provider, close.provider] != [2, 2, 2]
+    let Some((close, reads)) = remainder.split_last() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay shape is incomplete",
+        ));
+    };
+    if reads.is_empty()
+        || open.operation != 2
+        || close.operation != 8
+        || shapes.iter().any(|attempt| attempt.provider != 2)
         || open.scalars.as_slice() != [(1, ShapeScalar::I32(0))]
     {
         return Err(BuildFilesystemReplayRecordError::new(
@@ -726,12 +751,6 @@ fn validate_first_rung(
         || open_authorized.root != 0
         || open_authorized.bytes != open_rooted.bytes
         || !only_open_lanes(open)
-        || read.inputs.as_slice()
-            != [ShapeLogicalInput {
-                ordinal: 0,
-                kind: 0,
-                resolution: Some(identity),
-            }]
         || close.inputs.as_slice()
             != [ShapeLogicalInput {
                 ordinal: 0,
@@ -744,6 +763,27 @@ fn validate_first_rung(
     {
         return Err(BuildFilesystemReplayRecordError::new(
             "filesystem replay record has inconsistent descriptor lineage",
+        ));
+    }
+    for read in reads {
+        validate_read_shape(read, identity)?;
+    }
+    Ok(())
+}
+
+fn validate_read_shape(
+    read: &AttemptShape<'_>,
+    identity: u64,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    if read.inputs.as_slice()
+        != [ShapeLogicalInput {
+            ordinal: 0,
+            kind: 0,
+            resolution: Some(identity),
+        }]
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay read has inconsistent descriptor lineage",
         ));
     }
     let ShapeResult::Scalar(read_result) = read.result else {
