@@ -355,8 +355,10 @@ These facts constrain the work below.
   covered before successful convergence, and the verifier-owned optimizer
   context remains attached to the resulting unit. A dependent add-then-
   multiply fixture proves the ordered multi-rule group reaches a deterministic
-  fixed point across revisions. `OPT-PASS-MANAGER` remains open for synthetic
-  oscillation coverage. A separate `omega-optimization-policy` crate now
+  fixed point across revisions. A canonical revision-history guard now rejects
+  a repeated unit identity before analysis invalidation, commit accounting, or
+  publication; a deterministic synthetic `A -> B -> A` fixture proves the
+  repeated `A` is never committed. A separate `omega-optimization-policy` crate now
   receives only independently validated candidate summaries, chooses improving
   work by exact cost then stable candidate identity, cannot select outside that
   admitted set, and emits a canonical decision log whose codec rejects identity

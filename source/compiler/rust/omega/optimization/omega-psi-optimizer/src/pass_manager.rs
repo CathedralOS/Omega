@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use omega_optimization_core::{
     InvalidOptimizationManifestRecord, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
@@ -151,6 +151,11 @@ pub enum OptimizationRunError {
     NonDecreasingConvergenceMeasure {
         previous: u64,
         current: u64,
+    },
+    OscillatingRevision {
+        identity: OptimizationUnitIdentity,
+        first_seen_iteration: u64,
+        repeated_at_iteration: u64,
     },
     RegistryCoverageMismatch,
     DuplicateCandidate(OptimizationCandidateIdentity),
@@ -333,6 +338,7 @@ fn run_unit(
     let mut commits = Vec::new();
     let mut candidate_decisions = Vec::new();
     let mut seen_candidates = BTreeSet::new();
+    let mut seen_revisions = BTreeMap::from([(unit.identity, 0)]);
     let mut dispatched = BTreeSet::new();
     let mut policy = BaselinePolicy::default();
     loop {
@@ -475,6 +481,7 @@ fn run_unit(
         let candidate_identity = validated.candidate();
         let provenance = candidate.provenance().to_vec();
         let next = validated.into_unit();
+        register_revision(&mut seen_revisions, next.identity, usage.iterations)?;
         let current_measure = convergence_measure(&next, registry);
         if current_measure >= previous_measure {
             return Err(OptimizationRunError::NonDecreasingConvergenceMeasure {
@@ -498,6 +505,22 @@ fn run_unit(
         });
         unit = next;
     }
+}
+
+fn register_revision(
+    seen: &mut BTreeMap<OptimizationUnitIdentity, u64>,
+    identity: OptimizationUnitIdentity,
+    iteration: u64,
+) -> Result<(), OptimizationRunError> {
+    if let Some(first_seen_iteration) = seen.get(&identity).copied() {
+        return Err(OptimizationRunError::OscillatingRevision {
+            identity,
+            first_seen_iteration,
+            repeated_at_iteration: iteration,
+        });
+    }
+    seen.insert(identity, iteration);
+    Ok(())
 }
 
 fn build_pass_manifest(
@@ -1164,6 +1187,35 @@ mod tests {
         assert_eq!(
             first,
             OptimizationRunError::WorkBudgetExhausted("iterations")
+        );
+    }
+
+    #[test]
+    fn synthetic_a_to_b_to_a_revision_cycle_fails_before_repeated_commit() {
+        let a = OptimizationUnitIdentity::from_canonical_bytes(b"synthetic-state-a");
+        let b = OptimizationUnitIdentity::from_canonical_bytes(b"synthetic-state-b");
+
+        let run = || {
+            let mut seen = BTreeMap::from([(a, 0)]);
+            let mut committed = Vec::new();
+            register_revision(&mut seen, b, 1)?;
+            committed.push(b);
+            let error = register_revision(&mut seen, a, 2).unwrap_err();
+            Ok::<_, OptimizationRunError>((committed, error, seen))
+        };
+
+        let first = run().unwrap();
+        let second = run().unwrap();
+        assert_eq!(first, second);
+        assert_eq!(first.0, vec![b]);
+        assert_eq!(first.2, BTreeMap::from([(a, 0), (b, 1)]));
+        assert_eq!(
+            first.1,
+            OptimizationRunError::OscillatingRevision {
+                identity: a,
+                first_seen_iteration: 0,
+                repeated_at_iteration: 2,
+            }
         );
     }
 
