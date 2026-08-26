@@ -6,8 +6,8 @@
 //! representative static application. Faithful `define` remains declaration-
 //! order preserving; `lift` may explicitly select, permute, and repeat direct
 //! members of the public telescope or supply a closed boolean, integer with an
-//! explicit or exact target-derived landing, or format-landed float to an exact
-//! immutable scalar representative position.
+//! explicit or exact target-derived landing, or float with an explicit or exact
+//! target-derived format to an immutable scalar representative position.
 //! Neither policy infers or selects a relation, contract proof, or
 //! representative operation.
 
@@ -329,9 +329,6 @@ pub(super) fn closed_scalar_literal_for_representative(
             }))
         }
         ExpressionNode::Float(literal) => {
-            let landing = literal
-                .landing()
-                .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
             let expected = match primitive {
                 PrimitiveType::F32 => FloatFormat::F32,
                 PrimitiveType::F64 => FloatFormat::F64,
@@ -339,6 +336,7 @@ pub(super) fn closed_scalar_literal_for_representative(
                     return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
                 }
             };
+            let landing = literal.landing().unwrap_or(expected);
             if landing != expected {
                 return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             }

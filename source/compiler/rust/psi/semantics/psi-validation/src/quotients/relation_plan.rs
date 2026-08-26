@@ -389,9 +389,7 @@ pub(super) fn derive_direct_terminal_plan(
             let is_closed_scalar_candidate = match program.expression_table.expression(*argument) {
                 psi_typed_trees::expression::ExpressionNode::Boolean(_) => true,
                 psi_typed_trees::expression::ExpressionNode::Integer(_) => true,
-                psi_typed_trees::expression::ExpressionNode::Float(literal) => {
-                    literal.landing().is_some()
-                }
+                psi_typed_trees::expression::ExpressionNode::Float(_) => true,
                 _ => false,
             };
             if request.kind == QuotientOperationKind::Lift && is_closed_scalar_candidate {

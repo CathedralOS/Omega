@@ -784,10 +784,11 @@ the exact public, representative, and verified-theorem legality coordinate for
 every included row. The non-executable certificate composes those rows with the
 exact runtime correspondence and verified theorem. A closed boolean, an
 in-range integer whose explicit suffix or exact concrete representative target
-supplies the landing, or a format-landed float may feed an immutable
-non-receiver representative position when its primitive type and arithmetic
-domain or format agree. An anonymous integer lands once at that exact target;
-the certificate retains the derived width, signedness, and domain. Exact
+supplies the landing, or a float whose explicit suffix or exact `f32`/`f64`
+target supplies the format may feed an immutable non-receiver representative
+position when its primitive type and arithmetic domain or format agree. An
+anonymous numeric scalar lands once at that exact target; the certificate
+retains the derived integer width, signedness, and domain or float format. Exact
 equality relates that ordinary input position; the literal value, spelling, and
 landing remain runtime-evidence identity. Exact
 structural substitution can match a dependent representative `P` fact that
@@ -796,7 +797,7 @@ post-substitution fact. Boolean value, integer spelling, landed type and
 arithmetic domain, and float spelling and format remain proof-value identity
 even where rendering is equal; there is no evaluation or inferred implication.
 Literal-only facts stay fixed ordinary call obligations. Mismatched or
-out-of-range integers, anonymous floats, strings,
+out-of-range integers, mismatched floats, strings,
 aggregates, zero-value, casts, calls, computations, constrained/generic
 targets, mutable/attached targets, and every literal supplied to `define`
 remain fail-closed. `define` remains strictly
