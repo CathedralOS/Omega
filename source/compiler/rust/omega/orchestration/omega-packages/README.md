@@ -589,8 +589,8 @@ checked graph, projects the facts through the same canonical contract vocabulary
 as public domains, and includes them in public-data identity in review
 v59/canonical row v17. Missing, duplicate, altered, malformed-span, or
 path-spoofed custody rejects; unsupported source fact forms remain fail-closed.
-Quotients and proposition parameters still reject until exact canonical rows
-exist. Review v43 and canonical row
+Public data quotients still reject until exact canonical rows exist. Data
+declarations do not admit proposition parameters. Review v43 and canonical row
 v3 represent static-machine parameters directly: structural contracts retain
 their complete alpha-normalized nested signature and operational envelope,
 while nominal contracts retain exact public trait and requirement identities.
