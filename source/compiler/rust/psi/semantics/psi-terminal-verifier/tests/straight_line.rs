@@ -23,13 +23,14 @@ use psi_terminal::{
     StructuralDomainDeclaration, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralResultClaimBinding, StructuralResultClaimTransfer,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_verifier::{
-    ContractClauseKind, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
-    reconstruct_operation_obligations, reconstruct_terminal_obligations, validate_module,
-    verify_module,
+    ContractClauseKind, EvidenceProducerProvenance, ModuleError, ObligationEvidence, ProofBundle,
+    VerificationError, reconstruct_operation_obligations, reconstruct_terminal_obligations,
+    validate_module, verify_module,
 };
 
 #[test]
@@ -3390,6 +3391,210 @@ fn exact_payloadless_guard_accepts_a_forwarded_required_term_without_fresh_prove
 }
 
 #[test]
+fn multi_exit_payloadless_guards_intersect_only_exits_of_the_same_case() {
+    let (mut module, success, failure, absent, result_place) =
+        multi_exit_payloadless_guard_module();
+    let result_type = module.machines[0]
+        .result
+        .structural()
+        .unwrap()
+        .structural_type;
+    let global_obligation = ObligationId::new(929).expect("global obligation");
+    let success_obligation = ObligationId::new(930).expect("success obligation");
+    let failure_obligation = ObligationId::new(931).expect("failure obligation");
+    let absent_obligation = ObligationId::new(932).expect("absent obligation");
+    module.machines[0].contract.ensures = vec![ContractClause {
+        obligation: global_obligation,
+        proposition: Proposition::Truth,
+    }];
+    module.machines[0].contract.outcome_specific_ensures = vec![
+        OutcomeSpecificEnsure {
+            guard: OutcomeSpecificGuard {
+                result_type,
+                result_case: success,
+            },
+            position: 0,
+            obligation: success_obligation,
+            proposition: Proposition::Truth,
+            evidence: None,
+        },
+        OutcomeSpecificEnsure {
+            guard: OutcomeSpecificGuard {
+                result_type,
+                result_case: failure,
+            },
+            position: 0,
+            obligation: failure_obligation,
+            proposition: Proposition::Truth,
+            evidence: None,
+        },
+        OutcomeSpecificEnsure {
+            guard: OutcomeSpecificGuard {
+                result_type,
+                result_case: absent,
+            },
+            position: 0,
+            obligation: absent_obligation,
+            proposition: Proposition::Truth,
+            evidence: None,
+        },
+    ];
+
+    let reconstructed = reconstruct_terminal_obligations(&module)
+        .expect("every ordinary exit has an exact payloadless case");
+    assert_eq!(
+        reconstructed
+            .obligations()
+            .iter()
+            .map(|site| site.obligation.id)
+            .collect::<Vec<_>>(),
+        [global_obligation, success_obligation, failure_obligation],
+        "the absent case remains vacuous"
+    );
+    let success_site = reconstructed
+        .obligations()
+        .iter()
+        .find(|site| site.obligation.id == success_obligation)
+        .expect("Success has a reconstructed row");
+    let success_membership = Proposition::StructuralCaseMembership {
+        subject: StructuralCaseSubject::new(result_place, Vec::new()),
+        case: success,
+    };
+    let failure_membership = Proposition::StructuralCaseMembership {
+        subject: StructuralCaseSubject::new(result_place, Vec::new()),
+        case: failure,
+    };
+    assert!(success_site.semantic_axioms.contains(&success_membership));
+    assert!(!success_site.semantic_axioms.contains(&failure_membership));
+    let failure_site = reconstructed
+        .obligations()
+        .iter()
+        .find(|site| site.obligation.id == failure_obligation)
+        .expect("Failure has a reconstructed row");
+    assert!(failure_site.semantic_axioms.contains(&failure_membership));
+    assert!(!failure_site.semantic_axioms.contains(&success_membership));
+    let global_site = reconstructed
+        .obligations()
+        .iter()
+        .find(|site| site.obligation.id == global_obligation)
+        .expect("the unconditional row is reconstructed");
+    assert!(
+        !global_site.semantic_axioms.contains(&success_membership)
+            && !global_site.semantic_axioms.contains(&failure_membership),
+        "the unconditional intersection cannot inherit a case-local fact"
+    );
+
+    let bundle = ProofBundle {
+        evidence_producers: Vec::new(),
+        evidence: [global_obligation, success_obligation, failure_obligation]
+            .into_iter()
+            .map(|obligation| ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+            })
+            .collect(),
+    };
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("both reached cases verify against independent intersections");
+    let mut stray = bundle;
+    stray.evidence.push(ObligationEvidence {
+        obligation: absent_obligation,
+        route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+    });
+    assert_eq!(
+        verify_module(&module, &stray, &AdmissionProfile::default())
+            .expect_err("the absent case cannot consume proof evidence"),
+        VerificationError::UnknownEvidence(absent_obligation)
+    );
+}
+
+#[test]
+fn multi_exit_payloadless_guards_activate_named_producers_by_reached_case_set() {
+    let (mut module, success, failure, absent, _) = multi_exit_payloadless_guard_module();
+    let result_type = module.machines[0]
+        .result
+        .structural()
+        .unwrap()
+        .structural_type;
+    let proposition = psi_core::PropositionId::new(1).expect("proposition");
+    let interface = EvidenceInterfaceIdentity {
+        trait_identity: "ReadyEvidence".to_owned(),
+        arguments: Vec::new(),
+        requirements: Vec::new(),
+    };
+    module.proposition_declarations = vec![PropositionDeclaration {
+        id: proposition,
+        name: "ready".to_owned(),
+        binders: Vec::new(),
+        parameter_types: Vec::new(),
+        evidence: PropositionEvidence::Witness {
+            evidence_type: "ReadyEvidence".to_owned(),
+        },
+    }];
+    module.proposition_applications = vec![PropositionApplicationIdentity {
+        id: proposition,
+        declaration: proposition,
+        binder_arguments: Vec::new(),
+        arguments: Vec::new(),
+        evidence_interface: Some(interface.clone()),
+    }];
+    module.evidence_terms = (1..=3)
+        .map(|raw| EvidenceTermDeclaration {
+            id: psi_core::EvidenceTermId::new(raw).unwrap(),
+            proposition,
+            interface: interface.clone(),
+        })
+        .collect();
+    module.machines[0].contract.outcome_specific_ensures = [
+        (success, "success"),
+        (failure, "failure"),
+        (absent, "absent"),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(
+        |(index, (result_case, output_field))| OutcomeSpecificEnsure {
+            guard: OutcomeSpecificGuard {
+                result_type,
+                result_case,
+            },
+            position: 0,
+            obligation: ObligationId::new(940 + index as u64).unwrap(),
+            proposition: Proposition::Atom(proposition),
+            evidence: Some(OutcomeSpecificEvidence {
+                term: psi_core::EvidenceTermId::new(index as u64 + 1).unwrap(),
+                output_field: output_field.to_owned(),
+            }),
+        },
+    )
+    .collect();
+    let producer = |raw| EvidenceProducerProvenance {
+        id: EvidenceIdentity::new(raw).unwrap(),
+        term: psi_core::EvidenceTermId::new(raw).unwrap(),
+        conformance_identity: "ConcreteEvidence".to_owned(),
+        evidence_trait_identity: "ReadyEvidence".to_owned(),
+        rows: Vec::new(),
+    };
+    let bundle = ProofBundle {
+        evidence_producers: vec![producer(1), producer(2)],
+        evidence: Vec::new(),
+    };
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("each reached case activates its named producer exactly once");
+
+    let mut vacuous = bundle;
+    vacuous.evidence_producers[1] = EvidenceProducerProvenance {
+        id: EvidenceIdentity::new(2).unwrap(),
+        ..producer(3)
+    };
+    assert_eq!(
+        verify_module(&module, &vacuous, &AdmissionProfile::default())
+            .expect_err("a producer for the absent case remains unused"),
+        VerificationError::UnusedEvidenceProducerTerm(psi_core::EvidenceTermId::new(3).unwrap())
+    );
+}
+
+#[test]
 fn partition_composition_is_available_after_its_exact_successful_call() {
     let (module, goal, obligation) = partition_composition_module();
     validate_module(&module).expect("the partition substitution remains valid replay evidence");
@@ -5688,6 +5893,164 @@ fn payloadless_guard_module() -> (TerminalModule, StructuralCaseId, StructuralCa
         trivial_affine_discards: Vec::new(),
     };
     (module, success, failure, result_place)
+}
+
+fn multi_exit_payloadless_guard_module() -> (
+    TerminalModule,
+    StructuralCaseId,
+    StructuralCaseId,
+    StructuralCaseId,
+    PlaceId,
+) {
+    let mut module = unit_module();
+    let first = ValueId::new(930).expect("first condition");
+    let second = ValueId::new(931).expect("second condition");
+    let structural_type = StructuralTypeId::new(930).expect("result type");
+    let success = StructuralCaseId::new(930).expect("success case");
+    let failure = StructuralCaseId::new(931).expect("failure case");
+    let absent = StructuralCaseId::new(932).expect("absent case");
+    let success_one_place = PlaceId::new(930).expect("first Success place");
+    let success_two_place = PlaceId::new(931).expect("second Success place");
+    let failure_place = PlaceId::new(932).expect("Failure place");
+    let result_place = PlaceId::new(933).expect("result place");
+    let success_one_operation = OperationId::new(930).expect("first Success operation");
+    let success_two_operation = OperationId::new(931).expect("second Success operation");
+    let failure_operation = OperationId::new(932).expect("Failure operation");
+    module.structural_types = vec![StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "Outcome".to_owned(),
+        shape: StructuralTypeShape::Sum {
+            cases: vec![
+                StructuralCaseDeclaration {
+                    id: success,
+                    identity: "Success".to_owned(),
+                    fields: Vec::new(),
+                },
+                StructuralCaseDeclaration {
+                    id: failure,
+                    identity: "Failure".to_owned(),
+                    fields: Vec::new(),
+                },
+                StructuralCaseDeclaration {
+                    id: absent,
+                    identity: "Absent".to_owned(),
+                    fields: Vec::new(),
+                },
+            ],
+        },
+    }];
+    let machine = &mut module.machines[0];
+    machine.parameters = vec![
+        ValueDeclaration {
+            id: first,
+            scalar_type: ScalarType::Boolean,
+        },
+        ValueDeclaration {
+            id: second,
+            scalar_type: ScalarType::Boolean,
+        },
+    ];
+    machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: result_place,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+    });
+    machine.structural_places = vec![
+        StructuralPlaceDeclaration {
+            id: success_one_place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: success_one_operation,
+                structural_type,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: success_two_place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: success_two_operation,
+                structural_type,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: failure_place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: failure_operation,
+                structural_type,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: result_place,
+            kind: StructuralPlaceKind::Result,
+        },
+    ];
+    let return_block = |block_raw, operation, place, result_case, edge_raw| Block {
+        id: BlockId::new(block_raw).unwrap(),
+        parameters: Vec::new(),
+        operations: vec![Operation {
+            id: operation,
+            result: OperationResult::Structural(StructuralOperationResult {
+                place,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishPayloadlessCase { result_case },
+        }],
+        terminator: Terminator::ReturnStructural {
+            edge: EdgeId::new(edge_raw).unwrap(),
+            source: place,
+            returned_claims: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        },
+    };
+    machine.entry = BlockId::new(930).expect("entry block");
+    machine.blocks = vec![
+        Block {
+            id: BlockId::new(930).unwrap(),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Conditional {
+                condition: first,
+                when_true: SuccessorEdge {
+                    edge: EdgeId::new(930).unwrap(),
+                    target: BlockId::new(931).unwrap(),
+                    arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+                when_false: SuccessorEdge {
+                    edge: EdgeId::new(931).unwrap(),
+                    target: BlockId::new(934).unwrap(),
+                    arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+            },
+        },
+        Block {
+            id: BlockId::new(931).unwrap(),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Conditional {
+                condition: second,
+                when_true: SuccessorEdge {
+                    edge: EdgeId::new(932).unwrap(),
+                    target: BlockId::new(932).unwrap(),
+                    arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+                when_false: SuccessorEdge {
+                    edge: EdgeId::new(933).unwrap(),
+                    target: BlockId::new(933).unwrap(),
+                    arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+            },
+        },
+        return_block(932, success_one_operation, success_one_place, success, 934),
+        return_block(933, success_two_operation, success_two_place, success, 935),
+        return_block(934, failure_operation, failure_place, failure, 936),
+    ];
+    (module, success, failure, absent, result_place)
 }
 
 struct Fixture {

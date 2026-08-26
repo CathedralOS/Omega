@@ -7796,9 +7796,18 @@ Remaining N6/N8 work:
   Codec round-trip, missing/stale evidence tampering, result-case activation
   swaps, interpreter execution, and fixed fuel pin the proof-bearing producer to
   the same one-construction/one-return runtime shape and two-unit ceiling as its
-  proof-free peer. Wider or unclassified structural exits retain the replay
-  fence. Payload substitution, multi-exit case intersections, caller import,
-  and validity replay remain fail-closed pending later stage-5 rungs.
+  proof-free peer. Verifier replay now also admits a Terminal-valid acyclic CFG
+  when every ordinary exit returns an exact unrestricted, unqualified,
+  claim-free payloadless case construction and the machine contains no calls.
+  It intersects facts independently across all exits of each reached case, so
+  case-local result membership never leaks into the unconditional all-exit
+  intersection; matching unnamed rows receive that per-case proof context and
+  matching named rows activate each required producer term once even when the
+  case has multiple exits. Cases with no exit remain vacuous and reject stray
+  proof or producer evidence. The checked planner/lowerer still authors only the
+  single exact constructor carrier, and wider or unclassified structural exits
+  retain the replay fence. Payload substitution, caller import, and validity
+  replay remain fail-closed pending later stage-5 rungs.
 
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct
