@@ -3199,6 +3199,7 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
                 "cache custody ancestry is externally writable without sticky-entry protection",
             ));
         }
+        verify_macos_cache_extended_acl_custody(kind, ancestor, true)?;
     }
     Ok(())
 }
@@ -3311,6 +3312,7 @@ fn verify_cache_node_owner_and_mode(
             "cache entry is writable by group or other users",
         ));
     }
+    verify_macos_cache_extended_acl_custody(kind, path, !metadata.file_type().is_symlink())?;
     Ok(())
 }
 
@@ -3335,6 +3337,45 @@ fn cache_custody_invalid(
         CacheCustodyKind::Git => cache_invalid(path, message),
         CacheCustodyKind::LocalSnapshot => local_snapshot_invalid(path, message),
     }
+}
+
+#[cfg(target_os = "macos")]
+fn verify_macos_cache_extended_acl_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    follow_symbolic_link: bool,
+) -> Result<(), SourceResolveError> {
+    let symbolic_link_behavior = if follow_symbolic_link {
+        omega_platform_custody::SymbolicLinkBehavior::Follow
+    } else {
+        omega_platform_custody::SymbolicLinkBehavior::InspectLink
+    };
+    let has_allow_entry =
+        omega_platform_custody::extended_acl_has_allow_entry(path, symbolic_link_behavior)
+            .map_err(|error| {
+                cache_custody_invalid(
+                    kind,
+                    path,
+                    format!("could not inspect cache extended ACL custody: {error}"),
+                )
+            })?;
+    if has_allow_entry {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache custody contains an extended ACL allow entry",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn verify_macos_cache_extended_acl_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _follow_symbolic_link: bool,
+) -> Result<(), SourceResolveError> {
+    Ok(())
 }
 
 struct CacheEntryLock {
@@ -5443,6 +5484,20 @@ mod tests {
             "omega-packages-{name}-{}-{stamp}",
             std::process::id()
         ))
+    }
+
+    #[cfg(target_os = "macos")]
+    fn change_macos_acl(path: &Path, arguments: &[&str]) {
+        let status = Command::new("/bin/chmod")
+            .args(arguments)
+            .arg(path)
+            .status()
+            .expect("run the concrete macOS ACL editor");
+        assert!(
+            status.success(),
+            "macOS ACL edit failed for {}",
+            path.display()
+        );
     }
 
     fn local_git_request(repository: &Path, revision: &str) -> GitSourceRequest {
@@ -7910,6 +7965,140 @@ mod tests {
         let _ = std::fs::remove_dir_all(&cache);
     }
 
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn cache_custody_rejects_extended_acl_allow_entries_on_root_and_nodes() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let cache = temp_root("cache-acl-custody");
+        std::fs::create_dir_all(&cache).expect("create cache");
+        let cache = cache.canonicalize().expect("canonicalize cache");
+        std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(0o700))
+            .expect("make cache private");
+        let payload = cache.join("payload");
+        std::fs::write(&payload, b"custody").expect("write cache payload");
+        std::fs::set_permissions(&payload, std::fs::Permissions::from_mode(0o600))
+            .expect("make cache payload private");
+
+        change_macos_acl(&cache, &["+a", "everyone allow write"]);
+        let root_error = verify_cache_custody(&cache, CacheCustodyKind::Git, 1024)
+            .expect_err("extended ACL allow on cache root must reject");
+        assert!(matches!(
+            &root_error,
+            SourceResolveError::GitCacheInvalid { path, message }
+                if path == &cache && message.contains("extended ACL allow")
+        ));
+        change_macos_acl(&cache, &["-N"]);
+
+        change_macos_acl(&payload, &["+a", "everyone allow write"]);
+        let node_error = verify_cache_custody(&cache, CacheCustodyKind::Git, 1024)
+            .expect_err("extended ACL allow on cache node must reject");
+        assert!(
+            matches!(
+                &node_error,
+                SourceResolveError::GitCacheInvalid { path, message }
+                    if path == &payload && message.contains("extended ACL allow")
+            ),
+            "unexpected cache node ACL error: {node_error:?}"
+        );
+        change_macos_acl(&payload, &["-N"]);
+        change_macos_acl(&payload, &["+a", "everyone deny write"]);
+        verify_cache_custody(&cache, CacheCustodyKind::Git, 1024)
+            .expect("deny-only ACL does not broaden cache custody");
+
+        change_macos_acl(&payload, &["-N"]);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn cache_locks_reject_extended_acl_allow_entries() {
+        let root = temp_root("cache-lock-acl-custody");
+        std::fs::create_dir_all(&root).expect("create cache lock root");
+
+        for (name, kind) in [
+            ("git.lock", CacheCustodyKind::Git),
+            ("local.lock", CacheCustodyKind::LocalSnapshot),
+        ] {
+            let path = root.join(name);
+            let file = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .open(&path)
+                .expect("open cache lock");
+            change_macos_acl(&path, &["+a", "everyone allow write"]);
+            let error = verify_cache_lock_path_identity(kind, &path, &file)
+                .expect_err("extended ACL allow on cache lock must reject");
+            assert!(
+                matches!(
+                    (&kind, &error),
+                    (CacheCustodyKind::Git, SourceResolveError::GitCacheInvalid { message, .. })
+                        | (
+                            CacheCustodyKind::LocalSnapshot,
+                            SourceResolveError::LocalSnapshotInvalid { message, .. }
+                        ) if message.contains("extended ACL allow")
+                ),
+                "unexpected cache lock ACL error: {error:?}"
+            );
+            change_macos_acl(&path, &["-N"]);
+        }
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn git_cache_reuse_rejects_extended_acl_allow_entry() {
+        let (repository, _) = create_git_source("git-cache-acl-source");
+        let cache = temp_root("git-cache-acl-cache");
+        let request = local_git_request(&repository, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let cache = cache.canonicalize().expect("canonicalize Git cache");
+        let entry = git_cache_entry_root(&cache, &request);
+        change_macos_acl(&entry, &["+a", "everyone allow write"]);
+
+        let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect_err("extended ACL allow on Git cache must reject reuse");
+        assert!(
+            matches!(
+                &error,
+                SourceResolveError::GitCacheInvalid { path, message }
+                    if path == &entry && message.contains("extended ACL allow")
+            ),
+            "unexpected Git cache ACL error: {error:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&repository);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn local_snapshot_reuse_rejects_extended_acl_allow_entry() {
+        let source = temp_root("local-cache-acl-source");
+        let cache = temp_root("local-cache-acl-cache");
+        std::fs::create_dir_all(&source).expect("create source");
+        std::fs::write(source.join("main.omg"), b"machine main() { }").expect("write source");
+        let resolved = resolve_local_source_snapshot(&source, &cache, LocalSourceLimits::default())
+            .expect("prime local snapshot cache");
+        let payload = resolved.snapshot_root.join("main.omg");
+        change_macos_acl(&payload, &["+a", "everyone allow write"]);
+
+        let error = resolve_local_source_snapshot(&source, &cache, LocalSourceLimits::default())
+            .expect_err("extended ACL allow on local snapshot must reject reuse");
+        assert!(matches!(
+            &error,
+            SourceResolveError::LocalSnapshotInvalid { path, message }
+                if path == &payload && message.contains("extended ACL allow")
+        ));
+
+        change_macos_acl(&payload, &["-N"]);
+        let _ = std::fs::remove_dir_all(&source);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
     #[test]
     fn cache_custody_byte_ceilings_are_source_scaled_and_absolutely_capped() {
         let small = LocalSourceLimits {
@@ -8343,19 +8532,6 @@ mod tests {
     fn git_executor_rejects_extended_acl_allow_entries_on_executable_and_ancestry() {
         use std::os::unix::fs::PermissionsExt;
 
-        fn change_acl(path: &Path, arguments: &[&str]) {
-            let status = Command::new("/bin/chmod")
-                .args(arguments)
-                .arg(path)
-                .status()
-                .expect("run the concrete macOS ACL editor");
-            assert!(
-                status.success(),
-                "macOS ACL edit failed for {}",
-                path.display()
-            );
-        }
-
         let root = temp_root("git-executable-acl-custody");
         std::fs::create_dir_all(&root).expect("create executable ACL custody root");
         let root = root
@@ -8369,7 +8545,7 @@ mod tests {
             .expect("make fake Git executable private");
 
         let executor = GitExecutor::open(&fake_git).expect("capture ACL-free Git executable");
-        change_acl(&fake_git, &["+a", "everyone allow write"]);
+        change_macos_acl(&fake_git, &["+a", "everyone allow write"]);
         let executable_acl_error = executor
             .verify()
             .expect_err("extended ACL allow on executable must reject");
@@ -8381,17 +8557,17 @@ mod tests {
             ),
             "unexpected executable ACL error: {executable_acl_error:?}"
         );
-        change_acl(&fake_git, &["-N"]);
+        change_macos_acl(&fake_git, &["-N"]);
         executor
             .verify()
             .expect("removing executable ACL should restore custody");
-        change_acl(&fake_git, &["+a", "everyone deny write"]);
+        change_macos_acl(&fake_git, &["+a", "everyone deny write"]);
         executor
             .verify()
             .expect("deny-only executable ACL does not broaden custody");
-        change_acl(&fake_git, &["-N"]);
+        change_macos_acl(&fake_git, &["-N"]);
 
-        change_acl(&root, &["+a", "everyone allow write"]);
+        change_macos_acl(&root, &["+a", "everyone allow write"]);
         let ancestry_acl_error = executor
             .verify()
             .expect_err("extended ACL allow on ancestry must reject");
@@ -8403,7 +8579,7 @@ mod tests {
             ),
             "unexpected ancestry ACL error: {ancestry_acl_error:?}"
         );
-        change_acl(&root, &["-N"]);
+        change_macos_acl(&root, &["-N"]);
         executor
             .verify()
             .expect("removing ancestry ACL should restore custody");
