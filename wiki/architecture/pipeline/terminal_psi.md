@@ -250,6 +250,17 @@ obligation. A proposition-derived compatibility row retains the loan-formation
 event, captured loan/place identities, normalized relational conclusion, exact
 premise fact tokens, and proof derivation.
 
+The first checked-only precursor is now retained before this Terminal crossing.
+For every loan/loan pair admitted by the existing automatic non-interference
+judgment, a separate proof arena records a zero-premise `Structural` row with
+the exact machine/state/statement formation coordinate, two state-owned loan
+handles, frozen captured places, and normalized relational conclusion. Repeated
+checked-fact validation rebuilds that arena deterministically, and resource
+rejoin rejects changed handles, places, or formation coordinates. This carrier
+does not yet encode Terminal evidence, reconstruct the conclusion
+independently, or admit proposition premises, and it does not alter the loan
+resource rows or admission semantics.
+
 The row does not serialize "dominates" or "is valid" as trusted claims. The
 verifier reconstructs control-flow dominance and path availability from the
 premises' establishment points, checks their exact value/place versions and

@@ -262,7 +262,18 @@ and restoration remain resource judgments. A compound rule such as "no
 conflicting writer" therefore splits: the write loan's existence is Type-side,
 while whether its captured place interferes with another loan is relational.
 
-A loan captures its exact place occurrence when it is formed. In:
+A loan captures its exact place occurrence when it is formed.
+
+The current checked representation retains the first automatic certificate
+for this split without promoting proof facts into authority. Each admitted
+loan/loan non-interference judgment records a separate zero-premise
+`Structural` row naming the formation's machine, state, and statement, both
+exact loan occurrences, their frozen places, and the normalized relational
+conclusion. Rerunning checked-fact validation rebuilds those rows
+deterministically. Proposition premises and Terminal verification remain a
+later rung; this checked record does not change ordinary borrow admission.
+
+In:
 
 ```omega
 let view = &mut buffer[table[index]];

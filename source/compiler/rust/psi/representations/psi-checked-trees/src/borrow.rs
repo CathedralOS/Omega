@@ -1,4 +1,4 @@
-use psi_arena::{Arena, HandleSpan};
+use psi_arena::{Arena, Handle, HandleSpan};
 use psi_symbols::SymbolHandle;
 
 /// One exact structural place captured for compatibility checking.
@@ -35,6 +35,54 @@ pub struct CapturedPlaceCompatibility {
     pub disjoint: bool,
     pub containment: CapturedPlaceContainment,
     pub non_interfering: bool,
+}
+
+/// The normalized conclusion retained from one automatic loan/loan
+/// compatibility judgment.
+///
+/// The captured places live beside this conclusion on the certificate so the
+/// conclusion cannot be transplanted onto a merely shape-compatible pair.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BorrowCompatibilityConclusion {
+    pub disjoint: bool,
+    pub containment: CapturedPlaceContainment,
+    pub non_interfering: bool,
+}
+
+/// Checked derivation class for automatic borrow compatibility.
+///
+/// `Structural` deliberately carries no premise handles: this certificate is
+/// emitted only by the ordinary structural loan/loan judgment. It is not a
+/// proposition proof and does not claim Terminal replay authority.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum BorrowCompatibilityDerivation {
+    #[default]
+    Structural,
+}
+
+/// Exact source coordinate at which the second loan was formed while the
+/// first loan remained active.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BorrowCompatibilityFormation {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+}
+
+/// Checked-only certificate for one automatically admitted loan/loan pair.
+///
+/// Both resource handles and frozen places are retained. Later checked-tree
+/// review can therefore rejoin the row to the exact state-owned loan rows;
+/// this row neither creates borrow authority nor changes admission semantics.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedBorrowCompatibilityCertificate {
+    pub formation: BorrowCompatibilityFormation,
+    pub forming_loan: Handle<BorrowLoanFact>,
+    pub active_loan: Handle<BorrowLoanFact>,
+    pub forming_place: CapturedPlace,
+    pub active_place: CapturedPlace,
+    pub conclusion: BorrowCompatibilityConclusion,
+    pub derivation: BorrowCompatibilityDerivation,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -124,6 +172,9 @@ pub struct BorrowFacts {
     pub calls: Arena<BorrowCallFact>,
     pub loans: Arena<BorrowLoanFact>,
     pub states: Arena<StateBorrowFact>,
+    /// Zero-premise structural certificates retained by checked borrow
+    /// admission. This is a separate proof ledger from the loan resource rows.
+    pub compatibility_certificates: Arena<CheckedBorrowCompatibilityCertificate>,
 }
 
 impl BorrowFacts {
@@ -144,7 +195,46 @@ impl BorrowFacts {
             calls,
             loans,
             states,
+            compatibility_certificates: Arena::new(),
         }
+    }
+
+    /// Rejoins a retained compatibility row to the exact state-owned loan
+    /// resources and their frozen places.
+    pub fn compatibility_certificate_matches_resources(
+        &self,
+        certificate: &CheckedBorrowCompatibilityCertificate,
+    ) -> bool {
+        if certificate.forming_loan == certificate.active_loan
+            || !self.loans.is_valid(certificate.forming_loan)
+            || !self.loans.is_valid(certificate.active_loan)
+            || !certificate.formation.machine_symbol.is_valid()
+            || !certificate.formation.state_symbol.is_valid()
+            || !certificate.conclusion.non_interfering
+        {
+            return false;
+        }
+
+        let Some(state) = self.states.iter().find_map(|(_, state)| {
+            (state.machine_symbol == certificate.formation.machine_symbol
+                && state.state_symbol == certificate.formation.state_symbol)
+                .then_some(state)
+        }) else {
+            return false;
+        };
+        if !handle_span_contains(state.loans, certificate.forming_loan)
+            || !handle_span_contains(state.loans, certificate.active_loan)
+        {
+            return false;
+        }
+
+        let forming_loan = self.loans.get(certificate.forming_loan);
+        let active_loan = self.loans.get(certificate.active_loan);
+        forming_loan.statement_index == certificate.formation.statement_index
+            && certificate.forming_place.root_symbol == forming_loan.root_symbol
+            && certificate.forming_place.segments == self.loan_segments(forming_loan)
+            && certificate.active_place.root_symbol == active_loan.root_symbol
+            && certificate.active_place.segments == self.loan_segments(active_loan)
     }
 
     pub fn access_segments(&self, access: &BorrowArgumentAccessFact) -> &[psi_facts::PlaceSegment] {
@@ -158,6 +248,23 @@ impl BorrowFacts {
     pub fn loan_owner_path(&self, loan: &BorrowLoanFact) -> &[BorrowLoanOwnerSegment] {
         self.owner_segments.span_or_empty(loan.owner_path)
     }
+
+    pub fn state_owns_loan(&self, state: &StateBorrowFact, loan: Handle<BorrowLoanFact>) -> bool {
+        self.loans.is_valid(loan) && handle_span_contains(state.loans, loan)
+    }
+}
+
+fn handle_span_contains<T>(span: HandleSpan<T>, handle: Handle<T>) -> bool {
+    handle.is_valid()
+        && !span.is_empty()
+        && handle.generation() == span.start().generation()
+        && handle.arena_index() >= span.start().arena_index()
+        && handle.arena_index()
+            < span
+                .start()
+                .arena_index()
+                .checked_add(span.count())
+                .unwrap_or(u32::MAX)
 }
 
 #[cfg(test)]
@@ -195,6 +302,7 @@ mod tests {
         assert_eq!(facts.calls, calls);
         assert_eq!(facts.loans, loans);
         assert_eq!(facts.states, states);
+        assert!(facts.compatibility_certificates.is_empty());
     }
 
     #[test]
