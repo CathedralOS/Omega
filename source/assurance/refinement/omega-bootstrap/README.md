@@ -1,6 +1,16 @@
 # Bridge refinement reconstruction
 
-The active structural successor is
+The active platform-neutral execution successor is
+[`OMGRFN20`](OMGCOMP_REFINEMENT_WITNESS_V20.md): `OMGRFNK\0` / version 20 binds
+exact OMGCOMP3 and OMGRSW9 to CKIR17's receiverless checked `Console` adapters,
+ranked recurrent helper, explicit `u8 as i32` operations, and ordered abstract
+byte events. Responsibility-local Python owners, representative persisted-Beta
+projections, and one same-frame composite over actual native/self resolver and
+lowerer bytes close R1–R5 reconstruction and the four required observations.
+The carrier contains no entry, native artifact or effect, installed/admitted
+provider, accepted-lock, package authority, or compilation authority.
+
+The active structural predecessor is
 [`OMGRFN19`](OMGCOMP_REFINEMENT_WITNESS_V19.md): `OMGRFNJ\0` / version 19 binds
 exact OMGCOMP3 to OMGRSW9's authoritative build selection and complete
 six-requirement `Console` provider plan. Responsibility-local Python owners,

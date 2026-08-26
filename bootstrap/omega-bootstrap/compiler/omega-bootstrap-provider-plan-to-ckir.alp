@@ -1,0 +1,614 @@
+// Focused OMGCOMP3 + OMGRSW9 -> CKIR17 checked Console adapter lowerer.
+// It consumes only OMGLOWI v18/selector 9 and publishes no bytes until the
+// complete framing, selected resolved identities, source pairing, and explicit
+// U8ToI32 cast sites pass.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+    machine read_byte() -> i32;
+    machine write_byte(byte: i32);
+}
+
+data Main {
+    console: Console;
+    status: i32; c: i32; n: i32; i: i32; j: i32; at: i32; decoded: i32;
+    total: i32; comp_n: i32; witness_n: i32; comp: i32; witness: i32;
+    bundle_length: i32; string_length: i32; package_count: i32;
+    source_count: i32; alias_count: i32; bundle: i32; cursor: i32;
+    label_length: i32; content_length: i32; source_id: i32;
+    scan_pos: i32; scan_end: i32; tok_start: i32; tok_len: i32; tok: i32;
+    input: [u8; 269617];
+    bundle_content_starts: [i32; 16]; bundle_content_lengths: [i32; 16];
+    source_content_starts: [i32; 16]; source_content_lengths: [i32; 16];
+}
+
+machine Main::reject(&mut self) {
+    transition self.status == 0 { true -> set() _ -> done() }
+    state set() { self.status = 251; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::exhaust(&mut self) {
+    transition self.status == 0 { true -> set() _ -> done() }
+    state set() { self.status = 252; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::read_u32(&mut self, position: i32) {
+    self.decoded = 0 - 1;
+    transition position >= 0 { true -> room() _ -> bad() }
+    state room() { transition position <= self.n - 4 { true -> signed() _ -> bad() } }
+    state signed() { transition self.input[position + 3] < 128 { true -> value() _ -> bad() } }
+    state value() {
+        self.decoded = self.input[position] + self.input[position + 1] * 256
+            + self.input[position + 2] * 65536
+            + self.input[position + 3] * 16777216;
+        transition 0 { _ -> done() }
+    }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::expect_u32(&mut self, position: i32, value: i32) {
+    self.read_u32(position);
+    transition self.status == 0 { true -> equal() _ -> done() }
+    state equal() { transition self.decoded == value { true -> done() _ -> bad() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::expect_byte(&mut self, position: i32, value: i32) {
+    transition position >= 0 { true -> room() _ -> bad() }
+    state room() { transition position < self.n { true -> equal() _ -> bad() } }
+    state equal() { transition self.input[position] == value { true -> done() _ -> bad() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::expect_no_id(&mut self, position: i32) {
+    self.expect_byte(position,255); self.expect_byte(position+1,255);
+    self.expect_byte(position+2,255); self.expect_byte(position+3,255);
+}
+
+machine Main::slurp(&mut self) {
+    self.n = 0;
+    transition 0 { _ -> read() }
+    state read() { self.c = read_byte(); transition self.c < 0 { true -> done() _ -> room() } }
+    state room() { transition self.n < 269617 { true -> store() _ -> over() } }
+    state store() { self.input[self.n] = self.c; self.n = self.n + 1; transition self.n > 269616 { true -> over() _ -> read() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_outer(&mut self) {
+    transition self.n >= 32 { true -> magic() _ -> bad() }
+    state magic() {
+        self.expect_byte(0,79); self.expect_byte(1,77); self.expect_byte(2,71);
+        self.expect_byte(3,76); self.expect_byte(4,79); self.expect_byte(5,87);
+        self.expect_byte(6,73); self.expect_byte(7,0);
+        transition self.status == 0 { true -> fixed() _ -> done() }
+    }
+    state fixed() {
+        self.expect_byte(8,18); self.expect_byte(9,0); self.expect_byte(10,0);
+        self.expect_byte(11,0); self.expect_byte(12,0); self.expect_byte(13,0);
+        self.expect_byte(14,32); self.expect_byte(15,0);
+        self.expect_u32(28,9);
+        transition self.status == 0 { true -> lengths() _ -> done() }
+    }
+    state lengths() {
+        self.read_u32(16); self.total=self.decoded;
+        self.read_u32(20); self.comp_n=self.decoded;
+        self.read_u32(24); self.witness_n=self.decoded;
+        transition self.status == 0 { true -> comp_limit() _ -> done() }
+    }
+    state comp_limit() { transition self.comp_n <= 267280 { true -> witness_limit() _ -> over() } }
+    state witness_limit() { transition self.witness_n <= 524288 { true -> sum_room() _ -> over() } }
+    state sum_room() { transition self.comp_n <= 269616 - 32 - self.witness_n { true -> exact() _ -> bad() } }
+    state exact() { transition self.total == 32 + self.comp_n + self.witness_n { true -> actual() _ -> bad() } }
+    state actual() { transition self.total == self.n { true -> save() _ -> bad() } }
+    state save() { self.comp=32; self.witness=32+self.comp_n; transition 0 { _ -> done() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_compilation(&mut self) {
+    transition self.comp_n >= 64 { true -> magic() _ -> bad() }
+    state magic() {
+        self.expect_byte(self.comp,79); self.expect_byte(self.comp+1,77);
+        self.expect_byte(self.comp+2,71); self.expect_byte(self.comp+3,67);
+        self.expect_byte(self.comp+4,79); self.expect_byte(self.comp+5,77);
+        self.expect_byte(self.comp+6,80); self.expect_byte(self.comp+7,0);
+        transition self.status == 0 { true -> fixed() _ -> done() }
+    }
+    state fixed() {
+        self.expect_byte(self.comp+8,3); self.expect_byte(self.comp+9,0);
+        self.expect_byte(self.comp+10,0); self.expect_byte(self.comp+11,0);
+        self.expect_byte(self.comp+12,1); self.expect_byte(self.comp+13,0);
+        self.expect_byte(self.comp+14,0); self.expect_byte(self.comp+15,0);
+        self.expect_u32(self.comp+16,self.comp_n);
+        transition self.status == 0 { true -> header() _ -> done() }
+    }
+    state header() {
+        self.read_u32(self.comp+20); self.bundle_length=self.decoded;
+        self.read_u32(self.comp+24); self.string_length=self.decoded;
+        self.read_u32(self.comp+32); self.package_count=self.decoded;
+        self.read_u32(self.comp+36); self.source_count=self.decoded;
+        self.read_u32(self.comp+40); self.alias_count=self.decoded;
+        self.expect_u32(self.comp+44,1); self.read_u32(self.comp+48); self.source_id=self.decoded;
+        self.expect_u32(self.comp+60,1);
+        transition self.status == 0 { true -> counts() _ -> done() }
+    }
+    state counts() { transition self.package_count == 2 { true -> source_count_exact() _ -> bad() } }
+    state source_count_exact() { transition self.source_count == 4 { true -> alias_exact() _ -> bad() } }
+    state alias_exact() { transition self.alias_count == 1 { true -> extents() _ -> bad() } }
+    state extents() {
+        self.bundle=self.comp+64+self.package_count*48+self.source_count*20
+            +self.alias_count*16+self.string_length;
+        transition self.bundle <= self.comp+self.comp_n { true -> bundle_extent() _ -> bad() }
+    }
+    state bundle_extent() { transition self.bundle_length == self.comp+self.comp_n-self.bundle { true -> done() _ -> bad() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::decode_bundle(&mut self) {
+    transition self.bundle_length >= 16 { true -> magic() _ -> bad() }
+    state magic() {
+        self.expect_byte(self.bundle,79); self.expect_byte(self.bundle+1,77);
+        self.expect_byte(self.bundle+2,71); self.expect_byte(self.bundle+3,48);
+        self.expect_byte(self.bundle+4,66); self.expect_byte(self.bundle+5,78);
+        self.expect_byte(self.bundle+6,68); self.expect_byte(self.bundle+7,76);
+        self.expect_u32(self.bundle+8,1); self.expect_u32(self.bundle+12,4);
+        transition self.status == 0 { true -> begin() _ -> done() }
+    }
+    state begin() { self.cursor=self.bundle+16; self.i=0; transition 0 { _ -> rows() } }
+    state rows() { transition self.i < 4 { true -> room() _ -> exact() } }
+    state room() { transition self.cursor <= self.comp+self.comp_n-8 { true -> lengths() _ -> bad() } }
+    state lengths() {
+        self.read_u32(self.cursor); self.label_length=self.decoded;
+        self.read_u32(self.cursor+4); self.content_length=self.decoded;
+        transition self.status == 0 { true -> extent() _ -> done() }
+    }
+    state extent() { transition self.label_length <= self.comp+self.comp_n-self.cursor-8-self.content_length { true -> save() _ -> bad() } }
+    state save() {
+        self.bundle_content_starts[self.i]=self.cursor+8+self.label_length;
+        self.bundle_content_lengths[self.i]=self.content_length;
+        self.cursor=self.cursor+8+self.label_length+self.content_length;
+        self.i=self.i+1; transition 0 { _ -> rows() }
+    }
+    state exact() { transition self.cursor == self.comp+self.comp_n { true -> map_begin() _ -> bad() } }
+    state map_begin() { self.i=0; transition 0 { _ -> map_rows() } }
+    state map_rows() { transition self.i < 4 { true -> map_row() _ -> done() } }
+    state map_row() {
+        self.at=self.comp+64+self.package_count*48+self.i*20;
+        self.expect_u32(self.at,self.i); self.read_u32(self.at+8); self.j=self.decoded;
+        transition self.status == 0 { true -> map_range() _ -> done() }
+    }
+    state map_range() { transition self.j < 4 { true -> map_save() _ -> bad() } }
+    state map_save() {
+        self.source_content_starts[self.i]=self.bundle_content_starts[self.j];
+        self.source_content_lengths[self.i]=self.bundle_content_lengths[self.j];
+        self.i=self.i+1; transition 0 { _ -> map_rows() }
+    }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_witness_header(&mut self) {
+    transition self.witness_n == 2304 { true -> magic() _ -> bad() }
+    state magic() {
+        self.expect_byte(self.witness,79); self.expect_byte(self.witness+1,77);
+        self.expect_byte(self.witness+2,71); self.expect_byte(self.witness+3,82);
+        self.expect_byte(self.witness+4,83); self.expect_byte(self.witness+5,87);
+        self.expect_byte(self.witness+6,57); self.expect_byte(self.witness+7,0);
+        self.expect_byte(self.witness+8,9); self.expect_byte(self.witness+9,0);
+        self.expect_byte(self.witness+10,0); self.expect_byte(self.witness+11,0);
+        self.expect_byte(self.witness+12,0); self.expect_byte(self.witness+13,0);
+        self.expect_byte(self.witness+14,144); self.expect_byte(self.witness+15,0);
+        transition self.status == 0 { true -> extents() _ -> done() }
+    }
+    state extents() {
+        self.expect_u32(self.witness+16,2304); self.expect_u32(self.witness+20,self.comp_n);
+        transition self.status == 0 { true -> counts() _ -> done() }
+    }
+    state counts() {
+        self.expect_u32(self.witness+24,4); self.expect_u32(self.witness+28,8);
+        self.expect_u32(self.witness+32,1); self.expect_u32(self.witness+36,6);
+        self.expect_u32(self.witness+40,5); self.expect_u32(self.witness+44,6);
+        self.expect_u32(self.witness+48,1); self.expect_u32(self.witness+52,1);
+        self.expect_u32(self.witness+56,2); self.expect_u32(self.witness+60,6);
+        self.expect_u32(self.witness+64,7); self.expect_u32(self.witness+68,1);
+        self.expect_u32(self.witness+72,1); self.expect_u32(self.witness+76,1);
+        self.expect_u32(self.witness+80,6); self.expect_u32(self.witness+84,6);
+        self.expect_u32(self.witness+88,2);
+        transition self.status == 0 { true -> selected() _ -> done() }
+    }
+    state selected() {
+        self.read_u32(self.witness+92); self.i=self.decoded;
+        self.read_u32(self.witness+96); self.j=self.decoded;
+        self.expect_u32(self.witness+100,1); self.expect_u32(self.witness+104,1);
+        self.expect_u32(self.witness+108,0); self.expect_u32(self.witness+112,0);
+        self.expect_u32(self.witness+116,0);
+        transition self.status == 0 { true -> source_ids() _ -> done() }
+    }
+    state source_ids() { transition self.i < 4 { true -> root_range() _ -> bad() } }
+    state root_range() { transition self.j < 4 { true -> comp_root() _ -> bad() } }
+    state comp_root() { transition self.j == self.source_id { true -> reserved_begin() _ -> bad() } }
+    state reserved_begin() { self.at=self.witness+120; transition 0 { _ -> reserved() } }
+    state reserved() { transition self.at < self.witness+144 { true -> reserved_word() _ -> done() } }
+    state reserved_word() { self.expect_u32(self.at,0); self.at=self.at+4; transition 0 { _ -> reserved() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_units(&mut self) {
+    self.i=0; transition 0 { _ -> rows() }
+    state rows() { transition self.i < 4 { true -> row() _ -> done() } }
+    state row() {
+        self.at=self.witness+144+self.i*28;
+        self.expect_u32(self.at,self.i); self.read_u32(self.at+4); self.source_id=self.decoded;
+        transition self.status == 0 { true -> source_range() _ -> done() }
+    }
+    state source_range() { transition self.source_id < 4 { true -> source_length() _ -> bad() } }
+    state source_length() {
+        self.expect_u32(self.at+20,0);
+        self.expect_u32(self.at+24,self.source_content_lengths[self.source_id]);
+        self.i=self.i+1; transition 0 { _ -> rows() }
+    }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_selected_relation(&mut self) {
+    // Helper: exact type/ranking/reach identities. Source/name/body spans stay
+    // input-derived and are checked for range by the source-pair pass below.
+    self.at=self.witness+1056;
+    self.expect_u32(self.at,0); self.expect_u32(self.at+16,7);
+    self.expect_u32(self.at+20,5); self.expect_u32(self.at+24,3);
+    self.expect_u32(self.at+28,1); self.expect_u32(self.at+32,1);
+    self.expect_u32(self.at+36,0);
+    // Checked adapters preserve provider ownership, requirements, helper and
+    // ordinary-call identity. Row 0 is write; row 1 is write_line.
+    self.at=self.witness+1104;
+    self.expect_u32(self.at,0); self.expect_u32(self.at+8,0); self.expect_u32(self.at+12,1);
+    self.expect_u32(self.at+24,7); self.expect_u32(self.at+28,5);
+    self.expect_u32(self.at+32,0); self.expect_u32(self.at+36,0); self.expect_u32(self.at+48,1);
+    self.at=self.at+52;
+    self.expect_u32(self.at,1); self.expect_u32(self.at+8,0); self.expect_u32(self.at+12,0);
+    self.expect_u32(self.at+24,7); self.expect_u32(self.at+28,5);
+    self.expect_u32(self.at+32,0); self.expect_u32(self.at+36,1); self.expect_u32(self.at+48,1);
+    // Complete selected plan and requirement-4 intrinsic row.
+    self.at=self.witness+1788;
+    self.expect_u32(self.at,0); self.expect_u32(self.at+4,0); self.expect_u32(self.at+8,0);
+    self.expect_u32(self.at+12,1); self.expect_u32(self.at+16,0);
+    self.expect_u32(self.at+20,0); self.expect_u32(self.at+24,6); self.expect_u32(self.at+28,0);
+    self.expect_u32(self.at+32,1);
+    self.at=self.witness+1208+4*56;
+    self.expect_u32(self.at,4); self.expect_u32(self.at+4,2); self.expect_u32(self.at+12,0);
+    self.expect_u32(self.at+16,4); self.expect_u32(self.at+36,1);
+    self.expect_u32(self.at+40,0); self.expect_u32(self.at+44,0);
+    self.expect_u32(self.at+48,1); self.expect_u32(self.at+52,2);
+}
+
+machine Main::validate_relation_rows(&mut self) {
+    // The emitted i32/service identities are explicit resolved types, not
+    // values inferred from the fixed output image.
+    self.at=self.witness+256+24;
+    self.expect_u32(self.at,1); self.expect_byte(self.at+4,1);
+    self.expect_byte(self.at+5,0); self.expect_byte(self.at+6,0);
+    self.expect_byte(self.at+7,0); self.expect_no_id(self.at+8);
+    self.expect_no_id(self.at+12); self.expect_byte(self.at+16,0);
+    self.expect_byte(self.at+17,0); self.expect_byte(self.at+18,0);
+    self.expect_byte(self.at+19,128); self.expect_u32(self.at+20,2147483647);
+    self.at=self.witness+256+7*24;
+    self.expect_u32(self.at,7); self.expect_byte(self.at+4,7);
+    self.expect_byte(self.at+5,0); self.expect_byte(self.at+6,0);
+    self.expect_byte(self.at+7,0); self.expect_u32(self.at+12,0);
+    self.expect_u32(self.at+16,0); self.expect_u32(self.at+20,0);
+
+    // Console requirement 4 has the exact explicit full-i32 parameter and
+    // one exact Console reach. Source/name spans remain paired source data.
+    self.at=self.witness+448;
+    self.expect_u32(self.at,0); self.expect_u32(self.at+20,0);
+    self.expect_u32(self.at+24,6); self.expect_u32(self.at+28,3);
+    self.at=self.witness+480+4*48;
+    self.expect_u32(self.at,4); self.expect_u32(self.at+4,0);
+    self.expect_u32(self.at+8,4); self.expect_u32(self.at+24,3);
+    self.expect_u32(self.at+28,1); self.expect_u32(self.at+32,0);
+    self.expect_u32(self.at+36,4); self.expect_u32(self.at+40,1);
+    self.expect_u32(self.at+44,0);
+    self.at=self.witness+768+3*24;
+    self.expect_u32(self.at,3); self.expect_u32(self.at+4,4);
+    self.expect_u32(self.at+8,0); self.expect_u32(self.at+12,1);
+    self.at=self.witness+888+4*24;
+    self.expect_u32(self.at,4); self.expect_u32(self.at+4,4);
+    self.expect_u32(self.at+8,0);
+    self.at=self.witness+1032;
+    self.expect_u32(self.at,0); self.expect_u32(self.at+20,1);
+
+    // The selected plan is rooted only in the explicit BuildOverride row.
+    self.at=self.witness+1752;
+    self.expect_u32(self.at,0); self.expect_u32(self.at+8,0);
+    self.expect_u32(self.at+12,0); self.expect_u32(self.at+16,0);
+    self.expect_u32(self.at+28,1); self.expect_u32(self.at+32,0);
+
+    // The two adapter calls remain ordinary, receiverless helper calls.
+    self.at=self.witness+2232;
+    self.expect_u32(self.at,0); self.expect_u32(self.at+8,1);
+    self.expect_u32(self.at+12,0); self.expect_u32(self.at+16,0);
+    self.expect_u32(self.at+28,3); self.expect_u32(self.at+32,0);
+    self.at=self.at+36;
+    self.expect_u32(self.at,1); self.expect_u32(self.at+8,1);
+    self.expect_u32(self.at+12,1); self.expect_u32(self.at+16,0);
+    self.expect_u32(self.at+28,3); self.expect_u32(self.at+32,0);
+}
+
+machine Main::validate_plan_rows(&mut self) {
+    self.i=0; transition 0 { _ -> rows() }
+    state rows() { transition self.i < 6 { true -> row() _ -> done() } }
+    state row() {
+        self.at=self.witness+1824+self.i*24;
+        self.expect_u32(self.at,self.i); self.expect_u32(self.at+4,0);
+        self.expect_u32(self.at+8,self.i); self.expect_u32(self.at+12,self.i);
+        self.expect_u32(self.at+16,self.i);
+        transition self.status == 0 { true -> binding() _ -> done() }
+    }
+    state binding() { transition self.i < 2 { true -> checked() _ -> intrinsic() } }
+    state checked() { self.expect_u32(self.at+20,1); transition 0 { _ -> next() } }
+    state intrinsic() { self.expect_u32(self.at+20,2); transition 0 { _ -> next() } }
+    state next() { self.i=self.i+1; transition 0 { _ -> rows() } }
+    state done() { }
+}
+
+machine Main::next_span_token(&mut self) {
+    self.tok=0; self.tok_start=self.scan_pos; self.tok_len=0;
+    transition 0 { _ -> skip() }
+    state skip() { transition self.scan_pos < self.scan_end { true -> whitespace() _ -> done() } }
+    state whitespace() { transition self.input[self.scan_pos] <= 32 { true -> skip_advance() _ -> slash() } }
+    state skip_advance() { self.scan_pos=self.scan_pos+1; transition 0 { _ -> skip() } }
+    state slash() { transition self.input[self.scan_pos] == 47 { true -> slash_room() _ -> token() } }
+    state slash_room() { transition self.scan_pos+1 < self.scan_end { true -> slash_check() _ -> token() } }
+    state slash_check() { transition self.input[self.scan_pos+1] == 47 { true -> comment_start() _ -> token() } }
+    state comment_start() { self.scan_pos=self.scan_pos+2; transition 0 { _ -> comment() } }
+    state comment() { transition self.scan_pos < self.scan_end { true -> newline() _ -> done() } }
+    state newline() { transition self.input[self.scan_pos] == 10 { true -> skip_advance() _ -> comment_advance() } }
+    state comment_advance() { self.scan_pos=self.scan_pos+1; transition 0 { _ -> comment() } }
+    state token() { self.tok_start=self.scan_pos; self.c=self.input[self.scan_pos]; transition self.c == 95 { true -> word() _ -> alpha_upper() } }
+    state alpha_upper() { transition self.c >= 65 { true -> alpha_upper2() _ -> alpha_lower() } }
+    state alpha_upper2() { transition self.c <= 90 { true -> word() _ -> alpha_lower() } }
+    state alpha_lower() { transition self.c >= 97 { true -> alpha_lower2() _ -> digit() } }
+    state alpha_lower2() { transition self.c <= 122 { true -> word() _ -> digit() } }
+    state digit() { transition self.c >= 48 { true -> digit2() _ -> punctuation() } }
+    state digit2() { transition self.c <= 57 { true -> word() _ -> punctuation() } }
+    state punctuation() { self.tok=self.c; self.tok_len=1; self.scan_pos=self.scan_pos+1; transition 0 { _ -> done() } }
+    state word() { self.tok=256; self.scan_pos=self.scan_pos+1; transition 0 { _ -> word_loop() } }
+    state word_loop() { transition self.scan_pos < self.scan_end { true -> word_char() _ -> word_done() } }
+    state word_char() { self.c=self.input[self.scan_pos]; transition self.c == 95 { true -> word_advance() _ -> word_upper() } }
+    state word_upper() { transition self.c >= 65 { true -> word_upper2() _ -> word_lower() } }
+    state word_upper2() { transition self.c <= 90 { true -> word_advance() _ -> word_lower() } }
+    state word_lower() { transition self.c >= 97 { true -> word_lower2() _ -> word_digit() } }
+    state word_lower2() { transition self.c <= 122 { true -> word_advance() _ -> word_digit() } }
+    state word_digit() { transition self.c >= 48 { true -> word_digit2() _ -> word_done() } }
+    state word_digit2() { transition self.c <= 57 { true -> word_advance() _ -> word_done() } }
+    state word_advance() { self.scan_pos=self.scan_pos+1; transition 0 { _ -> word_loop() } }
+    state word_done() { self.tok_len=self.scan_pos-self.tok_start; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::expect_span_word(&mut self, code: i32) {
+    transition self.tok == 256 { true -> select() _ -> bad() }
+    state select() { transition code == 1 { true -> write_byte0() _ -> output0() } }
+    state write_byte0() { transition self.tok_len == 10 { true -> wb0() _ -> bad() } }
+    state wb0() { transition self.input[self.tok_start] == 119 { true -> wb1() _ -> bad() } }
+    state wb1() { transition self.input[self.tok_start+1] == 114 { true -> wb2() _ -> bad() } }
+    state wb2() { transition self.input[self.tok_start+2] == 105 { true -> wb3() _ -> bad() } }
+    state wb3() { transition self.input[self.tok_start+3] == 116 { true -> wb4() _ -> bad() } }
+    state wb4() { transition self.input[self.tok_start+4] == 101 { true -> wb5() _ -> bad() } }
+    state wb5() { transition self.input[self.tok_start+5] == 95 { true -> wb6() _ -> bad() } }
+    state wb6() { transition self.input[self.tok_start+6] == 98 { true -> wb7() _ -> bad() } }
+    state wb7() { transition self.input[self.tok_start+7] == 121 { true -> wb8() _ -> bad() } }
+    state wb8() { transition self.input[self.tok_start+8] == 116 { true -> wb9() _ -> bad() } }
+    state wb9() { transition self.input[self.tok_start+9] == 101 { true -> done() _ -> bad() } }
+    state output0() { transition code == 2 { true -> output_len() _ -> as0() } }
+    state output_len() { transition self.tok_len == 6 { true -> out0() _ -> bad() } }
+    state out0() { transition self.input[self.tok_start] == 111 { true -> out1() _ -> bad() } }
+    state out1() { transition self.input[self.tok_start+1] == 117 { true -> out2() _ -> bad() } }
+    state out2() { transition self.input[self.tok_start+2] == 116 { true -> out3() _ -> bad() } }
+    state out3() { transition self.input[self.tok_start+3] == 112 { true -> out4() _ -> bad() } }
+    state out4() { transition self.input[self.tok_start+4] == 117 { true -> out5() _ -> bad() } }
+    state out5() { transition self.input[self.tok_start+5] == 116 { true -> done() _ -> bad() } }
+    state as0() { transition code == 3 { true -> as_len() _ -> i32_len() } }
+    state as_len() { transition self.tok_len == 2 { true -> as_a() _ -> bad() } }
+    state as_a() { transition self.input[self.tok_start] == 97 { true -> as_s() _ -> bad() } }
+    state as_s() { transition self.input[self.tok_start+1] == 115 { true -> done() _ -> bad() } }
+    state i32_len() { transition self.tok_len == 3 { true -> i32_i() _ -> bad() } }
+    state i32_i() { transition self.input[self.tok_start] == 105 { true -> i32_3() _ -> bad() } }
+    state i32_3() { transition self.input[self.tok_start+1] == 51 { true -> i32_2() _ -> bad() } }
+    state i32_2() { transition self.input[self.tok_start+2] == 50 { true -> done() _ -> bad() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_cast_call(&mut self, row: i32) {
+    self.at=self.witness+1968+row*44;
+    self.expect_u32(self.at,row); self.read_u32(self.at+4); self.source_id=self.decoded;
+    self.expect_u32(self.at+8,1); self.expect_u32(self.at+12,0);
+    self.expect_u32(self.at+16,4); self.read_u32(self.at+20); self.i=self.decoded;
+    self.read_u32(self.at+24); self.j=self.decoded;
+    self.expect_u32(self.at+28,7); self.expect_u32(self.at+32,1);
+    self.expect_u32(self.at+36,0); self.expect_u32(self.at+40,0);
+    transition self.status == 0 { true -> source_range() _ -> done() }
+    state source_range() { transition self.source_id < 4 { true -> span_room() _ -> bad() } }
+    state span_room() { transition self.i <= self.source_content_lengths[self.source_id] { true -> span_length() _ -> bad() } }
+    state span_length() { transition self.j <= self.source_content_lengths[self.source_id]-self.i { true -> scan() _ -> bad() } }
+    state scan() {
+        self.scan_pos=self.source_content_starts[self.source_id]+self.i;
+        self.scan_end=self.scan_pos+self.j; self.next_span_token();
+        self.expect_span_word(1); transition self.status == 0 { true -> open() _ -> done() }
+    }
+    state open() { self.next_span_token(); transition self.tok == 40 { true -> output() _ -> bad() } }
+    state output() { self.next_span_token(); self.expect_span_word(2); transition self.status == 0 { true -> cast() _ -> done() } }
+    state cast() { self.next_span_token(); self.expect_span_word(3); transition self.status == 0 { true -> i32() _ -> done() } }
+    state i32() { self.next_span_token(); self.expect_span_word(4); transition self.status == 0 { true -> close() _ -> done() } }
+    state close() { self.next_span_token(); transition self.tok == 41 { true -> eof() _ -> bad() } }
+    state eof() { self.next_span_token(); transition self.tok == 0 { true -> done() _ -> bad() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+// Gamma-safe little-endian semantic-u32 publication.
+machine Main::emit_u32(&mut self, value: i32) {
+    transition value >= 0 { true -> positive() _ -> negative() }
+    state positive() {
+        write_byte(value&255); write_byte((value>>8)&255);
+        write_byte((value>>16)&255); write_byte((value>>24)&255);
+        transition 0 { _ -> done() }
+    }
+    state negative() {
+        // Add before negating so INT32_MIN is representable throughout.
+        self.decoded=0-(value+1);
+        write_byte(255-(self.decoded&255)); self.decoded=self.decoded/256;
+        write_byte(255-(self.decoded&255)); self.decoded=self.decoded/256;
+        write_byte(255-(self.decoded&255)); self.decoded=self.decoded/256;
+        write_byte(255-(self.decoded&255)); transition 0 { _ -> done() }
+    }
+    state done() { }
+}
+
+machine Main::emit_u16(&mut self, value: i32) { write_byte(value&255); write_byte((value>>8)&255); }
+machine Main::emit3(&mut self, a: i32, b: i32, d: i32) { self.emit_u32(a); self.emit_u32(b); self.emit_u32(d); }
+
+machine Main::publish_header(&mut self) {
+    write_byte(79); write_byte(77); write_byte(71); write_byte(67);
+    write_byte(75); write_byte(73); write_byte(82); write_byte(0);
+    self.emit_u16(17); self.emit_u16(0); self.emit_u16(1); self.emit_u16(0);
+    self.emit_u32(0-1); self.emit_u32(2432);
+    self.emit3(6,1,0); self.emit3(0,0,0); self.emit3(3,7,9);
+    self.emit3(14,0,0); self.emit3(15,38,9); self.emit3(0,0,1);
+    self.emit3(3,1,1); self.emit_u32(32); self.emit_u32(0);
+}
+
+machine Main::publish_types(&mut self) {
+    // id, kind/flags/reserved, payload0, payload1, low, high
+    self.emit_u32(0); write_byte(4); write_byte(0); self.emit_u16(0); self.emit3(0,0,0); self.emit_u32(0);
+    self.emit_u32(1); write_byte(3); write_byte(0); self.emit_u16(0); self.emit3(0,0,0); self.emit_u32(1);
+    self.emit_u32(2); write_byte(1); write_byte(0); self.emit_u16(0); self.emit3(0,0,0); self.emit_u32(255);
+    self.emit_u32(3); write_byte(7); write_byte(0); self.emit_u16(0); self.emit3(2,0,0); self.emit_u32(0);
+    self.emit_u32(4); write_byte(9); write_byte(0); self.emit_u16(0); self.emit3(0,0,0-2147483647-1); self.emit_u32(2147483647);
+    self.emit_u32(5); write_byte(10); write_byte(0); self.emit_u16(0); self.emit3(0,0,0); self.emit_u32(0);
+    self.emit3(0,0,0); self.emit_u32(0);
+    write_byte(0); write_byte(0); write_byte(0); write_byte(0);
+}
+
+machine Main::publish_machines(&mut self) {
+    self.emit_u32(0); self.emit_u32(0-1); write_byte(0); write_byte(1); self.emit_u16(0); self.emit_u32(0-1); self.emit3(0,3,0); self.emit_u32(7); self.emit_u32(0);
+    self.emit_u32(1); self.emit_u32(0); write_byte(0); write_byte(2); self.emit_u16(0); self.emit_u32(0-1); self.emit3(3,2,7); self.emit_u32(1); self.emit_u32(7);
+    self.emit_u32(2); self.emit_u32(0); write_byte(0); write_byte(2); self.emit_u16(0); self.emit_u32(0-1); self.emit3(5,2,8); self.emit_u32(1); self.emit_u32(8);
+}
+
+machine Main::publish_machine_params(&mut self) {
+    self.emit3(0,0,0); self.emit_u32(5); self.emit_u32(0);
+    self.emit3(1,0,1); self.emit_u32(3); self.emit_u32(1);
+    self.emit3(2,0,2); self.emit_u32(1); self.emit_u32(2);
+    self.emit3(3,1,0); self.emit_u32(5); self.emit_u32(3);
+    self.emit3(4,1,1); self.emit_u32(3); self.emit_u32(4);
+    self.emit3(5,2,0); self.emit_u32(5); self.emit_u32(5);
+    self.emit3(6,2,1); self.emit_u32(3); self.emit_u32(6);
+}
+
+machine Main::emit_block(&mut self, id: i32, owner: i32, flags: i32) {
+    self.emit_u32(id); self.emit_u32(owner); write_byte(0); write_byte(flags); self.emit_u16(0);
+}
+
+machine Main::publish_blocks(&mut self) {
+    self.emit_block(0,0,0); self.emit3(0,0,0); self.emit_u32(1); self.emit_u32(0);
+    self.emit_block(1,0,1); self.emit3(0,3,1); self.emit_u32(2); self.emit_u32(1);
+    self.emit_block(2,0,0); self.emit3(3,4,3); self.emit_u32(3); self.emit_u32(2);
+    self.emit_block(3,0,1); self.emit3(7,3,6); self.emit_u32(2); self.emit_u32(3);
+    self.emit_block(4,0,0); self.emit3(10,2,8); self.emit_u32(1); self.emit_u32(4);
+    self.emit_block(5,0,0); self.emit3(12,2,9); self.emit_u32(2); self.emit_u32(5);
+    self.emit_block(6,0,0); self.emit3(14,0,11); self.emit_u32(0); self.emit_u32(6);
+    self.emit_block(7,1,0); self.emit3(14,0,11); self.emit_u32(2); self.emit_u32(7);
+    self.emit_block(8,2,0); self.emit3(14,0,13); self.emit_u32(2); self.emit_u32(8);
+}
+
+machine Main::publish_block_params(&mut self) {
+    self.emit3(0,1,0); self.emit_u32(5); self.emit_u32(7); self.emit3(1,1,1); self.emit_u32(3); self.emit_u32(8); self.emit3(2,1,2); self.emit_u32(1); self.emit_u32(9);
+    self.emit3(3,2,0); self.emit_u32(5); self.emit_u32(10); self.emit3(4,2,1); self.emit_u32(2); self.emit_u32(11); self.emit3(5,2,2); self.emit_u32(3); self.emit_u32(12); self.emit3(6,2,3); self.emit_u32(1); self.emit_u32(13);
+    self.emit3(7,3,0); self.emit_u32(5); self.emit_u32(14); self.emit3(8,3,1); self.emit_u32(3); self.emit_u32(15); self.emit3(9,3,2); self.emit_u32(1); self.emit_u32(16);
+    self.emit3(10,4,0); self.emit_u32(5); self.emit_u32(17); self.emit3(11,4,1); self.emit_u32(1); self.emit_u32(18);
+    self.emit3(12,5,0); self.emit_u32(5); self.emit_u32(19); self.emit3(13,5,1); self.emit_u32(2); self.emit_u32(20);
+}
+
+machine Main::emit_operation_head(&mut self, id: i32, owner: i32, block: i32) { self.emit3(id,owner,block); }
+machine Main::emit_operation_shape(&mut self, opcode: i32, result_kind: i32, result: i32) { write_byte(opcode); write_byte(result_kind); self.emit_u16(0); self.emit_u32(result); }
+
+machine Main::publish_operations(&mut self) {
+    self.emit_operation_head(0,0,0); self.emit_operation_shape(23,1,21); self.emit3(1,0,1); self.emit_u32(0); self.emit_u32(0);
+    self.emit_operation_head(1,0,1); self.emit_operation_shape(24,1,22); self.emit3(2,1,1); self.emit_u32(0); self.emit_u32(0);
+    self.emit_operation_head(2,0,1); self.emit_operation_shape(25,1,23); self.emit3(3,2,1); self.emit_u32(0); self.emit_u32(0);
+    self.emit_operation_head(3,0,2); self.emit_operation_shape(30,1,24); self.emit3(4,3,1); self.emit_u32(0); self.emit_u32(0);
+    self.emit_operation_head(4,0,2); self.emit_operation_shape(29,0,0-1); self.emit3(0-1,4,2); self.emit_u32(0); self.emit_u32(0);
+    self.emit_operation_head(5,0,2); self.emit_operation_shape(23,1,25); self.emit3(1,6,1); self.emit_u32(0); self.emit_u32(0);
+    self.emit_operation_head(6,0,3); self.emit_operation_shape(24,1,26); self.emit3(2,7,1); self.emit_u32(0); self.emit_u32(0);
+    self.emit_operation_head(7,0,3); self.emit_operation_shape(25,1,27); self.emit3(3,8,1); self.emit_u32(0); self.emit_u32(0);
+    self.emit_operation_head(8,0,4); self.emit_operation_shape(1,1,28); self.emit3(2,9,0); self.emit_u32(10); self.emit_u32(0);
+    self.emit_operation_head(9,0,5); self.emit_operation_shape(30,1,29); self.emit3(4,9,1); self.emit_u32(0); self.emit_u32(0);
+    self.emit_operation_head(10,0,5); self.emit_operation_shape(29,0,0-1); self.emit3(0-1,10,2); self.emit_u32(0); self.emit_u32(0);
+    self.emit_operation_head(11,1,7); self.emit_operation_shape(1,1,30); self.emit3(1,12,0); self.emit_u32(0); self.emit_u32(0);
+    self.emit_operation_head(12,1,7); self.emit_operation_shape(28,0,0-1); self.emit3(0-1,12,3); self.emit_u32(0); self.emit_u32(0);
+    self.emit_operation_head(13,2,8); self.emit_operation_shape(1,1,31); self.emit3(1,15,0); self.emit_u32(1); self.emit_u32(0);
+    self.emit_operation_head(14,2,8); self.emit_operation_shape(28,0,0-1); self.emit3(0-1,15,3); self.emit_u32(0); self.emit_u32(0);
+}
+
+machine Main::publish_operands(&mut self) {
+    self.emit_u32(1); self.emit_u32(8); self.emit_u32(8); self.emit_u32(11); self.emit_u32(10); self.emit_u32(24); self.emit_u32(12); self.emit_u32(15); self.emit_u32(15); self.emit_u32(20); self.emit_u32(19); self.emit_u32(29);
+    self.emit_u32(3); self.emit_u32(4); self.emit_u32(30); self.emit_u32(5); self.emit_u32(6); self.emit_u32(31);
+    self.emit_u32(0); self.emit_u32(1); self.emit_u32(2); self.emit_u32(0); self.emit_u32(2); self.emit_u32(7); self.emit_u32(22); self.emit_u32(23); self.emit_u32(9); self.emit_u32(10); self.emit_u32(12); self.emit_u32(13); self.emit_u32(10); self.emit_u32(13); self.emit_u32(14); self.emit_u32(26); self.emit_u32(27); self.emit_u32(16); self.emit_u32(17); self.emit_u32(28);
+}
+
+machine Main::emit_term_head(&mut self, id: i32, owner: i32, kind: i32) { self.emit3(id,owner,id); write_byte(kind); write_byte(0); self.emit_u16(0); }
+machine Main::emit_term_tail(&mut self) { self.emit_u32(0); self.emit_u32(0); }
+
+machine Main::publish_terminators(&mut self) {
+    self.emit_term_head(0,0,2); self.emit3(21,1,18); self.emit3(3,4,21); self.emit_u32(2); self.emit_term_tail();
+    self.emit_term_head(1,0,1); self.emit3(0-1,2,23); self.emit3(4,0-1,27); self.emit_u32(0); self.emit_term_tail();
+    self.emit_term_head(2,0,2); self.emit3(25,3,27); self.emit3(3,4,30); self.emit_u32(2); self.emit_term_tail();
+    self.emit_term_head(3,0,1); self.emit3(0-1,2,32); self.emit3(4,0-1,36); self.emit_u32(0); self.emit_term_tail();
+    self.emit_term_head(4,0,2); self.emit3(18,5,36); self.emit3(2,6,38); self.emit_u32(0); self.emit_term_tail();
+    self.emit_term_head(5,0,1); self.emit3(0-1,6,38); self.emit3(0,0-1,38); self.emit_u32(0); self.emit_term_tail();
+    self.emit_term_head(6,0,3); self.emit3(0-1,0-1,38); self.emit3(0,0-1,38); self.emit_u32(0); self.emit_term_tail();
+    self.emit_term_head(7,1,3); self.emit3(0-1,0-1,38); self.emit3(0,0-1,38); self.emit_u32(0); self.emit_term_tail();
+    self.emit_term_head(8,2,3); self.emit3(0-1,0-1,38); self.emit3(0,0-1,38); self.emit_u32(0); self.emit_term_tail();
+}
+
+machine Main::publish_relation(&mut self) {
+    self.emit3(0,0,0); self.emit3(0,1,0);
+    self.emit3(0,0,0); self.emit3(1,1,0); self.emit3(2,2,0);
+    self.emit3(0,0,1); self.emit_u32(1); self.emit_u32(1);
+    self.emit3(0,0,4); self.emit3(4,4,0); self.emit3(4,0-1,2);
+}
+
+machine Main::publish(&mut self) {
+    self.publish_header(); self.publish_types(); self.publish_machines();
+    self.publish_machine_params(); self.publish_blocks(); self.publish_block_params();
+    self.publish_operations(); self.publish_operands(); self.publish_terminators();
+    self.publish_relation();
+}
+
+machine Main::main(&mut self) {
+    self.status=0; self.slurp();
+    transition self.status == 0 { true -> outer() _ -> done() }
+    state outer() { self.validate_outer(); transition self.status == 0 { true -> compilation() _ -> done() } }
+    state compilation() { self.validate_compilation(); transition self.status == 0 { true -> bundle() _ -> done() } }
+    state bundle() { self.decode_bundle(); transition self.status == 0 { true -> witness_header() _ -> done() } }
+    state witness_header() { self.validate_witness_header(); transition self.status == 0 { true -> units() _ -> done() } }
+    state units() { self.validate_units(); transition self.status == 0 { true -> relation() _ -> done() } }
+    state relation() { self.validate_selected_relation(); transition self.status == 0 { true -> relation_rows() _ -> done() } }
+    state relation_rows() { self.validate_relation_rows(); transition self.status == 0 { true -> plan_rows() _ -> done() } }
+    state plan_rows() { self.validate_plan_rows(); transition self.status == 0 { true -> cast0() _ -> done() } }
+    state cast0() { self.validate_cast_call(0); transition self.status == 0 { true -> cast1() _ -> done() } }
+    state cast1() { self.validate_cast_call(1); transition self.status == 0 { true -> emit() _ -> done() } }
+    state emit() { self.publish(); transition 0 { _ -> done() } }
+    state done() { self.console.exit_process(self.status); }
+}
