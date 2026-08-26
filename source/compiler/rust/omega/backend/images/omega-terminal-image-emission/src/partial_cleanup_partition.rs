@@ -62,7 +62,9 @@ fn append_expected_partial_residuals(
             field.relevance.is_erased()
                 || !matches!(
                     field.field_type,
-                    StructuralFieldType::Structural(_) | StructuralFieldType::Scalar(_)
+                    StructuralFieldType::Structural(_)
+                        | StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::IeeeFloat(_)
                 )
         })
     {

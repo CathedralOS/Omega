@@ -1080,6 +1080,7 @@ fn append_expected_partial_residuals(
                     field.field_type,
                     psi_terminal::StructuralFieldType::Structural(_)
                         | psi_terminal::StructuralFieldType::Scalar(_)
+                        | psi_terminal::StructuralFieldType::IeeeFloat(_)
                 )
         })
     {
