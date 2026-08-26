@@ -48,6 +48,7 @@ omega-terminal-target-operations-to-assigned-target-operations = { path = "../..
 omega-terminal-machine-emission = { path = "../../backend/omega-terminal-machine-emission" }
 omega-terminal-machine-code = { path = "../../representations/omega-terminal-machine-code" }
 omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-image-emission" }
+omega-terminal-installation-evidence = { path = "../../representations/omega-terminal-installation-evidence" }
 omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
 omega-effects = { path = "../../representations/omega-effects" }
 

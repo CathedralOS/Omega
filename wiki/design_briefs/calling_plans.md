@@ -1232,6 +1232,11 @@ transfer authority. The external-root implementation preserves those as two
 sealed values and constructs installed transfer-runtime custody only after the
 entry coordinate, code context, artifact, provision, and suspension proof all
 rejoin exactly.
+The component-deployment owner now consumes that runtime together with the
+separately installed attribution plan when admitting a dynamic root. Failure
+returns the complete input for retry; success returns a live-root carrier that
+keeps the exact root and ledger together until consuming teardown returns its
+slot authority.
 
 The exhaustion-transfer plan must be executable without scheduling machinery,
 stack, locks, or authority held by the suspended activation. Its minimal

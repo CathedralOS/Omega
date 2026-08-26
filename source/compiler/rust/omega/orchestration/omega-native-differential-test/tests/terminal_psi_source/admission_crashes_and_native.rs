@@ -1,5 +1,104 @@
 use super::*;
 
+struct DynamicFuelSourceEvidence<'artifact> {
+    artifact: &'artifact TerminalObjectArtifact,
+    attribution: TerminalFuelAttributionEvidence,
+}
+
+impl TerminalObjectEvidence for DynamicFuelSourceEvidence<'_> {
+    fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
+        self.artifact.terminal_psi()
+    }
+
+    fn target(&self) -> NativeTarget {
+        self.artifact.target()
+    }
+
+    fn text_bytes(&self) -> &[u8] {
+        self.artifact.text_bytes()
+    }
+
+    fn function_text_offset(&self, machine: MachineId) -> Option<usize> {
+        self.artifact.function_text_offset(machine)
+    }
+
+    fn fuel_attribution(&self) -> Vec<TerminalFuelAttributionEvidence> {
+        vec![self.attribution]
+    }
+}
+
+struct DynamicFuelImageEvidence<'artifact> {
+    source: &'artifact DynamicFuelSourceEvidence<'artifact>,
+    target_policy: NativeFuelTargetPlanProjection,
+    charge: TerminalNativeFuelChargeEvidence,
+}
+
+impl TerminalNativeFuelImageEvidence for DynamicFuelImageEvidence<'_> {
+    fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
+        self.source.terminal_psi()
+    }
+
+    fn target(&self) -> NativeTarget {
+        self.source.target()
+    }
+
+    fn target_policy(&self) -> NativeFuelTargetPlanProjection {
+        self.target_policy
+    }
+
+    fn source_text_bytes(&self) -> &[u8] {
+        self.source.text_bytes()
+    }
+
+    fn metered_text_bytes(&self) -> &[u8] {
+        self.source.text_bytes()
+    }
+
+    fn final_text_bytes(&self) -> &[u8] {
+        self.source.text_bytes()
+    }
+
+    fn function_text_offset(&self, machine: MachineId) -> Option<usize> {
+        self.source.function_text_offset(machine)
+    }
+
+    fn charges(&self) -> Vec<TerminalNativeFuelChargeEvidence> {
+        vec![self.charge]
+    }
+}
+
+struct DynamicFuelTransferImageEvidence<'artifact> {
+    artifact: &'artifact TerminalObjectArtifact,
+    sponsor_text_offset: usize,
+    runtime: TerminalNativeFuelTransferRuntimeEvidence,
+}
+
+impl TerminalNativeFuelTransferRuntimeImageEvidence for DynamicFuelTransferImageEvidence<'_> {
+    fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
+        self.artifact.terminal_psi()
+    }
+
+    fn target(&self) -> NativeTarget {
+        self.artifact.target()
+    }
+
+    fn unrelocated_text_bytes(&self) -> &[u8] {
+        self.artifact.text_bytes()
+    }
+
+    fn final_text_bytes(&self) -> &[u8] {
+        self.artifact.text_bytes()
+    }
+
+    fn sponsor_text_offset(&self) -> usize {
+        self.sponsor_text_offset
+    }
+
+    fn transfer_runtime_evidence(&self) -> &TerminalNativeFuelTransferRuntimeEvidence {
+        &self.runtime
+    }
+}
+
 #[test]
 fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
     let checked = compile_to_checked(&source_canary(), None)
@@ -843,7 +942,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     );
     let entry_bytes = entry.bytes(&object_artifact).to_vec();
     let entry_offset = u64::try_from(entry.text_offset).expect("terminal entry offset");
-    let (installed_code, entry_stub) = install_terminal_object(
+    let (mut installed_code, entry_stub) = install_terminal_object(
         &object_artifact,
         object_artifact.text_bytes().to_vec(),
         entry_offset,
@@ -978,6 +1077,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         },
     )
     .expect("canonical host native fuel transfer projection");
+    let deployment_transfer_projection = transfer_projection.clone();
     let target_policy = admit_native_fuel_target_policy(NativeFuelTargetPlanProjection {
         profile,
         target: object_artifact.target(),
@@ -995,7 +1095,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         sponsor_path,
     );
     let missing_dynamic_attribution =
-        validate_dynamic_fuel_attribution_basis(dynamic_plan, &object_artifact)
+        validate_dynamic_fuel_attribution_basis(dynamic_plan.clone(), &object_artifact)
             .expect_err("native code without attribution rows cannot select dynamic metering");
     assert!(missing_dynamic_attribution.0.contains("at least one"));
     validate_installed_terminal_entry_fuel(&installed_fixed_fuel, &installed_code, entry_stub)
@@ -1052,6 +1152,10 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         "terminal fuel evidence must reject a stub at the wrong function offset"
     );
 
+    let deployment_semantic_bytes =
+        encode_module(&semantic_module).expect("deployment component semantics");
+    let deployment_proof_bytes =
+        encode_proof_bundle(&proof_bundle).expect("deployment component proof");
     drop(machine_code);
     drop(target_operations);
     drop(abstract_operations);
@@ -1097,6 +1201,411 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     )
     .expect("decoded installation should reproduce its stack closure");
     assert_eq!(decoded_stack_demand, terminal_stack_demand);
+
+    // Deployment owns the first layer where the exact installed-code
+    // occurrence, the live root ledger, installed dynamic attribution, and
+    // installed sponsor-transfer runtime meet. Keep this fixture
+    // relocation-free: installed fuel theorems deliberately reject
+    // relocatable text unless the relocation plan is also part of the exact
+    // theorem binding.
+    let deployment_boundary = evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(object_artifact.target()),
+        &CallSignature {
+            parameters: vec![omega_calling_conventions::ValueShape::integer(1, 1)],
+            result: Some(omega_calling_conventions::ValueShape::integer(1, 1)),
+        },
+    )
+    .expect("deployment root boundary");
+    let deployment_provider = sponsor_provider;
+    let deployment_relation =
+        NestingRelationId::from_normalized_identity(0x6201).expect("deployment relation");
+    let deployment_trust =
+        TrustReceiptId::from_normalized_identity(0x6202).expect("deployment trust receipt");
+    let compose_opaque_stack = |root, summary_receipt, arrival_receipt| {
+        let summary = ProviderStackSummary::from_admitted_provider(
+            root,
+            deployment_provider,
+            deployment_boundary.plan().state.stack,
+            16,
+            16,
+            summary_receipt,
+        );
+        let context = ArrivalContextId::new(1).expect("arrival context");
+        let realization = validate_entry_stack_realization(EntryStackRealization {
+            contexts: vec![ArrivalContextRealization {
+                context,
+                epochs: vec![EntryStackEpoch {
+                    stage: EntryStackStage::Body,
+                    active_domain: StackDomainRef::Interrupted,
+                    occupancy_by_domain: Vec::new(),
+                    nesting: deployment_boundary.plan().state.preemption,
+                }],
+            }],
+        })
+        .expect("opaque deployment stack realization");
+        let arrivals = admit_opaque_arrival_context_set(
+            &summary,
+            &deployment_boundary,
+            &installed_code,
+            entry_stub,
+            vec![context],
+            arrival_receipt,
+        )
+        .expect("opaque deployment arrival contexts");
+        let bound = bind_opaque_adapter_stack_realization(
+            &summary,
+            &deployment_boundary,
+            &installed_code,
+            entry_stub,
+            realization,
+            arrivals,
+        )
+        .expect("opaque deployment stack binding");
+        compose_bound_entry_stack_epochs(
+            &StackNestingRelation {
+                identity: deployment_relation,
+                edges: BTreeSet::new(),
+            },
+            [&bound],
+        )
+        .expect("opaque deployment stack composition")
+    };
+    let sponsor_root_identity =
+        ExternalRootId::from_normalized_identity(0x6210).expect("deployment sponsor root");
+    let sponsor_stack = compose_opaque_stack(
+        sponsor_root_identity,
+        StackValidationReceiptId::from_normalized_identity(0x6211).unwrap(),
+        StackValidationReceiptId::from_normalized_identity(0x6212).unwrap(),
+    );
+    let dynamic_root_identity =
+        ExternalRootId::from_normalized_identity(0x6220).expect("deployment dynamic root");
+    let dynamic_stack = compose_opaque_stack(
+        dynamic_root_identity,
+        StackValidationReceiptId::from_normalized_identity(0x6221).unwrap(),
+        StackValidationReceiptId::from_normalized_identity(0x6222).unwrap(),
+    );
+    let sponsor_candidate = ExternalRootCandidate {
+        identity: sponsor_root_identity,
+        entry: entry_stub,
+        provider: deployment_provider,
+        provider_plan: ProviderPlanId::from_normalized_identity(0x6213).unwrap(),
+        requirement_identity: "DeploymentSponsor::entry".into(),
+        entry_claims: Vec::new(),
+        acknowledgement_parameter_index: None,
+        interrupt_mask_guard_claim: None,
+        service_reach:
+            omega_external_roots::ResolvedRootServiceReach::from_selected_provider_closure(
+                Vec::new(),
+                Vec::new(),
+                &omega_effects::SelectedProviderPlanFacts::default(),
+            )
+            .expect("empty deployment sponsor service reach"),
+        effects: BTreeSet::new(),
+        trust_receipts: BTreeSet::from([deployment_trust]),
+        nesting_relation: deployment_relation,
+        acknowledgement_policy: None,
+        stack: StackResourceColumn {
+            ceiling_bytes: 16,
+            realization: sponsor_stack,
+            validation_receipt: StackValidationReceiptId::from_normalized_identity(0x6214).unwrap(),
+        },
+        logical_fuel: LogicalFuelResourceColumn {
+            schedule: sponsor_demand.schedule(),
+            provision: FuelProvisionId::from_normalized_identity(0x5354).unwrap(),
+            ceiling_units: sponsor_demand.units(),
+            realization: sponsor_demand.clone(),
+            validation_receipt: FuelValidationReceiptId::from_normalized_identity(0x6215).unwrap(),
+        },
+        machine_state: MachineStateResourceColumn {
+            realization: StateFootprintEvidence::new(
+                RegisterSet::new([]),
+                MachineStateSet::empty(),
+            ),
+            validation_receipt: StateValidationReceiptId::from_normalized_identity(0x6216).unwrap(),
+        },
+        component_pins: BTreeSet::new(),
+    };
+    let validated_sponsor = validate_external_root(sponsor_candidate.clone(), &deployment_boundary)
+        .expect("deployment sponsor root validates");
+    let sponsor_execution = ProviderExecution::from_admitted_provider(
+        ProviderExecutionId::from_normalized_identity(0x6217).unwrap(),
+        &validated_sponsor,
+        Some(OpaqueProviderExitAssurance::HardwareIsolation {
+            validation_receipt: deployment_trust,
+        }),
+    )
+    .expect("deployment sponsor execution");
+    let sponsor_slot = RootSlotAuthority::from_admitted_owner(
+        RootSlotId::from_normalized_identity(0x6218).unwrap(),
+        RootSlotOwnerId::from_normalized_identity(0x6219).unwrap(),
+    );
+    let sponsor_admission = RootAdmission::from_admitted_provider(
+        RootAdmissionId::from_normalized_identity(0x621a).unwrap(),
+        &validated_sponsor,
+        &sponsor_execution,
+        &installed_code,
+        &sponsor_slot,
+        [deployment_trust],
+    )
+    .expect("deployment sponsor admission");
+    let mut deployment_ledger =
+        InstalledRootLedger::claim(&mut installed_code).expect("deployment root ledger");
+    let installed_sponsor = deployment_ledger
+        .install(
+            &installed_code,
+            validated_sponsor,
+            sponsor_slot,
+            sponsor_admission,
+        )
+        .expect("deployment sponsor installation");
+
+    let entry_function = object_artifact.entry_function();
+    assert!(
+        entry_function.byte_count >= 8,
+        "fixture needs two disjoint runtime spans"
+    );
+    let attribution = TerminalFuelAttributionEvidence {
+        machine: entry_function.machine,
+        schedule: sponsor_demand.schedule(),
+        site: TerminalFuelAttributionSite::Operation(entry_function.provenance.operations[0]),
+        units: 1,
+        operation_ordinal: 0,
+        text_offset: entry_function.text_offset,
+        byte_count: 1,
+    };
+    let source_evidence = DynamicFuelSourceEvidence {
+        artifact: &object_artifact,
+        attribution,
+    };
+    let attribution_basis =
+        validate_dynamic_fuel_attribution_basis(dynamic_plan.clone(), &source_evidence)
+            .expect("one exact deployment attribution row");
+    let charge_offset = entry_function.text_offset;
+    let cold_offset = entry_function
+        .text_offset
+        .checked_add(entry_function.byte_count - 1)
+        .expect("deployment cold interval");
+    let dynamic_image = DynamicFuelImageEvidence {
+        source: &source_evidence,
+        target_policy: *dynamic_plan.target_policy().projection(),
+        charge: TerminalNativeFuelChargeEvidence {
+            attribution,
+            charge_text_offset: charge_offset,
+            charge_byte_count: 1,
+            semantic_text_offset: charge_offset + 1,
+            cold_dispatch_text_offset: cold_offset,
+            cold_dispatch_byte_count: 1,
+        },
+    };
+    let installed_attribution =
+        bind_installed_dynamic_fuel_attribution(attribution_basis, &dynamic_image, &installed_code)
+            .expect("deployment attribution binds exact installed bytes");
+    let transfer_offset = entry_function.text_offset;
+    let resume_offset = transfer_offset + 4;
+    let runtime_evidence = TerminalNativeFuelTransferRuntimeEvidence::new(
+        deployment_transfer_projection.clone(),
+        NativeFuelRuntimeTextEvidence::new(
+            NativeFuelRuntimeEntryIdentity {
+                section_identity: 0x5356,
+                symbol_identity: 0x5357,
+            },
+            NativeFuelRuntimeTextSpan {
+                text_offset: transfer_offset,
+                byte_count: 4,
+            },
+            object_artifact.text_bytes()[transfer_offset..transfer_offset + 4].to_vec(),
+            object_artifact.text_bytes()[transfer_offset..transfer_offset + 4].to_vec(),
+        )
+        .expect("deployment transfer text evidence"),
+        NativeFuelRuntimeTextEvidence::new(
+            NativeFuelRuntimeEntryIdentity {
+                section_identity: 0x5356,
+                symbol_identity: 0x5358,
+            },
+            NativeFuelRuntimeTextSpan {
+                text_offset: resume_offset,
+                byte_count: 4,
+            },
+            object_artifact.text_bytes()[resume_offset..resume_offset + 4].to_vec(),
+            object_artifact.text_bytes()[resume_offset..resume_offset + 4].to_vec(),
+        )
+        .expect("deployment resume text evidence"),
+        StateFootprintEvidence::new(
+            RegisterSet::new([saved_general, saved_vector]),
+            transfer_state,
+        ),
+        24,
+    )
+    .expect("deployment transfer runtime evidence");
+    let transfer_image = DynamicFuelTransferImageEvidence {
+        artifact: &object_artifact,
+        sponsor_text_offset: usize::try_from(entry_offset).expect("entry offset"),
+        runtime: runtime_evidence,
+    };
+    let transfer_code = bind_installed_native_fuel_transfer_code(
+        dynamic_plan.transfer_plan().clone(),
+        &transfer_image,
+        &installed_code,
+    )
+    .expect("deployment transfer code binds exact installed bytes");
+    let sponsor_route = bind_installed_native_fuel_sponsor_route(
+        dynamic_plan.sponsor_path().clone(),
+        &transfer_code,
+        &installed_sponsor,
+    )
+    .expect("deployment transfer route binds exact installed sponsor");
+    let transfer_runtime = bind_installed_native_fuel_transfer_runtime(
+        dynamic_plan.clone(),
+        transfer_code,
+        sponsor_route,
+    )
+    .expect("deployment transfer runtime custody");
+    let sponsor_removal = RootRemovalReceipt::from_provider(
+        RootRemovalReceiptId::from_normalized_identity(0x621b).unwrap(),
+        &installed_sponsor,
+        true,
+        true,
+    );
+    deployment_ledger
+        .remove(installed_sponsor, sponsor_removal)
+        .expect("temporary sponsor root leaves the claimed deployment ledger");
+    assert!(deployment_ledger.live_external_roots_are_empty());
+
+    let mut dynamic_candidate = sponsor_candidate;
+    dynamic_candidate.identity = dynamic_root_identity;
+    dynamic_candidate.provider_plan = ProviderPlanId::from_normalized_identity(0x6223).unwrap();
+    dynamic_candidate.requirement_identity = "DeploymentDynamic::entry".into();
+    dynamic_candidate.stack = StackResourceColumn {
+        ceiling_bytes: 16,
+        realization: dynamic_stack,
+        validation_receipt: StackValidationReceiptId::from_normalized_identity(0x6224).unwrap(),
+    };
+    let dynamic_summary_identity = ProviderFuelSummaryId::from_normalized_identity(0x622b).unwrap();
+    let dynamic_summary = FixedFuelProviderSummary::from_admitted_provider(
+        dynamic_summary_identity,
+        deployment_provider,
+        sponsor_demand.schedule(),
+        sponsor_demand.units(),
+        BTreeSet::new(),
+        ProviderFuelValidationReceiptId::from_normalized_identity(0x622c).unwrap(),
+    );
+    let dynamic_demand = compose_fixed_fuel(dynamic_summary_identity, [&dynamic_summary])
+        .expect("independent dynamic-region fuel demand");
+    dynamic_candidate.logical_fuel = LogicalFuelResourceColumn {
+        schedule: dynamic_demand.schedule(),
+        provision: FuelProvisionId::from_normalized_identity(0x622d).unwrap(),
+        ceiling_units: dynamic_demand.units(),
+        realization: dynamic_demand,
+        validation_receipt: FuelValidationReceiptId::from_normalized_identity(0x6225).unwrap(),
+    };
+    let validated_dynamic_root = validate_external_root(dynamic_candidate, &deployment_boundary)
+        .expect("deployment dynamic root validates");
+    let dynamic_provider_execution = ProviderExecution::from_admitted_provider(
+        ProviderExecutionId::from_normalized_identity(0x6226).unwrap(),
+        &validated_dynamic_root,
+        Some(OpaqueProviderExitAssurance::HardwareIsolation {
+            validation_receipt: deployment_trust,
+        }),
+    )
+    .expect("deployment dynamic provider execution");
+    let dynamic_slot = RootSlotAuthority::from_admitted_owner(
+        RootSlotId::from_normalized_identity(0x6227).unwrap(),
+        RootSlotOwnerId::from_normalized_identity(0x6228).unwrap(),
+    );
+    let dynamic_admission_identity = RootAdmissionId::from_normalized_identity(0x6229).unwrap();
+    let attribution_fingerprint = installed_attribution.fingerprint();
+    let runtime_fingerprint = transfer_runtime.fingerprint();
+    let component_candidate =
+        TerminalComponentCandidate::from_parts(TerminalComponentCandidateParts {
+            target: object_artifact.target(),
+            entry_machine: "terminal_constant".into(),
+            semantic_bytes: deployment_semantic_bytes,
+            proof_bytes: deployment_proof_bytes,
+            object: object_artifact,
+            image: image.clone(),
+            selected_provider_plans: omega_effects::SelectedProviderPlanFacts::default(),
+            provider_executions: Vec::new(),
+            component_progress: None,
+        });
+    let mut deployment_session = begin_terminal_component_deployment_with_claimed_registry(
+        component_candidate,
+        installed_code,
+        deployment_ledger,
+    )
+    .expect("deployment reuses the exact empty claimed ledger");
+    let wrong_profile = match profile {
+        TargetProfile::LinuxX64 => TargetProfile::UefiX64,
+        TargetProfile::LinuxArm64 => TargetProfile::MacosArm64,
+        TargetProfile::MacosArm64 => TargetProfile::LinuxArm64,
+        _ => panic!("native differential host has a supported production profile"),
+    };
+    let rejected = deployment_session
+        .install_dynamic_native_fuel_root(DynamicNativeFuelRootDeployment::new(
+            dynamic_admission_identity,
+            validated_dynamic_root,
+            dynamic_provider_execution,
+            dynamic_slot,
+            NativeFuelExecutionEnvironment::Hosted {
+                profile: wrong_profile,
+                interpreter_available: false,
+            },
+            installed_attribution,
+            transfer_runtime,
+        ))
+        .expect_err("wrong target returns complete dynamic deployment custody");
+    assert!(rejected.diagnostic().contains("target"));
+    let returned = rejected.into_input();
+    assert_eq!(
+        returned.installed_attribution().fingerprint(),
+        attribution_fingerprint
+    );
+    assert_eq!(
+        returned.transfer_runtime().fingerprint(),
+        runtime_fingerprint
+    );
+    let (
+        admission_identity,
+        root,
+        provider_execution,
+        slot,
+        _wrong_environment,
+        installed_attribution,
+        transfer_runtime,
+    ) = returned.into_parts();
+    let installed_dynamic = deployment_session
+        .install_dynamic_native_fuel_root(DynamicNativeFuelRootDeployment::new(
+            admission_identity,
+            root,
+            provider_execution,
+            slot,
+            NativeFuelExecutionEnvironment::Hosted {
+                profile,
+                interpreter_available: false,
+            },
+            installed_attribution,
+            transfer_runtime,
+        ))
+        .expect("returned dynamic deployment custody retries exactly");
+    assert_eq!(installed_dynamic.root().root(), dynamic_root_identity);
+    assert!(
+        installed_dynamic
+            .roots()
+            .record(dynamic_root_identity)
+            .is_some()
+    );
+    let removal = RootRemovalReceipt::from_provider(
+        RootRemovalReceiptId::from_normalized_identity(0x622a).unwrap(),
+        installed_dynamic.root(),
+        true,
+        true,
+    );
+    let removed_slot = installed_dynamic
+        .remove(removal)
+        .expect("live dynamic root tears down through its deployment carrier");
+    assert_eq!(
+        removed_slot.slot(),
+        RootSlotId::from_normalized_identity(0x6227).unwrap()
+    );
 
     // A leaf may have a zero-byte internal closure; external-root admission
     // still needs a nonzero adapter/provision. Exercise the completed bridge
@@ -1282,7 +1791,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
             schedule: certified_demand.schedule(),
             provision: FuelProvisionId::from_normalized_identity(0x6005).unwrap(),
             ceiling_units: certified_demand.units(),
-            realization: certified_demand,
+            realization: certified_demand.clone(),
             validation_receipt: FuelValidationReceiptId::from_normalized_identity(0x6006).unwrap(),
         },
         machine_state: MachineStateResourceColumn {
@@ -1294,8 +1803,8 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         },
         component_pins: BTreeSet::new(),
     };
-    let validated_root =
-        validate_external_root(candidate, &boundary).expect("terminal-backed root validation");
+    let validated_root = validate_external_root(candidate.clone(), &boundary)
+        .expect("terminal-backed root validation");
     let provider_execution = ProviderExecution::from_admitted_provider(
         ProviderExecutionId::from_normalized_identity(0x6008).unwrap(),
         &validated_root,
@@ -1319,7 +1828,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     .expect("terminal-backed root admission");
     let mut ledger =
         InstalledRootLedger::claim(&mut installed_code).expect("canonical root ledger");
-    let _installed_root = ledger
+    let _installed_sponsor_root = ledger
         .install(&installed_code, validated_root, slot, admission)
         .expect("terminal stack evidence should reach the installed-root report");
     let root_record = ledger.record(root_identity).expect("installed root record");
