@@ -10,7 +10,8 @@ use omega_compiler::{
     CompilerExecutableCommitmentError, FilesystemSponsor, FilesystemSponsorError,
     PackageCompilationInputError, PackageReviewCanonicalRow, PackageReviewEncodingError,
     PackageSourceConsumptionCommitment, compile_to_checked_with_packages_in_sponsored_build_dir,
-    project_checked_package_review,
+    ordinary_package_obligation_ledger_from_compiler_rows, project_checked_package_review,
+    validate_ordinary_package_obligation_ledger,
 };
 use psi_diagnostics::Diagnostic;
 use std::collections::BTreeSet;
@@ -370,6 +371,21 @@ fn compile_resolved_package_reviews_in_session(
                 error,
             }
         })?;
+        let obligation_ledger = ordinary_package_obligation_ledger_from_compiler_rows(
+            &canonical_rows,
+        )
+        .map_err(|error| CompileResolvedPackageReviewsError::Projection {
+            package: key.clone(),
+            diagnostics: vec![Diagnostic::error(format!(
+                "compiler-issued ordinary package obligation ledger is structurally invalid: {error}"
+            ))],
+        })?;
+        validate_ordinary_package_obligation_ledger(&obligation_ledger, &checked).map_err(
+            |diagnostics| CompileResolvedPackageReviewsError::Projection {
+                package: key.clone(),
+                diagnostics,
+            },
+        )?;
         let comparison_rows = canonical_rows
             .iter()
             .map(ReviewOnlyCanonicalRow::from_compiler_issued)

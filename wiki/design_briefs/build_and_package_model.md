@@ -940,6 +940,24 @@ to stabilize that seam. It becomes warranted only if implementation discovers a
 real reusable semantic boundary; an existing coherent stage such as Exact is
 preferred whenever it preserves the same meaning with less machinery.
 
+The current ordinary review vocabulary now exercises that rule directly. A
+source-handle-free `OrdinaryPackageObligationLedger` retains one exact package,
+target, and strictly ordered canonical row set while leaving explanatory source
+coordinates as separate provenance. Recovered row envelopes prove only
+canonical framing. The local compiler reconstructs the complete ledger from
+checked semantics and requires exact equality, and fresh closure-review
+publication performs that reconstruction before exposing its rows. Missing,
+reordered, stale, mixed-package, or mixed-target rows reject. This uses existing
+typed/checked carriers and the internal package projector; it creates no Chi or
+other nominal stage.
+
+This is not yet the ordinary accepted artifact described above. The current
+review vocabulary remains incomplete, and the ledger has no lock-promotion
+route. Exact produced-artifact subjects, certificate replay and results,
+transitive open obligations, obligation-schema identity and migration,
+dependency composition, and local admission decisions remain separate required
+joins before a `PackageInstance` can exist.
+
 The first bounded replay component exists at Terminal Psi. The verifier exposes
 one complete ordered obligation set for executable operations, call and nominal
 cleanup requirements, and contract guarantees; each row retains exact owner,

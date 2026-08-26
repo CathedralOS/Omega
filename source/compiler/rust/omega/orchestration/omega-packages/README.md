@@ -956,6 +956,16 @@ enclosing declaration's exposure. This direct-authority custody is independent
 of the still-open rule for publishing declaration families.
 
 Compiler issuance now retains a separately bounded canonical row sequence.
+Before fresh closure review publishes those rows, it strips explanatory source
+coordinates into separate provenance, forms a source-handle-free
+`OrdinaryPackageObligationLedger`, reconstructs the complete current row set a
+second time from checked compiler semantics, and requires exact equality.
+Individually recovered row envelopes establish framing only; missing,
+reordered, stale, mixed-package, or mixed-target ledgers reject under local
+comparison. This is a replay gate for the current review vocabulary, not
+accepted package evidence or a lock-promotion path: produced-artifact subjects,
+certificate results, transitive open obligations, schema deltas, dependency
+composition, and root admissions remain absent.
 Review-only update comparison joins candidate rows to exact resolver custody,
 matches rows linearly by compiler-owned `(kind, key)` coordinates, and retains
 complete old/new bytes without decoding them. Conflict fingerprints bind both

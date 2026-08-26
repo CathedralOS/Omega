@@ -17,7 +17,10 @@ use omega_compiler::{
     PackageReviewSemanticDependencyKind, PackageReviewSourceLocationOwner,
     PackageReviewSourceLocationRole, PackageReviewSynchronousInvocation,
     PackageReviewSyntheticSourceKind, PackageReviewTypeParameterKind, PackageSourceBinding,
-    compile_to_checked_with_packages, project_checked_package_review,
+    compile_to_checked_with_packages, decode_package_review_canonical_row,
+    encode_package_review_canonical_row, ordinary_package_obligation_ledger_from_compiler_rows,
+    project_checked_package_review, recover_ordinary_package_obligation_ledger,
+    validate_ordinary_package_obligation_ledger,
 };
 use psi_core::PackageKeyIdentity;
 use std::fs;
@@ -65,6 +68,93 @@ fn package_inputs(root: &Path) -> PackageCompilationInputs {
         Vec::new(),
     )
     .expect("single-package review graph should validate")
+}
+
+#[test]
+fn ordinary_package_obligation_ledger_requires_exact_local_reconstruction() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#;
+    let original = TempPackage::new();
+    original.write("main.omg", "pub data Token { value: u64; }\n");
+    original.write("build.omg", build);
+    let original_checked = compile_to_checked_with_packages(
+        &original.0.join("main.omg"),
+        Some(target),
+        package_inputs(&original.0),
+    )
+    .expect("ordinary package obligation fixture should check");
+    let projection = project_checked_package_review(&original_checked)
+        .expect("ordinary package obligations should project");
+    let rows = projection
+        .canonical_rows()
+        .expect("ordinary package obligation rows");
+    let ledger = ordinary_package_obligation_ledger_from_compiler_rows(&rows)
+        .expect("fresh compiler rows should form a canonical ledger");
+    validate_ordinary_package_obligation_ledger(&ledger, &original_checked)
+        .expect("unchanged checked semantics should reconstruct the same ledger");
+
+    let decoded = rows
+        .iter()
+        .map(|row| {
+            let bytes = encode_package_review_canonical_row(row)
+                .expect("compiler row recovery envelope should encode");
+            decode_package_review_canonical_row(&bytes)
+                .expect("compiler row recovery envelope should decode")
+        })
+        .collect::<Vec<_>>();
+    let recovered = recover_ordinary_package_obligation_ledger(&decoded)
+        .expect("decoded rows should form the same canonical ledger");
+    assert_eq!(recovered, ledger);
+    validate_ordinary_package_obligation_ledger(&recovered, &original_checked)
+        .expect("decoded framing is inert until exact local reconstruction succeeds");
+
+    let mut missing = rows.clone();
+    let removed = missing
+        .iter()
+        .position(|row| row.kind() == PackageReviewCanonicalRowKind::PublicData)
+        .expect("fixture should produce a public-data row");
+    missing.remove(removed);
+    let incomplete = ordinary_package_obligation_ledger_from_compiler_rows(&missing)
+        .expect("an omitted semantic row remains structurally decodable");
+    let diagnostics = validate_ordinary_package_obligation_ledger(&incomplete, &original_checked)
+        .expect_err("local reconstruction must reject an omitted semantic row");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not match local reconstruction")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    let mut reordered = rows.clone();
+    reordered.swap(0, 1);
+    let ordering_error = ordinary_package_obligation_ledger_from_compiler_rows(&reordered)
+        .expect_err("reordered rows are not a canonical ledger");
+    assert!(ordering_error.message().contains("strict canonical order"));
+
+    let changed = TempPackage::new();
+    changed.write("main.omg", "pub data Token { value: i64; }\n");
+    changed.write("build.omg", build);
+    let changed_checked = compile_to_checked_with_packages(
+        &changed.0.join("main.omg"),
+        Some(target),
+        package_inputs(&changed.0),
+    )
+    .expect("changed ordinary package obligation fixture should check");
+    let diagnostics = validate_ordinary_package_obligation_ledger(&ledger, &changed_checked)
+        .expect_err("stale semantic rows must reject against changed checked source");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not match local reconstruction")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
 }
 
 #[test]
