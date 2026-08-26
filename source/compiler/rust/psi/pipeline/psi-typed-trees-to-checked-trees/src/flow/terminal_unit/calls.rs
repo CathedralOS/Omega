@@ -607,7 +607,32 @@ pub(super) fn ordinary_projected_call_is_supported(
         return false;
     }
 
-    if field_path {
+    let affine_pair_index_path = if allow_field_path_projection
+        && matches!(
+            arguments[0].path.as_slice(),
+            [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1)]
+        ) {
+        let mut type_reference = caller_source_parameters[0].type_reference;
+        loop {
+            match program.type_reference_table.type_reference(type_reference) {
+                TypeReferenceNode::Constrained { base_type, .. }
+                | TypeReferenceNode::Reference {
+                    referee: base_type, ..
+                } => type_reference = *base_type,
+                _ => break,
+            }
+        }
+        matches!(
+            program.type_reference_table.type_reference(type_reference),
+            TypeReferenceNode::FixedArray {
+                length: psi_typed_trees::types::FixedArrayLength::Literal(2),
+                ..
+            }
+        )
+    } else {
+        false
+    };
+    if field_path || affine_pair_index_path {
         let [caller_parameter] = caller_parameters else {
             return false;
         };
@@ -1187,6 +1212,27 @@ pub(super) fn structural_signature(
     state: &psi_typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
 ) -> Option<(String, Vec<CheckedUnitStructuralParameterPlan>)> {
+    structural_signature_with_affine_pair(program, shapes, machine, state, binders, false)
+}
+
+pub(super) fn partial_affine_pair_structural_signature(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+) -> Option<(String, Vec<CheckedUnitStructuralParameterPlan>)> {
+    structural_signature_with_affine_pair(program, shapes, machine, state, binders, true)
+}
+
+fn structural_signature_with_affine_pair(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+    allow_affine_pair: bool,
+) -> Option<(String, Vec<CheckedUnitStructuralParameterPlan>)> {
     let parameters = program.state_parameters(state);
     let attached_name = machine.attached_data.as_ref()?;
     let attached = program
@@ -1208,6 +1254,8 @@ pub(super) fn structural_signature(
         // resolved attachment above.
         let type_identity = if parameter.is_self {
             attachment_type_identity.clone()
+        } else if allow_affine_pair {
+            shapes.add_partial_affine_pair_type(parameter.type_reference, binders)?
         } else {
             shapes.add_type(parameter.type_reference, binders, &[])?
         };

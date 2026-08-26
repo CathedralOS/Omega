@@ -47,8 +47,8 @@ pub use error::{ContractClauseKind, ModuleError};
 use evidence::{validate_evidence_contract_lanes, validate_proposition_vocabulary};
 pub use foundation::{ServiceCeilingOwner, StructuralSignatureOwner};
 use foundation::{
-    is_nonempty_field_path, partial_affine_residuals, resolve_structural_path,
-    validate_structural_foundation,
+    is_bounded_partial_affine_path, is_nonempty_field_path, partial_affine_residuals,
+    resolve_structural_path, validate_structural_foundation,
 };
 pub use frontier::{
     VerifiedLiveClaim, VerifiedMachineStructuralFrontiers, VerifiedOwnedStructuralPlace,

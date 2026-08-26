@@ -61,6 +61,182 @@ const MIXED_SOURCE: &str = r#"
     }
 "#;
 
+const AFFINE_PAIR_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Sink {}
+    machine Sink::take(token: Token) {}
+    data Root {}
+    machine Root::first(values: [Token; 2]) {
+        Sink::take(values[0]);
+    }
+    machine Root::second(values: [Token; 2]) {
+        Sink::take(values[1]);
+    }
+"#;
+
+#[test]
+fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
+    let tokens = Lexer::new(AFFINE_PAIR_SOURCE).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+
+    for (machine, moved, residual) in [("Root::first", 0, 1), ("Root::second", 1, 0)] {
+        let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, machine)
+            .expect("one literal array move and its exact sibling cleanup lower");
+        let entry = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|candidate| candidate.id == lowered.semantic_module.entry)
+            .expect("entry machine");
+        let [root] = entry.structural_parameters.as_slice() else {
+            panic!("affine pair slice has one structural root")
+        };
+        let root_shape = lowered
+            .semantic_module
+            .structural_types
+            .iter()
+            .find(|shape| shape.id == root.structural_type)
+            .expect("array root shape");
+        let psi_terminal::StructuralTypeShape::FixedArray {
+            element: element_type,
+            length,
+        } = root_shape.shape
+        else {
+            panic!("root remains a fixed array")
+        };
+        assert_eq!(length, 2);
+        let [block] = entry.blocks.as_slice() else {
+            panic!("affine pair slice has one block")
+        };
+        let [call] = block.operations.as_slice() else {
+            panic!("affine pair slice has one call")
+        };
+        let OperationKind::CallUnit {
+            structural_arguments,
+            claim_transfers,
+            ..
+        } = &call.kind
+        else {
+            panic!("affine pair performs an ordinary Unit call")
+        };
+        assert!(claim_transfers.is_empty());
+        let [argument] = structural_arguments.as_slice() else {
+            panic!("ordinary call has one projected argument")
+        };
+        assert_eq!(argument.place, root.place);
+        assert_eq!(argument.path, [StructuralPathSegment::FixedIndex(moved)]);
+        let Terminator::ReturnUnitPartialAffine {
+            edge,
+            trivial_affine_discards,
+            residual_affine_discards,
+        } = &block.terminator
+        else {
+            panic!("affine pair returns through partial cleanup")
+        };
+        assert!(trivial_affine_discards.is_empty());
+        let [discard] = residual_affine_discards.as_slice() else {
+            panic!("affine pair has one residual")
+        };
+        assert_eq!(discard.place, root.place);
+        assert_eq!(discard.structural_type, element_type);
+        assert_eq!(discard.path, [StructuralPathSegment::FixedIndex(residual)]);
+
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .expect("verifier reconstructs the opposite array element");
+        let semantic = encode_module(&lowered.semantic_module).expect("module encodes");
+        assert_eq!(
+            decode_module(&semantic).expect("module decodes"),
+            lowered.semantic_module
+        );
+        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encodes");
+        let argument_value = TerminalStructuralValue {
+            opaque_identity: 0x4152_5241,
+            structural_type: root.structural_type,
+            qualifications: root.qualifications.clone(),
+            path: Vec::new(),
+        };
+        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            &[argument_value],
+        )
+        .expect("verified affine pair artifact starts");
+        let mut meter = TerminalFuelMeter::with_allowance(2);
+        assert_eq!(
+            execution.resume(&mut meter).expect("execution suspends"),
+            TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+                schedule: TerminalFuelSchedule::CURRENT.identity(),
+                site: FuelChargeSite::Edge(*edge),
+                required_units: 1,
+                remaining_units: 0,
+            })
+        );
+        assert_eq!(execution.live_affine_frontier().count(), 1);
+        meter.replenish(1).expect("replenish cleanup edge");
+        assert_eq!(
+            execution.resume(&mut meter).expect("execution completes"),
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+        );
+        assert!(execution.live_affine_frontier().next().is_none());
+        assert_eq!(meter.usage().total_units(), 3);
+
+        let mut wrong_length = lowered.semantic_module.clone();
+        let declaration = wrong_length
+            .structural_types
+            .iter_mut()
+            .find(|shape| shape.id == root.structural_type)
+            .expect("array declaration");
+        let psi_terminal::StructuralTypeShape::FixedArray { length, .. } = &mut declaration.shape
+        else {
+            unreachable!()
+        };
+        *length = 3;
+        assert!(
+            psi_terminal_verifier::verify_module(
+                &wrong_length,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default(),
+            )
+            .is_err()
+        );
+
+        let mut duplicate_path = lowered.semantic_module.clone();
+        let entry = duplicate_path
+            .machines
+            .iter_mut()
+            .find(|candidate| candidate.id == duplicate_path.entry)
+            .expect("entry machine");
+        let [block] = entry.blocks.as_mut_slice() else {
+            unreachable!()
+        };
+        let Terminator::ReturnUnitPartialAffine {
+            residual_affine_discards,
+            ..
+        } = &mut block.terminator
+        else {
+            unreachable!()
+        };
+        residual_affine_discards[0].path = vec![StructuralPathSegment::FixedIndex(moved)];
+        assert!(
+            psi_terminal_verifier::verify_module(
+                &duplicate_path,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default(),
+            )
+            .is_err()
+        );
+    }
+}
+
 #[test]
 fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpreter() {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");

@@ -1064,6 +1064,75 @@ impl<'program> ShapeCollector<'program> {
         self.add_data_shape(identity, data, binders, local_substitutions)
     }
 
+    pub(super) fn add_partial_affine_pair_type(
+        &mut self,
+        type_reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+    ) -> Option<String> {
+        let mut resolved = type_reference;
+        loop {
+            match self.program.type_reference_table.type_reference(resolved) {
+                TypeReferenceNode::Reference { referee, .. }
+                | TypeReferenceNode::Constrained {
+                    base_type: referee, ..
+                } => resolved = *referee,
+                _ => break,
+            }
+        }
+        let TypeReferenceNode::FixedArray {
+            element_type,
+            length: psi_typed_trees::types::FixedArrayLength::Literal(2),
+        } = self.program.type_reference_table.type_reference(resolved)
+        else {
+            return self.add_type(type_reference, binders, &[]);
+        };
+        if crate::checks::type_multiplicity(self.program, *element_type) != Multiplicity::Affine
+            || !matches!(
+                self.program
+                    .type_reference_table
+                    .type_reference(*element_type),
+                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+            )
+        {
+            return None;
+        }
+        let identity = self
+            .program
+            .normalized_type_identity_with_binders(resolved, binders)
+            .into_string();
+        if self.types.contains_key(&identity) {
+            return Some(identity);
+        }
+        if !self.in_progress.insert(identity.clone()) {
+            return None;
+        }
+        let Some(element_type_identity) = self.add_type(*element_type, binders, &[]) else {
+            self.in_progress.remove(&identity);
+            return None;
+        };
+        if !matches!(
+            self.types
+                .get(&element_type_identity)
+                .map(|plan| &plan.shape),
+            Some(CheckedUnitStructuralTypeShape::Record { .. })
+        ) {
+            self.in_progress.remove(&identity);
+            return None;
+        }
+        self.types.insert(
+            identity.clone(),
+            CheckedUnitStructuralTypePlan {
+                identity: identity.clone(),
+                shape: CheckedUnitStructuralTypeShape::FixedArray {
+                    element_type_identity,
+                    length: 2,
+                },
+            },
+        );
+        self.in_progress.remove(&identity);
+        Some(identity)
+    }
+
     pub(super) fn add_data_shape(
         &mut self,
         identity: String,

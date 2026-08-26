@@ -510,6 +510,73 @@ fn partial_cleanup_partition_rejects_noncanonical_type_closures() {
     ));
 }
 
+#[test]
+fn partial_cleanup_partition_accepts_only_opposite_element_of_affine_pair() {
+    let root_type = StructuralTypeId::new(1).expect("root type");
+    let element_type = StructuralTypeId::new(2).expect("element type");
+    let declarations = vec![
+        psi_terminal::StructuralTypeDeclaration {
+            id: root_type,
+            identity: "Pair".into(),
+            shape: psi_terminal::StructuralTypeShape::FixedArray {
+                element: element_type,
+                length: 2,
+            },
+        },
+        psi_terminal::StructuralTypeDeclaration {
+            id: element_type,
+            identity: "Token".into(),
+            shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+        },
+    ];
+    let moved_path = vec![StructuralPathSegment::FixedIndex(1)];
+    let moved = vec![(moved_path.as_slice(), element_type)];
+    let residual = psi_terminal::StructuralAffineDiscard {
+        place: PlaceId::new(1).expect("place"),
+        path: vec![StructuralPathSegment::FixedIndex(0)],
+        structural_type: element_type,
+    };
+    assert!(exact_partial_cleanup_partition(
+        &declarations,
+        root_type,
+        &moved,
+        &[&residual],
+    ));
+
+    let same_as_moved = psi_terminal::StructuralAffineDiscard {
+        path: vec![StructuralPathSegment::FixedIndex(1)],
+        ..residual.clone()
+    };
+    assert!(!exact_partial_cleanup_partition(
+        &declarations,
+        root_type,
+        &moved,
+        &[&same_as_moved],
+    ));
+    let wrong_type = psi_terminal::StructuralAffineDiscard {
+        structural_type: root_type,
+        ..residual.clone()
+    };
+    assert!(!exact_partial_cleanup_partition(
+        &declarations,
+        root_type,
+        &moved,
+        &[&wrong_type],
+    ));
+    let mut wrong_length = declarations.clone();
+    let psi_terminal::StructuralTypeShape::FixedArray { length, .. } = &mut wrong_length[0].shape
+    else {
+        unreachable!()
+    };
+    *length = 3;
+    assert!(!exact_partial_cleanup_partition(
+        &wrong_length,
+        root_type,
+        &moved,
+        &[&residual],
+    ));
+}
+
 fn executable_nominal_cleanup_plan(
     target: NativeTarget,
 ) -> (

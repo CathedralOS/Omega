@@ -504,11 +504,7 @@ pub(super) fn emit_unit_body(
                         && residuals.iter().all(|residual| {
                             Some(residual.place) == residual_root
                                 && !residual.path.is_empty()
-                                && residual.path.iter().all(|segment| {
-                                    matches!(segment,
-                                        psi_terminal::StructuralPathSegment::Field(identity)
-                                            if !identity.is_empty())
-                                })
+                                && is_partial_cleanup_path(&residual.path)
                                 && body.parameters.iter().any(|parameter| {
                                     parameter.place == residual.place
                                         && parameter.multiplicity
@@ -525,11 +521,7 @@ pub(super) fn emit_unit_body(
                         && !moved.is_empty()
                         && moved.iter().all(|(moved_path, _)| {
                             !moved_path.is_empty()
-                                && moved_path.iter().all(|segment| {
-                                    matches!(segment,
-                                        psi_terminal::StructuralPathSegment::Field(identity)
-                                            if !identity.is_empty())
-                                })
+                                && is_partial_cleanup_path(moved_path)
                                 && residuals.iter().all(|residual| {
                                     !moved_path.starts_with(&residual.path)
                                         && !residual.path.starts_with(moved_path)
@@ -740,6 +732,18 @@ pub(super) fn emit_unit_body(
             .collect(),
         affine_cleanup,
     })
+}
+
+fn is_partial_cleanup_path(path: &[psi_terminal::StructuralPathSegment]) -> bool {
+    (!path.is_empty()
+        && path.iter().all(|segment| {
+            matches!(segment,
+                psi_terminal::StructuralPathSegment::Field(identity) if !identity.is_empty())
+        }))
+        || matches!(
+            path,
+            [psi_terminal::StructuralPathSegment::FixedIndex(0 | 1)]
+        )
 }
 
 pub(super) fn emit_x86_64_unit_call(

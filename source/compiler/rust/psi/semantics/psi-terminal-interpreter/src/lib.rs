@@ -2726,32 +2726,58 @@ fn split_affine_frontier_at_projection(
     let declaration = structural_types
         .get(&current.structural_type)
         .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-        // The current producer/verifier slice admits direct transparent-record
-        // fields only. Refuse to approximate arrays or a future projection kind.
-        return Err(TerminalInterpretError::AffineProjectionNotRepresentable);
-    };
-
-    let mut selected = None;
-    for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-        let psi_terminal::StructuralFieldType::Structural(field_type) = field.field_type else {
-            continue;
-        };
-        let segment = StructuralPathSegment::Field(field.identity.clone());
-        let mut path = current.path.clone();
-        path.push(segment.clone());
-        let child = StructuralAffineDiscard {
-            place: current.place,
-            path,
-            structural_type: field_type,
-        };
-        if &segment == next_segment {
-            selected = Some(child);
-        } else if !frontier.insert(child) {
-            return Err(TerminalInterpretError::AffineFrontierMismatch);
+    let selected = match &declaration.shape {
+        StructuralTypeShape::Record { fields } => {
+            let mut selected = None;
+            for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                let psi_terminal::StructuralFieldType::Structural(field_type) = field.field_type
+                else {
+                    continue;
+                };
+                let segment = StructuralPathSegment::Field(field.identity.clone());
+                let mut path = current.path.clone();
+                path.push(segment.clone());
+                let child = StructuralAffineDiscard {
+                    place: current.place,
+                    path,
+                    structural_type: field_type,
+                };
+                if &segment == next_segment {
+                    selected = Some(child);
+                } else if !frontier.insert(child) {
+                    return Err(TerminalInterpretError::AffineFrontierMismatch);
+                }
+            }
+            selected
         }
+        StructuralTypeShape::FixedArray { element, length: 2 }
+            if matches!(next_segment, StructuralPathSegment::FixedIndex(0 | 1)) =>
+        {
+            let StructuralPathSegment::FixedIndex(selected_index) = next_segment else {
+                unreachable!()
+            };
+            let mut selected = None;
+            for index in 0..2 {
+                let mut path = current.path.clone();
+                path.push(StructuralPathSegment::FixedIndex(index));
+                let child = StructuralAffineDiscard {
+                    place: current.place,
+                    path,
+                    structural_type: *element,
+                };
+                if index == *selected_index {
+                    selected = Some(child);
+                } else if !frontier.insert(child) {
+                    return Err(TerminalInterpretError::AffineFrontierMismatch);
+                }
+            }
+            selected
+        }
+        StructuralTypeShape::ByteSequence(_)
+        | StructuralTypeShape::FixedArray { .. }
+        | StructuralTypeShape::Sum { .. } => None,
     }
-    let selected = selected.ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)?;
+    .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)?;
     split_affine_frontier_at_projection(structural_types, frontier, selected, projected_path)
 }
 
