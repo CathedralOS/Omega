@@ -1143,8 +1143,8 @@ complete.
   the review projection: supply mode, lifetime arity, alpha-normalized type and
   const parameters, copy/carry properties, zero gating, retired identities,
   fields, variants, payloads, relevance, and package-qualified type identities.
-  Quotients, data `where` facts, and proposition parameters fail review until
-  exact canonical rows exist; none are silently omitted. Review v43 and
+  Quotients and proposition parameters fail review until exact canonical rows
+  exist; none are silently omitted. Review v43 and
   canonical row v3 represent static-machine parameters directly. Structural
   contracts retain their complete alpha-normalized nested telescope, value
   signature, proof/crash contracts, reach, invocation, suspension, blocking,
@@ -1152,6 +1152,21 @@ complete.
   and requirement identities. Nested structural binders receive exact checked
   contract and crash custody; malformed depth, missing checked rows, and
   non-public nominal requirements reject.
+  Review v59 and canonical row v17 add public data default-domain invariants.
+  Data-clause fields and static parameters receive exact declaration identities
+  during symbol resolution. Every typed `where` fact then retains one exact
+  checked definition row and ownership record; each structural dependency
+  retains its exact root and path. Before projection, the compiler rederives
+  the complete data-invariant evidence graph from final typed Psi—ownership
+  records, semantic rows, references, contexts, symbol indexes, and structural
+  places—and requires structural equality with the retained checked graph.
+  Review projects
+  representable expression, membership, and proposition facts through the
+  existing canonical contract vocabulary, sorts and deduplicates the invariant
+  set, and includes it in public-data identity. Missing, duplicate, altered, or
+  path-spoofed checked custody rejects. Source forms outside the compiler's
+  checked default-domain fragment remain fail-closed rather than receiving
+  speculative evidence.
   Review v44 and canonical row v4 extend this representation to contract-call
   static-machine arguments. Each retains either the exact caller machine-binder
   ordinal or the exact concrete machine entry identity.
