@@ -371,6 +371,17 @@ homes on x86-64 and AArch64. This establishes an exact physical-form pressure
 recovery without granting spill, frame, emission, or general rematerialization
 authority.
 
+Optimization orchestration retains this as an append-only custody chain rather
+than a raw series of core calls. `stage_first_optimized_literal_fold` owns the
+source legality/availability chain plus the exact victim choice,
+classification, validated fold, and fresh liveness/range/legality artifacts.
+`stage_next_optimized_literal_fold` first replays that complete chain and then
+appends exactly one more explicitly requested step. A no-action request rejects
+instead of adding a meaningless ledger row. The final home carrier replays the
+chain again, derives the ordered `LiteralFold` manifest entries internally,
+and validates homes only from the last fresh analysis. Callers cannot supply or
+reorder that ledger.
+
 Allocator search availability is now a separate compiler-internal validated
 artifact. `AllEnvironmentAllocatableViewsV1` derives the complete flexible set
 from the exact target-register environment: each retained view must be target-
