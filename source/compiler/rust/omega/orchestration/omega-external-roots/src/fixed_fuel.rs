@@ -648,6 +648,15 @@ fn compose_fixed_fuel_summary(
             identity.normalized_identity()
         ))
     })?;
+    if matches!(
+        &summary.local_evidence,
+        FixedFuelLocalEvidence::TerminalSegment(_)
+    ) {
+        return Err(ExternalRootDiagnostic(format!(
+            "terminal path-segment summary 0x{:016x} cannot contribute to whole-entry fixed-fuel composition",
+            identity.normalized_identity()
+        )));
+    }
     if summary.local_evidence.schedule() != schedule {
         return Err(ExternalRootDiagnostic(format!(
             "fixed-fuel summary 0x{:016x} uses schedule version {}, but the root uses version {}",

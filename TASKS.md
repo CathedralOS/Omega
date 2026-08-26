@@ -5051,7 +5051,10 @@ Remaining:
   certificates now have the same borrowed exact-occurrence replay boundary:
   installed-code context, artifact, and selected entry stub must still match,
   while the retained machine/start-block/end-edge remain segment evidence and
-  cannot authorize a whole root. Add attributed response
+  cannot authorize a whole root. Whole-entry fixed-fuel composition also now
+  rejects a `TerminalSegment` row at any reachable graph position before
+  summing or fingerprinting, so an opaque or entry root cannot absorb a
+  conservative path ceiling as complete provider work. Add attributed response
   outcomes only when terminal wait/foreign edges can derive them. Inserted native
   metering must consume the installed exact-site attribution rows. Implement the
   settled per-sponsor-region realization: fixed provision elides the meter only
