@@ -5,7 +5,9 @@ use super::super::offsets::{
 };
 use super::context::InstructionRelocationContext;
 use super::queries::selected_host_text_read;
-use omega_calling_conventions::{HostBindingMechanism, HostOperation, HostOperationKey};
+use omega_calling_conventions::{
+    HostBindingMechanism, HostImportLocator, HostOperation, HostOperationKey,
+};
 use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
 use omega_target::Architecture;
 use omega_target_operations::RuntimeTextReadTarget;
@@ -40,7 +42,10 @@ pub(super) fn collect_runtime_text_read_relocations(
         );
     }
 
-    let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
+    let HostBindingMechanism::Import {
+        locator: HostImportLocator::StringBackedBootstrap { symbol, .. },
+    } = &binding.mechanism
+    else {
         return;
     };
     let external_kind = external_call_relocation_kind(context.input.target.architecture);
@@ -53,8 +58,11 @@ pub(super) fn collect_runtime_text_read_relocations(
             HostOperationKey::new(read.operation_key.capability, HostOperation::GetStdHandle);
         if let Some(handle_binding) = find_host_binding(context.input, get_std_handle_key)
             && let HostBindingMechanism::Import {
-                symbol: handle_symbol,
-                ..
+                locator:
+                    HostImportLocator::StringBackedBootstrap {
+                        symbol: handle_symbol,
+                        ..
+                    },
             } = &handle_binding.mechanism
         {
             context

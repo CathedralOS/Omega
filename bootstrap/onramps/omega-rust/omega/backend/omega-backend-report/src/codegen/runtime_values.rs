@@ -15,10 +15,17 @@ pub(super) fn runtime_text_read_source_name(
                 .map(|binding| &binding.mechanism)
             {
                 Some(omega_calling_conventions::HostBindingMechanism::Import {
-                    symbol, ..
+                    locator:
+                        omega_calling_conventions::HostImportLocator::StringBackedBootstrap {
+                            symbol,
+                            ..
+                        },
                 }) => {
                     format!("import {symbol}")
                 }
+                Some(omega_calling_conventions::HostBindingMechanism::Import {
+                    locator: omega_calling_conventions::HostImportLocator::Normalized(locator),
+                }) => format!("normalized import 0x{:016x}", locator.normalized_identity()),
                 Some(omega_calling_conventions::HostBindingMechanism::Syscall {
                     number, ..
                 }) => {

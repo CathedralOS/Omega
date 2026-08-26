@@ -1,7 +1,7 @@
 use crate::{
     CallSignature, CallingPolicy, HostAbiPlan, HostBinding, HostBindingMechanism,
-    HostBoundaryPolicy, PlatformCallData, ValueShape, evaluate_ordinary_boundary_entry_plan,
-    host_operation, insert_platform_lowering,
+    HostBoundaryPolicy, HostImportLocator, PlatformCallData, ValueShape,
+    evaluate_ordinary_boundary_entry_plan, host_operation, insert_platform_lowering,
 };
 
 /// The Windows import catalog rows: (capability, operation, library, symbol).
@@ -707,8 +707,10 @@ fn windows_import(
     HostBinding {
         operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Import {
-            library: library.into(),
-            symbol: symbol.into(),
+            locator: HostImportLocator::StringBackedBootstrap {
+                library: library.into(),
+                symbol: symbol.into(),
+            },
         },
         // Share ONE policy allocation across every binding (all name the same
         // target path) -- an Arc refcount bump, not a fresh string per row.

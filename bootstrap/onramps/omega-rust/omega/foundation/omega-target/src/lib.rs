@@ -1,5 +1,12 @@
 use psi_diagnostics::Diagnostic;
 
+mod foreign_locator;
+
+pub use foreign_locator::{
+    ForeignLocatorCandidate, ForeignLocatorValidationError, NormalizedForeignLocator,
+    normalize_foreign_locator,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Architecture {
     Aarch64,

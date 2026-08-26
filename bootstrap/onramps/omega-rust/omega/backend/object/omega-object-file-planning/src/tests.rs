@@ -1,6 +1,7 @@
 use crate::{ObjectPlanningInput, build_object_plan};
 use omega_calling_conventions::{
-    HostAbiPlan, HostBinding, HostBindingMechanism, HostOperationReference, build_host_abi_plan,
+    HostAbiPlan, HostBinding, HostBindingMechanism, HostImportLocator, HostOperationReference,
+    build_host_abi_plan,
 };
 use omega_control_flow::{MachineFunctionIdentity, StateKey};
 use omega_layout::{DataLayout, FieldLayout, LayoutPlan, MachineLayout, TypeLayout, VariantLayout};
@@ -17,7 +18,7 @@ use std::sync::Arc;
 
 #[test]
 fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
-    let target = NativeTarget::host();
+    let target = NativeTarget::windows_x64();
     let machine_symbol = SymbolHandle::invalid();
     let entry_function_identity = MachineFunctionIdentity::source(valid_source_key(2));
     let mut layouts = LayoutPlan {
@@ -66,10 +67,12 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
         .expect("hosted target has a plan-bearing binding");
     host_abi.bindings.insert(HostBinding {
         mechanism: HostBindingMechanism::Import {
-            library: Arc::from("host"),
-            symbol: Arc::from("host_write"),
+            locator: HostImportLocator::StringBackedBootstrap {
+                library: Arc::from("host"),
+                symbol: Arc::from("host_write"),
+            },
         },
-        ..retained
+        ..retained.clone()
     });
 
     let mut data = TargetDataPlan::with_capacity(1, 3);
@@ -153,6 +156,44 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
         && symbol.kind == SymbolKind::Object
         && symbol.offset == 32
         && symbol.size == 8));
+
+    let locator = omega_target::normalize_foreign_locator(
+        omega_target::ForeignLocatorCandidate::PeByName {
+            library: b"host\xff.dll".to_vec(),
+            export: b"host_write".to_vec(),
+        },
+        omega_target::TargetProfile::WindowsX64,
+    )
+    .expect("valid normalized Windows locator");
+    let mut normalized_host_abi = empty_host_abi(target);
+    normalized_host_abi.bindings.insert(HostBinding {
+        mechanism: HostBindingMechanism::Import {
+            locator: HostImportLocator::Normalized(locator.clone()),
+        },
+        ..retained
+    });
+    let diagnostic = build_object_plan(ObjectPlanningInput {
+        target,
+        host_abi: &normalized_host_abi,
+        layouts: &layouts,
+        entry_machine_symbol: machine_symbol,
+        entry_machine_name: "Main",
+        entry_function_identity,
+        encoded_machine: &encoded_machine,
+        data: &data,
+        runtime_frame_size: 8,
+        runtime_frame_alignment: 16,
+    })
+    .expect_err("string-backed object planning must reject normalized coordinates");
+    assert!(diagnostic.message.contains(&format!(
+        "normalized foreign locator 0x{:016x}",
+        locator.normalized_identity()
+    )));
+    assert!(
+        diagnostic
+            .message
+            .contains("object-format planner must consume its atomic")
+    );
 }
 
 #[test]
@@ -250,8 +291,10 @@ fn object_entry_can_name_generated_wrapper_without_relabeling_source_continuatio
         .expect("hosted target has a plan-bearing binding");
     host_abi.bindings.insert(HostBinding {
         mechanism: HostBindingMechanism::Import {
-            library: Arc::from("libc"),
-            symbol: Arc::from("_write"),
+            locator: HostImportLocator::StringBackedBootstrap {
+                library: Arc::from("libc"),
+                symbol: Arc::from("_write"),
+            },
         },
         ..retained
     });

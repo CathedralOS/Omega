@@ -7789,7 +7789,8 @@ boundary without its corresponding checked law.
   changes every dependent final artifact and requires relink plus fresh
   admission.
 
-  The dependency-light locator foundation is implemented in `omega-effects`.
+  The dependency-light locator foundation is implemented in `omega-target`
+  with compatibility reexports from `omega-effects`.
   One sealed target-bound carrier validates and fingerprints atomic `PeByName`,
   `PeByOrdinal`, and `ElfVersioned` candidates, rejecting empty/NUL coordinates,
   zero PE ordinals, UEFI/PE conflation, and non-Linux versioned ELF use. Every
@@ -7800,12 +7801,17 @@ boundary without its corresponding checked law.
   selected-plan/opaque-TCB facts, package-review format 57, and manifest JSON
   with exact raw coordinates. Trust artifacts now retain the same sealed locator
   and render target, case, normalized identity, and raw hex coordinates/ordinal;
-  target drift rejects before report installation. Normalized imports still fail
-  closed at the string-backed ABI bridge rather than reconstructing text.
+  target drift rejects before report installation. The atomic calling-
+  convention bridge is now live: the sealed locator survives compiler provider
+  extraction through `ExternalBindingKind`, `HostImportLocator`, and
+  `HostBindingMechanism`, with target drift rejected before host-ABI insertion.
+  Machine emission, runtime replay, and object-symbol planning explicitly fail
+  closed on normalized rows at the still-string-backed physical boundary rather
+  than reconstructing text.
   The existing source evaluator is isolated behind an explicitly temporary
   `StringBackedImportBootstrap` variant. Source `via` evaluation, exact fixed-
-  array widths, calling conventions, object planning, and PE/ELF emission remain
-  engineering joins.
+  array widths, object-format-specific PE-name/PE-ordinal/versioned-ELF planning,
+  and PE/ELF emission remain engineering joins.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no

@@ -41,7 +41,7 @@ pub use stack_realizations::{
 };
 pub use windows::windows_import_library;
 
-use omega_target::{NativeTarget, ObjectFormat};
+use omega_target::{NativeTarget, NormalizedForeignLocator, ObjectFormat};
 use psi_arena::{Arena, Handle, HandleSpan};
 use std::sync::Arc;
 
@@ -923,8 +923,10 @@ impl Default for HostBinding {
         Self {
             operation_key: HostOperationKey::default(),
             mechanism: HostBindingMechanism::Import {
-                library: Arc::from(""),
-                symbol: Arc::from(""),
+                locator: HostImportLocator::StringBackedBootstrap {
+                    library: Arc::from(""),
+                    symbol: Arc::from(""),
+                },
             },
             boundary_policy: Arc::from(""),
             boundary_entry_plan,
@@ -940,9 +942,11 @@ pub struct HostBoundaryPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostBindingMechanism {
+    /// One import mechanism whose physical coordinates remain atomic. The
+    /// normalized case is selected provider data; the bootstrap case keeps
+    /// existing built-in/source strings visibly outside that authority path.
     Import {
-        library: Arc<str>,
-        symbol: Arc<str>,
+        locator: HostImportLocator,
     },
     Syscall {
         name: Arc<str>,
@@ -982,6 +986,12 @@ pub enum HostBindingMechanism {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HostImportLocator {
+    Normalized(NormalizedForeignLocator),
+    StringBackedBootstrap { library: Arc<str>, symbol: Arc<str> },
+}
+
 impl HostBindingMechanism {
     /// Whether executing this mechanism transfers control to foreign code that
     /// can return with different floating-control bits. Direct syscalls do not
@@ -1005,8 +1015,10 @@ mod float_control_mechanism_tests {
     #[test]
     fn returning_foreign_mechanisms_require_restore_but_syscalls_do_not() {
         let import = HostBindingMechanism::Import {
-            library: Arc::from("foreign"),
-            symbol: Arc::from("call"),
+            locator: super::HostImportLocator::StringBackedBootstrap {
+                library: Arc::from("foreign"),
+                symbol: Arc::from("call"),
+            },
         };
         let syscall = HostBindingMechanism::Syscall {
             name: Arc::from("direct"),
@@ -1175,7 +1187,10 @@ pub enum ExternalBindingKind {
     Syscall {
         number: i64,
     },
-    DllImport {
+    Import {
+        locator: NormalizedForeignLocator,
+    },
+    StringBackedImportBootstrap {
         module: String,
         symbol: String,
     },
@@ -1314,10 +1329,29 @@ pub fn merge_external_binding_rows(
                     byte_offset: 0,
                 }
             }
-            ExternalBindingKind::DllImport { module, symbol } => HostBindingMechanism::Import {
-                library: module.as_str().into(),
-                symbol: symbol.as_str().into(),
-            },
+            ExternalBindingKind::Import { locator } => {
+                if row.target_name != locator.target().target_name() {
+                    return Err(format!(
+                        "normalized foreign locator 0x{:016x} targets `{}`, but external binding `{}::{}` targets `{}`",
+                        locator.normalized_identity(),
+                        locator.target().target_name(),
+                        row.trait_name,
+                        row.method,
+                        row.target_name,
+                    ));
+                }
+                HostBindingMechanism::Import {
+                    locator: HostImportLocator::Normalized(locator.clone()),
+                }
+            }
+            ExternalBindingKind::StringBackedImportBootstrap { module, symbol } => {
+                HostBindingMechanism::Import {
+                    locator: HostImportLocator::StringBackedBootstrap {
+                        library: module.as_str().into(),
+                        symbol: symbol.as_str().into(),
+                    },
+                }
+            }
             ExternalBindingKind::CompilerIntrinsic { .. } => {
                 unreachable!("compiler intrinsics validate and continue above")
             }
@@ -1491,11 +1525,157 @@ pub fn host_operation_fixed_leading_immediate(
 mod binding_plan_tests {
     use super::{
         CallSignature, CallingPolicy, EntryControl, ExternalBindingKind, ExternalBindingRow,
-        HostBindingMechanism, HostCapability, HostOperation, MachineRegister, PlatformCallData,
-        ValueLocation, ValueShape, build_freestanding_abi_plan, build_host_abi_plan,
-        evaluate_ordinary_boundary_entry_plan, merge_external_binding_rows,
+        HostBindingMechanism, HostCapability, HostImportLocator, HostOperation, MachineRegister,
+        PlatformCallData, ValueLocation, ValueShape, build_freestanding_abi_plan,
+        build_host_abi_plan, evaluate_ordinary_boundary_entry_plan, merge_external_binding_rows,
     };
-    use omega_target::NativeTarget;
+    use omega_target::{
+        ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator,
+    };
+
+    fn normalized_import_row(
+        target_name: &str,
+        requirement_identity: &str,
+        locator: omega_target::NormalizedForeignLocator,
+    ) -> ExternalBindingRow {
+        let policy = CallingPolicy::native_for_target(locator.target().native_target());
+        let boundary_entry_plan = evaluate_ordinary_boundary_entry_plan(
+            policy,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8)],
+                result: Some(ValueShape::integer(8, 8)),
+            },
+        )
+        .expect("normalized import boundary plan")
+        .plan()
+        .clone();
+        ExternalBindingRow {
+            target_name: target_name.to_owned(),
+            trait_name: "AtomicForeign".to_owned(),
+            method: "invoke".to_owned(),
+            requirement_identity: requirement_identity.to_owned(),
+            table_type: String::new(),
+            boundary_entry_plan: Some(boundary_entry_plan),
+            binding: ExternalBindingKind::Import { locator },
+        }
+    }
+
+    #[test]
+    fn normalized_imports_retain_target_case_and_mutated_atomic_identity() {
+        let pe_name = normalize_foreign_locator(
+            ForeignLocatorCandidate::PeByName {
+                library: b"opaque\xff.dll".to_vec(),
+                export: b"invoke_raw".to_vec(),
+            },
+            TargetProfile::WindowsX64,
+        )
+        .expect("valid PE-by-name locator");
+        let changed = normalize_foreign_locator(
+            ForeignLocatorCandidate::PeByName {
+                library: b"opaque\xfe.dll".to_vec(),
+                export: b"invoke_raw".to_vec(),
+            },
+            TargetProfile::WindowsX64,
+        )
+        .expect("valid mutated PE-by-name locator");
+        assert_ne!(pe_name.normalized_identity(), changed.normalized_identity());
+
+        let mut windows = build_host_abi_plan(NativeTarget::windows_x64());
+        merge_external_binding_rows(
+            &mut windows,
+            &[normalized_import_row(
+                "windows_x64",
+                "AtomicForeign::invoke/name",
+                pe_name.clone(),
+            )],
+        )
+        .expect("normalized PE import enters host ABI");
+        assert!(windows.bindings.iter().any(|(_, binding)| {
+            matches!(
+                &binding.mechanism,
+                HostBindingMechanism::Import {
+                    locator: HostImportLocator::Normalized(locator),
+                } if locator == &pe_name
+                    && matches!(locator.locator(), ForeignLocatorCandidate::PeByName { .. })
+            )
+        }));
+        let mut mutated_windows = build_host_abi_plan(NativeTarget::windows_x64());
+        merge_external_binding_rows(
+            &mut mutated_windows,
+            &[normalized_import_row(
+                "windows_x64",
+                "AtomicForeign::invoke/mutated",
+                changed.clone(),
+            )],
+        )
+        .expect("mutated normalized PE import enters host ABI independently");
+        assert!(mutated_windows.bindings.iter().any(|(_, binding)| {
+            matches!(
+                &binding.mechanism,
+                HostBindingMechanism::Import {
+                    locator: HostImportLocator::Normalized(locator),
+                } if locator == &changed && locator != &pe_name
+            )
+        }));
+
+        let elf = normalize_foreign_locator(
+            ForeignLocatorCandidate::ElfVersioned {
+                object: b"libopaque.so".to_vec(),
+                symbol: b"invoke_raw".to_vec(),
+                version: b"OPAQUE_2.0".to_vec(),
+            },
+            TargetProfile::LinuxX64,
+        )
+        .expect("valid versioned ELF locator");
+        let mut linux = build_host_abi_plan(NativeTarget::linux_x64());
+        merge_external_binding_rows(
+            &mut linux,
+            &[normalized_import_row(
+                "linux_x64",
+                "AtomicForeign::invoke/versioned",
+                elf.clone(),
+            )],
+        )
+        .expect("normalized ELF import enters host ABI");
+        assert!(linux.bindings.iter().any(|(_, binding)| {
+            matches!(
+                &binding.mechanism,
+                HostBindingMechanism::Import {
+                    locator: HostImportLocator::Normalized(locator),
+                } if locator == &elf
+                    && matches!(locator.locator(), ForeignLocatorCandidate::ElfVersioned { .. })
+            )
+        }));
+    }
+
+    #[test]
+    fn normalized_import_target_drift_fails_before_host_binding_insertion() {
+        let locator = normalize_foreign_locator(
+            ForeignLocatorCandidate::PeByOrdinal {
+                library: b"opaque.dll".to_vec(),
+                ordinal: 7,
+            },
+            TargetProfile::WindowsX64,
+        )
+        .expect("valid PE-by-ordinal locator");
+        let mut plan = build_host_abi_plan(NativeTarget::windows_x64());
+        let error = merge_external_binding_rows(
+            &mut plan,
+            &[normalized_import_row(
+                "linux_x64",
+                "AtomicForeign::invoke/ordinal",
+                locator,
+            )],
+        )
+        .expect_err("target drift must fail closed");
+        assert!(error.contains("targets `windows_x64`"));
+        assert!(error.contains("external binding `AtomicForeign::invoke` targets `linux_x64`"));
+        assert!(
+            plan.bindings
+                .iter()
+                .all(|(_, binding)| { binding.operation_key.capability_name() != "AtomicForeign" })
+        );
+    }
 
     #[test]
     fn compatibility_bindings_select_normalized_target_policies() {
@@ -1649,8 +1829,10 @@ mod binding_plan_tests {
             assert!(matches!(
                 binding.mechanism,
                 HostBindingMechanism::Import {
-                    symbol: ref actual_symbol,
-                    ..
+                    locator: HostImportLocator::StringBackedBootstrap {
+                        symbol: ref actual_symbol,
+                        ..
+                    },
                 } if actual_symbol.as_ref() == symbol
             ));
             let boundary = &binding.boundary_entry_plan;
@@ -1748,8 +1930,10 @@ mod binding_plan_tests {
             assert!(matches!(
                 binding.mechanism,
                 HostBindingMechanism::Import {
-                    symbol: ref actual_symbol,
-                    ..
+                    locator: HostImportLocator::StringBackedBootstrap {
+                        symbol: ref actual_symbol,
+                        ..
+                    },
                 } if actual_symbol.as_ref() == symbol
             ));
             let boundary = &binding.boundary_entry_plan;
@@ -1818,8 +2002,10 @@ mod binding_plan_tests {
             assert!(matches!(
                 binding.mechanism,
                 HostBindingMechanism::Import {
-                    symbol: ref actual_symbol,
-                    ..
+                    locator: HostImportLocator::StringBackedBootstrap {
+                        symbol: ref actual_symbol,
+                        ..
+                    },
                 } if actual_symbol.as_ref() == symbol
             ));
             let boundary = &binding.boundary_entry_plan;
@@ -1869,8 +2055,10 @@ mod binding_plan_tests {
             assert!(matches!(
                 binding.mechanism,
                 HostBindingMechanism::Import {
-                    symbol: ref actual_symbol,
-                    ..
+                    locator: HostImportLocator::StringBackedBootstrap {
+                        symbol: ref actual_symbol,
+                        ..
+                    },
                 } if actual_symbol.as_ref() == symbol
             ));
             let boundary = &binding.boundary_entry_plan;
@@ -1940,8 +2128,10 @@ mod binding_plan_tests {
             assert!(matches!(
                 binding.mechanism,
                 HostBindingMechanism::Import {
-                    symbol: ref actual_symbol,
-                    ..
+                    locator: HostImportLocator::StringBackedBootstrap {
+                        symbol: ref actual_symbol,
+                        ..
+                    },
                 } if actual_symbol.as_ref() == symbol
             ));
             let boundary = &binding.boundary_entry_plan;
@@ -2001,8 +2191,10 @@ mod binding_plan_tests {
             assert!(matches!(
                 binding.mechanism,
                 HostBindingMechanism::Import {
-                    symbol: ref actual_symbol,
-                    ..
+                    locator: HostImportLocator::StringBackedBootstrap {
+                        symbol: ref actual_symbol,
+                        ..
+                    },
                 } if actual_symbol.as_ref() == symbol
             ));
             let boundary = &binding.boundary_entry_plan;
@@ -2040,8 +2232,10 @@ mod binding_plan_tests {
         assert!(matches!(
             binding.mechanism,
             HostBindingMechanism::Import {
-                symbol: ref actual_symbol,
-                ..
+                locator: HostImportLocator::StringBackedBootstrap {
+                    symbol: ref actual_symbol,
+                    ..
+                },
             } if actual_symbol.as_ref() == "___error"
         ));
         let boundary = &binding.boundary_entry_plan;
@@ -2097,8 +2291,10 @@ mod binding_plan_tests {
             assert!(matches!(
                 binding.mechanism,
                 HostBindingMechanism::Import {
-                    symbol: ref actual_symbol,
-                    ..
+                    locator: HostImportLocator::StringBackedBootstrap {
+                        symbol: ref actual_symbol,
+                        ..
+                    },
                 } if actual_symbol.as_ref() == symbol
             ));
             let boundary = &binding.boundary_entry_plan;
@@ -2192,7 +2388,7 @@ mod binding_plan_tests {
                 requirement_identity: "UnresolvedService::invoke".to_owned(),
                 table_type: String::new(),
                 boundary_entry_plan: None,
-                binding: ExternalBindingKind::DllImport {
+                binding: ExternalBindingKind::StringBackedImportBootstrap {
                     module: "unresolved.dll".to_owned(),
                     symbol: "invoke".to_owned(),
                 },
@@ -2224,7 +2420,7 @@ mod binding_plan_tests {
             requirement_identity: identity.to_owned(),
             table_type: String::new(),
             boundary_entry_plan: Some(boundary_entry_plan.clone()),
-            binding: ExternalBindingKind::DllImport {
+            binding: ExternalBindingKind::StringBackedImportBootstrap {
                 module: "convert.dll".to_owned(),
                 symbol: symbol.to_owned(),
             },
@@ -2561,7 +2757,7 @@ mod binding_plan_tests {
                 requirement_identity: "SourceService::invoke".to_owned(),
                 table_type: String::new(),
                 boundary_entry_plan: Some(source_boundary.clone()),
-                binding: ExternalBindingKind::DllImport {
+                binding: ExternalBindingKind::StringBackedImportBootstrap {
                     module: "source.dll".to_owned(),
                     symbol: "invoke".to_owned(),
                 },
@@ -2605,8 +2801,10 @@ mod binding_plan_tests {
         };
         let mechanisms = [
             HostBindingMechanism::Import {
-                library: "probe".into(),
-                symbol: "call".into(),
+                locator: HostImportLocator::StringBackedBootstrap {
+                    library: "probe".into(),
+                    symbol: "call".into(),
+                },
             },
             HostBindingMechanism::VtableSlot { index: 0 },
             HostBindingMechanism::VtableField {

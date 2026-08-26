@@ -1,5 +1,5 @@
 use crate::input::ObjectPlanningInput;
-use omega_calling_conventions::HostBindingMechanism;
+use omega_calling_conventions::{HostBindingMechanism, HostImportLocator};
 use omega_layout::MachineLayout;
 use omega_machine_bytes::EncodedMachineFunction;
 use omega_object_file::{
@@ -33,6 +33,24 @@ pub(super) fn insert_object_symbols(
     object_plan: &mut ObjectPlan,
 ) -> Result<(), Diagnostic> {
     validate_encoded_function_linkage(input)?;
+    if let Some(locator) =
+        input
+            .host_abi
+            .bindings
+            .iter()
+            .find_map(|(_, binding)| match &binding.mechanism {
+                HostBindingMechanism::Import {
+                    locator: HostImportLocator::Normalized(locator),
+                } => Some(locator),
+                _ => None,
+            })
+    {
+        return Err(Diagnostic::error(format!(
+            "normalized foreign locator 0x{:016x} reached string-backed object symbol planning; the object-format planner must consume its atomic {:?} coordinates before emission",
+            locator.normalized_identity(),
+            locator.locator(),
+        )));
+    }
     object_plan.layout.entry_symbol = insert_function_symbol(
         entry_function,
         entry_function.symbol.to_string(),
@@ -80,7 +98,9 @@ pub(super) fn insert_object_symbols(
         .symbols
         .insert_many(input.host_abi.bindings.iter().filter_map(|(_, binding)| {
             match &binding.mechanism {
-                HostBindingMechanism::Import { library, symbol } => Some(SymbolPlan {
+                HostBindingMechanism::Import {
+                    locator: HostImportLocator::StringBackedBootstrap { library, symbol },
+                } => Some(SymbolPlan {
                     name: symbol.to_string(),
                     section: SymbolSection::None,
                     offset: 0,
@@ -88,6 +108,9 @@ pub(super) fn insert_object_symbols(
                     kind: SymbolKind::Import,
                     import_library: library.to_string(),
                 }),
+                HostBindingMechanism::Import {
+                    locator: HostImportLocator::Normalized(_),
+                } => None,
                 // Syscalls and field-model calls have no import symbol: the
                 // callee address is a number (syscall) or read from the
                 // receiver/table at call time (vtable/table-function).
