@@ -133,6 +133,10 @@ pub(super) enum CompilerInstructionRelocationRecipe {
         source: omega_target_operations::Place,
         target_offset: usize,
     },
+    DataAddressWrite {
+        data_symbol: std::sync::Arc<str>,
+        target_offset: usize,
+    },
     PlaceBoundedBufferWrite {
         target: omega_target_operations::Place,
         literal: std::sync::Arc<[u8]>,
@@ -1139,6 +1143,32 @@ pub(super) fn validate_compiler_instruction_relocation_recipe(
                         .iter()
                         .map(|(offset, _)| *offset)
                         .collect::<Vec<_>>(),
+                )
+        }
+        CompilerInstructionRelocationRecipe::DataAddressWrite {
+            data_symbol,
+            target_offset,
+        } => {
+            let target = omega_target_operations::Place::at(
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                target_offset,
+            );
+            let address_sites = validate_compiler_place_string_relocations(
+                architecture,
+                object,
+                relocations,
+                selected_instruction_index,
+                instruction_byte_offset,
+                target,
+                &data_symbol,
+                0,
+            )?;
+            encoded_instruction_bytes == expected_bytes
+                && compiler_instruction_non_relocation_bits_match(
+                    architecture,
+                    &expected_bytes,
+                    final_instruction_bytes,
+                    &address_sites,
                 )
         }
         CompilerInstructionRelocationRecipe::PlaceBoundedBufferWrite { target, literal } => {

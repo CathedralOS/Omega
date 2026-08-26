@@ -18,6 +18,38 @@ pub(super) fn collect_runtime_storage_string_relocations(
     instruction: &SelectedInstructionKind,
 ) -> bool {
     match instruction {
+        SelectedInstructionKind::WriteDataAddressToRuntimeFrame {
+            data,
+            target_offset,
+        } => {
+            let data_symbol = context.data_object_symbol_handle(*data);
+            context.insert_data_address_at_instruction_start(data_symbol);
+            match context.input.target.architecture {
+                Architecture::X86_64 => {
+                    let (_, sites) = omega_instruction_selection::
+                        x86_64_encode_runtime_frame_data_address_write_with_sites(*target_offset)
+                        .expect("validated direct data-address write must encode");
+                    for (byte_offset, side) in sites.iter() {
+                        assert_eq!(side, omega_instruction_selection::PlaceCopySide::Target);
+                        context.insert_data_address_at_relative_offset(
+                            byte_offset,
+                            context.storage_region_symbol_handle(
+                                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                            ),
+                        );
+                    }
+                }
+                Architecture::Aarch64 => {
+                    context.insert_data_address_at_relative_offset(
+                        string_descriptor_machine_address_offset(context.input.target.architecture),
+                        context.storage_region_symbol_handle(
+                            omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                        ),
+                    );
+                }
+            }
+            true
+        }
         SelectedInstructionKind::WritePlaceString {
             target,
             data,

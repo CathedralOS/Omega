@@ -71,8 +71,10 @@ Primary responsibility: lower checked control flow into explicit operations with
 - `omega-abstract-operations/src/data.rs` retains private dynamic-conformance
   table objects with their exact trait, conformance, and normalized row
   identities. Its unique lookup refuses missing, duplicate, and kind-drifted
-  bindings; transitional instruction selection consumes this table identity
-  when runtime descriptor construction lands.
+  bindings. Transitional instruction selection consumes this table identity
+  for the direct-place pass-through carrier: `WritePlaceAddress` materializes
+  the instance word and `WriteDataAddressToRuntimeFrame` materializes only the
+  table word. A failed dynamic join does not fall through to an ordinary copy.
 - The actual operation construction currently happens in
   `omega-instruction-selection`; this is a transitional boundary, not the
   desired long-term split. Its instruction sink records exact source-site spans

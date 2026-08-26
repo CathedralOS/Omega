@@ -233,6 +233,10 @@ pub enum CompilerInstructionValidationKind {
         source: Place,
         target_offset: usize,
     },
+    CompilerBodyDataAddressWrite {
+        data_symbol: Arc<str>,
+        target_offset: usize,
+    },
     CompilerBodyConstantHostResult {
         result_region: RuntimeStorageRegion,
         result_offset: usize,

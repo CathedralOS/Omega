@@ -906,6 +906,12 @@ fn machine_instruction_width(
             source,
             *target_offset,
         )?,
+        SelectedInstructionKind::WriteDataAddressToRuntimeFrame { target_offset, .. } => {
+            omega_instruction_selection::runtime_frame_data_address_write_width(
+                input.target.architecture,
+                *target_offset,
+            )?
+        }
         SelectedInstructionKind::WritePlaceBinary {
             target,
             byte_size,

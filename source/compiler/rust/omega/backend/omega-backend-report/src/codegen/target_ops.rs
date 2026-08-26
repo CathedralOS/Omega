@@ -816,6 +816,13 @@ fn selected_instruction_name(
                 source.steps()
             )
         }
+        SelectedInstructionKind::WriteDataAddressToRuntimeFrame {
+            data,
+            target_offset,
+        } => {
+            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
+            format!("write data address `{data_symbol}` -> frame[{target_offset}]")
+        }
         SelectedInstructionKind::WritePlaceBoundedBuffer { target, literal } => {
             let target_symbol =
                 storage_region_symbol_name(target.region, backend_plan.entry_machine_name());

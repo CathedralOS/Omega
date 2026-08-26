@@ -26,7 +26,8 @@
 
 use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
 use omega_target_operations::{
-    Place, PlaceStep, RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
+    Place, PlaceStep, RuntimeStorageRegion, RuntimeValueOperandHandle, RuntimeValueOperandSource,
+    StateGuardOperator,
 };
 use psi_diagnostics::Diagnostic;
 use psi_numerics::arithmetic::ArithmeticDomain;
@@ -587,6 +588,22 @@ pub fn encode_place_string_write(
     super::append_store_r14_to_r15(&mut bytes, displacement)?;
     super::append_mov_rax_imm64(&mut bytes, byte_length as u64);
     super::append_store_rax_to_r15(&mut bytes, displacement + 8, 8)?;
+    Ok((bytes, sites))
+}
+
+/// Store one relocated immutable-data address into a direct runtime-frame
+/// pointer word. The data relocation owns the leading r14 immediate; the frame
+/// relocation owns the ordinary target-place base materialization.
+pub fn encode_runtime_frame_data_address_write(
+    target_offset: usize,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let target = Place::at(RuntimeStorageRegion::RuntimeFrame, target_offset);
+    let mut bytes = Vec::new();
+    let mut sites = PlaceCopySites::default();
+    super::append_mov_r14_imm64(&mut bytes, 0);
+    let displacement =
+        materialize_place_address(&mut bytes, &mut sites, &target, AddressRegister::Target)?;
+    super::append_store_r14_to_r15(&mut bytes, displacement)?;
     Ok((bytes, sites))
 }
 
@@ -2116,5 +2133,22 @@ mod tests {
         assert_sites(sites);
         assert_eq!(&stored[buffer_site..buffer_site + 2], &[0x49, 0xbe]);
         assert_eq!(&stored[source_site..source_site + 2], &[0x48, 0xb9]);
+    }
+
+    #[test]
+    fn runtime_frame_data_address_write_owns_one_word_and_two_bases() {
+        let (bytes, sites) =
+            encode_runtime_frame_data_address_write(40).expect("direct data-address write");
+        assert_eq!(bytes.len(), 27);
+        assert_eq!(
+            sites.iter().collect::<Vec<_>>(),
+            vec![(10, PlaceCopySide::Target)]
+        );
+        assert_eq!(&bytes[..2], &[0x49, 0xbe], "r14 owns the data relocation");
+        assert_eq!(
+            &bytes[10..12],
+            &[0x49, 0xbf],
+            "r15 owns the runtime-frame relocation"
+        );
     }
 }

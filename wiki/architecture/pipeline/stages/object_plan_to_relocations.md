@@ -64,6 +64,9 @@ Must not own:
 - `omega-relocations/src/instruction_records/mod.rs` routes selected instructions to focused relocation families.
 - `omega-relocations/src/instruction_records/host_operation.rs` owns host-operation relocation routing, including data-address operand relocation scanning and external import call relocation records.
 - `omega-relocations/src/instruction_records/runtime_storage*.rs` owns runtime storage relocation families: address, compare, copy, string descriptor, and write references.
+  The single-word dynamic-table address write contributes exactly one private
+  data-object relocation and one runtime-frame-base relocation; it does not
+  borrow the string descriptor's adjacent length word.
 - `omega-relocations/src/instruction_records/runtime_text*.rs` owns runtime text relocation families: append, compare, materialize, host-backed line read, and literal write references.
 - `omega-relocations/src/instruction_records/runtime_values.rs` owns recursive runtime-value operand relocation extraction.
 - `omega-object-file/src/relocations.rs` owns relocation-plan and relocation-record data:

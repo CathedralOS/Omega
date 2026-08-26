@@ -580,6 +580,12 @@ pub(super) fn encode_machine_instruction_bytes(
             source,
             *target_offset,
         ),
+        SelectedInstructionKind::WriteDataAddressToRuntimeFrame { target_offset, .. } => {
+            omega_instruction_selection::encode_runtime_frame_data_address_write(
+                input.target.architecture,
+                *target_offset,
+            )
+        }
         SelectedInstructionKind::WritePlaceBinary {
             target,
             byte_size,

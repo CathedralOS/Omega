@@ -501,6 +501,10 @@ pub enum TargetOperationKind {
         source: Place,
         target_offset: usize,
     },
+    WriteDataAddressToRuntimeFrame {
+        data: TargetDataObjectHandle,
+        target_offset: usize,
+    },
     SetDispatchState {
         dispatch_index: u32,
     },

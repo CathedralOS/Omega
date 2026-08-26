@@ -49,6 +49,18 @@ pub fn encode_runtime_frame_string_write(
     Ok(bytes)
 }
 
+/// Store one relocated immutable-data address into a direct runtime-frame
+/// pointer word without manufacturing an adjacent string length.
+pub fn encode_runtime_frame_data_address_write(byte_offset: usize) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(20);
+    bytes.extend(encode_adrp_placeholder(17));
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_store_x17_to_x16(byte_offset)?);
+    Ok(bytes)
+}
+
 pub fn encode_runtime_pointee_string_write(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
@@ -389,4 +401,23 @@ pub fn place_string_write_register_write_ceiling() -> RegisterSet {
 
 pub const fn place_string_write_additional_machine_state() -> MachineStateSet {
     MachineStateSet::empty()
+}
+
+#[cfg(test)]
+mod data_address_tests {
+    use super::*;
+
+    #[test]
+    fn runtime_frame_data_address_write_owns_one_word_and_two_bases() {
+        let bytes = encode_runtime_frame_data_address_write(40).expect("direct data-address write");
+        assert_eq!(bytes.len(), 20);
+        assert_eq!(
+            &bytes[..8],
+            &[0x11, 0x00, 0x00, 0x90, 0x31, 0x02, 0x00, 0x91]
+        );
+        assert_eq!(
+            &bytes[8..16],
+            &[0x10, 0x00, 0x00, 0x90, 0x10, 0x02, 0x00, 0x91]
+        );
+    }
 }

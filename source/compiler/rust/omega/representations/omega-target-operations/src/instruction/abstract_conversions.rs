@@ -772,6 +772,13 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 source: *source,
                 target_offset: *target_offset,
             },
+            omega_abstract_operations::AbstractOperationKind::WriteDataAddressToRuntimeFrame {
+                data,
+                target_offset,
+            } => Self::WriteDataAddressToRuntimeFrame {
+                data: remap_data_handle(*data),
+                target_offset: *target_offset,
+            },
             omega_abstract_operations::AbstractOperationKind::SetDispatchState {
                 dispatch_index,
             } => Self::SetDispatchState {

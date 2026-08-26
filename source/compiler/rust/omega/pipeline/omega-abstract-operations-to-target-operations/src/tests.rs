@@ -128,6 +128,65 @@ fn preserves_outgoing_stack_address_recipe_in_target_plan() {
 }
 
 #[test]
+fn preserves_single_word_data_address_write_in_target_plan() {
+    let mut abstract_operations = AbstractOperationPlan::default();
+    let data = omega_abstract_operations::AbstractDataObjectHandle::from_arena_index(4);
+    let instructions = abstract_operations.code.instructions.insert_many([
+        omega_abstract_operations::AbstractOperation {
+            kind: omega_abstract_operations::AbstractOperationKind::WritePlaceAddress {
+                source: omega_abstract_operations::Place::at(
+                    omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                    24,
+                ),
+                target_offset: 80,
+            },
+            ..Default::default()
+        },
+        omega_abstract_operations::AbstractOperation {
+            kind:
+                omega_abstract_operations::AbstractOperationKind::WriteDataAddressToRuntimeFrame {
+                    data,
+                    target_offset: 88,
+                },
+            ..Default::default()
+        },
+    ]);
+    abstract_operations
+        .code
+        .functions
+        .insert(AbstractFunctionPlan {
+            symbol: Arc::from("dynamic_descriptor_fixture"),
+            identity: MachineFunctionIdentity::default(),
+            instructions,
+        });
+
+    let target = NativeTarget::linux_arm64();
+    let target_operations = build_target_operation_plan(
+        target,
+        &build_host_abi_plan(target),
+        &HostCallPlan::default(),
+        &abstract_operations,
+    );
+    let [instance, table] = target_operations.code.instructions.storage_slice() else {
+        panic!("both dynamic descriptor word writes must survive target lowering")
+    };
+    assert!(matches!(
+        instance.kind,
+        omega_target_operations::TargetOperationKind::WritePlaceAddress {
+            target_offset: 80,
+            ..
+        }
+    ));
+    assert_eq!(
+        table.kind,
+        omega_target_operations::TargetOperationKind::WriteDataAddressToRuntimeFrame {
+            data: omega_target_operations::TargetDataObjectHandle::from_arena_index(4),
+            target_offset: 88,
+        }
+    );
+}
+
+#[test]
 fn copies_abstract_value_summary_to_target_plan() {
     let mut abstract_operations = AbstractOperationPlan::default();
     let machine_symbol = SymbolHandle::from_arena_index(1);
