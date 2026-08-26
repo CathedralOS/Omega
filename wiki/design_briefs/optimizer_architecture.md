@@ -315,6 +315,36 @@ stability, target frame policy, and a named placement/cost rule. Stable x86-64
 ordering currently chooses `rbx` as the second home in the production exact-add
 fixture; that remains legality evidence only.
 
+The next sibling artifact joins the chosen victim back to semantic selected-IR
+custody rather than guessing from interval shape. The explicit
+`SelectedVictimImmediateU64EligibilityV1` policy records whether the victim is
+the not-yet-homed incoming value or an active resident (including its current
+and hypothetically reclaimed views), then retains its scalar type, register
+class, selected origin, definition site, and pressure location. For the current
+positive case it requires a fixed unsigned non-address u64 uniquely defined by
+one `MaterializeI64`, exact source-value and operation provenance, nonempty
+logical-fuel anchors at the original operation, one local unconnected range,
+no future fixed-view use, and at least one canonical future flexible use.
+
+Every other value receives a precise `NoAdmittedRecovery` reason such as entry
+parameter, unsupported scalar/range, future fixed use, proof-bearing or other
+definition, or no future use. This is deliberately not “spill required”:
+failure of one named rematerialization policy provides no positive storage
+fact. Production and independent replay rescan selected definitions and range
+occurrences, bind the selected/choice/range/legality/environment/unit/fuel roots
+plus explicit work budget and usage, and compare the entire classification.
+The versioned codec again decodes only to an unchecked plain plan.
+
+This classification grants no authority to choose a strategy, move or
+duplicate the original semantic instruction, add a native reconstruction,
+change logical-fuel placement, allocate private storage, or emit code. A later
+literal-sinking policy must say whether an incoming definition moves or an
+already executed resident is physically reconstructed with zero new logical
+fuel, reconstruct the selected CFG independently, and rerun liveness, ranges,
+legality, pressure, and homes. A production pressure fixture also needs a named
+allocator-availability policy; hardware reservation overlays must not be
+misused to simulate a smaller allocator register set.
+
 The resulting register-home plan has its own versioned canonical artifact
 codec. It carries those three roots plus the exact ordered machine, VReg,
 register-class, and physical-view assignments, and recomputes a stored content

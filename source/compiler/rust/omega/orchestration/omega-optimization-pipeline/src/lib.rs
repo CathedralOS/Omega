@@ -179,7 +179,7 @@ pub fn optimize_verified_terminal_input(
 mod tests {
     use std::collections::BTreeSet;
 
-    use omega_optimization_core::{Optimization, OptimizationSelections};
+    use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
     use omega_optimization_unit::ValueDefinitionSite;
     use omega_psi_optimizer::{OptimizationRunError, RuleRegistryError};
     use omega_regalloc::{
@@ -187,10 +187,12 @@ mod tests {
         TerminalAllocationLegalityError, TerminalArchitecturalUnitActionKind,
         TerminalFixedViewCopyError, TerminalFixedViewCopyPolicy, TerminalLiveRangeError,
         TerminalLiveRangeFragment, TerminalLiveRangePoint, TerminalLivenessError,
-        TerminalRegisterHomeError, TerminalRegisterHomePlan, TerminalVirtualFixedConstraintSite,
-        TerminalVirtualInterference, analyze_terminal_live_ranges, analyze_terminal_liveness,
-        terminal_allocation_legality_identity, terminal_fixed_view_copy_identity,
-        terminal_live_range_identity, terminal_liveness_identity, terminal_register_home_identity,
+        TerminalRecoveryClassificationPolicy, TerminalRegisterHomeError, TerminalRegisterHomePlan,
+        TerminalSpillChoicePolicy, TerminalVirtualFixedConstraintSite, TerminalVirtualInterference,
+        analyze_terminal_live_ranges, analyze_terminal_liveness, choose_terminal_spill_victims,
+        classify_terminal_pressure_recovery, terminal_allocation_legality_identity,
+        terminal_fixed_view_copy_identity, terminal_live_range_identity,
+        terminal_liveness_identity, terminal_register_home_identity,
         validate_post_allocation_optimization_manifest, validate_terminal_allocation_legality,
         validate_terminal_fixed_view_copies, validate_terminal_live_ranges,
         validate_terminal_liveness, validate_terminal_register_homes,
@@ -1396,16 +1398,59 @@ mod tests {
                 ["x0", "x0", "x1", "x0", "x0", "x1", "x0"],
             ),
         ] {
-            let staged = stage_optimized_register_homes(
-                stage_optimized_allocation_legality(
-                    stage_optimized_live_ranges(
-                        stage_optimized_liveness(staged_exact_add_conditional(target)).unwrap(),
-                    )
-                    .unwrap(),
+            let legality = stage_optimized_allocation_legality(
+                stage_optimized_live_ranges(
+                    stage_optimized_liveness(staged_exact_add_conditional(target)).unwrap(),
                 )
                 .unwrap(),
             )
             .unwrap();
+            let ranges = legality.live_range_stage();
+            let selected = ranges.liveness_stage().selected_stage();
+            let environment = selected.register_environment();
+            let choices = choose_terminal_spill_victims(
+                legality.legality(),
+                ranges.ranges(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+                TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                OptimizationWorkBudget::new(100, 100, 1_000, 100, 1).unwrap(),
+            )
+            .unwrap();
+            assert!(
+                choices
+                    .plan()
+                    .functions
+                    .iter()
+                    .all(|function| function.choice.is_none())
+            );
+            let recovery = classify_terminal_pressure_recovery(
+                selected.selected(),
+                ranges.ranges(),
+                legality.legality(),
+                &choices,
+                TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                OptimizationWorkBudget::new(100, 100, 1_000, 100, 1).unwrap(),
+            )
+            .unwrap();
+            assert!(
+                recovery
+                    .plan()
+                    .functions
+                    .iter()
+                    .all(|function| function.classification.is_none())
+            );
+            assert_eq!(recovery.receipt().selected(), selected.custody().selected());
+            assert_eq!(recovery.receipt().ranges(), ranges.custody().ranges());
+            assert_eq!(recovery.receipt().legality(), legality.custody().legality());
+            assert_eq!(
+                recovery.receipt().spill_choices(),
+                choices.receipt().identity()
+            );
+            let staged = stage_optimized_register_homes(legality).unwrap();
             let legality_stage = staged.legality_stage();
             let ranges_stage = legality_stage.live_range_stage();
             let liveness_stage = ranges_stage.liveness_stage();
