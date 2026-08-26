@@ -93,8 +93,8 @@ fn nested_non_byte_array_record_field_write_remains_rejected() {
 }
 
 #[test]
-fn record_path_fixed_byte_array_element_write_remains_rejected() {
-    let rendered = rendered_rejection(
+fn record_path_fixed_byte_array_literal_element_is_writable() {
+    lower_typed_trees(typed(
         r#"
             data Inner { bytes: [u8; 4]; }
             data Outer { inner: Inner; }
@@ -103,10 +103,62 @@ fn record_path_fixed_byte_array_element_write_remains_rejected() {
                 outer.inner.bytes[0] = 1;
             }
         "#,
+    ))
+    .expect("an in-bounds literal byte element behind an eligible record path should lower");
+}
+
+#[test]
+fn record_path_fixed_byte_array_out_of_bounds_literal_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner { bytes: [u8; 4]; }
+            data Outer { inner: Inner; }
+
+            machine fill(outer: &write Outer) {
+                outer.inner.bytes[4] = 1;
+            }
+        "#,
     );
     assert!(
         rendered.contains("unsupported write-only projection")
             && rendered.contains("proven-in-bounds element of a fixed byte array"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn record_path_fixed_byte_array_dynamic_element_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner { bytes: [u8; 4]; }
+            data Outer { inner: Inner; }
+
+            machine fill(outer: &write Outer, index: u64 [0..=3]) {
+                outer.inner.bytes[index] = 1;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("unsupported write-only projection")
+            && rendered.contains("proven-in-bounds element of a fixed byte array"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn record_path_fixed_byte_array_range_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner { bytes: [u8; 4]; }
+            data Outer { inner: Inner; }
+
+            machine fill(outer: &write Outer) {
+                outer.inner.bytes[1..3] = [1, 2];
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("unsupported write-only projection") && rendered.contains("range"),
         "unexpected diagnostic: {rendered}"
     );
 }
@@ -188,6 +240,25 @@ fn direct_record_field_observation_remains_rejected() {
     assert!(
         rendered.contains("reads field `left` from write-only parameter `pair`")
             && rendered.contains("never grants observation"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn record_path_fixed_byte_element_rhs_observation_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner { bytes: [u8; 4]; }
+            data Outer { inner: Inner; }
+
+            machine copy(outer: &write Outer) {
+                outer.inner.bytes[0] = outer.inner.bytes[1];
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("reads through index projection of write-only parameter `outer`")
+            && rendered.contains("never observation"),
         "unexpected diagnostic: {rendered}"
     );
 }

@@ -5271,8 +5271,13 @@ Owners:
   unconstrained, and the displaced leaf is an unrestricted primitive or a whole
   fixed byte array. The ordinary mutation summary retains the complete exact,
   ordered field-symbol path; nested array replacement introduces no element or
-  range segment. Element/range projection through that record path, non-byte
-  arrays, constrained or erased fields, and non-discardable leaves still reject.
+  range segment. Such an eligible record path may additionally end in one
+  in-bounds literal element of a fixed byte-array leaf. Its checked mutation and
+  caller-visible write frame retain the ordered field symbols followed by the
+  exact `FixedIndex`, so sibling elements remain distinct. Dynamic indexes and
+  ranges through a record path remain fenced, while their admitted direct-root
+  behavior is unchanged. Non-byte arrays, constrained or erased fields, and
+  non-discardable leaves still reject.
   Whole-record replacement still requires an unrestricted/discardable root.
   Observation, readable
   widening, implicit `&mut` attenuation, symbolic/open-ended ranges, sum

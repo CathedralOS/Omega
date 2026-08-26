@@ -161,31 +161,29 @@ fn whole_root_replacement_is_supported(program: &TypedTrees, root: &WriteOnlyRoo
         })
 }
 
-/// Recognize `root.record_field...leaf`, where every receiver is an admitted
-/// plain record and every selected field is relevant and unconstrained. The
-/// final displaced leaf must be an unrestricted primitive or a fixed byte
-/// array. This is a store-place judgment only: expression traversal still
-/// rejects reading the same path, and sum payloads never enter this
-/// content-independent walk.
-fn write_only_record_field_assignment(
+/// Resolve `root.record_field...leaf`, where every receiver is an admitted
+/// plain record and every selected field is relevant and unconstrained. This
+/// is a store-place judgment only: expression traversal still rejects reading
+/// the same path, and sum payloads never enter this content-independent walk.
+fn write_only_record_field_type(
     program: &TypedTrees,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
-) -> bool {
+) -> Option<TypeReferenceHandle> {
     let mut cursor = expression;
     let mut members = Vec::new();
     while let ExpressionNode::Member(member) = program.expression_table.expression(cursor) {
         if member.case_variant.is_some() {
-            return false;
+            return None;
         }
         members.push(cursor);
         cursor = member.receiver;
     }
     let Some(root) = direct_write_only_root(program, cursor, roots) else {
-        return false;
+        return None;
     };
     if members.is_empty() {
-        return false;
+        return None;
     }
 
     let mut receiver_type = root.referee;
@@ -195,7 +193,7 @@ fn write_only_record_field_assignment(
             unreachable!("member path was collected above")
         };
         let Some(definition) = write_only_record(program, receiver_type) else {
-            return false;
+            return None;
         };
         let Some(field) = program
             .data_members(definition)
@@ -210,18 +208,31 @@ fn write_only_record_field_assignment(
                 .then_some(field)
             })
         else {
-            return false;
+            return None;
         };
         if field.relevance.is_erased() {
-            return false;
+            return None;
         }
         if index + 1 == members.len() {
-            return is_unrestricted_scalar(program, field.type_reference)
-                || fixed_byte_array_length(program, field.type_reference).is_some();
+            return Some(field.type_reference);
         }
         receiver_type = field.type_reference;
     }
-    false
+    None
+}
+
+/// The final displaced record-path leaf must be an unrestricted primitive or
+/// a whole fixed byte array. Indexed byte-element stores reuse the same exact
+/// path resolver below and apply their own narrower leaf/index gate.
+fn write_only_record_field_assignment(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    roots: &[WriteOnlyRoot],
+) -> bool {
+    write_only_record_field_type(program, expression, roots).is_some_and(|field_type| {
+        is_unrestricted_scalar(program, field_type)
+            || fixed_byte_array_length(program, field_type).is_some()
+    })
 }
 
 fn validate_statement(
@@ -459,15 +470,24 @@ fn write_only_byte_element_assignment_index(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
     };
-    let root = direct_write_only_root(program, indexed.collection, roots)?;
-    let length = fixed_byte_array_length(program, root.referee)?;
+    let (collection_type, nested_record_path) =
+        if let Some(root) = direct_write_only_root(program, indexed.collection, roots) {
+            (root.referee, false)
+        } else {
+            (
+                write_only_record_field_type(program, indexed.collection, roots)?,
+                true,
+            )
+        };
+    let length = fixed_byte_array_length(program, collection_type)?;
     match program.expression_table.expression(indexed.index) {
         ExpressionNode::Range(_) => None,
         ExpressionNode::Integer(index) => {
             let index = usize::try_from(index.value_i64()?).ok()?;
             (index < length).then_some(indexed.index)
         }
-        _ => Some(indexed.index),
+        _ if !nested_record_path => Some(indexed.index),
+        _ => None,
     }
 }
 
