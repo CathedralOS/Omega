@@ -208,7 +208,10 @@ onto the source plan's immutable semantic metadata, and asks the independent
 validator to reconstruct that projection again. Its receipt binds custody of
 the Terminal Psi, fuel schedule, initial and final unit revisions, exact
 selection set, ledger, and composite identity bundle. It is not the later
-target/native realization identity.
+target/native realization identity. A domain-separated projection identity
+binds all of those fields plus the independent validator identity, so later
+custody and manifest joins cannot name only the optimizer-authored bundle while
+silently losing the translation validator.
 
 The carrier exposes the projected abstract plan only by borrow while retaining
 the verified input and complete optimization run. A second optimized-only
@@ -219,11 +222,14 @@ remains for the empty-selection compatibility lane.
 
 A third opaque `StagedOptimizedAssignedOperations` carrier retains the complete
 optimized-target carrier beside the output of the current bounded
-scratch-cycling assignment stage. Its independently reconstructed custody
-receipt checks Terminal-Psi identity, native target, entry, exact ordered
-function roster, attachments, and operation provenance. It intentionally
-exposes both plans only by borrow. `Staged` is a trust boundary, not a synonym
-for validated allocation: the receipt says nothing about liveness,
+scratch-cycling assignment stage. It also retains a clean-lane target-register
+environment containing the independently validated physical model and
+target-semantic constraint catalog. Its independently reconstructed custody
+receipt checks Terminal-Psi identity, projection identity, native target,
+entry, exact ordered function roster, attachments, and operation provenance;
+the environment target must match that same target. It intentionally exposes
+plans and model inputs only by borrow. `Staged` is a trust boundary, not a
+synonym for validated allocation: the receipt says nothing about liveness,
 interference, register-unit conflicts, fixed operands, spills, or frame slots,
 and grants no machine-emission or publication authority.
 
@@ -621,9 +627,10 @@ classes, optional fixed views, canonical ties, early clobbers, implicit
 uses/defs/clobbers, and an exact required-key inventory. Generic validation
 checks catalog structure against a validated physical model; each ISA then
 compares every row with its own canonical target semantics so a same-class
-register substitution cannot pass. ISA crates construct those values and
-callers will eventually pass both validated artifacts into the allocator; the
-allocator does not discover a target through global state. The baseline
+register substitution cannot pass. Clean Terminal ISA crates construct those
+values, and opt-in orchestration passes both validated artifacts through an
+opaque target-register environment rather than discovering a target through
+global state. The baseline
 x86-64 model uses lane units so `al` and `ah` are disjoint while `ax`/`eax`/`rax`
 alias the appropriate union, and records `eax`'s full-register zeroing write.
 The baseline AArch64 model gives encoding-number-31 stack and zero-register
@@ -631,7 +638,10 @@ views distinct units, aliases `Wn`/`Xn`, and splits vector halves so the AAPCS64
 low-half preservation rule is not inflated to all 128 bits. These declarations
 currently include closed scalar call/return rows for System V, Microsoft,
 AAPCS64, and Darwin plus Linux syscall and conservative inline-assembly rows.
-They are not yet a complete ordinary-instruction or feature-profile inventory.
+The first ordinary rows cover i64 materialization, i64 copy, compare with zero,
+and conditional branch; compare defines RFLAGS/NZCV, while branch explicitly
+uses that state and updates RIP/PC. They are not yet a complete ordinary-
+instruction or feature-profile inventory.
 These declarations do not alter the current scratch-cycling assignment lane
 and are not allocator output evidence. The selected optimizer lane may retain
 that transitional

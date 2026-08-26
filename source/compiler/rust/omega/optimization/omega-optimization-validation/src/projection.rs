@@ -1,8 +1,8 @@
 use omega_optimization_core::{
     OptimizationCandidateVerdict, OptimizationIdentityBundle, OptimizationPassManifestRecord,
     OptimizationRuleSetIdentity, OptimizationSelectionIdentity, OptimizationSelections,
-    OptimizationUnitIdentity, OptimizationValidatorIdentity, TargetCostModelIdentity,
-    TransformationLedgerIdentity,
+    OptimizationUnitIdentity, OptimizationValidatorIdentity,
+    OptimizedAbstractPlanProjectionIdentity, TargetCostModelIdentity, TransformationLedgerIdentity,
 };
 use omega_optimization_policy::{BaselineDecisionLog, BaselineDecisionLogDecodeError};
 use omega_optimization_unit::{
@@ -65,6 +65,24 @@ impl ValidatedOptimizedAbstractPlanProjection {
 
     pub const fn validator(self) -> OptimizationValidatorIdentity {
         self.validator
+    }
+
+    /// Domain-separated custody identity of every independently validated
+    /// source, revision, selection, ledger, bundle, and validator field.
+    /// This is suitable for downstream joins but grants no physical-emission
+    /// or publication authority.
+    pub fn identity(self) -> OptimizedAbstractPlanProjectionIdentity {
+        let mut canonical = Vec::with_capacity(240);
+        canonical.extend_from_slice(&self.terminal_psi.vocabulary_marker.get().to_le_bytes());
+        canonical.extend_from_slice(self.terminal_psi.program_fingerprint.as_bytes());
+        canonical.extend_from_slice(&self.fuel_schedule.marker().to_le_bytes());
+        canonical.extend_from_slice(&self.initial_unit.bytes());
+        canonical.extend_from_slice(&self.final_unit.bytes());
+        canonical.extend_from_slice(&self.selections.bytes());
+        canonical.extend_from_slice(&self.ledger.bytes());
+        canonical.extend_from_slice(&self.bundle.bytes());
+        canonical.extend_from_slice(&self.validator.bytes());
+        OptimizedAbstractPlanProjectionIdentity::from_canonical_bytes(&canonical)
     }
 }
 
@@ -369,4 +387,79 @@ fn same_reconstructible_projection(
                             })
                     })
             })
+}
+
+#[cfg(test)]
+mod tests {
+    use psi_terminal::{SemanticFingerprint, VocabularyMarker};
+
+    use super::*;
+
+    fn receipt() -> ValidatedOptimizedAbstractPlanProjection {
+        ValidatedOptimizedAbstractPlanProjection {
+            terminal_psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([1; 32]),
+            },
+            fuel_schedule: FuelScheduleIdentity::new(2).unwrap(),
+            initial_unit: OptimizationUnitIdentity::from_canonical_bytes(b"initial"),
+            final_unit: OptimizationUnitIdentity::from_canonical_bytes(b"final"),
+            selections: OptimizationSelectionIdentity::from_bytes([3; 32]),
+            ledger: TransformationLedgerIdentity::from_canonical_bytes(b"ledger"),
+            bundle:
+                omega_optimization_core::OptimizationIdentityBundleIdentity::from_canonical_bytes(
+                    b"bundle",
+                ),
+            validator: OptimizationValidatorIdentity::from_canonical_bytes(b"validator"),
+        }
+    }
+
+    #[test]
+    fn projection_identity_binds_every_validated_custody_field() {
+        let baseline = receipt();
+        let changed = [
+            ValidatedOptimizedAbstractPlanProjection {
+                terminal_psi: TerminalPsiIdentity {
+                    program_fingerprint: SemanticFingerprint::from_bytes([9; 32]),
+                    ..baseline.terminal_psi
+                },
+                ..baseline
+            },
+            ValidatedOptimizedAbstractPlanProjection {
+                fuel_schedule: FuelScheduleIdentity::new(9).unwrap(),
+                ..baseline
+            },
+            ValidatedOptimizedAbstractPlanProjection {
+                initial_unit: OptimizationUnitIdentity::from_canonical_bytes(b"initial-drift"),
+                ..baseline
+            },
+            ValidatedOptimizedAbstractPlanProjection {
+                final_unit: OptimizationUnitIdentity::from_canonical_bytes(b"final-drift"),
+                ..baseline
+            },
+            ValidatedOptimizedAbstractPlanProjection {
+                selections: OptimizationSelectionIdentity::from_bytes([9; 32]),
+                ..baseline
+            },
+            ValidatedOptimizedAbstractPlanProjection {
+                ledger: TransformationLedgerIdentity::from_canonical_bytes(b"ledger-drift"),
+                ..baseline
+            },
+            ValidatedOptimizedAbstractPlanProjection {
+                bundle: omega_optimization_core::OptimizationIdentityBundleIdentity::from_canonical_bytes(
+                    b"bundle-drift",
+                ),
+                ..baseline
+            },
+            ValidatedOptimizedAbstractPlanProjection {
+                validator: OptimizationValidatorIdentity::from_canonical_bytes(b"validator-drift"),
+                ..baseline
+            },
+        ];
+
+        assert_eq!(baseline.identity(), receipt().identity());
+        for corrupted in changed {
+            assert_ne!(baseline.identity(), corrupted.identity());
+        }
+    }
 }

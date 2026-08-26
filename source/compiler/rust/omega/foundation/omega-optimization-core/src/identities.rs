@@ -113,6 +113,10 @@ canonical_identity!(
     OptimizationIdentityBundleIdentity,
     b"omega.optimization-identity-bundle-identity.v1\0"
 );
+canonical_identity!(
+    OptimizedAbstractPlanProjectionIdentity,
+    b"omega.optimized-abstract-plan-projection-identity.v1\0"
+);
 
 impl OptimizationRuleSetIdentity {
     /// Bind the complete normalized execution order. Order is meaningful and
@@ -417,6 +421,7 @@ mod tests {
             OptimizationRuleSetIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationWorkloadProfileIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationIdentityBundleIdentity::from_canonical_bytes(b"same").bytes(),
+            OptimizedAbstractPlanProjectionIdentity::from_canonical_bytes(b"same").bytes(),
         ] {
             assert_ne!(rule, identity);
         }
@@ -444,6 +449,7 @@ mod tests {
         round_trip!(OptimizationWorkloadProfileIdentity);
         round_trip!(TransformationLedgerIdentity);
         round_trip!(OptimizationIdentityBundleIdentity);
+        round_trip!(OptimizedAbstractPlanProjectionIdentity);
     }
 
     #[test]

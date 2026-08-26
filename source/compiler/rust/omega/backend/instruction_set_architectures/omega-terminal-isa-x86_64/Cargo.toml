@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-calling-conventions = { path = "../../../foundation/omega-calling-conventions" }
+omega-regalloc = { path = "../../../optimization/omega-regalloc" }
 omega-target = { path = "../../../foundation/omega-target" }
 omega-terminal-installation-evidence = { path = "../../../representations/omega-terminal-installation-evidence" }
 psi-diagnostics = { path = "../../../../psi/foundation/psi-diagnostics" }

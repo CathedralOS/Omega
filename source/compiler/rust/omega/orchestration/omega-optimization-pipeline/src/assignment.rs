@@ -2,7 +2,9 @@ use omega_lowering_optimizer::{
     ValidatedOptimizedAbstractPlan, ValidatedOptimizedTargetOperations,
     lower_optimized_to_target_operations_with_provider_executions,
 };
-use omega_optimization_core::OptimizationIdentityBundleIdentity;
+use omega_optimization_core::{
+    OptimizationIdentityBundleIdentity, OptimizedAbstractPlanProjectionIdentity,
+};
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations_to_target_operations::{
     AdmittedTerminalBoundarySettlement, LoweringError,
@@ -13,6 +15,11 @@ use omega_terminal_target_operations_to_assigned_target_operations::{
 };
 use psi_core::MachineId;
 use psi_terminal::TerminalPsiIdentity;
+
+use crate::{
+    TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnvironment,
+    baseline_target_register_environment,
+};
 
 /// Current target assignment with the complete optimized lowering custody that
 /// authorized it.
@@ -26,6 +33,7 @@ use psi_terminal::TerminalPsiIdentity;
 #[derive(Debug)]
 pub struct StagedOptimizedAssignedOperations {
     optimized_target: ValidatedOptimizedTargetOperations,
+    register_environment: ValidatedTargetRegisterEnvironment,
     assigned: TerminalAssignedOperationPlan,
     custody: StagedOptimizedAssignmentCustodyReceipt,
 }
@@ -37,6 +45,10 @@ impl StagedOptimizedAssignedOperations {
 
     pub const fn assigned(&self) -> &TerminalAssignedOperationPlan {
         &self.assigned
+    }
+
+    pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
+        &self.register_environment
     }
 
     pub const fn custody(&self) -> StagedOptimizedAssignmentCustodyReceipt {
@@ -52,6 +64,7 @@ pub struct StagedOptimizedAssignmentCustodyReceipt {
     target: NativeTarget,
     entry: MachineId,
     optimization: OptimizationIdentityBundleIdentity,
+    projection: OptimizedAbstractPlanProjectionIdentity,
     function_count: usize,
 }
 
@@ -72,6 +85,10 @@ impl StagedOptimizedAssignmentCustodyReceipt {
         self.optimization
     }
 
+    pub const fn projection(self) -> OptimizedAbstractPlanProjectionIdentity {
+        self.projection
+    }
+
     pub const fn function_count(self) -> usize {
         self.function_count
     }
@@ -80,6 +97,7 @@ impl StagedOptimizedAssignmentCustodyReceipt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedAssignmentCustodyError {
     OptimizedTargetMismatch,
+    RegisterEnvironmentTargetMismatch,
     TerminalPsiMismatch,
     NativeTargetMismatch,
     EntryMismatch,
@@ -100,6 +118,7 @@ impl std::error::Error for OptimizedAssignmentCustodyError {}
 #[derive(Debug)]
 pub enum OptimizedAssignmentPipelineError {
     TargetLowering(LoweringError),
+    RegisterEnvironment(TargetRegisterEnvironmentValidationError),
     Assignment(AssignmentError),
     Custody(OptimizedAssignmentCustodyError),
 }
@@ -118,12 +137,16 @@ impl std::error::Error for OptimizedAssignmentPipelineError {}
 pub fn stage_optimized_assignment(
     optimized_target: ValidatedOptimizedTargetOperations,
 ) -> Result<StagedOptimizedAssignedOperations, OptimizedAssignmentPipelineError> {
+    let register_environment = baseline_target_register_environment(optimized_target.target())
+        .map_err(OptimizedAssignmentPipelineError::RegisterEnvironment)?;
     let assigned = assign_registers(optimized_target.target_operations())
         .map_err(OptimizedAssignmentPipelineError::Assignment)?;
-    let custody = validate_optimized_assignment_custody(&optimized_target, &assigned)
-        .map_err(OptimizedAssignmentPipelineError::Custody)?;
+    let custody =
+        validate_optimized_assignment_custody(&optimized_target, &register_environment, &assigned)
+            .map_err(OptimizedAssignmentPipelineError::Custody)?;
     Ok(StagedOptimizedAssignedOperations {
         optimized_target,
+        register_environment,
         assigned,
         custody,
     })
@@ -149,11 +172,15 @@ pub fn stage_optimized_assignment_with_provider_executions(
 /// its own receipt. Physical-home legality remains outside this check.
 pub fn validate_optimized_assignment_custody(
     optimized_target: &ValidatedOptimizedTargetOperations,
+    register_environment: &ValidatedTargetRegisterEnvironment,
     assigned: &TerminalAssignedOperationPlan,
 ) -> Result<StagedOptimizedAssignmentCustodyReceipt, OptimizedAssignmentCustodyError> {
     let target = optimized_target.target_operations();
     if optimized_target.target() != target.target {
         return Err(OptimizedAssignmentCustodyError::OptimizedTargetMismatch);
+    }
+    if register_environment.target() != target.target {
+        return Err(OptimizedAssignmentCustodyError::RegisterEnvironmentTargetMismatch);
     }
     if target.terminal_psi != assigned.terminal_psi {
         return Err(OptimizedAssignmentCustodyError::TerminalPsiMismatch);
@@ -188,6 +215,7 @@ pub fn validate_optimized_assignment_custody(
         target: target.target,
         entry: target.entry,
         optimization: optimized_target.optimized().identity_bundle().identity(),
+        projection: optimized_target.optimized().validation().identity(),
         function_count: target.functions.len(),
     })
 }
