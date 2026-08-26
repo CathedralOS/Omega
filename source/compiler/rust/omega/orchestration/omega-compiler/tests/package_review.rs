@@ -78,6 +78,7 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
 
     let first = TempPackage::new();
@@ -244,6 +245,7 @@ fn canonical_row_sorting_keeps_exact_declaration_sources_paired() {
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -299,6 +301,7 @@ fn carried_transitive_types_project_exact_package_qualified_dependency_rows() {
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     middle.write(
@@ -361,6 +364,17 @@ pub machine consume(value: Token) {}
     let rows = canonical
         .iter()
         .filter(|row| row.kind() == PackageReviewCanonicalRowKind::SemanticDependency)
+        .filter(|row| {
+            row.source().authored_locations().is_some_and(|locations| {
+                locations.iter().any(|location| {
+                    location.role()
+                        == PackageReviewSourceLocationRole::SemanticDependencyDeclaration
+                        && location.owner()
+                            == PackageReviewSourceLocationOwner::Package(leaf_identity)
+                        && location.relative_path() == "leaf.omg"
+                })
+            })
+        })
         .collect::<Vec<_>>();
     assert!(rows.len() >= 3);
     for row in rows {
@@ -400,6 +414,7 @@ pub machine make() -> Token { Token { value: 7u64 } }
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -491,6 +506,7 @@ invokes FilesystemHost;
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let canonical_checked = compile_to_checked_with_packages(
@@ -569,6 +585,7 @@ invokes FilesystemHost;
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let lookalike_checked = compile_to_checked_with_packages(
@@ -610,6 +627,7 @@ invokes console;
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let canonical_checked = compile_to_checked_with_packages(
@@ -686,6 +704,7 @@ invokes console;
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let lookalike_checked = compile_to_checked_with_packages(
@@ -726,6 +745,7 @@ pub machine caller() reaches FilesystemHost {
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -769,6 +789,7 @@ fn package_review_rejects_impossible_supply_body_combinations() {
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -835,6 +856,7 @@ reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + Extent
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let canonical_checked = compile_to_checked_with_packages(
@@ -938,6 +960,7 @@ reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + Extent
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let lookalike_checked = compile_to_checked_with_packages(
@@ -971,6 +994,7 @@ fn representation_tcb_retains_private_opaque_data_as_unbound() {
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -1008,6 +1032,7 @@ target macos_arm64 { }
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let control_checked = compile_to_checked_with_packages(
@@ -1065,6 +1090,7 @@ target macos_arm64 { }
 machine build(builder: &mut Build)
 crashes Abort
 {
+    builder.package("review-fixture");
     helper();
     let receipt: Receipt = Receipt { code: 1 };
     crash Abort;
@@ -1294,9 +1320,17 @@ crashes Abort
                 == PackageReviewNominalOwner::Package(package_identity())
                 && claim.state().owner() == PackageReviewNominalOwner::Package(package_identity()))
     );
-    let [crash_call] = crash.checked_calls() else {
-        panic!("one normalized checked crash call")
-    };
+    let mut helper_calls = crash
+        .checked_calls()
+        .iter()
+        .filter(|call| call.target_machine().path() == "helper");
+    let crash_call = helper_calls
+        .next()
+        .expect("one normalized helper crash call");
+    assert!(
+        helper_calls.next().is_none(),
+        "the helper crash route must remain unique"
+    );
     assert_eq!(
         crash_call.state().owner(),
         PackageReviewNominalOwner::Package(package_identity())
@@ -1403,7 +1437,7 @@ fn review_projects_exact_accepted_boundary_contracts() {
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         let checked = compile_to_checked_with_packages(
@@ -1514,7 +1548,7 @@ fn claim_free_boundary_supply_does_not_collapse_into_an_accepted_claim() {
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -1571,7 +1605,7 @@ requires value in u64::Trusted
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -1614,7 +1648,7 @@ requires value in u64::Hidden
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let diagnostics = compile_to_checked_with_packages(
@@ -1660,7 +1694,7 @@ requires equivalent<Compared>(left, right)
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     original.write("build.omg", build);
     renamed.write("build.omg", build);
@@ -1740,7 +1774,7 @@ proposition hidden();
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -1800,7 +1834,7 @@ fn review_projects_unused_public_consts_with_exact_type_and_value_identity() {
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let project = |source: &str| {
         let package = TempPackage::new();
@@ -1871,7 +1905,7 @@ operator Token::hidden(value: Token) -> bool;
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -1967,7 +2001,7 @@ requires evidence: forwarded<i32>(1)
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     direct.write("main.omg", direct_source);
     direct.write("build.omg", build);
@@ -2120,7 +2154,7 @@ pub proposition right_fact() evidence Evidence;
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -2172,7 +2206,7 @@ requires selected<{binding}.modulus>()
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     original.write("build.omg", build);
     renamed.write("build.omg", build);
@@ -2280,7 +2314,7 @@ ensures result == apply<{selected}>(0);
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     package.write("build.omg", build);
     changed.write("build.omg", build);
@@ -2368,7 +2402,7 @@ requires apply<{binder}>(value) == apply<{binder}>(value)
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         let checked = compile_to_checked_with_packages(
@@ -2448,7 +2482,7 @@ ensures result == inspect<identity<sample>>();
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let diagnostics = compile_to_checked_with_packages(
@@ -2485,7 +2519,7 @@ ensures result == tag<{selected_type}>();
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     package.write("build.omg", build);
     changed.write("build.omg", build);
@@ -2558,7 +2592,7 @@ ensures result == constant<{selected_value}>();
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     package.write("build.omg", build);
     changed.write("build.omg", build);
@@ -2670,7 +2704,7 @@ requires constant<{selected_const}>() == constant<{selected_const}>()
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     for package in [&original, &renamed, &changed_type, &changed_const] {
         package.write("build.omg", build);
@@ -2760,7 +2794,7 @@ ensures result == tag<Wrapper<{nested_type}>>();
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     package.write("build.omg", build);
     changed.write("build.omg", build);
@@ -2857,7 +2891,7 @@ requires tag<View<'{selected}, u64>>() == tag<View<'{selected}, u64>>()
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     for package in [&original, &renamed, &changed] {
         package.write("build.omg", build);
@@ -2942,7 +2976,7 @@ requires {left_receiver}.left == {right_receiver}.right
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     original.write("build.omg", build);
     changed.write("build.omg", build);
@@ -3037,7 +3071,7 @@ requires (value as {target_type}) == 1
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     u16_cast.write("build.omg", build);
     u32_cast.write("build.omg", build);
@@ -3106,7 +3140,7 @@ fn review_casts_retain_public_semantic_domains_and_reject_private_exposure() {
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let public = TempPackage::new();
     public.write(
@@ -3216,7 +3250,7 @@ pub machine identity<Element [copy]>(value: Element) -> Element { value }
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     original.write("build.omg", build);
     renamed.write("build.omg", build);
@@ -3307,7 +3341,7 @@ pub machine inspect(
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -3392,7 +3426,7 @@ pub data Reading {
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -3441,7 +3475,7 @@ fn review_projects_exact_public_callable_conformances_and_static_machine_contrac
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let satisfying = TempPackage::new();
     satisfying.write(
@@ -3545,7 +3579,7 @@ fn review_projects_trait_requirement_identity_machine_parameter() {
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -3596,7 +3630,7 @@ fn review_projects_alpha_normalized_public_conformance_binders() {
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     let original = TempPackage::new();
     original.write(
@@ -3754,7 +3788,7 @@ where proposition {relation}({left}: {carrier}, {right}: {right_type});
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     for package in [&original, &renamed, &changed] {
         package.write("build.omg", build);
@@ -3828,7 +3862,7 @@ where proposition Relation(const value: Carrier);
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -3929,7 +3963,7 @@ where proposition {alternate}(first: {carrier}, second: {carrier});
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     for package in [&original, &renamed, &changed_endpoint, &changed_arguments] {
         package.write("build.omg", build);
@@ -4009,7 +4043,7 @@ where proposition Relation(left: Carrier, right: Carrier);
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let diagnostics = compile_to_checked_with_packages(
@@ -4062,7 +4096,7 @@ where proposition Relation(left: Carrier, right: Carrier);
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -4115,7 +4149,7 @@ where proposition OtherRelation(value: Carrier);
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -4239,7 +4273,7 @@ where machine Callback(value: i64) -> u64;
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     original.write("build.omg", build);
     renamed.write("build.omg", build);
@@ -4320,7 +4354,7 @@ where machine Selected satisfies Handler::call;
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     package.write("build.omg", build);
     let checked = compile_to_checked_with_packages(
@@ -4396,7 +4430,7 @@ where machine Sample(index: u64) -> u64;
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -4446,7 +4480,7 @@ where Element satisfies Ranked
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -4505,7 +4539,7 @@ where Element satisfies Good::Primary
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -4590,7 +4624,7 @@ pub WndClassWindowProcedureSlot:
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -4640,7 +4674,7 @@ fn public_conformance_rows_are_alpha_normalized_and_exclude_private_realizations
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let source = |binder: &str, value: i32| {
@@ -4712,7 +4746,7 @@ fn public_conformance_rows_alpha_normalize_lifetime_binders() {
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let source = |lifetime: &str| {
@@ -4786,7 +4820,7 @@ pub data Good {{ }}
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let bodyless = compile_to_checked_with_packages(
@@ -4834,7 +4868,7 @@ fn public_machine_visibility_survives_checked_compilation_and_strict_empty_contr
     package.write(
         "build.omg",
         r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -4982,7 +5016,7 @@ invokes Host;
 "#,
     );
     let build = r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     quiet.write("build.omg", build);
     invoking.write("build.omg", build);
@@ -5076,7 +5110,7 @@ fn review_distinguishes_profiles_that_share_a_native_target() {
         "build.omg",
         r#"target windows_x64 { }
 target uefi_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -5118,7 +5152,7 @@ fn review_encoding_ignores_unreviewed_arena_insertion_order() {
         "machine unrelated() { }\nboundary machine host_ping();\n",
     );
     let build = r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -5156,7 +5190,7 @@ fn public_data_and_numbered_wire_shape_changes_change_comparison_encoding() {
         "pub data Packet [copy] { #1 value: u64; }\ndata Private { changed: i64; }\n",
     );
     let build = r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -5190,7 +5224,7 @@ fn public_domain_shape_changes_change_comparison_encoding() {
         "pub data Packet { value: u32; }\npub domain Packet::Prepared;\n",
     );
     let build = r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -5234,7 +5268,7 @@ pub operator + add(
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -5323,7 +5357,7 @@ pub domain<Value, const Tag: Unit> Value::Tagged<Tag>;
 "#,
     );
     let build = r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -5370,7 +5404,7 @@ pub boundary trait SchedulerAdmission {
 "#,
     );
     let build = r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     classified.write("build.omg", build);
     routed.write("build.omg", build);
@@ -5450,7 +5484,7 @@ pub boundary trait BackupAdmission {{
         &source("BackupAdmission::grant, PrimaryAdmission::grant"),
     );
     let build = r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -5496,7 +5530,7 @@ pub domain u64::Portable = Carry::Portable;
 "#,
     );
     let build = r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -5583,7 +5617,7 @@ pub boundary trait Service<Value>: Parent<Value> {
 "#,
     );
     let build = r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -5699,7 +5733,7 @@ pub trait Child<'child>: Parent<'child> { }
 "#,
     );
     let build = r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
     first.write("build.omg", build);
     renamed.write("build.omg", build);
@@ -5802,7 +5836,7 @@ fn public_trait_lifetime_declarations_validate_before_review() {
         package.write("main.omg", source);
         package.write(
             "build.omg",
-            "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         let diagnostics = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
@@ -5838,7 +5872,7 @@ where
         );
         package.write(
             "build.omg",
-            "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
@@ -5925,7 +5959,7 @@ where N <= 8,
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
@@ -5969,7 +6003,7 @@ where count in u32::Small,
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
@@ -6015,7 +6049,7 @@ where count <= len,
         );
         package.write(
             "build.omg",
-            "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         compile_to_checked_with_packages(
             &package.0.join("main.omg"),
@@ -6233,7 +6267,7 @@ where N <= 8,
         );
         package.write(
             "build.omg",
-            "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         compile_to_checked_with_packages(
             &package.0.join("main.omg"),
@@ -6282,7 +6316,7 @@ pub domain Packet::Ready
     package.write(
         "build.omg",
         r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -6344,7 +6378,7 @@ fn review_projects_exact_compiler_byte_sequence_predicate_identity() {
         );
         package.write(
             "build.omg",
-            "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         let checked = compile_to_checked_with_packages(
             &package.0.join("main.omg"),
@@ -6405,7 +6439,7 @@ requires
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
@@ -6449,7 +6483,7 @@ pub domain Packet::Ready
         );
         package.write(
             "build.omg",
-            "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
         );
         compile_to_checked_with_packages(
             &package.0.join("main.omg"),
@@ -6620,7 +6654,7 @@ pub domain Packet::Ready
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
@@ -6652,7 +6686,7 @@ pub domain Packet::Ready
     );
     private.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let diagnostics = compile_to_checked_with_packages(
         &private.0.join("main.omg"),
@@ -6683,7 +6717,7 @@ fn public_domain_predicate_fact_order_is_canonical_but_content_changes_encoding(
     first.write("main.omg", &source("self.value == 0; self.value <= 1;"));
     reordered.write("main.omg", &source("self.value <= 1; self.value == 0;"));
     changed.write("main.omg", &source("self.value == 0; self.value <= 2;"));
-    let build = "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n";
+    let build = "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n";
     first.write("build.omg", build);
     reordered.write("build.omg", build);
     changed.write("build.omg", build);
@@ -6724,7 +6758,7 @@ requires
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
@@ -6769,7 +6803,7 @@ pub domain Reading::Zero requires is_zero(self);
     );
     package.write(
         "build.omg",
-        "target windows_x64 { }\nmachine build(builder: &mut Build) { }\n",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let mut checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
@@ -6822,7 +6856,7 @@ pub boundary trait Worker {
     package.write(
         "build.omg",
         r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -6886,7 +6920,7 @@ pub boundary trait SchedulerAdmission {
     package.write(
         "build.omg",
         r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -6952,7 +6986,7 @@ pub boundary trait SchedulerRuntime {
     package.write(
         "build.omg",
         r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
@@ -6985,7 +7019,7 @@ fn review_projects_trait_defaults_and_unnamed_contracts() {
     default_package.write(
         "build.omg",
         r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -7010,7 +7044,7 @@ machine build(builder: &mut Build) { }
     abstract_package.write(
         "build.omg",
         r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let abstract_checked = compile_to_checked_with_packages(
@@ -7046,7 +7080,7 @@ pub boundary trait SchedulerRuntime {
     precondition_package.write(
         "build.omg",
         r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -7094,7 +7128,7 @@ fn public_trait_requires_and_ensures_change_comparison_identity() {
         package.write(
             "build.omg",
             r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         let checked = compile_to_checked_with_packages(
@@ -7159,7 +7193,7 @@ pub trait Worker {{
         package.write(
             "build.omg",
             r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         let checked = compile_to_checked_with_packages(
@@ -7235,7 +7269,7 @@ pub trait Bounds {
     package.write(
         "build.omg",
         r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -7292,7 +7326,7 @@ fn public_trait_crash_ceilings_are_exact_canonical_checked_routes() {
         package.write(
             "build.omg",
             r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
         );
         let checked = compile_to_checked_with_packages(
@@ -7370,7 +7404,7 @@ fn public_trait_crash_projection_rejects_missing_or_duplicate_checked_capsules()
     package.write(
         "build.omg",
         r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -7421,7 +7455,7 @@ pub trait Worker {
     package.write(
         "build.omg",
         r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -7470,7 +7504,7 @@ pub trait Worker {
     package.write(
         "build.omg",
         r#"target windows_x64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
@@ -7527,7 +7561,7 @@ ensures
 target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 

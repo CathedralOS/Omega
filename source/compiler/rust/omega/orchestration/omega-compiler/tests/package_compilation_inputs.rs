@@ -57,7 +57,7 @@ fn reconciled_bindings_ignore_build_dependency_discovery() {
     );
     TempTree::write(
         root.join("build.omg"),
-        "machine build(builder: &mut Build) {\n    builder.depend_as(\"dep\", Source::Path { location: \"../malicious\" });\n}\n",
+        "machine build(builder: &mut Build) {\n    builder.package(\"root\");\n    builder.depend_as(\"dep\", Source::Path { location: \"../malicious\" });\n}\n",
     );
     TempTree::write(admitted.join("values.omg"), "const ANSWER: u32 = 42;\n");
     TempTree::write(malicious.join("values.omg"), "this is not Omega source\n");
@@ -90,6 +90,7 @@ fn canonical_build_dependency_vocabulary_typechecks() {
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
+    builder.package("root");
     builder.depend(Source::Path { location: "../ordinary" });
     builder.depend(Source::Git {
         repository: "https://github.com/CathedralOS/arithmetic-kernels.git",
@@ -235,7 +236,7 @@ machine misuse(resource: &mut Resource) {
     );
     TempTree::write(
         root.join("build.omg"),
-        "target windows_x64 { }\ntarget linux_x64 { }\ntarget linux_arm64 { }\ntarget macos_arm64 { }\n",
+        "target windows_x64 { }\ntarget linux_x64 { }\ntarget linux_arm64 { }\ntarget macos_arm64 { }\nmachine build(builder: &mut Build) { builder.package(\"root\"); }\n",
     );
 
     let inputs = PackageCompilationInputs::new(
@@ -2030,6 +2031,7 @@ machine build(builder: &mut Build)
 reaches FilesystemHost
 invokes FilesystemHost;
 {
+    builder.package("root");
     let marker: &[u8] in Path = builder.output.resolve("build-ran.marker");
     let descriptor: i32 = builder.filesystem.create(marker, 438);
     let closed: i32 = builder.filesystem.close(descriptor);
@@ -2114,6 +2116,7 @@ fn dependency_provider_plan_retains_exact_dependency_package_provenance() {
     TempTree::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
+    builder.package("root");
     builder.select_provider<Pair, Provider>();
 }
 "#,
@@ -2296,6 +2299,7 @@ target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) {
+    builder.application("native-package-entrypoint");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

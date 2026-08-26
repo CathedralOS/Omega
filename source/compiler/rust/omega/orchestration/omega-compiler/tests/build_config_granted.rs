@@ -1018,6 +1018,7 @@ machine build(builder: &mut Build)
 reaches FilesystemHost
 invokes FilesystemHost;
 {{
+    builder.application("filesystem-preparation-prefix");
     let result: i32 = builder.filesystem.set_file_time(
         0,
         7,

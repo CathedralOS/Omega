@@ -73,6 +73,12 @@ file cannot produce dependencies or receive an automatic dependency edit. This
 keeps the surface ordinary Omega while making identity independent of build
 authority or resolved dependencies. Missing, duplicate, or non-canonical
 declarations reject. Directory and repository names are advisory only.
+Compiler project loading applies that shared projection to the exact retained
+bytes of the selected free `build.omg` before injecting build vocabulary or
+executing it. A companion-free focused compilation remains valid; a selected
+free build file cannot omit its role. Scoped `Owner::build` roots remain only
+in the explicitly isolated Q4 compatibility lane and are not package
+declarations.
 The canonical name begins with an ASCII lowercase letter and otherwise contains
 only lowercase ASCII letters, digits, and single hyphen separators, ensuring
 that its default kebab-to-snake alias is a valid Omega identifier.

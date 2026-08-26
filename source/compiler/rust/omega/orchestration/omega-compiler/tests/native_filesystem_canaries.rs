@@ -78,17 +78,17 @@ fn write_exact_macos_build(project: &Path) {
     if !source.contains("target macos_arm64") {
         source.push_str("\n\ntarget macos_arm64 {\n}\n");
     }
-    const BUILD: &str = "machine build(b: &mut Build) {";
-    const BINDING: &str = "b.roots.bind(macos_arm64::ProgramEntry, Main::main);";
+    const BUILD: &str = "machine build(builder: &mut Build) {";
+    const BINDING: &str = "builder.roots.bind(macos_arm64::ProgramEntry, Main::main);";
     if !source.contains(BINDING) {
         if let Some(start) = source.find(BUILD) {
             source.insert_str(
                 start + BUILD.len(),
-                "\n    b.roots.bind(macos_arm64::ProgramEntry, Main::main);",
+                "\n    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);",
             );
         } else {
             source.push_str(
-                "\n\nmachine build(b: &mut Build) {\n    b.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}\n",
+                "\n\nmachine build(builder: &mut Build) {\n    builder.application(\"native-filesystem-canary\");\n    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}\n",
             );
         }
     }

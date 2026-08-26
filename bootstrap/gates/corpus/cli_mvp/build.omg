@@ -97,3 +97,7 @@ target local_unchecked {
     boundary omega::host::contracts
     boundary unchecked invariant_proofs
 }
+
+machine build(builder: &mut Build) {
+    builder.application("cli-mvp");
+}

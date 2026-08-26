@@ -2531,7 +2531,7 @@ fn fail_canary(path: &str) -> PathBuf {
 fn hosted_main_program_entry_build(target: &str) -> String {
     let root_owner = hosted_program_entry_owner(target);
     format!(
-        "target {target} {{\n}}\n\nmachine build(b: &mut Build) {{\n    b.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
+        "target {target} {{\n}}\n\nmachine build(builder: &mut Build) {{\n    builder.application(\"hosted-main-program-entry\");\n    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
     )
 }
 

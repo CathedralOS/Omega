@@ -77,3 +77,7 @@ target windows_x64 {
     boundary omega::host::contracts
     boundary omega::host::targets::windows
 }
+
+machine build(builder: &mut Build) {
+    builder.application("dungeon-crawler-cli");
+}
