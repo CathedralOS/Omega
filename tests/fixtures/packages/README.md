@@ -52,9 +52,17 @@ Git package, resolves both through immutable Git snapshots, binds them to one
 canonical package lineage/key, and verifies closure reconciliation rejects with
 both root dependency rows retained as explanation paths.
 
+Dangerous-authority escalation coverage likewise uses two actual commits under
+one canonical Git lineage and declared `process-exit` package key. The baseline
+keeps the public `Console` parameter inert; the candidate uses the checked-in
+process-termination implementation. Compiler comparison emits a changed
+blocking callable row and an added blocking process-authority row, update
+triage retains the independent process-audit recommendation, and the review
+input contains the exact ordinary `main.omg` patch.
+
 The admission matrix must additionally cover remote compiler-backed
-transport-normalized lineage, retained dangerous authority, missing
-accepted-lock state, and conflicting instance requests for one `PackageKey`.
+transport-normalized lineage, missing accepted-lock state, and conflicting
+instance requests for one `PackageKey`.
 Missing old source is already covered with both live and reopened review-only
 baselines. `remote-journal` provides the local and remote source-custody
 retained-dangerous-authority case; sealed remote admission still depends on the

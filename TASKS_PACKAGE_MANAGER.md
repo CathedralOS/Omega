@@ -2820,9 +2820,18 @@ complete.
   exact root request ordinals and aliases. The private remote canary remains
   explicitly ignored when CathedralOS SSH credentials are unavailable; it
   rejects rather than substituting ambient or fabricated transport evidence.
+  A second two-commit Git canary now upgrades `process-exit` from an inert
+  `Console`-parameter API to the canonical process-termination implementation.
+  Both exact commit requests resolve through hardened Git custody under one
+  canonical lineage and package key. Compiler-derived comparison emits exactly
+  one changed blocking callable row and one added blocking process-authority
+  row with toolchain `Console` provenance; triage blocks the capability change,
+  independently recommends audit for retained process authority, and emits one
+  ordinary `main.omg` source patch rather than a standalone or lineage-
+  replacement packet.
   Still remaining: canonical observation transcripts/receipts, sealed
-  representation mechanism/ABI evidence, general dangerous-authority
-  escalation, and remote compiler-backed transport normalization. Successful
+  representation mechanism/ABI evidence, and remote compiler-backed transport
+  normalization. Successful
   portable fixture execution now exercises
   package-facing Source/Output resolution, exact rooted evidence, explicit
   generated-source publication, and the frozen build/final checked split.

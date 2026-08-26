@@ -1337,5 +1337,9 @@ update triage blocks it.
 A real-Git reconciliation canary resolves two commits of one declared package
 into separate immutable snapshots, assigns the same canonical package key, and
 proves closure reconciliation rejects while retaining both exact requester
-rows. Remote CathedralOS fixture verification remains credential-gated and
-fail-closed.
+rows. A second exact-revision Git canary upgrades `process-exit` from an inert
+`Console` parameter to effective process termination. Compiler comparison
+reports one changed blocking callable and one added blocking process-authority
+row, triage retains the independent process-audit recommendation, and source
+review receives the exact ordinary update patch. Remote CathedralOS fixture
+verification remains credential-gated and fail-closed.
