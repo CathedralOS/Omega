@@ -388,21 +388,21 @@ These facts constrain the work below.
   copy-propagation schedule and retains one chained manifest per named pass,
   including a manifest for a pass that commits no rewrite.
 - The separately named `ControlFlowCleanup` selection now registers the first
-  exact CFG rule: a Boolean-proven `Conditional` becomes the selected `Jump`
-  only when removing the rejected exact `EdgeId` leaves every existing block
-  structurally reachable. This restriction is deliberate: admitted Terminal
-  Psi already requires total reachability, so a standalone unreachable-block
-  deletion rule would be vacuous, while deleting an arm that orphans a crash,
-  cleanup, suspension, or boundary-only region would invalidate the unit. The
-  candidate binds the input revision, condition value and fact identity,
-  Boolean result, both edge identities, source block, and selected-edge-only
-  provenance/fuel. The independent validator reconstructs the SCCP Boolean
-  fact and post-fold reachability, derives the exact selected successor and
-  bindings, constructs and totally validates the output, and requires exact
-  equality outside the source block. A structural CFG cardinality measure
-  decreases by the removed edge. Focused tests cover both Boolean arms,
-  orphan refusal, edge/fuel corruption, manifest/ledger fact custody, and a
-  second fixed-point sweep.
+  exact CFG rule: a Boolean-proven `Conditional` and every block made
+  structurally unreachable by selecting its exact edge are rewritten in one
+  atomic candidate. The v3 rule/pass/validator independently derive the fresh
+  reachability complement, retain shared/reconverged blocks, densely rebase
+  later surviving effect links, and rebuild the operation fact and declared-
+  place indexes before total validation. Candidate accounting binds the
+  decision block, every removed block, and every surviving block whose effects
+  shift. It realizes the selected edge and shifted surviving nodes, while the
+  rejected edge and every deleted node retain their original provenance/fuel
+  as separately located `ProvenUnreachableAt` rows. `CallGraph` is explicitly
+  invalidated; verifier-accepted obligation and ownership-frontier catalogs
+  remain immutable source custody. Focused tests cover both Boolean arms,
+  shared-merge preservation, block/effect/fact reconstruction, incomplete
+  region and tombstone corruption, projection/report custody, and a second
+  fixed-point sweep.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds its input
   revision, rule contract, decision point, affected region, required analyses
@@ -838,16 +838,18 @@ dependency.
   empty.
 
   Current slice: exact constant-conditional folding is available under only
-  the explicit `ControlFlowCleanup` selection. It preserves the complete block
-  roster, refuses a fold that would make any block unreachable, retains only
-  the selected edge as a realized logical charge, and durably records the
-  rejected edge plus its original scheduled fuel as independently proven
-  unreachable and uncharged. Candidate v8, ledger v2, prephysical manifest v3,
-  and the projection-wide source-custody partition all bind that distinction.
-  The validator independently reconstructs the consumed Boolean fact, both
-  edge identities, both source dispositions, and both fuel rows. Empty-block threading,
-  redundant jumps, block-roster-changing unreachable cleanup, and private-
-  machine pruning remain open.
+  the explicit `ControlFlowCleanup` selection. Its v3 rule/pass/validator
+  atomically replaces the conditional and removes exactly the blocks made
+  unreachable by that selected edge, while retaining shared successors. It
+  rebuilds dense effects, current operation facts, and declared places;
+  invalidates the call graph; realizes all surviving source sites whose output
+  location changes; and durably records the rejected edge plus every deleted
+  node and its original scheduled fuel as independently proven unreachable and
+  uncharged. Candidate v8, ledger v2, prephysical manifest v3, and the
+  projection-wide source-custody partition bind that distinction and the
+  changed block roster. Empty-block threading, redundant jumps, general
+  unreachable cleanup not caused by this fold, and private-machine pruning
+  remain open.
 
 - **OPT-SCCP.** Implement sparse conditional constant propagation over the
   closed integer and Boolean Terminal Psi operations.
