@@ -162,14 +162,20 @@ These facts constrain the work below.
   successful run emits the canonical composite replay/cache identity over the
   exact selections, ordered rules, explicit baseline structural cost model,
   decision log, and transformation ledger. This is not an `O1`/`O2`/`O3` or
-  debug/release mode: the identity names the actual selected suite and every
-  constituent rule.
+  debug/release mode: the identity names the actual explicit transformation
+  selection set and every constituent rule. A convenience spelling may only
+  expand to that visible set; it cannot become a distinct opaque level.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds input and
   output revision identities, rule contract, decision point, affected region,
   required analyses and invalidations, substitutions, exact provenance/fuel,
   literal-fact witness, predicted non-authoritative cost, and a typed patch.
-  The independent validation crate re-reads both supported literal facts,
+  Witnesses no longer trust raw supporting operation IDs: each operand names a
+  domain-separated scalar-fact identity bound to the input revision, machine,
+  value, scalar type, exact definition site, constant payload, and literal
+  source. Candidate encoding is versioned around those typed identities. The
+  independent validation crate reconstructs each identity from its own lookup
+  of the immutable unit before re-reading both supported literal facts,
   evaluates the exact typed operation, constructs the output itself, retains
   Psi provenance/fuel, replaces the consumed obligation reference with the new
   constant fact, and rejects a wrong result without mutating input. Thirty
@@ -197,8 +203,11 @@ These facts constrain the work below.
   confuse integer and Boolean outputs. A Boolean fixed-point fixture exercises
   that public dispatch. Comparison proposal and validation independently
   reconstruct both operand integer types and delegate ordering to Psi's typed
-  comparison semantics. Rules can propose candidates only when their explicit
-  parent selection is present. No build hook admits that still-incomplete suite.
+  comparison semantics; both rule and validator type lookup now covers function
+  parameters, block parameters, and node definitions. Propagated constants
+  deliberately have no witness identity yet and therefore remain unusable by
+  rules. Rules can propose candidates only when their explicit parent selection
+  is present. No build hook admits that still-incomplete selection.
 - A verified-session-only pass manager now performs canonical rule dispatch,
   dependency analysis, proposal enumeration, deterministic negative-cost
   choice with candidate-identity tie breaks, independent validation,

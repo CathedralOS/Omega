@@ -3,7 +3,7 @@ use std::sync::Arc;
 use omega_optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, Optimization, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
-    OptimizationSelections,
+    OptimizationSelections, ScalarConstantFactIdentity,
 };
 use omega_optimization_unit::{
     BooleanConstantRewrite, IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation,
@@ -285,7 +285,7 @@ fn propose_boolean_constants(
                         },
                         BooleanEvaluationKind::Not,
                     ) => {
-                        let Some((operand, operand_support)) =
+                        let Some((operand, operand_fact)) =
                             boolean_constant(constants, function.machine, *operand)
                         else {
                             continue;
@@ -294,7 +294,7 @@ fn propose_boolean_constants(
                             *psi_operation,
                             *result,
                             !operand,
-                            IntegerEvaluationWitness::Unary { operand_support },
+                            IntegerEvaluationWitness::Unary { operand_fact },
                         )
                     }
                     (
@@ -306,12 +306,12 @@ fn propose_boolean_constants(
                         },
                         BooleanEvaluationKind::Equal,
                     ) => {
-                        let Some((left, left_support)) =
+                        let Some((left, left_fact)) =
                             boolean_constant(constants, function.machine, *left)
                         else {
                             continue;
                         };
-                        let Some((right, right_support)) =
+                        let Some((right, right_fact)) =
                             boolean_constant(constants, function.machine, *right)
                         else {
                             continue;
@@ -321,8 +321,8 @@ fn propose_boolean_constants(
                             *result,
                             left == right,
                             IntegerEvaluationWitness::Binary {
-                                left_support,
-                                right_support,
+                                left_fact,
+                                right_fact,
                             },
                         )
                     }
@@ -353,12 +353,12 @@ fn propose_boolean_constants(
                         },
                         BooleanEvaluationKind::IntegerLessOrEqual,
                     ) => {
-                        let Some((left_value, left_support)) =
+                        let Some((left_value, left_fact)) =
                             integer_constant(constants, function.machine, *left)
                         else {
                             continue;
                         };
-                        let Some((right_value, right_support)) =
+                        let Some((right_value, right_fact)) =
                             integer_constant(constants, function.machine, *right)
                         else {
                             continue;
@@ -383,8 +383,8 @@ fn propose_boolean_constants(
                             *result,
                             constant,
                             IntegerEvaluationWitness::Binary {
-                                left_support,
-                                right_support,
+                                left_fact,
+                                right_fact,
                             },
                         )
                     }
@@ -548,7 +548,7 @@ fn propose_integer_unary_constants(
                         ),
                         _ => continue,
                     };
-                let Some((operand_value, operand_support)) =
+                let Some((operand_value, operand_fact)) =
                     integer_constant(constants, function.machine, operand)
                 else {
                     continue;
@@ -578,7 +578,7 @@ fn propose_integer_unary_constants(
                             sources: node.provenance.clone(),
                             fuel: node.fuel.clone(),
                         }],
-                        IntegerEvaluationWitness::Unary { operand_support },
+                        IntegerEvaluationWitness::Unary { operand_fact },
                         -1,
                         IntegerConstantRewrite {
                             location,
@@ -623,7 +623,7 @@ fn propose_exact_integer_cast_constants(
                 else {
                     continue;
                 };
-                let Some((operand_value, operand_support)) =
+                let Some((operand_value, operand_fact)) =
                     integer_constant(constants, function.machine, operand)
                 else {
                     continue;
@@ -648,7 +648,7 @@ fn propose_exact_integer_cast_constants(
                             sources: node.provenance.clone(),
                             fuel: node.fuel.clone(),
                         }],
-                        IntegerEvaluationWitness::Unary { operand_support },
+                        IntegerEvaluationWitness::Unary { operand_fact },
                         -1,
                         IntegerConstantRewrite {
                             location,
@@ -689,12 +689,12 @@ fn propose_integer_binary_constants(
                 if shape.kind != kind {
                     continue;
                 }
-                let Some((left_value, left_support)) =
+                let Some((left_value, left_fact)) =
                     integer_constant(constants, function.machine, shape.left)
                 else {
                     continue;
                 };
-                let Some((right_value, right_support)) =
+                let Some((right_value, right_fact)) =
                     integer_constant(constants, function.machine, shape.right)
                 else {
                     continue;
@@ -719,8 +719,8 @@ fn propose_integer_binary_constants(
                             fuel: node.fuel.clone(),
                         }],
                         IntegerEvaluationWitness::Binary {
-                            left_support,
-                            right_support,
+                            left_fact,
+                            right_fact,
                         },
                         -1,
                         IntegerConstantRewrite {
@@ -1180,15 +1180,12 @@ fn integer_constant(
     constants: &ScalarConstantAnalysis,
     machine: MachineId,
     value: ValueId,
-) -> Option<(IntegerValue, OperationId)> {
+) -> Option<(IntegerValue, ScalarConstantFactIdentity)> {
     constants.facts.iter().find_map(|fact| {
         (fact.valid_in.machine == machine && fact.value == value)
             .then_some(fact)
             .and_then(|fact| match fact.constant {
-                ScalarConstant::Integer(value) => fact
-                    .support
-                    .literal_operation()
-                    .map(|support| (value, support)),
+                ScalarConstant::Integer(value) => fact.identity.map(|identity| (value, identity)),
                 ScalarConstant::Boolean(_) => None,
             })
     })
@@ -1198,15 +1195,12 @@ fn boolean_constant(
     constants: &ScalarConstantAnalysis,
     machine: MachineId,
     value: ValueId,
-) -> Option<(bool, OperationId)> {
+) -> Option<(bool, ScalarConstantFactIdentity)> {
     constants.facts.iter().find_map(|fact| {
         (fact.valid_in.machine == machine && fact.value == value)
             .then_some(fact)
             .and_then(|fact| match fact.constant {
-                ScalarConstant::Boolean(value) => fact
-                    .support
-                    .literal_operation()
-                    .map(|support| (value, support)),
+                ScalarConstant::Boolean(value) => fact.identity.map(|identity| (value, identity)),
                 ScalarConstant::Integer(_) => None,
             })
     })
@@ -1217,10 +1211,16 @@ fn integer_value_type(
     value: ValueId,
 ) -> Option<psi_core::IntegerType> {
     function
-        .blocks
+        .parameters
         .iter()
-        .flat_map(|block| &block.nodes)
-        .flat_map(|node| &node.definitions)
+        .chain(function.blocks.iter().flat_map(|block| &block.parameters))
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .flat_map(|node| &node.definitions),
+        )
         .find_map(|definition| {
             (definition.value == value)
                 .then_some(definition.scalar_type)
@@ -2190,7 +2190,7 @@ pub(crate) mod tests {
             } if scalar_type == target_type
         ));
 
-        let IntegerEvaluationWitness::Unary { operand_support } = candidates[0].witness() else {
+        let IntegerEvaluationWitness::Unary { operand_fact } = candidates[0].witness() else {
             unreachable!()
         };
         let omega_optimization_unit::PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) =
@@ -2205,8 +2205,8 @@ pub(crate) mod tests {
             Vec::new(),
             candidates[0].provenance().to_vec(),
             IntegerEvaluationWitness::Binary {
-                left_support: operand_support,
-                right_support: operand_support,
+                left_fact: operand_fact,
+                right_fact: operand_fact,
             },
             -1,
             patch,

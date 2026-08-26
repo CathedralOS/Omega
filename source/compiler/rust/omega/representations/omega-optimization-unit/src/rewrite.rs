@@ -3,13 +3,14 @@ use std::collections::BTreeSet;
 use omega_optimization_core::{
     AnalysisInvalidationSet, AnalysisSet, OptimizationCandidateIdentity, OptimizationRuleContract,
     OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationUnitIdentity,
+    ScalarConstantFactIdentity,
 };
 use psi_core::{
     BlockId, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ScalarType, ValueId,
 };
 
-use crate::{FuelSettlement, PsiProvenance};
+use crate::{FuelSettlement, PsiProvenance, ValueDefinition, ValueDefinitionSite};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NodeLocation {
@@ -35,12 +36,54 @@ pub struct ProvenanceRewrite {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarEvaluationWitness {
     Unary {
-        operand_support: OperationId,
+        operand_fact: ScalarConstantFactIdentity,
     },
     Binary {
-        left_support: OperationId,
-        right_support: OperationId,
+        left_fact: ScalarConstantFactIdentity,
+        right_fact: ScalarConstantFactIdentity,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ScalarConstantValue {
+    Boolean(bool),
+    Integer(IntegerValue),
+}
+
+/// Bind one literal scalar fact to the exact immutable input and definition it
+/// describes. The optimizer and independent validator may share this encoding,
+/// but each must reconstruct its inputs independently.
+pub fn literal_scalar_constant_fact_identity(
+    input: OptimizationUnitIdentity,
+    machine: MachineId,
+    definition: ValueDefinition,
+    constant: ScalarConstantValue,
+    support: OperationId,
+) -> Option<ScalarConstantFactIdentity> {
+    match (definition.scalar_type, constant) {
+        (ScalarType::Boolean, ScalarConstantValue::Boolean(_))
+        | (ScalarType::Integer(_), ScalarConstantValue::Integer(_)) => {}
+        _ => return None,
+    }
+    let mut canonical = Vec::new();
+    canonical.extend_from_slice(b"omega.psi-literal-scalar-constant-fact.v1\0");
+    canonical.extend_from_slice(&input.bytes());
+    canonical.extend_from_slice(&machine.get().to_le_bytes());
+    canonical.extend_from_slice(&definition.value.get().to_le_bytes());
+    encode_scalar_type(&mut canonical, definition.scalar_type);
+    encode_definition_site(&mut canonical, definition.site);
+    match constant {
+        ScalarConstantValue::Boolean(value) => {
+            canonical.push(1);
+            canonical.push(u8::from(value));
+        }
+        ScalarConstantValue::Integer(value) => {
+            canonical.push(2);
+            encode_integer_value(&mut canonical, value);
+        }
+    }
+    canonical.extend_from_slice(&support.get().to_le_bytes());
+    Some(ScalarConstantFactIdentity::from_canonical_bytes(&canonical))
 }
 
 /// Compatibility name retained while integer-only rules migrate to the shared
@@ -301,7 +344,7 @@ fn encode_candidate(
     patch: PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v2\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v3\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     encode_location(&mut bytes, decision_point);
@@ -347,17 +390,17 @@ fn encode_candidate(
         }
     }
     match witness {
-        ScalarEvaluationWitness::Unary { operand_support } => {
+        ScalarEvaluationWitness::Unary { operand_fact } => {
             bytes.push(1);
-            bytes.extend_from_slice(&operand_support.get().to_le_bytes());
+            bytes.extend_from_slice(&operand_fact.bytes());
         }
         ScalarEvaluationWitness::Binary {
-            left_support,
-            right_support,
+            left_fact,
+            right_fact,
         } => {
             bytes.push(2);
-            bytes.extend_from_slice(&left_support.get().to_le_bytes());
-            bytes.extend_from_slice(&right_support.get().to_le_bytes());
+            bytes.extend_from_slice(&left_fact.bytes());
+            bytes.extend_from_slice(&right_fact.bytes());
         }
     }
     bytes.extend_from_slice(&predicted_cost_delta.to_le_bytes());
@@ -385,6 +428,25 @@ fn encode_location(bytes: &mut Vec<u8>, location: NodeLocation) {
     bytes.extend_from_slice(&location.machine.get().to_le_bytes());
     bytes.extend_from_slice(&location.block.get().to_le_bytes());
     bytes.extend_from_slice(&location.node.to_le_bytes());
+}
+
+fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
+    match site {
+        ValueDefinitionSite::FunctionParameter(position) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&position.to_le_bytes());
+        }
+        ValueDefinitionSite::BlockParameter { block, position } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&block.get().to_le_bytes());
+            bytes.extend_from_slice(&position.to_le_bytes());
+        }
+        ValueDefinitionSite::Node { block, node } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&block.get().to_le_bytes());
+            bytes.extend_from_slice(&node.to_le_bytes());
+        }
+    }
 }
 
 fn encode_len(bytes: &mut Vec<u8>, len: usize) {
@@ -427,5 +489,103 @@ fn encode_integer_value(bytes: &mut Vec<u8>, value: IntegerValue) {
             bytes.push(2);
             bytes.extend_from_slice(&value.to_le_bytes());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn literal_fact_identity_binds_revision_definition_value_type_constant_and_support() {
+        let revision = OptimizationUnitIdentity::from_canonical_bytes(b"revision-a");
+        let machine = MachineId::new(1).unwrap();
+        let definition = ValueDefinition {
+            value: ValueId::new(2).unwrap(),
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
+            site: ValueDefinitionSite::Node {
+                block: BlockId::new(3).unwrap(),
+                node: 4,
+            },
+        };
+        let identity = literal_scalar_constant_fact_identity(
+            revision,
+            machine,
+            definition,
+            ScalarConstantValue::Integer(IntegerValue::Unsigned(7)),
+            OperationId::new(5).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            identity,
+            literal_scalar_constant_fact_identity(
+                revision,
+                machine,
+                definition,
+                ScalarConstantValue::Integer(IntegerValue::Unsigned(7)),
+                OperationId::new(5).unwrap(),
+            )
+            .unwrap()
+        );
+        assert_ne!(
+            identity,
+            literal_scalar_constant_fact_identity(
+                OptimizationUnitIdentity::from_canonical_bytes(b"revision-b"),
+                machine,
+                definition,
+                ScalarConstantValue::Integer(IntegerValue::Unsigned(7)),
+                OperationId::new(5).unwrap(),
+            )
+            .unwrap()
+        );
+        assert_ne!(
+            identity,
+            literal_scalar_constant_fact_identity(
+                revision,
+                machine,
+                ValueDefinition {
+                    site: ValueDefinitionSite::Node {
+                        block: BlockId::new(3).unwrap(),
+                        node: 6,
+                    },
+                    ..definition
+                },
+                ScalarConstantValue::Integer(IntegerValue::Unsigned(7)),
+                OperationId::new(5).unwrap(),
+            )
+            .unwrap()
+        );
+        assert_ne!(
+            identity,
+            literal_scalar_constant_fact_identity(
+                revision,
+                machine,
+                definition,
+                ScalarConstantValue::Integer(IntegerValue::Unsigned(8)),
+                OperationId::new(5).unwrap(),
+            )
+            .unwrap()
+        );
+        assert_ne!(
+            identity,
+            literal_scalar_constant_fact_identity(
+                revision,
+                machine,
+                definition,
+                ScalarConstantValue::Integer(IntegerValue::Unsigned(7)),
+                OperationId::new(6).unwrap(),
+            )
+            .unwrap()
+        );
+        assert!(
+            literal_scalar_constant_fact_identity(
+                revision,
+                machine,
+                definition,
+                ScalarConstantValue::Boolean(true),
+                OperationId::new(5).unwrap(),
+            )
+            .is_none()
+        );
     }
 }

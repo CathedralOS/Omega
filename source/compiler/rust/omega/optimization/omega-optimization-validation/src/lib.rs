@@ -16,8 +16,8 @@ use omega_optimization_unit::{
     BooleanConstantRewrite, IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation,
     OptimizationEdge, OptimizationFact, OwnershipEvent, PsiNodeObservation,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate,
-    PsiRewritePatch, ValueDefinition, ValueDefinitionSite, ValueUse,
-    reconstruct_psi_observation_model,
+    PsiRewritePatch, ScalarConstantValue, ValueDefinition, ValueDefinitionSite, ValueUse,
+    literal_scalar_constant_fact_identity, reconstruct_psi_observation_model,
 };
 use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ScalarType, ValueId};
 use psi_terminal_fuel::TerminalFuelSchedule;
@@ -576,10 +576,10 @@ fn evaluate_boolean_operation(
             result,
             operand,
         } => {
-            let IntegerEvaluationWitness::Unary { operand_support } = candidate.witness() else {
+            let IntegerEvaluationWitness::Unary { operand_fact } = candidate.witness() else {
                 return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
             };
-            let operand = literal_boolean_fact(function, operand, operand_support)
+            let operand = literal_boolean_fact(function, candidate.input(), operand, operand_fact)
                 .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
             Ok((psi_operation, result, !operand))
         }
@@ -590,15 +590,15 @@ fn evaluate_boolean_operation(
             right,
         } => {
             let IntegerEvaluationWitness::Binary {
-                left_support,
-                right_support,
+                left_fact,
+                right_fact,
             } = candidate.witness()
             else {
                 return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
             };
-            let left = literal_boolean_fact(function, left, left_support)
+            let left = literal_boolean_fact(function, candidate.input(), left, left_fact)
                 .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
-            let right = literal_boolean_fact(function, right, right_support)
+            let right = literal_boolean_fact(function, candidate.input(), right, right_fact)
                 .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
             Ok((psi_operation, result, left == right))
         }
@@ -621,15 +621,15 @@ fn evaluate_boolean_operation(
             right,
         } => {
             let IntegerEvaluationWitness::Binary {
-                left_support,
-                right_support,
+                left_fact,
+                right_fact,
             } = candidate.witness()
             else {
                 return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
             };
-            let left_value = literal_integer_fact(function, left, left_support)
+            let left_value = literal_integer_fact(function, candidate.input(), left, left_fact)
                 .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
-            let right_value = literal_integer_fact(function, right, right_support)
+            let right_value = literal_integer_fact(function, candidate.input(), right, right_fact)
                 .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
             let left_type = validator_integer_value_type(function, left)
                 .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
@@ -1105,15 +1105,15 @@ fn evaluate_integer_operation(
         _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     };
     let IntegerEvaluationWitness::Binary {
-        left_support,
-        right_support,
+        left_fact,
+        right_fact,
     } = candidate.witness()
     else {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     };
-    let left_value = literal_integer_fact(function, left, left_support)
+    let left_value = literal_integer_fact(function, candidate.input(), left, left_fact)
         .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
-    let right_value = literal_integer_fact(function, right, right_support)
+    let right_value = literal_integer_fact(function, candidate.input(), right, right_fact)
         .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
     let (evaluated, safety_class) = match kind {
         IntegerOperation::ExactAdd => (
@@ -1215,60 +1215,92 @@ fn unary_integer_operand(
     candidate: &PsiRewriteCandidate,
     operand: ValueId,
 ) -> Result<psi_core::IntegerValue, OptimizationUnitValidationError> {
-    let IntegerEvaluationWitness::Unary { operand_support } = candidate.witness() else {
+    let IntegerEvaluationWitness::Unary { operand_fact } = candidate.witness() else {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     };
-    literal_integer_fact(function, operand, operand_support)
+    literal_integer_fact(function, candidate.input(), operand, operand_fact)
         .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)
 }
 
 fn literal_integer_fact(
     function: &PsiOptimizationFunction,
+    input: omega_optimization_core::OptimizationUnitIdentity,
     value: ValueId,
-    support: psi_core::OperationId,
+    identity: omega_optimization_core::ScalarConstantFactIdentity,
 ) -> Option<psi_core::IntegerValue> {
     function.facts.iter().find_map(|fact| match fact {
         OptimizationFact::IntegerConstant {
             value: fact_value,
             constant,
-            support: fact_support,
-        } if *fact_value == value && *fact_support == support => Some(*constant),
+            support,
+        } if *fact_value == value => {
+            let definition = scalar_value_definition(function, value)?;
+            (literal_scalar_constant_fact_identity(
+                input,
+                function.machine,
+                definition,
+                ScalarConstantValue::Integer(*constant),
+                *support,
+            )? == identity)
+                .then_some(*constant)
+        }
         _ => None,
     })
 }
 
 fn literal_boolean_fact(
     function: &PsiOptimizationFunction,
+    input: omega_optimization_core::OptimizationUnitIdentity,
     value: ValueId,
-    support: psi_core::OperationId,
+    identity: omega_optimization_core::ScalarConstantFactIdentity,
 ) -> Option<bool> {
     function.facts.iter().find_map(|fact| match fact {
         OptimizationFact::BooleanConstant {
             value: fact_value,
             constant,
-            support: fact_support,
-        } if *fact_value == value && *fact_support == support => Some(*constant),
+            support,
+        } if *fact_value == value => {
+            let definition = scalar_value_definition(function, value)?;
+            (literal_scalar_constant_fact_identity(
+                input,
+                function.machine,
+                definition,
+                ScalarConstantValue::Boolean(*constant),
+                *support,
+            )? == identity)
+                .then_some(*constant)
+        }
         _ => None,
     })
+}
+
+fn scalar_value_definition(
+    function: &PsiOptimizationFunction,
+    value: ValueId,
+) -> Option<ValueDefinition> {
+    function
+        .parameters
+        .iter()
+        .chain(function.blocks.iter().flat_map(|block| &block.parameters))
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .flat_map(|node| &node.definitions),
+        )
+        .copied()
+        .find(|definition| definition.value == value)
 }
 
 fn validator_integer_value_type(
     function: &PsiOptimizationFunction,
     value: ValueId,
 ) -> Option<psi_core::IntegerType> {
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .flat_map(|node| &node.definitions)
-        .find_map(|definition| {
-            (definition.value == value)
-                .then_some(definition.scalar_type)
-                .and_then(|scalar_type| match scalar_type {
-                    ScalarType::Integer(integer) => Some(integer),
-                    ScalarType::Boolean => None,
-                })
-        })
+    scalar_value_definition(function, value).and_then(|definition| match definition.scalar_type {
+        ScalarType::Integer(integer) => Some(integer),
+        ScalarType::Boolean => None,
+    })
 }
 
 /// Independently validate both the reconstructible unit and the required
@@ -2624,6 +2656,14 @@ mod tests {
         unit: &PsiOptimizationUnit,
         constant: IntegerValue,
     ) -> PsiRewriteCandidate {
+        integer_candidate_with_left_fact(unit, constant, None)
+    }
+
+    fn integer_candidate_with_left_fact(
+        unit: &PsiOptimizationUnit,
+        constant: IntegerValue,
+        supplied_left_fact: Option<omega_optimization_core::ScalarConstantFactIdentity>,
+    ) -> PsiRewriteCandidate {
         let function = &unit.functions[0];
         let block = &function.blocks[0];
         let node = &block.nodes[2];
@@ -2631,6 +2671,8 @@ mod tests {
             psi_operation,
             result,
             scalar_type,
+            left,
+            right,
             ..
         } = node.operation
         else {
@@ -2661,8 +2703,24 @@ mod tests {
                 fuel: node.fuel.clone(),
             }],
             IntegerEvaluationWitness::Binary {
-                left_support: id(206, OperationId::new),
-                right_support: id(207, OperationId::new),
+                left_fact: supplied_left_fact.unwrap_or_else(|| {
+                    literal_scalar_constant_fact_identity(
+                        unit.identity,
+                        function.machine,
+                        scalar_value_definition(function, left).unwrap(),
+                        ScalarConstantValue::Integer(IntegerValue::Unsigned(7)),
+                        id(206, OperationId::new),
+                    )
+                    .unwrap()
+                }),
+                right_fact: literal_scalar_constant_fact_identity(
+                    unit.identity,
+                    function.machine,
+                    scalar_value_definition(function, right).unwrap(),
+                    ScalarConstantValue::Integer(IntegerValue::Unsigned(8)),
+                    id(207, OperationId::new),
+                )
+                .unwrap(),
             },
             -1,
             IntegerConstantRewrite {
@@ -2742,6 +2800,20 @@ mod tests {
         assert!(matches!(
             validate_integer_evaluation_candidate(&input, &wrong),
             Err(OptimizationUnitValidationError::CandidateEvaluationMismatch)
+        ));
+
+        let foreign_fact = integer_candidate_with_left_fact(
+            &input,
+            IntegerValue::Unsigned(15),
+            Some(
+                omega_optimization_core::ScalarConstantFactIdentity::from_canonical_bytes(
+                    b"fact from another revision",
+                ),
+            ),
+        );
+        assert!(matches!(
+            validate_integer_evaluation_candidate(&input, &foreign_fact),
+            Err(OptimizationUnitValidationError::CandidateOperandFactMismatch)
         ));
     }
 

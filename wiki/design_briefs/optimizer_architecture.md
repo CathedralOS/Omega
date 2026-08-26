@@ -337,12 +337,15 @@ different schedule and therefore a different rule-set identity.
 The first Rust candidate vocabulary is intentionally closed rather than an
 opaque callback or byte payload. An exact-integer-evaluation candidate records
 its input revision, rule contract, bounded region, analysis contract,
-substitutions, provenance/fuel mapping, literal supports, cost estimate, and
-typed replacement. Its candidate identity covers that canonical declaration;
+substitutions, provenance/fuel mapping, typed operand-fact identities, cost
+estimate, and typed replacement. A literal operand-fact identity binds the
+input revision, machine, value, scalar type, exact definition site, constant
+payload, and source operation; a raw source operation ID is not sufficient
+rewrite evidence. Its candidate identity covers that canonical declaration;
 the output revision chains the input and candidate identities. The independent
-validator—not the rule—reconstructs the arithmetic, produces the new unit, and
-attaches its own validator identity. This establishes the pattern future patch
-variants must follow before they become executable.
+validator—not the rule—reconstructs each fact identity and the arithmetic,
+produces the new unit, and attaches its own validator identity. This establishes
+the pattern future patch variants must follow before they become executable.
 
 The initial pass-manager skeleton has a public entry only from
 `VerifiedPsiOptimizationUnit`; a bare reconstructible seed cannot start a run.
