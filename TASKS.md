@@ -5285,8 +5285,12 @@ Owners:
   and record siblings. Symbolic or open-ended ranges remain fenced. Non-byte
   arrays, constrained or erased fields, and non-discardable leaves still
   reject.
+  A direct `&write [u8]` root may read its exact `.len` descriptor metadata;
+  this does not inspect the referenced bytes. Other descriptor/member names,
+  fixed-array or record fields named `len`, and metadata reached through a
+  record-held slice descriptor remain ordinary content observation and reject.
   Whole-record replacement still requires an unrestricted/discardable root.
-  Observation, readable
+  Referent observation, readable
   widening, implicit `&mut` attenuation, symbolic/open-ended ranges, sum
   projection, qualified fields, invariant-bearing records, and
   bodyless/provider declarations reject with directed diagnostics. Focused

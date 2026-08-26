@@ -394,6 +394,102 @@ fn constrained_record_field_write_remains_rejected() {
 }
 
 #[test]
+fn direct_write_only_byte_slice_length_metadata_is_readable() {
+    lower_typed_trees(typed(
+        r#"
+            machine observe_length(bytes: &write [u8]) {
+                let length: u64 = bytes.len;
+            }
+        "#,
+    ))
+    .expect("the direct write-only byte-slice descriptor length is metadata, not content");
+}
+
+#[test]
+fn direct_write_only_byte_slice_other_metadata_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            machine observe_capacity(bytes: &write [u8]) {
+                let capacity: u64 = bytes.capacity;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("reads field `capacity` from write-only parameter `bytes`")
+            && rendered.contains("never grants observation"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn direct_write_only_fixed_array_length_remains_outside_slice_metadata_rung() {
+    let rendered = rendered_rejection(
+        r#"
+            machine observe_length(bytes: &write [u8; 4]) {
+                let length: u64 = bytes.len;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("reads field `len` from write-only parameter `bytes`")
+            && rendered.contains("never grants observation"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn direct_write_only_record_field_named_len_remains_content() {
+    let rendered = rendered_rejection(
+        r#"
+            data Header { len: u64; }
+
+            machine observe_length(header: &write Header) {
+                let length: u64 = header.len;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("reads field `len` from write-only parameter `header`")
+            && rendered.contains("never grants observation"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn nested_write_only_slice_descriptor_length_remains_content_driven() {
+    let rendered = rendered_rejection(
+        r#"
+            data Holder<'data> { view: &'data [u8]; }
+
+            machine observe_length<'data>(holder: &write Holder<'data>) {
+                let length: u64 = holder.view.len;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("reads field `len` from write-only parameter `holder`")
+            && rendered.contains("never grants observation"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn direct_write_only_byte_slice_content_read_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            machine observe(bytes: &write [u8], index: u64 [0..bytes.len]) {
+                let byte: u8 = bytes[index];
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("reads through index projection of write-only parameter `bytes`")
+            && rendered.contains("never observation"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
 fn direct_record_field_observation_remains_rejected() {
     let rendered = rendered_rejection(
         r#"
