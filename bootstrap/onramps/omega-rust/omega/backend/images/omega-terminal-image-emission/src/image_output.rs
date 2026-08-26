@@ -389,6 +389,15 @@ impl omega_terminal_installation_evidence::TerminalNativeFuelTransferRuntimeImag
         &self.output.final_text_bytes
     }
 
+    fn sponsor_text_offset(&self) -> usize {
+        self.artifact
+            .object()
+            .layout
+            .symbols
+            .get(self.artifact.sponsor_symbol())
+            .offset
+    }
+
     fn transfer_runtime_evidence(
         &self,
     ) -> &omega_terminal_installation_evidence::TerminalNativeFuelTransferRuntimeEvidence {
