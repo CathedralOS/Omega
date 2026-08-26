@@ -2400,6 +2400,14 @@ standard library by path.
       manifests, then make dependency projection and editing consume the same
       role projection. Do not maintain two independently parsed meanings of one
       `build.omg`.
+
+      Audit 2026-08-25: product workspace members and package-manager fixtures
+      are explicit. The remaining legacy population is primarily executable
+      samples, frozen bootstrap corpus inputs, and compiler canaries. Positive
+      projects can migrate mechanically while also replacing academic `b`
+      receiver names with `builder`; deliberately malformed build canaries need
+      case-by-case expected-diagnostic preservation so a new missing-role error
+      does not mask the behavior each canary exists to test.
 - [x] **Record the bundled-core decision** in
       `wiki/design_briefs/build_and_package_model.md`: core is welded to the
       compiler because it is the language, not because nobody wrote a manifest.
@@ -2426,11 +2434,20 @@ standard library by path.
       which the resolver contract deliberately excludes. Consuming the standard
       library currently requires authenticating and materializing roughly 9,300
       tracked files to obtain 59.
-- [ ] **Stop mirroring `filesystem_host.omg` in Rust.** `FilesystemHostOperation`
+- [x] **Stop mirroring `filesystem_host.omg` in Rust.** `FilesystemHostOperation`
       duplicates the trait's declared machines, and two `#[test]` functions in
       `psi-checked-interpreter/src/evaluator/filesystem_host_operation.rs` read
       the `.omg` source to guard the copy. Generate or consume the declaration
       instead of testing a hand-maintained mirror.
+
+      Completed 2026-08-25: the interpreter build now consumes the canonical
+      Omega declaration and generates the closed Rust operation enum,
+      declaration-order transcript tags, canonical-name lookup, and exact
+      operand/result schemas. Unsupported names, duplicate Rust projections,
+      unknown operand/result types, or noncanonical reach clauses fail the
+      build. Only evaluator policy such as host-path exposure remains
+      handwritten; the two runtime source-reading parity tests and four-way
+      catalog mirror are gone.
 
 Repository relocation (`bootstrap/onramps/omega-rust` out of `bootstrap/`,
 `compiler/` naming, `canaries` + `fixtures`) is tracked separately and depends
