@@ -19,6 +19,17 @@ impl<T: HierarchyNode> HierarchyArena<T> {
         self.nodes.get(node)
     }
 
+    /// Mutate metadata on an existing node while preserving the hierarchy.
+    pub fn update_nonstructural(&mut self, node: Handle<T>, update: impl FnOnce(&mut T)) {
+        let parent = self.nodes.get(node).parent();
+        let children = self.nodes.get(node).children();
+        update(self.nodes.get_mut(node));
+        assert!(
+            self.nodes.get(node).parent() == parent && self.nodes.get(node).children() == children,
+            "non-structural hierarchy update changed parent/child topology"
+        );
+    }
+
     /// Insert a generated root after the authored hierarchy has been frozen.
     /// Later compiler stages use this for materialized declarations (for
     /// example generic-machine specializations). Authored handles remain
