@@ -225,7 +225,35 @@ impl ExecutablePublicationReceipt {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A rejected attempt to retain terminal deployment custody in a compiler
+/// report. The complete published runnable is returned for exact recovery.
+#[derive(Debug)]
+pub struct TerminalComponentDeploymentReportError {
+    deployment: omega_component_deployment::PublishedTerminalComponentFlatOutput,
+    diagnostic: String,
+}
+
+impl TerminalComponentDeploymentReportError {
+    pub fn diagnostic(&self) -> &str {
+        &self.diagnostic
+    }
+
+    pub fn into_deployment(
+        self,
+    ) -> omega_component_deployment::PublishedTerminalComponentFlatOutput {
+        self.deployment
+    }
+}
+
+impl std::fmt::Display for TerminalComponentDeploymentReportError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic.fmt(formatter)
+    }
+}
+
+impl std::error::Error for TerminalComponentDeploymentReportError {}
+
+#[derive(Debug)]
 pub struct CompileReport {
     root_path: PathBuf,
     pub source_file_count: usize,
@@ -241,6 +269,11 @@ pub struct CompileReport {
     /// optional macOS application bundle. Non-GUI/non-Mach-O builds retain
     /// `None`; this remains distinct from the flat executable receipt.
     app_bundle_publication: Option<ExecutablePublicationReceipt>,
+    /// Complete non-clonable terminal deployment result. This is mutually
+    /// exclusive with the legacy executable receipts and retains both the
+    /// runnable installation custody and its flat publication receipt.
+    terminal_component_deployment:
+        Option<omega_component_deployment::PublishedTerminalComponentFlatOutput>,
     /// Exact target root-slot/schema/ABI-capture binding for a program-storage
     /// entry. Hosted compatibility entries and unmigrated name discovery have
     /// no such authority-bearing artifact.
@@ -278,6 +311,7 @@ impl CompileReport {
             output_kind,
             executable_publication,
             app_bundle_publication,
+            terminal_component_deployment: None,
             program_storage_entry,
             program_storage_entry_bridge,
             build_evaluation_usage,
@@ -292,6 +326,43 @@ impl CompileReport {
         } else {
             Err("compiler report retained inconsistent executable publication receipts")
         }
+    }
+
+    /// Retain one successfully published terminal deployment as the compiler
+    /// report's native output custody.
+    ///
+    /// Validation replays the installation/image/file join before the report
+    /// takes ownership. Rejection returns the complete non-clonable deployment
+    /// instead of reducing it to a path or diagnostic.
+    pub fn from_terminal_component_deployment(
+        root_path: PathBuf,
+        source_file_count: usize,
+        deployment: omega_component_deployment::PublishedTerminalComponentFlatOutput,
+        build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
+        build_observation_summary: Option<super::build_config::BuildObservationSummary>,
+    ) -> Result<Self, Box<TerminalComponentDeploymentReportError>> {
+        if let Err(error) = deployment.validate() {
+            return Err(Box::new(TerminalComponentDeploymentReportError {
+                deployment,
+                diagnostic: format!(
+                    "terminal component deployment cannot enter compiler report custody: {}",
+                    error.diagnostic()
+                ),
+            }));
+        }
+        Ok(Self {
+            root_path,
+            source_file_count,
+            wrote_output: true,
+            output_kind: CompileOutputKind::NativeExecutable,
+            executable_publication: None,
+            app_bundle_publication: None,
+            terminal_component_deployment: Some(deployment),
+            program_storage_entry: None,
+            program_storage_entry_bridge: None,
+            build_evaluation_usage,
+            build_observation_summary,
+        })
     }
 
     pub fn root_path(&self) -> &std::path::Path {
@@ -314,19 +385,38 @@ impl CompileReport {
         self.app_bundle_publication.as_ref()
     }
 
+    pub const fn terminal_component_deployment(
+        &self,
+    ) -> Option<&omega_component_deployment::PublishedTerminalComponentFlatOutput> {
+        self.terminal_component_deployment.as_ref()
+    }
+
+    /// Transfer the complete non-clonable terminal deployment result out of
+    /// this report. Legacy and non-native reports return `None`.
+    pub fn into_terminal_component_deployment(
+        self,
+    ) -> Option<omega_component_deployment::PublishedTerminalComponentFlatOutput> {
+        self.terminal_component_deployment
+    }
+
     /// Returns the exact installed flat executable only after independently
     /// replaying the complete report custody checks. Object/check-only reports
     /// and any internally drifted receipt graph fail closed.
     pub fn checked_native_executable_path(&self) -> Option<&std::path::Path> {
-        (self.output_kind == CompileOutputKind::NativeExecutable
-            && self.has_consistent_executable_publication_custody()
-            && self.has_consistent_program_storage_entry_custody())
-        .then(|| {
-            self.executable_publication
-                .as_ref()
-                .expect("consistent native report has one flat publication receipt")
-                .output_path()
-        })
+        if self.output_kind != CompileOutputKind::NativeExecutable
+            || !self.has_consistent_executable_publication_custody()
+            || !self.has_consistent_program_storage_entry_custody()
+        {
+            return None;
+        }
+        self.terminal_component_deployment
+            .as_ref()
+            .map(|deployment| deployment.receipt().output_path())
+            .or_else(|| {
+                self.executable_publication
+                    .as_ref()
+                    .map(ExecutablePublicationReceipt::output_path)
+            })
     }
 
     pub fn program_storage_entry(&self) -> Option<&super::ProgramStorageEntryPlanBinding> {
@@ -399,27 +489,42 @@ impl CompileReport {
         )
     }
 
-    /// Replays the only valid relationship between the flat executable and an
-    /// optional app-bundle copy. This checks compiler-publication custody; it
-    /// does not inspect or authorize runtime installation.
+    /// Replays the exact native publication lane. Legacy output checks the
+    /// relationship between the flat executable and optional app-bundle copy;
+    /// terminal output instead replays the retained installation/image/file
+    /// join. The two lanes are mutually exclusive.
     pub fn has_consistent_executable_publication_custody(&self) -> bool {
+        let terminal_deployment_valid = self
+            .terminal_component_deployment
+            .as_ref()
+            .is_some_and(|deployment| deployment.validate().is_ok());
         let cardinality_matches_kind = match self.output_kind {
             CompileOutputKind::CheckOnly => {
                 !self.wrote_output
                     && self.executable_publication.is_none()
                     && self.app_bundle_publication.is_none()
+                    && self.terminal_component_deployment.is_none()
             }
             CompileOutputKind::NativeExecutable => {
                 self.wrote_output
-                    && self.executable_publication.as_ref().is_some_and(|receipt| {
-                        receipt.destination == ExecutablePublicationDestination::FlatOutput
-                            && receipt.has_consistent_installation_identity()
-                    })
+                    && match (
+                        self.executable_publication.as_ref(),
+                        self.app_bundle_publication.as_ref(),
+                        self.terminal_component_deployment.as_ref(),
+                    ) {
+                        (Some(receipt), _, None) => {
+                            receipt.destination == ExecutablePublicationDestination::FlatOutput
+                                && receipt.has_consistent_installation_identity()
+                        }
+                        (None, None, Some(_)) => terminal_deployment_valid,
+                        _ => false,
+                    }
             }
             CompileOutputKind::ObjectContainer => {
                 self.wrote_output
                     && self.executable_publication.is_none()
                     && self.app_bundle_publication.is_none()
+                    && self.terminal_component_deployment.is_none()
             }
         };
         if !cardinality_matches_kind {
@@ -554,6 +659,7 @@ mod tests {
             output_kind,
             executable_publication: flat,
             app_bundle_publication: bundle,
+            terminal_component_deployment: None,
             program_storage_entry: None,
             program_storage_entry_bridge: None,
             build_evaluation_usage: None,
@@ -726,7 +832,12 @@ mod tests {
             native.checked_native_executable_path(),
             Some(std::path::Path::new("build/main")),
         );
-        let mut changed_kind = native.clone();
+        let mut changed_kind = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(flat.clone()),
+            Some(bundle.clone()),
+        );
         changed_kind.output_kind = CompileOutputKind::ObjectContainer;
         assert!(changed_kind.checked_native_executable_path().is_none());
         let check_only = report(false, CompileOutputKind::CheckOnly, None, None);

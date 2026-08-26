@@ -9,9 +9,10 @@ use omega_calling_conventions::{
     evaluate_ordinary_boundary_entry_plan, validate_entry_stack_domain_closure,
 };
 use omega_compiler::{
-    CompileOptions, TerminalComponentDeploymentInputs, TerminalComponentDeploymentOutputError,
-    TerminalComponentDeploymentOutputStage, TerminalComponentProviderSettlement,
-    compile_to_checked, deploy_and_write_terminal_component_output, stage_terminal_component,
+    CompileOptions, CompileReport, TerminalComponentDeploymentInputs,
+    TerminalComponentDeploymentOutputError, TerminalComponentDeploymentOutputStage,
+    TerminalComponentProviderSettlement, compile_to_checked,
+    deploy_and_write_terminal_component_output, stage_terminal_component,
     write_finalized_terminal_component_output,
 };
 use omega_component_deployment::{
@@ -861,6 +862,45 @@ fn compiler_deployment_transaction_requires_real_installation_and_retains_failur
     published
         .validate()
         .expect("compiler deployment transaction receipt should replay");
+
+    std::fs::write(&expected_path, b"drifted before report retention")
+        .expect("drift terminal output before report retention");
+    let report_error = CompileReport::from_terminal_component_deployment(
+        options.root_path.clone(),
+        1,
+        published,
+        None,
+        None,
+    )
+    .expect_err("compiler report must reject drifted terminal output without losing custody");
+    assert!(report_error.diagnostic().contains("bytes differ"));
+    let drifted = report_error.into_deployment();
+    let (runnable, receipt) = drifted.into_parts();
+    drop(receipt);
+    let repaired = write_finalized_terminal_component_output(&options, runnable)
+        .expect("recovered runnable should repair output before report retention");
+    let report = CompileReport::from_terminal_component_deployment(
+        options.root_path.clone(),
+        1,
+        repaired,
+        None,
+        None,
+    )
+    .expect("compiler report should retain the repaired terminal deployment");
+    assert!(report.executable_publication().is_none());
+    assert!(report.app_bundle_publication().is_none());
+    assert_eq!(
+        report.checked_native_executable_path(),
+        Some(expected_path.as_path())
+    );
+    assert!(report.terminal_component_deployment().is_some());
+    let retained = report
+        .into_terminal_component_deployment()
+        .expect("terminal report should transfer complete deployment custody");
+    assert_eq!(retained.runnable().installed_code(), installed_identity);
+    retained
+        .validate()
+        .expect("deployment recovered from compiler report should replay");
 }
 
 #[test]
