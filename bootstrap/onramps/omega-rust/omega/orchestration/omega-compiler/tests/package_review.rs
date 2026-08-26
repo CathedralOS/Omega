@@ -1174,8 +1174,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 55);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 15);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 56);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 16);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -3570,6 +3570,61 @@ crashes Abort
     assert_eq!(signature.parameters().len(), 1);
     assert_eq!(signature.contracts().len(), 1);
     assert_eq!(signature.published_crash().len(), 1);
+}
+
+#[test]
+fn review_projects_trait_requirement_identity_machine_parameter() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write("main.omg", "pub trait LocalSlot<machine Requirement> { }\n");
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("public requirement-identity fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("closed requirement-identity parameter should project");
+    let local_slot = review
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path().contains("LocalSlot"))
+        .expect("LocalSlot review row");
+    let [parameter] = local_slot.type_parameters() else {
+        panic!("one requirement-identity machine parameter")
+    };
+    assert!(matches!(
+        parameter.kind(),
+        PackageReviewTypeParameterKind::Machine(
+            PackageReviewMachineParameterContract::RequirementIdentity
+        )
+    ));
+    assert_eq!(
+        review.canonical_review_bytes().unwrap(),
+        project_checked_package_review(&checked)
+            .unwrap()
+            .canonical_review_bytes()
+            .unwrap(),
+    );
+    assert_eq!(
+        review.canonical_rows().unwrap(),
+        project_checked_package_review(&checked)
+            .unwrap()
+            .canonical_rows()
+            .unwrap(),
+    );
 }
 
 #[test]

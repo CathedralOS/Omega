@@ -5300,10 +5300,11 @@ Owners:
   source-backed qualified path, and resolution accepts exactly one
   signature-free `Trait::requirement` declaration while rejecting ordinary
   types, concrete machines, unknown traits, and overloads. That distinct kind
-  survives syntax snapshots, resolved and typed trees, checked proof-contract
-  traversal, and private package-review rejection. Public package review still
-  needs its closed representation before the core
-  `PrivateCallbackSlot<machine Requirement>` declaration can be published.
+  survives syntax snapshots, resolved and typed trees, and checked
+  proof-contract traversal. Public package review v56
+  now retains it as a closed payload-free parameter kind, distinct from both
+  structural and nominal machine contracts. The core
+  `PrivateCallbackSlot<machine Requirement>` declaration can now be published.
   The declaration shape is now settled. A target package declares one stable
   typed slot as an explicitly named
   `Layout satisfies PrivateCallbackSlot<Trait::requirement>` conformance, and
