@@ -4978,8 +4978,13 @@ Remaining:
   Root admission now retains the selected native realization against the exact
   logical-fuel demand, provision, grant, installed-code context, and artifact.
   Existing fixed roots automatically produce the exact fixed realization;
-  dynamic admission cannot proceed before final metered-artifact evidence, and
-  fixed/interpreted paths reject stray dynamic evidence. Runtime root custody
+  dynamic plan construction now rejects transfer identities that differ from
+  the admitted target recipe. Dynamic admission requires both final
+  metered-artifact attribution and sealed installed executable-transfer custody;
+  that custody deliberately has no public constructor until the physical
+  transfer/runtime replay lands, so opaque validation receipt identifiers cannot
+  admit an incomplete dynamic path. Fixed/interpreted paths reject stray dynamic
+  evidence. Runtime root custody
   retains the exact sealed value, while the address-free installed root manifest
   publishes its kind and replay-bound fingerprint. Terminal installation format
   36 now takes the explicit dual-coordinate route: ordinary function, effect,

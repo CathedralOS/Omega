@@ -236,9 +236,10 @@ fn validate_native_fuel_context_layout(
     Ok(())
 }
 
-/// Target-admitted dynamic meter contract. The validation receipt covers the
-/// compare-before-subtract implementation, exact unpaid-site transfer, opaque
-/// activation-state preservation, and resume at the failed pre-charge check.
+/// Pre-install dynamic meter selection. The transfer identity must agree with
+/// the admitted target recipe. The validation receipt remains plan metadata;
+/// it cannot authorize installed execution without separately constructed
+/// executable transfer-runtime custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DynamicNativeFuelMeterPlan {
     target_policy: AdmittedNativeFuelTargetPolicy,
@@ -250,22 +251,29 @@ pub struct DynamicNativeFuelMeterPlan {
 }
 
 impl DynamicNativeFuelMeterPlan {
-    pub const fn from_admitted_target_policy(
+    pub fn from_admitted_target_policy(
         target_policy: AdmittedNativeFuelTargetPolicy,
         schedule: psi_core::FuelScheduleIdentity,
         meter: NativeFuelMeterPlanId,
         exhaustion_transfer: FuelExhaustionTransferPlanId,
         sponsor_path: SuspensionFreeFixedFuelProvision,
         validation_receipt: DynamicFuelMeterValidationReceiptId,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        if exhaustion_transfer.normalized_identity()
+            != target_policy.projection().transfer_plan_identity
+        {
+            return Err(ExternalRootDiagnostic(
+                "dynamic native fuel transfer does not match the admitted target policy".into(),
+            ));
+        }
+        Ok(Self {
             target_policy,
             schedule,
             meter,
             exhaustion_transfer,
             sponsor_path,
             validation_receipt,
-        }
+        })
     }
 
     pub const fn target(&self) -> NativeTarget {
@@ -278,6 +286,33 @@ impl DynamicNativeFuelMeterPlan {
 
     pub const fn sponsor_path(&self) -> &SuspensionFreeFixedFuelProvision {
         &self.sponsor_path
+    }
+}
+
+/// Installed custody for the executable exhaustion-transfer runtime. This
+/// value deliberately has no public constructor until target-runtime emission,
+/// final-byte replay, and sponsor-path installation can establish every field.
+/// Its presence in the final join makes opaque validation receipt identifiers
+/// insufficient to admit dynamic execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledNativeFuelTransferRuntime {
+    plan: DynamicNativeFuelMeterPlan,
+    installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    artifact: ArtifactId,
+    fingerprint: u64,
+}
+
+impl InstalledNativeFuelTransferRuntime {
+    pub const fn fingerprint(&self) -> u64 {
+        self.fingerprint
+    }
+
+    fn matches(&self, plan: &DynamicNativeFuelMeterPlan, installed_code: &InstalledCode) -> bool {
+        self.plan == *plan
+            && self.installed_code == installed_code.identity()
+            && self.installed_code_context == installed_code.receipt_context()
+            && self.artifact == installed_code.artifact()
     }
 }
 
@@ -860,8 +895,9 @@ pub fn admit_native_fuel_realization(
 }
 
 /// Installed custody for the selected native realization. Dynamic selection
-/// is incomplete without the exact installed attribution binding; fixed and
-/// interpreted selections reject a stray binding.
+/// is incomplete without both exact installed attribution and executable
+/// transfer-runtime bindings; fixed and interpreted selections reject either
+/// stray binding.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledNativeFuelRealization {
     selected: ValidatedNativeFuelRealization,
@@ -869,6 +905,7 @@ pub struct InstalledNativeFuelRealization {
     installed_code_context: InstalledCodeContext,
     artifact: ArtifactId,
     dynamic_attribution: Option<InstalledDynamicFuelAttributionPlan>,
+    dynamic_transfer_runtime: Option<InstalledNativeFuelTransferRuntime>,
     fingerprint: u64,
 }
 
@@ -883,6 +920,10 @@ impl InstalledNativeFuelRealization {
 
     pub const fn dynamic_attribution(&self) -> Option<&InstalledDynamicFuelAttributionPlan> {
         self.dynamic_attribution.as_ref()
+    }
+
+    pub const fn dynamic_transfer_runtime(&self) -> Option<&InstalledNativeFuelTransferRuntime> {
+        self.dynamic_transfer_runtime.as_ref()
     }
 
     pub const fn fingerprint(&self) -> u64 {
@@ -915,6 +956,7 @@ pub fn bind_installed_native_fuel_realization(
     granted_units: u64,
     installed_code: &InstalledCode,
     dynamic_attribution: Option<InstalledDynamicFuelAttributionPlan>,
+    dynamic_transfer_runtime: Option<InstalledNativeFuelTransferRuntime>,
 ) -> Result<InstalledNativeFuelRealization, ExternalRootDiagnostic> {
     if !selected.matches_resource(demand, provision, granted_units) {
         return Err(ExternalRootDiagnostic(
@@ -924,9 +966,12 @@ pub fn bind_installed_native_fuel_realization(
     }
     match selected.kind {
         NativeFuelRealizationKind::FixedProvision => {
-            if dynamic_attribution.is_some() || selected.dynamic_plan.is_some() {
+            if dynamic_attribution.is_some()
+                || dynamic_transfer_runtime.is_some()
+                || selected.dynamic_plan.is_some()
+            {
                 return Err(ExternalRootDiagnostic(
-                    "fixed native fuel provision cannot retain dynamic attribution".into(),
+                    "fixed native fuel provision cannot retain dynamic execution evidence".into(),
                 ));
             }
         }
@@ -941,14 +986,30 @@ pub fn bind_installed_native_fuel_realization(
             {
                 return Err(ExternalRootDiagnostic(
                     "dynamic fuel selection and attribution do not bind the exact installed realization"
+                    .into(),
+                ));
+            }
+            let transfer_runtime = dynamic_transfer_runtime.as_ref().ok_or_else(|| {
+                ExternalRootDiagnostic(
+                    "dynamic native fuel realization lacks installed executable exhaustion-transfer runtime evidence"
+                        .into(),
+                )
+            })?;
+            if !transfer_runtime.matches(attribution.plan(), installed_code) {
+                return Err(ExternalRootDiagnostic(
+                    "dynamic fuel transfer runtime does not bind the exact plan and installed realization"
                         .into(),
                 ));
             }
         }
         NativeFuelRealizationKind::Interpreted => {
-            if dynamic_attribution.is_some() || selected.dynamic_plan.is_some() {
+            if dynamic_attribution.is_some()
+                || dynamic_transfer_runtime.is_some()
+                || selected.dynamic_plan.is_some()
+            {
                 return Err(ExternalRootDiagnostic(
-                    "interpreted fuel realization cannot retain native dynamic attribution".into(),
+                    "interpreted fuel realization cannot retain native dynamic execution evidence"
+                        .into(),
                 ));
             }
             if selected
@@ -967,6 +1028,7 @@ pub fn bind_installed_native_fuel_realization(
         &selected,
         installed_code,
         dynamic_attribution.as_ref(),
+        dynamic_transfer_runtime.as_ref(),
     );
     Ok(InstalledNativeFuelRealization {
         selected,
@@ -974,6 +1036,7 @@ pub fn bind_installed_native_fuel_realization(
         installed_code_context: installed_code.receipt_context(),
         artifact: installed_code.artifact(),
         dynamic_attribution,
+        dynamic_transfer_runtime,
         fingerprint,
     })
 }
@@ -982,6 +1045,7 @@ fn fingerprint_installed_native_fuel_realization(
     selected: &ValidatedNativeFuelRealization,
     installed_code: &InstalledCode,
     dynamic_attribution: Option<&InstalledDynamicFuelAttributionPlan>,
+    dynamic_transfer_runtime: Option<&InstalledNativeFuelTransferRuntime>,
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.installed-native-fuel-realization.v1");
@@ -1003,6 +1067,9 @@ fn fingerprint_installed_native_fuel_realization(
     }
     if let Some(attribution) = dynamic_attribution {
         hash.u64(attribution.fingerprint());
+    }
+    if let Some(transfer_runtime) = dynamic_transfer_runtime {
+        hash.u64(transfer_runtime.fingerprint());
     }
     hash.finish()
 }
@@ -1238,6 +1305,19 @@ mod tests {
             .expect("exact fixed/suspension join");
         let profile = TargetProfile::WindowsX64;
         let target = profile.native_target();
+        let mismatched_transfer = DynamicNativeFuelMeterPlan::from_admitted_target_policy(
+            x86_target_policy(profile),
+            schedule(),
+            id(24, NativeFuelMeterPlanId::from_normalized_identity),
+            id(25, FuelExhaustionTransferPlanId::from_normalized_identity),
+            sponsor_path.clone(),
+            id(
+                27,
+                DynamicFuelMeterValidationReceiptId::from_normalized_identity,
+            ),
+        )
+        .expect_err("an opaque receipt cannot hide transfer-plan identity drift");
+        assert!(mismatched_transfer.0.contains("target policy"));
         let plan = DynamicNativeFuelMeterPlan::from_admitted_target_policy(
             x86_target_policy(profile),
             schedule(),
@@ -1248,7 +1328,8 @@ mod tests {
                 27,
                 DynamicFuelMeterValidationReceiptId::from_normalized_identity,
             ),
-        );
+        )
+        .expect("target policy and exhaustion transfer identity agree");
         let machine = psi_core::MachineId::new(1).unwrap();
         let rows = vec![
             TerminalFuelAttributionEvidence {
@@ -1374,6 +1455,22 @@ mod tests {
         )
         .expect_err("a target meter plan cannot cross an identical native tuple's profile");
         assert!(wrong_target.0.contains("selected target"));
+
+        let missing_transfer_runtime = bind_installed_native_fuel_realization(
+            realized,
+            &runtime_demand,
+            runtime_provision,
+            3,
+            &installed,
+            Some(installed_attribution),
+            None,
+        )
+        .expect_err("installed charge attribution alone is not an executable transfer path");
+        assert!(
+            missing_transfer_runtime
+                .0
+                .contains("executable exhaustion-transfer runtime")
+        );
     }
 
     #[test]

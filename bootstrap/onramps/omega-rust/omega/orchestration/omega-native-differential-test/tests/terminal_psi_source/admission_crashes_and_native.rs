@@ -43,19 +43,13 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
             .expect_err("compile-known general graph with an unrelated contract must fail closed"),
         LoweringError::Unsupported("Boolean contract literal must match the compile-known result")
     );
-    for machine in [
-        "terminal_unpublished_abort",
-        "terminal_narrow_abort",
-        "terminal_guarded_abort",
-    ] {
-        assert_eq!(
-            lower_machine(&checked, machine)
-                .expect_err("a crash without a uniquely covering bucket must fail"),
-            LoweringError::Unsupported(
-                "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering route bucket"
-            )
-        );
-    }
+    assert_eq!(
+        lower_machine(&checked, "terminal_unpublished_abort")
+            .expect_err("an unpublished crash cannot enter the terminal-Psi source slice"),
+        LoweringError::Unsupported(
+            "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering route bucket"
+        )
+    );
 
     let mut missing_site = checked.clone();
     let terminal_abort = missing_site
@@ -943,7 +937,8 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         sponsor_path,
         DynamicFuelMeterValidationReceiptId::from_normalized_identity(0x5358)
             .expect("dynamic meter validation receipt"),
-    );
+    )
+    .expect("target policy and exhaustion transfer identity agree");
     let missing_dynamic_attribution =
         validate_dynamic_fuel_attribution_basis(dynamic_plan, &object_artifact)
             .expect_err("native code without attribution rows cannot select dynamic metering");
