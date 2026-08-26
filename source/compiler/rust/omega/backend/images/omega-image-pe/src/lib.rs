@@ -25,7 +25,7 @@ pub fn emit_pe_x86_64_executable(
     mut image: FinalImage,
     subsystem: u16,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
-    let import_thunks = install_import_thunks(&mut image);
+    let import_thunks = install_import_thunks(&mut image, subsystem)?;
     let initial_sections = plan_pe_sections(&image, 0);
     let import_table = build_import_table(&import_thunks, initial_sections.rdata_rva);
     let sections = plan_pe_sections(&image, import_table.bytes.len());

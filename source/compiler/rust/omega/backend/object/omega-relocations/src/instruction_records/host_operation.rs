@@ -10,7 +10,9 @@ use omega_calling_conventions::{
     HostAbiPlan, HostBinding, HostBindingMechanism, HostImportLocator, HostOperationKey,
     PlatformCallData,
 };
-use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
+use omega_object_file::{
+    RelocationRecord, object_symbol_handle_by_foreign_locator, object_symbol_handle_by_name,
+};
 use omega_target_operations::{InstructionOperand, SelectedInstructionKind};
 use psi_arena::HandleSpan;
 use psi_diagnostics::Diagnostic;
@@ -34,7 +36,7 @@ pub(super) fn collect_host_operation_relocations(
         context.selected_text_offset,
         context.relocation_plan,
     );
-    collect_host_operation_call_relocation(context, operation_key, operands);
+    collect_host_operation_call_relocation(context, operation_key, operands)?;
     Ok(true)
 }
 
@@ -131,16 +133,28 @@ fn collect_host_operation_call_relocation(
     context: &mut InstructionRelocationContext<'_, '_>,
     operation_key: omega_calling_conventions::HostOperationKey,
     operands: HandleSpan<InstructionOperand>,
-) {
+) -> Result<(), Diagnostic> {
     let Some(binding) = find_host_binding(context.input, operation_key) else {
-        return;
+        return Ok(());
     };
-    let HostBindingMechanism::Import {
-        locator: HostImportLocator::StringBackedBootstrap { symbol, .. },
-    } = &binding.mechanism
-    else {
-        return;
+    let HostBindingMechanism::Import { locator } = &binding.mechanism else {
+        return Ok(());
     };
+    let symbol_handle = match locator {
+        HostImportLocator::StringBackedBootstrap { symbol, .. } => {
+            object_symbol_handle_by_name(&context.input.object, symbol.as_ref())
+        }
+        HostImportLocator::Normalized(locator) => {
+            object_symbol_handle_by_foreign_locator(&context.input.object, locator)
+        }
+    };
+    if !symbol_handle.is_valid() {
+        return Err(Diagnostic::error(format!(
+            "cannot plan relocation for selected host operation `{}.{}` without one exact import symbol",
+            operation_key.capability_name(),
+            operation_key.operation_name(),
+        )));
+    }
     let plan = binding.call_plan();
     let authored_import = matches!(
         operation_key.capability,
@@ -171,10 +185,11 @@ fn collect_host_operation_call_relocation(
                 plan,
             ),
             byte_width: external_call_relocation_width(context.input.target.architecture),
-            symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
+            symbol_handle,
             addend: 0,
             kind: external_call_relocation_kind(context.input.target.architecture),
         });
+    Ok(())
 }
 
 #[cfg(test)]

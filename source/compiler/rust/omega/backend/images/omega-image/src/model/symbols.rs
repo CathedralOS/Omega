@@ -1,4 +1,5 @@
 use omega_object_file::SymbolKind;
+use omega_target::NormalizedForeignLocator;
 use psi_arena::{Arena, Handle};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,8 +76,20 @@ pub enum FinalImageSection {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct FinalImageImport {
     pub symbol_handle: FinalImageSymbolHandle,
-    /// Library the import's binding named; empty = per-target catalog lookup.
-    pub library: String,
+    /// Exact object-plan import coordinates. Normalized coordinates stay
+    /// atomic across final-image layout and are interpreted only by their
+    /// matching object-format emitter.
+    pub import: FinalImageImportPlan,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum FinalImageImportPlan {
+    #[default]
+    None,
+    StringBackedBootstrap {
+        library: String,
+    },
+    Normalized(NormalizedForeignLocator),
 }
 
 #[cfg(test)]
