@@ -3,8 +3,13 @@
 //! Only normalized target and terminal-installation facts enter this crate;
 //! source-shaped representations and legacy operation graphs are absent.
 
+mod machine_effects;
 mod native_fuel_runtime;
 mod register_model;
+pub use machine_effects::{
+    Aarch64TerminalMachineEffectCatalogValidationError, aarch64_terminal_machine_effect_catalog,
+    validate_aarch64_terminal_machine_effect_catalog,
+};
 pub use native_fuel_runtime::{
     Aarch64NativeFuelTransferRuntimeEncoding, encode_native_fuel_transfer_runtime,
 };

@@ -1157,6 +1157,31 @@ dependency.
   peephole, and state-footprint validation. Encoders reject undeclared implicit
   state.
 
+  Current slice: `omega-terminal-selected-instructions` now owns a closed v1
+  target machine-effect catalog vocabulary, and the two clean Terminal ISA
+  owners publish and semantically validate catalogs for all eight currently
+  admitted selected kinds. Each declaration binds its exact register-
+  constraint key, explicit no-memory/no-trap/no-call/no-cleanup status, control
+  barrier status, stable target-alternative keys, and honest size/latency
+  knowledge. AArch64 `MaterializeI64` is encoder-resolved rather than assumed
+  to be one instruction. x86 branch displacement and register-dependent forms
+  remain encoder-resolved. x86 exact subtraction publishes four ordered,
+  applicability-qualified pseudo alternatives and retains the constraint
+  row's RFLAGS clobber; AArch64 publishes one flag-transparent SUB alternative.
+
+  The new `omega-machine-optimizer` independently computes and replays an
+  immutable pre-allocation sidecar from the sealed validated selected-analysis
+  boundary. Every row retains selected instruction kind and payload, constraint
+  key, exact architectural unit uses/defs/clobbers, proof/fuel provenance,
+  effect declarations, and all legal target alternatives. Its identity binds
+  the selected plan, optimization unit, fuel schedule, native target,
+  register-environment/catalog roots, complete ordered rows, and counts. Opt-in
+  orchestration can stage the sidecar by borrow and independently revalidate
+  its custody; it grants no rewrite, home, emission, or publication authority.
+  Remaining to close: a strict artifact codec, complete memory/trap/call/
+  cleanup vocabularies as selected IR admits them, post-home physical operand
+  write footprints, alternative choice receipts, and encoder enforcement.
+
 - **OPT-PRE-RA-MACHINE.** Add machine copy propagation, cheap rematerialization
   hints, and instruction-alternative selection before allocation.
 

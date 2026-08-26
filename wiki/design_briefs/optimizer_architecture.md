@@ -1142,6 +1142,35 @@ memory effects, trap behavior, and Terminal Psi provenance. A peephole cannot
 erase an instruction merely because its register result is dead when it also
 has an effect, trap, fuel charge, cleanup, or observable state transition.
 
+The first implemented machine layer is deliberately a sidecar over the sealed
+selected CFG, not a second mutable instruction IR. Target-owned catalogs name
+all eight currently admitted selected semantics and bind each to its exact
+register-constraint row, explicit effect classifications, control-barrier
+status, ordered target alternatives, and size/latency knowledge. The generic
+structural validator checks roster and applicability closure; x86-64 and
+AArch64 validators then compare the whole catalog to their canonical target
+facts.
+
+`omega-machine-optimizer` walks ordinary selected instructions followed by
+each selected terminator and independently reconstructs the same per-program
+effect plan. The plan retains full proof-bearing instruction payloads,
+architectural unit uses/defs/clobbers, Terminal Psi operation/value/edge/
+obligation provenance, logical-fuel settlements, and every currently legal
+target alternative. It is rooted in the selected-plan, optimization-unit,
+fuel-schedule, target-register-environment, register-constraint-catalog, and
+machine-effect-catalog identities. This is pre-allocation analysis authority
+only: explicit VReg operands have no physical write footprint until homes are
+joined, and no alternative is chosen here.
+
+Target alternatives state uncertainty instead of guessing. AArch64 arbitrary
+i64 materialization is encoder-resolved because it may expand to a MOVZ/MOVN/
+MOVK sequence. x86 branch and register-dependent forms remain encoder-resolved.
+The x86 exact-subtract pseudo exposes ordered alias-safe cases, including the
+right-alias case only when the left input is distinct, and carries the RFLAGS
+clobber from its constraint row. AArch64 exposes one flag-transparent SUB
+alternative. A later home-aware choice must select exactly one applicable
+alternative and prove its concrete physical footprint before encoding.
+
 ## Decision policy, search, and ML
 
 Mechanism answers **what transformations are legal**. Policy answers **which

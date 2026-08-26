@@ -13,6 +13,7 @@ omega-calling-conventions = { path = "../../../foundation/omega-calling-conventi
 omega-register-model = { path = "../../../representations/omega-register-model" }
 omega-target = { path = "../../../foundation/omega-target" }
 omega-terminal-installation-evidence = { path = "../../../representations/omega-terminal-installation-evidence" }
+omega-terminal-selected-instructions = { path = "../../../representations/omega-terminal-selected-instructions" }
 psi-diagnostics = { path = "../../../../psi/foundation/psi-diagnostics" }
 
 [dev-dependencies]

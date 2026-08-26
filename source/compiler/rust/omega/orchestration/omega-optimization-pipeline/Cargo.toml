@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-lowering-optimizer = { path = "../../optimization/omega-lowering-optimizer" }
+omega-machine-optimizer = { path = "../../optimization/omega-machine-optimizer" }
 omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
 omega-psi-optimizer = { path = "../../optimization/omega-psi-optimizer" }
 omega-regalloc = { path = "../../optimization/omega-regalloc" }

@@ -1,0 +1,19 @@
+[package]
+name = "omega-machine-optimizer"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_machine_optimizer"
+path = "src/lib.rs"
+
+[dependencies]
+omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
+omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
+omega-regalloc = { path = "../omega-regalloc" }
+omega-register-model = { path = "../../representations/omega-register-model" }
+omega-target = { path = "../../foundation/omega-target" }
+omega-terminal-selected-instructions = { path = "../../representations/omega-terminal-selected-instructions" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+sha2 = "0.10.9"

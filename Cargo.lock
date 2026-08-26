@@ -1039,6 +1039,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-machine-optimizer"
+version = "0.1.0"
+dependencies = [
+ "omega-optimization-core",
+ "omega-optimization-unit",
+ "omega-regalloc",
+ "omega-register-model",
+ "omega-target",
+ "omega-terminal-selected-instructions",
+ "psi-core",
+ "sha2",
+]
+
+[[package]]
 name = "omega-machine-program"
 version = "0.1.0"
 dependencies = [
@@ -1140,6 +1154,7 @@ name = "omega-optimization-pipeline"
 version = "0.1.0"
 dependencies = [
  "omega-lowering-optimizer",
+ "omega-machine-optimizer",
  "omega-optimization-core",
  "omega-optimization-unit",
  "omega-psi-optimizer",
@@ -1666,6 +1681,7 @@ dependencies = [
  "omega-register-model",
  "omega-target",
  "omega-terminal-installation-evidence",
+ "omega-terminal-selected-instructions",
  "psi-core",
  "psi-diagnostics",
 ]
@@ -1678,6 +1694,7 @@ dependencies = [
  "omega-register-model",
  "omega-target",
  "omega-terminal-installation-evidence",
+ "omega-terminal-selected-instructions",
  "psi-core",
  "psi-diagnostics",
 ]
