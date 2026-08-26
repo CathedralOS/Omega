@@ -7915,10 +7915,18 @@ boundary without its corresponding checked law.
   non-UTF-8 coordinates are never reconstructed as text; locator mutation or an
   ambiguous side-table row rejects. Specialized open/create and runtime-I/O
   adapters remain explicitly string-backed and fail closed on normalized rows.
+  Versioned ELF locators now pass object planning with exact deduplication and
+  reach a canonical final-image request retaining their Linux profile,
+  normalized identity, raw object/symbol/version bytes, symbol handle, and every
+  relocation site. Wrong cases, target drift, duplicate handles, reused or
+  identity-colliding locators, and missing physical plans reject. Runnable ELF
+  emission remains fail closed before section planning or byte mutation: no
+  target/deployment-owned loader plan yet carries the exact `PT_INTERP` bytes,
+  and partial symbol-version sections would not constitute a dynamic image.
   The existing source evaluator is isolated behind an explicitly temporary
   `StringBackedImportBootstrap` variant. Source `via` evaluation, exact fixed-
-  array widths, and versioned-ELF symbol-version planning/emission remain
-  engineering joins.
+  array widths, and complete dynamic-ELF symbol-version emission with an exact
+  loader plan remain engineering joins.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no

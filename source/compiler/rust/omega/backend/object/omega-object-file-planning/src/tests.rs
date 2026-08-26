@@ -227,7 +227,7 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
 }
 
 #[test]
-fn pe_ordinal_and_name_mutation_remain_distinct_while_versioned_elf_fails_closed() {
+fn normalized_pe_and_versioned_elf_locators_plan_atomically() {
     let target = NativeTarget::windows_x64();
     let machine_symbol = SymbolHandle::invalid();
     let entry_function_identity = MachineFunctionIdentity::source(valid_source_key(2));
@@ -310,38 +310,91 @@ fn pe_ordinal_and_name_mutation_remain_distinct_while_versioned_elf_fails_closed
 
     let elf_locator = omega_target::normalize_foreign_locator(
         omega_target::ForeignLocatorCandidate::ElfVersioned {
-            object: b"libc.so.6".to_vec(),
-            symbol: b"memcpy".to_vec(),
-            version: b"GLIBC_2.14".to_vec(),
+            object: b"libc\xff.so.6".to_vec(),
+            symbol: b"memcpy\xfe".to_vec(),
+            version: b"GLIBC_2.14\xfd".to_vec(),
         },
         omega_target::TargetProfile::LinuxX64,
     )
     .expect("valid versioned ELF locator");
-    let mut elf_host_abi = empty_host_abi(NativeTarget::linux_x64());
-    elf_host_abi.bindings.insert(HostBinding {
-        mechanism: HostBindingMechanism::Import {
-            locator: HostImportLocator::Normalized(elf_locator),
+    let mutated_version = omega_target::normalize_foreign_locator(
+        omega_target::ForeignLocatorCandidate::ElfVersioned {
+            object: b"libc\xff.so.6".to_vec(),
+            symbol: b"memcpy\xfe".to_vec(),
+            version: b"GLIBC_2.15\xfd".to_vec(),
         },
-        ..retained
-    });
-    let diagnostic = build_object_plan(ObjectPlanningInput {
-        target: NativeTarget::linux_x64(),
+        omega_target::TargetProfile::LinuxX64,
+    )
+    .expect("valid mutated versioned ELF locator");
+    let elf_target = NativeTarget::linux_x64();
+    let elf_retained = build_host_abi_plan(elf_target)
+        .bindings
+        .iter()
+        .next()
+        .map(|(_, binding)| binding.clone())
+        .expect("Linux target binding");
+    let mut elf_host_abi = empty_host_abi(elf_target);
+    for locator in [&elf_locator, &elf_locator, &mutated_version] {
+        elf_host_abi.bindings.insert(HostBinding {
+            mechanism: HostBindingMechanism::Import {
+                locator: HostImportLocator::Normalized(locator.clone()),
+            },
+            ..elf_retained.clone()
+        });
+    }
+    let mut elf_encoded_machine = EncodedMachinePlan::with_capacity(elf_target, 1, 0, 0);
+    elf_encoded_machine.code.byte_count = 8;
+    elf_encoded_machine
+        .code
+        .functions
+        .insert(EncodedMachineFunction {
+            symbol: Arc::from(omega_object_file::entry_symbol_name(elf_target)),
+            identity: entry_function_identity,
+            byte_offset: 0,
+            byte_count: 8,
+            instructions: Default::default(),
+        });
+    let elf_object = build_object_plan(ObjectPlanningInput {
+        target: elf_target,
         host_abi: &elf_host_abi,
         layouts: &layouts,
         entry_machine_symbol: machine_symbol,
         entry_machine_name: "Main",
         entry_function_identity,
-        encoded_machine: &encoded_machine,
+        encoded_machine: &elf_encoded_machine,
         data: &data,
         runtime_frame_size: 0,
         runtime_frame_alignment: 1,
     })
-    .expect_err("versioned ELF must remain fail-closed at its unsettled emitter boundary");
-    assert!(
-        diagnostic
-            .message
-            .contains("symbol-version emission semantics")
+    .expect("versioned ELF coordinates should reach object planning atomically");
+    assert_eq!(
+        elf_object.layout.normalized_imports.len(),
+        2,
+        "an exact duplicate locator must share one object import symbol"
     );
+    for locator in [&elf_locator, &mutated_version] {
+        assert!(object_symbol_handle_by_foreign_locator(&elf_object, locator).is_valid());
+    }
+    assert_ne!(
+        object_symbol_handle_by_foreign_locator(&elf_object, &elf_locator),
+        object_symbol_handle_by_foreign_locator(&elf_object, &mutated_version),
+        "a changed version coordinate must select a distinct object symbol"
+    );
+
+    let target_drift = build_object_plan(ObjectPlanningInput {
+        target: NativeTarget::linux_arm64(),
+        host_abi: &elf_host_abi,
+        layouts: &layouts,
+        entry_machine_symbol: machine_symbol,
+        entry_machine_name: "Main",
+        entry_function_identity,
+        encoded_machine: &elf_encoded_machine,
+        data: &data,
+        runtime_frame_size: 0,
+        runtime_frame_alignment: 1,
+    })
+    .expect_err("versioned ELF profile/object target drift must reject");
+    assert!(target_drift.message.contains("but object planning targets"));
 }
 
 #[test]

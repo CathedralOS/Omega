@@ -16,7 +16,7 @@ mod tests;
 
 use entry::elf_entry_address;
 use headers::{write_data_program_header, write_elf_header, write_text_program_header};
-use imports::canonical_referenced_imports;
+use imports::{ElfImportLocator, canonical_referenced_imports};
 use sections::plan_elf_sections;
 
 // ELF e_machine values.
@@ -51,12 +51,27 @@ fn emit_elf_executable(
 ) -> Result<ExecutableImageOutput, Diagnostic> {
     let imports = canonical_referenced_imports(&image)?;
     if let Some(import) = imports.first() {
-        return Err(Diagnostic::error(format!(
-            "ELF direct image relocation references unknown symbol `{}`; canonical dynamic import request names library `{}` at {} relocation site(s), but ELF loader binding is not implemented",
-            import.symbol,
-            import.library,
-            import.relocations.len(),
-        )));
+        let message = match &import.locator {
+            ElfImportLocator::StringBackedBootstrap { library, symbol } => format!(
+                "ELF direct image relocation references unknown symbol `{symbol}`; canonical dynamic import request names library `{library}` at {} relocation site(s), but ELF loader binding is not implemented",
+                import.relocations.len(),
+            ),
+            ElfImportLocator::Versioned {
+                target_profile,
+                normalized_identity,
+                object,
+                symbol,
+                version,
+            } => format!(
+                "versioned ELF foreign locator 0x{normalized_identity:016x} for target `{}` reached final emission with object {}, symbol {}, version {}, and {} exact relocation site(s); runnable dynamic ELF emission remains fail-closed before image mutation because no target-owned ELF loader plan carries the exact PT_INTERP bytes",
+                target_profile.target_name(),
+                hex_bytes(object),
+                hex_bytes(symbol),
+                hex_bytes(version),
+                import.relocations.len(),
+            ),
+        };
+        return Err(Diagnostic::error(message));
     }
     let sections = plan_elf_sections(&image);
     let layout = sections.final_image_layout();
@@ -98,4 +113,14 @@ fn emit_elf_executable(
         relocations: image.relocation_table.relocations.len(),
         executable_regions,
     })
+}
+
+fn hex_bytes(bytes: &[u8]) -> String {
+    let mut rendered = String::with_capacity(bytes.len().saturating_mul(2).saturating_add(2));
+    rendered.push_str("0x");
+    for byte in bytes {
+        use std::fmt::Write;
+        write!(&mut rendered, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    rendered
 }
