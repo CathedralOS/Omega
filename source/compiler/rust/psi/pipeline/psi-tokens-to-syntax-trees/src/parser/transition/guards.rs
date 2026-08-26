@@ -10,6 +10,7 @@ use psi_syntax_trees::expression::{
     TableUnaryExpression,
 };
 use psi_syntax_trees::identifier::Identifier;
+use psi_syntax_trees::statement::TableOutcomeProofSelector;
 use psi_syntax_trees::statement::TransitionGuardNode;
 use psi_tokens::{KeywordKind, PunctuationKind};
 
@@ -36,6 +37,8 @@ pub(super) struct DestructureBindings {
     /// The SPELLED field set (bound AND waived) + variant + `..` flag -- the
     /// exhaustiveness law's carrier.
     pub(super) spelling: Option<ArmPatternSpelling>,
+    /// Erased named proof outputs selected after the payload/proof `;` split.
+    pub(super) proof_selectors: Vec<TableOutcomeProofSelector>,
 }
 
 /// What a destructure arm SPELLED, for the exhaustiveness law: a `..`-free
@@ -234,6 +237,11 @@ fn parse_tuple_destructure_pattern_arm<'tokens, 'source>(
         if let Some((guard, bindings)) =
             parse_destructure_pattern_arm(syntax_trees, component, subject)?
         {
+            if !bindings.proof_selectors.is_empty() {
+                return Err(component.error_here(
+                    "outcome proof selectors are admitted only on a single exact result-case arm",
+                ));
+            }
             if let TransitionGuardNode::When(expression) = guard {
                 combined = join_guard_conjunction(syntax_trees, combined, expression);
             }
@@ -517,7 +525,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         return Ok(None);
     }
 
-    let ((fields, matched_fields, has_rest), pattern_rest) =
+    let ((fields, matched_fields, has_rest, proof_selectors), pattern_rest) =
         parse_data_destructure_pattern_fields(syntax_trees, after_path)?;
     // A `Type::Case { .. }` pattern (two-member path) binds payload fields of that
     // specific CASE, so tag each binding with the variant -- the rewritten field
@@ -531,6 +539,11 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
             None
         }
     };
+    if !proof_selectors.is_empty() && case_variant.is_none() {
+        return Err(pattern_input.error_here(
+            "outcome proof selectors require an exact `Result::Case { payload; selector: local }` arm",
+        ));
+    }
     // Waived fields (`as _`) are spelled but introduce NO binding; renamed
     // fields (`as name`) bind the new name to the same `subject.member` read.
     let spelled_members: Vec<Identifier> =
@@ -640,6 +653,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
             subject,
             fields,
             spelling,
+            proof_selectors,
         },
     )))
 }
@@ -691,14 +705,18 @@ fn parse_data_destructure_pattern_fields<'tokens, 'source>(
         Vec<(Identifier, Option<Identifier>)>,
         Vec<(Identifier, ExpressionHandle)>,
         bool,
+        Vec<TableOutcomeProofSelector>,
     ),
 > {
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut fields = Vec::new();
     let mut matched_fields = Vec::new();
     let mut has_rest = false;
+    let mut proof_selectors = Vec::new();
 
-    while !input.at_punctuation(PunctuationKind::RightBrace) {
+    while !input.at_punctuation(PunctuationKind::RightBrace)
+        && !input.at_punctuation(PunctuationKind::Semicolon)
+    {
         if input.at_punctuation(PunctuationKind::DotDot) {
             has_rest = true;
             input = input.take_punctuation(PunctuationKind::DotDot, "..")?;
@@ -745,8 +763,50 @@ fn parse_data_destructure_pattern_fields<'tokens, 'source>(
         }
     }
 
+    if input.at_punctuation(PunctuationKind::Semicolon) {
+        input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        let mut output_fields = std::collections::BTreeSet::new();
+        let mut local_names = std::collections::BTreeSet::new();
+        while !input.at_punctuation(PunctuationKind::RightBrace) {
+            let (output_field, rest) = input.take_identifier()?;
+            let (binding, rest) = if rest.at_punctuation(PunctuationKind::Colon) {
+                let rest = rest.take_punctuation(PunctuationKind::Colon, ":")?;
+                rest.take_identifier()?
+            } else {
+                (output_field.clone(), rest)
+            };
+            if !output_fields.insert(output_field.as_str().to_owned()) {
+                return Err(input.error_here(format!(
+                    "outcome proof selector `{}` is bound more than once in this arm",
+                    output_field.as_str()
+                )));
+            }
+            if binding.as_str() == "_" {
+                return Err(
+                    input.error_here("omit an outcome proof selector instead of binding it to `_`")
+                );
+            }
+            if !local_names.insert(binding.as_str().to_owned()) {
+                return Err(input.error_here(format!(
+                    "outcome evidence term `{}` is bound more than once in this arm",
+                    binding.as_str()
+                )));
+            }
+            proof_selectors.push(TableOutcomeProofSelector {
+                output_field,
+                binding,
+            });
+            input = rest;
+            if input.at_punctuation(PunctuationKind::Comma) {
+                input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            } else {
+                break;
+            }
+        }
+    }
+
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok(((fields, matched_fields, has_rest), input))
+    Ok(((fields, matched_fields, has_rest, proof_selectors), input))
 }
 
 pub(super) fn rewrite_destructure_guard_expression(

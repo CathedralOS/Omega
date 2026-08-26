@@ -69,6 +69,32 @@ pub struct OutcomeSpecificGuaranteeFact {
     pub evidence_term: Option<Handle<CheckedEvidenceTerm>>,
 }
 
+/// Caller-side availability for the guarded guarantees of one exact result
+/// arm. The arm coordinate is the scope boundary: rows are never installed at
+/// the producer call's unconditional ensures point.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OutcomeSpecificArmFact {
+    pub caller_machine_symbol: SymbolHandle,
+    pub caller_state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub result_call_statement_index: usize,
+    pub result_data: SymbolHandle,
+    pub result_case: SymbolHandle,
+    pub result_expression: ExpressionHandle,
+    pub rows: Vec<OutcomeSpecificArmRowFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OutcomeSpecificArmRowFact {
+    pub guarantee: Handle<OutcomeSpecificGuaranteeFact>,
+    /// Canonical caller-side proposition after call arguments and the concrete
+    /// saved result occurrence have been substituted.
+    pub instantiated_proposition: Option<crate::CheckedPropositionApplication>,
+    pub instantiated_identity: Option<String>,
+    /// Present only for an explicitly selected named row.
+    pub selected_term: Option<Handle<CheckedEvidenceTerm>>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedEvidenceTerm {
     /// Public output-field name for `ensures`, local input alias for `requires`.

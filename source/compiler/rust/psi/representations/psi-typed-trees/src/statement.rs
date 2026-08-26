@@ -12,6 +12,7 @@ pub struct StatementTable {
     expression_handles: Arena<crate::expression::ExpressionHandle>,
     name_path_members: Arena<Identifier>,
     transition_targets: Arena<TransitionTargetNode>,
+    outcome_proof_selectors: Arena<OutcomeProofSelector>,
 }
 
 impl StatementTable {
@@ -21,6 +22,7 @@ impl StatementTable {
             expression_handles: Arena::new(),
             name_path_members: Arena::new(),
             transition_targets: Arena::new(),
+            outcome_proof_selectors: Arena::new(),
         }
     }
 
@@ -86,6 +88,20 @@ impl StatementTable {
         target: TransitionTargetNode,
     ) -> TransitionTargetHandle {
         self.transition_targets.insert(target)
+    }
+
+    pub fn insert_outcome_proof_selectors(
+        &mut self,
+        selectors: impl IntoIterator<Item = OutcomeProofSelector>,
+    ) -> HandleSpan<OutcomeProofSelector> {
+        self.outcome_proof_selectors.insert_many(selectors)
+    }
+
+    pub fn outcome_proof_selectors(
+        &self,
+        span: HandleSpan<OutcomeProofSelector>,
+    ) -> &[OutcomeProofSelector] {
+        self.outcome_proof_selectors.span_or_empty(span)
     }
 
     pub fn copy_statement_nodes_from(
@@ -212,6 +228,12 @@ impl StatementTable {
                         target,
                         continuation,
                         guard,
+                        proof_selectors: self.outcome_proof_selectors.insert_many(
+                            source
+                                .outcome_proof_selectors(transition.proof_selectors)
+                                .iter()
+                                .cloned(),
+                        ),
                         exit: transition.exit,
                         source_span: transition.source_span,
                     })
@@ -534,6 +556,7 @@ pub struct TableTransition {
     pub target: TransitionTargetHandle,
     pub continuation: TransitionTargetHandle,
     pub guard: TransitionGuardNode,
+    pub proof_selectors: HandleSpan<OutcomeProofSelector>,
     pub exit: TransitionExit,
     pub source_span: SourceSpan,
 }
@@ -544,10 +567,17 @@ impl Default for TableTransition {
             target: TransitionTargetHandle::invalid(),
             continuation: TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::Always,
+            proof_selectors: HandleSpan::empty(),
             exit: TransitionExit::Ordinary,
             source_span: SourceSpan::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OutcomeProofSelector {
+    pub output_field: Identifier,
+    pub binding: Identifier,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -628,6 +658,7 @@ mod tests {
                 target,
                 continuation: super::TransitionTargetHandle::invalid(),
                 guard: super::TransitionGuardNode::Always,
+                proof_selectors: psi_arena::HandleSpan::empty(),
                 exit: Default::default(),
                 source_span: Default::default(),
             }),
@@ -699,6 +730,7 @@ mod tests {
                 target,
                 continuation: super::TransitionTargetHandle::invalid(),
                 guard: super::TransitionGuardNode::When(guard),
+                proof_selectors: psi_arena::HandleSpan::empty(),
                 exit: Default::default(),
                 source_span: Default::default(),
             }),

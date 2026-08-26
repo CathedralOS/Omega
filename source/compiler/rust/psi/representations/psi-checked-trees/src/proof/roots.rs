@@ -3,7 +3,7 @@ use psi_arena::Arena;
 use crate::{
     CheckedEvidenceTerm, ContractCallFact, ContractEvidenceArgument, ContractExitFact,
     ContractOperatorUseFact, ContractProofFact, ContractProofFactRef, EvidenceForwardingFact,
-    OutcomeSpecificGuaranteeFact, ProofObligationFact, ProofOutputCallFact,
+    OutcomeSpecificArmFact, OutcomeSpecificGuaranteeFact, ProofObligationFact, ProofOutputCallFact,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -11,6 +11,7 @@ pub struct ProofFacts {
     pub obligations: Arena<ProofObligationFact>,
     pub contract_facts: Arena<ContractProofFact>,
     pub outcome_specific_guarantees: Arena<OutcomeSpecificGuaranteeFact>,
+    pub outcome_specific_arms: Arena<OutcomeSpecificArmFact>,
     pub evidence_terms: Arena<CheckedEvidenceTerm>,
     pub contract_evidence_arguments: Arena<ContractEvidenceArgument>,
     pub evidence_forwardings: Arena<EvidenceForwardingFact>,
@@ -34,6 +35,7 @@ impl ProofFacts {
         obligations: Arena<ProofObligationFact>,
         contract_facts: Arena<ContractProofFact>,
         outcome_specific_guarantees: Arena<OutcomeSpecificGuaranteeFact>,
+        outcome_specific_arms: Arena<OutcomeSpecificArmFact>,
         evidence_terms: Arena<CheckedEvidenceTerm>,
         contract_evidence_arguments: Arena<ContractEvidenceArgument>,
         evidence_forwardings: Arena<EvidenceForwardingFact>,
@@ -50,6 +52,7 @@ impl ProofFacts {
             obligations,
             contract_facts,
             outcome_specific_guarantees,
+            outcome_specific_arms,
             evidence_terms,
             contract_evidence_arguments,
             evidence_forwardings,
@@ -70,7 +73,8 @@ mod tests {
     use crate::{
         CheckedEvidenceTerm, ContractCallFact, ContractEvidenceArgument, ContractExitFact,
         ContractOperatorUseFact, ContractProofFact, ContractProofFactRef, EvidenceForwardingFact,
-        OutcomeSpecificGuaranteeFact, ProofFacts, ProofObligationFact, ProofOutputCallFact,
+        OutcomeSpecificArmFact, OutcomeSpecificGuaranteeFact, ProofFacts, ProofObligationFact,
+        ProofOutputCallFact,
     };
     use psi_arena::Arena;
 
@@ -79,6 +83,7 @@ mod tests {
         let obligations = Arena::<ProofObligationFact>::with_capacity(1);
         let contract_facts = Arena::<ContractProofFact>::with_capacity(2);
         let outcome_specific_guarantees = Arena::<OutcomeSpecificGuaranteeFact>::with_capacity(2);
+        let outcome_specific_arms = Arena::<OutcomeSpecificArmFact>::with_capacity(2);
         let evidence_terms = Arena::<CheckedEvidenceTerm>::with_capacity(2);
         let contract_evidence_arguments = Arena::<ContractEvidenceArgument>::with_capacity(2);
         let evidence_forwardings = Arena::<EvidenceForwardingFact>::with_capacity(2);
@@ -95,6 +100,7 @@ mod tests {
             obligations.clone(),
             contract_facts.clone(),
             outcome_specific_guarantees.clone(),
+            outcome_specific_arms.clone(),
             evidence_terms.clone(),
             contract_evidence_arguments.clone(),
             evidence_forwardings.clone(),
@@ -114,6 +120,7 @@ mod tests {
             facts.outcome_specific_guarantees,
             outcome_specific_guarantees
         );
+        assert_eq!(facts.outcome_specific_arms, outcome_specific_arms);
         assert_eq!(facts.evidence_terms, evidence_terms);
         assert_eq!(
             facts.contract_evidence_arguments,

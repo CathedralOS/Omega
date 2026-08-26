@@ -30,6 +30,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
                 target: TransitionTarget::Terminal,
                 continuation: None,
                 guard: TransitionGuard::When(guard),
+                proof_selectors: Box::default(),
                 exit: Default::default(),
                 source_span: Default::default(),
             })]);

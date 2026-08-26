@@ -68,6 +68,7 @@ pub(crate) fn build_check_facts(
     )?;
     crate::proof::bind_proof_output_call_facts(program, &mut proof)?;
     crate::proof::bind_evidence_forwarding_facts(program, &mut proof)?;
+    crate::proof::bind_outcome_specific_arm_facts(program, &mut proof)?;
     crate::proof::bind_evidence_projection_facts(program, &mut proof)?;
     let mut semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);

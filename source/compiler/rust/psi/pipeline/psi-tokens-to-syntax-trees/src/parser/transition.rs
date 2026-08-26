@@ -72,6 +72,7 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
     let mut parsed_arms: Vec<(
         psi_syntax_trees::statement::TransitionGuardNode,
         TransitionTargetHandle,
+        psi_arena::HandleSpan<psi_syntax_trees::statement::TableOutcomeProofSelector>,
         psi_source::SourceSpan,
     )> = Vec::new();
     // (marker name, subject) per destructure arm. Computed transition subjects
@@ -146,7 +147,15 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
             }
         }
 
-        parsed_arms.push((guard, target, source_span));
+        let proof_selectors = bindings
+            .first()
+            .map(|bindings| {
+                syntax_trees
+                    .statements
+                    .insert_outcome_proof_selectors(bindings.proof_selectors.iter().cloned())
+            })
+            .unwrap_or_else(HandleSpan::empty);
+        parsed_arms.push((guard, target, proof_selectors, source_span));
         arm_bool_tuples.push(bool_tuple);
     }
 
@@ -186,7 +195,7 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
             .expect("transition block statement span count overflow");
     }
 
-    for (guard, target, source_span) in parsed_arms {
+    for (guard, target, proof_selectors, source_span) in parsed_arms {
         let statement =
             syntax_trees
                 .statements
@@ -194,6 +203,7 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
                     target,
                     continuation: TransitionTargetHandle::invalid(),
                     guard,
+                    proof_selectors,
                     exit: Default::default(),
                     source_span,
                 }));
@@ -273,10 +283,10 @@ fn expression_is_place(syntax_trees: &SyntaxTrees, expression: ExpressionHandle)
 
 /// A cheap structural lookahead for the one syntax that needs a computed
 /// subject capture. It recognizes plain-record `Type { .. } [if ..] ->`
-/// arms anywhere in the token stream. Case-pattern subjects retain their
-/// existing structural form: proof-only recursive case machines use that
-/// expression shape as part of their termination argument, and they have no
-/// runtime value whose evaluation needs capturing. Requiring
+/// arms anywhere in the token stream. A case-pattern arm is included only when
+/// its braces contain the outcome proof-lane separator; this preserves the
+/// structural form of older proof-only recursive case machines while ensuring
+/// a selected-witness producer call executes exactly once. Requiring
 /// the pattern's closing brace to be followed immediately by `->` or `if`
 /// distinguishes it from a struct-literal arm TARGET, whose closing brace is
 /// followed by the next arm's pattern.
@@ -305,11 +315,20 @@ fn transition_contains_destructure_pattern(input: Input<'_, '_>) -> bool {
             continue;
         }
         let mut cursor = start + 1;
+        let mut case_proof_lane = false;
         if tokens
             .get(cursor)
             .is_some_and(|token| token.punctuation() == Some(PunctuationKind::ColonColon))
         {
-            continue;
+            cursor += 1;
+            if !tokens
+                .get(cursor)
+                .is_some_and(|token| is_identifier_token_for_parser(token))
+            {
+                continue;
+            }
+            cursor += 1;
+            case_proof_lane = true;
         }
         if !tokens
             .get(cursor)
@@ -319,11 +338,15 @@ fn transition_contains_destructure_pattern(input: Input<'_, '_>) -> bool {
         }
 
         let mut depth = 1usize;
+        let mut has_proof_separator = false;
         cursor += 1;
         while cursor < tokens.len() && depth > 0 {
             match tokens[cursor].punctuation() {
                 Some(PunctuationKind::LeftBrace) => depth += 1,
                 Some(PunctuationKind::RightBrace) => depth -= 1,
+                Some(PunctuationKind::Semicolon) if depth == 1 => {
+                    has_proof_separator = true;
+                }
                 _ => {}
             }
             cursor += 1;
@@ -334,6 +357,7 @@ fn transition_contains_destructure_pattern(input: Input<'_, '_>) -> bool {
         if tokens
             .get(cursor)
             .is_some_and(|token| token.punctuation() == Some(PunctuationKind::Arrow))
+            && (!case_proof_lane || has_proof_separator)
         {
             return true;
         }

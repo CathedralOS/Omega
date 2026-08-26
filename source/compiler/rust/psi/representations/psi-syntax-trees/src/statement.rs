@@ -11,6 +11,7 @@ pub struct StatementTable {
     expression_handles: Arena<crate::expression::ExpressionHandle>,
     identifier_path_members: Arena<Identifier>,
     transition_targets: Arena<TransitionTargetNode>,
+    outcome_proof_selectors: Arena<TableOutcomeProofSelector>,
 }
 
 impl StatementTable {
@@ -20,6 +21,7 @@ impl StatementTable {
             expression_handles: Arena::new(),
             identifier_path_members: Arena::new(),
             transition_targets: Arena::new(),
+            outcome_proof_selectors: Arena::new(),
         }
     }
 
@@ -50,6 +52,20 @@ impl StatementTable {
         target: TransitionTargetNode,
     ) -> TransitionTargetHandle {
         self.transition_targets.insert(target)
+    }
+
+    pub fn insert_outcome_proof_selectors(
+        &mut self,
+        selectors: impl IntoIterator<Item = TableOutcomeProofSelector>,
+    ) -> HandleSpan<TableOutcomeProofSelector> {
+        self.outcome_proof_selectors.insert_many(selectors)
+    }
+
+    pub fn outcome_proof_selectors(
+        &self,
+        span: HandleSpan<TableOutcomeProofSelector>,
+    ) -> &[TableOutcomeProofSelector] {
+        self.outcome_proof_selectors.span_or_empty(span)
     }
 
     /// Replace a node in place. Reserved for PARSE-phase desugars (the
@@ -115,6 +131,15 @@ pub struct TableProofOutputBindingStatement {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableProofOutputSelector {
+    pub output_field: Identifier,
+    pub binding: Identifier,
+}
+
+/// One erased caller-local selection from an outcome-specific guarantee lane.
+/// This is attached to an exact transition arm and never becomes a runtime
+/// payload field or statement.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TableOutcomeProofSelector {
     pub output_field: Identifier,
     pub binding: Identifier,
 }
@@ -198,6 +223,7 @@ pub struct TableTransition {
     pub target: TransitionTargetHandle,
     pub continuation: TransitionTargetHandle,
     pub guard: TransitionGuardNode,
+    pub proof_selectors: HandleSpan<TableOutcomeProofSelector>,
     pub exit: TransitionExit,
     pub source_span: SourceSpan,
 }
@@ -208,6 +234,7 @@ impl Default for TableTransition {
             target: TransitionTargetHandle::invalid(),
             continuation: TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::Always,
+            proof_selectors: HandleSpan::empty(),
             exit: Default::default(),
             source_span: SourceSpan::default(),
         }
@@ -281,6 +308,7 @@ mod tests {
             target,
             continuation: super::TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::When(guard),
+            proof_selectors: HandleSpan::empty(),
             exit: Default::default(),
             source_span: Default::default(),
         }));

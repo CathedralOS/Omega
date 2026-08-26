@@ -185,6 +185,56 @@ pub(super) fn append_contract_semantic_facts(
         }
     }
 
+    // Guarded guarantees are published only at their exact caller arm. They
+    // are deliberately absent from the producer call's unconditional ensures
+    // point, so the transition flow's existing fallthrough restoration keeps
+    // them out of sibling arms.
+    for (_, arm) in proof.outcome_specific_arms.iter() {
+        let point = ProgramPoint::Statement {
+            machine_symbol: arm.caller_machine_symbol,
+            state_symbol: arm.caller_state_symbol,
+            statement_index: arm.statement_index,
+        };
+        let mut refs = HandleSpan::empty();
+        for row in &arm.rows {
+            let guarantee = proof.outcome_specific_guarantees.get(row.guarantee);
+            let contract = ContractProofFact {
+                kind: ContractProofFactKind::Ensures,
+                owner: ContractProofFactOwner::MachineState {
+                    machine_symbol: arm.caller_machine_symbol,
+                    state_symbol: arm.caller_state_symbol,
+                },
+                fact: guarantee.fact,
+                evidence_term: row.selected_term,
+                qualification_authorization: None,
+            };
+            let mut payload = semantic_contract_payload(program, &contract);
+            if let Some(identity) = &row.instantiated_identity {
+                let instantiated = facts.append_instantiated_expression(identity.clone());
+                match &mut payload {
+                    FactPayload::ContractBooleanExpression {
+                        instantiated: slot, ..
+                    }
+                    | FactPayload::ContractPropositionApplication {
+                        instantiated: slot, ..
+                    } => *slot = instantiated,
+                    _ => {}
+                }
+            }
+            let fact = facts.append_fact(Fact {
+                place: FactPlace::Unknown,
+                point,
+                origin: FactOrigin::CallEnsures,
+                evidence: QualificationEvidence::default(),
+                payload,
+            });
+            facts.append_ref(&mut refs, fact);
+        }
+        if !refs.is_empty() {
+            facts.append_context(point, refs);
+        }
+    }
+
     for (_, exit) in proof.contract_exits.iter() {
         let mut refs = HandleSpan::empty();
         append_semantic_contract_refs(proof, facts, &semantic_handles, exit.ensures, &mut refs);

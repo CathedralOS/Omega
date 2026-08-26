@@ -673,6 +673,7 @@ pub(crate) fn build_synthesized_arm_state(
         target: TransitionTarget::Value(terminal),
         continuation: None,
         guard: TransitionGuard::Always,
+        proof_selectors: Box::default(),
         exit: psi_symbol_resolved_trees::statement::TransitionExit::Ordinary,
         source_span: Default::default(),
     });
@@ -794,6 +795,7 @@ pub(crate) fn build_synthesized_transition_argument_state(
                 target: TransitionTarget::Named(target),
                 continuation: None,
                 guard: TransitionGuard::Always,
+                proof_selectors: Box::default(),
                 exit: psi_symbol_resolved_trees::statement::TransitionExit::Ordinary,
                 source_span: Default::default(),
             }),

@@ -395,3 +395,298 @@ fn outcome_specific_rows_reject_unclassified_dynamic_result() {
         "unexpected diagnostics: {diagnostics:?}"
     );
 }
+
+#[test]
+fn outcome_specific_selected_term_is_available_in_matching_caller_arm() {
+    let typed = parse_typed_trees(
+        r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        data Outcome [copy] { case Success; case Failure; }
+
+        machine produce() -> Outcome
+        ensures Outcome::Success -> { selected: ready(); }
+        { selected = ConcreteEvidence; Outcome::Success }
+
+        machine caller() {
+            transition produce() {
+                Outcome::Success { ; selected: local } -> consume(; local)
+                Outcome::Failure { } -> {}
+            }
+            state consume() requires needed: ready() {}
+        }
+        "#,
+    );
+    let checked = lower_typed_trees(typed).expect("selected guarded term should bind in its arm");
+    let arm = checked
+        .facts
+        .proof
+        .outcome_specific_arms
+        .iter()
+        .next()
+        .map(|(_, arm)| arm)
+        .expect("one matching caller arm");
+    assert_eq!(arm.rows.len(), 1);
+    let selected = arm.rows[0]
+        .selected_term
+        .expect("selected caller-local term");
+    assert_eq!(
+        checked.facts.proof.evidence_terms.get(selected).name,
+        "local"
+    );
+}
+
+#[test]
+fn outcome_specific_selected_term_is_available_from_saved_immutable_call() {
+    let typed = parse_typed_trees(
+        r#"
+        trait Evidence {}
+        data Outcome [copy] { case Success; case Failure; }
+        proposition accepted(value: Outcome) evidence Evidence;
+
+        machine produce() -> Outcome
+        requires incoming: accepted(Outcome::Success)
+        ensures Outcome::Success -> { selected: accepted(result); }
+        { selected = incoming; Outcome::Success }
+
+        machine caller()
+        requires seed: accepted(Outcome::Success)
+        {
+            let saved: Outcome = produce(; seed);
+            transition saved {
+                Outcome::Success { ; selected: local } -> consume(saved; local)
+                Outcome::Failure { } -> {}
+            }
+            state consume(value: Outcome) requires needed: accepted(value) {}
+        }
+        "#,
+    );
+    let checked =
+        lower_typed_trees(typed).expect("saved immutable call should retain its selected term");
+    let arm = checked
+        .facts
+        .proof
+        .outcome_specific_arms
+        .iter()
+        .next()
+        .map(|(_, arm)| arm)
+        .expect("one matching caller arm");
+    assert!(arm.result_call_statement_index < arm.statement_index);
+    let caller_state = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "caller")
+        .and_then(|machine| checked.machine_states(machine).first())
+        .expect("caller entry state");
+    assert!(matches!(
+        &checked.statement_table.statements(caller_state.statement_nodes)
+            [arm.result_call_statement_index],
+        psi_typed_trees::statement::StatementNode::LocalData(local)
+            if local.name.as_str() == "saved"
+    ));
+    let selected = arm.rows[0]
+        .selected_term
+        .expect("selected caller-local term");
+    assert_eq!(
+        checked.facts.proof.evidence_terms.get(selected).name,
+        "local"
+    );
+}
+
+#[test]
+fn outcome_specific_omitted_named_and_unnamed_rows_are_fact_only_in_matching_arm() {
+    let typed = parse_typed_trees(
+        r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        data Outcome [copy] { case Success; case Failure; }
+
+        machine produce() -> Outcome
+        ensures Outcome::Success -> { selected: ready(); true; }
+        { selected = ConcreteEvidence; Outcome::Success }
+
+        machine caller() {
+            transition produce() {
+                Outcome::Success { ; } -> consume()
+                Outcome::Failure { } -> {}
+            }
+            state consume() requires ready() {}
+        }
+        "#,
+    );
+    let checked = lower_typed_trees(typed)
+        .expect("all matching guarded facts should publish without selected terms");
+    let arm = checked
+        .facts
+        .proof
+        .outcome_specific_arms
+        .iter()
+        .next()
+        .map(|(_, arm)| arm)
+        .expect("one matching caller arm");
+    assert_eq!(arm.rows.len(), 2);
+    assert!(arm.rows.iter().all(|row| row.selected_term.is_none()));
+}
+
+#[test]
+fn outcome_specific_fact_and_term_do_not_leak_to_sibling_arm() {
+    let typed = parse_typed_trees(
+        r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        data Outcome [copy] { case Success; case Failure; }
+
+        machine produce() -> Outcome
+        ensures Outcome::Success -> { selected: ready(); }
+        { selected = ConcreteEvidence; Outcome::Success }
+
+        machine caller() {
+            transition produce() {
+                Outcome::Success { ; } -> {}
+                Outcome::Failure { } -> consume()
+            }
+            state consume() requires ready() {}
+        }
+        "#,
+    );
+    let checked = lower_typed_trees(typed).expect("sibling arm remains independently checkable");
+    let arms = checked
+        .facts
+        .proof
+        .outcome_specific_arms
+        .iter()
+        .map(|(_, arm)| arm)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        arms.len(),
+        1,
+        "only the matching Success arm publishes rows"
+    );
+    let arm = arms[0];
+    let guarantee = checked
+        .facts
+        .proof
+        .outcome_specific_guarantees
+        .get(arm.rows[0].guarantee)
+        .fact;
+    let caller_state = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "caller")
+        .and_then(|machine| checked.machine_states(machine).first())
+        .expect("caller entry state");
+    let sibling = checked
+        .statement_table
+        .statements(caller_state.statement_nodes)
+        .iter()
+        .enumerate()
+        .filter(|(_, statement)| {
+            matches!(
+                statement,
+                psi_typed_trees::statement::StatementNode::Transition(_)
+            )
+        })
+        .map(|(index, _)| index)
+        .find(|index| *index != arm.statement_index)
+        .expect("Failure sibling transition");
+    assert!(
+        checked
+            .facts
+            .semantic
+            .contexts_at_point(psi_facts::ProgramPoint::Statement {
+                machine_symbol: arm.caller_machine_symbol,
+                state_symbol: arm.caller_state_symbol,
+                statement_index: sibling,
+            })
+            .all(|context| context.facts().all(|fact| !matches!(
+                fact.payload,
+                psi_facts::FactPayload::ContractPropositionApplication { fact, .. }
+                    if fact == guarantee
+            ))),
+        "matching-case guarantee must not be materialized at the sibling coordinate"
+    );
+}
+
+#[test]
+fn outcome_specific_selected_term_does_not_bind_in_a_sibling_arm() {
+    let typed = parse_typed_trees(
+        r#"
+        trait Evidence {}
+        data Outcome [copy] { case Success; case Failure; }
+        proposition accepted(value: Outcome) evidence Evidence;
+
+        machine produce() -> Outcome
+        requires incoming: accepted(Outcome::Success)
+        ensures Outcome::Success -> { selected: accepted(result); }
+        { selected = incoming; Outcome::Success }
+
+        machine caller()
+        requires seed: accepted(Outcome::Success)
+        {
+            let saved: Outcome = produce(; seed);
+            transition saved {
+                Outcome::Success { ; selected: local } -> {}
+                Outcome::Failure { } -> consume(saved; local)
+            }
+            state consume(value: Outcome) requires needed: accepted(value) {}
+        }
+        "#,
+    );
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("a selected term must not enter the sibling arm's proof namespace");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("local")
+                && (diagnostic.message.contains("proof") || diagnostic.message.contains("evidence"))
+        }),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn outcome_specific_selector_rejects_wrong_case_and_noncall_origin() {
+    for (source, expected) in [
+        (
+            r#"
+            trait Evidence {}
+            proposition ready() evidence Evidence;
+            ConcreteEvidence: satisfies Evidence {}
+            data Outcome [copy] { case Success; case Failure; }
+            machine produce() -> Outcome
+            ensures Outcome::Success -> { selected: ready(); }
+            { selected = ConcreteEvidence; Outcome::Success }
+            machine caller() {
+                transition produce() {
+                    Outcome::Success { } -> {}
+                    Outcome::Failure { ; selected: local } -> {}
+                }
+            }
+            "#,
+            "is not a named guarantee of the matching result case",
+        ),
+        (
+            r#"
+            data Outcome { case Success; case Failure; }
+            machine caller(value: Outcome) {
+                transition value {
+                    Outcome::Success { ; selected: local } -> {}
+                    Outcome::Failure { } -> {}
+                }
+            }
+            "#,
+            "limited to one unambiguous direct call captured in an immutable local",
+        ),
+    ] {
+        let typed = parse_typed_trees(source);
+        let diagnostics = lower_typed_trees(typed).expect_err("invalid arm source must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "unexpected diagnostics: {diagnostics:?}"
+        );
+    }
+}

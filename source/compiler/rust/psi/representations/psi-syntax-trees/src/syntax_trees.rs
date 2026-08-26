@@ -1002,6 +1002,13 @@ impl SyntaxTrees {
                         TransitionGuardNode::When(self.copy_expression_handle(other, expression))
                     }
                 },
+                proof_selectors: self.statements.insert_outcome_proof_selectors(
+                    other
+                        .statements
+                        .outcome_proof_selectors(transition.proof_selectors)
+                        .iter()
+                        .cloned(),
+                ),
                 exit: transition.exit,
                 source_span: transition.source_span,
             }),

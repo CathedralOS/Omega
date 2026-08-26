@@ -66,8 +66,10 @@ pub(super) fn bind_call_evidence_arguments(
         for (lane_position, (name, parameter)) in authored.iter().zip(parameters).enumerate() {
             let Some(source) = source_term_by_name(
                 &facts.proof.evidence_terms,
+                &facts.proof.outcome_specific_arms,
                 call.caller_machine_symbol,
                 call.caller_state_symbol,
+                call.statement_index,
                 name.as_str(),
             ) else {
                 diagnostics.push(Diagnostic::error(format!(
@@ -112,11 +114,22 @@ pub(super) fn bind_call_evidence_arguments(
 
 fn source_term_by_name(
     terms: &psi_arena::Arena<CheckedEvidenceTerm>,
+    arms: &psi_arena::Arena<psi_checked_trees::OutcomeSpecificArmFact>,
     caller_machine_symbol: psi_symbols::SymbolHandle,
     caller_state_symbol: psi_symbols::SymbolHandle,
+    statement_index: usize,
     name: &str,
 ) -> Option<Handle<CheckedEvidenceTerm>> {
-    terms.iter().find_map(|(handle, term)| {
+    arms.iter()
+        .filter(|(_, arm)| {
+            arm.caller_machine_symbol == caller_machine_symbol
+                && arm.caller_state_symbol == caller_state_symbol
+                && arm.statement_index == statement_index
+        })
+        .flat_map(|(_, arm)| arm.rows.iter().filter_map(|row| row.selected_term))
+        .find(|term| terms.get(*term).name == name)
+        .or_else(|| {
+            terms.iter().find_map(|(handle, term)| {
         let owner_matches = matches!(
             term.owner,
             ContractProofFactOwner::Machine { machine_symbol }
@@ -131,6 +144,7 @@ fn source_term_by_name(
         (owner_matches && term.kind == ContractProofFactKind::Requires && term.name == name)
             .then_some(handle)
     })
+        })
 }
 
 fn instantiated_parameter_proposition(

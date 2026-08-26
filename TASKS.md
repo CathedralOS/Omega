@@ -7652,7 +7652,18 @@ Remaining N6/N8 work:
   result lane, dynamic results reject when their exact case cannot be classified,
   and distinct join predecessors remain distinct so one-arm evidence cannot cover
   the merge. Caller-arm availability, validity intersections, and exact Terminal
-  retention/replay remain fail-closed until stages 3-5 land.
+  retention/replay remain fail-closed until stages 3-5 land. Stage 3 is live for
+  an exact result-case arm whose subject is a direct call captured once in an
+  immutable local, including the compiler-generated capture for direct
+  transition subjects. The payload/proof `;` split retains erased named
+  selectors through syntax, resolution, and typing. At checking, every guarded
+  row enters the fact catalog only at the matching arm coordinate; an explicitly
+  selected named row additionally binds one caller-local evidence term there,
+  while omitted named and unnamed rows remain fact-only. Sibling arms cannot see
+  either facts or terms, and selectors add no runtime statement or second call.
+  Computed, mutable, or otherwise untracked result origins reject. Validity
+  intersections and exact Terminal retention/replay remain fail-closed until
+  stages 4-5 land.
 
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct
