@@ -42,8 +42,8 @@ These facts constrain the work below.
 - `omega-register-model` now owns separate target-neutral declarative physical-
   register and instruction-constraint vocabularies with total structural
   validators. `omega-regalloc` now consumes the opaque validated selected CFG
-  for the first bounded liveness analysis, but neither crate performs
-  allocation yet.
+  for bounded liveness, ranges, candidate legality, and the first strict
+  transition-free physical-home assignment. It is not yet a general allocator.
   Clean Terminal-ISA-owned x86-64 declarations split every GPR into exact
   byte/word/dword/qword storage lanes, retain non-allocatable high-byte views,
   model 32-bit zero-extension, and cover XMM, RFLAGS, and RIP state. AArch64
@@ -96,9 +96,17 @@ These facts constrain the work below.
   sites, architectural state/actions, and canonical virtual interference.
   `StagedOptimizedAllocationLegality` nests that custody once more, joins the
   exact register-environment identity, records phase-specific physical-view
-  candidates, and exposes incompatible fixed-view transitions without
-  assigning homes. A
-  separate `StagedOptimizedAssignedOperations` carrier
+  candidates, and exposes incompatible fixed-view transitions. A bounded
+  `StagedOptimizedRegisterHomes` carrier now nests the complete legality stage
+  and assigns deterministic views only for transition-free, spill-free plans.
+  It intersects candidates across every occupied point, rejects reserved or
+  incompatible views through the upstream environment, uses exact virtual
+  interference plus storage/write footprints, and independently replays the
+  result under a content identity. The constant-leaf fixture reuses one result
+  view across mutually exclusive leaf VRegs on both x86-64 and AArch64; the
+  forwarded-value fixture fails closed on its two explicit ABI-entry-to-return
+  transitions. This carrier grants no split, copy, spill, frame, emission, or
+  publication authority. A separate `StagedOptimizedAssignedOperations` carrier
   retains the optimizer run, ledger, projection receipt, target plan, assigned
   plan, and independently reconstructed root/function provenance custody. This
   is not allocator validation: the lane still fails closed before machine emission,
@@ -827,6 +835,11 @@ dependency.
   two explicit entry-to-return transition requirements (`RSI -> RAX` or
   `X1 -> X0`), while the constant fixture exposes none. This artifact grants no
   split, copy insertion, home, spill, frame, emission, or publication authority.
+  A subsequent bounded home artifact accepts only transition-free plans,
+  chooses the lowest stable shared legal view in first-live-point/VReg order,
+  checks exact interference and complete write footprints, and is independently
+  replayed. It rejects unresolved transitions, empty intersections, and pressure
+  requiring a spill; it does not authorize physical emission.
 
   Remaining to close: live-interval construction, loop weights, calls and call
   crossings, crashes, cleanup and suspension frontiers, disconnected
@@ -842,16 +855,22 @@ dependency.
   cycling; allocation never assigns reserved or incompatible units; repeated
   builds are identical.
 
-  Sequencing: canonical CFG-aware range fragments and VReg interference now
-  exist for the two admitted conditional shapes, but they grant no allocation
-  authority. The currently admitted physical model, constraint catalog, and
-  explicit conservative active-reservation profile now have replay/cache
-  identities joined into downstream custody. Before this task can publish
-  homes, fixed entry-to-return view transitions need explicit splitting or copy
-  semantics. Phase-specific candidate legality is now independently replayed;
-  linear scan must consume it together with virtual interference rather than
-  re-derive it. Provider/runtime reservation requirements must either join the
-  active profile or fail closed.
+  Current slice: canonical CFG-aware range fragments, exact VReg interference,
+  identity-bound register environments, and independently replayed phase-
+  specific candidate legality now feed a bounded deterministic home assigner.
+  It assigns the admitted constant conditional on both ISAs without modulo
+  scratch cycling, permits exact mutually-exclusive reuse, and fails closed if
+  any VReg lacks one shared legal view, needs a spill, or retains a fixed-view
+  transition. This closes only the transition-free/spill-free base case, not
+  general linear scan.
+
+  Sequencing: add an exact named copy/split transformation for the forwarded
+  fixture, including the copy constraint in selected/environment identity,
+  fresh split-result VRegs, exact provenance/fuel custody, independent
+  reconstruction, and complete liveness/range/legality replay. Then extend the
+  allocator to active-interval expiration and real competing live ranges.
+  Provider/runtime reservation requirements must either join the active profile
+  or fail closed.
 
 - **OPT-INTERVAL-SPLITTING.** Split live ranges around fixed uses, calls, high-
   pressure regions, and profitable rematerialization points.

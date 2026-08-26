@@ -24,6 +24,7 @@ mod assignment;
 mod live_ranges;
 mod liveness;
 mod register_environment;
+mod register_homes;
 mod selection;
 
 pub use allocation_legality::{
@@ -49,6 +50,11 @@ pub use register_environment::{
     TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnvironment,
     baseline_target_register_environment, validate_target_register_environment,
     validate_target_register_environment_with_reservations,
+};
+pub use register_homes::{
+    OptimizedRegisterHomeCustodyError, StagedOptimizedRegisterHomeCustodyReceipt,
+    StagedOptimizedRegisterHomes, stage_optimized_register_homes,
+    validate_optimized_register_home_custody,
 };
 pub use selection::{
     OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
@@ -164,11 +170,12 @@ mod tests {
     use omega_regalloc::{
         TerminalAllocationLegalityError, TerminalArchitecturalUnitActionKind,
         TerminalLiveRangeError, TerminalLiveRangeFragment, TerminalLiveRangePoint,
-        TerminalLivenessError, TerminalVirtualFixedConstraintSite, TerminalVirtualInterference,
-        analyze_terminal_live_ranges, analyze_terminal_liveness,
+        TerminalLivenessError, TerminalRegisterHomeError, TerminalVirtualFixedConstraintSite,
+        TerminalVirtualInterference, analyze_terminal_live_ranges, analyze_terminal_liveness,
         terminal_allocation_legality_identity, terminal_live_range_identity,
-        terminal_liveness_identity, validate_terminal_allocation_legality,
-        validate_terminal_live_ranges, validate_terminal_liveness,
+        terminal_liveness_identity, terminal_register_home_identity,
+        validate_terminal_allocation_legality, validate_terminal_live_ranges,
+        validate_terminal_liveness, validate_terminal_register_homes,
     };
     use omega_register_model::{
         RegisterOperandAccess, RegisterReservationProfile, RegisterUnitId,
@@ -1881,6 +1888,133 @@ mod tests {
         )
         .unwrap();
         assert_eq!(constant.custody().entry_transition_count(), 0);
+    }
+
+    #[test]
+    fn transition_free_register_homes_are_deterministic_and_cfg_exact() {
+        for (target, condition_view, result_view) in [
+            (NativeTarget::linux_x64(), "rdi", "rax"),
+            (NativeTarget::linux_arm64(), "x0", "x0"),
+        ] {
+            let staged = stage_optimized_register_homes(
+                stage_optimized_allocation_legality(
+                    stage_optimized_live_ranges(
+                        stage_optimized_liveness(staged_conditional(target)).unwrap(),
+                    )
+                    .unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let function = &staged.homes().plan().functions[0];
+            assert_eq!(function.assignments.len(), 3);
+            let environment = staged
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment();
+            let model = environment.physical().model();
+            assert_eq!(
+                function.assignments[0].view,
+                model.view_named(condition_view).unwrap().id
+            );
+            assert_eq!(
+                function.assignments[1].view,
+                model.view_named(result_view).unwrap().id
+            );
+            assert_eq!(function.assignments[1].view, function.assignments[2].view);
+            assert!(
+                staged
+                    .legality_stage()
+                    .live_range_stage()
+                    .ranges()
+                    .plan()
+                    .functions[0]
+                    .interference
+                    .is_empty()
+            );
+            for assignment in &function.assignments {
+                let view = &model.views[usize::from(assignment.view.0)];
+                assert_eq!(view.class, assignment.class);
+                assert!(view.units.iter().chain(&view.write_units).all(|unit| {
+                    environment
+                        .reservations()
+                        .reserved_units()
+                        .binary_search(unit)
+                        .is_err()
+                }));
+            }
+            assert_eq!(staged.custody().assignment_count(), 3);
+            assert_eq!(
+                staged.custody().homes(),
+                staged.homes().receipt().identity()
+            );
+            assert_eq!(
+                staged.custody().register_environment(),
+                environment.identity()
+            );
+
+            let repeated = stage_optimized_register_homes(
+                stage_optimized_allocation_legality(
+                    stage_optimized_live_ranges(
+                        stage_optimized_liveness(staged_conditional(target)).unwrap(),
+                    )
+                    .unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(staged.homes(), repeated.homes());
+            assert_eq!(staged.custody(), repeated.custody());
+
+            let mut corrupted = staged.homes().plan().clone();
+            let original_view = corrupted.functions[0].assignments[0].view;
+            corrupted.functions[0].assignments[0].view = model
+                .views
+                .iter()
+                .find(|view| {
+                    view.class == corrupted.functions[0].assignments[0].class
+                        && view.id != original_view
+                })
+                .expect("fixture register class has a distinct corruption view")
+                .id;
+            assert_ne!(
+                terminal_register_home_identity(&corrupted),
+                staged.homes().receipt().identity()
+            );
+            let legality = staged.legality_stage();
+            let ranges = legality.live_range_stage();
+            assert!(matches!(
+                validate_terminal_register_homes(
+                    legality.legality(),
+                    ranges.ranges(),
+                    environment.identity(),
+                    environment.physical(),
+                    environment.constraints(),
+                    environment.reservations(),
+                    environment.allocation_constraint_keys(),
+                    corrupted,
+                ),
+                Err(TerminalRegisterHomeError::VirtualRegisterMismatch { .. })
+                    | Err(TerminalRegisterHomeError::UnknownOrIncompatibleView { .. })
+            ));
+        }
+
+        let forwarded = stage_optimized_allocation_legality(
+            stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_forwarded_conditional(NativeTarget::linux_x64()))
+                    .unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(matches!(
+            stage_optimized_register_homes(forwarded),
+            Err(OptimizedRegisterHomeCustodyError::Assignment(
+                TerminalRegisterHomeError::UnresolvedEntryTransitions { count: 2, .. }
+            ))
+        ));
     }
 
     #[test]
