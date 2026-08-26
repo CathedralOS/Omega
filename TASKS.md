@@ -7609,14 +7609,26 @@ compiler concept is introduced.
   installed-byte rejection still returns typed deployment custody. The
   progress-bearing source canary reaches report custody through the owner call.
 
+  Ordinary terminal candidate staging is now connected to that acquisition
+  boundary by one strictly compositional driver. `TerminalComponentStagingInputs`
+  retains the exact target, subsystem, admission profile, and provider
+  settlements; the driver calls the established staging operation, then owner
+  acquisition, then the typed deployment/report transaction without re-owning
+  any of their policy. Staging rejection returns those inputs, the deployment
+  owner, source count, and build evaluation/observation metadata intact. A
+  progress-free source canary recovers a target-substituted staging request,
+  corrects the same carrier, and crosses staging, the real installation ladder,
+  deployment, publication, and report custody.
+
   Remaining TPR6-B engineering: retire the legacy compiler's temporary final-
   output rejection only after a concrete non-test installation/deployment owner
-  implements this acquisition boundary and the ordinary driver connects it to
-  candidate staging. No such provider exists in the compiler today. The current
-  legacy path still publishes a native executable directly and carries neither
-  the manifest nor an installation acceptance, so removing the fence there
-  would erase the obligation; selected plans and authorized routes remain
-  insufficient.
+  implements this acquisition boundary and the Psi-owned checked result is
+  routed into the connected terminal driver. No such provider exists in the
+  compiler today, and the ordinary compiler still reaches its checked result
+  inside the legacy backend coordinator. The current legacy path publishes a
+  native executable directly and carries neither the manifest nor an
+  installation acceptance, so removing the fence there would erase the
+  obligation; selected plans and authorized routes remain insufficient.
   Independently add authored
   qualification-preserving correspondence beyond direct parameter/field
   identity. `QualificationEvidence` retains evidence kind and source

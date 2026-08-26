@@ -49,6 +49,7 @@ mod stages;
 mod target_machines;
 mod task_plans;
 mod terminal_component_candidate;
+mod terminal_component_driver;
 mod timing;
 mod trust_lockfile;
 mod trust_report;
@@ -299,4 +300,8 @@ pub use terminal_component_candidate::{
     TerminalComponentCandidate, TerminalComponentCandidateParts,
     TerminalComponentProviderExecution, TerminalComponentProviderSettlement,
     stage_terminal_component,
+};
+pub use terminal_component_driver::{
+    TerminalComponentDriverError, TerminalComponentStagingInputs,
+    stage_acquire_and_deploy_terminal_component_output,
 };
