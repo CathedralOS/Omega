@@ -124,11 +124,11 @@ Remaining:
   cases and rejects a tampered stream. Parsing and every later Psi/Omega phase remain open; this
   checkpoint does not complete the product compiler task.
 
-  Checkpoint 000001's manifest, profile, Cargo/provider provenance, and exact
-  extracted build prelude are refreshed together after the current product
-  changes. The fast gate now accepts that coherent closure and rejects later
-  source, provenance, prelude, feature-partition, or resource drift until the
-  complete evidence set is reviewed and refreshed again. Still replace
+  Checkpoint 000001's compiled sources and exact extracted build prelude still
+  match the refreshed snapshot, but the fast gate currently rejects drift in
+  `Cargo.lock` and the workspace `Cargo.toml`. Refresh the manifest, profile,
+  and complete Cargo/provider provenance together; do not weaken the gate or
+  update only the first mismatch. Still replace
   `source/compiler/omega/build.omg`'s legacy `target ... {}` blocks with the
   ordinary `Build` target-selection form already required by the build/extern
   design. Resolve the target-package default source convention at the same
@@ -171,7 +171,8 @@ Remaining:
 
   Acceptance: shared product suites can exercise both implementations without
   making Rust agreement or availability a correctness, bootstrap, or release
-  condition. Rust-specific maintenance stays in its suffixed on-ramp and never
+  condition. Rust-specific maintenance stays in the explicit
+  `source/compiler/rust/` owner and never
   moves into `source/compiler/omega/{psi,omega}/`.
 
 ## Execution order

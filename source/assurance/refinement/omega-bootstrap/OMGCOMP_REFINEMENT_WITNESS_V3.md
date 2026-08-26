@@ -8,7 +8,7 @@ schema remains `OMGRSW1`; the frame changes because the claimed checked IR and
 artifact relation change.
 
 The canonical source fixture is produced by
-[`role3_resolution_fixture.py`](../../../omega-bootstrap/gates/role3_resolution_fixture.py).
+[`role3_resolution_fixture.py`](../../../../bootstrap/omega-bootstrap/gates/role3_resolution_fixture.py).
 It uses two source files in one logical module, an exact selected root, a
 three-machine finite call chain, and an unreachable decoy. This does not settle
 private access between distinct modules, cross-package machine calls, general
@@ -61,7 +61,7 @@ the CKIR1-specific parts:
   call targets, maximum live stack, and exact image bytes.
 
 The checked-IR rules and backend resource ceilings are normative in
-[`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md).
+[`OMEGA_BOOTSTRAP_CHECKED_IR_V2.md`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V2.md).
 The physically artifact-free source evaluator supports at most 16 active
 machine frames; a 17th active frame reports 252. The CKIR2 evaluator supports at
 most 64 active machine frames; a 65th reports 252. These are checker-evidence

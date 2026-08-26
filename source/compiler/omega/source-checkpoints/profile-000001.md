@@ -152,6 +152,6 @@ indexed initializer statements, while the measured backend still expands the
 large aggregate heavily. This is a checkpoint observation, not an active work
 order. The selected bootstrap slice and its semantic, resource, and refinement
 acceptance are tracked in
-[`TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md); that implementation evidence
+[`TASKS_BOOTSTRAP.md`](../../../../TASKS_BOOTSTRAP.md); that implementation evidence
 does not by itself freeze records, arrays, or generated data into final
 `Ωself`.

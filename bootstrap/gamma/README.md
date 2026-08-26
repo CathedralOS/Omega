@@ -87,5 +87,5 @@ architectural role. The former `compiler/gamma` compatibility entry has been
 retired.
 
 See [LANGUAGE.md](LANGUAGE.md) for the canonical surface and
-[`rungs/gamma.md`](../../../wiki/architecture/bootstrap_lattice/rungs/gamma.md) for
+[`rungs/gamma.md`](../../wiki/architecture/bootstrap_lattice/rungs/gamma.md) for
 Gamma's architectural role.

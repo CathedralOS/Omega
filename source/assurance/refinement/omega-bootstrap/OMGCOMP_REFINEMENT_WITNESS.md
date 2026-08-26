@@ -3,13 +3,13 @@
 This document fixes the private witness and refinement frame for the first
 two-unit `OMGCOMP` nominal-data artifact. `OMGRSW1` is also the bridge-private
 normalized frontend/resolution handoff defined by
-[`OMEGA_BOOTSTRAP_RESOLUTION.md`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md).
+[`OMEGA_BOOTSTRAP_RESOLUTION.md`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md).
 When embedded here it remains an untrusted witness: producer provenance grants
 no authority, and independent persisted-Beta checkers reconstruct the same
 exact rows. It is not Omega syntax, backend checked IR, a resolver receipt, a
 stable product ABI, or a trust grant.
 The canonical source/envelope/reference fixture lives under
-[`gates/fixtures/two-unit-import/`](../../../omega-bootstrap/gates/fixtures/two-unit-import/).
+[`gates/fixtures/two-unit-import/`](../../../../bootstrap/omega-bootstrap/gates/fixtures/two-unit-import/).
 
 The witness retains resolved source identity, declarations, and static-name
 bindings only. Source-body operations are absent: lowering and selected-result

@@ -1,8 +1,8 @@
 # OMGCOMP lower-rooted refinement witness, version 7
 
 [`OMGRFN6`](OMGCOMP_REFINEMENT_WITNESS_V6.md) |
-[`OMGRSW3`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
-[`CKIR5`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md)
+[`OMGRSW3`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
+[`CKIR5`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V5.md)
 
 `OMGRFN7` is the private lower-rooted carrier for the first payload-bearing
 pure-sum tranche. It preserves the five independent responsibility owners and

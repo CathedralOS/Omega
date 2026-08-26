@@ -1,11 +1,11 @@
 # OMGCOMP lower-rooted refinement witness, version 11
 
 [`OMGRFN10`](OMGCOMP_REFINEMENT_WITNESS_V10.md) |
-[`OMGRSW1`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
-[`OMGRSW2`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md) |
-[`OMGRSW3`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
-[`CKIR9`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V9.md) |
-[`CKIR9 backend`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V9_BACKEND.md)
+[`OMGRSW1`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
+[`OMGRSW2`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md) |
+[`OMGRSW3`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
+[`CKIR9`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V9.md) |
+[`CKIR9 backend`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V9_BACKEND.md)
 
 `OMGRFN11` is the private lower-rooted carrier for pure, total, nontrapping
 same-carrier unsigned ordered comparison. Exact source still selects the least

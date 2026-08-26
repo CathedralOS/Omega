@@ -4,9 +4,9 @@ This contract versions the private refinement carrier for the direct nominal
 field-receiver call tranche. It inherits the complete `OMGCOMP`, `CKIR4`, ELF,
 result, resource, and status rules from
 [`OMGRFN5`](OMGCOMP_REFINEMENT_WITNESS_V5.md). Its only component change is the
-canonical [`OMGRSW2`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md)
+canonical [`OMGRSW2`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md)
 resolution relation and the corresponding
-[`OMGLOW5`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLVED_TO_CKIR4_V2.md)
+[`OMGLOW5`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLVED_TO_CKIR4_V2.md)
 source-to-CKIR4 relation. It does not widen CKIR4.
 
 ## Version-6 refinement frame

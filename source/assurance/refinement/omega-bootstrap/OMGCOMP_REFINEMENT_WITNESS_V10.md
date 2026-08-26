@@ -1,11 +1,11 @@
 # OMGCOMP lower-rooted refinement witness, version 10
 
 [`OMGRFN9`](OMGCOMP_REFINEMENT_WITNESS_V9.md) |
-[`OMGRSW1`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
-[`OMGRSW2`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md) |
-[`OMGRSW3`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
-[`CKIR8`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V8.md) |
-[`CKIR8 backend`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V8_BACKEND.md)
+[`OMGRSW1`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
+[`OMGRSW2`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md) |
+[`OMGRSW3`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
+[`CKIR8`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V8.md) |
+[`CKIR8 backend`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V8_BACKEND.md)
 
 `OMGRFN10` is the private lower-rooted carrier for pure, total, nontrapping
 same-carrier scalar equality. It freezes all earlier identities and adds no
