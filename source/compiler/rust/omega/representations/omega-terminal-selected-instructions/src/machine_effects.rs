@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use omega_register_model::{
     RegisterConstraintCatalogIdentity, RegisterConstraintKey, RegisterInstructionConstraint,
-    RegisterOperandAccess, ValidatedRegisterConstraintCatalog,
+    RegisterOperandAccess, RegisterViewId, ValidatedRegisterConstraintCatalog,
 };
 use omega_target::NativeTarget;
 
@@ -105,6 +105,13 @@ pub enum TerminalMachineAlternativeApplicability {
         result: u16,
         left: u16,
         right: u16,
+    },
+    /// A commutative target form for which either input may fill the restricted
+    /// encoding role, but one named physical view cannot fill that role.
+    AtLeastOneOperandDoesNotAliasView {
+        left: u16,
+        right: u16,
+        excluded_view: RegisterViewId,
     },
 }
 
@@ -432,6 +439,21 @@ fn validate_applicability(
                 && reads(right.access)
                 && result.class == left.class
                 && result.class == right.class)
+                .then_some(())
+                .ok_or(())
+        }
+        TerminalMachineAlternativeApplicability::AtLeastOneOperandDoesNotAliasView {
+            left,
+            right,
+            ..
+        } => {
+            let (Some(left), Some(right)) = (operand(left), operand(right)) else {
+                return Err(());
+            };
+            (left.operand != right.operand
+                && reads(left.access)
+                && reads(right.access)
+                && left.class == right.class)
                 .then_some(())
                 .ok_or(())
         }

@@ -189,6 +189,16 @@ fn encode_alternative(bytes: &mut Vec<u8>, alternative: TerminalMachineAlternati
             bytes.extend_from_slice(&left.to_le_bytes());
             bytes.extend_from_slice(&right.to_le_bytes());
         }
+        TerminalMachineAlternativeApplicability::AtLeastOneOperandDoesNotAliasView {
+            left,
+            right,
+            excluded_view,
+        } => {
+            bytes.push(5);
+            bytes.extend_from_slice(&left.to_le_bytes());
+            bytes.extend_from_slice(&right.to_le_bytes());
+            bytes.extend_from_slice(&excluded_view.0.to_le_bytes());
+        }
     }
     match alternative.size {
         TerminalMachineSizeKnowledge::ExactBytes(size) => {

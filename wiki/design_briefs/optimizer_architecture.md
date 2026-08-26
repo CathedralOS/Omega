@@ -1162,8 +1162,9 @@ machine-effect-catalog identities. This is pre-allocation analysis authority
 only: explicit VReg operands have no physical write footprint until homes are
 joined, and no alternative is chosen here.
 
-The sidecar crosses process or cache boundaries only through its strict v1
-codec. The envelope carries an explicit magic, version, and content identity;
+The sidecar crosses process or cache boundaries only through its strict,
+versioned codec. The envelope carries an explicit magic, version, and content
+identity;
 the decoder consumes the complete closed vocabulary and rejects truncation,
 trailing bytes, unknown tags, and stale identities. Orchestration admits the
 same analysis over three separately validated selected forms: original
@@ -1180,6 +1181,33 @@ right-alias case only when the left input is distinct, and carries the RFLAGS
 clobber from its constraint row. AArch64 exposes one flag-transparent SUB
 alternative. A later home-aware choice must select exactly one applicable
 alternative and prove its concrete physical footprint before encoding.
+
+That home-aware boundary is now a separate immutable post-allocation sidecar.
+It joins the selected identity, pre-allocation effect identity, live ranges,
+allocation legality, homes, post-allocation manifest, target environment,
+physical register model, constraint catalog, and machine-effect catalog. For
+each operand it records the physical view, storage units, access-qualified read
+and write units, and the model's exact write semantics. Per-instruction rows
+retain the implicit effects separately and also publish canonical complete
+use/def/clobber sets.
+
+The initial choice rule is named `UniqueApplicableInCatalogOrderV1`. It is a
+legality partition, not a performance heuristic: exactly one declared form
+must apply, while zero or multiple forms reject. All four x86 subtraction
+alias cases are tested as a disjoint partition. x86 LEA addition also declares
+its SIB feasibility constraint explicitly: at least one commutative source
+must not alias R12. Thus an unencodable pair of R12 sources is rejected at the
+home join instead of silently changing to flag-writing ADD. Once a target has
+multiple simultaneously legal forms with a performance tradeoff, choosing
+among them becomes an explicit named policy decision with its own receipt.
+
+Orchestration reconstructs this sidecar for ordinary selected homes,
+fixed-view-copy output, and an explicit literal-fold sequence, always retaining
+the matching transformed custody and validated post-allocation manifest. This
+still grants no emission authority. Clean target-owned selected-form encoders,
+layout-resolved branch choices, byte-level footprint evidence, and an
+independent encoded-form verifier remain required before the legacy assigned-
+operation emitter can be bypassed.
 
 ## Decision policy, search, and ML
 
