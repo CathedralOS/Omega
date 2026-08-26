@@ -187,6 +187,20 @@ fn fixed_boolean_array_type(program: &mut TypedTrees, width: usize) -> TypeRefer
         })
 }
 
+fn fixed_integer_array_type(
+    program: &mut TypedTrees,
+    primitive: &'static str,
+    width: usize,
+) -> TypeReferenceHandle {
+    let element_type = primitive_type(program, primitive);
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(width),
+        })
+}
+
 fn canonical_byte_array_literal(program: &mut TypedTrees, bytes: &[u8]) -> ExpressionHandle {
     let elements =
         bytes
@@ -210,6 +224,24 @@ fn boolean_array_literal(program: &mut TypedTrees, values: &[bool]) -> Expressio
             program
                 .expression_table
                 .insert(ExpressionNode::Boolean(*value))
+        })
+        .collect::<Vec<_>>();
+    let elements = program.expression_table.insert_expression_handles(elements);
+    program
+        .expression_table
+        .insert(ExpressionNode::ArrayLiteral(elements))
+}
+
+fn integer_array_literal(
+    program: &mut TypedTrees,
+    values: impl IntoIterator<Item = IntegerLiteral>,
+) -> ExpressionHandle {
+    let elements = values
+        .into_iter()
+        .map(|value| {
+            program
+                .expression_table
+                .insert(ExpressionNode::Integer(value))
         })
         .collect::<Vec<_>>();
     let elements = program.expression_table.insert_expression_handles(elements);
@@ -2021,6 +2053,51 @@ fn proof_fact_literal_substitution_retains_value_landing_and_recursive_fact_shap
         context(&boolean_array_value),
         context(&no_values),
     ));
+
+    let integer_array_parameter = symbol(958);
+    let integer_array_name = named_argument(&mut program, "offsets", integer_array_parameter);
+    let i16_landing = IntegerLanding {
+        landed_type: LandedIntegerType::I16,
+        domain: ArithmeticDomain::Exact,
+    };
+    let exact_integer_array_literal = integer_array_literal(
+        &mut program,
+        [
+            IntegerLiteral::from_value(-1).with_landing(i16_landing),
+            IntegerLiteral::from_value(7).with_landing(i16_landing),
+        ],
+    );
+    let wrapping_integer_array_literal = integer_array_literal(
+        &mut program,
+        [
+            IntegerLiteral::from_value(-1).with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::I16,
+                domain: ArithmeticDomain::Wrapping,
+            }),
+            IntegerLiteral::from_value(7).with_landing(i16_landing),
+        ],
+    );
+    let integer_array_value = vec![ProofValueSubstitution::integer_array(
+        integer_array_parameter,
+        [
+            ("-1".to_owned(), i16_landing),
+            ("7".to_owned(), i16_landing),
+        ],
+    )];
+    assert!(proof_facts_match(
+        &program,
+        &ProofFact::Expression(integer_array_name),
+        &ProofFact::Expression(exact_integer_array_literal),
+        context(&integer_array_value),
+        context(&no_values),
+    ));
+    assert!(!proof_facts_match(
+        &program,
+        &ProofFact::Expression(integer_array_name),
+        &ProofFact::Expression(wrapping_integer_array_literal),
+        context(&integer_array_value),
+        context(&no_values),
+    ));
 }
 
 #[test]
@@ -2833,6 +2910,121 @@ fn direct_lift_runtime_accepts_exact_boolean_array_literals() {
 }
 
 #[test]
+fn direct_lift_runtime_accepts_exact_integer_array_literals() {
+    use super::runtime_correspondence::ClosedIntegerArrayElement;
+
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(
+        &mut program,
+        symbol(978),
+        "IntegerArrayLiteralQ",
+        symbol(979),
+        "IntegerArrayLiteralR",
+    );
+    let carrier = carrier_type(&mut program);
+    let i8_array = fixed_integer_array_type(&mut program, "i8", 2);
+    let u16_array = fixed_integer_array_type(&mut program, "u16", 1);
+    let i8_literal = integer_array_literal(
+        &mut program,
+        [
+            IntegerLiteral::from_value(-1),
+            IntegerLiteral::from_value(127),
+        ],
+    );
+    let u16_landing = IntegerLanding {
+        landed_type: LandedIntegerType::U16,
+        domain: ArithmeticDomain::Exact,
+    };
+    let u16_literal = integer_array_literal(
+        &mut program,
+        [IntegerLiteral::from_value(7).with_landing(u16_landing)],
+    );
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([i8_literal, u16_literal]);
+    let call = call_with_arguments(arguments);
+    let state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    let request = push_representative(
+        &mut program,
+        &[(i8_array, false, false), (u16_array, false, false)],
+        carrier,
+    );
+
+    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
+        .expect("each fixed integer-array element lands by the exact scalar rule");
+    assert_eq!(
+        plan.input_relations,
+        [
+            InputRelation::ExactEquality(i8_array),
+            InputRelation::ExactEquality(u16_array),
+        ]
+    );
+    let runtime = plan
+        .direct_lift_correspondence
+        .expect("integer-array literal runtime correspondence");
+    let i8_landing = IntegerLanding {
+        landed_type: LandedIntegerType::I8,
+        domain: ArithmeticDomain::Exact,
+    };
+    assert_eq!(
+        runtime.positions,
+        [
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::IntegerArray {
+                        elements: Arc::from(vec![
+                            ClosedIntegerArrayElement {
+                                spelling: "-1".to_owned(),
+                                landing: i8_landing,
+                            },
+                            ClosedIntegerArrayElement {
+                                spelling: "127".to_owned(),
+                                landing: i8_landing,
+                            },
+                        ]),
+                        target_type: program.normalized_type_identity(i8_array),
+                    },
+                ),
+                representative_parameter: symbol(100),
+            },
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::IntegerArray {
+                        elements: Arc::from(vec![ClosedIntegerArrayElement {
+                            spelling: "7".to_owned(),
+                            landing: u16_landing,
+                        }]),
+                        target_type: program.normalized_type_identity(u16_array),
+                    },
+                ),
+                representative_parameter: symbol(101),
+            },
+        ]
+    );
+    assert_ne!(
+        runtime.positions[0].source, runtime.positions[1].source,
+        "element landing and exact array target remain identity"
+    );
+    let mut landing_drift = runtime.clone();
+    landing_drift.positions[1].source = super::DirectLiftArgumentSource::Literal(
+        super::runtime_correspondence::ClosedLiftLiteral::IntegerArray {
+            elements: Arc::from(vec![ClosedIntegerArrayElement {
+                spelling: "7".to_owned(),
+                landing: IntegerLanding {
+                    landed_type: LandedIntegerType::U16,
+                    domain: ArithmeticDomain::Wrapping,
+                },
+            }]),
+            target_type: program.normalized_type_identity(u16_array),
+        },
+    );
+    assert_ne!(runtime, landing_drift, "element domain remains identity");
+}
+
+#[test]
 fn repeated_equal_direct_lift_literals_keep_distinct_runtime_and_theorem_positions() {
     let mut program = TypedTrees::default();
     let quotient = quotient_type(
@@ -3090,22 +3282,22 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
     }
 
     let short_array = canonical_byte_array_literal(&mut program, b"four");
-    let landed_element = program.expression_table.insert(ExpressionNode::Integer(
+    let mismatched_landing_element = program.expression_table.insert(ExpressionNode::Integer(
         IntegerLiteral::from_value(1).with_landing(IntegerLanding {
-            landed_type: LandedIntegerType::U8,
+            landed_type: LandedIntegerType::U16,
             domain: ArithmeticDomain::Exact,
         }),
     ));
-    let landed_elements = program
+    let mismatched_landing_elements = program
         .expression_table
-        .insert_expression_handles([landed_element]);
-    let landed_array = program
+        .insert_expression_handles([mismatched_landing_element]);
+    let mismatched_landing_array = program
         .expression_table
-        .insert(ExpressionNode::ArrayLiteral(landed_elements));
+        .insert(ExpressionNode::ArrayLiteral(mismatched_landing_elements));
     let one_byte_array = fixed_byte_array_type(&mut program, 1);
     for (position, expression, target) in [
         (18, short_array, bare_byte_array),
-        (19, landed_array, one_byte_array),
+        (19, mismatched_landing_array, one_byte_array),
     ] {
         assert_eq!(
             super::closed_lift_literal_for_representative(&program, expression, target, position),
@@ -3120,6 +3312,42 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
         (20, integer_array, one_boolean_array),
         (21, boolean_array, one_byte_array),
         (22, boolean_array, two_boolean_array),
+    ] {
+        assert_eq!(
+            super::closed_lift_literal_for_representative(&program, expression, target, position),
+            Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
+        );
+    }
+    let out_of_range_array = integer_array_literal(&mut program, [IntegerLiteral::from_value(128)]);
+    let wrapping_array = integer_array_literal(
+        &mut program,
+        [IntegerLiteral::from_value(1).with_landing(IntegerLanding {
+            landed_type: LandedIntegerType::I8,
+            domain: ArithmeticDomain::Wrapping,
+        })],
+    );
+    let one_i8_array = fixed_integer_array_type(&mut program, "i8", 1);
+    let constrained_boolean_array =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: constrained,
+                length: FixedArrayLength::Literal(1),
+            });
+    let unresolved_i8_array = program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: i8_type,
+            length: FixedArrayLength::ConstParameter {
+                symbol: symbol(980),
+                name: Identifier::generated_static("N"),
+            },
+        });
+    for (position, expression, target) in [
+        (23, out_of_range_array, one_i8_array),
+        (24, wrapping_array, one_i8_array),
+        (25, boolean_array, constrained_boolean_array),
+        (26, out_of_range_array, unresolved_i8_array),
     ] {
         assert_eq!(
             super::closed_lift_literal_for_representative(&program, expression, target, position),

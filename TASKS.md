@@ -8085,7 +8085,12 @@ Remaining N6/N8 work:
   contextual landing of its own. A direct closed Boolean array may likewise
   feed only its exact literal-width `[bool; N]` target. Every element must be a
   Boolean literal; values, order, and normalized array identity remain
-  occurrence and proof-substitution evidence.
+  occurrence and proof-substitution evidence. A direct fixed integer array may
+  likewise contain only integer literals at an exact literal-width primitive
+  `[I; N]` target. Each element independently follows the scalar landing rule:
+  its explicit landing must agree, or the exact element target supplies one,
+  and the value must fit. Ordered spelling/landing evidence and normalized
+  array identity are retained without element coercion.
   Exact
   structural `Q => P` substitution now permits a
   dependent representative `P` fact to mention a literal-fed position only
@@ -8096,8 +8101,8 @@ Remaining N6/N8 work:
   Mismatched or out-of-range integers, mismatched floats, mutable/non-byte,
   undersized or otherwise constrained byte-string targets, raw strings not
   already context-landed for a bare fixed array, noncanonical or heterogeneous
-  byte/Boolean arrays, numeric, nested, or data arrays, other aggregates,
-  zero-value,
+  byte/Boolean arrays, mismatched or out-of-range integer arrays, float, nested,
+  or data arrays, other aggregates, zero-value,
   casts, calls, computed expressions, constrained/generic targets, mutable or
   attached targets, and literal arguments to `define` remain fail-closed.
   `define` remains strictly position-preserving at exact public
