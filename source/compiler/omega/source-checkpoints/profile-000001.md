@@ -108,19 +108,17 @@ These observations do not settle conflicting language-surface claims. Unicode
 XID identifiers contradict the guide's ASCII-transparent/source-payload-only
 wording; the current lexer accepts `\u{...}` and encodes the scalar as UTF-8
 while the guide explicitly forbids that escape; raw-string delimiter/content
-rules are not normative there; and `u32` index/cursor expressions feed fixed-
-array indexing and compare directly with slice `.len`, while the specified
-`Array`/`Slice` index and count interfaces use `u64`. Chapter 5 now specifies
-explicit denotation-preserving integer widening with `as` and forbids implicit
-widening; it does not authorize those direct cross-carrier uses. The checkpoint
-therefore records those tested implementation behaviors without treating them
-as full-Omega lexical authority. `TASKS.md` owns the required rulings or
-product-source refactors.
+rules are not normative there. The product source now uses `u64` for byte
+coordinates, collection counts, and scan indices throughout this checkpoint,
+while Unicode scalar values remain `u32`; no implicit cross-carrier indexing or
+`.len` comparison remains. The checkpoint still records the unsettled Unicode
+identifier, escape, and raw-string behaviors without treating them as
+full-Omega lexical authority. `TASKS.md` owns those remaining language rulings.
 
 The profile artifact's `unresolved_decisions` array records gaps owned by the
 profile/bridge join; it is not an exhaustive registry of language-design
-questions. The lexical and cross-carrier conflicts above remain explicit
-product-language blockers even though adding them to the hashed profile would
+questions. The remaining lexical conflicts above remain explicit product-
+language blockers even though adding them to the hashed profile would
 not settle them. This distinction prevents a bootstrap profile refresh from
 silently acting as a language ruling.
 

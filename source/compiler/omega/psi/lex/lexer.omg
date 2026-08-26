@@ -13,32 +13,32 @@ data Lexer {
     source: SourceUnit;
     output: TokenStream;
 
-    cursor: u32 in Trapping;
-    token_start: u32 in Trapping;
-    token_end: u32 in Trapping;
+    cursor: u64 in Trapping;
+    token_start: u64 in Trapping;
+    token_end: u64 in Trapping;
     scalar: u32 in Trapping;
-    scalar_width: u32 in Trapping;
+    scalar_width: u64 in Trapping;
     decode_valid: bool;
     byte0: u32 in Trapping;
     byte1: u32 in Trapping;
     byte2: u32 in Trapping;
     byte3: u32 in Trapping;
-    index1: u32 in Trapping;
-    index2: u32 in Trapping;
-    index3: u32 in Trapping;
+    index1: u64 in Trapping;
+    index2: u64 in Trapping;
+    index3: u64 in Trapping;
 
-    decoded_start: u32 in Trapping;
-    copy_cursor: u32 in Trapping;
-    copy_end: u32 in Trapping;
-    escape_start: u32 in Trapping;
+    decoded_start: u64 in Trapping;
+    copy_cursor: u64 in Trapping;
+    copy_end: u64 in Trapping;
+    escape_start: u64 in Trapping;
     unicode_value: u32 in Trapping;
     unicode_accumulator: u32 in Trapping;
     unicode_digits: u32 in Trapping;
-    raw_hash_count: u32 in Trapping;
-    raw_content_start: u32 in Trapping;
-    raw_content_end: u32 in Trapping;
-    raw_match_cursor: u32 in Trapping;
-    raw_match_count: u32 in Trapping;
+    raw_hash_count: u64 in Trapping;
+    raw_content_start: u64 in Trapping;
+    raw_content_end: u64 in Trapping;
+    raw_match_cursor: u64 in Trapping;
+    raw_match_count: u64 in Trapping;
 
     numeric_base: NumericBase;
     numeric_empty_digits: bool;
@@ -49,8 +49,8 @@ data Lexer {
     numeric_saw_digit: bool;
     predicate_result: bool;
 
-    span_cursor: u32 in Trapping;
-    candidate_cursor: u32 in Trapping;
+    span_cursor: u64 in Trapping;
+    candidate_cursor: u64 in Trapping;
 }
 
 machine Lexer::initialize(&mut self, source_id: u32 in Trapping) {
@@ -67,8 +67,8 @@ machine Lexer::append_source_byte(&mut self, byte: u8) {
 machine Lexer::reject(
     &mut self,
     code: LexDiagnosticCode,
-    start: u32 in Trapping,
-    end: u32 in Trapping
+    start: u64 in Trapping,
+    end: u64 in Trapping
 ) {
     self.output.reject(self.source.id, code, start, end);
 }
@@ -76,7 +76,7 @@ machine Lexer::reject(
 // Decode one Unicode scalar at an exact byte coordinate. The source buffer is
 // not assumed valid before this operation; overlong forms, surrogates, and
 // values beyond U+10FFFF all fail.
-machine Lexer::decode_at(&mut self, index: u32 in Trapping) {
+machine Lexer::decode_at(&mut self, index: u64 in Trapping) {
     self.decode_valid = false;
     self.scalar = 0;
     self.scalar_width = 0;
@@ -415,8 +415,8 @@ machine Lexer::push_decoded(&mut self, byte: u8) {
 
 machine Lexer::span_equals(
     &mut self,
-    start: u32 in Trapping,
-    end: u32 in Trapping,
+    start: u64 in Trapping,
+    end: u64 in Trapping,
     candidate: &[u8]
 ) {
     self.predicate_result = false;
@@ -425,19 +425,19 @@ machine Lexer::span_equals(
         _ -> no()
     }
 
-    state scan(&mut self, index: u32 in Trapping) {
+    state scan(&mut self, index: u64 in Trapping) {
         transition index < candidate.len {
             true -> address(index)
             _ -> yes()
         }
     }
 
-    state address(&mut self, index: u32 in Trapping) {
+    state address(&mut self, index: u64 in Trapping) {
         self.candidate_cursor = start + index;
         transition { _ -> compare(index) }
     }
 
-    state compare(&mut self, index: u32 in Trapping) {
+    state compare(&mut self, index: u64 in Trapping) {
         let source_byte: u8 = self.source.byte_or_nul(self.candidate_cursor);
         let candidate_byte: u8 = candidate[index];
         transition source_byte == candidate_byte {
@@ -1447,7 +1447,7 @@ machine Lexer::lex_punctuation(&mut self) {
     state unsupported(&mut self) { self.reject(LexDiagnosticCode::UnsupportedPunctuation, self.token_start, self.token_start + self.scalar_width); }
 }
 
-machine Lexer::emit_punctuation(&mut self, kind: PunctuationKind, length: u32 in Trapping) {
+machine Lexer::emit_punctuation(&mut self, kind: PunctuationKind, length: u64 in Trapping) {
     self.cursor = self.cursor + length;
     self.token_end = self.cursor;
     self.push_token(TokenKind::Punctuation { kind: kind });
