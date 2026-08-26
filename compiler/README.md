@@ -88,6 +88,12 @@ See [`bootstrap/assurance/proof-kernel/README.md`](../bootstrap/assurance/proof-
 Psi owns Omega source semantics through terminal portable IR. Omega consumes
 terminal Psi and performs target realization and native emission.
 
+That is the production compiler's internal responsibility split, not a required
+IR choice for the Delta bridge. `omega-bootstrap` may check and lower `Ωself`
+directly; it must compile the product modules that implement Terminal Psi, but
+it need not contain a Terminal-Psi interpreter or route its own compilation
+through Terminal Psi.
+
 The hosted build has two source surfaces:
 
 1. Delta source implements `omega-bootstrap`, including exact `Ωself`
@@ -129,8 +135,8 @@ Rust is removed first from meaning and checking, where it affects soundness, and
 later from producers, where it affects self-sufficiency. The current Rust
 Psi/Omega compiler may remain maintained in parallel as a differential
 reference, but it grants no authority and is never required to bootstrap or
-release the product. `omega-bootstrap` is the point at which an external
-compiler can be omitted entirely.
+release the product. Once the Delta-built `omega-bootstrap` path closes, the
+Rust Psi/Omega on-ramp can be omitted entirely from the required build.
 
 ## Entry points
 
