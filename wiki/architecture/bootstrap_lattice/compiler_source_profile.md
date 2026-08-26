@@ -88,6 +88,30 @@ implementation, or a bootstrap dependency. It recompiles the same product
 source. Likewise, a conservatively generated production-compiler executable
 may still contain and run the full optimizer when it compiles user programs.
 
+## Decision status
+
+The architecture is settled; only the exact contents of the two source
+contracts remain open:
+
+| Settled | Still evidence-driven |
+| --- | --- |
+| Delta is an independent language, not restricted to valid Omega. | The exact Delta-v1 grammar and facilities needed to implement the canonical Delta compiler and `omega-bootstrap` robustly. |
+| `Ωself` is ordinary valid Omega with features rejected, never altered meaning or private syntax. | The exact ordinary-Omega facilities used by the completed production compiler source after measured retain/refactor decisions. |
+| `omega-bootstrap` is written in Delta, accepts `Ωself`, and may lower conservatively. | The complete general bridge implementation and its resource limits. |
+| The first bridge-built `omega` already implements full Omega, including advanced features omitted from its own source. | The complete product source closure and proof that the resulting compiler covers the full specification. |
+| A later `omega` → `omega` rebuild is optional executable optimization and reproducibility evidence. | Whether that optional rebuild is worth doing for a release; it cannot change bootstrap closure. |
+| Standalone interpreters, viewers, REPLs, proof explorers, and debuggers are outside the required closure unless imported by the compiler. | Which representation, checking, lowering, and support modules the final compiler executable actually imports. |
+
+The current authoring bias is also settled enough to guide implementation
+without prematurely freezing either contract. Delta should be a robust,
+deterministic C-class compiler host with explicit failure and deterministic
+storage. `Ωself` should omit proof-program mathematics and dependent or
+proof-indexed typing unless the compiler source demonstrates a real need;
+ordinary named data, basic generics, concrete domains, and regular compiler
+control remain available by default. Numeric/schema tags, mixed record-plus-sum
+declarations, advanced generics/domains, and aggregate transition payloads are
+cost candidates, not foregone exclusions.
+
 The names are deliberately non-generational. `omega-bootstrap` is a role, not
 “Omega 0”; the production compiler is `omega`, not “Omega 1”; and an optional
 self-rebuild creates a better executable of the same compiler rather than a new
