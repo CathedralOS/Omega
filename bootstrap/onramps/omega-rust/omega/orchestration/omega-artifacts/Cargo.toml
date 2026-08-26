@@ -19,6 +19,7 @@ psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
 omega-external-roots = { path = "../omega-external-roots" }
+omega-effects = { path = "../../representations/omega-effects" }
 omega-image = { path = "../../backend/images/omega-image" }
 omega-target = { path = "../../foundation/omega-target" }
 

@@ -547,6 +547,12 @@ pub enum TrustProgressPremiseSubject {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TrustProviderRealization {
     Import {
+        locator: omega_effects::NormalizedForeignLocator,
+    },
+    /// Temporary source `via Binding::DllImport("library", "symbol")`
+    /// realization. This remains visibly distinct from an evaluated,
+    /// target-normalized foreign locator.
+    StringBackedImportBootstrap {
         library: String,
         symbol: String,
     },
@@ -574,10 +580,62 @@ pub enum TrustProviderRealization {
 }
 
 impl TrustProviderRealization {
+    /// Exact normalized foreign-locator identity retained by this trust row.
+    /// Other realization cases have their identity in their structured fields.
+    pub fn normalized_foreign_locator_identity(&self) -> Option<u64> {
+        match self {
+            Self::Import { locator } => Some(locator.normalized_identity()),
+            _ => None,
+        }
+    }
+
+    fn validate_reported_target(&self, reported_target: &str) -> Result<(), String> {
+        let Self::Import { locator } = self else {
+            return Ok(());
+        };
+        let locator_target = locator.target().target_name();
+        if reported_target != locator_target {
+            return Err(format!(
+                "normalized foreign locator 0x{:016x} targets `{locator_target}`, but its trust row reports target `{reported_target}`",
+                locator.normalized_identity(),
+            ));
+        }
+        Ok(())
+    }
+
     fn report_text(&self) -> String {
         match self {
-            Self::Import { library, symbol } => {
-                format!("import `{library}` symbol `{symbol}`")
+            Self::Import { locator } => {
+                let identity = locator.normalized_identity();
+                let target = locator.target().target_name();
+                match locator.locator() {
+                    omega_effects::ForeignLocatorCandidate::PeByName { library, export } => {
+                        format!(
+                            "normalized import PeByName [{identity:016x}] target `{target}` library bytes {} export bytes {}",
+                            hex_bytes(library),
+                            hex_bytes(export),
+                        )
+                    }
+                    omega_effects::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
+                        format!(
+                            "normalized import PeByOrdinal [{identity:016x}] target `{target}` library bytes {} ordinal {ordinal}",
+                            hex_bytes(library),
+                        )
+                    }
+                    omega_effects::ForeignLocatorCandidate::ElfVersioned {
+                        object,
+                        symbol,
+                        version,
+                    } => format!(
+                        "normalized import ElfVersioned [{identity:016x}] target `{target}` object bytes {} symbol bytes {} version bytes {}",
+                        hex_bytes(object),
+                        hex_bytes(symbol),
+                        hex_bytes(version),
+                    ),
+                }
+            }
+            Self::StringBackedImportBootstrap { library, symbol } => {
+                format!("string-backed import bootstrap `{library}` symbol `{symbol}`")
             }
             Self::Syscall { number } => format!("syscall {number}"),
             Self::CompilerIntrinsic { machine } => {
@@ -593,6 +651,15 @@ impl TrustProviderRealization {
             } => format!("checked adapter `{machine_identity}`"),
         }
     }
+}
+
+fn hex_bytes(bytes: &[u8]) -> String {
+    let mut text = String::with_capacity(2 + bytes.len() * 2);
+    text.push_str("0x");
+    for byte in bytes {
+        text.push_str(&format!("{byte:02x}"));
+    }
+    text
 }
 
 /// One exact routed qualification carried by a normalized provider plan.
