@@ -151,6 +151,16 @@ pub(super) fn derive_direct_lift_precondition_implication(
                         .iter()
                         .map(|element| (element.spelling.clone(), element.landing)),
                 )),
+                DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::FloatArray {
+                        elements, ..
+                    },
+                ) => representative_values.push(ProofValueSubstitution::float_array(
+                    position.representative_parameter,
+                    elements
+                        .iter()
+                        .map(|element| (element.spelling.clone(), element.landing)),
+                )),
             }
         }
 

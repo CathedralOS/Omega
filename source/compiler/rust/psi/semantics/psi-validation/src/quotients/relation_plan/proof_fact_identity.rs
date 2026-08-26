@@ -114,6 +114,29 @@ impl ProofValueSubstitution {
         }
     }
 
+    pub(super) fn float_array(
+        symbol: SymbolHandle,
+        elements: impl IntoIterator<Item = (String, psi_numerics::literals::FloatFormat)>,
+    ) -> Self {
+        let elements = elements.into_iter().collect::<Vec<_>>();
+        Self {
+            symbol,
+            rendered: format!(
+                "[{}]",
+                elements
+                    .iter()
+                    .map(|(spelling, _)| spelling.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            trace: elements
+                .iter()
+                .map(|(spelling, landing)| float_trace(spelling, Some(*landing)))
+                .collect::<Vec<_>>()
+                .join(","),
+        }
+    }
+
     pub(super) fn rebound(&self, symbol: SymbolHandle) -> Self {
         Self {
             symbol,

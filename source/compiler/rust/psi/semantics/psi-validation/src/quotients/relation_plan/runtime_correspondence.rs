@@ -9,8 +9,8 @@
 //! explicit or exact target-derived landing, float with an explicit or exact
 //! target-derived format, immutable-image byte string to its exact shared byte
 //! view or bounded value-domain buffer, or a canonically context-landed byte
-//! array, direct Boolean-literal array, or exactly landed integer-literal array
-//! to its exact fixed-array representative position.
+//! array, direct Boolean-literal array, or exactly landed integer/float-literal
+//! array to its exact fixed-array representative position.
 //! Neither policy infers or selects a relation, contract proof, or
 //! representative operation.
 
@@ -46,6 +46,12 @@ pub(super) struct ClosedIntegerArrayElement {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ClosedFloatArrayElement {
+    pub(super) spelling: String,
+    pub(super) landing: FloatFormat,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum ClosedLiftLiteral {
     Boolean(bool),
     Integer {
@@ -70,6 +76,10 @@ pub(super) enum ClosedLiftLiteral {
     },
     IntegerArray {
         elements: std::sync::Arc<[ClosedIntegerArrayElement]>,
+        target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
+    },
+    FloatArray {
+        elements: std::sync::Arc<[ClosedFloatArrayElement]>,
         target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
     },
 }
@@ -366,6 +376,27 @@ pub(super) fn closed_lift_literal_for_representative(
                 target_type: program.normalized_type_identity(representative_type),
             }));
         }
+        if matches!(element_primitive, PrimitiveType::F32 | PrimitiveType::F64) {
+            let elements = elements
+                .iter()
+                .map(|element| {
+                    let ExpressionNode::Float(literal) =
+                        program.expression_table.expression(*element)
+                    else {
+                        return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+                    };
+                    let landing = exact_float_landing(element_primitive, literal, position)?;
+                    Ok(ClosedFloatArrayElement {
+                        spelling: literal.text().to_owned(),
+                        landing,
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            return Ok(Some(ClosedLiftLiteral::FloatArray {
+                elements: elements.into(),
+                target_type: program.normalized_type_identity(representative_type),
+            }));
+        }
         return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
     }
     if let ExpressionNode::String(bytes) = program.expression_table.expression(expression) {
@@ -425,17 +456,7 @@ pub(super) fn closed_lift_literal_for_representative(
             }))
         }
         ExpressionNode::Float(literal) => {
-            let expected = match primitive {
-                PrimitiveType::F32 => FloatFormat::F32,
-                PrimitiveType::F64 => FloatFormat::F64,
-                _ => {
-                    return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
-                }
-            };
-            let landing = literal.landing().unwrap_or(expected);
-            if landing != expected {
-                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
-            }
+            let landing = exact_float_landing(primitive, literal, position)?;
             Ok(Some(ClosedLiftLiteral::Float {
                 spelling: literal.text().to_owned(),
                 landing,
@@ -516,6 +537,23 @@ fn exact_integer_landing(
         || landing.domain != target_domain
         || !integer_literal_fits(literal, landing.landed_type)
     {
+        return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+    }
+    Ok(landing)
+}
+
+fn exact_float_landing(
+    primitive: PrimitiveType,
+    literal: &psi_numerics::literals::FloatLiteral,
+    position: usize,
+) -> Result<FloatFormat, RelationPlanError> {
+    let expected = match primitive {
+        PrimitiveType::F32 => FloatFormat::F32,
+        PrimitiveType::F64 => FloatFormat::F64,
+        _ => return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
+    };
+    let landing = literal.landing().unwrap_or(expected);
+    if landing != expected {
         return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
     }
     Ok(landing)
