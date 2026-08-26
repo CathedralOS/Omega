@@ -399,21 +399,22 @@ under that same call budget. A third shell or a generic, reference-valued, or
 unknown call result remains a fence. One
 top-level concrete primitive-only record or selected-case literal may likewise
 contain an independently bounded call tree in each direct common or payload
-field. A direct field may instead be one nested concrete primitive-only record
-or selected-case literal whose direct common or payload fields obey the same
-rule. At either aggregate level, a declared primitive field may wrap those call
-leaves in up to two scalar computation shells formed from unary or binary
-operators, primitive value casts, member projections, or indexing. The
-aggregate-depth-two and computed-depth-two rails do not widen the depth-four
-call budget. A third aggregate or computed level, generic, recursive, or
-reference-bearing carriers, and other computed field shapes remain fences.
+field. Direct typed assignment values may nest concrete primitive-only record,
+selected-case, and literal fixed-array aggregates through depth three; every
+primitive leaf obeys the same rule. At any admitted aggregate level, a declared
+primitive field may wrap those call leaves in up to two scalar computation
+shells formed from unary or binary operators, primitive value casts, member
+projections, or indexing. The
+direct aggregate-depth-three and computed-depth-two rails do not widen the
+depth-four call budget. A fourth direct aggregate level, generic, recursive, or
+reference-bearing carrier, and other computed field shapes remain fences.
 A primitive assignment may directly project a field from one such concrete
 record/case literal or index a fixed-array literal. The projection consumes one
 of the two computation shells. Every eagerly evaluated literal field or array
 element publishes its bounded call writes; the remaining shell may be used by
 an element computation or by one outer scalar computation, but not both.
-Nested array literals at the direct index site remain fenced because that site
-does not retain a separate contextual aggregate type for validating them.
+Projected record/case and directly indexed array literals retain their separate
+aggregate-depth-two rail; a third projected aggregate remains fenced.
 A value-shaped assignment through an indexed target likewise preserves a
 separately returned parameter origin when the collection projects through a
 stable helper-local mutable alias or an exact transparent helper result and

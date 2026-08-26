@@ -1422,12 +1422,14 @@ fn statement_call_preserves_transparent_result(
 /// caller-isolated call producers in up to two unary, binary, primitive-cast,
 /// member-projection, or indexing shells. One
 /// primitive-only record, selected-case, or fixed-array literal may
-/// independently contain such a tree in each direct field/element, and one
-/// nested aggregate of either concrete kind may do the same. Reference-bearing or
-/// generic literals, wider aggregate or scalar-computation depth, and unknown
-/// return types fail closed.
+/// independently contain such a tree in each direct field/element, and up to
+/// two nested aggregates of those concrete kinds may do the same. Projected
+/// aggregate literals retain their narrower depth-two rail. Reference-bearing
+/// or generic literals, wider aggregate or scalar-computation depth, and
+/// unknown return types fail closed.
 const TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH: usize = 4;
-const TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH: usize = 2;
+const TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_AGGREGATE_DEPTH: usize = 3;
+const TRANSPARENT_ASSIGNMENT_VALUE_PROJECTED_AGGREGATE_DEPTH: usize = 2;
 const TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH: usize = 2;
 
 fn value_expression_assignment_preserves_transparent_result(
@@ -1459,7 +1461,7 @@ fn value_expression_assignment_preserves_transparent_result(
                 active_states,
                 parameters,
                 aliases,
-                TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH,
+                TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_AGGREGATE_DEPTH,
             )
         }
         ExpressionNode::ArrayLiteral(_) => assignment_target_type.is_some_and(|target_type| {
@@ -1472,7 +1474,7 @@ fn value_expression_assignment_preserves_transparent_result(
                 active_states,
                 parameters,
                 aliases,
-                TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH,
+                TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_AGGREGATE_DEPTH,
                 TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
             )
         }),
@@ -1902,7 +1904,7 @@ fn primitive_computed_value_preserves_transparent_result(
                     active_states,
                     parameters,
                     aliases,
-                    TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH,
+                    TRANSPARENT_ASSIGNMENT_VALUE_PROJECTED_AGGREGATE_DEPTH,
                     remaining_computed_depth - 1,
                 )
             }
@@ -1915,7 +1917,7 @@ fn primitive_computed_value_preserves_transparent_result(
                     active_states,
                     parameters,
                     aliases,
-                    TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH,
+                    TRANSPARENT_ASSIGNMENT_VALUE_PROJECTED_AGGREGATE_DEPTH,
                     remaining_computed_depth - 1,
                 )
             }

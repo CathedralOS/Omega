@@ -1029,6 +1029,10 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         nested: NestedPair;
     }
 
+    data DeeperPair {
+        deep: DeepPair;
+    }
+
     data ChoiceHolder {
         choice: PairChoice;
     }
@@ -1053,6 +1057,7 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         generic_choice: GenericChoice<u64>;
         nested_pair: NestedPair;
         deep_pair: DeepPair;
+        deeper_pair: DeeperPair;
         choice_holder: ChoiceHolder;
         outer_choice: OuterChoice;
         generic_choice_holder: GenericChoiceHolder;
@@ -1371,6 +1376,25 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         cells
     }
 
+    machine return_after_deeper_record_value_call<'cells, 'deeper, 'value>(
+        cells: &'cells mut [u64; 2],
+        deeper: &'deeper mut DeeperPair,
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        deeper = DeeperPair {
+            deep: DeepPair {
+                nested: NestedPair {
+                    pair: Pair {
+                        first: compute(value),
+                        second: 0
+                    },
+                    marker: 0
+                }
+            }
+        };
+        cells
+    }
+
     machine return_after_nested_case_value_call<'cells, 'holder, 'value>(
         cells: &'cells mut [u64; 2],
         holder: &'holder mut ChoiceHolder,
@@ -1660,6 +1684,15 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         alias[0] = 2;
     }
 
+    machine Main::deeper_record_value_call_assignment_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_deeper_record_value_call(
+            &mut self.cells,
+            &mut self.deeper_pair,
+            &mut self.value
+        );
+        alias[0] = 2;
+    }
+
     machine Main::nested_case_value_call_assignment_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_nested_case_value_call(
             &mut self.cells,
@@ -1797,6 +1830,10 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
             vec!["self.cells", "self.choice", "self.other", "self.value"],
         ),
         (
+            "Main::deep_record_value_call_assignment_result",
+            vec!["self.cells", "self.deep_pair", "self.value"],
+        ),
+        (
             "Main::nested_case_value_call_assignment_result",
             vec!["self.cells", "self.choice_holder", "self.value"],
         ),
@@ -1848,7 +1885,7 @@ fn transparent_returned_place_accepts_bounded_value_call_assignments() {
         "Main::three_computed_record_field_assignment_result",
         "Main::reference_projected_record_field_assignment_result",
         "Main::generic_case_value_call_assignment_result",
-        "Main::deep_record_value_call_assignment_result",
+        "Main::deeper_record_value_call_assignment_result",
         "Main::generic_nested_case_value_call_assignment_result",
     ] {
         let machine = typed
@@ -2171,6 +2208,7 @@ fn transparent_returned_place_accepts_bounded_fixed_array_assignment_values() {
         values: [u64; 2];
         matrix: [[u64; 2]; 2];
         cube: [[[u64; 1]; 1]; 1];
+        hypercube: [[[[u64; 1]; 1]; 1]; 1];
         first: u64;
         second: u64;
     }
@@ -2235,6 +2273,15 @@ fn transparent_returned_place_accepts_bounded_fixed_array_assignment_values() {
         first: &'first mut u64
     ) -> &'cells mut [u64; 2] {
         target = [[[compute(first)]]];
+        cells
+    }
+
+    machine return_after_four_array_levels<'cells, 'target, 'first>(
+        cells: &'cells mut [u64; 2],
+        target: &'target mut [[[[u64; 1]; 1]; 1]; 1],
+        first: &'first mut u64
+    ) -> &'cells mut [u64; 2] {
+        target = [[[[compute(first)]]]];
         cells
     }
 
@@ -2314,6 +2361,15 @@ fn transparent_returned_place_accepts_bounded_fixed_array_assignment_values() {
         alias[0] = 3;
     }
 
+    machine Main::four_array_levels_result(&mut self) {
+        let alias: &mut [u64; 2] = return_after_four_array_levels(
+            &mut self.cells,
+            &mut self.hypercube,
+            &mut self.first
+        );
+        alias[0] = 3;
+    }
+
     machine Main::three_array_computations_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_three_array_computations(
             &mut self.cells,
@@ -2376,6 +2432,10 @@ fn transparent_returned_place_accepts_bounded_fixed_array_assignment_values() {
             "Main::nested_array_value_result",
             vec!["self.cells", "self.first", "self.matrix", "self.second"],
         ),
+        (
+            "Main::three_array_levels_result",
+            vec!["self.cells", "self.cube", "self.first"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -2402,7 +2462,7 @@ fn transparent_returned_place_accepts_bounded_fixed_array_assignment_values() {
     }
 
     for name in [
-        "Main::three_array_levels_result",
+        "Main::four_array_levels_result",
         "Main::three_array_computations_result",
         "Main::five_array_calls_result",
         "Main::array_binding_reborrow_result",
@@ -2774,6 +2834,14 @@ fn transparent_returned_place_composes_mixed_aggregate_assignment_values() {
                 "self.second",
             ],
         ),
+        (
+            "Main::array_record_array_result",
+            vec!["self.cells", "self.first", "self.record_array"],
+        ),
+        (
+            "Main::record_array_record_result",
+            vec!["self.cells", "self.first", "self.pair_record"],
+        ),
     ] {
         let machine = typed
             .machines()
@@ -2800,8 +2868,6 @@ fn transparent_returned_place_composes_mixed_aggregate_assignment_values() {
     }
 
     for name in [
-        "Main::array_record_array_result",
-        "Main::record_array_record_result",
         "Main::generic_array_record_result",
         "Main::mixed_reborrow_result",
         "Main::mixed_recursion_result",
