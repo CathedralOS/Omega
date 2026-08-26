@@ -127,6 +127,17 @@ These facts constrain the work below.
   canonical block and node entry/exit sets and handles cyclic synthetic CFGs,
   preparing dead-scalar rules without treating the current acyclic Terminal
   slice as an architectural limitation.
+- The first closed rewrite candidate is exact integer constant evaluation for
+  proof-bearing add/subtract/multiply. The immutable candidate binds input and
+  output revision identities, rule contract, decision point, affected region,
+  required analyses and invalidations, substitutions, exact provenance/fuel,
+  literal-fact witness, predicted non-authoritative cost, and a typed patch.
+  The independent validation crate re-reads both supported literal facts,
+  evaluates the exact typed operation, constructs the output itself, retains
+  Psi provenance/fuel, replaces the consumed obligation reference with the new
+  constant fact, and rejects a wrong result without mutating input. A built-in
+  rule can propose this candidate only when its explicit parent selection is
+  present, but no build hook admits that still-incomplete optimization suite.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.

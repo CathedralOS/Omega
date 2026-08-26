@@ -8,9 +8,14 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use omega_optimization_core::{
+    AnalysisKind, OptimizationCandidateIdentity, OptimizationSafetyClass,
+    OptimizationValidatorIdentity,
+};
 use omega_optimization_unit::{
-    OptimizationEdge, OptimizationFact, OwnershipEvent, PsiOptimizationFunction,
-    PsiOptimizationUnit, PsiProvenance, ValueDefinition, ValueDefinitionSite, ValueUse,
+    IntegerConstantRewrite, OptimizationEdge, OptimizationFact, OwnershipEvent,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate,
+    PsiRewritePatch, ValueDefinition, ValueDefinitionSite, ValueUse,
 };
 use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ScalarType, ValueId};
 use psi_terminal_fuel::TerminalFuelSchedule;
@@ -137,6 +142,16 @@ pub enum OptimizationUnitValidationError {
     },
     ContextIdentity(psi_terminal_codec::CodecError),
     ContextProofFingerprint(psi_terminal_codec::ProofCodecError),
+    CandidateInputMismatch,
+    CandidateAnalysisContractMismatch,
+    CandidateSafetyClassMismatch,
+    CandidateLocationMissing,
+    CandidatePatchMismatch,
+    CandidateProvenanceMismatch,
+    CandidateFuelMismatch,
+    CandidateOperandFactMismatch,
+    CandidateEvaluationMismatch,
+    CandidateFactReplacementMissing,
 }
 
 impl std::fmt::Display for OptimizationUnitValidationError {
@@ -146,6 +161,31 @@ impl std::fmt::Display for OptimizationUnitValidationError {
 }
 
 impl std::error::Error for OptimizationUnitValidationError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedPsiRewrite {
+    unit: PsiOptimizationUnit,
+    candidate: OptimizationCandidateIdentity,
+    validator: OptimizationValidatorIdentity,
+}
+
+impl ValidatedPsiRewrite {
+    pub const fn unit(&self) -> &PsiOptimizationUnit {
+        &self.unit
+    }
+
+    pub const fn candidate(&self) -> OptimizationCandidateIdentity {
+        self.candidate
+    }
+
+    pub const fn validator(&self) -> OptimizationValidatorIdentity {
+        self.validator
+    }
+
+    pub fn into_unit(self) -> PsiOptimizationUnit {
+        self.unit
+    }
+}
 
 pub fn validate_psi_optimization_unit(
     unit: &PsiOptimizationUnit,
@@ -168,6 +208,226 @@ pub fn validate_psi_optimization_unit(
         ));
     }
     Ok(())
+}
+
+/// Independently check and construct one exact integer-evaluation rewrite.
+/// The proposing rule never receives a mutable unit and cannot construct the
+/// accepted output itself.
+pub fn validate_integer_evaluation_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_psi_optimization_unit(input)?;
+    if candidate.input() != input.identity {
+        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
+    }
+    if !candidate
+        .required_analyses()
+        .contains(AnalysisKind::ScalarConstants)
+        || !candidate
+            .invalidated_analyses()
+            .contains(AnalysisKind::UseDefinition)
+        || !candidate.substitutions().is_empty()
+    {
+        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
+    }
+    if candidate.safety_class() != OptimizationSafetyClass::ProofCertified {
+        return Err(OptimizationUnitValidationError::CandidateSafetyClassMismatch);
+    }
+    let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch();
+    if candidate.decision_point() != patch.location {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
+    let function = input
+        .functions
+        .iter()
+        .find(|function| function.machine == patch.location.machine)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let block = function
+        .blocks
+        .iter()
+        .find(|block| block.id == patch.location.block)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let node = block
+        .nodes
+        .get(usize::try_from(patch.location.node).expect("u32 fits usize"))
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let [provenance] = candidate.provenance() else {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    };
+    if provenance.output != patch.location || provenance.sources != node.provenance {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    }
+    if provenance.fuel != node.fuel {
+        return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
+    }
+
+    let (source_operation, result, scalar_type, left, right, evaluated) =
+        evaluate_exact_binary(function, node, candidate)?;
+    if patch
+        != (IntegerConstantRewrite {
+            location: patch.location,
+            source_operation,
+            result,
+            scalar_type,
+            constant: evaluated,
+        })
+    {
+        return Err(OptimizationUnitValidationError::CandidateEvaluationMismatch);
+    }
+    let _ = (left, right);
+
+    let mut output = input.clone();
+    let function = output
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == patch.location.machine)
+        .expect("candidate source function exists");
+    let block = function
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == patch.location.block)
+        .expect("candidate source block exists");
+    let node = &mut block.nodes[usize::try_from(patch.location.node).expect("u32 fits usize")];
+    node.operation =
+        omega_terminal_abstract_operations::TerminalAbstractOperation::IntegerConstant {
+            psi_operation: patch.source_operation,
+            result: patch.result,
+            scalar_type: ScalarType::Integer(patch.scalar_type),
+            value: patch.constant,
+        };
+    node.definitions = vec![ValueDefinition {
+        value: patch.result,
+        scalar_type: ScalarType::Integer(patch.scalar_type),
+        site: ValueDefinitionSite::Node {
+            block: patch.location.block,
+            node: patch.location.node,
+        },
+    }];
+    node.uses.clear();
+    node.successors.clear();
+    node.ownership.clear();
+    let Some(fact) = function.facts.iter_mut().find(|fact| {
+        matches!(
+            fact,
+            OptimizationFact::OperationObligationReference { support, .. }
+                if *support == patch.source_operation
+        )
+    }) else {
+        return Err(OptimizationUnitValidationError::CandidateFactReplacementMissing);
+    };
+    *fact = OptimizationFact::IntegerConstant {
+        value: patch.result,
+        constant: patch.constant,
+        support: patch.source_operation,
+    };
+    output.identity = candidate.output();
+    validate_psi_optimization_unit(&output)?;
+    Ok(ValidatedPsiRewrite {
+        unit: output,
+        candidate: candidate.identity(),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(
+            b"omega.validator.exact-integer-evaluation.v1",
+        ),
+    })
+}
+
+fn evaluate_exact_binary(
+    function: &PsiOptimizationFunction,
+    node: &omega_optimization_unit::OptimizationNode,
+    candidate: &PsiRewriteCandidate,
+) -> Result<
+    (
+        psi_core::OperationId,
+        ValueId,
+        psi_core::IntegerType,
+        ValueId,
+        ValueId,
+        psi_core::IntegerValue,
+    ),
+    OptimizationUnitValidationError,
+> {
+    use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
+    enum ExactOperation {
+        Add,
+        Subtract,
+        Multiply,
+    }
+    let (kind, source, result, scalar_type, left, right) = match &node.operation {
+        O::ExactIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            ExactOperation::Add,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        O::ExactIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            ExactOperation::Subtract,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        O::ExactIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            ExactOperation::Multiply,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
+    };
+    let witness = candidate.witness();
+    let left_value = literal_integer_fact(function, left, witness.left_support)
+        .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+    let right_value = literal_integer_fact(function, right, witness.right_support)
+        .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+    let evaluated = match kind {
+        ExactOperation::Add => scalar_type.exact_add(left_value, right_value),
+        ExactOperation::Subtract => scalar_type.exact_sub(left_value, right_value),
+        ExactOperation::Multiply => scalar_type.exact_mul(left_value, right_value),
+    }
+    .ok_or(OptimizationUnitValidationError::CandidateEvaluationMismatch)?;
+    Ok((source, result, scalar_type, left, right, evaluated))
+}
+
+fn literal_integer_fact(
+    function: &PsiOptimizationFunction,
+    value: ValueId,
+    support: psi_core::OperationId,
+) -> Option<psi_core::IntegerValue> {
+    function.facts.iter().find_map(|fact| match fact {
+        OptimizationFact::IntegerConstant {
+            value: fact_value,
+            constant,
+            support: fact_support,
+        } if *fact_value == value && *fact_support == support => Some(*constant),
+        _ => None,
+    })
 }
 
 /// Independently validate both the reconstructible unit and the required
@@ -1299,7 +1559,14 @@ fn is_terminator(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_optimization_unit::{ValueUse, reconstruct_psi_optimization_unit_seed};
+    use omega_optimization_core::{
+        AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
+        OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+    };
+    use omega_optimization_unit::{
+        IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, ProvenanceRewrite,
+        PsiRewriteCandidate, ValueUse, reconstruct_psi_optimization_unit_seed,
+    };
     use omega_terminal_abstract_operations::{
         TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
         TerminalAbstractOperation, TerminalAbstractOperationPlan, TerminalAbstractResult,
@@ -1439,6 +1706,130 @@ mod tests {
         .expect("valid unit")
     }
 
+    fn exact_add_unit() -> PsiOptimizationUnit {
+        let machine = id(201, MachineId::new);
+        let block = id(202, BlockId::new);
+        let left = id(203, ValueId::new);
+        let right = id(204, ValueId::new);
+        let result = id(205, ValueId::new);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let plan = TerminalAbstractOperationPlan {
+            terminal_psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([12; 32]),
+            },
+            entry: machine,
+            structural_types: Vec::new(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            functions: vec![TerminalAbstractFunction {
+                machine,
+                attachment: None,
+                entry: block,
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                    value: result,
+                    scalar_type: ScalarType::Integer(integer),
+                }),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![TerminalAbstractBlockEntry {
+                    block,
+                    parameters: Vec::new(),
+                    operation_offset: 0,
+                }],
+                operations: vec![
+                    TerminalAbstractOperation::IntegerConstant {
+                        psi_operation: id(206, OperationId::new),
+                        result: left,
+                        scalar_type: ScalarType::Integer(integer),
+                        value: IntegerValue::Unsigned(7),
+                    },
+                    TerminalAbstractOperation::IntegerConstant {
+                        psi_operation: id(207, OperationId::new),
+                        result: right,
+                        scalar_type: ScalarType::Integer(integer),
+                        value: IntegerValue::Unsigned(8),
+                    },
+                    TerminalAbstractOperation::ExactIntegerAdd {
+                        psi_operation: id(208, OperationId::new),
+                        obligation: id(209, psi_core::ObligationId::new),
+                        result,
+                        scalar_type: integer,
+                        left,
+                        right,
+                    },
+                    TerminalAbstractOperation::Return {
+                        psi_edge: id(210, EdgeId::new),
+                        result,
+                        value: result,
+                        scalar_type: ScalarType::Integer(integer),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            }],
+        };
+        reconstruct_psi_optimization_unit_seed(&plan, FuelScheduleIdentity::new(1).unwrap())
+            .unwrap()
+    }
+
+    fn integer_candidate(
+        unit: &PsiOptimizationUnit,
+        constant: IntegerValue,
+    ) -> PsiRewriteCandidate {
+        let function = &unit.functions[0];
+        let block = &function.blocks[0];
+        let node = &block.nodes[2];
+        let TerminalAbstractOperation::ExactIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        } = node.operation
+        else {
+            panic!("fixture contains exact add")
+        };
+        let location = NodeLocation {
+            machine: function.machine,
+            block: block.id,
+            node: 2,
+        };
+        let contract = OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(b"fold-exact-add"),
+            OptimizationPassIdentity::from_canonical_bytes(b"constant-evaluation"),
+            1,
+            AnalysisSet::new([AnalysisKind::ScalarConstants]),
+            AnalysisInvalidationSet::new([AnalysisKind::UseDefinition]),
+            OptimizationSafetyClass::ProofCertified,
+        )
+        .unwrap();
+        PsiRewriteCandidate::new_integer_evaluation(
+            unit.identity,
+            contract,
+            vec![block.id],
+            Vec::new(),
+            vec![ProvenanceRewrite {
+                output: location,
+                sources: node.provenance.clone(),
+                fuel: node.fuel.clone(),
+            }],
+            IntegerEvaluationWitness {
+                left_support: id(206, OperationId::new),
+                right_support: id(207, OperationId::new),
+            },
+            -1,
+            IntegerConstantRewrite {
+                location,
+                source_operation: psi_operation,
+                result,
+                scalar_type,
+                constant,
+            },
+        )
+        .unwrap()
+    }
+
     #[test]
     fn independently_accepts_builder_output() {
         validate_psi_optimization_unit(&unit()).unwrap();
@@ -1447,6 +1838,50 @@ mod tests {
     #[test]
     fn independently_accepts_verified_context_and_frontier_coverage() {
         validate_verified_psi_optimization_unit(&verified_unit()).unwrap();
+    }
+
+    #[test]
+    fn independent_integer_rewrite_constructor_accepts_only_exact_evaluation() {
+        let input = exact_add_unit();
+        let candidate = integer_candidate(&input, IntegerValue::Unsigned(15));
+        let replay = integer_candidate(&input, IntegerValue::Unsigned(15));
+        assert_eq!(candidate.identity(), replay.identity());
+        let accepted = validate_integer_evaluation_candidate(&input, &candidate).unwrap();
+        assert_eq!(accepted.candidate(), candidate.identity());
+        assert_ne!(accepted.unit().identity, input.identity);
+        assert_eq!(accepted.unit().identity, candidate.output());
+        assert_eq!(
+            accepted.unit().functions[0].blocks[0].nodes[2].provenance,
+            input.functions[0].blocks[0].nodes[2].provenance
+        );
+        assert_eq!(
+            accepted.unit().functions[0].blocks[0].nodes[2].fuel,
+            input.functions[0].blocks[0].nodes[2].fuel
+        );
+        assert!(matches!(
+            accepted.unit().functions[0].blocks[0].nodes[2].operation,
+            TerminalAbstractOperation::IntegerConstant {
+                value: IntegerValue::Unsigned(15),
+                ..
+            }
+        ));
+        assert!(matches!(
+            accepted.unit().functions[0].facts[2],
+            OptimizationFact::IntegerConstant {
+                constant: IntegerValue::Unsigned(15),
+                ..
+            }
+        ));
+        assert!(matches!(
+            input.functions[0].blocks[0].nodes[2].operation,
+            TerminalAbstractOperation::ExactIntegerAdd { .. }
+        ));
+
+        let wrong = integer_candidate(&input, IntegerValue::Unsigned(14));
+        assert!(matches!(
+            validate_integer_evaluation_candidate(&input, &wrong),
+            Err(OptimizationUnitValidationError::CandidateEvaluationMismatch)
+        ));
     }
 
     #[test]

@@ -9,6 +9,7 @@
 
 mod analyses;
 mod registry;
+mod rules;
 
 pub use analyses::{
     AnalysisManager, AnalysisManagerError, AnalysisProduct, AnalysisRevisionCommit,
@@ -20,7 +21,11 @@ pub use analyses::{
     ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
     analysis_dependencies, compute_analysis,
 };
-pub use registry::{OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError, RuleScheduleKey};
+pub use registry::{
+    OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
+    RuleRegistryError, RuleScheduleKey,
+};
+pub use rules::{ExactIntegerConstantEvaluationRule, built_in_psi_registry};
 
 #[cfg(test)]
 mod tests {

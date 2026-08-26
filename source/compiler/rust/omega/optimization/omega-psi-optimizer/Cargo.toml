@@ -14,3 +14,7 @@ omega-optimization-unit = { path = "../../representations/omega-optimization-uni
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+
+[dev-dependencies]
+omega-optimization-validation = { path = "../omega-optimization-validation" }
+psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }

@@ -1,15 +1,53 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use omega_optimization_core::{
-    OptimizationPassIdentity, OptimizationRuleContract, OptimizationRuleIdentity,
+    AnalysisKind, OptimizationPassIdentity, OptimizationRuleContract, OptimizationRuleIdentity,
     OptimizationRuleSetIdentity,
 };
+use omega_optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewriteCandidateError};
+
+use crate::AnalysisProduct;
+
+#[derive(Debug, Clone, Copy)]
+pub struct RuleAnalysisView<'a> {
+    products: &'a [AnalysisProduct],
+}
+
+impl<'a> RuleAnalysisView<'a> {
+    pub const fn new(products: &'a [AnalysisProduct]) -> Self {
+        Self { products }
+    }
+
+    pub fn get(self, kind: AnalysisKind) -> Option<&'a AnalysisProduct> {
+        self.products.iter().find(|product| product.kind() == kind)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuleProposalError {
+    MissingAnalysis(AnalysisKind),
+    InvalidCandidate(PsiRewriteCandidateError),
+}
+
+impl std::fmt::Display for RuleProposalError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "Psi optimizer rule proposal failed: {self:?}")
+    }
+}
+
+impl std::error::Error for RuleProposalError {}
 
 /// Immutable executable rule declaration. Candidate enumeration is added by
 /// the rule-engine layer; the registry itself depends only on stable contracts
 /// and cannot mutate a compilation or another registry.
 pub trait PsiOptimizationRule: std::fmt::Debug + Send + Sync {
     fn contract(&self) -> OptimizationRuleContract;
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -108,6 +146,14 @@ mod tests {
     impl PsiOptimizationRule for TestRule {
         fn contract(&self) -> OptimizationRuleContract {
             self.0
+        }
+
+        fn propose(
+            &self,
+            _unit: &PsiOptimizationUnit,
+            _analyses: RuleAnalysisView<'_>,
+        ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+            Ok(Vec::new())
         }
     }
 
