@@ -539,6 +539,20 @@ adding nominal Chi. The build remains `Volatile` until all operations, output
 mutation and staged-output reproduction, package-command integration, and the
 complete replay verdict are implemented.
 
+Observation summary v23 and compiler replay-record v5 generalize that bounded
+record into an ordered source-input event stream. Successful Source-rooted
+`read_metadata` and `read_symlink_metadata` calls may occur before, between, or
+after closed read chains. Replay retains the authored rooted input separately
+from the authorized target selected after follow/no-follow resolution, all 14
+target-neutral metadata fields, and the complete target-specific mutable
+carrier. Recovery rejects an inapplicable lane, noncanonical relative path, or
+structural mismatch. Replay reconstructs the complete zero-filled carrier from
+the semantic row and selected checked `StatLayout`, compares every field,
+padding, and tail byte, then requires exact event and result equality. Failed
+metadata and descriptor-backed `read_file_metadata` are not admitted by this
+rung. The extension is still provider-free, review-only, `Volatile`, and below
+`Receipted`.
+
 Raw filesystem byte-valued inputs are evaluated once by the shared preparer and
 reject above 16 MiB before provider cloning/allocation. Read/count capacities
 use one checked evaluator conversion and reject negative,

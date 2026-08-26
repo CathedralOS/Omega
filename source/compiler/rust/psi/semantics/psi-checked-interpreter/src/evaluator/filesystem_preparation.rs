@@ -10,7 +10,7 @@ const FILETIME_BYTES: usize = 8;
 pub(super) const FIND_DATA_OUTPUT_BYTES: usize = 320;
 const OVERLAPPED_BYTES: usize = 32;
 const PATH_MAX_OUTPUT_BYTES: usize = 1024;
-const STAT_OUTPUT_BYTES: usize = 144;
+pub(super) const STAT_OUTPUT_BYTES: usize = crate::FILESYSTEM_METADATA_API_CARRIER_BYTES;
 const TIMESPEC_PAIR_BYTES: usize = 32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

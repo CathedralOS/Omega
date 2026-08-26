@@ -104,7 +104,7 @@ impl BuildMachineFilesystemScope {
 
     fn filesystem_access(&self) -> BuildMachineFilesystemAccess {
         if let Some(replay) = &self.replay {
-            return BuildMachineFilesystemAccess::ReplaySourceReadChains(replay.clone());
+            return BuildMachineFilesystemAccess::ReplaySourceInputs(replay.clone());
         }
         let grants = BuildMachineFilesystemGrants {
             read_roots: vec![BuildMachineFilesystemGrantRoot::new(
@@ -236,7 +236,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 22;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 23;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -955,7 +955,7 @@ pub struct BuildObservationSummary {
     realized: BuildObservationClass,
     filesystem_operation_schema_version: u32,
     filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
-    source_read_chains_replay_verified: bool,
+    source_inputs_replay_verified: bool,
     staged_output_tree: Option<BuildStagedOutputTree>,
 }
 
@@ -981,11 +981,12 @@ impl BuildObservationSummary {
     }
 
     /// Whether the compiler reran this build with no filesystem provider and
-    /// consumed the complete record using the bounded source-read chains
-    /// replay executor. This is a partial replay fact, never a `Receipted`
+    /// consumed the complete record using the bounded source-input replay
+    /// executor. This currently covers closed file-read chains and successful
+    /// path metadata reads. It is a partial replay fact, never a `Receipted`
     /// verdict.
-    pub const fn source_read_chains_replay_verified(&self) -> bool {
-        self.source_read_chains_replay_verified
+    pub const fn source_inputs_replay_verified(&self) -> bool {
+        self.source_inputs_replay_verified
     }
 
     /// Ordered operation/result/error evidence from the successful evaluator
@@ -2022,13 +2023,22 @@ fn selected_filesystem_metadata_layout(
         .map_err(|reason| vec![Diagnostic::error(reason)])
 }
 
-fn is_source_read_chains_replay_record(
+fn is_source_input_replay_record(
     observations: &psi_checked_interpreter::EvaluationObservations,
 ) -> bool {
     let attempts = observations.filesystem_operation_attempts();
     let mut cursor = 0;
     let mut identities = Vec::new();
+    let mut event_count = 0;
     while cursor < attempts.len() {
+        if matches!(attempts[cursor].operation_tag(), 38 | 40) {
+            if !source_path_metadata_is_exact(&attempts[cursor]) {
+                return false;
+            }
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
         let Some(identity) = source_read_chain_open_identity(&attempts[cursor]) else {
             return false;
         };
@@ -2052,8 +2062,72 @@ fn is_source_read_chains_replay_record(
             return false;
         }
         cursor += 1;
+        event_count += 1;
     }
-    !identities.is_empty()
+    event_count != 0
+}
+
+fn source_path_metadata_is_exact(
+    attempt: &psi_checked_interpreter::FilesystemOperationAttempt,
+) -> bool {
+    use psi_checked_interpreter::{
+        FilesystemGrantAccess as Access, FilesystemMetadataObservationKind as MetadataKind,
+        FilesystemObservationProvider as Provider, FilesystemOperationResult as ResultValue,
+    };
+    let expected_kind = match attempt.operation_tag() {
+        38 => MetadataKind::FollowedPath,
+        40 => MetadataKind::UnfollowedFinalPath,
+        _ => return false,
+    };
+    let [rooted] = attempt.rooted_path_operand_resolutions() else {
+        return false;
+    };
+    let [authorized] = attempt.authorized_paths() else {
+        return false;
+    };
+    let [metadata] = attempt.metadata_observations() else {
+        return false;
+    };
+    let [mutable_resolution] = attempt.mutable_byte_operand_resolutions() else {
+        return false;
+    };
+    let [mutable] = attempt.mutable_byte_operands() else {
+        return false;
+    };
+    attempt.provider() == Provider::RealScoped
+        && attempt.result() == Some(ResultValue::Scalar(0))
+        && attempt.scalar_operands().is_empty()
+        && attempt.byte_operands().is_empty()
+        && attempt.path_like_operands().is_empty()
+        && rooted.operand_ordinal() == 0
+        && rooted.root() == BUILD_SOURCE_ROOT_IDENTITY
+        && psi_checked_interpreter::filesystem_root_relative_path_is_canonical(
+            rooted.relative_path(),
+            false,
+        )
+        && attempt.returned_paths().is_empty()
+        && attempt.observed_byte_regions().is_empty()
+        && authorized.operand_ordinal() == 0
+        && authorized.access() == Access::Read
+        && authorized.root() == BUILD_SOURCE_ROOT_IDENTITY
+        && psi_checked_interpreter::filesystem_root_relative_path_is_canonical(
+            authorized.relative_path(),
+            true,
+        )
+        && metadata.output_operand_ordinal() == 1
+        && metadata.kind() == expected_kind
+        && mutable_resolution.operand_ordinal() == 1
+        && mutable.operand_ordinal() == 1
+        && mutable_resolution.bytes() == mutable.pre_bytes()
+        && mutable.pre_bytes().len() == mutable.post_bytes().len()
+        && mutable.post_bytes().len()
+            >= psi_checked_interpreter::FILESYSTEM_METADATA_API_CARRIER_BYTES
+        && attempt.mutable_i64_operand_resolutions().is_empty()
+        && attempt.mutable_i64_operands().is_empty()
+        && attempt.logical_handle_inputs().is_empty()
+        && attempt.logical_handle_output().is_none()
+        && attempt.retired_logical_handles().is_empty()
+        && attempt.grant_refusals().is_empty()
 }
 
 fn source_read_chain_open_identity(
@@ -2436,10 +2510,10 @@ pub(crate) fn compute_build_config(
     })?;
     let usage = measured.usage();
     let replayable_first_rung =
-        filesystem_reachable && is_source_read_chains_replay_record(measured.observations());
-    let source_read_chains_replay_verified = if replayable_first_rung {
+        filesystem_reachable && is_source_input_replay_record(measured.observations());
+    let source_inputs_replay_verified = if replayable_first_rung {
         let replay =
-            psi_checked_interpreter::FilesystemReplay::from_source_read_chains_observations(
+            psi_checked_interpreter::FilesystemReplay::from_source_input_observations(
                 measured.observations(),
             )
         .map_err(|reason| {
@@ -2452,7 +2526,7 @@ pub(crate) fn compute_build_config(
             machine_name,
             initial_arguments,
             BuildMachineExecutionMode::Granted {
-                filesystem: BuildMachineFilesystemAccess::ReplaySourceReadChains(replay),
+                filesystem: BuildMachineFilesystemAccess::ReplaySourceInputs(replay),
                 filesystem_metadata_layout: selected_filesystem_metadata_layout(typed)?,
             },
         )
@@ -2841,7 +2915,7 @@ pub(crate) fn compute_build_config(
             realized: realized_observation,
             filesystem_operation_schema_version,
             filesystem_operation_attempts,
-            source_read_chains_replay_verified,
+            source_inputs_replay_verified,
             staged_output_tree,
         }),
         selected_build_machine_symbol: Some(machine.symbol),

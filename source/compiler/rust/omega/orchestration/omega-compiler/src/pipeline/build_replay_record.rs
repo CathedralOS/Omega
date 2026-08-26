@@ -12,7 +12,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 4;
+const VERSION: u16 = 5;
 
 /// Resource ceilings for compiler-owned recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -92,7 +92,7 @@ pub fn capture_verified_build_filesystem_replay_record(
     summary: &BuildObservationSummary,
     limits: BuildFilesystemReplayRecordLimits,
 ) -> Result<Option<ReviewOnlyBuildFilesystemReplayRecord>, BuildFilesystemReplayRecordError> {
-    if !summary.source_read_chains_replay_verified() {
+    if !summary.source_inputs_replay_verified() {
         return Ok(None);
     }
     let mut encoder = Encoder::new(limits.maximum_bytes);
@@ -127,9 +127,18 @@ pub(super) fn rehydrate_review_only_build_filesystem_replay_record(
     limits: BuildFilesystemReplayRecordLimits,
 ) -> Result<psi_checked_interpreter::FilesystemReplay, BuildFilesystemReplayRecordError> {
     let shapes = decode_shapes(record.canonical_bytes(), limits)?;
-    let mut chains = Vec::new();
+    let mut events = Vec::new();
     let mut cursor = 0;
     while cursor < shapes.len() {
+        if matches!(shapes[cursor].operation, 38 | 40) {
+            events.push(
+                psi_checked_interpreter::FilesystemSourceInputReplayEventRecord::PathMetadata(
+                    rehydrate_path_metadata_shape(&shapes[cursor])?,
+                ),
+            );
+            cursor += 1;
+            continue;
+        }
         let open = &shapes[cursor];
         cursor += 1;
         let reads_start = cursor;
@@ -153,29 +162,93 @@ pub(super) fn rehydrate_review_only_build_filesystem_replay_record(
         for read in read_shapes {
             reads.push(rehydrate_read_shape(read)?);
         }
-        chains.push(
-            psi_checked_interpreter::FilesystemSourceReadChainReplayRecord::new(
-                super::build_config::BUILD_SOURCE_ROOT_IDENTITY,
-                clone_bytes(source_path.bytes)?,
-                logical_handle_identity,
-                open.post_error,
-                reads,
-                close.post_error,
-            )
-            .map_err(|_| {
-                BuildFilesystemReplayRecordError::new(
-                    "filesystem replay chain could not be rehydrated",
+        events.push(
+            psi_checked_interpreter::FilesystemSourceInputReplayEventRecord::ReadChain(
+                psi_checked_interpreter::FilesystemSourceReadChainReplayRecord::new(
+                    super::build_config::BUILD_SOURCE_ROOT_IDENTITY,
+                    clone_bytes(source_path.bytes)?,
+                    logical_handle_identity,
+                    open.post_error,
+                    reads,
+                    close.post_error,
                 )
-            })?,
+                .map_err(|_| {
+                    BuildFilesystemReplayRecordError::new(
+                        "filesystem replay chain could not be rehydrated",
+                    )
+                })?,
+            ),
         );
     }
-    let typed_record = psi_checked_interpreter::FilesystemSourceReadChainsReplayRecord::new(chains)
+    let typed_record = psi_checked_interpreter::FilesystemSourceInputReplayRecord::new(events)
         .map_err(|_| {
             BuildFilesystemReplayRecordError::new(
-                "filesystem replay chains could not be rehydrated",
+                "filesystem replay source inputs could not be rehydrated",
             )
         })?;
-    Ok(psi_checked_interpreter::FilesystemReplay::from_source_read_chains_record(typed_record))
+    Ok(psi_checked_interpreter::FilesystemReplay::from_source_input_record(typed_record))
+}
+
+fn rehydrate_path_metadata_shape(
+    shape: &AttemptShape<'_>,
+) -> Result<
+    psi_checked_interpreter::FilesystemSourcePathMetadataReplayRecord,
+    BuildFilesystemReplayRecordError,
+> {
+    let [rooted] = shape.rooted_paths.as_slice() else {
+        unreachable!("validated source metadata has one rooted input")
+    };
+    let [authorized] = shape.authorized_paths.as_slice() else {
+        unreachable!("validated source metadata has one authorized target")
+    };
+    let [metadata] = shape.metadata.as_slice() else {
+        unreachable!("validated source metadata has one semantic row")
+    };
+    let [(1, mutable_resolution)] = shape.mutable_byte_resolutions.as_slice() else {
+        unreachable!("validated source metadata has one mutable resolution")
+    };
+    let [mutable] = shape.mutable_bytes.as_slice() else {
+        unreachable!("validated source metadata has one mutable carrier")
+    };
+    let kind = match shape.operation {
+        38 => psi_checked_interpreter::FilesystemMetadataObservationKind::FollowedPath,
+        40 => psi_checked_interpreter::FilesystemMetadataObservationKind::UnfollowedFinalPath,
+        _ => unreachable!("validated source metadata operation"),
+    };
+    let metadata = psi_checked_interpreter::FilesystemMetadataObservation::from_replay(
+        kind,
+        metadata.device,
+        metadata.mode,
+        metadata.link_count,
+        metadata.inode,
+        metadata.user,
+        metadata.group,
+        metadata.referenced_device,
+        metadata.access_time,
+        metadata.modification_time,
+        metadata.change_time,
+        metadata.birth_time,
+        metadata.size,
+        metadata.blocks_512,
+        metadata.preferred_block_size,
+    );
+    psi_checked_interpreter::FilesystemSourcePathMetadataReplayRecord::new(
+        kind,
+        super::build_config::BUILD_SOURCE_ROOT_IDENTITY,
+        clone_bytes(rooted.bytes)?,
+        super::build_config::BUILD_SOURCE_ROOT_IDENTITY,
+        clone_bytes(authorized.bytes)?,
+        shape.post_error,
+        clone_bytes(mutable_resolution)?,
+        clone_bytes(mutable.pre)?,
+        clone_bytes(mutable.post)?,
+        metadata,
+    )
+    .map_err(|_| {
+        BuildFilesystemReplayRecordError::new(
+            "filesystem replay path metadata could not be rehydrated",
+        )
+    })
 }
 
 fn rehydrate_read_shape(
@@ -242,9 +315,9 @@ fn decode_shapes(
         ));
     }
     let attempt_count = decoder.count()?;
-    if attempt_count < 3 {
+    if attempt_count == 0 {
         return Err(BuildFilesystemReplayRecordError::new(
-            "bounded filesystem replay record must contain open, reads, and close",
+            "bounded filesystem replay record must contain source-input events",
         ));
     }
     let mut shapes = Vec::new();
@@ -467,6 +540,26 @@ struct ShapeObservedRegion {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ShapeMetadata {
+    ordinal: u8,
+    kind: u8,
+    device: u64,
+    mode: u32,
+    link_count: u64,
+    inode: u64,
+    user: u32,
+    group: u32,
+    referenced_device: u64,
+    access_time: i64,
+    modification_time: i64,
+    change_time: i64,
+    birth_time: i64,
+    size: i64,
+    blocks_512: u64,
+    preferred_block_size: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ShapeMutableBytes<'a> {
     ordinal: u8,
     pre: &'a [u8],
@@ -493,7 +586,7 @@ struct AttemptShape<'a> {
     rooted_paths: Vec<ShapeRootedPath<'a>>,
     returned_path_count: usize,
     observed_regions: Vec<ShapeObservedRegion>,
-    metadata_count: usize,
+    metadata: Vec<ShapeMetadata>,
     mutable_byte_resolutions: Vec<(u8, &'a [u8])>,
     mutable_i64_resolution_count: usize,
     mutable_bytes: Vec<ShapeMutableBytes<'a>>,
@@ -573,22 +666,30 @@ fn decode_attempt<'a>(
             length: decoder.u64()?,
         });
     }
-    let metadata_count = decoder.count()?;
-    for _ in 0..metadata_count {
-        let _ = decoder.byte()?;
-        let _ = decoder.tag(2, "invalid metadata-observation tag")?;
-        let _ = decoder.u64()?;
-        let _ = decoder.u32()?;
-        let _ = decoder.u64()?;
-        let _ = decoder.u64()?;
-        let _ = decoder.u32()?;
-        let _ = decoder.u32()?;
-        let _ = decoder.u64()?;
-        for _ in 0..5 {
-            let _ = decoder.i64()?;
-        }
-        let _ = decoder.u64()?;
-        let _ = decoder.u64()?;
+    let mut metadata = Vec::new();
+    let count = decoder.count()?;
+    metadata
+        .try_reserve_exact(count)
+        .map_err(|_| BuildFilesystemReplayRecordError::new("replay metadata allocation failed"))?;
+    for _ in 0..count {
+        metadata.push(ShapeMetadata {
+            ordinal: decoder.byte()?,
+            kind: decoder.tag(2, "invalid metadata-observation tag")?,
+            device: decoder.u64()?,
+            mode: decoder.u32()?,
+            link_count: decoder.u64()?,
+            inode: decoder.u64()?,
+            user: decoder.u32()?,
+            group: decoder.u32()?,
+            referenced_device: decoder.u64()?,
+            access_time: decoder.i64()?,
+            modification_time: decoder.i64()?,
+            change_time: decoder.i64()?,
+            birth_time: decoder.i64()?,
+            size: decoder.i64()?,
+            blocks_512: decoder.u64()?,
+            preferred_block_size: decoder.u64()?,
+        });
     }
     let mut mutable_byte_resolutions = Vec::new();
     let count = decoder.count()?;
@@ -698,7 +799,7 @@ fn decode_attempt<'a>(
         rooted_paths,
         returned_path_count,
         observed_regions,
-        metadata_count,
+        metadata,
         mutable_byte_resolutions,
         mutable_i64_resolution_count,
         mutable_bytes,
@@ -727,7 +828,14 @@ fn validate_first_rung(
 ) -> Result<(), BuildFilesystemReplayRecordError> {
     let mut cursor = 0;
     let mut identities = Vec::new();
+    let mut event_count = 0;
     while cursor < shapes.len() {
+        if matches!(shapes[cursor].operation, 38 | 40) {
+            validate_path_metadata_shape(&shapes[cursor])?;
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
         let identity = validate_open_shape(&shapes[cursor])?;
         if identities.contains(&identity) {
             return Err(BuildFilesystemReplayRecordError::new(
@@ -749,10 +857,77 @@ fn validate_first_rung(
         }
         validate_close_shape(&shapes[cursor], identity)?;
         cursor += 1;
+        event_count += 1;
     }
-    if identities.is_empty() {
+    if event_count == 0 {
         return Err(BuildFilesystemReplayRecordError::new(
-            "bounded replay contains no source-read chains",
+            "bounded replay contains no source-input events",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_path_metadata_shape(
+    metadata_attempt: &AttemptShape<'_>,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    let expected_kind = match metadata_attempt.operation {
+        38 => 0,
+        40 => 2,
+        _ => {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "filesystem replay record has an unsupported source metadata operation",
+            ));
+        }
+    };
+    let [rooted] = metadata_attempt.rooted_paths.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay source metadata has no unique rooted input",
+        ));
+    };
+    let [authorized] = metadata_attempt.authorized_paths.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay source metadata has no unique authorized target",
+        ));
+    };
+    let [metadata] = metadata_attempt.metadata.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay source metadata has no unique semantic row",
+        ));
+    };
+    let [(resolution_ordinal, resolution)] = metadata_attempt.mutable_byte_resolutions.as_slice()
+    else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay source metadata has no unique mutable resolution",
+        ));
+    };
+    let [carrier] = metadata_attempt.mutable_bytes.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay source metadata has no unique mutable carrier",
+        ));
+    };
+    if metadata_attempt.provider != 2
+        || metadata_attempt.result != ShapeResult::Scalar(0)
+        || rooted.ordinal != 0
+        || rooted.root != 0
+        || !psi_checked_interpreter::filesystem_root_relative_path_is_canonical(rooted.bytes, false)
+        || authorized.ordinal != 0
+        || authorized.access != 0
+        || authorized.root != 0
+        || !psi_checked_interpreter::filesystem_root_relative_path_is_canonical(
+            authorized.bytes,
+            true,
+        )
+        || metadata.ordinal != 1
+        || metadata.kind != expected_kind
+        || *resolution_ordinal != 1
+        || carrier.ordinal != 1
+        || *resolution != carrier.pre
+        || carrier.pre.len() != carrier.post.len()
+        || carrier.post.len() < psi_checked_interpreter::FILESYSTEM_METADATA_API_CARRIER_BYTES
+        || !only_path_metadata_lanes(metadata_attempt)
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay source metadata is internally inconsistent",
         ));
     }
     Ok(())
@@ -910,9 +1085,23 @@ fn common_empty_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.byte_operand_count == 0
         && attempt.path_like_operand_count == 0
         && attempt.returned_path_count == 0
-        && attempt.metadata_count == 0
+        && attempt.metadata.is_empty()
         && attempt.mutable_i64_resolution_count == 0
         && attempt.mutable_i64_count == 0
+        && attempt.refusal_count == 0
+}
+
+fn only_path_metadata_lanes(attempt: &AttemptShape<'_>) -> bool {
+    attempt.byte_operand_count == 0
+        && attempt.path_like_operand_count == 0
+        && attempt.returned_path_count == 0
+        && attempt.observed_regions.is_empty()
+        && attempt.mutable_i64_resolution_count == 0
+        && attempt.mutable_i64_count == 0
+        && attempt.scalars.is_empty()
+        && attempt.inputs.is_empty()
+        && attempt.output.is_none()
+        && attempt.retired.is_empty()
         && attempt.refusal_count == 0
 }
 

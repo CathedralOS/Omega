@@ -472,6 +472,18 @@ authenticity claim, admission, public IR contract, or nominal Chi. It does not
 make the build `Receipted`; full operation coverage, output mutation and staged-
 tree reproduction, package-command integration, and a complete replay verdict
 remain open.
+
+Summary v23 and replay-record v5 make the same artifact an ordered source-input
+stream. Successful Source-rooted `read_metadata` and
+`read_symlink_metadata` events can surround closed read chains while retaining
+the authored rooted input separately from the authorized target, the exact
+follow/no-follow semantic row, all 14 metadata fields, and the complete
+selected-target carrier. Canonical recovery validates the event shape and both
+canonical relative paths. Provider-free replay reconstructs the checked
+`StatLayout` carrier and compares every field, zero padding, and tail byte
+before requiring exact stream exhaustion. Failed and descriptor-backed
+metadata remain outside this rung. Review-baseline capsule v2 needs no framing
+change because the embedded record is already versioned, bounded, and opaque.
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities use one checked conversion and reject

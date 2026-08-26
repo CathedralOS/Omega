@@ -482,6 +482,35 @@ pub struct FilesystemGrantRefusal {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FilesystemGrantRootIdentity(u32);
 
+/// Current compiler sponsorship ceiling for one canonical path beneath a
+/// filesystem grant root. This is an evaluator evidence limit, not a language
+/// limit.
+pub const FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT: usize = 16 * 1024 * 1024;
+
+/// Whether bytes are the canonical target-neutral spelling of a path beneath
+/// one grant root. Authorized targets may denote the root itself; authored
+/// rooted operands may not.
+pub fn filesystem_root_relative_path_is_canonical(relative: &[u8], allow_empty: bool) -> bool {
+    if relative.len() > FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT
+        || relative.contains(&0)
+        || std::str::from_utf8(relative).is_err()
+    {
+        return false;
+    }
+    if relative.is_empty() {
+        return allow_empty;
+    }
+    if relative[0] == b'/'
+        || relative.contains(&b'\\')
+        || (relative.len() >= 2 && relative[1] == b':')
+    {
+        return false;
+    }
+    !relative
+        .split(|byte| *byte == b'/')
+        .any(|component| component.is_empty() || component == b"." || component == b"..")
+}
+
 impl FilesystemGrantRootIdentity {
     pub const fn new(value: u32) -> Option<Self> {
         if value == 0 { None } else { Some(Self(value)) }
@@ -657,6 +686,10 @@ pub enum FilesystemMetadataObservationKind {
     UnfollowedFinalPath,
 }
 
+/// Minimum mutable byte carrier required by the canonical filesystem metadata
+/// API on every selected target.
+pub const FILESYSTEM_METADATA_API_CARRIER_BYTES: usize = 144;
+
 /// Canonical target-neutral metadata observed by one successful filesystem
 /// operation. File-kind predicates are deliberately absent: they are derived
 /// from the retained mode bits and must not become disagreeing duplicate facts.
@@ -705,6 +738,48 @@ impl FilesystemMetadataObservation {
             size,
             blocks_512: 8,
             preferred_block_size: 4096,
+        }
+    }
+
+    /// Reconstruct one canonical metadata row from compiler-owned replay
+    /// custody. This does not consult or authorize a host filesystem. The
+    /// replay executor still cross-checks every field against the selected
+    /// target carrier before admitting the returned operation.
+    #[allow(clippy::too_many_arguments)]
+    pub const fn from_replay(
+        kind: FilesystemMetadataObservationKind,
+        device: u64,
+        mode: u32,
+        link_count: u64,
+        inode: u64,
+        user: u32,
+        group: u32,
+        referenced_device: u64,
+        access_time: i64,
+        modification_time: i64,
+        change_time: i64,
+        birth_time: i64,
+        size: i64,
+        blocks_512: u64,
+        preferred_block_size: u64,
+    ) -> Self {
+        Self {
+            output_operand_ordinal: 1,
+            kind,
+            device,
+            mode,
+            link_count,
+            inode,
+            user,
+            group,
+            referenced_device,
+            access_time,
+            modification_time,
+            change_time,
+            birth_time,
+            size,
+            blocks_512,
+            preferred_block_size,
         }
     }
 
@@ -1334,36 +1409,107 @@ impl FilesystemSourceReadChainReplayRecord {
     }
 }
 
-/// Typed input used to reconstruct the first replay rung after its canonical
-/// compiler record has crossed a process boundary. Construction validates a
-/// nonempty set of closed, descriptor-disjoint source-read chains; it grants no
-/// host filesystem authority.
+/// One successful Source-rooted path metadata read reconstructed from
+/// canonical compiler custody. The authored rooted input and the separately
+/// authorized target both remain exact because following a symlink may make
+/// them differ. Returned bytes are carried by the mutable post-state and
+/// checked against `metadata` under the selected target layout during replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FilesystemSourceReadChainsReplayRecord {
-    chains: Vec<FilesystemSourceReadChainReplayRecord>,
+pub struct FilesystemSourcePathMetadataReplayRecord {
+    kind: FilesystemMetadataObservationKind,
+    source_root: FilesystemGrantRootIdentity,
+    source_relative_path: Vec<u8>,
+    authorized_root: FilesystemGrantRootIdentity,
+    authorized_relative_path: Vec<u8>,
+    post_error: i32,
+    mutable_resolution: Vec<u8>,
+    mutable_pre_state: Vec<u8>,
+    mutable_post_state: Vec<u8>,
+    metadata: FilesystemMetadataObservation,
 }
 
-impl FilesystemSourceReadChainsReplayRecord {
-    pub fn new(chains: Vec<FilesystemSourceReadChainReplayRecord>) -> Result<Self, String> {
-        if chains.is_empty() {
-            return Err("filesystem replay requires at least one source-read chain".to_owned());
+impl FilesystemSourcePathMetadataReplayRecord {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        kind: FilesystemMetadataObservationKind,
+        source_root: FilesystemGrantRootIdentity,
+        source_relative_path: Vec<u8>,
+        authorized_root: FilesystemGrantRootIdentity,
+        authorized_relative_path: Vec<u8>,
+        post_error: i32,
+        mutable_resolution: Vec<u8>,
+        mutable_pre_state: Vec<u8>,
+        mutable_post_state: Vec<u8>,
+        metadata: FilesystemMetadataObservation,
+    ) -> Result<Self, String> {
+        if !matches!(
+            kind,
+            FilesystemMetadataObservationKind::FollowedPath
+                | FilesystemMetadataObservationKind::UnfollowedFinalPath
+        ) || metadata.kind() != kind
+            || metadata.output_operand_ordinal() != 1
+            || source_root != authorized_root
+            || !filesystem_root_relative_path_is_canonical(&source_relative_path, false)
+            || !filesystem_root_relative_path_is_canonical(&authorized_relative_path, true)
+            || mutable_resolution != mutable_pre_state
+            || mutable_pre_state.len() != mutable_post_state.len()
+            || mutable_post_state.len() < FILESYSTEM_METADATA_API_CARRIER_BYTES
+        {
+            return Err("filesystem replay path metadata is inconsistent".to_owned());
         }
-        for (index, chain) in chains.iter().enumerate() {
-            if chains[..index]
-                .iter()
-                .any(|prior| prior.logical_handle_identity == chain.logical_handle_identity)
-            {
+        Ok(Self {
+            kind,
+            source_root,
+            source_relative_path,
+            authorized_root,
+            authorized_relative_path,
+            post_error,
+            mutable_resolution,
+            mutable_pre_state,
+            mutable_post_state,
+            metadata,
+        })
+    }
+}
+
+/// One ordered source-input replay event. Descriptor-backed file reads remain
+/// an indivisible closed chain; path metadata reads are independent events.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FilesystemSourceInputReplayEventRecord {
+    ReadChain(FilesystemSourceReadChainReplayRecord),
+    PathMetadata(FilesystemSourcePathMetadataReplayRecord),
+}
+
+/// Typed source-input replay record reconstructed after canonical bytes cross
+/// a process boundary. It grants no ambient host filesystem authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemSourceInputReplayRecord {
+    events: Vec<FilesystemSourceInputReplayEventRecord>,
+}
+
+impl FilesystemSourceInputReplayRecord {
+    pub fn new(events: Vec<FilesystemSourceInputReplayEventRecord>) -> Result<Self, String> {
+        if events.is_empty() {
+            return Err("filesystem replay requires at least one source-input event".to_owned());
+        }
+        let mut identities = Vec::new();
+        for event in &events {
+            let FilesystemSourceInputReplayEventRecord::ReadChain(chain) = event else {
+                continue;
+            };
+            if identities.contains(&chain.logical_handle_identity) {
                 return Err(
                     "filesystem replay source-read chains must use distinct handles".to_owned(),
                 );
             }
+            identities.push(chain.logical_handle_identity);
         }
-        Ok(Self { chains })
+        Ok(Self { events })
     }
 }
 
 impl FilesystemReplay {
-    pub fn from_source_read_chains_observations(
+    pub fn from_source_input_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
         if observations.filesystem_operation_schema_version()
@@ -1373,12 +1519,21 @@ impl FilesystemReplay {
         }
         let attempts = observations.filesystem_operation_attempts();
         let mut cursor = 0;
-        let mut chain_count = 0;
+        let mut event_count = 0;
         while cursor < attempts.len() {
+            if matches!(attempts[cursor].operation_tag(), 38 | 40) {
+                if !source_path_metadata_attempt_is_exact(&attempts[cursor]) {
+                    return Err(
+                        "bounded filesystem replay source metadata is inconsistent".to_owned()
+                    );
+                }
+                cursor += 1;
+                event_count += 1;
+                continue;
+            }
             if attempts[cursor].operation_tag() != 2 {
                 return Err(
-                    "bounded filesystem replay requires one or more closed source-read chains"
-                        .to_owned(),
+                    "bounded filesystem replay requires ordered source-input events".to_owned(),
                 );
             }
             cursor += 1;
@@ -1391,18 +1546,14 @@ impl FilesystemReplay {
                 || attempts[cursor].operation_tag() != 8
             {
                 return Err(
-                    "bounded filesystem replay requires one or more closed source-read chains"
-                        .to_owned(),
+                    "bounded filesystem replay requires ordered source-input events".to_owned(),
                 );
             }
             cursor += 1;
-            chain_count += 1;
+            event_count += 1;
         }
-        if chain_count == 0 {
-            return Err(
-                "bounded filesystem replay requires one or more closed source-read chains"
-                    .to_owned(),
-            );
+        if event_count == 0 {
+            return Err("bounded filesystem replay requires source-input events".to_owned());
         }
         for (index, attempt) in attempts.iter().enumerate() {
             if !matches!(
@@ -1423,17 +1574,129 @@ impl FilesystemReplay {
         &self.attempts
     }
 
-    pub fn from_source_read_chains_record(record: FilesystemSourceReadChainsReplayRecord) -> Self {
-        let attempt_count = record
-            .chains
-            .iter()
-            .map(|chain| chain.reads.len() + 2)
-            .sum();
+    pub fn from_source_input_record(record: FilesystemSourceInputReplayRecord) -> Self {
+        let attempt_count = record.events.iter().fold(0usize, |count, event| {
+            count
+                + match event {
+                    FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
+                        chain.reads.len() + 2
+                    }
+                    FilesystemSourceInputReplayEventRecord::PathMetadata(_) => 1,
+                }
+        });
         let mut attempts = Vec::with_capacity(attempt_count);
-        for chain in record.chains {
-            attempts.extend(source_read_chain_attempts(chain));
+        for event in record.events {
+            match event {
+                FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
+                    attempts.extend(source_read_chain_attempts(chain));
+                }
+                FilesystemSourceInputReplayEventRecord::PathMetadata(metadata) => {
+                    attempts.push(source_path_metadata_attempt(metadata));
+                }
+            }
         }
         Self { attempts }
+    }
+}
+
+fn source_path_metadata_attempt_is_exact(attempt: &FilesystemOperationAttempt) -> bool {
+    let expected_kind = match attempt.operation_tag {
+        38 => FilesystemMetadataObservationKind::FollowedPath,
+        40 => FilesystemMetadataObservationKind::UnfollowedFinalPath,
+        _ => return false,
+    };
+    let [rooted] = attempt.rooted_path_operand_resolutions.as_slice() else {
+        return false;
+    };
+    let [authorized] = attempt.authorized_paths.as_slice() else {
+        return false;
+    };
+    let [metadata] = attempt.metadata_observations.as_slice() else {
+        return false;
+    };
+    let [mutable_resolution] = attempt.mutable_byte_operand_resolutions.as_slice() else {
+        return false;
+    };
+    let [mutable] = attempt.mutable_byte_operands.as_slice() else {
+        return false;
+    };
+    attempt.provider == FilesystemObservationProvider::RealScoped
+        && attempt.result() == Some(FilesystemOperationResult::Scalar(0))
+        && attempt.scalar_operands.is_empty()
+        && attempt.byte_operands.is_empty()
+        && attempt.path_like_operands.is_empty()
+        && rooted.operand_ordinal == 0
+        && filesystem_root_relative_path_is_canonical(&rooted.relative_path, false)
+        && attempt.returned_paths.is_empty()
+        && attempt.observed_byte_regions.is_empty()
+        && metadata.output_operand_ordinal == 1
+        && metadata.kind == expected_kind
+        && mutable_resolution.operand_ordinal == 1
+        && mutable.operand_ordinal == 1
+        && mutable_resolution.bytes == mutable.pre_bytes
+        && mutable.pre_bytes.len() == mutable.post_bytes.len()
+        && mutable.post_bytes.len() >= FILESYSTEM_METADATA_API_CARRIER_BYTES
+        && authorized.operand_ordinal == 0
+        && authorized.access == FilesystemGrantAccess::Read
+        && authorized.root == rooted.root
+        && filesystem_root_relative_path_is_canonical(&authorized.relative_path, true)
+        && attempt.mutable_i64_operand_resolutions.is_empty()
+        && attempt.mutable_i64_operands.is_empty()
+        && attempt.logical_handle_inputs.is_empty()
+        && attempt.logical_handle_output.is_none()
+        && attempt.retired_logical_handles.is_empty()
+        && attempt.grant_refusals.is_empty()
+}
+
+fn source_path_metadata_attempt(
+    record: FilesystemSourcePathMetadataReplayRecord,
+) -> FilesystemOperationAttempt {
+    let operation_tag = match record.kind {
+        FilesystemMetadataObservationKind::FollowedPath => 38,
+        FilesystemMetadataObservationKind::UnfollowedFinalPath => 40,
+        FilesystemMetadataObservationKind::OpenDescriptor => {
+            unreachable!("validated source path metadata cannot target a descriptor")
+        }
+    };
+    FilesystemOperationAttempt {
+        operation_tag,
+        provider: FilesystemObservationProvider::RealScoped,
+        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::Scalar(0),
+            post_error: record.post_error,
+        }),
+        scalar_operands: Vec::new(),
+        byte_operands: Vec::new(),
+        path_like_operands: Vec::new(),
+        rooted_path_operand_resolutions: vec![FilesystemRootedPathOperandResolution {
+            operand_ordinal: 0,
+            root: record.source_root,
+            relative_path: record.source_relative_path,
+        }],
+        returned_paths: Vec::new(),
+        observed_byte_regions: Vec::new(),
+        metadata_observations: vec![record.metadata],
+        mutable_byte_operand_resolutions: vec![FilesystemMutableByteOperandResolution {
+            operand_ordinal: 1,
+            bytes: record.mutable_resolution,
+        }],
+        mutable_i64_operand_resolutions: Vec::new(),
+        mutable_byte_operands: vec![FilesystemMutableByteOperand {
+            operand_ordinal: 1,
+            pre_bytes: record.mutable_pre_state,
+            post_bytes: record.mutable_post_state,
+        }],
+        mutable_i64_operands: Vec::new(),
+        authorized_paths: vec![FilesystemAuthorizedPath {
+            operand_ordinal: 0,
+            access: FilesystemGrantAccess::Read,
+            root: record.authorized_root,
+            relative_path: record.authorized_relative_path,
+        }],
+        logical_handle_inputs: Vec::new(),
+        logical_handle_output: None,
+        retired_logical_handles: Vec::new(),
+        grant_refusals: Vec::new(),
     }
 }
 
@@ -1978,10 +2241,10 @@ pub enum FilesystemAccess {
         grants: FsGrants,
         sponsor: FilesystemSponsor,
     },
-    /// Consume compiler-produced source-read chains without
-    /// installing virtual or real filesystem authority. Every event and lane
-    /// must match exactly and the record must be exhausted.
-    ReplaySourceReadChains(FilesystemReplay),
+    /// Consume compiler-produced source-input events without installing
+    /// virtual or real filesystem authority. Every event and lane must match
+    /// exactly and the record must be exhausted.
+    ReplaySourceInputs(FilesystemReplay),
 }
 
 /// Path grants for [`FilesystemAccess::RealScoped`]. Roots are canonicalized

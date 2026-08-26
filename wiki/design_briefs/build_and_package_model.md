@@ -830,6 +830,19 @@ existing compiler-private checked/evaluator seam and does
 not justify nominal Chi. Broad operation replay, output mutation and output-
 tree reproduction, package-command integration, and a complete replay verdict
 remain absent, so the build remains `Volatile`.
+
+Summary v23 and replay-record v5 broaden the same bounded executor to an
+ordered source-input stream. Successful Source-rooted `read_metadata` and
+`read_symlink_metadata` events can surround the existing closed read chains.
+Each retains its authored rooted path separately from the authorized target,
+its exact follow/no-follow semantic kind, all 14 target-neutral metadata
+fields, and the complete selected-target carrier. Canonical recovery validates
+the operation-specific lane shape and both relative paths. Provider-free replay
+reconstructs the selected checked `StatLayout` carrier and compares every
+field, zero padding, and tail byte before requiring exact stream exhaustion and
+build result equality. Failed metadata and descriptor-backed metadata remain
+outside this rung. The record remains review-only, `Volatile`, and neither an
+authenticity claim nor a receipt.
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and
