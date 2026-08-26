@@ -62,10 +62,13 @@ machine build(builder: &mut Build) {
 error in every reader, not an application in one and a broken package in
 another. The earlier `const PACKAGE: Package` literal — matched statically by a
 bespoke parser over roughly fifteen shape errors — is retired (settled
-2026-08-25); evaluating `build.omg` to learn identity is not circular, because
-declaring a name requires no resolved dependencies. Missing, duplicate,
-effectful, dependency-dependent, or non-canonical declarations reject.
-Directory and repository names are advisory only.
+2026-08-25). Identity is projected hermetically before build execution from
+exactly one direct root call whose receiver is the canonical `builder: &mut
+Build` parameter. Helpers, control flow, expression use, authored toolchain
+vocabulary, and dependency-dependent declarations reject. This keeps the
+surface ordinary Omega while making identity independent of build authority or
+resolved dependencies. Missing, duplicate, or non-canonical declarations
+reject. Directory and repository names are advisory only.
 The canonical name begins with an ASCII lowercase letter and otherwise contains
 only lowercase ASCII letters, digits, and single hyphen separators, ensuring
 that its default kebab-to-snake alias is a valid Omega identifier.

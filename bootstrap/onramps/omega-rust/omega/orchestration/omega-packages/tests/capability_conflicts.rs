@@ -31,13 +31,10 @@ fn write_package(root: &Path, main: &str) {
     std::fs::create_dir_all(root).expect("create test package");
     std::fs::write(
         root.join("build.omg"),
-        r#"const PACKAGE: Package = Package {
-    name: "conflict-probe"
-};
-
-target windows_x64 { }
+        r#"target windows_x64 { }
 
 machine build(builder: &mut Build) {
+    builder.package("conflict-probe");
 }
 "#,
     )

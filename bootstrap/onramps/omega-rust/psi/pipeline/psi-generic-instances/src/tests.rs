@@ -81,6 +81,37 @@ fn closed_generic_record_literal_uses_annotated_local_instance() {
 }
 
 #[test]
+fn closed_generic_data_retains_its_authored_declaration_origin() {
+    let source = r#"
+        pub data Box<T> { value: T; }
+        data Holder { boxed: Box<i32>; }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+    let base_span = syntax
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(definition) if definition.name.as_str() == "Box" => {
+                Some(definition.name.source_span())
+            }
+            _ => None,
+        })
+        .expect("generic base declaration");
+
+    desugar_generic_data_instances(&mut syntax).expect("monomorphize");
+
+    let instance = syntax
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(definition) if definition.name.as_str() == "Box<i32>" => Some(definition),
+            _ => None,
+        })
+        .expect("closed generic instance");
+    assert!(instance.name.is_source_backed());
+    assert_eq!(instance.name.source_span(), base_span);
+}
+
+#[test]
 fn nested_closed_generic_record_literal_uses_concrete_field_instance() {
     let source = r#"
         data Box<T> { value: T; }

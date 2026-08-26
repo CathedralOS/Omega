@@ -721,7 +721,7 @@ mod tests {
 
     #[test]
     fn creates_a_build_machine_when_the_valid_file_has_none() {
-        let source = "const PACKAGE: Package = Package { name: \"root\" };\n".to_owned();
+        let source = "target windows_x64 { }\n".to_owned();
         let replacement = automatic(
             plan_addition_from_source(PathBuf::from("build.omg"), source.clone(), &path("vendor"))
                 .expect("plan addition"),

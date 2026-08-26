@@ -51,13 +51,10 @@ fn omega_path(path: &Path) -> String {
 fn write_provider_package(root: &Path) {
     fs::write(
         root.join("build.omg"),
-        r#"const PACKAGE: Package = Package {
-    name: "shared-provider"
-};
-
-target windows_x64 { }
+        r#"target windows_x64 { }
 
 machine build(builder: &mut Build) {
+    builder.package("shared-provider");
 }
 "#,
     )
@@ -96,13 +93,10 @@ fn same_name_and_symbols_from_another_lineage_cannot_spoof_selected_provider() {
     fs::write(
         root.join("build.omg"),
         format!(
-            r#"const PACKAGE: Package = Package {{
-    name: "lineage-probe"
-}};
-
-target windows_x64 {{ }}
+            r#"target windows_x64 {{ }}
 
 machine build(builder: &mut Build) {{
+    builder.package("lineage-probe");
     builder.depend_as("selected_provider", Source::Path {{
         location: "{}"
     }});

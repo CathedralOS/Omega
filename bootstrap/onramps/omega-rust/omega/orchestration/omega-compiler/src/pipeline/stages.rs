@@ -362,9 +362,9 @@ fn validate_package_source_frontier(
 /// build.omg root declares either build-machine shape and no `Build` data of
 /// its own, the build-machine fragment is injected as a virtual source (a
 /// program-declared `Build` wins, which keeps migration and deliberate
-/// overrides possible). The toolchain-owned `Package` fragment follows an
-/// authored `PACKAGE` constant independently; package extraction rejects an
-/// authored `data Package` before compilation.
+/// overrides possible). Package identity uses the same injected `Build`
+/// surface through `builder.package(name)`; there is no second declaration
+/// type or compiler-only constant shape.
 const BUILD_PRELUDE: &str = r#"
 // Toolchain-provided build vocabulary (virtual source; build_and_package_model.md).
 pub data Subsystem {
@@ -384,6 +384,8 @@ pub data Source {
 pub machine Build::depend(&mut self, source: Source) {
 }
 pub machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
+}
+pub machine Build::package(&mut self, name: &[u8]) {
 }
 "#;
 
@@ -414,6 +416,8 @@ pub machine Build::depend(&mut self, source: Source) {
 }
 pub machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
 }
+pub machine Build::package(&mut self, name: &[u8]) {
+}
 pub machine BuildSource::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
     relative
 }
@@ -424,20 +428,12 @@ pub machine BuildOutput::include_source(&mut self, generated: &[u8] in Path) {
 }
 "#;
 
-const PACKAGE_PRELUDE: &str = r#"
-// Toolchain-provided package declaration vocabulary.
-pub data Package {
-    name: &[u8];
-}
-"#;
-
 fn inject_build_prelude(
     source_storage: &mut SourceStorage,
     timings: &mut CompileTimings,
 ) -> Result<bool, Vec<Diagnostic>> {
     let mut has_build_machine = false;
     let mut has_build_data = false;
-    let mut has_package_declaration = false;
     let mut build_reaches_filesystem = false;
     for (_, file) in source_storage.files.iter() {
         let is_build_file =
@@ -460,19 +456,12 @@ fn inject_build_prelude(
                 psi_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => {
                     has_build_data = true;
                 }
-                psi_syntax_trees::item::Item::Const(declaration)
-                    if is_build_file
-                        && declaration.scope.as_str().is_empty()
-                        && declaration.name.as_str() == "PACKAGE" =>
-                {
-                    has_package_declaration = true;
-                }
                 _ => {}
             }
         }
     }
     let inject_build_vocabulary = has_build_machine && !has_build_data;
-    if !inject_build_vocabulary && !has_package_declaration {
+    if !inject_build_vocabulary {
         return Ok(build_reaches_filesystem);
     }
 
@@ -481,12 +470,7 @@ fn inject_build_prelude(
     } else {
         BUILD_PRELUDE
     };
-    let prelude = match (inject_build_vocabulary, has_package_declaration) {
-        (true, true) => format!("{build_prelude}\n{PACKAGE_PRELUDE}"),
-        (true, false) => build_prelude.to_owned(),
-        (false, true) => PACKAGE_PRELUDE.to_owned(),
-        (false, false) => unreachable!("empty prelude was handled above"),
-    };
+    let prelude = build_prelude.to_owned();
 
     let first_source_id = source_storage.next_source_id();
     let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
@@ -1204,9 +1188,10 @@ mod tests {
             })
             .collect::<Vec<_>>();
         dependency_methods.sort_by_key(|machine| machine.name.as_str());
-        assert_eq!(dependency_methods.len(), 2);
+        assert_eq!(dependency_methods.len(), 3);
         assert_eq!(dependency_methods[0].name.as_str(), "Build::depend");
         assert_eq!(dependency_methods[1].name.as_str(), "Build::depend_as");
+        assert_eq!(dependency_methods[2].name.as_str(), "Build::package");
 
         let parameter_names = |machine: &psi_syntax_trees::item::Machine| {
             let [entry] = syntax_trees.items.state_handles(machine.states) else {
@@ -1224,50 +1209,12 @@ mod tests {
             parameter_names(dependency_methods[1]),
             ["self", "alias", "source"]
         );
+        assert_eq!(parameter_names(dependency_methods[2]), ["self", "name"]);
         assert!(!syntax_trees.root_items().any(|item| matches!(
             item,
             psi_syntax_trees::item::Item::Machine(machine)
                 if machine.attached_data.is_none() && machine.name.as_str() == "path"
         )));
-    }
-
-    #[test]
-    fn build_prelude_owns_package_declaration_vocabulary() {
-        let tokens = psi_source_files_to_tokens::Lexer::new(PACKAGE_PRELUDE)
-            .tokenize()
-            .expect("toolchain build prelude must lex");
-        let syntax_trees = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
-            .expect("toolchain build prelude must parse as ordinary Omega");
-        let package = syntax_trees
-            .root_items()
-            .find_map(|item| match item {
-                psi_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Package" => {
-                    Some(data)
-                }
-                _ => None,
-            })
-            .expect("build prelude must define Package");
-        let [psi_syntax_trees::item::DataMember::Field(name)] =
-            syntax_trees.items.data_members(package.members)
-        else {
-            panic!("Package must contain exactly one data field");
-        };
-        assert_eq!(name.name.as_str(), "name");
-        let psi_syntax_trees::types::TypeReferenceNode::Reference { referee, .. } = syntax_trees
-            .type_references
-            .type_reference(name.type_reference)
-        else {
-            panic!("Package.name must be borrowed bytes");
-        };
-        let psi_syntax_trees::types::TypeReferenceNode::Slice { element_type } =
-            syntax_trees.type_references.type_reference(*referee)
-        else {
-            panic!("Package.name must be a borrowed byte slice");
-        };
-        assert!(matches!(
-            syntax_trees.type_references.type_reference(*element_type),
-            psi_syntax_trees::types::TypeReferenceNode::Named(name) if name.as_str() == "u8"
-        ));
     }
 
     fn empty_emission(target: NativeTarget) -> omega_artifacts::EmissionPlan {

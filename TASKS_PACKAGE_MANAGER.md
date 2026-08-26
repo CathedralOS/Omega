@@ -2316,14 +2316,24 @@ Settled 2026-08-25. These land after P1's identity work and before any
 repository relocation; directory moves are cheap only once nothing resolves the
 standard library by path.
 
-- [ ] **Retire the `PACKAGE` const and its parser.** `declaration.rs` currently
+- [x] **Retire the `PACKAGE` const and its parser.** `declaration.rs` currently
       lexes `build.omg` and shape-matches a top-level literal — exactly one
       field, named `name`, string, type `Package` — behind roughly fifteen
       error variants. Replace the whole path with `builder.package("name")`
-      evaluated through the ordinary build surface that already carries
-      `depend_as`, `select_provider`, and `roots.bind`. Evaluating `build.omg`
-      to learn identity is not circular: declaring a name needs no resolved
-      dependencies.
+      on the ordinary build surface that already carries `depend_as`,
+      `select_provider`, and `roots.bind`.
+
+      Completed 2026-08-25: package identity is projected hermetically from
+      exactly one direct root `builder.package("canonical-name")` statement
+      before build execution or dependency resolution. The compiler-owned
+      `Build::package` operation is an ordinary no-op build-surface method; the
+      package layer rejects helpers, control flow, expression use, wrong
+      receivers or arguments, duplicate/missing declarations, and authored
+      `Build`/`Build::package` vocabulary. The old `Package` prelude, constant
+      parser, fixtures, and documentation were removed or migrated. The
+      compiler-backed fixture migration also exposed and closed source-free
+      generic-instance ownership: synthesized closed data and attached machines
+      now retain their exact authored generic declaration as provenance.
 - [ ] **Add `builder.member(path)` and a workspace root `build.omg`.** Members
       carry paths. This is the file that tells the resolver where packages live
       and makes relocation a manifest edit.
@@ -2336,9 +2346,13 @@ standard library by path.
       "omega-language-std")`. Today the standard library has no manifest of any
       kind, which is why no git URL can name it and why minimal checkout is
       impossible.
-- [ ] **Record the bundled-core decision** in
+- [x] **Record the bundled-core decision** in
       `wiki/design_briefs/build_and_package_model.md`: core is welded to the
       compiler because it is the language, not because nobody wrote a manifest.
+
+      Completed 2026-08-25: the governing brief now states that
+      `omega::language::core` is bundled by decision, its version is the
+      language version, and two versions cannot coexist in one graph.
 - [ ] **Replace the bundled-std reader.** `frontend.rs:643` reads
       `omega/language/std/<module>.omg` directly. Route it through ordinary
       package resolution once std is a package.

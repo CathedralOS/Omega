@@ -602,7 +602,7 @@ mod tests {
         std::fs::write(
             root.join("build.omg"),
             format!(
-                "const PACKAGE: Package = Package {{ name: \"{name}\" }};\n\nmachine build(builder: &mut Build) {{\n{dependency}}}\n"
+                "machine build(builder: &mut Build) {{\n    builder.package(\"{name}\");\n{dependency}}}\n"
             ),
         )
         .expect("write build file");
@@ -802,8 +802,8 @@ mod tests {
         std::fs::write(
             package.join("build.omg"),
             r#"
-            const PACKAGE: Package = Package { name: "root-package" };
             machine build(builder: &mut Build) {
+                builder.package("root-package");
                 builder.depend(Source::Path { location: "../../../outside" });
             }
             "#,
