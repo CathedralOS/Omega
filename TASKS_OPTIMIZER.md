@@ -41,8 +41,9 @@ These facts constrain the work below.
   bounded forms but is also not a general allocator.
 - `omega-register-model` now owns separate target-neutral declarative physical-
   register and instruction-constraint vocabularies with total structural
-  validators. `omega-regalloc` is a compatibility facade and future allocator
-  consumer; neither crate performs allocation yet.
+  validators. `omega-regalloc` now consumes the opaque validated selected CFG
+  for the first bounded liveness analysis, but neither crate performs
+  allocation yet.
   Clean Terminal-ISA-owned x86-64 declarations split every GPR into exact
   byte/word/dword/qword storage lanes, retain non-allocatable high-byte views,
   model 32-bit zero-extension, and cover XMM, RFLAGS, and RIP state. AArch64
@@ -80,12 +81,14 @@ These facts constrain the work below.
   `StagedOptimizedSelectedInstructions` carrier retains the optimizer run,
   final optimization unit, independent abstract projection, target plan, exact
   validated register environment, selected plan, and a content-identity-bound
-  validation receipt. A separate `StagedOptimizedAssignedOperations` carrier
+  validation receipt. A nested `StagedOptimizedLiveness` carrier additionally
+  retains an independently replayed, content-identified liveness plan over the
+  selected CFG. A separate `StagedOptimizedAssignedOperations` carrier
   retains the optimizer run, ledger, projection receipt, target plan, assigned
   plan, and independently reconstructed root/function provenance custody. This
   is not allocator validation: the lane still fails closed before machine emission,
   object/image construction, component construction, or installation because
-  no independent liveness/interference or physical-realization validator yet
+  no independent interference or physical-realization validator yet
   authorizes those records. Checked compilation
   retains the domain-separated selection identity, and the core crate defines
   a canonical replay/cache identity bundle over selections, ordered rules,
@@ -775,11 +778,23 @@ dependency.
   Acceptance: conditionals, loops, crash exits, calls, cleanup blocks,
   suspension frontiers, and disconnected functions have focused tests.
 
-  Sequencing: the first real selected-instruction CFG now exists for the bounded
-  three-block conditional-return slice, so liveness can begin against that
-  production carrier. It must still fail closed outside the independently
-  validated slice and must not infer evidence from already assigned scratch
-  homes. General liveness remains dependent on completing
+  Current slice: `omega-regalloc` computes deterministic reverse-fixed-point
+  block and instruction liveness over the opaque validated three-block
+  conditional-return carrier. It keeps typed virtual-register liveness separate
+  from architectural register-unit liveness, records dense instruction/use
+  positions, fixed entry/return views, exact instruction uses/defs/clobbers,
+  and branch-polarity-preserving successor facts. A separately implemented
+  validator reconstructs CFG order, effects, transfers, canonical sets, and a
+  domain-separated content identity. Opt-in orchestration retains this result
+  only in a nested custody carrier that grants no interval, allocation,
+  emission, or publication authority. The v1 analysis rejects use-def, tied,
+  and early-clobber operands rather than pretending their later interference
+  semantics are complete.
+
+  Remaining to close: live-interval construction, loop weights, calls and call
+  crossings, crashes, cleanup and suspension frontiers, disconnected
+  functions, and dedicated tied/use-def/early-clobber handling. General
+  liveness remains dependent on completing
   `OPT-VIRTUAL-REGISTERS` for calls, cleanup, suspension, memory, loops, and the
   rest of the legalized instruction vocabulary.
 

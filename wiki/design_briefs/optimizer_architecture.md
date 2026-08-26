@@ -630,8 +630,9 @@ constraint keys and ABI live-in views instead of asking a target-neutral stage
 to infer them from names or coincident numeric variants. The opaque staged
 carrier also owns the final optimized unit, independent abstract projection,
 target plan, and validated register environment. This is allocator input only:
-it grants no liveness, physical-home, emission, or publication authority and
-fails closed for every other source shape.
+it grants no physical-home, emission, or publication authority and fails closed
+for every other source shape. A nested liveness carrier may consume it, but
+cannot weaken or detach that custody.
 
 ## Register allocation
 
@@ -660,9 +661,10 @@ compares every row with its own canonical target semantics so a same-class
 register substitution cannot pass. Clean Terminal ISA crates construct those
 values, and opt-in orchestration passes both validated artifacts through an
 opaque target-register environment rather than discovering a target through
-global state. `omega-regalloc` currently remains an API-compatible facade over
-the representation crate; allocation logic will consume the model without
-becoming its representation owner. The baseline
+global state. `omega-regalloc` retains its register-model compatibility facade
+and now also owns the first production liveness analysis over the opaque
+validated selected carrier; allocation logic will consume these facts without
+becoming their representation owner. The baseline
 x86-64 model uses lane units so `al` and `ah` are disjoint while `ax`/`eax`/`rax`
 alias the appropriate union, and records `eax`'s full-register zeroing write.
 The baseline AArch64 model gives encoding-number-31 stack and zero-register
@@ -687,6 +689,27 @@ that transitional
 lane's assigned plan inside `StagedOptimizedAssignedOperations` to prove
 cross-stage custody, but cannot treat it as allocator-validated input to
 machine emission.
+
+The bounded production liveness slice is deliberately a CFG fact layer, not a
+partial allocator. It computes a deterministic reverse fixed point and records
+canonical block, instruction, and successor facts. Virtual-register transfer
+uses `before = uses union (after - defs)`. Architectural register units use a
+separate transfer, `before = implicit_uses union (after - implicit_defs -
+clobbers)`, so flags, instruction-pointer state, stack state, and return-address
+state never become invented virtual values. Fixed views remain operand-position
+constraints; they do not masquerade as implicit unit uses. Branch successor
+rows retain source edge, target, and nonzero/zero polarity even when their live
+sets happen to be equal.
+
+Production and validation do not share a transfer implementation. The
+validator reconstructs selected instruction order, CFG successors, operand
+roles, machine-state effects, fixed positions, canonical exact sets, and the
+full content identity before an opaque result is issued. Orchestration nests
+that result with the complete selected carrier and revalidates both layers.
+This first slice intentionally refuses use-def operands, ties, and early
+clobbers, and makes no claim about flattened intervals, allocation, spills,
+loops, calls, crashes, cleanup, or suspension. Those become admissible only
+with their explicit selected-IR frontiers and dedicated validation rules.
 
 The first allocator should be deterministic linear scan with interval splitting,
 spills, reloads, rematerialization of cheap constants, and verified frame-slot
