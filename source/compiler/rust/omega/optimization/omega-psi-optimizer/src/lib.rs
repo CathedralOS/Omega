@@ -31,10 +31,13 @@ pub use registry::{
     RuleRegistryError, RuleScheduleKey,
 };
 pub use rules::{
-    ExactIntegerAddConstantsRule, ExactIntegerMultiplyConstantsRule,
+    ExactIntegerAddConstantsRule, ExactIntegerDivideConstantsRule,
+    ExactIntegerMultiplyConstantsRule, ExactIntegerRemainderConstantsRule,
     ExactIntegerSubtractConstantsRule, SaturatingIntegerAddConstantsRule,
-    SaturatingIntegerMultiplyConstantsRule, SaturatingIntegerSubtractConstantsRule,
-    WrappingIntegerAddConstantsRule, WrappingIntegerMultiplyConstantsRule,
+    SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,
+    SaturatingIntegerRemainderConstantsRule, SaturatingIntegerSubtractConstantsRule,
+    WrappingIntegerAddConstantsRule, WrappingIntegerDivideConstantsRule,
+    WrappingIntegerMultiplyConstantsRule, WrappingIntegerRemainderConstantsRule,
     WrappingIntegerSubtractConstantsRule, built_in_psi_registry,
 };
 

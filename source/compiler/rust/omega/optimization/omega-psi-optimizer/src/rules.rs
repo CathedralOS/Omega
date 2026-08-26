@@ -115,6 +115,42 @@ integer_evaluation_rule!(
     IntegerBinaryKind::SaturatingMultiply,
     OptimizationSafetyClass::ExactOperationSemantics
 );
+integer_evaluation_rule!(
+    ExactIntegerDivideConstantsRule,
+    b"omega.psi-rule.exact-integer-divide-constants.v1",
+    IntegerBinaryKind::ExactDivide,
+    OptimizationSafetyClass::ProofCertified
+);
+integer_evaluation_rule!(
+    ExactIntegerRemainderConstantsRule,
+    b"omega.psi-rule.exact-integer-remainder-constants.v1",
+    IntegerBinaryKind::ExactRemainder,
+    OptimizationSafetyClass::ProofCertified
+);
+integer_evaluation_rule!(
+    WrappingIntegerDivideConstantsRule,
+    b"omega.psi-rule.wrapping-integer-divide-constants.v1",
+    IntegerBinaryKind::WrappingDivide,
+    OptimizationSafetyClass::ProofCertified
+);
+integer_evaluation_rule!(
+    WrappingIntegerRemainderConstantsRule,
+    b"omega.psi-rule.wrapping-integer-remainder-constants.v1",
+    IntegerBinaryKind::WrappingRemainder,
+    OptimizationSafetyClass::ProofCertified
+);
+integer_evaluation_rule!(
+    SaturatingIntegerDivideConstantsRule,
+    b"omega.psi-rule.saturating-integer-divide-constants.v1",
+    IntegerBinaryKind::SaturatingDivide,
+    OptimizationSafetyClass::ProofCertified
+);
+integer_evaluation_rule!(
+    SaturatingIntegerRemainderConstantsRule,
+    b"omega.psi-rule.saturating-integer-remainder-constants.v1",
+    IntegerBinaryKind::SaturatingRemainder,
+    OptimizationSafetyClass::ProofCertified
+);
 
 fn propose_integer_binary_constants(
     unit: &PsiOptimizationUnit,
@@ -209,6 +245,12 @@ enum IntegerBinaryKind {
     SaturatingAdd,
     SaturatingSubtract,
     SaturatingMultiply,
+    ExactDivide,
+    ExactRemainder,
+    WrappingDivide,
+    WrappingRemainder,
+    SaturatingDivide,
+    SaturatingRemainder,
 }
 
 impl IntegerBinaryShape {
@@ -223,6 +265,12 @@ impl IntegerBinaryShape {
             IntegerBinaryKind::SaturatingAdd => self.scalar_type.saturating_add(left, right),
             IntegerBinaryKind::SaturatingSubtract => self.scalar_type.saturating_sub(left, right),
             IntegerBinaryKind::SaturatingMultiply => self.scalar_type.saturating_mul(left, right),
+            IntegerBinaryKind::ExactDivide => self.scalar_type.exact_div(left, right),
+            IntegerBinaryKind::ExactRemainder => self.scalar_type.exact_rem(left, right),
+            IntegerBinaryKind::WrappingDivide => self.scalar_type.wrapping_div(left, right),
+            IntegerBinaryKind::WrappingRemainder => self.scalar_type.wrapping_rem(left, right),
+            IntegerBinaryKind::SaturatingDivide => self.scalar_type.saturating_div(left, right),
+            IntegerBinaryKind::SaturatingRemainder => self.scalar_type.saturating_rem(left, right),
         }
     }
 }
@@ -358,6 +406,96 @@ fn integer_binary_shape(operation: &O) -> Option<IntegerBinaryShape> {
             *right,
             IntegerBinaryKind::SaturatingMultiply,
         ),
+        O::ExactIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            IntegerBinaryKind::ExactDivide,
+        ),
+        O::ExactIntegerRemainder {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            IntegerBinaryKind::ExactRemainder,
+        ),
+        O::WrappingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            IntegerBinaryKind::WrappingDivide,
+        ),
+        O::WrappingIntegerRemainder {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            IntegerBinaryKind::WrappingRemainder,
+        ),
+        O::SaturatingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            IntegerBinaryKind::SaturatingDivide,
+        ),
+        O::SaturatingIntegerRemainder {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            IntegerBinaryKind::SaturatingRemainder,
+        ),
         _ => return None,
     };
     Some(IntegerBinaryShape {
@@ -406,6 +544,12 @@ pub fn built_in_psi_registry(
         rules.push(Arc::new(SaturatingIntegerAddConstantsRule));
         rules.push(Arc::new(SaturatingIntegerSubtractConstantsRule));
         rules.push(Arc::new(SaturatingIntegerMultiplyConstantsRule));
+        rules.push(Arc::new(ExactIntegerDivideConstantsRule));
+        rules.push(Arc::new(ExactIntegerRemainderConstantsRule));
+        rules.push(Arc::new(WrappingIntegerDivideConstantsRule));
+        rules.push(Arc::new(WrappingIntegerRemainderConstantsRule));
+        rules.push(Arc::new(SaturatingIntegerDivideConstantsRule));
+        rules.push(Arc::new(SaturatingIntegerRemainderConstantsRule));
     }
     OrderedRuleRegistry::new(rules)
 }
@@ -585,6 +729,49 @@ pub(crate) mod tests {
         policy_add_unit(false)
     }
 
+    fn exact_divide_unit(zero_divisor: bool) -> PsiOptimizationUnit {
+        let mut unit = exact_add_unit();
+        let function = &mut unit.functions[0];
+        let block = &mut function.blocks[0];
+        let O::ExactIntegerAdd {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } = block.nodes[2].operation
+        else {
+            unreachable!()
+        };
+        block.nodes[2].operation = O::ExactIntegerDivide {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        };
+        if zero_divisor {
+            let O::IntegerConstant { value, .. } = &mut block.nodes[1].operation else {
+                unreachable!()
+            };
+            *value = IntegerValue::Unsigned(0);
+            let OptimizationFact::IntegerConstant { constant, .. } = &mut function.facts[1] else {
+                unreachable!()
+            };
+            *constant = IntegerValue::Unsigned(0);
+        }
+        unit.identity = omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
+            if zero_divisor {
+                b"zero-divisor-fixture"
+            } else {
+                b"exact-divide-fixture"
+            },
+        );
+        unit
+    }
+
     #[test]
     fn selected_builtin_proposes_one_independently_validated_exact_fold() {
         let unit = exact_add_unit();
@@ -594,7 +781,7 @@ pub(crate) mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        assert_eq!(registry.len(), 9);
+        assert_eq!(registry.len(), 15);
         let mut dispatched = 0usize;
         let mut candidates = Vec::new();
         for rule in registry.iter() {
@@ -645,6 +832,33 @@ pub(crate) mod tests {
                 } if value == expected
             ));
         }
+    }
+
+    #[test]
+    fn proof_bearing_division_folds_only_when_the_declared_operation_is_defined() {
+        let unit = exact_divide_unit(false);
+        let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
+        let candidates = ExactIntegerDivideConstantsRule
+            .propose(&unit, RuleAnalysisView::new(&[constants]))
+            .unwrap();
+        assert_eq!(candidates.len(), 1);
+        let accepted = validate_integer_evaluation_candidate(&unit, &candidates[0]).unwrap();
+        assert!(matches!(
+            accepted.unit().functions[0].blocks[0].nodes[2].operation,
+            TerminalAbstractOperation::IntegerConstant {
+                value: IntegerValue::Unsigned(0),
+                ..
+            }
+        ));
+
+        let zero = exact_divide_unit(true);
+        let constants = compute_analysis(&zero, AnalysisKind::ScalarConstants).unwrap();
+        assert!(
+            ExactIntegerDivideConstantsRule
+                .propose(&zero, RuleAnalysisView::new(&[constants]))
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

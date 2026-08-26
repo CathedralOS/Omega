@@ -480,6 +480,12 @@ fn evaluate_exact_binary(
         SaturatingAdd,
         SaturatingSubtract,
         SaturatingMultiply,
+        ExactDivide,
+        ExactRemainder,
+        WrappingDivide,
+        WrappingRemainder,
+        SaturatingDivide,
+        SaturatingRemainder,
     }
     let (kind, source, result, scalar_type, left, right) = match &node.operation {
         O::ExactIntegerAdd {
@@ -611,6 +617,96 @@ fn evaluate_exact_binary(
             *left,
             *right,
         ),
+        O::ExactIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            IntegerOperation::ExactDivide,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        O::ExactIntegerRemainder {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            IntegerOperation::ExactRemainder,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        O::WrappingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            IntegerOperation::WrappingDivide,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        O::WrappingIntegerRemainder {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            IntegerOperation::WrappingRemainder,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        O::SaturatingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            IntegerOperation::SaturatingDivide,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        O::SaturatingIntegerRemainder {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            IntegerOperation::SaturatingRemainder,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
         _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     };
     let witness = candidate.witness();
@@ -654,6 +750,30 @@ fn evaluate_exact_binary(
         IntegerOperation::SaturatingMultiply => (
             scalar_type.saturating_mul(left_value, right_value),
             OptimizationSafetyClass::ExactOperationSemantics,
+        ),
+        IntegerOperation::ExactDivide => (
+            scalar_type.exact_div(left_value, right_value),
+            OptimizationSafetyClass::ProofCertified,
+        ),
+        IntegerOperation::ExactRemainder => (
+            scalar_type.exact_rem(left_value, right_value),
+            OptimizationSafetyClass::ProofCertified,
+        ),
+        IntegerOperation::WrappingDivide => (
+            scalar_type.wrapping_div(left_value, right_value),
+            OptimizationSafetyClass::ProofCertified,
+        ),
+        IntegerOperation::WrappingRemainder => (
+            scalar_type.wrapping_rem(left_value, right_value),
+            OptimizationSafetyClass::ProofCertified,
+        ),
+        IntegerOperation::SaturatingDivide => (
+            scalar_type.saturating_div(left_value, right_value),
+            OptimizationSafetyClass::ProofCertified,
+        ),
+        IntegerOperation::SaturatingRemainder => (
+            scalar_type.saturating_rem(left_value, right_value),
+            OptimizationSafetyClass::ProofCertified,
         ),
     };
     let evaluated =
