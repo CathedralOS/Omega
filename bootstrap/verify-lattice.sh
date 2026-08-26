@@ -483,6 +483,7 @@ precise_step "omega-bootstrap OMGRFN12 composite — all five independent respon
 precise_step "omega-bootstrap OMGRFN13 composite — all five independent responsibilities consume one exact canonical trapping-add frame" omega-bootstrap-refinement omgrfn13-same-frame-composite.sh omega-bootstrap-omgrfn13
 precise_step "omega-bootstrap OMGRFN14 composite — all five independent responsibilities consume exact static shared-byte-view frames" omega-bootstrap-refinement omgrfn14-same-frame-composite.sh omega-bootstrap-omgrfn14
 precise_step "omega-bootstrap OMGRFN16 composite — responsibility-local recursive arithmetic and representative persisted-Beta joins share exact frames" omega-bootstrap-refinement omgrfn16-same-frame-composite.sh omega-bootstrap-omgrfn16
+precise_step "omega-bootstrap CKIR15 independent reference — recurrent guarded views and ordered direct pass-through vectors" omega-bootstrap-gates delta-checked-ir-v15-reference.sh omega-bootstrap-ckir15-reference
 step "product compiler checkpoint — exact resolver closure plus provisional Ωself admission" source-checkpoints verify.sh omega-rust psi
 step "omega-bootstrap source-custody frontend probe — exhaustive native plus representative Delta-self-built checking" omega-bootstrap-gates delta-source-custody-frontend.sh delta-rust psi source-checkpoints
 step "omega-bootstrap source-custody meaning (RUST-FREE) — exact product unit plus semantic rejection and exhaustion through Gamma" omega-bootstrap-gates delta-source-custody-meaning.sh omega-bootstrap-meaning gamma psi source-checkpoints
