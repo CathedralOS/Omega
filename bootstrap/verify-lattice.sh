@@ -366,6 +366,9 @@ precise_step "omega-bootstrap bounded SHA-256 — exact raw-envelope digest nati
 precise_step "omega-bootstrap bounded SHA-256 meaning (RUST-FREE) — exact abc digest through Gamma" omega-bootstrap-gates delta-sha256-meaning.sh omega-bootstrap-sha256
 step "omega-bootstrap Delta resolution handoff — exact OMGCOMP to canonical OMGRSW1, native/self/resource agreement" omega-bootstrap-gates delta-resolution-handoff.sh omega-bootstrap-compiler delta-rust
 step "omega-bootstrap resolution meaning (RUST-FREE) — canonical 0/251/252 through Gamma" omega-bootstrap-gates delta-resolution-handoff-meaning.sh omega-bootstrap-compiler omega-bootstrap-meaning delta-rust gamma
+precise_step "omega-bootstrap OMGRSW6 independent resolution — exact boundary requirement/candidate/call tables with no selection" omega-bootstrap-gates delta-provider-resolution-v6-reference.sh omega-bootstrap-omgrsw6
+precise_step "omega-bootstrap OMGRSW6 handoff — exact OMGCOMP2 native/self resolution-only provider graph" omega-bootstrap-gates delta-provider-resolution-v6-handoff.sh omega-bootstrap-omgrsw6
+precise_step "omega-bootstrap OMGRSW6 meaning (RUST-FREE) — exact publication plus semantic/resource refusal through Gamma" omega-bootstrap-gates delta-provider-resolution-v6-meaning.sh omega-bootstrap-omgrsw6-meaning
 step "omega-bootstrap resolved-source lowerer — exact OMGLOW1 to CKIR1, native/self relation and resource agreement" omega-bootstrap-gates delta-resolved-to-ckir.sh omega-bootstrap-compiler delta-rust
 step "omega-bootstrap resolved-source lowering meaning (RUST-FREE) — canonical CKIR plus 251/252 through Gamma" omega-bootstrap-gates delta-resolved-to-ckir-meaning.sh omega-bootstrap-compiler omega-bootstrap-meaning delta-rust gamma
 step "omega-bootstrap two-package producer composite — exact witness, CKIR, ELF, result, and native/self cross-builds" omega-bootstrap-gates delta-two-package-composite.sh omega-bootstrap-compiler delta-rust

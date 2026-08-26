@@ -364,7 +364,7 @@ beside the linked contracts:
 | --- | --- | --- |
 | one-unit source/checking/artifact probe | closed for the finite, acyclic, returning `CKIR1`→limited-ELF tranche; not checkpoint closure | [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](bootstrap/omega-bootstrap/compiler/SOURCE_CUSTODY_FRONTEND_PROBE.md), [`OMEGA_BOOTSTRAP_CHECKED_IR.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md) |
 | multi-unit structural custody | closed for generic `OMGCOMP1` and the exact Linux-x86-64/native-provider configuration in `OMGCOMP2`; bounded Delta SHA-256 closes exact raw-envelope hashing through the public ceiling, while source/provider spellings remain opaque and no expected commitment, resolver/lock, or digest authority follows | [`OMEGA_BOOTSTRAP_COMPILATION.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md), [`OMEGA_BOOTSTRAP_COMPILATION_V2.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V2.md), [`OMEGA_BOOTSTRAP_SHA256.md`](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_SHA256.md) |
-| source resolution | bounded compositional relations are closed for the selected checkpoint facilities; least-version behavior, canonical identities, and refusal/resource boundaries are gated | versioned `OMEGA_BOOTSTRAP_RESOLUTION*.md` contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
+| source resolution | bounded compositional relations are closed for the selected checkpoint facilities; least-version behavior, canonical identities, and refusal/resource boundaries are gated; OMGRSW6 separately prices one exact boundary requirement/candidate/call graph without selecting the candidate | versioned `OMEGA_BOOTSTRAP_RESOLUTION*.md` contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
 | checked lowering and composition | bounded compositional relations are closed for selected data, control, scalar, and view facilities, with inherited behavior and conservative traps retained across versions | versioned `OMEGA_BOOTSTRAP_CHECKED_IR*.md` and backend contracts beside the [bridge compiler](bootstrap/omega-bootstrap/compiler/) |
 | lower-rooted artifact reconstruction | independent persisted-Beta R1–R5 owners reconstruct admitted source/checked-IR/artifact relations through OMGRFN15, including direct full-width trapping subtraction and byte-complete conservative ELF reconstruction | [`omega-bootstrap` refinement status](bootstrap/assurance/refinement/omega-bootstrap/README.md) and its versioned witness contracts |
 | compilation authority | externally gated: recheckable package evidence and accepted-lock schema are ruled, but their bounded accepted-closure projection plus exact envelope SHA-256 join is not yet published | compilation and witness contracts above |
@@ -417,15 +417,18 @@ evidence stay in
 - [ ] Close the unblocked source-graph/provider forms without waiting on private
   cross-module visibility. OMGCOMP2 now closes structural custody for an exact
   Linux-x86-64/native-provider fixture while keeping provider spellings opaque.
-  Next close exact trait-requirement, `satisfies`, target applicability,
-  payload-free compiler-intrinsic, and receiver-call resolution for its bounded
-  one-requirement `Console::exit_process` profile. Treat that result as cost
-  evidence only: real product `Console` has six requirements and provider
-  selection requires one complete provider plan, so the fixture cannot claim
-  product-plan closure. Do not lower the call through a supposedly selected
-  realization until selection comes from a normative source form. This remains
-  product binding support, not admission of general boundary traits to Delta,
-  provider admission, or compilation authority.
+  OMGRSW6 now closes exact trait-requirement, `reaches`, `satisfies`, target
+  applicability, payload-free compiler-intrinsic candidate, and receiver-call-
+  to-requirement resolution for a distinct bounded one-requirement
+  `Console::exit_process` profile. Its independent exact-byte decoder,
+  native/self producer, semantic/resource/no-publication controls, and
+  Rust-free Gamma observations are closed. Continue toward the six-requirement
+  product graph and normative selection only after its source form is available.
+  This remains cost evidence: OMGRSW6 has no selected-realization or provider-
+  plan row, so it cannot claim complete product conformance or justify lowering
+  the call. The remaining work is product binding support, not admission of
+  general boundary traits to Delta, provider admission, or compilation
+  authority.
 - [ ] Complete the product-checkpoint join for generated-source custody. The
   bridge-side infrastructure is closed without another source format, checked
   IR, or lowering path: the generic manifest verifier binds generator roles and
