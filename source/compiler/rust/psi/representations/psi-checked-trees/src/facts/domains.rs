@@ -14,9 +14,9 @@ pub struct DomainDependencyFact {
 
 /// A sequence-style domain fact: membership in `domain_symbol` for a collection
 /// value means every element (over the collection's full extent) is a member of
-/// `element_domain_symbol`. This is the narrow "for all i in 0..len, items[i] in
-/// P" shape used for slice/text invariants; the binder is proof-only and never
-/// lowers to a runtime loop.
+/// `element_domain_symbol`. This is the narrow "for all i in 0..len,
+/// `items[i]` in P" shape used for slice/text invariants; the binder is
+/// proof-only and never lowers to a runtime loop.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DomainElementFact {
     /// The collection domain whose membership is being characterized.
