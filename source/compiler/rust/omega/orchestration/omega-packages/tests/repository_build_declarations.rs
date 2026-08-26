@@ -48,16 +48,6 @@ const ROLE_MIGRATION_EXCEPTIONS: &[&str] = &[
     "fail/build/build-effects-undeclared",
     "fail/build/build-machine-wrong-arity",
     "fail/build/build-service-name-spoof",
-    "fail/build/duplicate-program-entry-binding",
-    "fail/build/hosted-program-entry-visible-parameter",
-    "fail/build/program-entry-receiver-not-zii",
-    "fail/build/program-entry-returns-value",
-    "fail/build/static-machine-parameter-contract-mismatch",
-    "fail/build/uefi-program-entry-local-physical-contract",
-    "fail/build/uefi-program-entry-missing-storage-roots",
-    "fail/build/uefi-program-entry-unqualified-image",
-    "fail/build/uefi-program-entry-wrong-calling-policy",
-    "fail/build/unknown-program-entry-binding",
     "pass/build/runtime-main-source-builder-is-ordinary-exit",
     "pass/filesystem/cross-linux-value-syscalls",
     "pass/float/runtime-total-order-satisfiers-exit",
@@ -188,5 +178,5 @@ fn ordinary_canary_projects_declare_canonical_application_roles() {
     }
 
     assert_eq!(exceptions, ROLE_MIGRATION_EXCEPTIONS.len());
-    assert_eq!(applications, 1_094);
+    assert_eq!(applications, 1_104);
 }
