@@ -9,8 +9,6 @@ library "AnonymousHost.dylib" calling_convention c {
         boundary host
 }
 
-data Main {
-}
+data Main {}
 
-machine Main::main(&mut self) {
-}
+machine Main::main(&mut self) {}

@@ -8,7 +8,6 @@ mod expression;
 mod file;
 mod input;
 mod item;
-mod library;
 mod machine;
 mod measure;
 mod operator;

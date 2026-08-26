@@ -26,7 +26,6 @@ pub enum TypeDeclarationKind {
     Capability,
     Data,
     Domain,
-    Library,
     Machine,
     Operator,
     Proposition,
@@ -124,28 +123,6 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                     &format!("domain `{}` target type", domain.name),
                 );
                 collect_domain_operators(&mut report, syntax_trees, domain);
-            }
-            Item::Library(library) => {
-                if let Some(name) = &library.name {
-                    insert_declaration(&mut report, name, TypeDeclarationKind::Library);
-                }
-
-                for function in syntax_trees.items.library_functions(library.functions) {
-                    collect_state_signature(
-                        &mut report,
-                        syntax_trees,
-                        &function.signature,
-                        &format!(
-                            "library `{}` function `{}`",
-                            library
-                                .name
-                                .as_ref()
-                                .map(ToString::to_string)
-                                .unwrap_or_else(|| library.path.clone()),
-                            function.signature.name
-                        ),
-                    );
-                }
             }
             Item::WireData(_)
             | Item::Conformance(_)

@@ -4,8 +4,8 @@ use crate::expression::{
 use crate::identifier::Identifier;
 use crate::item::{
     BoundaryLevel, CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember,
-    ExternalBinding, GenericConformanceBound, Item, LibraryFunction, ProofFact, PropositionBody,
-    SatisfiesClause, StateParameterNode, StateSignature, WireDataMember,
+    ExternalBinding, GenericConformanceBound, Item, ProofFact, PropositionBody, SatisfiesClause,
+    StateParameterNode, StateSignature, WireDataMember,
 };
 use crate::statement::{
     AssemblyFactKind, StatementNode, TransitionGuardNode, TransitionTargetNode,
@@ -121,12 +121,6 @@ pub enum ItemSnapshot {
         facts: Vec<ProofFactSnapshot>,
         operators: Vec<OperatorSnapshot>,
         semantic_clause_token_count: usize,
-    },
-    Library {
-        name: Option<IdentifierSnapshot>,
-        path: String,
-        calling_convention: IdentifierSnapshot,
-        functions: Vec<LibraryFunctionSnapshot>,
     },
     Measure {
         name: Vec<IdentifierSnapshot>,
@@ -422,14 +416,6 @@ pub enum ProofFactSnapshot {
         value: ExpressionSnapshot,
         domain: Vec<IdentifierSnapshot>,
     },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct LibraryFunctionSnapshot {
-    pub signature: StateSignatureSnapshot,
-    pub symbol: Option<String>,
-    pub calling_convention: Option<IdentifierSnapshot>,
-    pub boundaries: Vec<BoundaryLevelSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -993,17 +979,6 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .collect(),
             semantic_clause_token_count: value.semantic_clause_token_count,
         },
-        Item::Library(value) => ItemSnapshot::Library {
-            name: value.name.as_ref().map(snapshot_identifier),
-            path: value.path.clone(),
-            calling_convention: snapshot_identifier(&value.calling_convention),
-            functions: syntax_trees
-                .items
-                .library_functions(value.functions)
-                .iter()
-                .map(|function| snapshot_library_function(syntax_trees, function))
-                .collect(),
-        },
         Item::Measure(value) => ItemSnapshot::Measure {
             name: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.name)),
             parameter: value.parameter.is_valid().then(|| {
@@ -1516,26 +1491,6 @@ fn snapshot_binding_relevance(relevance: psi_language_core::BindingRelevance) ->
     match relevance {
         psi_language_core::BindingRelevance::Relevant => "relevant",
         psi_language_core::BindingRelevance::Erased => "erased",
-    }
-}
-
-fn snapshot_library_function(
-    syntax_trees: &SyntaxTrees,
-    function: &LibraryFunction,
-) -> LibraryFunctionSnapshot {
-    LibraryFunctionSnapshot {
-        signature: snapshot_state_signature(syntax_trees, &function.signature),
-        symbol: function.symbol.clone(),
-        calling_convention: function
-            .calling_convention
-            .as_ref()
-            .map(snapshot_identifier),
-        boundaries: syntax_trees
-            .items
-            .boundary_levels(function.boundaries)
-            .iter()
-            .map(snapshot_boundary_level)
-            .collect(),
     }
 }
 

@@ -7,12 +7,12 @@ use crate::identifier::Identifier;
 use crate::item::{
     BoundaryLevel, BoundaryMode, BoundaryPolicy, CapabilityContract, CapabilityContractKind,
     CapabilityDefinition, CapabilityField, CapabilityMember, CapabilityState, DataDefinition,
-    DataField, DataMember, DataVariant, DomainDefinition, Item, ItemHandle, ItemTable,
-    LibraryDefinition, LibraryFunction, Machine, MeasureDefinition, OperatorDefinition, ProofFact,
-    ProofMembershipFact, State, StateHandle, StateParameterHandle, StateParameterNode,
-    StateSignature, StateSignatureHandle, TargetDefinition, TargetHost, TargetHostSetting,
-    TargetHostSettingValue, TraitDefinition, TypeParameter, UseItem, WireDataDefinition,
-    WireDataField, WireDataMember, WireDataReserved, WireDataVersion,
+    DataField, DataMember, DataVariant, DomainDefinition, Item, ItemHandle, ItemTable, Machine,
+    MeasureDefinition, OperatorDefinition, ProofFact, ProofMembershipFact, State, StateHandle,
+    StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
+    TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TraitDefinition,
+    TypeParameter, UseItem, WireDataDefinition, WireDataField, WireDataMember, WireDataReserved,
+    WireDataVersion,
 };
 use crate::statement::{
     StatementHandle, StatementNode, StatementTable, TableAssemblyFact, TableAssignment, TableCall,
@@ -107,7 +107,6 @@ impl SyntaxTrees {
             | Item::Const(_)
             | Item::Data(_)
             | Item::Domain(_)
-            | Item::Library(_)
             | Item::Measure(_)
             | Item::Module(_)
             | Item::Operator(_)
@@ -291,7 +290,6 @@ impl SyntaxTrees {
                 operators: self.copy_operator_definition_span(other, domain.operators),
                 semantic_clause_token_count: domain.semantic_clause_token_count,
             }),
-            Item::Library(library) => Item::Library(self.copy_library_definition(other, library)),
             Item::Measure(measure) => Item::Measure(self.copy_measure_definition(other, measure)),
             Item::Module(module) => Item::Module(crate::item::ModuleDeclaration {
                 path: self.copy_item_identifier_span(other, module.path),
@@ -385,19 +383,6 @@ impl SyntaxTrees {
                 }),
             where_facts: self.copy_domain_fact_span(other, data.where_facts),
             members: self.copy_data_member_span(other, data.members),
-        }
-    }
-
-    fn copy_library_definition(
-        &mut self,
-        other: &SyntaxTrees,
-        library: &LibraryDefinition,
-    ) -> LibraryDefinition {
-        LibraryDefinition {
-            name: library.name.clone(),
-            path: library.path.clone(),
-            calling_convention: library.calling_convention.clone(),
-            functions: self.copy_library_function_span(other, library.functions),
         }
     }
 
@@ -626,41 +611,6 @@ impl SyntaxTrees {
                 }
             },
             |this, parameter| this.items.append_type_parameter(parameter),
-        )
-    }
-
-    fn copy_boundary_level_span(
-        &mut self,
-        other: &SyntaxTrees,
-        span: HandleSpan<BoundaryLevel>,
-    ) -> HandleSpan<BoundaryLevel> {
-        self.copy_span(
-            other
-                .items
-                .boundary_levels(span)
-                .iter()
-                .map(|level| match level {
-                    BoundaryLevel::Host => BoundaryLevel::Host,
-                    BoundaryLevel::Named(name) => BoundaryLevel::Named(name.clone()),
-                }),
-            |this, boundary_level| this.items.append_boundary_level(boundary_level),
-        )
-    }
-
-    fn copy_library_function_span(
-        &mut self,
-        other: &SyntaxTrees,
-        span: HandleSpan<LibraryFunction>,
-    ) -> HandleSpan<LibraryFunction> {
-        self.copy_mapped_span(
-            other.items.library_functions(span),
-            |this, function| LibraryFunction {
-                signature: this.copy_state_signature_value(other, &function.signature),
-                symbol: function.symbol.clone(),
-                calling_convention: function.calling_convention.clone(),
-                boundaries: this.copy_boundary_level_span(other, function.boundaries),
-            },
-            |this, function| this.items.append_library_function(function),
         )
     }
 

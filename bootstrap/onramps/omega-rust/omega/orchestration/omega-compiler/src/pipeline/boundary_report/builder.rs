@@ -492,24 +492,6 @@ pub(super) fn build_boundary_report(syntax: &SyntaxTrees) -> BoundaryReport {
                     );
                 }
             }
-            Item::Library(library) => {
-                let library_name = library
-                    .name
-                    .as_ref()
-                    .map(ToString::to_string)
-                    .unwrap_or_else(|| library.path.clone());
-                for function in syntax.items.library_functions(library.functions) {
-                    for boundary in syntax.items.boundary_levels(function.boundaries) {
-                        report.contracts.insert(BoundaryContract {
-                            capability: library_name.clone(),
-                            state: function.signature.name.to_string(),
-                            boundary: boundary_name(boundary),
-                            requires_count: 0,
-                            ensures_count: 0,
-                        });
-                    }
-                }
-            }
             Item::Operator(operator) if operator.is_boundary => {
                 collect_operator_boundary(&mut report, "operator", syntax, operator);
             }

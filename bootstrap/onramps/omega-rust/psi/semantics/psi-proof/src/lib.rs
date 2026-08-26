@@ -4,7 +4,6 @@ use psi_arena::Arena;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::item::{
     CapabilityContract, CapabilityContractKind, DataMember, Item, Machine, ProofFact,
-    StateSignature,
 };
 use psi_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
@@ -122,24 +121,6 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                             "domain `{}` operator `{}`",
                             domain.name,
                             operator_name(syntax_trees, operator.name)
-                        ),
-                    );
-                }
-            }
-            Item::Library(library) => {
-                for function in syntax_trees.items.library_functions(library.functions) {
-                    collect_state_signature(
-                        &mut report,
-                        syntax_trees,
-                        &function.signature,
-                        &format!(
-                            "library `{}` function `{}`",
-                            library
-                                .name
-                                .as_ref()
-                                .map(ToString::to_string)
-                                .unwrap_or_else(|| library.path.clone()),
-                            function.signature.name
                         ),
                     );
                 }
@@ -295,22 +276,6 @@ fn collect_trait_definition(
             ),
         );
     }
-}
-
-fn collect_state_signature(
-    report: &mut ProofSurfaceReport,
-    syntax_trees: &SyntaxTrees,
-    state: &StateSignature,
-    owner: &str,
-) {
-    collect_contracts(report, syntax_trees, state.contracts, owner);
-    collect_signature_parts(
-        report,
-        syntax_trees,
-        state.parameters,
-        state.return_type,
-        owner,
-    );
 }
 
 fn collect_state_signature_node(
