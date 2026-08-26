@@ -661,6 +661,7 @@ fn require_key_rows(
     for key in [
         keys.materialize_i64,
         keys.copy_i64,
+        keys.add_i64,
         keys.compare_i64_zero,
         keys.conditional_branch,
         keys.return_i64,

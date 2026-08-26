@@ -82,12 +82,19 @@ pub const AARCH64_CONDITIONAL_BRANCH: RegisterConstraintKey = RegisterConstraint
     family: RegisterConstraintFamily::Instruction,
     variant: 3,
 };
+/// Flag-transparent three-address i64 addition, matching the ordinary AArch64
+/// register ADD form.
+pub const AARCH64_ADD_I64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 4,
+};
 
 /// Closed baseline constraint inventory currently owned by the AArch64 target.
 /// The ordinary rows are limited to the baseline operations required by a
-/// register-passed scalar conditional-return CFG. Other ordinary and
-/// feature-specific instruction rows remain intentionally absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 10] = [
+/// register-passed scalar conditional-return CFG plus the first arithmetic row
+/// needed by the pressure vertical. Other ordinary and feature-specific
+/// instruction rows remain intentionally absent.
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 11] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_RETURN,
@@ -98,6 +105,7 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 10] = [
     AARCH64_COPY_I64,
     AARCH64_COMPARE_I64_ZERO,
     AARCH64_CONDITIONAL_BRANCH,
+    AARCH64_ADD_I64,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -623,6 +631,18 @@ pub fn aarch64_register_constraint_catalog(
             implicit_defs: view("pc").units.clone(),
             clobbers: Vec::new(),
         },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(10),
+            key: AARCH64_ADD_I64,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Use, GPR64),
+                allocatable(2, RegisterOperandAccess::Def, GPR64),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        },
     ];
 
     RegisterConstraintCatalog {
@@ -857,6 +877,18 @@ mod tests {
                     .all(|unit| branch.implicit_uses.contains(unit))
             );
         }
+
+        let add = &catalog.constraints[10];
+        assert_eq!(add.key, AARCH64_ADD_I64);
+        assert_eq!(add.operands.len(), 3);
+        assert_eq!(add.operands[0].access, RegisterOperandAccess::Use);
+        assert_eq!(add.operands[1].access, RegisterOperandAccess::Use);
+        assert_eq!(add.operands[2].access, RegisterOperandAccess::Def);
+        assert!(add.operands.iter().all(|operand| operand.class == GPR64));
+        assert!(add.operands.iter().all(|operand| operand.tied_to.is_none()));
+        assert!(add.implicit_uses.is_empty());
+        assert!(add.implicit_defs.is_empty());
+        assert!(add.clobbers.is_empty());
         assert_eq!(
             branch.implicit_defs,
             model.model().view_named("pc").unwrap().units
@@ -938,6 +970,17 @@ mod tests {
                     AARCH64_COMPARE_I64_ZERO,
                 )
             )
+        );
+    }
+
+    #[test]
+    fn aarch64_add_rejects_one_field_operand_role_change() {
+        let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let mut catalog = aarch64_register_constraint_catalog(&model);
+        catalog.constraints[10].operands[1].access = RegisterOperandAccess::Def;
+        assert_eq!(
+            validate_aarch64_register_constraint_catalog(catalog, &model),
+            Err(Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(AARCH64_ADD_I64,))
         );
     }
 

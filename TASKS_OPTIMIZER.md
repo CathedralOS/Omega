@@ -58,8 +58,13 @@ These facts constrain the work below.
   clobbers, implicit uses/defs/clobbers, and an exact required-key inventory.
   Target-owned v1 catalogs cover scalar System V/Microsoft and AAPCS64/Darwin
   call/return banks plus Linux syscall and conservative inline-assembly state,
-  then add the first ordinary materialize-i64, copy-i64, compare-zero, and
-  conditional-branch rows with explicit flags and instruction-pointer state.
+  then add the first ordinary materialize-i64, copy-i64, three-address add-i64,
+  compare-zero, and conditional-branch rows with explicit flags and
+  instruction-pointer state. The add row is flag-transparent on both targets;
+  x86-64 can realize it with LEA rather than inventing a two-address tie. This
+  row describes physical register constraints only: exact, wrapping, or
+  trapping arithmetic policy must remain in semantic lowering and may use this
+  row only after any required overflow obligation is discharged.
   Generic validation rejects malformed IDs, keys, operands, ties, classes,
   units, and missing/extra inventory; a second ISA-owned comparison rejects
   class-compatible register substitution or missing architectural state. The
@@ -71,8 +76,9 @@ These facts constrain the work below.
   active reservation profile. The current named conservative baseline activates
   every declared non-inapplicable overlay, excludes the Darwin platform overlay
   on Linux AArch64, and records the exact sorted effective-unit union. A composite
-  identity binds the native target, all three component identities, and the five
-  selected instruction keys (including the exact target `copy_i64` row), and is
+  identity binds the native target, all three component identities, and the six
+  selected instruction keys (including the exact target `copy_i64` and
+  `add_i64` rows), and is
   copied through selection, liveness,
   live-range, and transitional-assignment custody. The transitional
   scratch assignment and emission paths still do not consume it as allocator
@@ -858,7 +864,8 @@ dependency.
   Current slice: independently validated physical models and the closed
   Register Constraint Catalog v1 substrate are landed. Required target-owned
   keys currently cover scalar call/return, Linux syscall, conservative inline
-  assembly, and the first ordinary materialize/copy/compare/branch forms for
+  assembly, and the first ordinary materialize/copy/three-address-add/compare/
+  branch forms for
   the existing System V, Microsoft, AAPCS64, and Darwin conventions. The
   declarations live in clean Terminal ISA crates and are joined into a
   validated target-register environment retained by optimized staging. Both
@@ -975,17 +982,18 @@ dependency.
   expired third interval reuses view 0, and three pairwise-interfering
   intervals fail identically at VReg 2 with `NoCompatibleHome`. This identifies
   the exact future spill-choice boundary without pretending a spill exists.
-  The production selected vocabulary still lacks an ordinary two-input row, so
-  flexible pressure is allocator-core evidence rather than yet a source-to-
-  selected vertical slice.
+  The target catalogs and retained environment now contain an ordinary
+  three-address `add_i64` row, but the production selected vocabulary and
+  selector do not emit it yet. Flexible pressure therefore remains allocator-
+  core evidence rather than a source-to-selected vertical slice.
 
   Sequencing: the exact named forwarded-value copy/split base case, copy-key
   identity, fresh split-result VRegs, provenance/fuel custody, independent
   reconstruction, complete reanalysis, post-copy homes, active expiration, and
   the first real competing pair now exist. Flexible candidate ranking and the
-  deterministic pressure failure are covered at allocator-core level. Next add
-  an ordinary two-input selected instruction and carry that pressure evidence
-  through the production vertical slice before implementing spill choice.
+  deterministic pressure failure are covered at allocator-core level. Next
+  carry the target-owned `add_i64` row into the selected vocabulary and source-
+  to-selection production vertical slice before implementing spill choice.
   Provider/runtime reservation requirements must either join the active profile
   or fail closed.
 

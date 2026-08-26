@@ -157,6 +157,7 @@ pub fn target_register_environment_identity(
     for key in [
         selected_keys.materialize_i64,
         selected_keys.copy_i64,
+        selected_keys.add_i64,
         selected_keys.compare_i64_zero,
         selected_keys.conditional_branch,
         selected_keys.return_i64,
