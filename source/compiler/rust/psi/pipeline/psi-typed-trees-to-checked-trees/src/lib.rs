@@ -16,7 +16,8 @@ mod operators;
 mod validation;
 mod values;
 
-use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::{CheckFacts, CheckedSemanticDependencies, CheckedTrees};
+use psi_typed_trees::TypedTrees;
 
 /// Conservative pre-check classification used by compiler-run semantic
 /// evaluation. `true` means the same typed fallback used during final authored
@@ -33,6 +34,18 @@ pub fn lower_typed_trees(
     program: psi_typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
     lowerer::lower_typed_trees(program)
+}
+
+/// Rederive the complete, canonically ordered checked semantic-dependency
+/// table from the final typed program and its checked facts.
+///
+/// This is the compiler-internal package-review entry point. It does not trust
+/// or consult the semantic-dependency table already retained in `facts`.
+pub fn derive_checked_semantic_dependencies(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+) -> CheckedSemanticDependencies {
+    flow::derive_checked_semantic_dependencies(program, facts)
 }
 
 #[cfg(test)]

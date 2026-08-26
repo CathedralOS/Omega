@@ -383,6 +383,88 @@ pub machine consume(value: Token) {}
 }
 
 #[test]
+fn semantic_dependency_projection_rejects_retained_evidence_drift() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Token { value: u64; }
+pub machine make() -> Token { Token { value: 7u64 } }
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("semantic dependency evidence fixture should check");
+    assert!(
+        !checked.facts.flow.semantic_dependencies.rows.is_empty(),
+        "fixture must carry at least one semantic dependency"
+    );
+    project_checked_package_review(&checked).expect("unaltered retained evidence should rederive");
+
+    let mut missing = checked.clone();
+    missing.facts.flow.semantic_dependencies.rows.pop();
+    assert_semantic_dependency_rederivation_rejects(&missing, "missing row");
+
+    let mut duplicate = checked.clone();
+    let duplicated_row = duplicate.facts.flow.semantic_dependencies.rows[0];
+    duplicate
+        .facts
+        .flow
+        .semantic_dependencies
+        .rows
+        .push(duplicated_row);
+    assert_semantic_dependency_rederivation_rejects(&duplicate, "duplicate row");
+
+    let mut reordered = checked.clone();
+    assert!(
+        reordered.facts.flow.semantic_dependencies.rows.len() >= 2,
+        "fixture must carry enough rows to test canonical ordering"
+    );
+    reordered.facts.flow.semantic_dependencies.rows.swap(0, 1);
+    assert_semantic_dependency_rederivation_rejects(&reordered, "reordered rows");
+
+    let mut altered = checked;
+    let row = &mut altered.facts.flow.semantic_dependencies.rows[0];
+    row.exposure = match row.exposure {
+        psi_checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation => {
+            psi_checked_trees::CheckedSemanticDependencyExposure::PublicInterface
+        }
+        psi_checked_trees::CheckedSemanticDependencyExposure::PublicInterface => {
+            psi_checked_trees::CheckedSemanticDependencyExposure::PrivateImplementation
+        }
+    };
+    assert_semantic_dependency_rederivation_rejects(&altered, "altered row");
+}
+
+fn assert_semantic_dependency_rederivation_rejects(
+    checked: &omega_compiler::CheckedCompilation,
+    mutation: &str,
+) {
+    let diagnostics = match project_checked_package_review(checked) {
+        Err(diagnostics) => diagnostics,
+        Ok(_) => panic!("{mutation} should reject retained semantic-dependency drift"),
+    };
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "retained checked semantic-dependency evidence does not equal compiler rederivation",
+        )
+    }));
+}
+
+#[test]
 fn dangerous_authority_classification_requires_exact_toolchain_provenance() {
     let Some(target) = host_target_name() else {
         return;
