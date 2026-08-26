@@ -13,11 +13,11 @@ use omega_compiler::{
     SuppliedTerminalComponentDeploymentError, TerminalComponentDeploymentInputOwner,
     TerminalComponentDeploymentInputRejection, TerminalComponentDeploymentInputs,
     TerminalComponentDeploymentOutputError, TerminalComponentDeploymentOutputStage,
-    TerminalComponentDeploymentSupply, TerminalComponentDriverError,
-    TerminalComponentProviderSettlement, TerminalComponentStagingInputs,
-    acquire_and_deploy_terminal_component_output, compile_to_checked,
-    deploy_and_write_terminal_component_output, stage_acquire_and_deploy_terminal_component_output,
-    stage_terminal_component, write_finalized_terminal_component_output,
+    TerminalComponentDeploymentSupply, TerminalComponentProviderSettlement,
+    TerminalComponentStagingInputs, acquire_and_deploy_terminal_component_output,
+    compile_to_checked, deploy_and_write_terminal_component_output,
+    stage_acquire_and_deploy_terminal_component_output, stage_terminal_component,
+    write_finalized_terminal_component_output,
 };
 use omega_component_deployment::{
     ComponentProgressAttestationBinding, begin_terminal_component_deployment,
@@ -1039,8 +1039,10 @@ fn compiler_deployment_transaction_requires_real_installation_and_retains_failur
 
 #[cfg(unix)]
 #[test]
-fn complete_terminal_driver_retains_staging_rejection_and_reaches_report_custody() {
+fn complete_terminal_driver_binds_checked_target_and_metadata_before_report_custody() {
     let source = progress_free_selected_source_canary();
+    let targetless_checked = compile_to_checked(&source, None)
+        .expect("targetless progress-free source entry should check");
     let checked = compile_to_checked(&source, Some("linux_x64"))
         .expect("selected progress-free source entry should compile");
     let staging_profile = AdmissionProfile::default();
@@ -1053,58 +1055,53 @@ fn complete_terminal_driver_retains_staging_rejection_and_reaches_report_custody
         target_name: Some("linux_x64".into()),
         write_output: true,
     };
-    let staging_error = stage_acquire_and_deploy_terminal_component_output(
-        &options,
-        1,
-        &checked,
-        TerminalComponentStagingInputs::new(
-            NativeTarget::windows_x64(),
-            3,
-            &staging_profile,
-            Vec::new(),
-        ),
-        InstallingSourceDeploymentInputOwner {
-            profile_decision: ProfileDecisionId::new(0x55f4)
-                .expect("complete driver profile decision"),
-        },
-        None,
-        None,
+    let binding_error = TerminalComponentStagingInputs::from_checked(
+        &targetless_checked,
+        3,
+        &staging_profile,
+        Vec::new(),
     )
-    .expect_err("complete driver must retain staging inputs on target substitution");
-    let (staging_inputs, deployment_owner) = match *staging_error {
-        TerminalComponentDriverError::Staging {
-            diagnostics,
-            staging_inputs,
-            deployment_owner,
-            source_file_count,
-            build_evaluation_usage,
-            build_observation_summary,
-        } => {
-            assert_eq!(diagnostics.len(), 1);
-            assert!(
-                diagnostics[0]
-                    .message
-                    .contains("does not match checked target")
-            );
-            assert_eq!(source_file_count, 1);
-            assert!(build_evaluation_usage.is_none());
-            assert!(build_observation_summary.is_none());
-            (staging_inputs, deployment_owner)
-        }
-        other => panic!("expected staging-stage driver recovery, got {other:?}"),
-    };
+    .expect_err("targetless checked semantics cannot bind executable staging inputs");
+    assert!(
+        binding_error
+            .diagnostic()
+            .message
+            .contains("selected by the owning checked result")
+    );
+    let (subsystem, returned_profile, returned_settlements) = binding_error.into_parts();
+    assert!(std::ptr::eq(returned_profile, &staging_profile));
+    assert!(returned_settlements.is_empty());
+    let staging_inputs = TerminalComponentStagingInputs::from_checked(
+        &checked,
+        subsystem,
+        returned_profile,
+        returned_settlements,
+    )
+    .expect("selected checked result should bind its exact native target");
+    assert_eq!(staging_inputs.target(), NativeTarget::linux_x64());
+    let expected_build_evaluation_usage = checked.build_evaluation_usage();
+    let expected_build_observation_summary = checked.build_observation_summary().cloned();
     let staged_report = stage_acquire_and_deploy_terminal_component_output(
         &options,
         1,
         &checked,
-        staging_inputs.with_target(NativeTarget::linux_x64()),
-        deployment_owner,
-        None,
-        None,
+        staging_inputs,
+        InstallingSourceDeploymentInputOwner {
+            profile_decision: ProfileDecisionId::new(0x55f4)
+                .expect("complete driver profile decision"),
+        },
     )
-    .expect("corrected complete driver should stage, install, deploy, and report");
+    .expect("checked-bound complete driver should stage, install, deploy, and report");
     assert!(staged_report.executable_publication().is_none());
     assert!(staged_report.terminal_component_deployment().is_some());
+    assert_eq!(
+        staged_report.build_evaluation_usage,
+        expected_build_evaluation_usage
+    );
+    assert_eq!(
+        staged_report.build_observation_summary,
+        expected_build_observation_summary
+    );
     staged_report
         .terminal_component_deployment()
         .expect("complete driver report retains deployment")

@@ -304,6 +304,6 @@ pub use terminal_component_candidate::{
     stage_terminal_component,
 };
 pub use terminal_component_driver::{
-    TerminalComponentDriverError, TerminalComponentStagingInputs,
-    stage_acquire_and_deploy_terminal_component_output,
+    TerminalComponentDriverError, TerminalComponentStagingInputBindingError,
+    TerminalComponentStagingInputs, stage_acquire_and_deploy_terminal_component_output,
 };

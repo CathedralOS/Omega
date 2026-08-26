@@ -1898,7 +1898,13 @@ through acquisition, deployment, publication, and report custody. A concrete
 non-test installation/deployment owner and routing the Psi-owned checked result
 into this connected driver remain prerequisites to replacing the legacy
 publication path; the compiler has no authority to stand in for that missing
-provider.
+provider. The cutover adapter now binds staging target and report metadata only
+from the owning `CheckedCompilation`: targetless binding returns subsystem,
+admission profile, and provider settlements for retry, while successful driving
+projects build evaluation and observation metadata from that same owner. This
+does not establish an alternate checked-tree realization route;
+`stage_terminal_component` remains the sole operation that creates the terminal
+candidate consumed downstream.
 Compact record identities remain report keys and grant no authority.
 
 ### Placed-occurrence and resident-custody slice

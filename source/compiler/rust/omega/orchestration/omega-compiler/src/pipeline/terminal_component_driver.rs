@@ -28,27 +28,38 @@ pub struct TerminalComponentStagingInputs<'evidence> {
 }
 
 impl<'evidence> TerminalComponentStagingInputs<'evidence> {
-    pub fn new(
-        target: omega_target::NativeTarget,
+    /// Bind external staging policy to the exact target already selected by
+    /// the owning checked result.
+    ///
+    /// This is a temporary cutover adapter, not another executable-semantics
+    /// path: it projects only target identity. Terminal candidate staging
+    /// remains the sole operation that consumes checked semantics.
+    pub fn from_checked(
+        checked: &CheckedCompilation,
         subsystem: u16,
         profile: &'evidence psi_proof_admission::AdmissionProfile,
         settlements: Vec<TerminalComponentProviderSettlement<'evidence>>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, Box<TerminalComponentStagingInputBindingError<'evidence>>> {
+        let Some(target) = checked.selected_native_target() else {
+            return Err(Box::new(TerminalComponentStagingInputBindingError {
+                subsystem,
+                profile,
+                settlements,
+                diagnostic: Diagnostic::error(
+                    "terminal component staging requires an exact native target selected by the owning checked result",
+                ),
+            }));
+        };
+        Ok(Self {
             target,
             subsystem,
             profile,
             settlements,
-        }
+        })
     }
 
     pub const fn target(&self) -> omega_target::NativeTarget {
         self.target
-    }
-
-    pub fn with_target(mut self, target: omega_target::NativeTarget) -> Self {
-        self.target = target;
-        self
     }
 
     pub const fn subsystem(&self) -> u16 {
@@ -63,6 +74,41 @@ impl<'evidence> TerminalComponentStagingInputs<'evidence> {
         &self.settlements
     }
 }
+
+/// A targetless checked-result binding attempt retaining every external
+/// staging input for retry against an exact selected target.
+#[derive(Debug)]
+#[must_use = "staging-input binding rejection retains admission settlements"]
+pub struct TerminalComponentStagingInputBindingError<'evidence> {
+    subsystem: u16,
+    profile: &'evidence psi_proof_admission::AdmissionProfile,
+    settlements: Vec<TerminalComponentProviderSettlement<'evidence>>,
+    diagnostic: Diagnostic,
+}
+
+impl<'evidence> TerminalComponentStagingInputBindingError<'evidence> {
+    pub const fn diagnostic(&self) -> &Diagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        u16,
+        &'evidence psi_proof_admission::AdmissionProfile,
+        Vec<TerminalComponentProviderSettlement<'evidence>>,
+    ) {
+        (self.subsystem, self.profile, self.settlements)
+    }
+}
+
+impl std::fmt::Display for TerminalComponentStagingInputBindingError<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic.fmt(formatter)
+    }
+}
+
+impl std::error::Error for TerminalComponentStagingInputBindingError<'_> {}
 
 /// A rejected complete terminal-component driver route.
 #[derive(Debug)]
@@ -106,22 +152,25 @@ impl<Owner> std::error::Error for TerminalComponentDriverError<'_, Owner> where
 /// Stage the ordinary checked result, acquire real deployment inputs from its
 /// external owner, and retain the published result in a compiler report.
 ///
-/// This operation is deliberately downstream of the Psi-owned checked result.
-/// It neither reruns the frontend nor grants runtime authority. Staging failure
-/// returns both input owners; later failures preserve the established typed
-/// acquisition/deployment custody.
+/// This operation is deliberately downstream of the current checked-result
+/// cutover seam. `CheckedCompilation` remains a compatibility carrier until the
+/// ordinary frontend directly hands off terminal Psi; this adapter must not
+/// become a second checked-tree realization route. It neither reruns the
+/// frontend nor grants runtime authority. Staging failure returns both input
+/// owners; later failures preserve the established typed acquisition/deployment
+/// custody.
 pub fn stage_acquire_and_deploy_terminal_component_output<'evidence, Owner>(
     options: &CompileOptions,
     source_file_count: usize,
     checked: &CheckedCompilation,
     staging_inputs: TerminalComponentStagingInputs<'evidence>,
     deployment_owner: Owner,
-    build_evaluation_usage: Option<BuildEvaluationUsage>,
-    build_observation_summary: Option<BuildObservationSummary>,
 ) -> Result<CompileReport, Box<TerminalComponentDriverError<'evidence, Owner>>>
 where
     Owner: TerminalComponentDeploymentInputOwner,
 {
+    let build_evaluation_usage = checked.build_evaluation_usage();
+    let build_observation_summary = checked.build_observation_summary().cloned();
     let candidate = match stage_terminal_component(
         checked,
         staging_inputs.target,
