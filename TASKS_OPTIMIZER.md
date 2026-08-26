@@ -99,6 +99,16 @@ These facts constrain the work below.
   total reachability, and acyclicity. The unit tasks remain open for complete
   function/module signatures, region-indexed semantic facts, and a canonical
   mutable-unit revision identity.
+- `omega-psi-optimizer` now owns the first deterministic analysis slice:
+  predecessor/successor and reachability indices, normal/crash exits,
+  dominators, post-dominators, block SCCs, reducible/irreducible loop regions,
+  and recursive call-graph SCCs. Its compilation-local analysis manager caches
+  by unit identity, resolves declared dependencies in canonical order, expands
+  invalidation transitively, supports stable parallel cold computation, and in
+  validation mode rejects an undeclared graph change atomically. The manager
+  and CFG tasks remain open until rewrite rules exercise this audit, mutable
+  unit revision identity is recomputable, and suspension/richer call exits are
+  present in the optimization representation.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.

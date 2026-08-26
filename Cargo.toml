@@ -93,6 +93,7 @@ members = [
     "source/compiler/rust/omega/pipeline/omega-terminal-psi-to-abstract-operations",
     "source/compiler/rust/omega/pipeline/omega-terminal-abstract-operations-to-target-operations",
     "source/compiler/rust/omega/optimization/omega-optimization-validation",
+    "source/compiler/rust/omega/optimization/omega-psi-optimizer",
     "source/compiler/rust/omega/pipeline/omega-terminal-target-operations-to-assigned-target-operations",
     "source/compiler/rust/omega/pipeline/omega-abstract-operations-to-target-operations",
     "source/compiler/rust/omega/pipeline/omega-target-operations-to-assigned-target-operations",

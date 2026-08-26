@@ -248,6 +248,16 @@ The baseline set is:
 Analyses never broaden a fact beyond its certificate's region or version. An
 unknown result is conservative, not an invitation for a rule to guess.
 
+The Rust bring-up keeps these products together in `omega-psi-optimizer`.
+Analysis caches are compilation-local ordered maps keyed by the exact unit
+revision; there is no process-global cache. Dependency resolution follows the
+closed `AnalysisKind` order. Committing a revision expands declared
+invalidation through dependent analyses, and the pass-validation configuration
+cold-recomputes supposedly retained rows before changing the manager revision.
+A mismatch is an undeclared-invalidation failure and leaves both cache and
+revision untouched. Independent cold analyses may run concurrently, but their
+published bundle is sorted back into canonical analysis order.
+
 ## Rule and pass model
 
 Squalr's scan-rule architecture supplies a useful small pattern: typed rules
