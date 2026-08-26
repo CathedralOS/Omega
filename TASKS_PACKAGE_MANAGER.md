@@ -425,7 +425,10 @@ complete.
   declaration and ordered structural arguments through resolved, typed, copied,
   and snapshot forms. Conformance matching unfolds only that retained origin;
   it neither parses synthetic names nor accepts same-spelled foreign symbols.
-  Authored toolchain
+  The symbol pass binds each concrete instance to that already-resolved base as
+  its derivation provenance. Package/toolchain ownership therefore survives a
+  generated-source final compilation without interpreting synthetic display
+  names such as `Optional<u64>`. Authored toolchain
   nominals in package review now bind a domain-separated SHA-256 commitment to
   the canonical toolchain-relative source path and exact source bytes;
   canonical virtual prelude coordinates use the same framing. Source-free

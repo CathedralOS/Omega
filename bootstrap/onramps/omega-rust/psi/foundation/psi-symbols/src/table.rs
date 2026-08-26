@@ -149,6 +149,40 @@ impl SymbolTable {
         })
     }
 
+    /// Bind an already-created compiler-generated declaration to the exact
+    /// declaration from which an earlier transformation derived it.
+    ///
+    /// Frontend transformations such as concrete generic-data synthesis add
+    /// their declaration to the ordinary root sequence before the symbol table
+    /// exists. Once that declaration's retained structural origin resolves,
+    /// this installs the same provenance edge used by later generated roots.
+    /// It does not change hierarchy or declaration identity.
+    pub fn bind_generated_symbol_origin(
+        &mut self,
+        generated: SymbolHandle,
+        generated_from: SymbolHandle,
+    ) {
+        assert!(
+            generated.is_valid()
+                && generated_from.is_valid()
+                && generated_from.arena_index() < generated.arena_index(),
+            "compiler-generated symbol provenance must point to an earlier exact declaration"
+        );
+        assert!(
+            self.names
+                .get(self.symbols.get(generated).name)
+                .source_span()
+                .is_none(),
+            "authored symbols cannot be rebound as compiler-generated declarations"
+        );
+        assert!(
+            !self.symbols.get(generated).generated_from.is_valid(),
+            "compiler-generated symbol provenance may be bound only once"
+        );
+        self.symbols
+            .update_nonstructural(generated, |symbol| symbol.generated_from = generated_from);
+    }
+
     /// Mint the complete child range of a freshly generated symbol. Keeping
     /// the batch contiguous preserves the hierarchy arena's compact child-span
     /// representation without allowing late mutation of authored parents.

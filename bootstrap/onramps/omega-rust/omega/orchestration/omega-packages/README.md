@@ -477,6 +477,10 @@ plan: an owned declaration must match its exact `PackageKeyIdentity`, while a
 package-less plan declaration must have an exact authored toolchain-source
 identity. Package-less user source, unresolved/source-free ownership, and every
 owner mismatch reject rather than entering review evidence.
+Generated concrete generic declarations carry their exact resolved base
+declaration as symbol provenance. Their package or toolchain owner therefore
+survives generated-source final compilation; review never parses a synthetic
+display name such as `Optional<u64>` to recover ownership.
 The selected-provider source sidecar independently anchors every exact
 requirement declaration and realizing machine under distinct fixed roles; a
 conflict therefore binds both sides of each realization row to the source shown
