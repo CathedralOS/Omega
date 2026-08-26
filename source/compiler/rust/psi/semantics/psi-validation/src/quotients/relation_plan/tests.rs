@@ -177,6 +177,16 @@ fn fixed_byte_array_type(program: &mut TypedTrees, width: usize) -> TypeReferenc
         })
 }
 
+fn fixed_boolean_array_type(program: &mut TypedTrees, width: usize) -> TypeReferenceHandle {
+    let element_type = primitive_type(program, "bool");
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(width),
+        })
+}
+
 fn canonical_byte_array_literal(program: &mut TypedTrees, bytes: &[u8]) -> ExpressionHandle {
     let elements =
         bytes
@@ -187,6 +197,21 @@ fn canonical_byte_array_literal(program: &mut TypedTrees, bytes: &[u8]) -> Expre
                 ))
             })
             .collect::<Vec<_>>();
+    let elements = program.expression_table.insert_expression_handles(elements);
+    program
+        .expression_table
+        .insert(ExpressionNode::ArrayLiteral(elements))
+}
+
+fn boolean_array_literal(program: &mut TypedTrees, values: &[bool]) -> ExpressionHandle {
+    let elements = values
+        .iter()
+        .map(|value| {
+            program
+                .expression_table
+                .insert(ExpressionNode::Boolean(*value))
+        })
+        .collect::<Vec<_>>();
     let elements = program.expression_table.insert_expression_handles(elements);
     program
         .expression_table
@@ -1973,6 +1998,29 @@ fn proof_fact_literal_substitution_retains_value_landing_and_recursive_fact_shap
         context(&byte_array_value),
         context(&no_values),
     ));
+
+    let boolean_array_parameter = symbol(957);
+    let boolean_array_name = named_argument(&mut program, "flags", boolean_array_parameter);
+    let exact_boolean_array_literal = boolean_array_literal(&mut program, &[true, false]);
+    let other_boolean_array_literal = boolean_array_literal(&mut program, &[false, true]);
+    let boolean_array_value = vec![ProofValueSubstitution::boolean_array(
+        boolean_array_parameter,
+        &[true, false],
+    )];
+    assert!(proof_facts_match(
+        &program,
+        &ProofFact::Expression(boolean_array_name),
+        &ProofFact::Expression(exact_boolean_array_literal),
+        context(&boolean_array_value),
+        context(&no_values),
+    ));
+    assert!(!proof_facts_match(
+        &program,
+        &ProofFact::Expression(boolean_array_name),
+        &ProofFact::Expression(other_boolean_array_literal),
+        context(&boolean_array_value),
+        context(&no_values),
+    ));
 }
 
 #[test]
@@ -2728,6 +2776,63 @@ fn direct_lift_runtime_accepts_exact_fixed_byte_array_literals() {
 }
 
 #[test]
+fn direct_lift_runtime_accepts_exact_boolean_array_literals() {
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(
+        &mut program,
+        symbol(976),
+        "BooleanArrayLiteralQ",
+        symbol(977),
+        "BooleanArrayLiteralR",
+    );
+    let carrier = carrier_type(&mut program);
+    let fixed_booleans = fixed_boolean_array_type(&mut program, 3);
+    let literal = boolean_array_literal(&mut program, &[true, false, true]);
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([literal]);
+    let call = call_with_arguments(arguments);
+    let state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    let request = push_representative(&mut program, &[(fixed_booleans, false, false)], carrier);
+
+    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
+        .expect("an exact fixed Boolean array needs no element adaptation");
+    assert_eq!(
+        plan.input_relations,
+        [InputRelation::ExactEquality(fixed_booleans)]
+    );
+    let runtime = plan
+        .direct_lift_correspondence
+        .expect("Boolean-array literal runtime correspondence");
+    assert_eq!(
+        runtime.positions,
+        [super::DirectLiftRuntimePosition {
+            source: super::DirectLiftArgumentSource::Literal(
+                super::runtime_correspondence::ClosedLiftLiteral::BooleanArray {
+                    values: Arc::from(&[true, false, true][..]),
+                    target_type: program.normalized_type_identity(fixed_booleans),
+                },
+            ),
+            representative_parameter: symbol(100),
+        }]
+    );
+    let mut order_drift = runtime.clone();
+    order_drift.positions[0].source = super::DirectLiftArgumentSource::Literal(
+        super::runtime_correspondence::ClosedLiftLiteral::BooleanArray {
+            values: Arc::from(&[true, true, false][..]),
+            target_type: program.normalized_type_identity(fixed_booleans),
+        },
+    );
+    assert_ne!(
+        runtime, order_drift,
+        "Boolean element order remains identity"
+    );
+}
+
+#[test]
 fn repeated_equal_direct_lift_literals_keep_distinct_runtime_and_theorem_positions() {
     let mut program = TypedTrees::default();
     let quotient = quotient_type(
@@ -3001,6 +3106,20 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
     for (position, expression, target) in [
         (18, short_array, bare_byte_array),
         (19, landed_array, one_byte_array),
+    ] {
+        assert_eq!(
+            super::closed_lift_literal_for_representative(&program, expression, target, position),
+            Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
+        );
+    }
+    let integer_array = canonical_byte_array_literal(&mut program, &[1]);
+    let boolean_array = boolean_array_literal(&mut program, &[true]);
+    let one_boolean_array = fixed_boolean_array_type(&mut program, 1);
+    let two_boolean_array = fixed_boolean_array_type(&mut program, 2);
+    for (position, expression, target) in [
+        (20, integer_array, one_boolean_array),
+        (21, boolean_array, one_byte_array),
+        (22, boolean_array, two_boolean_array),
     ] {
         assert_eq!(
             super::closed_lift_literal_for_representative(&program, expression, target, position),

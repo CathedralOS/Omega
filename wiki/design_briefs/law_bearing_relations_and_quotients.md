@@ -800,7 +800,10 @@ has already landed as a canonical closed `[u8; N]` array may likewise feed that
 exact representative target. The retained canonical shape is one unsuffixed
 decimal `u8` value per element. Its ordered bytes and normalized array identity
 remain evidence; quotient planning performs no padding, truncation, element
-coercion, or contextual landing of its own. Exact
+coercion, or contextual landing of its own. A direct closed Boolean array may
+likewise feed only its exact literal-width `[bool; N]` target. Every element
+must be a Boolean literal; values, order, and normalized array identity remain
+occurrence and proof-substitution evidence. Exact
 structural substitution can match a dependent representative `P` fact that
 mentions a literal-fed parameter only when public `Q` contains the identical
 post-substitution fact. Boolean value, integer spelling, landed type and
@@ -810,7 +813,8 @@ Literal-only facts stay fixed ordinary call obligations. Mismatched or
 out-of-range integers, mismatched floats, mutable/non-byte, undersized, or
 otherwise constrained byte-string targets, raw strings not already
 context-landed for a bare fixed array, noncanonical or heterogeneous arrays,
-other aggregates, zero-value, casts, calls, computations,
+numeric, nested, or data arrays, other aggregates, zero-value, casts, calls,
+computations,
 constrained/generic
 targets, mutable/attached targets, and every literal supplied to `define`
 remain fail-closed. `define` remains strictly
