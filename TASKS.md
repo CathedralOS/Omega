@@ -1849,10 +1849,128 @@ Owners:
 
 Remaining:
 
+- **PSI-OMEGA-CUTOVER — restore the single compiler seam before extending either
+  lowering lane.** The current Rust compiler has two executable lowering paths:
+  the ordinary build still crosses directly from Psi checked trees into the
+  bootstrap Omega `StateGraph`/`ControlFlowPlan` backend, while terminal-Psi
+  production and Omega terminal realization live beside it as a component-
+  candidate path. This is not an accepted long-term migration shape. It is a
+  failed cutover that duplicates semantic lowering and lets the production
+  compiler bypass the architecture's named Psi/Omega boundary.
+
+  Restore the original mechanical split before doing further redesign:
+
+  1. Establish one canonical handoff artifact at the settled ownership seam.
+     Psi alone consumes source, syntax, typed trees, and checked trees and emits
+     terminal Psi plus its proof/evidence payload. Omega target realization
+     consumes that artifact and no earlier Psi representation.
+  2. Make the ordinary compiler, component staging, native differential tests,
+     interpretation, object emission, and executable-image emission enter the
+     same terminal-Psi realization API. Component packaging is a policy layered
+     over the universal compiler path, not the owner of a second backend.
+  3. Cut over mechanically first. The initial handoff may preserve or be
+     structurally isomorphic to the exact pre-cut semantic representation where
+     necessary to retain behavior. Do not require a simultaneous idealized IR
+     redesign, and do not build a parallel replacement stage for each legacy
+     stage. Canonicalize and improve the representation only after every build
+     crosses the seam.
+  4. Port every still-supported aggregate, cleanup, transfer, boundary, loop,
+     suspension, ordering, provider, storage, callback, and reporting path to
+     that single route. During the cutover an unsupported construct must reject
+     explicitly; it must never select the legacy backend as a hidden fallback.
+  5. Delete the executable `CheckedProgramSurface -> StateGraph ->
+     ControlFlowPlan` production route and remove its orchestration and crate
+     dependencies. A state graph, control-flow graph, or other optimizer view
+     may survive only when derived from terminal Psi inside Omega; it may not be
+     a competing language-semantics boundary.
+  6. Remove candidate-only naming and APIs once the shared route lands. The
+     public operation is terminal-artifact realization; ordinary builds and
+     independently installable components merely request different artifact
+     products and installation policy from it.
+  7. Add architecture fences over the production dependency graph and function
+     signatures, not only the clean terminal lane: no Omega realization crate
+     may depend on typed/checked/source trees, no production realization entry
+     may accept them, and no native artifact may be emitted without a retained
+     terminal-Psi identity and independently replayable obligation record.
+
+  Acceptance: one production call graph exists from checked Omega source to a
+  native artifact; the only Psi-to-Omega executable handoff is terminal Psi;
+  ordinary and component builds share it; all supported canaries pass through
+  it; deliberately unsupported features fail at that boundary; architecture
+  tests reject reintroduction of the checked-tree/state-graph bypass; and the
+  legacy production crates and dependencies are removed rather than relabeled
+  as a permanent bootstrap path.
+
+- **COMPILER-DRIVER-CLEANUP — restore `compiler.rs` as a thin pipeline
+  coordinator.** The driver began as source acquisition followed by an ordered
+  sequence of closed compiler stages. It has become a second semantic owner:
+  ten public compile-function permutations, duplicated source-to-checked
+  orchestration beside `checked_entry.rs`, post-check program mutation,
+  provider/calling-plan/program-entry joins, trust and package policy,
+  artifact-report branching, publication custody, and hundreds of lines of
+  policy-specific unit fixtures now coexist in one file. Moving those blocks to
+  arbitrary child modules without changing their ownership does not complete
+  this task.
+
+  Restore the driver contract:
+
+  1. Replace the public `compile_with_*` Cartesian product with one
+     `CompileRequest` and one production `compile(request)` entry. Model the
+     requested product explicitly (`Check`, terminal artifact, native artifact,
+     or installed output); package inputs, deployment/admission policy, output
+     destination, observation/report policy, and resource budget are typed
+     request fields rather than distinct compile modes.
+  2. Keep test-only controls out of the production API. Entry overrides,
+     bounded worker counts, differential-oracle controls, and fixture artifact
+     suppression belong to an internal harness request or ordinary request
+     fields constructed by the harness, not exported convenience functions.
+  3. Unify `compiler.rs` and `checked_entry.rs` around one Psi-owned frontend
+     operation. Source acquisition, build-time evaluation, target filtering,
+     resolution, typing, checking, provider-selection inputs, adapter closure,
+     and task facts execute once. Ordinary compilation, checking,
+     interpretation, differential tests, and terminal production consume the
+     same closed result rather than maintaining parallel copies of that logic.
+  4. Make each phase result complete for the next phase. Remove the driver's
+     `Arc::get_mut` post-check rewrites and the pattern of capturing typed facts
+     "before ownership moves" so that a later stage can recover them. Required
+     identities and evidence travel in the owning phase artifact or in one
+     explicitly typed settlement input; the driver does not act as an
+     out-of-band fact courier.
+  5. Move external-binding projection, source-boundary entry-plan selection,
+     provider/calling-plan settlement, component-progress construction,
+     program-storage bridging, executable-TCB authorization, and publication
+     custody to their actual semantic owners. Their unit tests move with those
+     owners. `compiler.rs` contains no local domain algorithm or policy fixture.
+  6. Make snapshots, diagrams, timing, trust/wire/boundary reports, and other
+     auxiliary artifacts observations of retained phase results through one
+     reporter interface. Reporting policy may suppress observations; it must
+     not create a distinct semantic compilation path or interleave bespoke
+     control flow throughout the driver.
+  7. Isolate the large-stack host-thread workaround and worker-pool lifetime as
+     execution infrastructure around the pipeline. They must not require every
+     request combination to grow another public wrapper.
+  8. Perform this cleanup with `PSI-OMEGA-CUTOVER`, not as a new abstraction
+     layer around both old backends. The final coordinator orders the single
+     Psi-to-terminal-to-Omega route established by that task.
+
+  Acceptance: one production compile entry and one request type cover every
+  current caller; one Psi frontend execution supplies check, interpreter,
+  differential, terminal, and native consumers; checked results are not
+  mutated by the driver; reporting does not branch semantic execution; policy
+  helpers and their tests reside with their owners; unused compile wrappers are
+  gone; and `compiler.rs` contains only request normalization, ordered stage
+  calls, requested-product stopping, and final report assembly. Preserve all
+  existing diagnostics and canary behavior while shrinking the non-test driver
+  to a reviewable coordinator rather than distributing the monolith under new
+  filenames.
+
 - **PSIIR.** Extend terminal Psi only as complete vertical slices: canonical
   encoding, independent obligation reconstruction and verification,
   interpretation, fixed fuel, Omega lowering, native evidence, artifact/image
-  custody, and installation must move together. The detailed accepted
+  custody, and installation must move together **after
+  `PSI-OMEGA-CUTOVER` establishes the one mandatory production seam**. A slice
+  extends the representation behind that seam; it must not add or retain a
+  parallel source-to-native route. The detailed accepted
   vocabulary and current fences live in
   [`terminal_psi.md`](wiki/architecture/pipeline/terminal_psi.md); do not
   duplicate its operation-by-operation ledger here.
