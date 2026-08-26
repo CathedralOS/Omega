@@ -12,6 +12,10 @@ pub use capabilities::analysis::{
     BoundaryCallCoordinate, UnapprovedBoundaryCall, audit_boundary_provider_calls,
     build_boundary_provider_approval_registry,
 };
+pub use capabilities::foreign_locator::{
+    ForeignLocatorCandidate, ForeignLocatorValidationError, NormalizedForeignLocator,
+    normalize_foreign_locator,
+};
 pub use capabilities::provider_approval::{
     BoundaryCallApproval, BoundaryProviderApproval, BoundaryProviderApprovalRegistry,
 };
