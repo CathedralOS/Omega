@@ -1,11 +1,11 @@
 use omega_control_flow::StateKey;
 use omega_runtime_abi::RuntimeAbiPlan;
-use omega_state_calls::{StateCallDynamicConformance, StateCallPlan};
+use omega_state_calls::StateCallPlan;
 use omega_target_operations::{
     DynamicConformanceTable, DynamicConformanceTableRow, TargetDataObject, TargetDataObjectKind,
     TargetDataPlan,
 };
-use psi_checked_trees::{CheckedTrees, DynamicConformanceRowSource};
+use psi_checked_trees::{CheckedTrees, DynamicConformanceRowFact, DynamicConformanceRowSource};
 use psi_diagnostics::Diagnostic;
 use std::sync::Arc;
 
@@ -23,68 +23,107 @@ pub(super) fn collect_dynamic_conformance_tables(
             .iter()
             .filter_map(|argument| argument.dynamic_conformance.as_ref())
         {
-            let (trait_identity, conformance_identity, rows) =
-                validated_table_identity(program, descriptor)?;
-            if rows.is_empty()
-                || data.dynamic_conformance_tables.iter().any(|(_, table)| {
-                    table.trait_identity.as_ref() == trait_identity
-                        && table.conformance_identity.as_ref() == conformance_identity
-                        && table.rows == rows
-                })
-            {
-                continue;
+            retain_dynamic_table(
+                program,
+                call.source_key,
+                call.statement_index,
+                descriptor.target_trait,
+                descriptor.conformance,
+                &descriptor.rows,
+                runtime_abi,
+                data,
+            )?;
+        }
+        if let Some(dispatch) = &call.dynamic_dispatch {
+            for candidate in &dispatch.candidates {
+                retain_dynamic_table(
+                    program,
+                    call.source_key,
+                    call.statement_index,
+                    dispatch.target_trait,
+                    candidate.conformance,
+                    &candidate.rows,
+                    runtime_abi,
+                    data,
+                )?;
             }
-
-            let symbol = dynamic_table_symbol(&trait_identity, &conformance_identity, &rows);
-            if data
-                .objects
-                .iter()
-                .any(|(_, object)| object.symbol.as_ref() == symbol)
-            {
-                return Err(Diagnostic::error(
-                    "dynamic conformance table private-symbol identity collided",
-                ));
-            }
-            let alignment = runtime_abi.pointer_alignment.max(1);
-            let padding = (alignment - data.bytes.len() % alignment) % alignment;
-            data.bytes.insert_many(std::iter::repeat_n(0, padding));
-            let offset = data.bytes.len();
-            let byte_count = rows
-                .len()
-                .checked_mul(runtime_abi.pointer_size)
-                .ok_or_else(|| Diagnostic::error("dynamic conformance table size overflow"))?;
-            let bytes = data.bytes.insert_many(std::iter::repeat_n(0, byte_count));
-            let object = data.objects.insert(TargetDataObject {
-                symbol: Arc::from(symbol),
-                kind: TargetDataObjectKind::DynamicConformanceTable,
-                offset,
-                bytes,
-                alignment,
-                source_key: call.source_key,
-                source_statement: call.statement_index,
-            });
-            data.dynamic_conformance_tables
-                .insert(DynamicConformanceTable {
-                    object,
-                    target_trait: descriptor.target_trait,
-                    conformance: descriptor.conformance,
-                    trait_identity: Arc::from(trait_identity),
-                    conformance_identity: Arc::from(conformance_identity),
-                    rows,
-                });
         }
     }
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
+fn retain_dynamic_table(
+    program: &CheckedTrees,
+    source_key: StateKey,
+    source_statement: usize,
+    target_trait: psi_symbols::SymbolHandle,
+    conformance: psi_symbols::SymbolHandle,
+    retained_rows: &[DynamicConformanceRowFact],
+    runtime_abi: RuntimeAbiPlan,
+    data: &mut TargetDataPlan,
+) -> Result<(), Diagnostic> {
+    let (trait_identity, conformance_identity, rows) =
+        validated_table_identity(program, target_trait, conformance, retained_rows)?;
+    if rows.is_empty()
+        || data.dynamic_conformance_tables.iter().any(|(_, table)| {
+            table.trait_identity.as_ref() == trait_identity
+                && table.conformance_identity.as_ref() == conformance_identity
+                && table.rows == rows
+        })
+    {
+        return Ok(());
+    }
+    let symbol = dynamic_table_symbol(&trait_identity, &conformance_identity, &rows);
+    if data
+        .objects
+        .iter()
+        .any(|(_, object)| object.symbol.as_ref() == symbol)
+    {
+        return Err(Diagnostic::error(
+            "dynamic conformance table private-symbol identity collided",
+        ));
+    }
+    let alignment = runtime_abi.pointer_alignment.max(1);
+    let padding = (alignment - data.bytes.len() % alignment) % alignment;
+    data.bytes.insert_many(std::iter::repeat_n(0, padding));
+    let offset = data.bytes.len();
+    let byte_count = rows
+        .len()
+        .checked_mul(runtime_abi.pointer_size)
+        .ok_or_else(|| Diagnostic::error("dynamic conformance table size overflow"))?;
+    let bytes = data.bytes.insert_many(std::iter::repeat_n(0, byte_count));
+    let object = data.objects.insert(TargetDataObject {
+        symbol: Arc::from(symbol),
+        kind: TargetDataObjectKind::DynamicConformanceTable,
+        offset,
+        bytes,
+        alignment,
+        source_key,
+        source_statement,
+    });
+    data.dynamic_conformance_tables
+        .insert(DynamicConformanceTable {
+            object,
+            target_trait,
+            conformance,
+            trait_identity: Arc::from(trait_identity),
+            conformance_identity: Arc::from(conformance_identity),
+            rows,
+        });
+    Ok(())
+}
+
 fn validated_table_identity(
     program: &CheckedTrees,
-    descriptor: &StateCallDynamicConformance,
+    target_trait: psi_symbols::SymbolHandle,
+    conformance_symbol: psi_symbols::SymbolHandle,
+    retained_rows: &[DynamicConformanceRowFact],
 ) -> Result<(String, String, Vec<DynamicConformanceTableRow>), Diagnostic> {
-    let trait_definition = exact_trait(program, descriptor.target_trait)?;
-    let conformance = exact_conformance(program, descriptor.conformance)?;
+    let trait_definition = exact_trait(program, target_trait)?;
+    let conformance = exact_conformance(program, conformance_symbol)?;
     if trait_definition.is_boundary
-        || conformance.trait_symbol != descriptor.target_trait
+        || conformance.trait_symbol != target_trait
         || conformance.trait_name != trait_definition.name
     {
         return Err(Diagnostic::error(
@@ -96,14 +135,14 @@ fn validated_table_identity(
         .ok_or_else(|| {
             Diagnostic::error("dynamic table planning received a bodyless conformance")
         })?;
-    if declared_rows.len() != descriptor.rows.len() {
+    if declared_rows.len() != retained_rows.len() {
         return Err(Diagnostic::error(
             "dynamic table row map is partial or expanded",
         ));
     }
 
     let mut rows = Vec::new();
-    for (declared, retained) in declared_rows.iter().zip(&descriptor.rows) {
+    for (declared, retained) in declared_rows.iter().zip(retained_rows) {
         let expected_source = match declared.source {
             psi_checked_trees::trait_definition::ConformanceRowSource::Inline => {
                 DynamicConformanceRowSource::Inline
@@ -177,8 +216,8 @@ fn validated_table_identity(
         ));
     }
     Ok((
-        program.symbols.display_path(descriptor.target_trait, "::"),
-        program.symbols.display_path(descriptor.conformance, "::"),
+        program.symbols.display_path(target_trait, "::"),
+        program.symbols.display_path(conformance_symbol, "::"),
         rows,
     ))
 }
@@ -380,6 +419,28 @@ mod tests {
         assert!(!table.rows[0].requirement_identity.is_empty());
         assert!(!table.rows[0].realization_identity.is_empty());
         assert!(table.rows[0].realization.is_valid());
+    }
+
+    #[test]
+    fn indirect_dispatch_owns_table_demand_without_forwarded_argument_evidence() {
+        let (checked, mut calls) = checked_program_and_calls();
+        let argument_handles = calls
+            .arguments
+            .iter()
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        for handle in argument_handles {
+            calls.arguments.get_mut(handle).dynamic_conformance = None;
+        }
+        assert!(
+            calls
+                .calls
+                .iter()
+                .any(|(_, call)| call.dynamic_dispatch.is_some()),
+            "fixture must retain indirect dispatch evidence"
+        );
+        let data = build(&checked, &calls).expect("dispatch-owned dynamic table plan");
+        assert_eq!(data.dynamic_conformance_tables.len(), 1);
     }
 
     #[test]

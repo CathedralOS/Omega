@@ -7,7 +7,7 @@ use omega_calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, ValueClass, ValueShape, evaluate_call_plan,
 };
 use omega_control_flow::StateKey;
-use omega_state_calls::{StateCall, StateCallLowering};
+use omega_state_calls::{StateCall, StateCallDynamicReceiver, StateCallLowering};
 use psi_arena::Arena;
 use psi_diagnostics::Diagnostic;
 
@@ -227,21 +227,90 @@ fn validated_dynamic_call(
         .control_flow
         .state_by_key(call.source_key)
         .ok_or_else(|| Diagnostic::error("dynamic call source state is missing"))?;
-    let source_parameter = input
-        .control_flow
-        .state_parameters(source_state)
-        .iter()
-        .find(|parameter| parameter.symbol == dispatch.receiver_parameter)
-        .ok_or_else(|| {
-            Diagnostic::error("dynamic receiver is not the exact checked source parameter")
-        })?;
-    if source_parameter.name != call.receiver_name
-        || source_parameter.type_symbol != dispatch.target_trait
-    {
-        return Err(Diagnostic::error(
-            "dynamic receiver parameter identity or trait drifted",
-        ));
-    }
+    let (receiver_symbol, receiver_name, receiver_slot_kind) = match dispatch.receiver {
+        StateCallDynamicReceiver::Parameter { symbol } => {
+            let source_parameter = input
+                .control_flow
+                .state_parameters(source_state)
+                .iter()
+                .find(|parameter| parameter.symbol == symbol)
+                .ok_or_else(|| {
+                    Diagnostic::error("dynamic receiver is not the exact checked source parameter")
+                })?;
+            if source_parameter.name != call.receiver_name
+                || source_parameter.type_symbol != dispatch.target_trait
+            {
+                return Err(Diagnostic::error(
+                    "dynamic receiver parameter identity or trait drifted",
+                ));
+            }
+            (
+                source_parameter.symbol,
+                source_parameter.name.clone(),
+                omega_runtime_storage::RuntimeFrameSlotKind::Parameter,
+            )
+        }
+        StateCallDynamicReceiver::ReboundLocal {
+            binding,
+            selection_statement_index,
+        } => {
+            let facts = &input.control_flow.semantics.facts.dynamic_conformances;
+            let selection = facts
+                .at_statement(
+                    call.source_key.machine,
+                    call.source_key.state,
+                    binding,
+                    selection_statement_index,
+                )
+                .ok_or_else(|| {
+                    Diagnostic::error("rebound dynamic receiver selection identity is missing")
+                })?;
+            let latest = facts
+                .for_receiver(
+                    call.source_key.machine,
+                    call.source_key.state,
+                    binding,
+                    &selection.binding_name,
+                    call.statement_index,
+                )
+                .ok_or_else(|| {
+                    Diagnostic::error("rebound dynamic receiver has no live selection")
+                })?;
+            if selection.statement_index >= call.statement_index
+                || latest.statement_index != selection.statement_index
+                || latest.binding != binding
+                || selection.binding_name != call.receiver_name
+                || selection.target_trait != dispatch.target_trait
+            {
+                return Err(Diagnostic::error(
+                    "rebound dynamic receiver selection identity drifted",
+                ));
+            }
+            let Some(conformance) = selection.conformance else {
+                return Err(Diagnostic::error(
+                    "rebound dynamic receiver lost its exact conformance",
+                ));
+            };
+            let [candidate] = dispatch.candidates.as_slice() else {
+                return Err(Diagnostic::error(
+                    "rebound dynamic receiver must retain exactly one table candidate",
+                ));
+            };
+            if candidate.source_data != selection.source_data
+                || candidate.conformance != conformance
+                || candidate.rows != selection.rows
+            {
+                return Err(Diagnostic::error(
+                    "rebound dynamic receiver candidate drifted from its checked selection",
+                ));
+            }
+            (
+                binding,
+                selection.binding_name.clone(),
+                omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage,
+            )
+        }
+    };
     if dispatch.candidates.is_empty() {
         return Err(Diagnostic::error(
             "dynamic call has no retained complete table candidates",
@@ -321,12 +390,9 @@ fn validated_dynamic_call(
 
     let descriptor = unique_frame_slot(input, |slot| {
         slot.dispatch_index == dispatch_index
-            && slot.symbol == source_parameter.symbol
-            && slot.name == source_parameter.name
-            && matches!(
-                slot.kind,
-                omega_runtime_storage::RuntimeFrameSlotKind::Parameter
-            )
+            && slot.symbol == receiver_symbol
+            && slot.name == receiver_name
+            && slot.kind == receiver_slot_kind
             && slot.byte_size == input.runtime_abi.pointer_size.saturating_mul(2)
             && matches!(
                 &slot.type_descriptor,
@@ -341,7 +407,7 @@ fn validated_dynamic_call(
     .map_err(|error| Diagnostic::error(format!("dynamic descriptor slot: {}", error.message)))?;
     if descriptor.byte_size != input.runtime_abi.pointer_size.saturating_mul(2) {
         return Err(Diagnostic::error(
-            "dynamic receiver parameter is not the exact two-word descriptor ABI",
+            "dynamic receiver is not the exact two-word descriptor ABI",
         ));
     }
 
