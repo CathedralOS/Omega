@@ -38,6 +38,24 @@ fn write_program(name: &str, source: &str) -> PathBuf {
     main_path
 }
 
+fn compile_std_negative(name: &str, source: &str) -> String {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(6)
+        .unwrap()
+        .join("omega/language/std/tests")
+        .join(format!(".callback-{name}-{}.omg", std::process::id()));
+    fs::write(&path, source).expect("write hermetic callback source canary");
+    let result = compile_to_checked(&path, Some("windows_x64"));
+    fs::remove_file(&path).expect("remove hermetic callback source canary");
+    result
+        .expect_err("negative callback source canary must reject")
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 fn selected_plan_for_external_root<'a>(
     facts: &'a omega_effects::SelectedProviderPlanFacts,
     trait_name: &str,
@@ -307,6 +325,53 @@ fn callback_private_materialization_rejects_an_ambiguous_requirement_path() {
     assert!(
         rendered.contains("overloads requirement `call`")
             && rendered.contains("WindowProcedure::call"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
+fn callback_private_materialization_rejects_the_wrong_callback_requirement() {
+    let source = CALLBACK_MATERIALIZATION_POLICY.replace(
+        "WndClassWindowProcedureSlot:\n    Spread satisfies PrivateCallbackSlot<WindowProcedure::call>;",
+        "WndClassWindowProcedureSlot:\n    Spread satisfies PrivateCallbackSlot<UnusedProcedure::call>;",
+    );
+    let rendered = compile_std_negative("wrong-requirement", &source);
+
+    assert!(
+        rendered.contains(
+            "callback materialization binder and native-place demand require different callback contracts"
+        ),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
+fn callback_private_materialization_rejects_duplicate_source_placement() {
+    let source = CALLBACK_MATERIALIZATION_POLICY.replace(
+        "    Plan::place_private<WndClassWindowProcedureSlot>(plan, 8)",
+        "    let placed: Plan =\n        Plan::place_private<WndClassWindowProcedureSlot>(plan, 8);\n    Plan::place_private<WndClassWindowProcedureSlot>(placed, 8)",
+    );
+    let rendered = compile_std_negative("duplicate-placement", &source);
+
+    assert!(
+        rendered.contains("duplicate private callback placement")
+            || rendered.contains("more than once"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
+fn callback_private_materialization_rejects_a_machine_as_slot_identity() {
+    let source = CALLBACK_MATERIALIZATION_POLICY.replace(
+        "Plan::place_private<WndClassWindowProcedureSlot>(plan, 8)",
+        "Plan::place_private<WindowProcedure::call>(plan, 8)",
+    );
+    let rendered = compile_std_negative("machine-as-slot", &source);
+
+    assert!(
+        rendered.contains(
+            "static argument to `Plan::place_private` must resolve exactly to one named conformance"
+        ),
         "unexpected diagnostics:\n{rendered}"
     );
 }
