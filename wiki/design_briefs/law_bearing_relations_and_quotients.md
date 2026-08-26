@@ -831,7 +831,11 @@ the canonical fixed-byte lane. A direct depth-two fixed float array may likewise
 feed only its exact literal-width `[[f32; M]; N]` or `[[f64; M]; N]` target.
 Every leaf independently follows the scalar format rule. Ordered spelling/
 format evidence, row boundaries, and normalized outer array identity remain
-evidence without evaluating computed leaves. Exact
+evidence without evaluating computed leaves. A direct depth-three Boolean
+tensor may likewise feed only its exact literal-width
+`[[[bool; K]; M]; N]` target. Every plane and row is a direct exact-width array
+literal and every leaf is a Boolean literal. Plane/row boundaries, ordered
+values, and normalized outer identity remain evidence. Exact
 structural substitution can match a dependent representative `P` fact that
 mentions a literal-fed parameter only when public `Q` contains the identical
 post-substitution fact. Boolean value, integer spelling, landed type and
@@ -843,8 +847,9 @@ otherwise constrained byte-string targets, raw strings not already
 context-landed for a bare fixed array, noncanonical or heterogeneous
 byte/Boolean arrays, mismatched or out-of-range integer arrays, mismatched or
 computed float arrays, noncanonical byte matrices, mismatched, out-of-range,
-or computed integer matrices, mismatched or computed float matrices, ragged or
-deeper arrays, other data nested arrays, other aggregates, zero-value,
+or computed integer matrices, mismatched or computed float matrices, ragged
+arrays or arrays deeper than three, other data nested arrays, other aggregates,
+zero-value,
 casts, calls, computations,
 constrained/generic
 targets, mutable/attached targets, and every literal supplied to `define`

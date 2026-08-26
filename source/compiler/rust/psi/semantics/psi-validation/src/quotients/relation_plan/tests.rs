@@ -215,6 +215,21 @@ fn fixed_nested_boolean_array_type(
         })
 }
 
+fn fixed_boolean_tensor3_type(
+    program: &mut TypedTrees,
+    planes: usize,
+    rows: usize,
+    columns: usize,
+) -> TypeReferenceHandle {
+    let plane_type = fixed_nested_boolean_array_type(program, rows, columns);
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: plane_type,
+            length: FixedArrayLength::Literal(planes),
+        })
+}
+
 fn fixed_integer_array_type(
     program: &mut TypedTrees,
     primitive: &'static str,
@@ -327,6 +342,23 @@ fn nested_boolean_array_literal(program: &mut TypedTrees, rows: &[&[bool]]) -> E
     program
         .expression_table
         .insert(ExpressionNode::ArrayLiteral(rows))
+}
+
+fn boolean_tensor3_literal(
+    program: &mut TypedTrees,
+    planes: Vec<Vec<Vec<bool>>>,
+) -> ExpressionHandle {
+    let planes = planes
+        .into_iter()
+        .map(|plane| {
+            let rows = plane.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
+            nested_boolean_array_literal(program, &rows)
+        })
+        .collect::<Vec<_>>();
+    let planes = program.expression_table.insert_expression_handles(planes);
+    program
+        .expression_table
+        .insert(ExpressionNode::ArrayLiteral(planes))
 }
 
 fn integer_array_literal(
@@ -2516,6 +2548,71 @@ fn proof_fact_literal_substitution_retains_value_landing_and_recursive_fact_shap
         ),
         "container-delimited traces distinguish nested and flat arrays with identical leaves"
     );
+
+    let tensor_parameter = symbol(964);
+    let tensor_name = named_argument(&mut program, "flag_planes", tensor_parameter);
+    let tensor_planes = vec![
+        vec![vec![true, false], vec![false, true]],
+        vec![vec![true, true], vec![false, false]],
+    ];
+    let exact_tensor_literal = boolean_tensor3_literal(&mut program, tensor_planes.clone());
+    let regrouped_tensor_literal = boolean_tensor3_literal(
+        &mut program,
+        vec![
+            vec![tensor_planes[0][0].clone()],
+            vec![
+                tensor_planes[0][1].clone(),
+                tensor_planes[1][0].clone(),
+                tensor_planes[1][1].clone(),
+            ],
+        ],
+    );
+    let tensor_as_matrix_literal = nested_boolean_array_literal(
+        &mut program,
+        &[
+            &tensor_planes[0][0],
+            &tensor_planes[0][1],
+            &tensor_planes[1][0],
+            &tensor_planes[1][1],
+        ],
+    );
+    let tensor_as_flat_literal = boolean_array_literal(
+        &mut program,
+        &[true, false, false, true, true, true, false, false],
+    );
+    let tensor_value = vec![ProofValueSubstitution::boolean_tensor3(
+        tensor_parameter,
+        &[
+            Arc::from(vec![
+                Arc::from(&[true, false][..]),
+                Arc::from(&[false, true][..]),
+            ]),
+            Arc::from(vec![
+                Arc::from(&[true, true][..]),
+                Arc::from(&[false, false][..]),
+            ]),
+        ],
+    )];
+    assert!(proof_facts_match(
+        &program,
+        &ProofFact::Expression(tensor_name),
+        &ProofFact::Expression(exact_tensor_literal),
+        context(&tensor_value),
+        context(&no_values),
+    ));
+    for drifted in [
+        regrouped_tensor_literal,
+        tensor_as_matrix_literal,
+        tensor_as_flat_literal,
+    ] {
+        assert!(!proof_facts_match(
+            &program,
+            &ProofFact::Expression(tensor_name),
+            &ProofFact::Expression(drifted),
+            context(&tensor_value),
+            context(&no_values),
+        ));
+    }
 }
 
 #[test]
@@ -3455,6 +3552,85 @@ fn direct_lift_runtime_accepts_exact_nested_boolean_array_literals() {
 }
 
 #[test]
+fn direct_lift_runtime_accepts_exact_boolean_tensor3_literals() {
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(
+        &mut program,
+        symbol(998),
+        "BooleanTensor3LiteralQ",
+        symbol(999),
+        "BooleanTensor3LiteralR",
+    );
+    let carrier = carrier_type(&mut program);
+    let tensor_type = fixed_boolean_tensor3_type(&mut program, 2, 2, 2);
+    let literal = boolean_tensor3_literal(
+        &mut program,
+        vec![
+            vec![vec![true, false], vec![false, true]],
+            vec![vec![true, true], vec![false, false]],
+        ],
+    );
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([literal]);
+    let call = call_with_arguments(arguments);
+    let state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    let request = push_representative(&mut program, &[(tensor_type, false, false)], carrier);
+
+    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
+        .expect("an exact depth-three Boolean tensor needs no adaptation");
+    assert_eq!(
+        plan.input_relations,
+        [InputRelation::ExactEquality(tensor_type)]
+    );
+    let runtime = plan
+        .direct_lift_correspondence
+        .expect("Boolean tensor runtime correspondence");
+    assert_eq!(
+        runtime.positions,
+        [super::DirectLiftRuntimePosition {
+            source: super::DirectLiftArgumentSource::Literal(
+                super::runtime_correspondence::ClosedLiftLiteral::BooleanTensor3 {
+                    planes: Arc::from(vec![
+                        Arc::from(vec![
+                            Arc::from(&[true, false][..]),
+                            Arc::from(&[false, true][..]),
+                        ]),
+                        Arc::from(vec![
+                            Arc::from(&[true, true][..]),
+                            Arc::from(&[false, false][..]),
+                        ]),
+                    ]),
+                    target_type: program.normalized_type_identity(tensor_type),
+                },
+            ),
+            representative_parameter: symbol(100),
+        }]
+    );
+    let mut grouping_drift = runtime.clone();
+    grouping_drift.positions[0].source = super::DirectLiftArgumentSource::Literal(
+        super::runtime_correspondence::ClosedLiftLiteral::BooleanTensor3 {
+            planes: Arc::from(vec![
+                Arc::from(vec![Arc::from(&[true, false][..])]),
+                Arc::from(vec![
+                    Arc::from(&[false, true][..]),
+                    Arc::from(&[true, true][..]),
+                    Arc::from(&[false, false][..]),
+                ]),
+            ]),
+            target_type: program.normalized_type_identity(tensor_type),
+        },
+    );
+    assert_ne!(
+        runtime, grouping_drift,
+        "plane and row boundaries remain evidence identity"
+    );
+}
+
+#[test]
 fn direct_lift_runtime_accepts_exact_integer_array_literals() {
     use super::runtime_correspondence::ClosedIntegerArrayElement;
 
@@ -4336,22 +4512,6 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
             .insert(ExpressionNode::ArrayLiteral(rows))
     };
     let one_by_one_nested_boolean_type = fixed_nested_boolean_array_type(&mut program, 1, 1);
-    let deeper_nested_boolean_type = {
-        let matrix = fixed_nested_boolean_array_type(&mut program, 1, 1);
-        program
-            .type_reference_table
-            .insert(TypeReferenceNode::FixedArray {
-                element_type: matrix,
-                length: FixedArrayLength::Literal(1),
-            })
-    };
-    let deeper_nested_boolean_array = {
-        let matrix = nested_boolean_array_literal(&mut program, &[&[true]]);
-        let matrices = program.expression_table.insert_expression_handles([matrix]);
-        program
-            .expression_table
-            .insert(ExpressionNode::ArrayLiteral(matrices))
-    };
     for (position, expression, target) in [
         (
             32,
@@ -4371,7 +4531,6 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
             computed_nested_boolean_array,
             one_by_one_nested_boolean_type,
         ),
-        (39, deeper_nested_boolean_array, deeper_nested_boolean_type),
         (40, nested_integer_array, one_by_one_nested_boolean_type),
         (41, boolean_array, one_by_one_nested_boolean_type),
     ] {
@@ -4765,6 +4924,153 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
         (73, exact_nested_float_array, unresolved_outer_float_type),
         (74, deeper_nested_float_array, deeper_nested_float_type),
         (75, short_float_array, one_by_one_nested_f32_type),
+    ] {
+        assert_eq!(
+            super::closed_lift_literal_for_representative(&program, expression, target, position),
+            Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
+        );
+    }
+
+    let exact_tensor = boolean_tensor3_literal(&mut program, vec![vec![vec![true]]]);
+    let two_plane_tensor_type = fixed_boolean_tensor3_type(&mut program, 2, 1, 1);
+    let tall_plane_tensor_type = fixed_boolean_tensor3_type(&mut program, 1, 2, 1);
+    let wide_row_tensor_type = fixed_boolean_tensor3_type(&mut program, 1, 1, 2);
+    let exact_tensor_type = fixed_boolean_tensor3_type(&mut program, 1, 1, 1);
+    let ragged_planes_tensor = boolean_tensor3_literal(
+        &mut program,
+        vec![vec![vec![true]], vec![vec![false], vec![true]]],
+    );
+    let ragged_rows_tensor =
+        boolean_tensor3_literal(&mut program, vec![vec![vec![true], vec![false, true]]]);
+    let numeric_tensor = {
+        let planes = program
+            .expression_table
+            .insert_expression_handles([nested_integer_array]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(planes))
+    };
+    let computed_tensor = {
+        let row = program
+            .expression_table
+            .insert_expression_handles([computed]);
+        let row = program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(row));
+        let plane = program.expression_table.insert_expression_handles([row]);
+        let plane = program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(plane));
+        let planes = program.expression_table.insert_expression_handles([plane]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(planes))
+    };
+    let constrained_tensor_row =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: constrained,
+                length: FixedArrayLength::Literal(1),
+            });
+    let constrained_tensor_plane =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: constrained_tensor_row,
+                length: FixedArrayLength::Literal(1),
+            });
+    let constrained_tensor_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: constrained_tensor_plane,
+                length: FixedArrayLength::Literal(1),
+            });
+    let unresolved_tensor_row =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: bool_type,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: symbol(1000),
+                    name: Identifier::generated_static("K"),
+                },
+            });
+    let unresolved_row_tensor_plane =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: unresolved_tensor_row,
+                length: FixedArrayLength::Literal(1),
+            });
+    let unresolved_row_tensor_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: unresolved_row_tensor_plane,
+                length: FixedArrayLength::Literal(1),
+            });
+    let exact_tensor_row = fixed_boolean_array_type(&mut program, 1);
+    let unresolved_plane_height =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: exact_tensor_row,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: symbol(1001),
+                    name: Identifier::generated_static("M"),
+                },
+            });
+    let unresolved_plane_tensor_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: unresolved_plane_height,
+                length: FixedArrayLength::Literal(1),
+            });
+    let exact_tensor_plane = fixed_nested_boolean_array_type(&mut program, 1, 1);
+    let unresolved_outer_tensor_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: exact_tensor_plane,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: symbol(1002),
+                    name: Identifier::generated_static("N"),
+                },
+            });
+    let depth_four_tensor_type = {
+        let tensor = fixed_boolean_tensor3_type(&mut program, 1, 1, 1);
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: tensor,
+                length: FixedArrayLength::Literal(1),
+            })
+    };
+    let depth_four_tensor = {
+        let tensors = program
+            .expression_table
+            .insert_expression_handles([exact_tensor]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(tensors))
+    };
+    for (position, expression, target) in [
+        (76, exact_tensor, two_plane_tensor_type),
+        (77, exact_tensor, tall_plane_tensor_type),
+        (78, exact_tensor, wide_row_tensor_type),
+        (79, ragged_planes_tensor, two_plane_tensor_type),
+        (80, ragged_rows_tensor, tall_plane_tensor_type),
+        (81, nested_boolean_array, exact_tensor_type),
+        (82, numeric_tensor, exact_tensor_type),
+        (83, computed_tensor, exact_tensor_type),
+        (84, exact_tensor, constrained_tensor_type),
+        (85, exact_tensor, unresolved_row_tensor_type),
+        (86, exact_tensor, unresolved_plane_tensor_type),
+        (87, exact_tensor, unresolved_outer_tensor_type),
+        (88, depth_four_tensor, depth_four_tensor_type),
     ] {
         assert_eq!(
             super::closed_lift_literal_for_representative(&program, expression, target, position),

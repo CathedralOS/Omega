@@ -8164,7 +8164,11 @@ Remaining N6/N8 work:
   feed only its exact literal-width `[[f32; M]; N]` or `[[f64; M]; N]` target.
   Every leaf independently follows the scalar format rule. Ordered spelling/
   format evidence, row boundaries, and normalized outer array identity remain
-  evidence without evaluating computed leaves.
+  evidence without evaluating computed leaves. A direct depth-three Boolean
+  tensor may likewise feed only its exact literal-width
+  `[[[bool; K]; M]; N]` target. Every plane and row is a direct exact-width
+  array literal and every leaf is a Boolean literal. Plane/row boundaries,
+  ordered values, and normalized outer identity remain evidence.
   Exact
   structural `Q => P` substitution now permits a
   dependent representative `P` fact to mention a literal-fed position only
@@ -8178,7 +8182,8 @@ Remaining N6/N8 work:
   byte/Boolean arrays, mismatched or out-of-range integer arrays, mismatched or
   computed float arrays, noncanonical byte matrices, mismatched, out-of-range,
   or computed integer matrices, mismatched or computed float matrices, ragged
-  or deeper arrays, other data nested arrays, other aggregates, zero-value,
+  arrays or arrays deeper than three, other data nested arrays, other
+  aggregates, zero-value,
   casts, calls, computed expressions, constrained/generic targets, mutable or
   attached targets, and literal arguments to `define` remain fail-closed.
   `define` remains strictly position-preserving at exact public

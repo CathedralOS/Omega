@@ -124,6 +124,37 @@ impl ProofValueSubstitution {
         }
     }
 
+    pub(super) fn boolean_tensor3(
+        symbol: SymbolHandle,
+        planes: &[std::sync::Arc<[std::sync::Arc<[bool]>]>],
+    ) -> Self {
+        Self {
+            symbol,
+            rendered: format!(
+                "[{}]",
+                planes
+                    .iter()
+                    .map(|plane| format!(
+                        "[{}]",
+                        plane
+                            .iter()
+                            .map(|row| format!("{:?}", row.as_ref()))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            trace: array_trace(planes.iter().map(|plane| {
+                array_trace(
+                    plane
+                        .iter()
+                        .map(|row| array_trace(row.iter().map(|value| boolean_trace(*value)))),
+                )
+            })),
+        }
+    }
+
     pub(super) fn integer_array(
         symbol: SymbolHandle,
         elements: impl IntoIterator<Item = (String, psi_numerics::literals::IntegerLanding)>,

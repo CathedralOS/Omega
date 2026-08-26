@@ -160,6 +160,14 @@ pub(super) fn derive_direct_lift_precondition_implication(
                     rows,
                 )),
                 DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::BooleanTensor3 {
+                        planes, ..
+                    },
+                ) => representative_values.push(ProofValueSubstitution::boolean_tensor3(
+                    position.representative_parameter,
+                    planes,
+                )),
+                DirectLiftArgumentSource::Literal(
                     super::runtime_correspondence::ClosedLiftLiteral::IntegerArray {
                         elements, ..
                     },

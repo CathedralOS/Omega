@@ -10,8 +10,9 @@
 //! target-derived format, immutable-image byte string to its exact shared byte
 //! view or bounded value-domain buffer, or a canonically context-landed byte
 //! array, direct Boolean-literal array, exact depth-two byte/Boolean/integer/
-//! float-literal array, or exactly landed integer/float-literal array to its
-//! exact fixed-array representative position.
+//! float-literal array, an exact depth-three Boolean tensor, or exactly landed
+//! integer/float-literal array to its exact fixed-array representative
+//! position.
 //! Neither policy infers or selects a relation, contract proof, or
 //! representative operation.
 
@@ -89,6 +90,10 @@ pub(super) enum ClosedLiftLiteral {
     },
     NestedFloatArray {
         rows: std::sync::Arc<[std::sync::Arc<[ClosedFloatArrayElement]>]>,
+        target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
+    },
+    BooleanTensor3 {
+        planes: std::sync::Arc<[std::sync::Arc<[std::sync::Arc<[bool]>]>]>,
         target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
     },
     IntegerArray {
@@ -337,6 +342,64 @@ pub(super) fn closed_lift_literal_for_representative(
         let elements = program.expression_table.expression_handles(*elements);
         if elements.len() != *width {
             return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+        }
+        if let TypeReferenceNode::FixedArray {
+            element_type: row_type,
+            length: psi_typed_trees::types::FixedArrayLength::Literal(plane_height),
+        } = program.type_reference_table.type_reference(*element_type)
+            && let TypeReferenceNode::FixedArray {
+                element_type: leaf_type,
+                length: psi_typed_trees::types::FixedArrayLength::Literal(row_width),
+            } = program.type_reference_table.type_reference(*row_type)
+        {
+            if exact_primitive_type(program, *leaf_type) != Some(PrimitiveType::Bool) {
+                return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
+            }
+            let planes = elements
+                .iter()
+                .map(|plane| {
+                    let ExpressionNode::ArrayLiteral(rows) =
+                        program.expression_table.expression(*plane)
+                    else {
+                        return None;
+                    };
+                    let rows = program.expression_table.expression_handles(*rows);
+                    if rows.len() != *plane_height {
+                        return None;
+                    }
+                    rows.iter()
+                        .map(|row| {
+                            let ExpressionNode::ArrayLiteral(leaves) =
+                                program.expression_table.expression(*row)
+                            else {
+                                return None;
+                            };
+                            let leaves = program.expression_table.expression_handles(*leaves);
+                            if leaves.len() != *row_width {
+                                return None;
+                            }
+                            leaves
+                                .iter()
+                                .map(|leaf| {
+                                    let ExpressionNode::Boolean(value) =
+                                        program.expression_table.expression(*leaf)
+                                    else {
+                                        return None;
+                                    };
+                                    Some(*value)
+                                })
+                                .collect::<Option<Vec<_>>>()
+                                .map(std::sync::Arc::from)
+                        })
+                        .collect::<Option<Vec<_>>>()
+                        .map(std::sync::Arc::from)
+                })
+                .collect::<Option<Vec<_>>>()
+                .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position))?;
+            return Ok(Some(ClosedLiftLiteral::BooleanTensor3 {
+                planes: planes.into(),
+                target_type: program.normalized_type_identity(representative_type),
+            }));
         }
         if let TypeReferenceNode::FixedArray {
             element_type: row_element_type,
