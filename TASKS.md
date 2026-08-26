@@ -8569,13 +8569,19 @@ boundary without its corresponding checked law.
   exact value-field offsets. An independent bounded decoder requires the exact
   row count with no trailing bytes and replays endianness, row order and
   values, fixup bounds/non-overlap/targets, deterministic identity, and plan
-  custody. These bytes still claim no `.dynamic` name, descriptor, section
-  index, address, or placement authority. Runnable ELF
+  custody. The next address-free descriptor rung extends the exact 93-byte
+  append-only section-name seed with `.dynamic\0` at offset 93 and retains one
+  semantic descriptor with `SHT_DYNAMIC`, writable/allocated flags, exact
+  payload size, alignment eight, entry size sixteen, a typed link to
+  `.dynstr`, and no info relationship. Independent replay checks the complete
+  102-byte seed, raw name, unique semantic link, every metadata field,
+  deterministic identity, and payload custody. It assigns no final numeric
+  `sh_name`/`sh_link`, section index, address, or placement authority. Runnable ELF
   emission remains fail closed before image mutation: the final section roster
   and completed `.shstrtab`, numeric `sh_name`/`sh_link`/`e_shstrndx`, section-
   header serialization, placement, `PT_INTERP` program-header placement,
   `PT_DYNAMIC`, `.dynamic` address resolution, optional
-  `.gnu.hash`, final descriptors for `.dynamic` and `.shstrtab`, numeric indexes for
+  `.gnu.hash`, the final descriptor for `.shstrtab`, numeric indexes for
   `.plt`/`.got.plt`/`.rela.plt`, address-resolved fixup application, complete
   load/program-header layout, image mutation, and independent final-byte
   replay remain unimplemented. Validated semantic tags do not constitute a dynamic image.

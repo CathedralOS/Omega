@@ -13,6 +13,7 @@ mod dynamic_linkage_templates;
 mod dynamic_section_bytes;
 mod dynamic_section_descriptors;
 mod dynamic_sections;
+mod dynamic_table_descriptor;
 mod dynamic_tag_bytes;
 mod dynamic_tags;
 mod entry;
@@ -49,6 +50,10 @@ pub use dynamic_section_descriptors::{
 };
 pub use dynamic_sections::{
     ElfDynamicSectionPlanningError, ValidatedElfDynamicSectionPlan, plan_elf_dynamic_sections,
+};
+pub use dynamic_table_descriptor::{
+    ElfDynamicTableSectionDescriptorPlanningError, ValidatedElfDynamicTableSectionDescriptorPlan,
+    plan_elf_dynamic_table_section_descriptor,
 };
 pub use dynamic_tag_bytes::{
     ElfDynamicTableSerializationError, ValidatedElfDynamicTablePayload, serialize_elf_dynamic_table,
