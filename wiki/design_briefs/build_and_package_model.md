@@ -1573,6 +1573,12 @@ receiver-free call before encoding it. Changing the predicate changes
 canonical evidence, while a package declaration with the same spelling remains
 an ordinary package-qualified callable. Other compiler intrinsics remain
 fail-closed.
+Review v61 and canonical row v19 admit exact raw byte-sequence literals in
+public contract expressions. The projector uses typed Psi's decoded octets
+directly and assigns them no text encoding. Escape-equivalent source spellings
+therefore have identical canonical identity, while changing any octet changes
+the reviewed contract. Unsupported aggregate and advanced call forms remain
+fail-closed.
 Review v52 and canonical row v12 add blocking standalone public-proposition
 shape. Every package-owned `pub proposition` is retained whether used or not;
 primitive publication records only vocabulary, while witness and transparent

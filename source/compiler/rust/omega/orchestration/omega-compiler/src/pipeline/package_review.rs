@@ -955,6 +955,9 @@ impl PackageReviewContractCallTarget {
 pub enum PackageReviewContractExpression {
     Boolean(bool),
     Integer(String),
+    /// Exact decoded octets of an Omega quoted literal. No text encoding is
+    /// implied by this row.
+    ByteSequence(Vec<u8>),
     /// The implicit carrier being classified by a domain predicate.
     DomainSubject,
     Parameter(u32),
@@ -7678,6 +7681,9 @@ fn project_contract_expression_with_substitutions(
         ExpressionNode::Boolean(value) => Ok(PackageReviewContractExpression::Boolean(*value)),
         ExpressionNode::Integer(value) => Ok(PackageReviewContractExpression::Integer(
             value.text().to_owned(),
+        )),
+        ExpressionNode::String(value) => Ok(PackageReviewContractExpression::ByteSequence(
+            value.to_vec(),
         )),
         ExpressionNode::Binary(binary) => Ok(PackageReviewContractExpression::Binary {
             meaning: exact_checked_contract_operator_meaning(compilation, context, expression)?,

@@ -1453,8 +1453,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 60);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 18);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 61);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 19);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -6876,6 +6876,71 @@ fn review_projects_exact_compiler_byte_sequence_predicate_identity() {
         4,
         "each exact compiler predicate must have distinct package-review identity"
     );
+}
+
+#[test]
+fn review_projects_exact_raw_byte_literals_in_public_contracts() {
+    let project = |literal: &str| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!("pub domain [u8]::LiteralCheck\nrequires\n    no_nul({literal});\n"),
+        );
+        package.write(
+            "build.omg",
+            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("raw-byte contract literal should check");
+        let review = project_checked_package_review(&checked)
+            .expect("raw-byte contract literal should project exactly");
+        let [domain] = review.public_domains() else {
+            panic!("one raw-byte domain row")
+        };
+        let [
+            PackageReviewContractFact::Expression(PackageReviewContractExpression::Call {
+                target,
+                arguments,
+                ..
+            }),
+        ] = domain.predicate_facts()
+        else {
+            panic!("one raw-byte predicate call")
+        };
+        assert_eq!(
+            target.byte_sequence_predicate(),
+            Some(PackageReviewByteSequencePredicate::NoNul)
+        );
+        let [argument] = arguments.as_slice() else {
+            panic!("one exact raw-byte argument")
+        };
+        let row = review
+            .canonical_rows()
+            .expect("canonical raw-byte rows")
+            .into_iter()
+            .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicDomain)
+            .expect("public raw-byte domain row");
+        (argument.clone(), row.canonical_bytes().to_vec())
+    };
+
+    let escaped_ascii = project(r#""\x41""#);
+    let direct_ascii = project(r#""A""#);
+    let opaque_octet = project(r#""\xFF""#);
+
+    assert_eq!(
+        escaped_ascii.0,
+        PackageReviewContractExpression::ByteSequence(vec![b'A'])
+    );
+    assert_eq!(escaped_ascii, direct_ascii);
+    assert_eq!(
+        opaque_octet.0,
+        PackageReviewContractExpression::ByteSequence(vec![0xff])
+    );
+    assert_ne!(escaped_ascii.1, opaque_octet.1);
 }
 
 #[test]

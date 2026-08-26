@@ -1175,6 +1175,12 @@ complete.
   implementation custody for package admission. The sealed core relation-law
   traits are public package-consumable toolchain declarations. Data
   declarations do not admit proposition parameters.
+  Review v61 and canonical row v19 add exact raw byte-sequence literals to the
+  public contract-expression vocabulary. Projection consumes the decoded
+  octets retained by typed Psi without UTF-8 interpretation; equivalent source
+  spellings such as `"A"` and `"\x41"` therefore have identical identity, while
+  any changed octet changes canonical evidence. Unsupported aggregate and
+  advanced call forms remain fail-closed.
   Review v43 and
   canonical row v3 represent static-machine parameters directly. Structural
   contracts retain their complete alpha-normalized nested telescope, value
