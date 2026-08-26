@@ -918,13 +918,24 @@ Selection and sorting preserve the pair and add exact authored build/target-
 default call sites or a closed reason for an implicit unique choice. The single
 selected-provider row may therefore contain both authored coordinates and
 compiler-derived reasons; free external providers and empty sets also have
-closed reasons. Exact nested clause/use-site coordinates and durable root-policy
+closed reasons. Exact nested clause/use-site coordinates and root-policy file
 custody remain unfinished engineering work; none independently motivates
 nominal Chi. The package layer does now validate a complete in-memory
 root-policy disposition for every exact blocking fingerprint. It canonicalizes
 and candidate-binds the decision set, rejects non-blocking or stale decisions,
 and reports only whether root policy permits all blocking rows. It does not
-prove review or authorize admission.
+prove review or authorize admission. The complete result also has a bounded,
+fixed-vocabulary canonical text record containing only candidate, fingerprint,
+closed disposition, and resolution-commitment fields. Recovery strictly
+validates framing and resource ceilings, maps every fingerprint back to the
+current compiler-derived conflict and owning package, reruns complete
+resolution, and requires byte-identical canonical re-encoding. The record is
+restart-stable policy state, not policy-origin custody, governance evidence,
+accepted package evidence, or transaction authorization.
+Candidate-closure commitment v2 binds source topology and immutable resolution
+plus every candidate package's target, compiler executable, source consumption,
+optional build observation, and whole-review commitment, even when that package
+has no blocking row.
 
 The former commands accepting `manifest.json`, `receipt.json`, `--package`, or
 mandatory `--alias` were removed from the production CLI. Their name-keyed

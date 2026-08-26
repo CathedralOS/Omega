@@ -2033,8 +2033,8 @@ complete.
   derived reasons without reconstructing either from names, schemas, or
   fingerprints. Free external providers and an empty selected set also carry
   closed reasons. Exact nested clause/use-site anchors and durable root-policy
-  custody/encoding remain engineering work. They do not require nominal Chi or
-  a new owner decision.
+  file custody remain engineering work. Canonical recovery is recorded below;
+  neither concern requires nominal Chi or a new owner decision.
 
   Milestone 2026-08-25: review-only root policy now records one closed
   accept-candidate-change or reject-candidate-change disposition for every exact
@@ -2044,8 +2044,27 @@ complete.
   stale/foreign, wrong-candidate, and non-blocking inputs. Its sole aggregate
   outcome is whether root policy permits every blocking row; it cannot mint
   evidence, authorize the wider transaction, or claim that an audit occurred.
-  Durable encoding, governance metadata, root-policy custody, and
-  install/update transaction revalidation remain separate work.
+  At that milestone, durable encoding, governance metadata, root-policy
+  custody, and install/update transaction revalidation remained separate work.
+
+  Milestone 2026-08-25: the complete review-only resolution now has one
+  bounded canonical fixed-vocabulary text record. It contains only the exact
+  candidate-closure digest, sorted conflict fingerprints, closed accept/reject
+  dispositions, and reconstructed resolution commitment; there are no
+  package-controlled strings, reviewer claims, or governance prose. Recovery
+  requires exact LF framing, lowercase hex, canonical decimal counts, byte and
+  decision ceilings, and a byte-identical canonical re-encoding. Every parsed
+  fingerprint must match a current compiler-derived conflict and is rebuilt
+  through its owning package before the complete resolution validator reruns.
+  Wrong-candidate, unknown/stale, incomplete, duplicate, non-blocking,
+  reordered, malformed, commitment-divergent, or trailing input rejects.
+  Candidate-closure commitment v2 now binds every candidate package's target,
+  compiler executable, source consumption, optional build observation, and
+  whole-review commitment in addition to exact source topology and resolution,
+  including packages that produce no blocking conflict. A policy record cannot
+  therefore omit unchanged or recommendation-only candidate evidence.
+  Durable policy-origin/file custody, optional governance metadata, accepted-
+  lock reference, and install/update transaction revalidation remain open.
 
 - **DANGEROUS-AUTHORITY-CLASSIFICATION.** Classify risk from compiler-owned
   nominal metadata.
@@ -2434,7 +2453,10 @@ standard library by path.
       longer synthesizes a role-less build machine; malformed dependency
       canaries retain their more specific diagnostics before the final role
       gate. Standalone compiler loading and the broader positive-project corpus
-      migration remain.
+      migration remain. Global enforcement is additionally blocked on owner
+      question Q4: standalone compilation still treats scoped `Owner::build`
+      machines as project build roots while the package declaration reader
+      deliberately rejects them.
 - [x] **Record the bundled-core decision** in
       `wiki/design_briefs/build_and_package_model.md`: core is welded to the
       compiler because it is the language, not because nobody wrote a manifest.

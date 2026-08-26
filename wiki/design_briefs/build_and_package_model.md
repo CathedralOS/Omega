@@ -1725,9 +1725,13 @@ missing, duplicate, stale/foreign, wrong-candidate, or non-blocking decisions.
 Accept means only that root policy accepts that exact candidate row;
 the current object reports only whether all blocking rows were accepted and
 does not decide whether the wider transaction may proceed. Neither disposition
-claims that an audit occurred. Durable encoding, policy-origin custody,
-governance metadata, and revalidation while sealing accepted lock state remain
-downstream work.
+claims that an audit occurred. The complete result now has a bounded fixed-
+vocabulary canonical text record. Recovery maps each encoded fingerprint to
+the exact current compiler-derived conflict and owning package, reruns complete
+resolution, checks its reconstructed commitment, and requires byte-identical
+canonical re-encoding. Policy-origin/file custody, governance metadata,
+accepted-lock reference, and revalidation while sealing accepted lock state
+remain downstream work.
 
 Every source update also receives provenance and source-diff triage because an
 implementation can misuse already-admitted power without changing capability

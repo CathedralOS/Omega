@@ -1017,8 +1017,14 @@ stale/foreign, wrong-candidate, and non-blocking decisions reject. Accepting a
 row is policy for that exact candidate delta, not proof that a human or model
 performed an audit. The object reports only whether all blocking rows were
 accepted; it cannot decide whether the wider transaction may proceed or issue
-accepted evidence or lock state. Durable encoding, policy custody, optional
-governance metadata, and install/update transaction revalidation remain.
+accepted evidence or lock state. The review-only object now has a bounded
+canonical fixed-vocabulary text record: candidate closure, sorted conflict
+fingerprint plus closed disposition rows, and the reconstructed resolution
+commitment. Strict recovery maps every row back to the current compiler-derived
+conflict and owning package, reruns the complete validator, and requires
+byte-identical canonical re-encoding. This closes restart-stable encoding, not
+policy-origin/file custody, governance evidence, accepted-lock reference, or
+transaction authority.
 
 An update derives candidate evidence and compares it with the normalized
 accepted baseline in `omega.lock`:
