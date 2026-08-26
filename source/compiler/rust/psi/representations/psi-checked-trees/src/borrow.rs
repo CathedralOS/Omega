@@ -210,7 +210,6 @@ impl BorrowFacts {
             || !self.loans.is_valid(certificate.active_loan)
             || !certificate.formation.machine_symbol.is_valid()
             || !certificate.formation.state_symbol.is_valid()
-            || !certificate.conclusion.non_interfering
         {
             return false;
         }

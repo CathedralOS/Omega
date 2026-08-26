@@ -5427,9 +5427,13 @@ Owners:
   captured places, and the normalized disjointness/containment/non-interference
   conclusion. Recording deterministically rebuilds on repeated checked-fact
   validation, and exact resource rejoin rejects changed handles, places, or
-  formation coordinates without changing which programs admit. Proposition-
-  consuming tactics, captured value versions, premise tokens, dominance,
-  richer proof derivations, independent conclusion replay, and Terminal
+  formation coordinates without changing which programs admit. Checked-fact
+  validation now also independently recomputes the complete structural
+  conclusion from the frozen places and the resource ledger's exact access
+  polarities. Disjointness, directed containment, non-interference, derivation,
+  and access drift reject independently; conclusion bits are no longer treated
+  as resource facts. Proposition-consuming tactics, captured value versions,
+  premise tokens, dominance, richer proof derivations, and Terminal
   certificates remain open.
 
   Loan formation freezes exact owner/place occurrences and evaluated range

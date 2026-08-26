@@ -104,6 +104,68 @@ fn rejects_symbolic_adjacency_certificate_with_changed_frozen_selector_identity(
 }
 
 #[test]
+fn rejects_each_changed_compatibility_conclusion_axis() {
+    for axis in 0..3 {
+        let mut checked = checked_symbolic_adjacency();
+        let row = checked
+            .facts
+            .borrow
+            .compatibility_certificates
+            .iter()
+            .next()
+            .expect("certificate")
+            .0;
+        let certificate = checked.facts.borrow.compatibility_certificates.get_mut(row);
+        match axis {
+            0 => certificate.conclusion.disjoint = false,
+            1 => {
+                certificate.conclusion.containment =
+                    psi_checked_trees::CapturedPlaceContainment::Same
+            }
+            2 => certificate.conclusion.non_interfering = false,
+            _ => unreachable!(),
+        }
+
+        let diagnostics =
+            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+                .expect_err("each independently replayed conclusion axis must be exact");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("conclusion drifted"))
+        );
+    }
+}
+
+#[test]
+fn rejects_conclusion_after_resource_access_polarity_drift() {
+    let mut checked = checked_shared_overlap();
+    let certificate = sole_certificate(&checked);
+    assert!(!certificate.conclusion.disjoint);
+    assert_eq!(
+        certificate.conclusion.containment,
+        psi_checked_trees::CapturedPlaceContainment::Same
+    );
+    assert!(certificate.conclusion.non_interfering);
+
+    checked
+        .facts
+        .borrow
+        .loans
+        .get_mut(certificate.forming_loan)
+        .kind = psi_checked_trees::BorrowAccessKind::Mutable;
+
+    let diagnostics =
+        crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+            .expect_err("the conclusion must replay from current exact loan polarities");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("conclusion drifted"))
+    );
+}
+
+#[test]
 fn rejects_compatibility_certificate_with_changed_loan_identity() {
     let checked = checked_symbolic_adjacency();
     let mut certificate = sole_certificate(&checked);
@@ -150,4 +212,26 @@ fn rebuilding_checked_borrow_certificates_is_idempotent() {
         .expect("rerunning checked recording should preserve admission");
 
     assert_eq!(sole_certificate(&checked), before);
+}
+
+fn checked_shared_overlap() -> psi_checked_trees::CheckedTrees {
+    let source = r#"
+        data Main { value: i32; }
+
+        machine observe(value: &i32) {}
+
+        machine Main::read_twice(&self) {
+            let left: &i32 = &self.value;
+            let right: &i32 = &self.value;
+            observe(left);
+            observe(right);
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize shared overlap");
+    let syntax = parse_syntax_trees(&tokens).expect("parse shared overlap");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve shared overlap");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type shared overlap");
+    lower_typed_trees(typed).expect("two overlapping shared loans should remain admitted")
 }
