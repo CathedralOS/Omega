@@ -195,6 +195,7 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     }).flatten();
                     let correspondence = plan
                         .render_define_correspondence()
+                        .or_else(|| plan.render_direct_lift_correspondence())
                         .map(|value| format!(" plus exact {value}"))
                         .unwrap_or_default();
                     let precondition = plan
@@ -207,7 +208,12 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         .unwrap_or_default();
                     let precondition_correspondence = plan
                         .render_define_precondition_correspondence()
+                        .or_else(|| plan.render_direct_lift_precondition_implication())
                         .map(|value| format!(" plus exact {value}"))
+                        .unwrap_or_default();
+                    let correspondence_certificate = plan
+                        .render_correspondence_certificate()
+                        .map(|value| format!(" plus composed non-executable {value}"))
                         .unwrap_or_default();
                     let termination = plan
                         .render_representative_termination()
@@ -267,7 +273,10 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     } else {
                         "immutable-alias fallthrough"
                     };
-                    let mut remaining = vec!["complete operation/static correspondence".to_owned()];
+                    let mut remaining = Vec::new();
+                    if plan.correspondence_certificate.is_none() {
+                        remaining.push("complete operation/static correspondence".to_owned());
+                    }
                     if plan.theorem_schema_verification.is_err() {
                         remaining.push("exact selected theorem schema verification".to_owned());
                     }
@@ -289,8 +298,17 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                     if complete_result_flow.is_none() && complete_forwarded_result_flow.is_none() {
                         remaining.push("all normalized result exits".to_owned());
                     }
+                    if request.kind == psi_typed_trees::expression::QuotientOperationKind::Lift {
+                        remaining.push(
+                            "general precondition implication and adapted lift arguments".to_owned(),
+                        );
+                    }
+                    if plan.has_fixed_representative_preconditions() {
+                        remaining.push("fixed representative call obligations".to_owned());
+                    }
+                    remaining.push("canonical Terminal correspondence replay".to_owned());
                     diagnostics.push(Diagnostic::error(format!(
-                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{termination}{purity}{theorem}{theorem_schema}{theorem_termination}{theorem_purity}{theorem_crash}{correspondence}{public_precondition}{precondition}{precondition_correspondence} and {result_flow}, but executable quotient operations are not admitted until {} are independently checked",
+                        "`Quotient::{operation}` has compiler-derived {plan_kind} relations {} and {} plus exact representative telescope {}{termination}{purity}{theorem}{theorem_schema}{theorem_termination}{theorem_purity}{theorem_crash}{correspondence}{public_precondition}{precondition}{precondition_correspondence}{correspondence_certificate} and {result_flow}, but executable quotient operations are not admitted until {} are independently checked",
                         plan.render_ra(program),
                         plan.render_rr(program),
                         plan.render_representative_telescope(program),

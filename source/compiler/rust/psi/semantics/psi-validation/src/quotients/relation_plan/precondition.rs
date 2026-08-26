@@ -1,13 +1,16 @@
-//! Exact precondition partitioning and correspondence for faithful quotient
-//! definitions.
+//! Exact precondition partitioning for quotient operations and correspondence
+//! for faithful quotient definitions.
 //!
 //! This is a deliberately narrow structural judgment. It separates public
 //! quotient-dependent facts (`Q`) from representative-dependent facts (`P`)
-//! and proves only an exact position-renamed bijection between them. General
-//! entailment and the selected `Respects` clauses remain separate obligations.
+//! and proves only an exact position-renamed bijection for `define`. The
+//! bounded direct-lift inclusion judgment consumes the same partitions from
+//! its certificate owner. General entailment remains a separate obligation.
 
+use super::proof_fact_identity::{ProofFactIdentityContext, proof_facts_match};
 use super::{
-    DefineRuntimeCorrespondence, InputRelation, RelationPlanError, RepresentativeTelescope,
+    DefineRuntimeCorrespondence, InputRelation, RelationPlanError, RepresentativeStaticBinding,
+    RepresentativeTelescope,
 };
 use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
@@ -178,6 +181,7 @@ pub(super) fn derive_define_precondition_correspondence(
         &representative_partition.dependent,
         &public_substitutions,
         &representative_substitutions,
+        &representative.static_application.bindings,
     )?;
     Ok(DefinePreconditionCorrespondence { dependent })
 }
@@ -193,6 +197,7 @@ fn pair_precondition_facts(
     representative_locations: &[RepresentativeContractFactLocation],
     public_substitutions: &[(SymbolHandle, String)],
     representative_substitutions: &[(SymbolHandle, String)],
+    representative_static: &[RepresentativeStaticBinding],
 ) -> Result<Vec<DefinePreconditionFactPair>, RelationPlanError> {
     if public_locations.len() != representative_locations.len() {
         return Err(RelationPlanError::DefinePreconditionMismatch);
@@ -216,12 +221,18 @@ fn pair_precondition_facts(
                     *location,
                 )
                 .is_some_and(|representative_fact| {
-                    precondition_facts_match(
+                    proof_facts_match(
                         program,
                         public_fact,
                         representative_fact,
-                        public_substitutions,
-                        representative_substitutions,
+                        ProofFactIdentityContext {
+                            values: public_substitutions,
+                            static_bindings: &[],
+                        },
+                        ProofFactIdentityContext {
+                            values: representative_substitutions,
+                            static_bindings: representative_static,
+                        },
                     )
                 })
             })
@@ -237,7 +248,7 @@ fn pair_precondition_facts(
     Ok(pairs)
 }
 
-fn precondition_fact_at(
+pub(super) fn precondition_fact_at(
     program: &TypedTrees,
     machine_contracts: HandleSpan<SignatureContract>,
     state_contracts: HandleSpan<SignatureContract>,
@@ -259,48 +270,6 @@ fn precondition_fact_at(
         .proof_facts
         .span_or_empty(contract.facts)
         .get(location.fact_position)
-}
-
-fn precondition_facts_match(
-    program: &TypedTrees,
-    public: &ProofFact,
-    representative: &ProofFact,
-    public_substitutions: &[(SymbolHandle, String)],
-    representative_substitutions: &[(SymbolHandle, String)],
-) -> bool {
-    let expression_matches = |public, representative| {
-        program.render_proof_expression_with_symbols(public, public_substitutions)
-            == program
-                .render_proof_expression_with_symbols(representative, representative_substitutions)
-    };
-    match (public, representative) {
-        (ProofFact::Expression(public), ProofFact::Expression(representative)) => {
-            expression_matches(*public, *representative)
-        }
-        (ProofFact::Membership(public), ProofFact::Membership(representative)) => {
-            public.domain_symbol.is_valid()
-                && public.domain_symbol == representative.domain_symbol
-                && expression_matches(public.value, representative.value)
-        }
-        (ProofFact::Proposition(public), ProofFact::Proposition(representative)) => {
-            public.proposition.is_valid()
-                && public.proposition == representative.proposition
-                && public.binder_arguments == representative.binder_arguments
-                && {
-                    let public_arguments = program
-                        .expression_table
-                        .expression_handles(public.arguments);
-                    let representative_arguments = program
-                        .expression_table
-                        .expression_handles(representative.arguments);
-                    public_arguments.len() == representative_arguments.len()
-                        && public_arguments.iter().zip(representative_arguments).all(
-                            |(public, representative)| expression_matches(*public, *representative),
-                        )
-                }
-        }
-        _ => false,
-    }
 }
 
 fn proof_fact_depends_on_any(

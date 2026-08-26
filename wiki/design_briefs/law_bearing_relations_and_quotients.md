@@ -766,6 +766,18 @@ certificate adds no runtime dictionary and grants no executable authority;
 general `lift` implication/correspondence and canonical Terminal retention with
 independent replay remain fail closed.
 
+The first bounded `lift` correspondence certificate is also live for unique
+direct public arguments in exact declaration order. It checks structural
+`Q => P` inclusion separately after the selected theorem's left and right
+representative substitutions, permits additional public `Q` facts, and retains
+the exact public, representative, and verified-theorem legality coordinate for
+every included row. The non-executable certificate composes those rows with the
+exact runtime correspondence and verified theorem. `define` continues to use
+its exact `Q <=> P` bijection. Fixed representative facts remain ordinary call
+obligations, while generic owner substitution, adapted/reordered/duplicated
+arguments, general logical implication, and canonical Terminal replay remain
+fail closed.
+
 The representation-observer fence is explicit at resolved-to-typed lowering.
 A quotient cannot declare `Equatable`, participate as a field in synthesized
 container equality, use runtime `==`/`!=`, or appear as the target of proof-only
