@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import sys
 
-from omgrfn16_ckir import V5, check_arithmetic_closure, decode
+from omgrfn16_ckir import V5, decode
 from omgrfn16_frame import RefinementError, RefinementResourceError, require, split
 
 
@@ -15,7 +15,6 @@ TRAP_MARKERS = ("runtime add range", "runtime subtract range", "runtime multiply
 def main() -> None:
     frame = split(sys.stdin.buffer.read())
     module = decode(frame.ckir)
-    check_arithmetic_closure(module)
     try:
         actual = V5.interpret(module)
     except V5.Ckir5Error as error:

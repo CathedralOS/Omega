@@ -1,9 +1,7 @@
 # OMGCOMP refinement witness v16
 
-Status: provisional private bootstrap-assurance contract for the CKIR14
-recursive arithmetic producer milestone. The independent Python owners are a
-green reference scaffold; this carrier is not closed as lower-rooted until its
-bounded persisted-Beta owners pass the same-frame gate.
+Status: private bootstrap-assurance contract, frozen with the CKIR14 recursive
+arithmetic producer and persisted-Beta lower-rooted milestone.
 
 [`OMGRSW7`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V7.md) |
 [`OMGLOWF`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_LOWERING_V15.md) |
@@ -80,10 +78,11 @@ view proposition.
   dependencies, resources, and any optional complete CKIR12 view closure.
 - R4-lowering joins every authored operator token to exactly one CKIR row in
   canonical postorder, joins every authored exact widening to opcode 21, retains
-  left/right order, joins leaves and literals to their values, and rejects
-  folding, reassociation, omitted or invented rows, and source/witness/CKIR
-  cross-pairs. R4-source-result evaluates the source tree without reading CKIR
-  or ELF and owns its exact result or first trap.
+  left/right order, joins leaves and literals to their values, joins complete
+  ordered Call and CaseDispatch argument vectors including pure siblings, and
+  rejects folding, reassociation, omitted or invented rows, sibling drift, and
+  source/witness/CKIR cross-pairs. R4-source-result evaluates the source tree
+  without reading CKIR or ELF and owns its exact result or first trap.
 - R5-structure independently validates CKIR14 against its frozen reference
   semantics. R5-result owns CKIR execution, per-node traps, nonpublication,
   and the selected machine claim. R5-ELF reconstructs the complete
@@ -112,6 +111,20 @@ exhaustion selects 252 without publication. Runtime traps are validated
 semantic outcomes, distinct from malformed-frame status 251, and expose no
 result. All checkers size their bounded work before publication and do not
 construct a whole compiler-file-shaped expected-output permutation table.
+
+## 4. Closure evidence
+
+The same-frame composite passes twelve producer-backed successful/trapping
+profiles through all eight independent Python owners and the matching native
+and self-compiled persisted-Beta owners. The profiles cover Add, Subtract, and
+Multiply; mixed and depth-eight trees; signed-boundary neighbors and
+`0xffffffff`; exact widening; assignment, guard, Call, and CaseDispatch
+contexts; inherited CKIR12 view composition; and first-trap outcomes. Local
+controls cover complete OMGCOMP custody, stale source spans, equal-length leaf
+substitution, ordered transition siblings, retired/cross-paired components,
+claim opacity, exact ELF reconstruction, adjacent component exhaustion, and
+whole-frame exhaustion. Native and self-compiled owner assembly is identical,
+and every persisted-Beta owner remains within the 262,140-byte tape ceiling.
 
 These conjuncts establish only the general compositional arithmetic bridge at
 the CKIR14 frontier. They do not admit excluded source effects or carriers,

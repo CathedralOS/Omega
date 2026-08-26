@@ -1,0 +1,303 @@
+; OMGRFN16 responsibility 4a: exact recursive source -> CKIR14 join.
+
+proc r416_wtype(type_id,kind) {
+    let at=0
+    state bounds { to no when(type_id>=word[954032]) at=word[954232]+type_id*24 to u8 when(kind==1) to full }
+    state u8 { to no when(r47_wbyte(at+4)!=1) to no when(r47_wbyte(at+5)!=0) to no when(r47_wu32(at+8)!=0) to no when(r47_wu32(at+12)!=0) to no when(r47_wu32(at+16)!=0) to no when(r47_wu32(at+20)!=255) return 1 }
+    state full { to no when(r47_wbyte(at+4)!=2) to no when(r47_wbyte(at+5)!=1) to no when(r47_wu32(at+8)!=0) to no when(r47_wu32(at+12)!=0) to no when(r47_wu32(at+16)!=0) to no when(r47_wu32(at+20)!=4294967295) return 1 }
+    state no { return 0 }
+}
+
+proc r416_source_block(source,token) {
+    let i=0 let position=omgrfn4_r2_tstart(source,token) let machine=0
+    state blocks { to one when(i<word[879040]) return 4294967295 }
+    state one { machine=word[888000+i*96] to next when(word[884000+machine*128]!=source) to next when(position<word[888024+i*96]) to next when(position>=word[888032+i*96]) return i }
+    state next { i=i+1 to blocks }
+}
+
+proc r416_span_name(source,token,span_source,start) {
+    word[955000]=word[13000160]
+    return r47_token_span_equal(source,token,span_source,start)
+}
+
+proc r416_leaf_type(source,token,self_field) {
+    let i=0 let block=r416_source_block(source,token) let machine=0 let owner=0 let at=0 let type_id=0
+    state context { to missing when(block==4294967295) machine=word[888000+block*96] owner=word[884088+machine*128] to fields when(self_field==1) to mparams }
+    state fields { to field when(i<word[879016]) i=0 to missing }
+    state field { at=882000+i*64 to field_next when(word[at]!=owner) word[13000160]=word[at+40] to field_next when(r416_span_name(source,token,word[881000+owner*64],word[at+32])==0) type_id=word[at+16] word[13000056]=i to u8 when(r416_wtype(type_id,1)==1) to full when(r416_wtype(type_id,2)==1) to missing }
+    state field_next { i=i+1 to fields }
+    state mparams { to mparam when(i<word[879032]) i=0 to bparams }
+    state mparam { at=886000+i*48 to mparam_next when(word[at]!=machine) word[13000160]=word[at+32] to mparam_next when(r416_span_name(source,token,word[884000+machine*128],word[at+24])==0) type_id=word[at+16] word[13000056]=i to u8 when(r416_wtype(type_id,1)==1) to full when(r416_wtype(type_id,2)==1) to missing }
+    state mparam_next { i=i+1 to mparams }
+    state bparams { to bparam when(i<word[879048]) to missing }
+    state bparam { at=893000+i*48 to bparam_next when(word[at]!=block) word[13000160]=word[at+32] to bparam_next when(r416_span_name(source,token,word[884000+machine*128],word[at+24])==0) type_id=word[at+16] word[13000056]=i to u8 when(r416_wtype(type_id,1)==1) to full when(r416_wtype(type_id,2)==1) to missing }
+    state bparam_next { i=i+1 to bparams }
+    state u8 { return 1 } state full { return 2 }
+    state missing { word[13000056]=4294967295 return 0 }
+}
+
+proc r416_target_binding(source,token) {
+    state lookup { to bad when(r416_leaf_type(source,token,1)==0) return word[13000056] }
+    state bad { return 4294967295 }
+}
+
+proc r416_argument_binding(source,opening,ordinal) {
+    let caller=r416_source_block(source,opening) let machine=0 let callee=opening-1 let block=0 let i=0 let at=0 let seen=0
+    state caller_ok { to missing when(caller==4294967295) machine=word[888000+caller*96] to blocks }
+    state blocks { to one when(block<word[879040]) return 4294967295 }
+    state one { to next when(word[888000+block*96]!=machine) to next when(word[888048+block*96]==0) word[13000160]=word[888048+block*96] to params when(r416_span_name(source,callee,source,word[888040+block*96])==1) }
+    state next { block=block+1 to blocks }
+    state params { to param when(i<word[879048]) return 4294967295 }
+    state param { at=893000+i*48 to param_next when(word[at]!=block) to found when(seen==ordinal) seen=seen+1 }
+    state param_next { i=i+1 to params }
+    state found { return i }
+    state missing { return 4294967295 }
+}
+
+proc r416_binding_type(binding) {
+    let type_id=0
+    state bounds { to missing when(binding>=word[879048]) type_id=word[893016+binding*48] to byte when(r416_wtype(type_id,1)==1) to full when(r416_wtype(type_id,2)==1) to missing }
+    state byte { return 1 } state full { return 2 } state missing { return 0 }
+}
+
+proc c_type(type_id,kind) {
+    let at=0
+    state bounds { to no when(type_id>=word[950000]) at=word[950200]+type_id*24 to u8 when(kind==1) to full when(kind==2) to view when(kind==7) to boolean }
+    state u8 { to no when(r47_ckir_byte(at+4)!=1) to no when(r47_ckir_byte(at+5)!=0) to no when(r47_ckir_u32(at+8)!=0) to no when(r47_ckir_u32(at+12)!=0) to no when(r47_ckir_u32(at+16)!=0) to no when(r47_ckir_u32(at+20)!=255) return 1 }
+    state full { to no when(r47_ckir_byte(at+4)!=2) to no when(r47_ckir_byte(at+5)!=1) to no when(r47_ckir_u32(at+8)!=0) to no when(r47_ckir_u32(at+12)!=0) to no when(r47_ckir_u32(at+16)!=0) to no when(r47_ckir_u32(at+20)!=4294967295) return 1 }
+    state view { to no when(r47_ckir_byte(at+4)!=7) return 1 }
+    state boolean { to no when(r47_ckir_byte(at+4)!=3) to no when(r47_ckir_u32(at+16)!=0) to no when(r47_ckir_u32(at+20)!=1) return 1 }
+    state no { return 0 }
+}
+
+proc c_selected(opcode) {
+    state one { to yes when(opcode==8) to yes when(opcode==21) to yes when(opcode==26) to yes when(opcode==27) return 0 }
+    state yes { return 1 }
+}
+
+proc c_value_op(value,result_kind) {
+    let op=0 let at=0
+    state loop { to one when(op<word[950096]) word[14000016]=4294967295 return 1 }
+    state one { at=word[950296]+op*40 to next when(r47_ckir_byte(at+13)!=result_kind) to found when(r47_ckir_u32(at+16)==value) }
+    state next { op=op+1 to loop }
+    state found { word[14000016]=op return 0 }
+}
+
+proc c_expect_selected(op) {
+    let i=word[14000000] let opcode=0
+    state loop { to one when(i<word[950096]) to bad }
+    state one { opcode=r47_ckir_byte(word[950296]+i*40+12) to found when(c_selected(opcode)==1) i=i+1 to loop }
+    state found { to bad when(i!=op) word[14000000]=i+1 byte[14100000+i]=1 return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc c_claim_op(op) {
+    state fresh { to bad when(byte[14100000+op]!=0) byte[14100000+op]=1 return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc c_name_equal(node,span_source,start,length) {
+    word[13000160]=length
+    return r416_span_name(n_source(node),n_token(node),span_source,start)
+}
+
+proc c_leaf_parameter(node,value) {
+    let i=0 let p=0 let wid=0 let block=0 let machine=0
+    state machine_params { to mp when(i<word[950056]) i=0 to block_params }
+    state mp { p=word[950256]+i*20 to mp_next when(r47_ckir_u32(p+16)!=value) to mp_name }
+    state mp_name { to bad when(n_self(node)!=0) to bad when(c_type(r47_ckir_u32(p+12),n_type(node))==0) to bad when(i>=word[879032]) wid=886000+i*48 machine=word[wid] to bad when(c_name_equal(node,word[884000+machine*128],word[wid+24],word[wid+32])==0) return 0 }
+    state mp_next { i=i+1 to machine_params }
+    state block_params { to bp when(i<word[950072]) return 1 }
+    state bp { p=word[950272]+i*20 to bp_next when(r47_ckir_u32(p+16)!=value) to bp_name }
+    state bp_name { to bad when(n_self(node)!=0) to bad when(c_type(r47_ckir_u32(p+12),n_type(node))==0) to bad when(i>=word[879048]) wid=893000+i*48 block=word[wid] to bad when(block>=word[879040]) machine=word[888000+block*96] to bad when(c_name_equal(node,word[884000+machine*128],word[wid+24],word[wid+32])==0) return 0 }
+    state bp_next { i=i+1 to block_params }
+    state bad { return 1 }
+}
+
+proc c_leaf_field(node,value) {
+    let load=0 let p=0 let place=0 let field_op=0 let field=0 let owner=0
+    state source { to no when(n_self(node)!=1) to no when(c_value_op(value,1)!=0) load=word[14000016] p=word[950296]+load*40 to no when(r47_ckir_byte(p+12)!=5) to no when(r47_ckir_u32(p+28)!=1) place=r47_row_word(13,r47_ckir_u32(p+24),0) to no when(c_value_op(place,2)!=0) field_op=word[14000016] p=word[950296]+field_op*40 to no when(r47_ckir_byte(p+12)!=3) to no when(r47_ckir_u32(p+28)!=1) field=r47_ckir_u32(p+32) to no when(field>=word[879016]) owner=word[882000+field*64] to no when(c_name_equal(node,word[881000+owner*64],word[882032+field*64],word[882040+field*64])==0) to no when(c_type(r412_value_type(value),n_type(node))==0) to no when(c_claim_op(load)!=0) return 0 }
+    state no { return 1 }
+}
+
+proc c_compare(node,value) {
+    let kind=n_kind(node) let op=0 let at=0 let start=0 let left=0 let right=0 let status=0
+    state choose { to literal when(kind==1) to leaf when(kind==2) to widen when(kind==3) to arithmetic }
+    state literal { to bad when(c_value_op(value,1)!=0) op=word[14000016] at=word[950296]+op*40 to bad when(r47_ckir_byte(at+12)!=1) to bad when(r47_ckir_u32(at+20)>=word[950000]) to bad when(c_type(r47_ckir_u32(at+20),n_type(node))==0) to bad when(r47_ckir_u32(at+28)!=0) to bad when(r47_ckir_u32(at+32)!=n_value(node)) to bad when(r47_ckir_u32(at+36)!=0) return c_claim_op(op) }
+    state leaf { to field when(n_self(node)==1) status=c_leaf_parameter(node,value) to ok when(status==0) to bad }
+    state field { status=c_leaf_field(node,value) to ok when(status==0) to bad }
+    state ok { return 0 }
+    state widen { to bad when(c_value_op(value,1)!=0) op=word[14000016] at=word[950296]+op*40 to bad when(r47_ckir_byte(at+12)!=21) to bad when(r47_ckir_byte(at+13)!=1) to bad when(r47_ckir_byte(at+14)!=0) to bad when(r47_ckir_byte(at+15)!=0) to bad when(c_type(r47_ckir_u32(at+20),2)==0) start=r47_ckir_u32(at+24) to bad when(r47_ckir_u32(at+28)!=1) to bad when(r47_ckir_u32(at+32)!=0) to bad when(r47_ckir_u32(at+36)!=0) left=r47_row_word(13,start,0) status=c_compare(n_left(node),left) to bad when(status!=0) status=c_expect_selected(op) to done }
+    state arithmetic { to bad when(c_value_op(value,1)!=0) op=word[14000016] at=word[950296]+op*40 to bad when(r47_ckir_byte(at+12)!=kind) to bad when(r47_ckir_byte(at+13)!=1) to bad when(r47_ckir_byte(at+14)!=0) to bad when(r47_ckir_byte(at+15)!=0) to bad when(c_type(r47_ckir_u32(at+20),2)==0) start=r47_ckir_u32(at+24) to bad when(r47_ckir_u32(at+28)!=2) to bad when(r47_ckir_u32(at+32)!=0) to bad when(r47_ckir_u32(at+36)!=0) left=r47_row_word(13,start,0) right=r47_row_word(13,start+1,0) status=c_compare(n_left(node),left) to bad when(status!=0) status=c_compare(n_right(node),right) to bad when(status!=0) status=c_expect_selected(op) to done }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return status }
+}
+
+proc c_consumed(value) {
+    let op=0 let at=0 let opcode=0 let start=0 let count=0 let i=0
+    state operations { to one when(op<word[950096]) return 0 }
+    state one { at=word[950296]+op*40 opcode=r47_ckir_byte(at+12) to next when(c_selected(opcode)==0) start=r47_ckir_u32(at+24) count=r47_ckir_u32(at+28) i=0 to operands }
+    state operands { to operand when(i<count) to next }
+    state operand { to yes when(r47_row_word(13,start+i,0)==value) i=i+1 to operands }
+    state next { op=op+1 to operations }
+    state yes { return 1 }
+}
+
+proc c_place_field(place,wanted) {
+    let op=0 let at=0
+    state find { to no when(c_value_op(place,2)!=0) op=word[14000016] at=word[950296]+op*40 to no when(r47_ckir_byte(at+12)!=3) to no when(r47_ckir_u32(at+32)!=wanted) return 1 }
+    state no { return 0 }
+}
+
+proc c_assignment_context(value,target) {
+    let op=0 let at=0 let start=0
+    state loop { to one when(op<word[950096]) return 1 }
+    state one { at=word[950296]+op*40 to next when(r47_ckir_byte(at+12)!=6) start=r47_ckir_u32(at+24) to next when(r47_ckir_u32(at+28)!=2) to next when(r47_row_word(13,start+1,0)!=value) to next when(c_place_field(r47_row_word(13,start,0),target)==0) return 0 }
+    state next { op=op+1 to loop }
+}
+
+proc c_operation_consumer(value,opcode) {
+    let op=0 let at=0 let start=0 let count=0 let i=0
+    state loop { to one when(op<word[950096]) return 1 }
+    state one { at=word[950296]+op*40 to next when(r47_ckir_byte(at+12)!=opcode) start=r47_ckir_u32(at+24) count=r47_ckir_u32(at+28) i=0 to operands }
+    state operands { to operand when(i<count) to next }
+    state operand { to yes when(r47_row_word(13,start+i,0)==value) i=i+1 to operands }
+    state next { op=op+1 to loop }
+    state yes { return 0 }
+}
+
+proc c_binding_ordinal(binding) {
+    let i=0 let block=0 let ordinal=0
+    state bounds { to missing when(binding>=word[879048]) block=word[893000+binding*48] to loop }
+    state loop { to one when(i<binding) word[14000064]=block word[14000072]=ordinal return 0 }
+    state one { to next when(word[893000+i*48]!=block) ordinal=ordinal+1 }
+    state next { i=i+1 to loop }
+    state missing { return 1 }
+}
+
+proc c_group_count(site) {
+    let group=word[13200024+site*40] let i=0 let count=0 let context=0
+    state loop { to one when(i<word[13000032]) word[14000080]=count return 0 }
+    state one { to next when(word[13200024+i*40]!=group) context=word[13200008+i*40] to take when(context==4) to take when(context==5) to next }
+    state take { count=count+1 }
+    state next { i=i+1 to loop }
+}
+
+proc c_transition_consumer(site,value) {
+    let at=0 let start=0 let count=0 let arm=0 let binding=word[13200016+site*40] let block=0 let ordinal=0 let matches=0
+    state binding { to no when(c_binding_ordinal(binding)!=0) block=word[14000064] ordinal=word[14000072] to arms }
+    state arms { to arm_one when(arm<word[950120]) to arm_exact }
+    state arm_one { at=word[950320]+arm*24 to arm_next when(r47_ckir_u32(at+12)!=block) start=r47_ckir_u32(at+16) count=r47_ckir_u32(at+20) to arm_next when(ordinal>=count) at=word[950328]+(start+ordinal)*12 to arm_next when(r47_ckir_byte(at+4)!=1) to arm_next when(r47_ckir_u32(at+8)!=value) matches=matches+1 word[14000088]=arm }
+    state arm_next { arm=arm+1 to arms }
+    state arm_exact { to no when(matches==0) to bad when(matches!=1) arm=word[14000088] at=word[950320]+arm*24 count=r47_ckir_u32(at+20) c_group_count(site) to bad when(word[14000080]!=count) word[14010000+site*8]=arm+1 return 0 }
+    state no { return 1 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc c_context(site,value) {
+    let context=word[13200008+site*40] let target=word[13200016+site*40]
+    state choose { to assignment when(context==1) to guard when(context==2) to call when(context==3) to transition }
+    state assignment { return c_assignment_context(value,target) }
+    state guard { return c_operation_consumer(value,18) }
+    state call { return c_operation_consumer(value,10) }
+    state transition { return c_transition_consumer(site,value) }
+}
+
+proc c_selected_site(start) {
+    state loop { to missing when(start>=word[13000032]) to found when(word[13200008+start*40]!=5) start=start+1 to loop }
+    state found { word[14000096]=start return 0 }
+    state missing { word[14000096]=4294967295 return 1 }
+}
+
+proc c_group_arm(site) {
+    let group=word[13200024+site*40] let i=0
+    state loop { to one when(i<word[13000032]) return 4294967295 }
+    state one { to next when(word[13200024+i*40]!=group) to next when(word[13200008+i*40]!=4) to next when(word[14010000+i*8]==0) return word[14010000+i*8]-1 }
+    state next { i=i+1 to loop }
+}
+
+proc c_pure_site(site) {
+    let node=word[13200000+site*40] let binding=word[13200016+site*40] let arm=0 let block=0 let ordinal=0 let at=0 let start=0 let count=0 let argument=0 let kind=0
+    state binding_ok { to bad when(c_binding_ordinal(binding)!=0) block=word[14000064] ordinal=word[14000072] arm=c_group_arm(site) to bad when(arm==4294967295) at=word[950320]+arm*24 to bad when(r47_ckir_u32(at+12)!=block) start=r47_ckir_u32(at+16) count=r47_ckir_u32(at+20) to bad when(ordinal>=count) argument=word[950328]+(start+ordinal)*12 kind=r47_ckir_byte(argument+4) to payload when(kind==2) to direct when(kind==1) to bad }
+    state payload { to bad when(n_kind(node)!=2) to bad when(n_self(node)!=0) return 0 }
+    state direct { return c_compare(node,r47_ckir_u32(argument+8)) }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc c_pure_relation() {
+    let site=0 let status=0
+    state loop { to one when(site<word[13000032]) return 0 }
+    state one { to next when(word[13200008+site*40]!=5) status=c_pure_site(site) to done when(status!=0) }
+    state next { site=site+1 to loop }
+    state done { return status }
+}
+
+proc c_relation() {
+    let op=0 let site=0 let at=0 let opcode=0 let value=0 let status=0
+    word[14000000]=0
+    state operations { to one when(op<word[950096]) to sites_exact }
+    state one { at=word[950296]+op*40 opcode=r47_ckir_byte(at+12) to next when(c_selected(opcode)==0) value=r47_ckir_u32(at+16) to next when(c_consumed(value)==1) c_selected_site(site) to bad when(word[14000096]==4294967295) site=word[14000096] status=c_compare(word[13200000+site*40],value) to done when(status!=0) to bad when(c_context(site,value)!=0) site=site+1 to next }
+    state next { op=op+1 to operations }
+    state sites_exact { c_selected_site(site) to bad when(word[14000096]!=4294967295) op=word[14000000] to remaining }
+    state remaining { to rem_one when(op<word[950096]) status=c_pure_relation() to done when(status!=0) return 0 }
+    state rem_one { to bad when(c_selected(r47_ckir_byte(word[950296]+op*40+12))==1) op=op+1 to remaining }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return status }
+}
+
+proc v_literal_equal(source,token,operation) {
+    let p=word[950296]+operation*40 let root=0 let first=0 let count=0 let i=0 let child=0 let scalar=0 let length=omgrfn4_r2_tlen(source,token)-2
+    state shape { to bad when(length<0) to bad when(length>32) to bad when(r47_ckir_byte(p+13)!=1) to bad when(r47_ckir_u32(p+28)!=0) root=r47_ckir_u32(p+32) to bad when(root>=word[950080]) to bad when(c_type(r47_row_word(10,root,4),7)==0) first=r47_row_word(10,root,8) count=r47_row_word(10,root,12) to bad when(count!=length) to loop }
+    state loop { to one when(i<count) return 0 }
+    state one { child=r47_row_word(11,first+i,0) to bad when(child>=word[950080]) to bad when(c_type(r47_row_word(10,child,4),1)==0) to bad when(r47_row_word(10,child,8)!=0) to bad when(r47_row_word(10,child,12)!=0) scalar=r47_row_word(10,child,16) to bad when(scalar!=omgrfn4_l2_source_byte(source,omgrfn4_r2_tstart(source,token)+1+i)) i=i+1 to loop }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc v_next(opcode,start) {
+    state loop { to one when(start<word[950096]) word[14000032]=4294967295 return 0 }
+    state one { to found when(r47_ckir_byte(word[950296]+start*40+12)==opcode) start=start+1 to loop }
+    state found { word[14000032]=start return 0 }
+}
+
+proc v_shape(op) {
+    let p=word[950296]+op*40 let opcode=r47_ckir_byte(p+12) let start=r47_ckir_u32(p+24) let operand=0 let input_type=0 let block=0
+    state common { to bad when(r47_ckir_byte(p+14)!=0) to bad when(r47_ckir_byte(p+15)!=0) to static when(opcode==22) to bad when(r47_ckir_u32(p+28)!=1) to bad when(r47_ckir_u32(p+32)!=0) to bad when(r47_ckir_u32(p+36)!=0) operand=r47_row_word(13,start,0) input_type=r412_value_type(operand) to bad when(c_type(input_type,7)==0) to nonempty when(opcode==23) to head when(opcode==24) to tail }
+    state static { to bad when(r47_ckir_byte(p+13)!=1) to bad when(r47_ckir_u32(p+28)!=0) to bad when(r47_ckir_u32(p+36)!=0) to bad when(c_type(r47_ckir_u32(p+20),7)==0) return 0 }
+    state nonempty { to bad when(r47_ckir_byte(p+13)!=1) to bad when(c_type(r47_ckir_u32(p+20),3)==0) return 0 }
+    state head { to bad when(r47_ckir_byte(p+13)!=1) to bad when(c_type(r47_ckir_u32(p+20),1)==0) block=r47_ckir_u32(p+8) to bad when(block>=word[950064]) to bad when(r47_ckir_byte(word[950264]+block*32+9)!=1) return 0 }
+    state tail { to bad when(r47_ckir_byte(p+13)!=1) to bad when(c_type(r47_ckir_u32(p+20),7)==0) block=r47_ckir_u32(p+8) to bad when(block>=word[950064]) to bad when(r47_ckir_byte(word[950264]+block*32+9)!=1) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc v_views() {
+    let source=word[13000000] let token=word[13000008] let end=word[13000016] let op22=0 let e23=0 let e24=0 let e25=0 let a23=0 let a24=0 let a25=0 let op=0 let p=0 let kind=0
+    state tokens { to one when(token<end) to op_counts }
+    state one { kind=omgrfn4_r2_tkind(source,token) to string when(kind==258) to dot when(kind==46) to bracket when(kind==91) token=token+1 to tokens }
+    state string { v_next(22,op22) to bad when(word[14000032]==4294967295) op=word[14000032] to done when(v_shape(op)!=0) to done when(v_literal_equal(source,token,op)!=0) op22=op+1 token=token+1 to tokens }
+    state dot { to next when(token+4>=end) to next when(omgrfn4_r2_tkind(source,token+1)!=256) to next when(omgrfn4_r2_tlen(source,token+1)!=3) to next when(omgrfn4_l2_source_byte(source,omgrfn4_r2_tstart(source,token+1))!='l') to next when(omgrfn4_l2_source_byte(source,omgrfn4_r2_tstart(source,token+1)+1)!='e') to next when(omgrfn4_l2_source_byte(source,omgrfn4_r2_tstart(source,token+1)+2)!='n') to next when(omgrfn4_r2_tkind(source,token+2)!=62) to next when(omgrfn4_r2_tkind(source,token+3)!=257) e23=e23+1 token=token+4 to tokens }
+    state bracket { to next when(token+2>=end) to next when(omgrfn4_r2_tkind(source,token+1)!=257) to next when(omgrfn4_r2_tlen(source,token+1)!=1) p=omgrfn4_r2_tstart(source,token+1) to head when(omgrfn4_l2_source_byte(source,p)=='0') to tail }
+    state head { to next when(omgrfn4_l2_source_byte(source,p)!='0') to next when(omgrfn4_r2_tkind(source,token+2)!=93) e24=e24+1 token=token+3 to tokens }
+    state tail { to next when(token+4>=end) to next when(omgrfn4_r2_tlen(source,token+1)!=1) to next when(omgrfn4_l2_source_byte(source,p)!='1') to next when(omgrfn4_r2_tkind(source,token+2)!=46) to next when(omgrfn4_r2_tkind(source,token+3)!=46) to next when(omgrfn4_r2_tkind(source,token+4)!=93) e25=e25+1 token=token+5 to tokens }
+    state next { token=token+1 to tokens }
+    state op_counts { op=0 to operations }
+    state operations { to op_one when(op<word[950096]) to exact22 }
+    state op_one { kind=r47_ckir_byte(word[950296]+op*40+12) to c23 when(kind==23) to c24 when(kind==24) to c25 when(kind==25) op=op+1 to operations }
+    state c23 { to done when(v_shape(op)!=0) a23=a23+1 op=op+1 to operations } state c24 { to done when(v_shape(op)!=0) a24=a24+1 op=op+1 to operations } state c25 { to done when(v_shape(op)!=0) a25=a25+1 op=op+1 to operations }
+    state exact22 { v_next(22,op22) to bad when(word[14000032]!=4294967295) to bad when(a23!=e23) to bad when(a24!=e24) to bad when(a25!=e25) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return word[700000] }
+}
+
+proc r416_prepare_lowering() {
+    let status=0 let source=0
+    state frame { word[700000]=0 status=omgrfn5_r2_read_frame() to done when(status!=0) status=omgrfn4_l2_decode_compilation() to done when(status!=0) status=r47_witness_prepare() to done when(status!=0) omgrfn4_r2_init_words() r416_words() to tokenize }
+    state tokenize { to one when(source<word[500320]) status=r47_ckir_prepare() to done }
+    state one { status=omgrfn4_r2_tokenize(source) to done when(status!=0) source=source+1 to tokenize }
+    state done { return status }
+}
+
+proc main() {
+    let status=r416_prepare_lowering()
+    state prepared { to done when(status!=0) status=r416_sites(2) to done when(status!=0) status=c_relation() to done when(status!=0) status=v_views() to done }
+    state done { return status }
+}

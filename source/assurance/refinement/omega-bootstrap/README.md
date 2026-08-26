@@ -1,18 +1,19 @@
 # Bridge refinement reconstruction
 
-The current successor carrier is [`OMGRFN14`](OMGCOMP_REFINEMENT_WITNESS_V14.md):
-`OMGRFNE\0` / version 14 binds exact OMGCOMP and OMGRSW4 to CKIR12's bounded
-program-static shared-byte-view relation and its exact conservative artifact.
-Independent R1–R5 executables consume one immutable producer-backed frame for
-both the one-byte true path and empty false path, reconstruct the exact literal,
-descriptor, nonempty guard, deferred head/tail edge, result 70, and complete ELF
-template.
+The current successor carrier is [`OMGRFN16`](OMGCOMP_REFINEMENT_WITNESS_V16.md):
+`OMGRFNG\0` / version 16 binds exact OMGCOMP1 and canonical OMGRSW7 to CKIR14's
+recursive full-width trapping-`u32` relation and its exact conservative
+artifact. Eight independent R1–R5 owners pass twelve producer-backed
+successful/trapping profiles in Python and as native/self persisted-Beta
+executables, including recursive postorder, first traps, complete Call and
+CaseDispatch argument vectors, inherited CKIR12 views, local mutations,
+cross-pairs, and resource teeth.
 
-[`OMGRFN16`](OMGCOMP_REFINEMENT_WITNESS_V16.md) is the provisional CKIR14
-arithmetic successor. Its producer-backed Python reference owners independently
-reconstruct R1–R5, exact full-`u32` results and first traps, and byte-exact ELF
-artifacts. It does not replace OMGRFN14 as the current lower-rooted carrier
-until the corresponding bounded persisted-Beta owners pass the same-frame gate.
+The immediately preceding static-view carrier remains
+[`OMGRFN14`](OMGCOMP_REFINEMENT_WITNESS_V14.md): `OMGRFNE\0` / version 14 binds
+exact OMGCOMP and OMGRSW4 to CKIR12's bounded program-static shared-byte-view
+relation and its exact conservative artifact. Its one-byte true and empty false
+paths remain required regressions rather than being relabeled as v16.
 
 The immediately preceding trapping-add carrier remains
 [`OMGRFN13`](OMGCOMP_REFINEMENT_WITNESS_V13.md): `OMGRFND\0` / version 13 binds

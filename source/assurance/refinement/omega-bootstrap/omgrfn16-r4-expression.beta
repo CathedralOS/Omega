@@ -1,0 +1,296 @@
+; OMGRFN16 R4 bounded source-expression reconstruction shared by the two
+; independent R4 owners.  Owner-specific leaf lookup is supplied by
+; r416_leaf_type and returns 1 for u8, 2 for full trapping u32, or zero.
+
+proc r416_text(source,token,at,length) {
+    let i=0
+    state shape { to no when(token>=word[880000+source*8]) to no when(omgrfn4_r2_tkind(source,token)!=256) to no when(omgrfn4_r2_tlen(source,token)!=length) to bytes }
+    state bytes { to one when(i<length) return 1 }
+    state one { to no when(omgrfn4_l2_source_byte(source,omgrfn4_r2_tstart(source,token)+i)!=byte[12900000+at+i]) i=i+1 to bytes }
+    state no { return 0 }
+}
+
+proc r416_words() {
+    ; run transition as passed failed head
+    byte[12900000]='r' byte[12900001]='u' byte[12900002]='n'
+    byte[12900008]='t' byte[12900009]='r' byte[12900010]='a' byte[12900011]='n' byte[12900012]='s'
+    byte[12900013]='i' byte[12900014]='t' byte[12900015]='i' byte[12900016]='o' byte[12900017]='n'
+    byte[12900024]='a' byte[12900025]='s'
+    byte[12900032]='p' byte[12900033]='a' byte[12900034]='s' byte[12900035]='s' byte[12900036]='e' byte[12900037]='d'
+    byte[12900040]='f' byte[12900041]='a' byte[12900042]='i' byte[12900043]='l' byte[12900044]='e' byte[12900045]='d'
+    byte[12900048]='h' byte[12900049]='e' byte[12900050]='a' byte[12900051]='d' return 0
+}
+
+proc r416_is_run(s,t) { return r416_text(s,t,0,3) }
+proc r416_is_transition(s,t) { return r416_text(s,t,8,10) }
+proc r416_is_as(s,t) { return r416_text(s,t,24,2) }
+proc r416_is_passed(s,t) { return r416_text(s,t,32,6) }
+proc r416_is_failed(s,t) { return r416_text(s,t,40,6) }
+proc r416_is_head(s,t) { return r416_text(s,t,48,4) }
+
+proc r416_matching(source,opening,left,right) {
+    let i=opening let depth=0 let kind=0
+    state loop { to one when(i<word[880000+source*8]) word[13000096]=4294967295 return 1 }
+    state one { kind=omgrfn4_r2_tkind(source,i) to open when(kind==left) to close when(kind==right) i=i+1 to loop }
+    state open { depth=depth+1 i=i+1 to loop }
+    state close { depth=depth-1 to found when(depth==0) i=i+1 to loop }
+    state found { word[13000096]=i return 0 }
+}
+
+proc r416_find_run() {
+    let source=0 let token=0 let count=0 let found=0 let p=0
+    state sources { to source_one when(source<word[500320]) to exact }
+    state source_one { token=0 count=word[880000+source*8] to tokens }
+    state tokens { to one when(token+4<count) source=source+1 to sources }
+    state one { to candidate when(omgrfn4_r2_is_word(source,token,1)==1) token=token+1 to tokens }
+    state candidate { to next when(omgrfn4_r2_tkind(source,token+2)!=58) to next when(omgrfn4_r2_tkind(source,token+3)!=58) to next when(r416_is_run(source,token+4)==0) p=token+5 to opening }
+    state opening { to bad when(p>=count) to opened when(omgrfn4_r2_tkind(source,p)==123) p=p+1 to opening }
+    state opened { to bad when(r416_matching(source,p,123,125)!=0) found=found+1 word[13000000]=source word[13000008]=p+1 word[13000016]=word[13000096] token=word[13000096]+1 to tokens }
+    state next { token=token+1 to tokens }
+    state exact { to bad when(found!=1) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc p_cur(depth) { return word[13001000+depth*48] }
+proc p_node(depth) { return word[13001008+depth*48] }
+proc p_tree(depth) { return word[13001016+depth*48] }
+proc p_ops(depth) { return word[13001024+depth*48] }
+proc p_widens(depth) { return word[13001032+depth*48] }
+proc p_set(depth,cursor,node,tree) { word[13001000+depth*48]=cursor word[13001008+depth*48]=node word[13001016+depth*48]=tree return 0 }
+proc p_meta(depth,ops,widens) { word[13001024+depth*48]=ops word[13001032+depth*48]=widens return 0 }
+proc p_max(a,b) { state a { to b when(b>a) return a } state b { return b } }
+
+proc n_kind(node) { return word[13100000+node*72] }
+proc n_source(node) { return word[13100008+node*72] }
+proc n_token(node) { return word[13100016+node*72] }
+proc n_type(node) { return word[13100024+node*72] }
+proc n_value(node) { return word[13100032+node*72] }
+proc n_left(node) { return word[13100040+node*72] }
+proc n_right(node) { return word[13100048+node*72] }
+proc n_tree(node) { return word[13100056+node*72] }
+proc n_self(node) { return word[13100064+node*72] }
+
+; value/left/right/tree/self arrive through 13000100..13000132 so the public
+; helper stays below the four-parameter persisted-Beta calling ceiling.
+proc n_new(kind,source,token,type_id) {
+    let node=word[13000024] let at=0
+    state room { to exhausted when(node>=512) at=13100000+node*72 word[at]=kind word[at+8]=source word[at+16]=token word[at+24]=type_id word[at+32]=word[13000100] word[at+40]=word[13000108] word[at+48]=word[13000116] word[at+56]=word[13000124] word[at+64]=word[13000132] word[13000024]=node+1 return node }
+    state exhausted { omgrfn4_l2_exhaust() return 4294967295 }
+}
+
+proc p_decimal(source,token) {
+    let i=0 let value=0 let digit=0 let n=omgrfn4_r2_tlen(source,token) let at=omgrfn4_r2_tstart(source,token)
+    state digits { to one when(i<n) word[13000144]=value return 0 }
+    state one { digit=omgrfn4_l2_source_byte(source,at+i)-48 to bad when(digit<0) to bad when(digit>9) to bad when(value>429496729) to last when(value==429496729) to add }
+    state last { to bad when(digit>5) to add }
+    state add { value=value*10+digit i=i+1 to digits }
+    state bad { return 1 }
+}
+
+proc p_primary(depth) {
+    let source=word[13000000] let cursor=p_cur(depth) let stop=word[13000152] let kind=0 let node=0 let tree=1 let ops=0 let widens=0 let type_id=0 let self_field=0 let leaf=0
+    state room { to over when(depth>=16) to no when(cursor>=stop) kind=omgrfn4_r2_tkind(source,cursor) to number when(kind==257) to grouped when(kind==40) to word when(kind==256) to no }
+    state number { to no when(p_decimal(source,cursor)!=0) word[13000100]=word[13000144] word[13000108]=4294967295 word[13000116]=4294967295 word[13000124]=1 word[13000132]=0 node=n_new(1,source,cursor,2) to done_node when(node!=4294967295) to over }
+    state grouped { p_set(depth+1,cursor+1,0,0) p_meta(depth+1,0,0) to parse_bad when(p_add(depth+1)!=0) cursor=p_cur(depth+1) node=p_node(depth+1) tree=p_tree(depth+1) ops=p_ops(depth+1) widens=p_widens(depth+1) to no when(cursor>=stop) to no when(omgrfn4_r2_tkind(source,cursor)!=41) cursor=cursor+1 to postfix }
+    state word { to self when(omgrfn4_r2_is_word(source,cursor,5)==1) type_id=r416_leaf_type(source,cursor,0) leaf=cursor to no when(type_id==0) word[13000100]=word[13000056] word[13000108]=4294967295 word[13000116]=4294967295 word[13000124]=1 word[13000132]=0 node=n_new(2,source,leaf,type_id) to over when(node==4294967295) cursor=cursor+1 to postfix }
+    state self { to no when(cursor+2>=stop) to no when(omgrfn4_r2_tkind(source,cursor+1)!=46) to no when(omgrfn4_r2_tkind(source,cursor+2)!=256) leaf=cursor+2 type_id=r416_leaf_type(source,leaf,1) to no when(type_id==0) word[13000100]=word[13000056] word[13000108]=4294967295 word[13000116]=4294967295 word[13000124]=1 word[13000132]=1 node=n_new(2,source,leaf,type_id) to over when(node==4294967295) cursor=cursor+3 to postfix }
+    state done_node { cursor=cursor+1 tree=1 ops=0 widens=0 to postfix }
+    state postfix { to plain when(cursor>=stop) to cast when(r416_is_as(source,cursor)==1) to plain }
+    state cast { to no when(n_type(node)!=1) to no when(cursor+3>=stop) to no when(omgrfn4_r2_is_word(source,cursor+1,8)==0) to no when(omgrfn4_r2_is_word(source,cursor+2,9)==0) to no when(omgrfn4_r2_is_word(source,cursor+3,10)==0) tree=tree+1 to over when(tree>8) word[13000100]=0 word[13000108]=node word[13000116]=4294967295 word[13000124]=tree word[13000132]=0 node=n_new(3,source,cursor,2) to over when(node==4294967295) cursor=cursor+4 widens=widens+1 to save }
+    state plain { to no when(n_type(node)!=2) to save }
+    state save { p_set(depth,cursor,node,tree) p_meta(depth,ops,widens) return 0 }
+    state parse_bad { to over when(word[700000]==252) to no }
+    state over { return omgrfn4_l2_exhaust() }
+    state no { return 1 }
+}
+
+proc p_mul(depth) {
+    let source=word[13000000] let cursor=0 let node=0 let tree=0 let ops=0 let widens=0 let right=0 let rtree=0 let rops=0 let rwidens=0 let token=0
+    state first { to no when(p_primary(depth)!=0) cursor=p_cur(depth) node=p_node(depth) tree=p_tree(depth) ops=p_ops(depth) widens=p_widens(depth) to loop }
+    state loop { to done when(cursor>=word[13000152]) to done when(omgrfn4_r2_tkind(source,cursor)!=42) token=cursor p_set(depth+1,cursor+1,0,0) p_meta(depth+1,0,0) to parse_bad when(p_primary(depth+1)!=0) right=p_node(depth+1) rtree=p_tree(depth+1) rops=p_ops(depth+1) rwidens=p_widens(depth+1) tree=p_max(tree,rtree)+1 to over when(tree>8) word[13000100]=27 word[13000108]=node word[13000116]=right word[13000124]=tree word[13000132]=0 node=n_new(27,source,token,2) to over when(node==4294967295) cursor=p_cur(depth+1) ops=ops+rops+1 widens=widens+rwidens to loop }
+    state done { p_set(depth,cursor,node,tree) p_meta(depth,ops,widens) return 0 }
+    state parse_bad { to over when(word[700000]==252) to no }
+    state over { return omgrfn4_l2_exhaust() }
+    state no { return 1 }
+}
+
+proc p_add(depth) {
+    let source=word[13000000] let cursor=0 let node=0 let tree=0 let ops=0 let widens=0 let right=0 let rtree=0 let rops=0 let rwidens=0 let token=0 let kind=0 let opcode=0
+    state first { to no when(p_mul(depth)!=0) cursor=p_cur(depth) node=p_node(depth) tree=p_tree(depth) ops=p_ops(depth) widens=p_widens(depth) to loop }
+    state loop { to done when(cursor>=word[13000152]) kind=omgrfn4_r2_tkind(source,cursor) to operator when(kind==43) to operator when(kind==45) to done }
+    state operator { opcode=8 to subtract when(kind==45) to right_begin }
+    state subtract { opcode=26 to right_begin }
+    state right_begin { token=cursor p_set(depth+1,cursor+1,0,0) p_meta(depth+1,0,0) to parse_bad when(p_mul(depth+1)!=0) right=p_node(depth+1) rtree=p_tree(depth+1) rops=p_ops(depth+1) rwidens=p_widens(depth+1) tree=p_max(tree,rtree)+1 to over when(tree>8) word[13000100]=opcode word[13000108]=node word[13000116]=right word[13000124]=tree word[13000132]=0 node=n_new(opcode,source,token,2) to over when(node==4294967295) cursor=p_cur(depth+1) ops=ops+rops+1 widens=widens+rwidens to loop }
+    state done { p_set(depth,cursor,node,tree) p_meta(depth,ops,widens) return 0 }
+    state parse_bad { to over when(word[700000]==252) to no }
+    state over { return omgrfn4_l2_exhaust() }
+    state no { return 1 }
+}
+
+proc r416_try(start,stop) {
+    let saved=word[13000024] let status=0
+    word[13000152]=stop p_set(0,start,0,0) p_meta(0,0,0) status=p_add(0)
+    state parsed { to failed when(status!=0) to failed when(p_cur(0)!=stop) word[13000064]=p_node(0) word[13000072]=p_ops(0) word[13000080]=p_widens(0) return 0 }
+    state failed { to exhausted when(word[700000]==252) word[13000024]=saved return 1 }
+    state exhausted { return 252 }
+}
+
+proc r416_mark(node) {
+    let kind=n_kind(node) let source=n_source(node) let token=n_token(node)
+    state children { to left when(kind==3) to both when(kind==8) to both when(kind==26) to both when(kind==27) return 0 }
+    state left { to duplicate when(r416_mark(n_left(node))!=0) to own }
+    state both { to duplicate when(r416_mark(n_left(node))!=0) to duplicate when(r416_mark(n_right(node))!=0) to own }
+    state own { to duplicate when(byte[13300000+source*18000+token]!=0) byte[13300000+source*18000+token]=1 return 0 }
+    state duplicate { return 1 }
+}
+
+proc r416_add_site(node,context,target,start) {
+    let site=word[13000032] let at=0
+    state room { to exhausted when(site>=256) at=13200000+site*40 word[at]=node word[at+8]=context word[at+16]=target to call when(context==4) to call when(context==5) to ordinary }
+    state call { word[at+24]=word[13000168] to publish }
+    state ordinary { word[at+24]=start to publish }
+    state publish { word[at+32]=n_source(node) word[13000032]=site+1 word[13000040]=word[13000040]+word[13000072] return 0 }
+    state exhausted { return omgrfn4_l2_exhaust() }
+}
+
+proc r416_accept(node,context,target,start) {
+    state selected { to duplicate when(r416_mark(node)!=0) return r416_add_site(node,context,target,start) }
+    state duplicate { return 0 }
+}
+
+proc r416_semicolon(source,start,limit) {
+    let i=start let paren=0 let bracket=0 let brace=0 let kind=0
+    state loop { to one when(i<limit) word[13000096]=4294967295 return 1 }
+    state one { kind=omgrfn4_r2_tkind(source,i) to po when(kind==40) to pc when(kind==41) to bo when(kind==91) to bc when(kind==93) to co when(kind==123) to cc when(kind==125) to semi when(kind==59) i=i+1 to loop }
+    state po { paren=paren+1 i=i+1 to loop } state pc { paren=paren-1 i=i+1 to loop }
+    state bo { bracket=bracket+1 i=i+1 to loop } state bc { bracket=bracket-1 i=i+1 to loop }
+    state co { brace=brace+1 i=i+1 to loop } state cc { brace=brace-1 i=i+1 to loop }
+    state semi { to found when(paren==0) i=i+1 to loop }
+    state found { to continue when(bracket!=0) to continue when(brace!=0) word[13000096]=i return 0 }
+    state continue { i=i+1 to loop }
+}
+
+proc r416_simple_pure(source,start,stop) {
+    state one { to no when(start>=stop) to number when(start+1==stop) to self }
+    state number { to yes when(omgrfn4_r2_tkind(source,start)==257) to yes when(omgrfn4_r2_tkind(source,start)==256) to no }
+    state self { to no when(start+3!=stop) to no when(omgrfn4_r2_is_word(source,start,5)==0) to no when(omgrfn4_r2_tkind(source,start+1)!=46) to no when(omgrfn4_r2_tkind(source,start+2)!=256) to yes }
+    state yes { return 1 } state no { return 0 }
+}
+
+proc r416_call_target(source,opening) {
+    let i=opening let start=word[13000008]
+    state back { to none when(i<=start) i=i-1 to boundary when(omgrfn4_r2_tkind(source,i)==59) to boundary when(omgrfn4_r2_tkind(source,i)==123) to boundary when(omgrfn4_r2_tkind(source,i)==125) to probe }
+    state probe { to target when(i+3<opening) to back }
+    state target { to none when(omgrfn4_r2_is_word(source,i,5)==0) to none when(omgrfn4_r2_tkind(source,i+1)!=46) to none when(omgrfn4_r2_tkind(source,i+2)!=256) to none when(omgrfn4_r2_tkind(source,i+3)!=61) return r416_target_binding(source,i+2) }
+    state boundary { i=i+1 to target }
+    state none { return 4294967295 }
+}
+
+proc r416_call_context(source,opening) {
+    let i=opening let start=word[13000008]
+    state back { to ordinary when(i<=start) i=i-1 to transition when(omgrfn4_r2_tkind(source,i)==62) to ordinary when(omgrfn4_r2_tkind(source,i)==59) to ordinary when(omgrfn4_r2_tkind(source,i)==123) to ordinary when(omgrfn4_r2_tkind(source,i)==125) to back }
+    state transition { to ordinary when(i==0) to yes when(omgrfn4_r2_tkind(source,i-1)==45) to ordinary }
+    state yes { return 4 }
+    state ordinary { return 3 }
+}
+
+proc r416_pure_site(source,start,stop,target) {
+    let type_id=0 let node=0 let token=start let self_field=0
+    state enabled { to no when(word[13000048]==0) to no when(target==4294967295) word[13000072]=0 word[13000080]=0 type_id=r416_binding_type(target) to no when(type_id==0) to number when(start+1==stop) to self }
+    state number { to word when(omgrfn4_r2_tkind(source,start)==256) to no when(omgrfn4_r2_tkind(source,start)!=257) to no when(p_decimal(source,start)!=0) word[13000100]=word[13000144] word[13000108]=4294967295 word[13000116]=4294967295 word[13000124]=1 word[13000132]=0 node=n_new(1,source,start,type_id) to exhausted when(node==4294967295) return r416_add_site(node,5,target,start) }
+    state word { to word_result when(word[13000048]==1) word[13000100]=4294967295 to word_node }
+    state word_result { type_id=r416_leaf_type(source,start,0) to no when(type_id==0) word[13000100]=word[13000056] to word_node }
+    state word_node { word[13000108]=4294967295 word[13000116]=4294967295 word[13000124]=1 word[13000132]=0 node=n_new(2,source,start,type_id) to exhausted when(node==4294967295) return r416_add_site(node,5,target,start) }
+    state self { to no when(start+3!=stop) to no when(omgrfn4_r2_is_word(source,start,5)==0) to no when(omgrfn4_r2_tkind(source,start+1)!=46) to no when(omgrfn4_r2_tkind(source,start+2)!=256) token=start+2 type_id=r416_leaf_type(source,token,1) to no when(type_id==0) word[13000100]=word[13000056] word[13000108]=4294967295 word[13000116]=4294967295 word[13000124]=1 word[13000132]=1 node=n_new(2,source,token,type_id) to exhausted when(node==4294967295) return r416_add_site(node,5,target,start) }
+    state exhausted { return word[700000] }
+    state no { return 0 }
+}
+
+proc r416_call(source,opening,closing) {
+    let start=opening+1 let i=opening+1 let depth=0 let selected=0 let impure=0 let target=4294967295 let status=0 let root=0 let ops=0 let kind=0 let context=0 let ordinal=0 let arg_target=4294967295
+    target=r416_call_target(source,opening) context=r416_call_context(source,opening) word[13000168]=opening
+    state loop { to segment when(i<closing) to final }
+    state segment { kind=omgrfn4_r2_tkind(source,i) to nested when(kind==40) to unnested when(kind==41) to comma when(kind==44) i=i+1 to loop }
+    state nested { depth=depth+1 i=i+1 to loop }
+    state unnested { depth=depth-1 i=i+1 to loop }
+    state comma { to piece when(depth==0) i=i+1 to loop }
+    state piece { arg_target=4294967295 to piece_target when(context==4) to piece_parse }
+    state piece_target { arg_target=r416_argument_binding(source,opening,ordinal) to piece_parse }
+    state piece_parse { status=r416_try(start,i) to try_failed when(status!=0) root=word[13000064] ops=word[13000072] to chosen when(ops>0) to pure }
+    state try_failed { to done when(word[700000]!=0) to pure_check }
+    state pure { status=r416_pure_site(source,start,i,arg_target) to done when(status!=0) ordinal=ordinal+1 start=i+1 i=i+1 to loop }
+    state pure_check { to impure_one when(r416_simple_pure(source,start,i)==0) status=r416_pure_site(source,start,i,arg_target) to done when(status!=0) ordinal=ordinal+1 start=i+1 i=i+1 to loop }
+    state impure_one { impure=impure+1 ordinal=ordinal+1 start=i+1 i=i+1 to loop }
+    state chosen { selected=selected+1 to bad when(selected>1) to chosen_target when(context==4) status=r416_accept(root,context,target,start) to chosen_done }
+    state chosen_target { status=r416_accept(root,context,arg_target,start) to chosen_done }
+    state chosen_done { to done when(status!=0) ordinal=ordinal+1 start=i+1 i=i+1 to loop }
+    state final { to exact when(start==closing) arg_target=4294967295 to final_target when(context==4) to final_parse }
+    state final_target { arg_target=r416_argument_binding(source,opening,ordinal) to final_parse }
+    state final_parse { status=r416_try(start,closing) to final_failed when(status!=0) root=word[13000064] ops=word[13000072] to final_chosen when(ops>0) status=r416_pure_site(source,start,closing,arg_target) to done when(status!=0) to exact }
+    state final_failed { to done when(word[700000]!=0) to final_impure when(r416_simple_pure(source,start,closing)==0) status=r416_pure_site(source,start,closing,arg_target) to done when(status!=0) to exact }
+    state final_impure { impure=impure+1 to exact }
+    state final_chosen { selected=selected+1 to bad when(selected>1) to final_chosen_target when(context==4) status=r416_accept(root,context,target,start) to done when(status!=0) to exact }
+    state final_chosen_target { status=r416_accept(root,context,arg_target,start) to done when(status!=0) to exact }
+    state exact { to purity when(selected>0) return 0 }
+    state purity { to bad when(impure>0) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return word[700000] }
+}
+
+proc r416_guard(source,transition,brace) {
+    let start=transition+1 let i=start let depth=0 let kind=0 let status=0 let root=0
+    state loop { to one when(i<brace) return 0 }
+    state one { kind=omgrfn4_r2_tkind(source,i) to open when(kind==40) to close when(kind==41) to amp when(kind==38) to equal when(kind==61) i=i+1 to loop }
+    state open { depth=depth+1 i=i+1 to loop } state close { depth=depth-1 i=i+1 to loop }
+    state amp { to next_clause when(i+1<brace) i=i+1 to loop }
+    state next_clause { to clause when(omgrfn4_r2_tkind(source,i+1)==38) i=i+1 to loop }
+    state clause { start=i+2 i=i+2 to loop }
+    state equal { to compare when(depth==0) i=i+1 to loop }
+    state compare { to next when(i+1>=brace) to next when(omgrfn4_r2_tkind(source,i+1)!=61) status=r416_try(start,i) to failed when(status!=0) root=word[13000064] to accept when(word[13000072]>0) i=i+2 to loop }
+    state accept { status=r416_accept(root,2,4294967295,start) to done when(status!=0) i=i+2 to loop }
+    state failed { to done when(word[700000]!=0) i=i+2 to loop }
+    state next { i=i+1 to loop }
+    state done { return word[700000] }
+}
+
+proc r416_assignment(source,token,limit) {
+    let start=token+4 let stop=0 let status=0 let root=0 let target=0
+    state end { to no when(r416_semicolon(source,start,limit)!=0) stop=word[13000096] status=r416_try(start,stop) to parse_failed when(status!=0) root=word[13000064] target=r416_target_binding(source,token+2) to bad when(target==4294967295) to all when(word[13000048]==1) to selected }
+    state all { to all_selected when(word[13000072]+word[13000080]>0) return r416_add_site(root,1,target,start) }
+    state all_selected { return r416_accept(root,1,target,start) }
+    state selected { to no when(word[13000072]+word[13000080]==0) return r416_accept(root,1,target,start) }
+    state parse_failed { to done when(word[700000]!=0) to no }
+    state bad { return omgrfn4_l2_reject() }
+    state no { return 0 }
+    state done { return word[700000] }
+}
+
+proc r416_verify_tokens() {
+    let source=word[13000000] let token=word[13000008] let end=word[13000016] let kind=0 let previous=0
+    state loop { to one when(token<end) to exact }
+    state one { kind=omgrfn4_r2_tkind(source,token) to selected when(kind==43) to selected when(kind==42) to minus when(kind==45) to slash when(kind==47) token=token+1 to loop }
+    state slash { return omgrfn4_l2_reject() }
+    state minus { to arrow when(token+1<end) to unary }
+    state arrow { to unselected when(omgrfn4_r2_tkind(source,token+1)==62) to unary }
+    state unary { to unselected when(token==word[13000008]) previous=omgrfn4_r2_tkind(source,token-1) to selected when(previous==256) to selected when(previous==257) to selected when(previous==41) to unselected }
+    state selected { to bad when(byte[13300000+source*18000+token]==0) token=token+1 to loop }
+    state unselected { token=token+1 to loop }
+    state exact { to bad when(word[13000040]<1) return 0 }
+    state bad { return omgrfn4_l2_reject() }
+}
+
+proc r416_sites(mode) {
+    let source=0 let token=0 let end=0 let status=0 let close=0 let brace=0 let p=0
+    word[13000024]=0 word[13000032]=0 word[13000040]=0 word[13000048]=mode
+    state run { status=r416_find_run() to done when(status!=0) source=word[13000000] token=word[13000008] end=word[13000016] to loop }
+    state loop { to one when(token<end) status=r416_verify_tokens() to done }
+    state one { to assignment when(token+3<end) to transition when(r416_is_transition(source,token)==1) to call when(omgrfn4_r2_tkind(source,token)==40) token=token+1 to loop }
+    state assignment { to transition when(omgrfn4_r2_is_word(source,token,5)==0) to transition when(omgrfn4_r2_tkind(source,token+1)!=46) to transition when(omgrfn4_r2_tkind(source,token+2)!=256) to transition when(omgrfn4_r2_tkind(source,token+3)!=61) status=r416_assignment(source,token,end) to done when(status!=0) token=token+1 to loop }
+    state transition { to call when(r416_is_transition(source,token)==0) p=token+1 to seek_brace }
+    state seek_brace { to bad when(p>=end) to have_brace when(omgrfn4_r2_tkind(source,p)==123) p=p+1 to seek_brace }
+    state have_brace { brace=p status=r416_guard(source,token,brace) to done when(status!=0) to call }
+    state call { to next when(omgrfn4_r2_tkind(source,token)!=40) to next when(token==word[13000008]) to next when(omgrfn4_r2_tkind(source,token-1)!=256) to next when(r416_matching(source,token,40,41)!=0) close=word[13000096] status=r416_call(source,token,close) to done when(status!=0) token=close+1 to loop }
+    state next { token=token+1 to loop }
+    state bad { return omgrfn4_l2_reject() }
+    state done { return status }
+}

@@ -10,7 +10,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-from omgrfn16_frame import HEADER, NO_RESULT
+from omgrfn16_frame import (
+    HEADER,
+    MAX_CKIR,
+    MAX_ELF,
+    MAX_FRAME,
+    MAX_OMGCOMP,
+    MAX_WITNESS,
+    NO_RESULT,
+)
 
 
 HERE = Path(__file__).resolve().parent
@@ -48,6 +56,8 @@ def profiles() -> dict[str, tuple[str, bool]]:
     return {
         "add-success": (fixture("add-only-selected"), False),
         "mixed-success": (fixture("precedence-association-parentheses"), False),
+        "contexts-success": (fixture("representative-contexts"), False),
+        "depth-eight-success": (fixture("depth-8-boundary"), False),
         "signed-boundary-success": (boundary_source(0x8000_0000), False),
         "upper-neighbor-success": (boundary_source(0xFFFF_FFFE), False),
         "maximum-success": (PRODUCER.FULL_LITERAL, False),
@@ -112,6 +122,9 @@ def controls(directory: Path) -> None:
     mixed = (directory / "mixed-success.rfn").read_bytes()
     trap = (directory / "add-overflow.rfn").read_bytes()
     add_parts, mixed_parts = components(add), components(mixed)
+    depth_parts = components((directory / "depth-eight-success.rfn").read_bytes())
+    view_parts = components((directory / "view-composition-success.rfn").read_bytes())
+    context_parts = components((directory / "contexts-success.rfn").read_bytes())
 
     def write(name: str, contents: bytes) -> None:
         (directory / f"control-{name}.rfn").write_bytes(contents)
@@ -139,6 +152,55 @@ def controls(directory: Path) -> None:
     source[at + len(b"self.a ")] = ord("-")
     write("source-operator", pack(source, add_parts[1], add_parts[2], add_parts[3]))
 
+    add_source = (CASES / "add-only-selected.omg").read_text(encoding="ascii")
+    # Keep the source extent and every later block/name span unchanged so this
+    # control isolates a valid same-carrier named-leaf substitution. R2 should
+    # accept its still-canonical OMGRSW7; only the source/lowering and result
+    # owners reject the stale CKIR/claim pairing.
+    leaf_source = add_source.replace("self.a + self.b", "self.b + self.b", 1)
+    if leaf_source == add_source: raise ValueError("leaf-name mutation anchor")
+    write("source-leaf-name", pack(
+        PRODUCER.encode_source(leaf_source), add_parts[1], add_parts[2], add_parts[3]
+    ))
+    grown_source = add_source.replace("self.a + self.b", "self.a + self.b ", 1)
+    if grown_source == add_source: raise ValueError("growing-source mutation anchor")
+    write("source-grown-stale-witness", pack(
+        PRODUCER.encode_source(grown_source), add_parts[1], add_parts[2], add_parts[3]
+    ))
+
+    depth9 = (CASES / "depth-9-exhausted.omg").read_text(encoding="ascii")
+    write("source-depth-nine", pack(
+        PRODUCER.encode_source(depth9), depth_parts[1], depth_parts[2], depth_parts[3]
+    ))
+
+    view_source = (CASES / "ckir12-view-plus-arithmetic.omg").read_text(encoding="ascii")
+    changed_view = view_source.replace('"F"', '"G"', 1)
+    if changed_view == view_source: raise ValueError("view-literal mutation anchor")
+    write("source-view-literal", pack(
+        PRODUCER.encode_source(changed_view), view_parts[1], view_parts[2], view_parts[3]
+    ))
+
+    context_source = (CASES / "representative-contexts.omg").read_text(encoding="ascii")
+    transition = "receive(prefix, (self.byte0 - 192) * 64 + (self.byte1 - 128), 9)"
+    changed_transition = context_source.replace(transition, transition[:-2] + "8)", 1)
+    if changed_transition == context_source: raise ValueError("transition sibling mutation anchor")
+    write("source-transition-sibling", pack(
+        PRODUCER.encode_source(changed_transition), context_parts[1], context_parts[2], context_parts[3]
+    ))
+
+    envelope = bytearray(add_parts[0]); envelope[0] ^= 1
+    write("malformed-omgcomp", pack(envelope, add_parts[1], add_parts[2], add_parts[3]))
+
+    for name, offset, ceiling in (
+        ("omgcomp-resource", 16, MAX_OMGCOMP),
+        ("witness-resource", 20, MAX_WITNESS),
+        ("ckir-resource", 24, MAX_CKIR),
+        ("elf-resource", 28, MAX_ELF),
+    ):
+        changed = bytearray(add); struct.pack_into("<I", changed, offset, ceiling + 1)
+        write(name, changed)
+    write("whole-frame-resource", add + b"\0" * (MAX_FRAME + 1 - len(add)))
+
     witness = bytearray(add_parts[1]); needle = struct.pack("<BBHIIII", 2, 1, 0, 0, 0, 0, NO_RESULT)
     at = witness.find(needle)
     if at < 0: raise ValueError("semantic high-word mutation anchor")
@@ -148,6 +210,15 @@ def controls(directory: Path) -> None:
     elf = bytearray(add_parts[3]); elf[4096] ^= 1
     write("elf-instruction", pack(add_parts[0], add_parts[1], add_parts[2], elf))
     write("elf-trailing", pack(add_parts[0], add_parts[1], add_parts[2], add_parts[3] + b"\0"))
+
+    for name, marker, delta in (
+        ("elf-case-tag", b"\x41\xc7\x02\x00\x00\x00\x00", 3),
+        ("elf-dispatch-bound", b"\x41\x8b\x03\x3d\x02\x00\x00\x00", 4),
+    ):
+        elf = bytearray(context_parts[3]); at = elf.find(marker)
+        if at < 0: raise ValueError(f"{name} mutation anchor")
+        elf[at + delta] ^= 1
+        write(name, pack(context_parts[0], context_parts[1], context_parts[2], elf))
 
 
 def main() -> None:
