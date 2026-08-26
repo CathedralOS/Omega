@@ -5277,10 +5277,14 @@ Owners:
   the ordered field symbols followed by the exact `FixedIndex` for a literal or
   runtime `Index` for a dynamic expression. Literal siblings remain distinct;
   existing overlap and invalidation conservatively treat the runtime index as
-  the whole byte-array leaf without losing disjoint record siblings. Ranges
-  through a record path remain fenced, while admitted direct-root behavior is
-  unchanged. Non-byte arrays, constrained or erased fields, and
-  non-discardable leaves still reject.
+  the whole byte-array leaf without losing disjoint record siblings. The same
+  eligible path may end in a statically normalized half-open byte range with a
+  required known end and an exact-width array-literal replacement. Its checked
+  mutation and caller-visible write frame retain the ordered field symbols and
+  exact `FixedRange`; existing half-open overlap preserves adjacent windows
+  and record siblings. Symbolic or open-ended ranges remain fenced. Non-byte
+  arrays, constrained or erased fields, and non-discardable leaves still
+  reject.
   Whole-record replacement still requires an unrestricted/discardable root.
   Observation, readable
   widening, implicit `&mut` attenuation, symbolic/open-ended ranges, sum
