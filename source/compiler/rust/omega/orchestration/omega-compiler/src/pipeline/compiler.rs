@@ -547,13 +547,10 @@ impl Compiler {
                 .typed,
             &checked.selected_provider_plans,
         )?;
-        let task_activations = crate::pipeline::task_plans::elaborate_task_activation_plans(
-            Arc::get_mut(&mut checked.program)
-                .expect("checked program must be uniquely owned before backend fan-out"),
-            &checked.selected_provider_plans,
+        crate::pipeline::task_plans::settle_compiler_task_activation_plans(
+            &mut checked,
             selected_native_target,
         )?;
-        checked.task_activations = Arc::new(task_activations);
         if emit_auxiliary_artifacts {
             write_checked_snapshot(
                 &self.options,
