@@ -622,6 +622,11 @@ table before projection. Canonical cause buckets contain truth or exact
 structural guard expressions, preserving package-qualified calls, members, and
 declared overloads instead of runtime-predicate display fallbacks. Reordering
 or duplicating routes is stable; changing a cause or guard changes identity.
+Review v67 and canonical row v25 admit ordered array literals in public
+contract expressions. Every element recursively projects through the same
+closed structural vocabulary and limits, including nested arrays. Element
+order is semantic identity, and an unsupported child keeps the whole row
+fail-closed.
 Review v52 and canonical row v12 add one blocking standalone row for every
 package-owned `pub proposition`, including an unused bodyless declaration.
 The row retains alpha-normalized binders, parameter types, witness interface,

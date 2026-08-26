@@ -674,6 +674,11 @@ to equal compiler rederivation. Cause buckets retain truth or exact structural
 guard expressions with package-qualified call/member/declared-overload
 identity. Route ordering and duplicates are stable, while changed causes or
 guards change canonical evidence.
+Review v67/canonical row v25 retains ordered array literals in public contract
+expressions. Elements recursively use the same structural vocabulary and
+encoding limits, so nested arrays remain exact. Reordering or changing an
+element changes review identity; unsupported nested forms reject the complete
+row.
 Trait `invariant` clauses are retired rather than awaiting a package row.
 Requirements also retain whether their checked declaration
 supplies a default realization; implementation bodies remain checked source

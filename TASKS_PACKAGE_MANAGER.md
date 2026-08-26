@@ -1226,6 +1226,12 @@ complete.
   and `true` subsume guarded alternatives, while clause order, guard order, and
   duplicates are stable. Changed cause or guard changes canonical evidence;
   missing, duplicate, or altered checked custody rejects.
+  Review v67 and canonical row v25 add ordered array literals to the public
+  contract-expression vocabulary. Each element recursively uses the same
+  closed structural projector and encoding limits, so nested arrays are
+  representable without weakening unsupported children. Element order and
+  value changes alter canonical evidence; an unsupported nested expression
+  rejects the complete public row.
   Review v43 and
   canonical row v3 represent static-machine parameters directly. Structural
   contracts retain their complete alpha-normalized nested telescope, value

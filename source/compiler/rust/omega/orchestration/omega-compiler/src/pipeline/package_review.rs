@@ -960,6 +960,8 @@ impl PackageReviewContractCallTarget {
 pub enum PackageReviewContractExpression {
     Boolean(bool),
     Integer(String),
+    /// Ordered structural elements of one checked array literal.
+    Array(Vec<PackageReviewContractExpression>),
     /// Exact decoded octets of an Omega quoted literal. No text encoding is
     /// implied by this row.
     ByteSequence(Vec<u8>),
@@ -8288,6 +8290,14 @@ fn project_contract_expression_with_substitutions(
         ExpressionNode::Boolean(value) => Ok(PackageReviewContractExpression::Boolean(*value)),
         ExpressionNode::Integer(value) => Ok(PackageReviewContractExpression::Integer(
             value.text().to_owned(),
+        )),
+        ExpressionNode::ArrayLiteral(values) => Ok(PackageReviewContractExpression::Array(
+            compilation
+                .expression_table
+                .expression_handles(*values)
+                .iter()
+                .map(|value| child(*value))
+                .collect::<Result<Vec<_>, _>>()?,
         )),
         ExpressionNode::String(value) => Ok(PackageReviewContractExpression::ByteSequence(
             value.to_vec(),
