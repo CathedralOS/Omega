@@ -911,10 +911,10 @@ complete.
   operator is unused. Binary public-contract expressions now distinguish an
   exact declared overload from compiler-owned builtin meaning; a bare token no
   longer substitutes for semantic selection. Public operator changes render as
-  source-backed blocking conflicts. Unsupported operator crash contracts and
-  proof-static member selections which checking cannot finalize still reject
-  closed instead of producing partial rows; those are compiler coverage work,
-  not an open package-manager design choice.
+  source-backed blocking conflicts. Proof-static member selections which
+  checking cannot finalize still reject closed instead of producing partial
+  rows; that is compiler coverage work, not an open package-manager design
+  choice.
 
   Milestone 2026-08-25: the visibility canary audit removed one stale premise:
   `pub measure` deliberately parse-rejects because a declared measure belongs
@@ -1216,6 +1216,16 @@ complete.
   missing, duplicate, or selector/case-mismatched carriers reject. Group and
   row ordering are canonicalized, while moving a fact to another case or
   renaming a named selector changes review identity.
+  Review v66 and canonical row v24 close public-operator crash ceilings.
+  Checked lowering retains one operator-symbol-keyed crash-contract row for
+  every root and domain-homed operator, including an empty ceiling, and review
+  requires the complete retained table to equal compiler rederivation. The
+  operator row carries canonical cause buckets and exact structural guard
+  expressions; package-qualified call/member/declared-overload identity is not
+  replaced by the checked runtime predicate's textual fallback. Empty clauses
+  and `true` subsume guarded alternatives, while clause order, guard order, and
+  duplicates are stable. Changed cause or guard changes canonical evidence;
+  missing, duplicate, or altered checked custody rejects.
   Review v43 and
   canonical row v3 represent static-machine parameters directly. Structural
   contracts retain their complete alpha-normalized nested telescope, value

@@ -48,6 +48,16 @@ pub fn derive_checked_semantic_dependencies(
     flow::derive_checked_semantic_dependencies(program, facts)
 }
 
+/// Rederive one complete checked crash-contract row for every root and
+/// domain-homed operator declaration. This compiler-internal package-review
+/// entry point retains exact typed proof-fact joins without creating a public
+/// IR format.
+pub fn derive_checked_operator_crash_contracts(
+    program: &TypedTrees,
+) -> Vec<psi_checked_trees::CheckedOperatorCrashContract> {
+    operators::derive_checked_operator_crash_contracts(program)
+}
+
 #[cfg(test)]
 pub(crate) use lowerer::lower_typed_trees_for_crash_fact_inspection;
 

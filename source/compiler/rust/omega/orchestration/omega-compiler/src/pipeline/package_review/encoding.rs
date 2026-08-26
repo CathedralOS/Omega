@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 65;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 66;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 23;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 24;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -1373,7 +1373,8 @@ fn encode_operator_shape(
         Ok(())
     })?;
     encode_type_identity(encoder, &shape.return_type)?;
-    encoder.sequence(&shape.contracts, encode_callable_contract)
+    encoder.sequence(&shape.contracts, encode_callable_contract)?;
+    encoder.sequence(&shape.published_crash, encode_crash_route)
 }
 
 const fn operator_spelling_tag(spelling: psi_language_core::OperatorSpelling) -> u8 {
@@ -1768,6 +1769,10 @@ fn encode_crash_route(
             PackageReviewCrashRouteGuard::Predicate(predicate) => {
                 encoder.byte(1);
                 encoder.bytes(&predicate.canonical_bytes)?;
+            }
+            PackageReviewCrashRouteGuard::Expression(expression) => {
+                encoder.byte(2);
+                encode_contract_expression(encoder, expression)?;
             }
         }
         Ok(())

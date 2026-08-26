@@ -46,6 +46,96 @@ pub(crate) fn build_operator_facts(
     }
 
     CheckedOperatorFacts::with_roots(uses, named_uses, candidates)
+        .with_operator_crash_contracts(derive_checked_operator_crash_contracts(program))
+}
+
+pub(crate) fn derive_checked_operator_crash_contracts(
+    program: &TypedTrees,
+) -> Vec<psi_checked_trees::CheckedOperatorCrashContract> {
+    use psi_typed_trees::{domain::ProofFact, signature::SignatureContractKind};
+    use std::collections::BTreeMap;
+
+    #[derive(Default)]
+    struct Bucket {
+        unconditional: bool,
+        facts: Vec<psi_arena::Handle<ProofFact>>,
+    }
+
+    let operators = program.operators().iter().chain(
+        program
+            .domain_definitions()
+            .iter()
+            .flat_map(|domain| program.domain_operators(domain)),
+    );
+    let mut rows = operators
+        .map(|operator| {
+            let mut buckets = BTreeMap::<psi_checked_trees::CrashCause, Bucket>::new();
+            for contract in program.operator_contracts(operator) {
+                let SignatureContractKind::Crashes { cause } = contract.kind else {
+                    continue;
+                };
+                let cause = match cause {
+                    psi_typed_trees::signature::CrashCause::Trap => {
+                        psi_checked_trees::CrashCause::Trap
+                    }
+                    psi_typed_trees::signature::CrashCause::Abort => {
+                        psi_checked_trees::CrashCause::Abort
+                    }
+                };
+                let bucket = buckets.entry(cause).or_default();
+                if contract.facts.is_empty() {
+                    bucket.unconditional = true;
+                    continue;
+                }
+                for offset in 0..contract.facts.count() {
+                    let fact = psi_arena::Handle::from_parts(
+                        contract
+                            .facts
+                            .start()
+                            .arena_index()
+                            .checked_add(offset)
+                            .expect("operator crash fact handle index overflow"),
+                        contract.facts.start().generation(),
+                    );
+                    let is_true = matches!(
+                        program.proof_facts.get(fact),
+                        ProofFact::Expression(expression)
+                            if matches!(
+                                program.expression_table.expression(*expression),
+                                ExpressionNode::Boolean(true)
+                            )
+                    );
+                    if is_true {
+                        bucket.unconditional = true;
+                    } else {
+                        bucket.facts.push(fact);
+                    }
+                }
+            }
+            let buckets = buckets
+                .into_iter()
+                .map(|(cause, bucket)| {
+                    psi_checked_trees::CheckedOperatorCrashBucket::new(
+                        cause,
+                        bucket.unconditional,
+                        if bucket.unconditional {
+                            Vec::new()
+                        } else {
+                            bucket.facts
+                        },
+                    )
+                })
+                .collect();
+            psi_checked_trees::CheckedOperatorCrashContract::new(operator.symbol, buckets)
+        })
+        .collect::<Vec<_>>();
+    rows.sort_by_key(|row| {
+        (
+            row.operator_symbol().arena_index(),
+            row.operator_symbol().generation(),
+        )
+    });
+    rows
 }
 
 fn collect_expression_operator_use(

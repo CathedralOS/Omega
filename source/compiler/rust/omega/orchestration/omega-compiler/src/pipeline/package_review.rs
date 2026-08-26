@@ -1202,6 +1202,7 @@ pub struct PackageReviewOperatorShape {
     parameters: Vec<PackageReviewCallableParameter>,
     return_type: PackageReviewTypeIdentity,
     contracts: Vec<PackageReviewCallableContract>,
+    published_crash: Vec<PackageReviewCrashRoute>,
 }
 
 impl PackageReviewOperatorShape {
@@ -1235,6 +1236,10 @@ impl PackageReviewOperatorShape {
 
     pub fn contracts(&self) -> &[PackageReviewCallableContract] {
         &self.contracts
+    }
+
+    pub fn published_crash(&self) -> &[PackageReviewCrashRoute] {
+        &self.published_crash
     }
 }
 
@@ -1585,6 +1590,10 @@ impl PackageReviewCrashPredicate {
 pub enum PackageReviewCrashRouteGuard {
     Truth,
     Predicate(PackageReviewCrashPredicate),
+    /// Exact structural guard for an abstract public-operator crash ceiling.
+    /// Unlike runtime crash-predicate bytes, this retains selected nominal
+    /// package identity for calls, members, and declared overloads.
+    Expression(PackageReviewContractExpression),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -4119,6 +4128,16 @@ fn project_public_operators(
     compilation: &CheckedCompilation,
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewOperatorShape>>, Vec<Diagnostic>> {
+    let derived = psi_typed_trees_to_checked_trees::derive_checked_operator_crash_contracts(
+        &compilation.typed,
+    );
+    if derived != compilation.facts.operators.operator_crash_contracts {
+        return Err(vec![Diagnostic::error(format!(
+            "retained checked operator-crash evidence does not equal compiler rederivation (retained {} rows, derived {} rows)",
+            compilation.facts.operators.operator_crash_contracts.len(),
+            derived.len(),
+        ))]);
+    }
     let mut rows = Vec::new();
     let operators = compilation.operators().iter().chain(
         compilation
@@ -4177,6 +4196,21 @@ fn project_public_operators(
             &binders,
             ContractProjectionPolicy::PublicOperator,
         )?;
+        let matching_crash = compilation
+            .facts
+            .operators
+            .operator_crash_contracts
+            .iter()
+            .filter(|checked| checked.operator_symbol() == declaration.symbol)
+            .collect::<Vec<_>>();
+        let [checked_crash] = matching_crash.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "public operator `{declaration_path}` has {} exact checked crash-contract rows; expected one",
+                matching_crash.len(),
+            ))]);
+        };
+        let published_crash =
+            project_operator_crash_routes(compilation, checked_crash, &context, &binders)?;
         rows.push(ProjectedReviewRow {
             row: PackageReviewOperatorShape {
                 coordinate,
@@ -4192,6 +4226,7 @@ fn project_public_operators(
                     &declaration.lifetime_parameters,
                 )?,
                 contracts,
+                published_crash,
             },
             declaration: declaration.symbol,
         });
@@ -4206,6 +4241,67 @@ fn project_public_operators(
         )]);
     }
     Ok(rows)
+}
+
+fn project_operator_crash_routes(
+    compilation: &CheckedCompilation,
+    checked: &psi_checked_trees::CheckedOperatorCrashContract,
+    context: &ContractProjectionContext<'_>,
+    binders: &[(SymbolHandle, String)],
+) -> Result<Vec<PackageReviewCrashRoute>, Vec<Diagnostic>> {
+    use psi_typed_trees::domain::ProofFact;
+
+    checked
+        .buckets()
+        .iter()
+        .map(|bucket| {
+            let alternative_guards = if bucket.is_unconditional() {
+                if !bucket.facts().is_empty() {
+                    return Err(vec![Diagnostic::error(format!(
+                        "public operator `{}` has an unconditional checked crash bucket with retained guarded facts",
+                        context.subject_name
+                    ))]);
+                }
+                vec![PackageReviewCrashRouteGuard::Truth]
+            } else {
+                let mut guards = bucket
+                    .facts()
+                    .iter()
+                    .map(|fact| {
+                        let ProofFact::Expression(expression) = compilation.proof_facts.get(*fact)
+                        else {
+                            return Err(vec![Diagnostic::error(format!(
+                                "public operator `{}` has a non-expression checked crash route",
+                                context.subject_name
+                            ))]);
+                        };
+                        project_contract_expression(
+                            compilation,
+                            context,
+                            binders,
+                            *expression,
+                            Some(*fact),
+                            0,
+                        )
+                        .map(PackageReviewCrashRouteGuard::Expression)
+                    })
+                    .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+                guards.sort();
+                guards.dedup();
+                if guards.is_empty() {
+                    return Err(vec![Diagnostic::error(format!(
+                        "public operator `{}` has an empty guarded checked crash bucket",
+                        context.subject_name
+                    ))]);
+                }
+                guards
+            };
+            Ok(PackageReviewCrashRoute {
+                cause: bucket.cause(),
+                alternative_guards,
+            })
+        })
+        .collect()
 }
 
 fn project_public_domains(
@@ -6921,14 +7017,6 @@ fn project_contracts(
                     result_case: nominal_identity(compilation, result_case)?,
                 }),
             ),
-            SignatureContractKind::Crashes { .. }
-                if policy == ContractProjectionPolicy::PublicOperator =>
-            {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` uses a crashes contract not yet represented by public-operator review",
-                    context.subject_kind, context.subject_name
-                ))]);
-            }
             SignatureContractKind::Crashes { .. } => continue,
         };
         if contract.facts.is_empty() {
