@@ -113,13 +113,20 @@ These facts constrain the work below.
   They preserve the pass manager's explicit schedule (never hash-sort it),
   reject duplicate rule identities, bind the exact order into a rule-set
   identity, and share no global mutable registry state. Initial semantic
-  products cover use/definition rows, literal scalar constants, literal-backed
-  exact integer ranges, and executable/inexecutable conditional edges. Every
-  derived fact retains its exact supporting operation and unit-revision/value
-  region; integer facts now retain the literal payload rather than a lossy
-  constant marker. Registry coverage remains open until built-in executable
-  rules and pass dispatch exist, and semantic analyses remain open for the
-  wider proof/effect/ownership vocabulary.
+  products cover use/definition rows, scalar constants, exact integer ranges,
+  and executable/inexecutable edges. Constants and edge verdicts are now
+  projections of one deterministic SCCP fixed point over executable blocks,
+  exact `EdgeId`s, and the undefined/constant/overdefined value lattice.
+  Block-parameter meets use only feasible incoming edge bindings: a selected
+  constant arm excludes the dead arm, equal values on two feasible arms remain
+  constant, and differing values become overdefined. Support retains canonical
+  operation and transitive edge sets plus the unit-revision/machine/value
+  region; scalar constants now depend on CFG invalidation. Literal facts in a
+  semantically dead block are not published. Derived block-parameter facts are
+  deliberately not yet consumed by rewrite rules: `OPT-SCCP` remains open until
+  candidates bind canonical derivation identities and the independent validator
+  reconstructs every feasible incoming-edge premise. Semantic analyses also
+  remain open for the wider proof/effect/ownership vocabulary.
 - Conservative node-effect summaries now distinguish pure scalar work,
   structural state, internal calls, boundary calls, services, and control.
   Unknown internal-call crash/suspension/observation behavior remains `May`;

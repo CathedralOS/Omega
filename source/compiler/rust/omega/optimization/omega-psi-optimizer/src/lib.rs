@@ -18,8 +18,8 @@ pub use analyses::{
     EffectKnowledge, EffectSummaryAnalysis, ExecutableEdgeAnalysis, ExecutableEdgeFact,
     ExecutableEdgeKnowledge, ExitKind, FunctionControlFlow, LoopAnalysis, LoopRegion,
     NodeEffectSummary, NodeLiveness, ScalarConstant, ScalarConstantAnalysis, ScalarConstantFact,
-    StronglyConnectedComponentAnalysis, UseDefinitionAnalysis, ValueFactRegion,
-    ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
+    ScalarConstantSupport, StronglyConnectedComponentAnalysis, UseDefinitionAnalysis,
+    ValueFactRegion, ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
     analysis_dependencies, compute_analysis,
 };
 pub use pass_manager::{
@@ -55,11 +55,12 @@ mod tests {
         AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationUnitIdentity,
     };
     use omega_optimization_unit::{
-        EffectLink, OptimizationBlock, OptimizationFact, OptimizationNode, PsiOptimizationFunction,
-        PsiOptimizationUnit, PsiProvenance, ValueDefinition, ValueDefinitionSite, ValueUse,
+        EffectLink, OptimizationBlock, OptimizationEdge, OptimizationFact, OptimizationNode,
+        PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinition,
+        ValueDefinitionSite, ValueUse,
     };
     use omega_terminal_abstract_operations::{
-        TerminalAbstractOperation as O, TerminalAbstractSuccessor,
+        TerminalAbstractOperation as O, TerminalAbstractSuccessor, TerminalValueBinding,
     };
     use psi_core::{
         BlockId, EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, OperationId, ScalarType,
@@ -165,6 +166,103 @@ mod tests {
             entry: functions[0].machine,
             functions,
         }
+    }
+
+    fn block_parameter_constant_unit(
+        known_condition: Option<bool>,
+        right_constant: IntegerValue,
+    ) -> (PsiOptimizationUnit, ValueId, [OperationId; 3], [EdgeId; 4]) {
+        let mut function = function(
+            100,
+            1,
+            vec![
+                (1, Terminator::Branch(2, 3)),
+                (2, Terminator::Jump(4)),
+                (3, Terminator::Jump(4)),
+                (4, Terminator::Return),
+            ],
+        );
+        let condition = id(12, ValueId::new);
+        let left = id(70, ValueId::new);
+        let right = id(71, ValueId::new);
+        let parameter = id(72, ValueId::new);
+        let scalar_type = ScalarType::Integer(
+            psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8).unwrap(),
+        );
+        function.parameters = vec![ValueDefinition {
+            value: condition,
+            scalar_type: ScalarType::Boolean,
+            site: ValueDefinitionSite::FunctionParameter(0),
+        }];
+        function.blocks[3].parameters = vec![ValueDefinition {
+            value: parameter,
+            scalar_type,
+            site: ValueDefinitionSite::BlockParameter {
+                block: id(4, BlockId::new),
+                position: 0,
+            },
+        }];
+        let true_edge = id(13, EdgeId::new);
+        let false_edge = id(14, EdgeId::new);
+        function.blocks[0].nodes[0].successors = vec![
+            OptimizationEdge {
+                psi_edge: true_edge,
+                target: id(2, BlockId::new),
+                bindings: Vec::new(),
+            },
+            OptimizationEdge {
+                psi_edge: false_edge,
+                target: id(3, BlockId::new),
+                bindings: Vec::new(),
+            },
+        ];
+        let left_edge = id(21, EdgeId::new);
+        let right_edge = id(31, EdgeId::new);
+        for (block_index, edge, argument) in [(1, left_edge, left), (2, right_edge, right)] {
+            let binding = TerminalValueBinding {
+                parameter,
+                argument,
+                scalar_type,
+            };
+            let O::Jump { bindings, .. } = &mut function.blocks[block_index].nodes[0].operation
+            else {
+                unreachable!()
+            };
+            *bindings = vec![binding];
+            function.blocks[block_index].nodes[0].successors = vec![OptimizationEdge {
+                psi_edge: edge,
+                target: id(4, BlockId::new),
+                bindings: vec![binding],
+            }];
+        }
+        let condition_support = id(600, OperationId::new);
+        let left_support = id(601, OperationId::new);
+        let right_support = id(602, OperationId::new);
+        function.facts = vec![
+            OptimizationFact::IntegerConstant {
+                value: left,
+                constant: IntegerValue::Unsigned(7),
+                support: left_support,
+            },
+            OptimizationFact::IntegerConstant {
+                value: right,
+                constant: right_constant,
+                support: right_support,
+            },
+        ];
+        if let Some(condition) = known_condition {
+            function.facts.push(OptimizationFact::BooleanConstant {
+                value: id(12, ValueId::new),
+                constant: condition,
+                support: condition_support,
+            });
+        }
+        (
+            unit(vec![function], b"block-parameter-constants"),
+            parameter,
+            [condition_support, left_support, right_support],
+            [true_edge, false_edge, left_edge, right_edge],
+        )
     }
 
     #[test]
@@ -411,11 +509,17 @@ mod tests {
             vec![
                 (
                     ExecutableEdgeKnowledge::KnownExecutable,
-                    vec![boolean_support]
+                    ScalarConstantSupport {
+                        operations: vec![boolean_support],
+                        edges: vec![id(13, EdgeId::new)],
+                    }
                 ),
                 (
                     ExecutableEdgeKnowledge::KnownInexecutable,
-                    vec![boolean_support]
+                    ScalarConstantSupport {
+                        operations: vec![boolean_support],
+                        edges: Vec::new(),
+                    }
                 ),
             ]
         );
@@ -428,7 +532,94 @@ mod tests {
         assert_eq!(ranges.facts.len(), 1);
         assert_eq!(ranges.facts[0].minimum, IntegerValue::Unsigned(7));
         assert_eq!(ranges.facts[0].maximum, IntegerValue::Unsigned(7));
-        assert_eq!(ranges.facts[0].support, integer_support);
+        assert_eq!(
+            ranges.facts[0].support.literal_operation(),
+            Some(integer_support)
+        );
+    }
+
+    #[test]
+    fn scalar_constants_merge_only_feasible_block_parameter_bindings() {
+        let (selected, parameter, supports, edges) =
+            block_parameter_constant_unit(Some(true), IntegerValue::Unsigned(8));
+        let AnalysisProduct::ScalarConstants(constants) =
+            compute_analysis(&selected, AnalysisKind::ScalarConstants).unwrap()
+        else {
+            unreachable!()
+        };
+        let fact = constants
+            .facts
+            .iter()
+            .find(|fact| fact.value == parameter)
+            .expect("selected incoming constant reaches block parameter");
+        assert_eq!(
+            fact.constant,
+            ScalarConstant::Integer(IntegerValue::Unsigned(7))
+        );
+        assert_eq!(fact.support.operations, vec![supports[0], supports[1]]);
+        assert_eq!(fact.support.edges, vec![edges[0], edges[2]]);
+        let AnalysisProduct::ExecutableEdges(executable) =
+            compute_analysis(&selected, AnalysisKind::ExecutableEdges).unwrap()
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            executable
+                .edges
+                .iter()
+                .map(|fact| (fact.edge, fact.knowledge))
+                .collect::<Vec<_>>(),
+            vec![
+                (edges[0], ExecutableEdgeKnowledge::KnownExecutable),
+                (edges[1], ExecutableEdgeKnowledge::KnownInexecutable),
+                (edges[2], ExecutableEdgeKnowledge::KnownExecutable),
+                (edges[3], ExecutableEdgeKnowledge::KnownInexecutable),
+            ]
+        );
+
+        let (same, parameter, supports, edges) =
+            block_parameter_constant_unit(None, IntegerValue::Unsigned(7));
+        let AnalysisProduct::ScalarConstants(constants) =
+            compute_analysis(&same, AnalysisKind::ScalarConstants).unwrap()
+        else {
+            unreachable!()
+        };
+        let fact = constants
+            .facts
+            .iter()
+            .find(|fact| fact.value == parameter)
+            .expect("equal feasible incoming values meet to one constant");
+        assert_eq!(
+            fact.constant,
+            ScalarConstant::Integer(IntegerValue::Unsigned(7))
+        );
+        assert_eq!(fact.support.operations, vec![supports[1], supports[2]]);
+        assert_eq!(fact.support.edges, edges);
+        let AnalysisProduct::ExecutableEdges(executable) =
+            compute_analysis(&same, AnalysisKind::ExecutableEdges).unwrap()
+        else {
+            unreachable!()
+        };
+        assert!(
+            executable
+                .edges
+                .iter()
+                .all(|fact| { fact.knowledge == ExecutableEdgeKnowledge::KnownExecutable })
+        );
+
+        let (different, parameter, _, _) =
+            block_parameter_constant_unit(None, IntegerValue::Unsigned(8));
+        let AnalysisProduct::ScalarConstants(constants) =
+            compute_analysis(&different, AnalysisKind::ScalarConstants).unwrap()
+        else {
+            unreachable!()
+        };
+        assert!(constants.facts.iter().all(|fact| fact.value != parameter));
+        assert!(
+            analysis_dependencies(AnalysisKind::ScalarConstants)
+                .unwrap()
+                .contains(AnalysisKind::ControlFlowGraph)
+        );
     }
 
     #[test]
