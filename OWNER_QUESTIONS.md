@@ -622,3 +622,52 @@ that would add or reorder ABI parameters.
   fit a function pointer.
 - Tempting but wrong: expose a raw parameter ordinal, physical register/stack
   location, or callback code address to source policy.
+
+## Q14 — Reborrow restoration disposition
+
+### Context
+
+Checked borrow replay now retains each explicit direct reborrow's exact parent
+resource, suspension boundary, parent/child weakening order, and a semantic-
+phase lifecycle disposition. The non-authorizing disposition can identify a
+still-live parent, an ordered cascade through parents that retired while
+suspended, or a same-boundary `RetireOrDiscard` outcome. These rows reconstruct
+the current lexical facts without treating flat constraint presence or arena
+order as authority.
+
+### Problem statement
+
+The language does not yet define which child-ending event restores usable
+authority to a live parent, whether a parent and child ending at the same
+semantic boundary retires or discards the pending authority, or how a cascade
+through projected retired parents transfers custody to its final parent or
+direct-root lifetime. State exit further needs an exact rule for whether root
+custody is returned, cleaned up, or consumed. Promoting the checked
+classification to Terminal authority without these rules would let a compiler
+invent post-reborrow use and cleanup semantics.
+
+### Proposed direction
+
+Define one path-sensitive reborrow restoration judgment over exact checked
+resource identities. It should distinguish reactivation of a live parent,
+cascade through an ordered retired-parent path, retirement, and discard; name
+the first event at which usable authority is restored; and specify projected
+place composition plus state-exit direct-root custody. Terminal publication
+must retain the full disposition path and independently replay the applicable
+judgment. Until this is settled, checked rows remain non-authorizing and no
+post-return use, cleanup, or Terminal resource claim may be derived from them.
+
+### Alternates
+
+- Acceptable as a narrower first release: allow Terminal restoration only for
+  a child whose exact immediate parent remains live, and reject cascades and
+  same-boundary endings until their disposition rules are settled.
+- Acceptable: define retirement and discard as one terminal outcome if the
+  resulting root-custody and cleanup behavior is observationally identical and
+  explicit in the rule.
+- Tempting but wrong: call every `LivePastChild` parent reactivated merely
+  because its lexical constraint remains present.
+- Tempting but wrong: use weakening-arena insertion order to choose the owner
+  when parent and child end at the same semantic boundary.
+- Tempting but wrong: skip retired projected parents and return authority
+  directly to a root without retaining and validating the complete path.

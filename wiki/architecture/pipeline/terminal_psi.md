@@ -343,6 +343,19 @@ the derived status. This is lexical disposition only, not authority return,
 reactivation, cascading restoration through retired parents, suspension
 containment, or Terminal evidence.
 
+Checked resource replay now also merges activation and weakening facts into
+semantic phase batches and maintains an ephemeral available, suspended-by-
+child, or retired-while-suspended state. A suspended carrier that weakens emits
+no premature disposition. When the available descendant finally ends, one
+checked-only row retains its exact child and parent resources, flow handles,
+ordered retired-parent path, final retained-parent or direct-root-lifetime
+target, and one of reactivate, cascade-through-retired-parent, or combined
+retire/discard. Same-phase parent retirement selects the combined outcome;
+arena order is irrelevant. This remains a non-authorizing replay carrier, not
+proof that authority returned, became usable, was cleaned up, or crossed into
+Terminal. In particular, it neither separates retirement from discard nor
+supplies a Terminal resource row.
+
 The row does not serialize "dominates" or "is valid" as trusted claims. The
 verifier reconstructs control-flow dominance and path availability from the
 premises' establishment points, checks their exact value/place versions and

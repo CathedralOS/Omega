@@ -1,9 +1,13 @@
 use psi_checked_trees::{
-    BorrowFacts, BorrowLoanFact, BorrowLoanLineage, CheckFacts, CheckedDirectBorrowLoanResource,
-    CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,
-    CheckedParentBorrowResource, CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
-    CheckedReborrowParentSuspensionBoundary, CheckedReborrowRestorationObligation, FlowFacts,
-    FlowInvalidationSource, ParentLexicalStatusAtChildEnd,
+    BorrowFacts, BorrowLoanFact, BorrowLoanLineage, CheckFacts,
+    CheckedBorrowResourceDispositionTarget, CheckedBorrowResourceLifecyclePhase,
+    CheckedDirectBorrowLoanResource, CheckedDirectBorrowParentLifetime,
+    CheckedDirectBorrowRestorationObligation, CheckedParentBorrowResource,
+    CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
+    CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
+    CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
+    CheckedRetiredParentResourceDispositionStep, FlowFacts, FlowInvalidationSource,
+    ParentLexicalStatusAtChildEnd,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -17,7 +21,15 @@ pub(super) fn initialize_checked_direct_borrow_resources(
     let direct = reconstruct_direct_borrow_resources(&facts.borrow, &facts.flow)?;
     let reborrows = reconstruct_reborrow_resource_drafts(&facts.borrow, &facts.flow)?;
     let installation = plan_resource_installation(&direct, &reborrows)?;
-    install_borrow_resources(&mut facts.borrow, direct, &reborrows, &installation);
+    let dispositions =
+        plan_reborrow_disposition_events(&facts.flow, &direct, &reborrows, &installation)?;
+    install_borrow_resources(
+        &mut facts.borrow,
+        direct,
+        &reborrows,
+        &installation,
+        &dispositions,
+    );
     Ok(())
 }
 
@@ -44,12 +56,25 @@ pub(super) fn replay_checked_direct_borrow_resources(
     }
     validate_retained_reborrow_resources(&facts.borrow, &expected_reborrows)?;
     let installation = plan_resource_installation(&expected_direct, &expected_reborrows)?;
+    let dispositions = plan_reborrow_disposition_events(
+        &facts.flow,
+        &expected_direct,
+        &expected_reborrows,
+        &installation,
+    )?;
+    validate_retained_disposition_events(
+        &facts.borrow,
+        &expected_direct,
+        &expected_reborrows,
+        &dispositions,
+    )?;
 
     install_borrow_resources(
         &mut facts.borrow,
         expected_direct,
         &expected_reborrows,
         &installation,
+        &dispositions,
     );
     Ok(())
 }
@@ -174,6 +199,187 @@ enum ParentResourceIndex {
     Reborrow(usize),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DispositionTargetIndex {
+    ParentResource(ParentResourceIndex),
+    DirectRootLifetime(usize),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CheckedReborrowDispositionEventDraft {
+    machine_symbol: psi_symbols::SymbolHandle,
+    state_symbol: psi_symbols::SymbolHandle,
+    child_loan: psi_arena::Handle<BorrowLoanFact>,
+    child_resource: usize,
+    child_activation: psi_arena::Handle<psi_checked_trees::FlowBorrowActivationFact>,
+    child_weakening: psi_arena::Handle<psi_checked_trees::FlowBorrowWeakeningFact>,
+    parent_loan: psi_arena::Handle<BorrowLoanFact>,
+    parent_resource: ParentResourceIndex,
+    boundary_source: FlowInvalidationSource,
+    boundary_phase: CheckedBorrowResourceLifecyclePhase,
+    retired_parent_path: Vec<(
+        ParentResourceIndex,
+        psi_arena::Handle<psi_checked_trees::FlowBorrowWeakeningFact>,
+    )>,
+    final_target: DispositionTargetIndex,
+    disposition: CheckedReborrowResourceDisposition,
+}
+
+impl CheckedReborrowDispositionEventDraft {
+    fn close(
+        &self,
+        borrow: &BorrowFacts,
+        handles: &ResourceHandles,
+    ) -> CheckedReborrowResourceDispositionEvent {
+        CheckedReborrowResourceDispositionEvent {
+            machine_symbol: self.machine_symbol,
+            state_symbol: self.state_symbol,
+            child_loan: self.child_loan,
+            child_resource: handles.reborrows[self.child_resource],
+            child_activation: self.child_activation,
+            child_weakening: self.child_weakening,
+            parent_loan: self.parent_loan,
+            parent_resource: handles.parent(self.parent_resource),
+            boundary_source: self.boundary_source,
+            boundary_phase: self.boundary_phase,
+            retired_parent_path: self
+                .retired_parent_path
+                .iter()
+                .map(
+                    |(resource, weakening)| CheckedRetiredParentResourceDispositionStep {
+                        resource: handles.parent(*resource),
+                        weakening: *weakening,
+                    },
+                )
+                .collect(),
+            final_target: match self.final_target {
+                DispositionTargetIndex::ParentResource(resource) => {
+                    CheckedBorrowResourceDispositionTarget::ParentResource(handles.parent(resource))
+                }
+                DispositionTargetIndex::DirectRootLifetime(index) => {
+                    CheckedBorrowResourceDispositionTarget::DirectRootLifetime(
+                        borrow
+                            .direct_loan_resources
+                            .get(handles.direct[index])
+                            .parent_lifetime
+                            .clone(),
+                    )
+                }
+            },
+            disposition: self.disposition,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ResourceHandles {
+    direct: Vec<psi_arena::Handle<CheckedDirectBorrowLoanResource>>,
+    reborrows: Vec<psi_arena::Handle<CheckedReborrowLoanResource>>,
+}
+
+impl ResourceHandles {
+    fn parent(&self, index: ParentResourceIndex) -> CheckedParentBorrowResource {
+        match index {
+            ParentResourceIndex::Direct(index) => CheckedParentBorrowResource::DirectRoot {
+                resource: self.direct[index],
+            },
+            ParentResourceIndex::Reborrow(index) => CheckedParentBorrowResource::Reborrow {
+                resource: self.reborrows[index],
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum LifecyclePhase {
+    LastUseExpired,
+    LocalReassigned,
+    Activation,
+    StateExit,
+}
+
+impl LifecyclePhase {
+    fn retained(self) -> CheckedBorrowResourceLifecyclePhase {
+        match self {
+            Self::LastUseExpired => CheckedBorrowResourceLifecyclePhase::LastUseExpired,
+            Self::LocalReassigned => CheckedBorrowResourceLifecyclePhase::LocalReassigned,
+            Self::Activation => CheckedBorrowResourceLifecyclePhase::Activation,
+            Self::StateExit => CheckedBorrowResourceLifecyclePhase::StateExit,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct LifecycleBoundaryKey {
+    statement_index: usize,
+    phase: LifecyclePhase,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LifecycleEventKind {
+    Activate {
+        activation: psi_arena::Handle<psi_checked_trees::FlowBorrowActivationFact>,
+    },
+    Weaken {
+        weakening: psi_arena::Handle<psi_checked_trees::FlowBorrowWeakeningFact>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LifecycleEvent {
+    boundary: LifecycleBoundaryKey,
+    resource: ParentResourceIndex,
+    loan_order: u32,
+    kind: LifecycleEventKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EphemeralResourceStatus {
+    Available,
+    SuspendedBy {
+        child: ParentResourceIndex,
+    },
+    RetiredWhileSuspended {
+        child: ParentResourceIndex,
+        weakening: psi_arena::Handle<psi_checked_trees::FlowBorrowWeakeningFact>,
+    },
+    Retired,
+}
+
+#[derive(Debug, Clone)]
+struct EphemeralStatuses {
+    direct: Vec<Option<EphemeralResourceStatus>>,
+    reborrows: Vec<Option<EphemeralResourceStatus>>,
+}
+
+impl EphemeralStatuses {
+    fn new(direct: usize, reborrows: usize) -> Self {
+        Self {
+            direct: vec![None; direct],
+            reborrows: vec![None; reborrows],
+        }
+    }
+
+    fn get(&self, resource: ParentResourceIndex) -> Option<EphemeralResourceStatus> {
+        match resource {
+            ParentResourceIndex::Direct(index) => self.direct.get(index).copied().flatten(),
+            ParentResourceIndex::Reborrow(index) => self.reborrows.get(index).copied().flatten(),
+        }
+    }
+
+    fn set(&mut self, resource: ParentResourceIndex, status: EphemeralResourceStatus) -> bool {
+        let slot = match resource {
+            ParentResourceIndex::Direct(index) => self.direct.get_mut(index),
+            ParentResourceIndex::Reborrow(index) => self.reborrows.get_mut(index),
+        };
+        let Some(slot) = slot else {
+            return false;
+        };
+        *slot = Some(status);
+        true
+    }
+}
+
 /// Resolve the entire parent graph before either retained arena is reset.
 /// Installation is therefore a purely indexed, infallible rewrite.
 fn plan_resource_installation(
@@ -204,14 +410,467 @@ fn plan_resource_installation(
     Ok(plan)
 }
 
+fn plan_reborrow_disposition_events(
+    flow: &FlowFacts,
+    direct: &[CheckedDirectBorrowLoanResource],
+    reborrows: &[CheckedReborrowLoanResourceDraft],
+    installation: &[ParentResourceIndex],
+) -> Result<Vec<CheckedReborrowDispositionEventDraft>, Vec<Diagnostic>> {
+    let mut states = Vec::new();
+    for (machine, state) in direct
+        .iter()
+        .map(|resource| (resource.machine_symbol, resource.state_symbol))
+        .chain(
+            reborrows
+                .iter()
+                .map(|resource| (resource.machine_symbol, resource.state_symbol)),
+        )
+    {
+        if !states.contains(&(machine, state)) {
+            states.push((machine, state));
+        }
+    }
+
+    let mut statuses = EphemeralStatuses::new(direct.len(), reborrows.len());
+    let mut dispositions = Vec::new();
+    for (machine_symbol, state_symbol) in states {
+        let mut events = Vec::new();
+        for (index, resource) in direct.iter().enumerate().filter(|(_, resource)| {
+            resource.machine_symbol == machine_symbol && resource.state_symbol == state_symbol
+        }) {
+            let (activation, weakening) = exact_resource_lifecycle_handles(
+                flow,
+                machine_symbol,
+                state_symbol,
+                resource.loan,
+            )?;
+            events.push(LifecycleEvent {
+                boundary: activation_boundary(
+                    flow.borrow_lifetimes.activations.get(activation).source,
+                )?,
+                resource: ParentResourceIndex::Direct(index),
+                loan_order: resource.loan.arena_index(),
+                kind: LifecycleEventKind::Activate { activation },
+            });
+            let weakening_fact = flow.borrow_lifetimes.weakenings.get(weakening);
+            events.push(LifecycleEvent {
+                boundary: weakening_event_boundary(weakening_fact.source, weakening_fact.reason)?,
+                resource: ParentResourceIndex::Direct(index),
+                loan_order: resource.loan.arena_index(),
+                kind: LifecycleEventKind::Weaken { weakening },
+            });
+        }
+        for (index, resource) in reborrows.iter().enumerate().filter(|(_, resource)| {
+            resource.machine_symbol == machine_symbol && resource.state_symbol == state_symbol
+        }) {
+            events.push(LifecycleEvent {
+                boundary: activation_boundary(resource.activation_source)?,
+                resource: ParentResourceIndex::Reborrow(index),
+                loan_order: resource.loan.arena_index(),
+                kind: LifecycleEventKind::Activate {
+                    activation: resource.child_activation,
+                },
+            });
+            events.push(LifecycleEvent {
+                boundary: weakening_event_boundary(
+                    resource.weakening_source,
+                    resource.weakening_reason,
+                )?,
+                resource: ParentResourceIndex::Reborrow(index),
+                loan_order: resource.loan.arena_index(),
+                kind: LifecycleEventKind::Weaken {
+                    weakening: resource.child_weakening,
+                },
+            });
+        }
+        events.sort_by_key(|event| (event.boundary, event.loan_order));
+
+        let mut start = 0usize;
+        while start < events.len() {
+            let boundary = events[start].boundary;
+            let mut end = start + 1;
+            while end < events.len() && events[end].boundary == boundary {
+                end += 1;
+            }
+            let batch = &events[start..end];
+            if boundary.phase == LifecyclePhase::Activation {
+                apply_activation_batch(&mut statuses, batch, installation)?;
+            } else {
+                let completed = apply_weakening_batch(&mut statuses, batch)?;
+                let snapshot = statuses.clone();
+                let mut updates = Vec::new();
+                for (child_index, child_weakening) in completed {
+                    let (draft, target) = resolve_disposition_event(
+                        flow,
+                        child_index,
+                        child_weakening,
+                        boundary,
+                        &snapshot,
+                        direct,
+                        reborrows,
+                        installation,
+                    )?;
+                    updates.push((draft.retired_parent_path.clone(), target));
+                    dispositions.push(draft);
+                }
+                for (retired_path, target) in updates {
+                    for (resource, _) in retired_path {
+                        if !statuses.set(resource, EphemeralResourceStatus::Retired) {
+                            return Err(reborrow_disposition_drift());
+                        }
+                    }
+                    if let Some((target, expected_child)) = target {
+                        if statuses.get(target)
+                            != Some(EphemeralResourceStatus::SuspendedBy {
+                                child: expected_child,
+                            })
+                        {
+                            return Err(reborrow_disposition_drift());
+                        }
+                        if !statuses.set(target, EphemeralResourceStatus::Available) {
+                            return Err(reborrow_disposition_drift());
+                        }
+                    }
+                }
+            }
+            start = end;
+        }
+    }
+    Ok(dispositions)
+}
+
+fn exact_resource_lifecycle_handles(
+    flow: &FlowFacts,
+    machine_symbol: psi_symbols::SymbolHandle,
+    state_symbol: psi_symbols::SymbolHandle,
+    loan: psi_arena::Handle<BorrowLoanFact>,
+) -> Result<
+    (
+        psi_arena::Handle<psi_checked_trees::FlowBorrowActivationFact>,
+        psi_arena::Handle<psi_checked_trees::FlowBorrowWeakeningFact>,
+    ),
+    Vec<Diagnostic>,
+> {
+    let Some(state) = flow.control.states.iter().find_map(|(_, state)| {
+        (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
+            .then_some(state)
+    }) else {
+        return Err(reborrow_disposition_drift());
+    };
+    let activations = flow
+        .borrow_lifetimes
+        .activations
+        .span_or_empty(state.borrow_activations)
+        .iter()
+        .enumerate()
+        .filter(|(_, event)| event.loan == loan)
+        .filter_map(|(offset, _)| span_handle(state.borrow_activations, offset))
+        .collect::<Vec<_>>();
+    let weakenings = flow
+        .borrow_lifetimes
+        .weakenings
+        .span_or_empty(state.borrow_weakenings)
+        .iter()
+        .enumerate()
+        .filter(|(_, event)| event.loan == loan)
+        .filter_map(|(offset, _)| span_handle(state.borrow_weakenings, offset))
+        .collect::<Vec<_>>();
+    let ([activation], [weakening]) = (activations.as_slice(), weakenings.as_slice()) else {
+        return Err(reborrow_disposition_drift());
+    };
+    Ok((*activation, *weakening))
+}
+
+fn activation_boundary(
+    source: FlowInvalidationSource,
+) -> Result<LifecycleBoundaryKey, Vec<Diagnostic>> {
+    let FlowInvalidationSource::Statement { statement_index } = source else {
+        return Err(reborrow_disposition_drift());
+    };
+    Ok(LifecycleBoundaryKey {
+        statement_index,
+        phase: LifecyclePhase::Activation,
+    })
+}
+
+fn weakening_event_boundary(
+    source: FlowInvalidationSource,
+    reason: psi_checked_trees::FlowBorrowWeakeningReason,
+) -> Result<LifecycleBoundaryKey, Vec<Diagnostic>> {
+    let FlowInvalidationSource::Statement { statement_index } = source else {
+        return Err(reborrow_disposition_drift());
+    };
+    let phase = match reason {
+        psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired => {
+            LifecyclePhase::LastUseExpired
+        }
+        psi_checked_trees::FlowBorrowWeakeningReason::LocalReassigned => {
+            LifecyclePhase::LocalReassigned
+        }
+        psi_checked_trees::FlowBorrowWeakeningReason::StateExit => LifecyclePhase::StateExit,
+    };
+    Ok(LifecycleBoundaryKey {
+        statement_index,
+        phase,
+    })
+}
+
+fn apply_activation_batch(
+    statuses: &mut EphemeralStatuses,
+    batch: &[LifecycleEvent],
+    installation: &[ParentResourceIndex],
+) -> Result<(), Vec<Diagnostic>> {
+    for event in batch {
+        let LifecycleEventKind::Activate { activation } = event.kind else {
+            return Err(reborrow_disposition_drift());
+        };
+        if !activation.is_valid() || statuses.get(event.resource).is_some() {
+            return Err(reborrow_disposition_drift());
+        }
+        if let ParentResourceIndex::Reborrow(child_index) = event.resource {
+            let Some(parent) = installation.get(child_index).copied() else {
+                return Err(reborrow_disposition_drift());
+            };
+            if statuses.get(parent) != Some(EphemeralResourceStatus::Available)
+                || !statuses.set(
+                    parent,
+                    EphemeralResourceStatus::SuspendedBy {
+                        child: event.resource,
+                    },
+                )
+            {
+                return Err(reborrow_disposition_drift());
+            }
+        }
+        if !statuses.set(event.resource, EphemeralResourceStatus::Available) {
+            return Err(reborrow_disposition_drift());
+        }
+    }
+    Ok(())
+}
+
+fn apply_weakening_batch(
+    statuses: &mut EphemeralStatuses,
+    batch: &[LifecycleEvent],
+) -> Result<
+    Vec<(
+        usize,
+        psi_arena::Handle<psi_checked_trees::FlowBorrowWeakeningFact>,
+    )>,
+    Vec<Diagnostic>,
+> {
+    let mut completed = Vec::new();
+    for event in batch {
+        let LifecycleEventKind::Weaken { weakening } = event.kind else {
+            return Err(reborrow_disposition_drift());
+        };
+        let next = match statuses.get(event.resource) {
+            Some(EphemeralResourceStatus::Available) => {
+                if let ParentResourceIndex::Reborrow(index) = event.resource {
+                    completed.push((index, weakening));
+                }
+                EphemeralResourceStatus::Retired
+            }
+            Some(EphemeralResourceStatus::SuspendedBy { child }) => {
+                EphemeralResourceStatus::RetiredWhileSuspended { child, weakening }
+            }
+            None
+            | Some(EphemeralResourceStatus::RetiredWhileSuspended { .. })
+            | Some(EphemeralResourceStatus::Retired) => {
+                return Err(reborrow_disposition_drift());
+            }
+        };
+        if !statuses.set(event.resource, next) {
+            return Err(reborrow_disposition_drift());
+        }
+    }
+    Ok(completed)
+}
+
+fn resolve_disposition_event(
+    flow: &FlowFacts,
+    child_index: usize,
+    child_weakening: psi_arena::Handle<psi_checked_trees::FlowBorrowWeakeningFact>,
+    boundary: LifecycleBoundaryKey,
+    statuses: &EphemeralStatuses,
+    direct: &[CheckedDirectBorrowLoanResource],
+    reborrows: &[CheckedReborrowLoanResourceDraft],
+    installation: &[ParentResourceIndex],
+) -> Result<
+    (
+        CheckedReborrowDispositionEventDraft,
+        Option<(ParentResourceIndex, ParentResourceIndex)>,
+    ),
+    Vec<Diagnostic>,
+> {
+    let Some(child) = reborrows.get(child_index) else {
+        return Err(reborrow_disposition_drift());
+    };
+    if child.child_weakening != child_weakening {
+        return Err(reborrow_disposition_drift());
+    }
+    let child_resource = ParentResourceIndex::Reborrow(child_index);
+    let Some(immediate_parent) = installation.get(child_index).copied() else {
+        return Err(reborrow_disposition_drift());
+    };
+    let mut retired_parent_path = Vec::new();
+    let (disposition, final_target, update_target) = match statuses.get(immediate_parent) {
+        Some(EphemeralResourceStatus::SuspendedBy { child }) if child == child_resource => (
+            CheckedReborrowResourceDisposition::Reactivate,
+            DispositionTargetIndex::ParentResource(immediate_parent),
+            Some((immediate_parent, child_resource)),
+        ),
+        Some(EphemeralResourceStatus::RetiredWhileSuspended { child, weakening })
+            if child == child_resource =>
+        {
+            let mut retired = immediate_parent;
+            let mut retired_weakening = weakening;
+            loop {
+                retired_parent_path.push((retired, retired_weakening));
+                let retired_fact = flow.borrow_lifetimes.weakenings.get(retired_weakening);
+                let retired_boundary =
+                    weakening_event_boundary(retired_fact.source, retired_fact.reason)?;
+                if retired_boundary > boundary {
+                    return Err(reborrow_disposition_drift());
+                }
+                if retired_boundary == boundary {
+                    let final_target = match retired {
+                        ParentResourceIndex::Direct(index) => {
+                            if direct.get(index).is_none() {
+                                return Err(reborrow_disposition_drift());
+                            }
+                            DispositionTargetIndex::DirectRootLifetime(index)
+                        }
+                        ParentResourceIndex::Reborrow(_) => {
+                            DispositionTargetIndex::ParentResource(retired)
+                        }
+                    };
+                    break (
+                        CheckedReborrowResourceDisposition::RetireOrDiscard,
+                        final_target,
+                        None,
+                    );
+                }
+                match retired {
+                    ParentResourceIndex::Direct(index) => {
+                        if direct.get(index).is_none() {
+                            return Err(reborrow_disposition_drift());
+                        }
+                        let disposition = if boundary.phase == LifecyclePhase::StateExit {
+                            CheckedReborrowResourceDisposition::RetireOrDiscard
+                        } else {
+                            CheckedReborrowResourceDisposition::CascadeThroughRetiredParent
+                        };
+                        break (
+                            disposition,
+                            DispositionTargetIndex::DirectRootLifetime(index),
+                            None,
+                        );
+                    }
+                    ParentResourceIndex::Reborrow(index) => {
+                        let Some(next) = installation.get(index).copied() else {
+                            return Err(reborrow_disposition_drift());
+                        };
+                        match statuses.get(next) {
+                            Some(EphemeralResourceStatus::SuspendedBy { child })
+                                if child == retired =>
+                            {
+                                break (
+                                    CheckedReborrowResourceDisposition::CascadeThroughRetiredParent,
+                                    DispositionTargetIndex::ParentResource(next),
+                                    Some((next, retired)),
+                                );
+                            }
+                            Some(EphemeralResourceStatus::RetiredWhileSuspended {
+                                child,
+                                weakening,
+                            }) if child == retired => {
+                                retired = next;
+                                retired_weakening = weakening;
+                            }
+                            _ => return Err(reborrow_disposition_drift()),
+                        }
+                    }
+                }
+            }
+        }
+        _ => return Err(reborrow_disposition_drift()),
+    };
+    let boundary_source = child.weakening_source;
+    let boundary_phase = boundary.phase.retained();
+    Ok((
+        CheckedReborrowDispositionEventDraft {
+            machine_symbol: child.machine_symbol,
+            state_symbol: child.state_symbol,
+            child_loan: child.loan,
+            child_resource: child_index,
+            child_activation: child.child_activation,
+            child_weakening,
+            parent_loan: child.parent_loan,
+            parent_resource: immediate_parent,
+            boundary_source,
+            boundary_phase,
+            retired_parent_path,
+            final_target,
+            disposition,
+        },
+        update_target,
+    ))
+}
+
+fn validate_retained_disposition_events(
+    borrow: &BorrowFacts,
+    direct: &[CheckedDirectBorrowLoanResource],
+    reborrows: &[CheckedReborrowLoanResourceDraft],
+    expected: &[CheckedReborrowDispositionEventDraft],
+) -> Result<(), Vec<Diagnostic>> {
+    let handles = ResourceHandles {
+        direct: borrow
+            .direct_loan_resources
+            .iter()
+            .map(|(handle, _)| handle)
+            .collect(),
+        reborrows: borrow
+            .reborrow_loan_resources
+            .iter()
+            .map(|(handle, _)| handle)
+            .collect(),
+    };
+    if handles.direct.len() != direct.len() || handles.reborrows.len() != reborrows.len() {
+        return Err(reborrow_disposition_drift());
+    }
+    let retained = borrow
+        .reborrow_disposition_events
+        .iter()
+        .map(|(_, event)| event)
+        .collect::<Vec<_>>();
+    if retained.len() != expected.len()
+        || retained
+            .into_iter()
+            .zip(expected)
+            .any(|(retained, expected)| retained != &expected.close(borrow, &handles))
+    {
+        return Err(reborrow_disposition_drift());
+    }
+    Ok(())
+}
+
+fn reborrow_disposition_drift() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "checked reborrow resource-lifecycle disposition drifted from semantic-phase replay",
+    )]
+}
+
 fn install_borrow_resources(
     borrow: &mut BorrowFacts,
     direct: Vec<CheckedDirectBorrowLoanResource>,
     reborrows: &[CheckedReborrowLoanResourceDraft],
     installation: &[ParentResourceIndex],
+    dispositions: &[CheckedReborrowDispositionEventDraft],
 ) {
     borrow.direct_loan_resources.reset_retain_capacity();
     borrow.reborrow_loan_resources.reset_retain_capacity();
+    borrow.reborrow_disposition_events.reset_retain_capacity();
 
     let mut direct_handles = Vec::with_capacity(direct.len());
     for resource in direct {
@@ -234,6 +893,16 @@ fn install_borrow_resources(
             .reborrow_loan_resources
             .insert(draft.close(parent_resource));
         reborrow_handles.push(handle);
+    }
+
+    let handles = ResourceHandles {
+        direct: direct_handles,
+        reborrows: reborrow_handles,
+    };
+    for disposition in dispositions {
+        borrow
+            .reborrow_disposition_events
+            .insert(disposition.close(borrow, &handles));
     }
 }
 

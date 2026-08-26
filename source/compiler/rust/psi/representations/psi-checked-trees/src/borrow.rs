@@ -303,6 +303,80 @@ pub struct CheckedReborrowParentEndStatus {
     pub status: ParentLexicalStatusAtChildEnd,
 }
 
+/// Semantic phase used by checked-only borrow-resource lifecycle replay.
+///
+/// The ordering is source-defined rather than arena-defined: last-use expiry
+/// precedes statement entry, reassignment retires the displaced carrier after
+/// its right-hand side, replacement loans activate afterward, and state exit
+/// is the final boundary. These phases do not grant authority by themselves.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CheckedBorrowResourceLifecyclePhase {
+    #[default]
+    LastUseExpired,
+    LocalReassigned,
+    Activation,
+    StateExit,
+}
+
+/// Final checked-only target of one reborrow disposition event.
+///
+/// A retained resource target names an exact loan occurrence. A direct-root
+/// lifetime target names the state-local root beyond the last retired loan
+/// carrier. Neither variant proves that authority was returned to the target.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedBorrowResourceDispositionTarget {
+    ParentResource(CheckedParentBorrowResource),
+    DirectRootLifetime(CheckedDirectBorrowParentLifetime),
+}
+
+impl Default for CheckedBorrowResourceDispositionTarget {
+    fn default() -> Self {
+        Self::ParentResource(CheckedParentBorrowResource::default())
+    }
+}
+
+/// Checked-only disposition selected when an available reborrow carrier ends.
+///
+/// These names classify the resource-ledger route required at the boundary;
+/// they are not evidence of completed return, post-return use legality,
+/// cleanup, or Terminal authority.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CheckedReborrowResourceDisposition {
+    #[default]
+    Reactivate,
+    CascadeThroughRetiredParent,
+    RetireOrDiscard,
+}
+
+/// One retired carrier traversed by a cascading disposition.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedRetiredParentResourceDispositionStep {
+    pub resource: CheckedParentBorrowResource,
+    pub weakening: Handle<crate::FlowBorrowWeakeningFact>,
+}
+
+/// One independently replayable checked-only reborrow disposition event.
+///
+/// `retired_parent_path` is ordered from the immediate retired parent toward
+/// the final target. An empty path is required for direct reactivation. The
+/// row preserves exact resource and flow handles but authorizes no use.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedReborrowResourceDispositionEvent {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub child_loan: Handle<BorrowLoanFact>,
+    pub child_resource: Handle<CheckedReborrowLoanResource>,
+    pub child_activation: Handle<crate::FlowBorrowActivationFact>,
+    pub child_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    pub parent_loan: Handle<BorrowLoanFact>,
+    pub parent_resource: CheckedParentBorrowResource,
+    pub boundary_source: crate::FlowInvalidationSource,
+    pub boundary_phase: CheckedBorrowResourceLifecyclePhase,
+    pub retired_parent_path: Vec<CheckedRetiredParentResourceDispositionStep>,
+    pub final_target: CheckedBorrowResourceDispositionTarget,
+    pub disposition: CheckedReborrowResourceDisposition,
+}
+
 /// Checked-only resource closure for one explicit direct reborrow.
 ///
 /// The row retains the child's exact activation/weakening lifecycle and a
@@ -359,6 +433,10 @@ pub struct BorrowFacts {
     /// resource handles. Aggregate and otherwise unretained transfers have no
     /// row.
     pub reborrow_loan_resources: Arena<CheckedReborrowLoanResource>,
+    /// Checked-only resource-lifecycle dispositions for available direct
+    /// reborrows at their weakening boundary. Suspended carriers remain
+    /// pending and therefore have no premature disposition row.
+    pub reborrow_disposition_events: Arena<CheckedReborrowResourceDispositionEvent>,
 }
 
 impl BorrowFacts {
@@ -382,6 +460,7 @@ impl BorrowFacts {
             compatibility_certificates: Arena::new(),
             direct_loan_resources: Arena::new(),
             reborrow_loan_resources: Arena::new(),
+            reborrow_disposition_events: Arena::new(),
         }
     }
 
