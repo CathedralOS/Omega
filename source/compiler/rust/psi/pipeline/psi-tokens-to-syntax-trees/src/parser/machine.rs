@@ -752,6 +752,7 @@ fn rewrite_terminal_tail_self_calls(
                 target,
                 continuation: psi_syntax_trees::statement::TransitionTargetHandle::invalid(),
                 guard: TransitionGuardNode::Always,
+                proof_selectors: HandleSpan::empty(),
                 exit: Default::default(),
                 source_span: Default::default(),
             }),

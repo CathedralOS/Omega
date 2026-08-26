@@ -49,6 +49,31 @@ pub(super) fn append_state_statement_flow_facts(
             entry_semantic_contexts: *active_contexts,
             entry_constraints: *active_constraints,
         });
+        if matches!(statement, StatementNode::Transition(_))
+            && proof.outcome_specific_arms.iter().any(|(_, arm)| {
+                arm.caller_machine_symbol == machine.symbol
+                    && arm.caller_state_symbol == state.symbol
+                    && arm.statement_index == statement_index
+            })
+        {
+            let point = ProgramPoint::Statement {
+                machine_symbol: machine.symbol,
+                state_symbol: state.symbol,
+                statement_index,
+            };
+            append_flow_contexts_for_points(
+                semantic,
+                &mut ctx.contexts.semantic_context_refs,
+                active_contexts,
+                &[point],
+            );
+            append_semantic_constraints_for_points(
+                semantic,
+                &mut ctx.contexts.constraint_refs,
+                active_constraints,
+                &[point],
+            );
+        }
         // A multi-arm transition desugars to a SEQUENCE of guarded transition
         // statements (an if/elseif chain): statement N is taken when its guard
         // holds (and the state exits), else control falls through to statement

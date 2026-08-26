@@ -153,6 +153,7 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
             target,
             continuation: crate::statement::TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::When(guard),
+            proof_selectors: HandleSpan::empty(),
             exit: Default::default(),
             source_span: Default::default(),
         }));

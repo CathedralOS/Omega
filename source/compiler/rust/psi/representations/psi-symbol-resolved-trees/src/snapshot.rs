@@ -665,6 +665,8 @@ pub enum StatementSnapshot {
         target: TransitionTargetSnapshot,
         continuation: Option<TransitionTargetSnapshot>,
         guard: TransitionGuardSnapshot,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        proof_selectors: Vec<(String, String)>,
         #[serde(skip_serializing_if = "Option::is_none")]
         crash_cause: Option<&'static str>,
     },
@@ -1563,6 +1565,16 @@ fn transition_snapshot(
                 value: statement_expression_snapshot(program, *expression),
             },
         },
+        proof_selectors: transition
+            .proof_selectors
+            .iter()
+            .map(|selector| {
+                (
+                    selector.output_field.to_string(),
+                    selector.binding.to_string(),
+                )
+            })
+            .collect(),
         crash_cause: match transition.exit {
             crate::statement::TransitionExit::Ordinary => None,
             crate::statement::TransitionExit::Crash(crate::signature::CrashCause::Trap) => {

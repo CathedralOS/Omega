@@ -20,6 +20,22 @@ pub(super) fn lower_transition_statement(
             .transpose()?
             .unwrap_or_else(typed::statement::TransitionTargetHandle::invalid),
         guard: lower_transition_guard(lowerer, &transition.guard)?,
+        proof_selectors: lowerer
+            .typed_trees
+            .statement_table
+            .insert_outcome_proof_selectors(
+                lowerer
+                    .source_trees
+                    .tables
+                    .bodies
+                    .statements
+                    .outcome_proof_selectors(transition.proof_selectors)
+                    .iter()
+                    .map(|selector| typed::statement::OutcomeProofSelector {
+                        output_field: crate::name::lower_name(&selector.output_field),
+                        binding: crate::name::lower_name(&selector.binding),
+                    }),
+            ),
         exit: match transition.exit {
             resolved::statement::TransitionExit::Ordinary => {
                 typed::statement::TransitionExit::Ordinary

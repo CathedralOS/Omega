@@ -33,6 +33,12 @@ pub struct ProofOutputSelector {
     pub binding: DiagnosticName,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OutcomeProofSelector {
+    pub output_field: DiagnosticName,
+    pub binding: DiagnosticName,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AssemblyFact {
     pub kind: AssemblyFactKind,
@@ -160,6 +166,7 @@ pub struct Transition {
     pub target: TransitionTarget,
     pub continuation: Option<TransitionTarget>,
     pub guard: TransitionGuard,
+    pub proof_selectors: Box<[OutcomeProofSelector]>,
     pub exit: TransitionExit,
     pub source_span: SourceSpan,
 }
@@ -224,6 +231,7 @@ pub struct StatementTable {
 struct StatementNodeStorage {
     statements: Arena<StatementNode>,
     transition_targets: Arena<TransitionTargetNode>,
+    outcome_proof_selectors: Arena<TableOutcomeProofSelector>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -238,6 +246,7 @@ impl StatementTable {
             nodes: StatementNodeStorage {
                 statements: Arena::new(),
                 transition_targets: Arena::new(),
+                outcome_proof_selectors: Arena::new(),
             },
             paths: StatementPathStorage {
                 expression_handles: Arena::new(),
@@ -301,6 +310,13 @@ impl StatementTable {
 
     pub fn transition_target(&self, handle: TransitionTargetHandle) -> &TransitionTargetNode {
         self.nodes.transition_targets.get(handle)
+    }
+
+    pub fn outcome_proof_selectors(
+        &self,
+        span: HandleSpan<TableOutcomeProofSelector>,
+    ) -> &[TableOutcomeProofSelector] {
+        self.nodes.outcome_proof_selectors.span_or_empty(span)
     }
 
     pub fn statement_count(&self) -> usize {
@@ -460,10 +476,20 @@ impl StatementTable {
                         ))
                     }
                 };
+                let proof_selectors = self.nodes.outcome_proof_selectors.insert_many(
+                    transition
+                        .proof_selectors
+                        .iter()
+                        .map(|selector| TableOutcomeProofSelector {
+                            output_field: selector.output_field.clone(),
+                            binding: selector.binding.clone(),
+                        }),
+                );
                 self.insert(StatementNode::Transition(TableTransition {
                     target,
                     continuation,
                     guard,
+                    proof_selectors,
                     exit: transition.exit,
                     source_span: transition.source_span,
                 }))
@@ -660,6 +686,7 @@ pub struct TableTransition {
     pub target: TransitionTargetHandle,
     pub continuation: TransitionTargetHandle,
     pub guard: TransitionGuardNode,
+    pub proof_selectors: HandleSpan<TableOutcomeProofSelector>,
     pub exit: TransitionExit,
     pub source_span: SourceSpan,
 }
@@ -670,10 +697,17 @@ impl Default for TableTransition {
             target: TransitionTargetHandle::invalid(),
             continuation: TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::Always,
+            proof_selectors: HandleSpan::empty(),
             exit: Default::default(),
             source_span: SourceSpan::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TableOutcomeProofSelector {
+    pub output_field: DiagnosticName,
+    pub binding: DiagnosticName,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -749,6 +783,7 @@ mod tests {
             }),
             continuation: None,
             guard: TransitionGuard::When(guard),
+            proof_selectors: Box::default(),
             exit: Default::default(),
             source_span: Default::default(),
         });

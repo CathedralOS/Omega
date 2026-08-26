@@ -3359,6 +3359,166 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
 }
 
 #[test]
+fn parses_outcome_arm_payload_and_erased_proof_selectors() {
+    let source = r#"
+        data Outcome { case Success(value: i32); case Failure; }
+        machine inspect(result: Outcome) -> i32 {
+            transition result {
+                Outcome::Success { value; selected: local, shorthand } -> value
+                Outcome::Failure { } -> 0
+            }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize outcome arm");
+    let parsed = parse_syntax_trees(&tokens).expect("outcome selector arm should parse");
+    let transition = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str() == "inspect" =>
+            {
+                Some(machine)
+            }
+            _ => None,
+        })
+        .into_iter()
+        .flat_map(|machine| parsed.items.state_handles(machine.states))
+        .flat_map(|state| {
+            parsed
+                .items
+                .statements(parsed.items.state(*state).statements)
+        })
+        .find_map(|statement| match parsed.statements.statement(*statement) {
+            StatementNode::Transition(transition) if !transition.proof_selectors.is_empty() => {
+                Some(transition)
+            }
+            _ => None,
+        })
+        .expect("one transition arm with erased selectors");
+    let selectors = parsed
+        .statements
+        .outcome_proof_selectors(transition.proof_selectors);
+    assert_eq!(selectors.len(), 2);
+    assert_eq!(selectors[0].output_field.as_str(), "selected");
+    assert_eq!(selectors[0].binding.as_str(), "local");
+    assert_eq!(selectors[1].output_field.as_str(), "shorthand");
+    assert_eq!(selectors[1].binding.as_str(), "shorthand");
+}
+
+#[test]
+fn outcome_proof_selectors_do_not_change_the_runtime_statement_plan() {
+    let sources = [
+        r#"
+        data Outcome { case Success; case Failure; }
+        machine produce() -> Outcome { Outcome::Success }
+        machine inspect() {
+            transition produce() {
+                Outcome::Success { ; selected: local } -> {}
+                Outcome::Failure { } -> {}
+            }
+        }
+        "#,
+        r#"
+        data Outcome { case Success; case Failure; }
+        machine produce() -> Outcome { Outcome::Success }
+        machine inspect() {
+            transition produce() {
+                Outcome::Success { ; } -> {}
+                Outcome::Failure { } -> {}
+            }
+        }
+        "#,
+    ];
+    let mut plans = Vec::new();
+    for source in sources {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize outcome arm");
+        let parsed = parse_syntax_trees(&tokens).expect("outcome arm should parse");
+        let inspect = parsed
+            .root_items()
+            .find_map(|item| match item {
+                psi_syntax_trees::item::Item::Machine(machine)
+                    if machine.name.as_str() == "inspect" =>
+                {
+                    Some(machine)
+                }
+                _ => None,
+            })
+            .expect("inspect machine");
+        let entry = parsed
+            .items
+            .state_handles(inspect.states)
+            .first()
+            .copied()
+            .expect("inspect entry state");
+        let statements = parsed
+            .items
+            .statements(parsed.items.state(entry).statements);
+        let producer_locals = statements
+            .iter()
+            .filter(|statement| {
+                let StatementNode::LocalData(local) = parsed.statements.statement(**statement)
+                else {
+                    return false;
+                };
+                matches!(
+                    parsed.expressions.expression(local.initial_value),
+                    ExpressionNode::Call(call) if call.target.as_str() == "produce"
+                )
+            })
+            .count();
+        let transitions = statements
+            .iter()
+            .filter(|statement| {
+                matches!(
+                    parsed.statements.statement(**statement),
+                    StatementNode::Transition(_)
+                )
+            })
+            .count();
+        let producer_calls = parsed
+            .expressions
+            .iter_expressions()
+            .filter(|(_, expression)| {
+                matches!(
+                    expression,
+                    ExpressionNode::Call(call) if call.target.as_str() == "produce"
+                )
+            })
+            .count();
+        assert_eq!(producer_locals, 1, "the captured producer call is retained");
+        assert_eq!(
+            producer_calls, 1,
+            "the producer call is evaluated exactly once"
+        );
+        plans.push((statements.len(), producer_locals, transitions));
+    }
+    assert_eq!(
+        plans[0], plans[1],
+        "erased proof selectors must not add or remove runtime statements"
+    );
+}
+
+#[test]
+fn rejects_duplicate_and_noncase_outcome_proof_selectors() {
+    for (source, expected) in [
+        (
+            "machine inspect(result: Outcome) { transition result { Outcome::Success { ; selected: local, selected: other } -> {} } }",
+            "outcome proof selector `selected` is bound more than once",
+        ),
+        (
+            "machine inspect(result: Record) { transition result { Record { ; selected: local } -> {} } }",
+            "outcome proof selectors require an exact",
+        ),
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize rejected selector arm");
+        let error = parse_syntax_trees(&tokens).expect_err("invalid selector arm must reject");
+        assert!(error.message.contains(expected), "got: {}", error.message);
+    }
+}
+
+#[test]
 fn parses_record_field_value_pattern_as_subject_member_equality() {
     let source = r#"
         data Header [copy] { ok: i32; version: i32; }

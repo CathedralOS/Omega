@@ -397,6 +397,18 @@ fn lower_statement_node(
                 target,
                 continuation,
                 guard,
+                proof_selectors: syntax_trees
+                    .statements
+                    .outcome_proof_selectors(transition.proof_selectors)
+                    .iter()
+                    .map(
+                        |selector| psi_symbol_resolved_trees::statement::OutcomeProofSelector {
+                            output_field: crate::name::lower_name(&selector.output_field),
+                            binding: crate::name::lower_name(&selector.binding),
+                        },
+                    )
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
                 exit: match transition.exit {
                     syntax::statement::TransitionExit::Ordinary => TransitionExit::Ordinary,
                     syntax::statement::TransitionExit::Crash(cause) => {
