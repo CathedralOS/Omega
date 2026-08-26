@@ -15,6 +15,7 @@ use omega_external_roots::{
     ProgramLocalRootEpochRuntime, ProgramLocalRootInstallationLedger,
 };
 use omega_instruction_selection::DerivedBoundaryEntryStorage;
+use psi_diagnostics::Diagnostic;
 use psi_extents::{
     Extent, ExtentLoan, ExtentRootGrant, OwnedExtentPartition, ValidatedExtentGeometry,
 };
@@ -885,6 +886,65 @@ pub fn bind_emitted_program_storage_entry_native_bridge(
         continuation_machine,
         continuation_state,
     })
+}
+
+/// Bind the compiler-generated program-storage bridge around the exact
+/// backend plan that will enter emission. Receiver-free source entry requires
+/// a preview so its wrapper can be inserted; the returned bridge is always
+/// replayed against the final, possibly mutated plan.
+pub(super) fn bind_compiler_generated_program_storage_entry_native_bridge(
+    binding: Option<ProgramStorageEntryPlanBinding>,
+    selected_provider: Option<super::provider_plans::SelectedExternalRootProviderPlan>,
+    selected_target: Option<&str>,
+    backend: &mut omega_backend_plan::BackendPlan,
+) -> Result<Option<ProgramStorageEntryNativeBridgePlan>, Vec<Diagnostic>> {
+    let Some(binding) = binding else {
+        return Ok(None);
+    };
+    if binding.source_signature().is_none() {
+        return Err(vec![Diagnostic::error(
+            "compiler-generated program-storage binding lost its checked source signature",
+        )]);
+    }
+    if binding.physical_contract().is_none() {
+        return Err(vec![Diagnostic::error(
+            "compiler-generated UEFI program-storage binding lost its distinct physical entry contract",
+        )]);
+    }
+
+    let target_profile = compiler_generated_program_storage_target_profile(selected_target);
+    let bind = |binding, selected_provider, backend: &omega_backend_plan::BackendPlan| {
+        bind_emitted_program_storage_entry_native_bridge(
+            binding,
+            selected_provider,
+            target_profile.clone(),
+            &backend.object,
+            &backend.encoded_machine,
+            backend.entry_key,
+            backend
+                .encoded_machine
+                .semantics
+                .boundaries
+                .footprints
+                .boundary_contract_fingerprint,
+            backend.entry_machine_name().to_owned(),
+            backend.entry_state_name().to_owned(),
+        )
+        .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
+    };
+
+    let preview = bind(binding.clone(), selected_provider.clone(), backend)?;
+    if let Some(template) = preview.wrapper_body_template() {
+        super::program_storage_wrapper_body::insert_and_validate_program_storage_entry_wrapper(
+            template, backend,
+        )
+        .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
+    }
+    bind(binding, selected_provider, backend).map(Some)
+}
+
+fn compiler_generated_program_storage_target_profile(selected_target: Option<&str>) -> String {
+    selected_target.unwrap_or("host").to_owned()
 }
 
 #[derive(Debug)]
@@ -2897,11 +2957,17 @@ impl std::error::Error for ProgramStoragePartitionError {}
 
 #[cfg(test)]
 mod tests {
-    use super::validate_encoded_program_storage_entry;
+    use super::{
+        ProgramStorageEntryParameter, ProgramStorageEntryPlanBinding,
+        bind_compiler_generated_program_storage_entry_native_bridge,
+        compiler_generated_program_storage_target_profile, validate_encoded_program_storage_entry,
+    };
+    use omega_backend_plan::{BackendArtifactRoots, BackendPlan, BackendPlanPhaseTiming};
+    use omega_calling_conventions::{ValuePlacement, ValueShape};
     use omega_control_flow::{MachineFunctionIdentity, StateKey};
     use omega_machine_bytes::{EncodedMachineFunction, EncodedMachinePlan};
     use omega_object_file::{SectionKind, SymbolKind, SymbolPlan, SymbolSection};
-    use psi_arena::HandleSpan;
+    use psi_arena::{Arena, HandleSpan};
     use psi_symbols::SymbolHandle;
     use std::sync::Arc;
 
@@ -2932,6 +2998,187 @@ mod tests {
             byte_count: 8,
             instructions: HandleSpan::empty(),
         }
+    }
+
+    fn backend_plan() -> BackendPlan {
+        let target = omega_target::NativeTarget::uefi_x64();
+        BackendPlan {
+            target_profile: omega_target::TargetProfile::UefiX64,
+            target,
+            artifacts: BackendArtifactRoots::empty_for_target(target),
+            host_abi: Arc::new(omega_calling_conventions::build_host_abi_plan(target)),
+            host_calls: Arc::new(Default::default()),
+            state_calls: Arc::new(Default::default()),
+            alias_flow: Default::default(),
+            state_storage: Arc::new(Default::default()),
+            state_values: Default::default(),
+            abstract_data: Default::default(),
+            data: Default::default(),
+            abstract_operations: Default::default(),
+            target_operations: Default::default(),
+            assigned_target_operations: Default::default(),
+            control_flow: Arc::new(Default::default()),
+            runtime_flow: Arc::new(Default::default()),
+            state_dispatch: Arc::new(Default::default()),
+            state_guards: Arc::new(Default::default()),
+            runtime_bodies: Arc::new(Default::default()),
+            runtime_branching_calls: Default::default(),
+            runtime_dispatch_loop: Default::default(),
+            runtime_storage: Default::default(),
+            runtime_text: Default::default(),
+            layouts: Arc::new(omega_layout::LayoutPlan {
+                data_layouts: Arena::new(),
+                fields: Arena::new(),
+                bit_fields: Vec::new(),
+                stored_integers: Vec::new(),
+                repeated_fields: Vec::new(),
+                machine_layouts: Arena::new(),
+                variants: Arena::new(),
+                private_callback_demands: Vec::new(),
+            }),
+            entry_key: continuation_key(2),
+            entry_boundary_plan: None,
+            callback_placements: Arc::from([]),
+            callback_thunks: Arc::from([]),
+            callback_private_relocations: Arc::from([]),
+            callback_registrar_arguments: Arc::from([]),
+            receiver_bases: Vec::new(),
+            state_contexts: Vec::new(),
+            phase_timings: Arena::<BackendPlanPhaseTiming>::new(),
+        }
+    }
+
+    fn parameter(parameter_index: usize) -> ProgramStorageEntryParameter {
+        ProgramStorageEntryParameter {
+            parameter_index,
+            carrier_identity: "named(name(Extent))".into(),
+            parameter_type_identity: format!("Extent::Granted::{parameter_index}"),
+            domain: "Extent::Granted".into(),
+            effective_carry: psi_language_semantics::CarryPolicy::STRICT,
+            placement: ValuePlacement {
+                shape: ValueShape::integer(16, 8),
+                locations: Vec::new(),
+            },
+            destination_byte_offset: parameter_index * 16,
+            write_range: parameter_index * 16..(parameter_index + 1) * 16,
+        }
+    }
+
+    fn checked_source_signature() -> super::super::SelectedProgramEntrySourceSignature {
+        let extent_layout = |base| {
+            super::super::ProgramEntrySourceExtentValueLayout::from_checked_record(
+                SymbolHandle::from_arena_index(base),
+                SymbolHandle::from_arena_index(base + 1),
+                0,
+                ValueShape::integer(8, 8),
+                SymbolHandle::from_arena_index(base + 2),
+                8,
+                ValueShape::integer(8, 8),
+                ValueShape::integer(16, 8),
+            )
+            .expect("exact Extent layout")
+        };
+        super::super::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+            omega_target::TargetProfile::UefiX64.program_entry_slot(),
+            SymbolHandle::from_arena_index(1),
+            SymbolHandle::from_arena_index(2),
+            "Boot::launch".into(),
+            "launch".into(),
+            "Boot::launch#exact".into(),
+            super::super::ProgramEntrySourceReceiverSignature::Free,
+            vec![
+                super::super::SelectedProgramEntrySourceSignature::visible_parameter(
+                    super::super::ProgramStorageEntryRootRole::Image,
+                    0,
+                    "Extent::Granted::0".into(),
+                    ValueShape::integer(16, 8),
+                    extent_layout(10),
+                    false,
+                    false,
+                ),
+                super::super::SelectedProgramEntrySourceSignature::visible_parameter(
+                    super::super::ProgramStorageEntryRootRole::InitialStorage,
+                    1,
+                    "Extent::Granted::1".into(),
+                    ValueShape::integer(16, 8),
+                    extent_layout(20),
+                    false,
+                    false,
+                ),
+            ],
+        )
+        .expect("exact checked source signature")
+    }
+
+    fn compiler_binding(with_source: bool) -> ProgramStorageEntryPlanBinding {
+        ProgramStorageEntryPlanBinding {
+            root_slot: omega_external_roots::RootSlotId::from_normalized_identity(1)
+                .expect("root slot"),
+            requirement_identity: "ProgramStorageEntry::enter#exact".into(),
+            boundary_contract_fingerprint: 1,
+            image: parameter(0),
+            initial_storage: parameter(1),
+            receiver: None,
+            source_signature: with_source.then(checked_source_signature),
+            physical_contract: None,
+        }
+    }
+
+    #[test]
+    fn absent_compiler_bridge_leaves_backend_plan_unchanged() {
+        let mut backend = backend_plan();
+        let original = backend.clone();
+
+        let bridge = bind_compiler_generated_program_storage_entry_native_bridge(
+            None,
+            None,
+            Some("uefi_x64"),
+            &mut backend,
+        )
+        .expect("absent program-storage binding");
+
+        assert!(bridge.is_none());
+        assert_eq!(backend, original);
+    }
+
+    #[test]
+    fn compiler_bridge_requires_source_then_physical_custody_exactly() {
+        let mut backend = backend_plan();
+        let source = bind_compiler_generated_program_storage_entry_native_bridge(
+            Some(compiler_binding(false)),
+            None,
+            Some("uefi_x64"),
+            &mut backend,
+        )
+        .expect_err("missing source signature must reject first");
+        assert_eq!(
+            source[0].message,
+            "compiler-generated program-storage binding lost its checked source signature"
+        );
+
+        let physical = bind_compiler_generated_program_storage_entry_native_bridge(
+            Some(compiler_binding(true)),
+            None,
+            Some("uefi_x64"),
+            &mut backend,
+        )
+        .expect_err("missing physical contract must reject second");
+        assert_eq!(
+            physical[0].message,
+            "compiler-generated UEFI program-storage binding lost its distinct physical entry contract"
+        );
+    }
+
+    #[test]
+    fn compiler_bridge_target_profile_preserves_selection_and_host_fallback() {
+        assert_eq!(
+            compiler_generated_program_storage_target_profile(Some("uefi_x64")),
+            "uefi_x64"
+        );
+        assert_eq!(
+            compiler_generated_program_storage_target_profile(None),
+            "host"
+        );
     }
 
     #[test]

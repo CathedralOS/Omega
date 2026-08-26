@@ -698,70 +698,12 @@ impl Compiler {
                 .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
             })
             .transpose()?;
-        let bind_bridge = |binding: crate::pipeline::ProgramStorageEntryPlanBinding,
-                           backend: &crate::pipeline::stages::BackendPlanningSurface,
-                           selected_provider| {
-            if binding.source_signature().is_none() {
-                return Err(vec![Diagnostic::error(
-                    "compiler-generated program-storage binding lost its checked source signature",
-                )]);
-            }
-            if binding.physical_contract().is_none() {
-                return Err(vec![Diagnostic::error(
-                    "compiler-generated UEFI program-storage binding lost its distinct physical entry contract",
-                )]);
-            }
-            crate::pipeline::program_storage_entry::bind_emitted_program_storage_entry_native_bridge(
-                    binding,
-                    selected_provider,
-                    self.options
-                        .target_name
-                        .clone()
-                        .unwrap_or_else(|| "host".to_owned()),
-                    &backend.plan.object,
-                    &backend.plan.encoded_machine,
-                    backend.plan.entry_key,
-                    backend
-                        .plan
-                        .encoded_machine
-                        .semantics
-                        .boundaries
-                        .footprints
-                        .boundary_contract_fingerprint,
-                    backend.plan.entry_machine_name().to_owned(),
-                    backend.plan.entry_state_name().to_owned(),
-                )
-                .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
-        };
-        let preview_program_storage_entry_bridge = program_storage_entry
-            .as_ref()
-            .map(|binding| {
-                bind_bridge(
-                    binding.clone(),
-                    &backend,
-                    program_storage_entry_provider.clone(),
-                )
-            })
-            .transpose()?;
-        if let Some(template) = preview_program_storage_entry_bridge
-            .as_ref()
-            .and_then(|bridge| bridge.wrapper_body_template())
-        {
-            crate::pipeline::program_storage_wrapper_body::insert_and_validate_program_storage_entry_wrapper(
-                template,
-                &mut backend.plan,
-            )
-            .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
-        }
-        let mut program_storage_entry_bridge = if let Some(binding) = program_storage_entry {
-            Some(bind_bridge(
-                binding,
-                &backend,
-                program_storage_entry_provider,
-            )?)
-        } else {
-            None
-        };
+        let mut program_storage_entry_bridge = crate::pipeline::program_storage_entry::bind_compiler_generated_program_storage_entry_native_bridge(
+            program_storage_entry,
+            program_storage_entry_provider,
+            self.options.target_name.as_deref(),
+            &mut backend.plan,
+        )?;
         if requires_native_backend && emit_auxiliary_artifacts {
             write_backend_report(
                 &self.options,
