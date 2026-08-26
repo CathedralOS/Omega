@@ -867,6 +867,15 @@ capability/API obligations, source-to-artifact binding, transitive open rows,
 and schema-delta composition remain to be built before `PackageInstance` can
 exist honestly.
 
+`ReviewOnlyBaselineCapsule` now has explicit capability-rooted file custody for
+restart state. Trusted command orchestration supplies an already-open
+project-owned directory and one bounded lowercase portable direct-child name.
+Recovery never follows a leaf symlink, remains byte-bounded through canonical
+decode, and then rereads the retained handle and rechecks its live pathname.
+Publication uses a synchronized private same-directory stage, Unix mode `0600`,
+and atomic no-overwrite installation. This cannot write `omega.lock`, authorize
+a conflict, or promote the review-only capsule into package evidence.
+
 For ordinary package claims, “produced artifact” means the complete canonical
 package-admission semantic row set under an exact package, target, dependency
 closure, and obligation schema. It is not native code and it is not the
@@ -880,10 +889,12 @@ not become a package artifact or `PackageInstance` by renaming it.
 The current ordinary obligation ledger binds the exact path-free dependency
 closure consumed by the compiler alongside package, target, and canonical rows.
 That closure contains every reachable package identity and requester-local alias
-edge, but excludes package names, source roots, immutable resolutions, and source
-bytes. Recovered row envelopes must be joined to a locally reconstructed closure;
-renaming an unused alias or adding/removing an unused reachable dependency
-invalidates equality, while relocating the same graph does not. This closes the
+edge, but excludes copied package display-name strings, source roots, immutable
+resolutions, and source bytes. Each opaque package identity still binds its
+declared name and source lineage. Recovered row envelopes must be joined to a
+locally reconstructed closure; renaming an unused alias or adding/removing an
+unused reachable dependency invalidates equality, while relocating the same
+graph does not. This closes the
 ledger's dependency-subject coordinate, not transitive certificate/open-
 obligation composition or lock admission.
 
@@ -976,9 +987,10 @@ coordinates into separate provenance, forms a source-handle-free
 second time from checked compiler semantics, and requires exact equality.
 The ledger also binds the path-free dependency closure projected from validated
 compiler inputs: every reachable package identity and requester-local alias
-edge, but no source root, resolution, package display name, or source byte.
-Individually recovered row envelopes establish framing only and must be joined
-to that separately reconstructed closure; missing, reordered, stale,
+edge, but no source root, resolution, separately copied package display name, or
+source byte. Each opaque package identity still binds its declared name and
+source lineage. Individually recovered row envelopes establish framing only and
+must be joined to that separately reconstructed closure; missing, reordered, stale,
 mixed-package, mixed-target, renamed-alias, or changed-closure ledgers reject
 under local comparison, while relocation alone is irrelevant. This is a replay
 gate for the current review vocabulary, not accepted package evidence or a
@@ -1012,9 +1024,9 @@ Selection and sorting preserve the pair and add exact authored build/target-
 default call sites or a closed reason for an implicit unique choice. The single
 selected-provider row may therefore contain both authored coordinates and
 compiler-derived reasons; free external providers and empty sets also have
-closed reasons. Exact nested clause/use-site coordinates and root-policy file
-custody remain unfinished engineering work; none independently motivates
-nominal Chi. The package layer does now validate a complete in-memory
+closed reasons. Exact nested clause/use-site coordinates remain unfinished
+engineering work; none independently motivates nominal Chi. The package layer
+does now validate a complete in-memory
 root-policy disposition for every exact blocking fingerprint. It canonicalizes
 and candidate-binds the decision set, rejects non-blocking or stale decisions,
 and reports only whether root policy permits all blocking rows. It does not
@@ -1112,7 +1124,7 @@ omega-packages/
 |   |-- source_commands.rs # Unhardened source diagnostic command surface.
 |   |-- source_patch.rs    # Bounded hostile-data source review packet.
 |   |-- review_evidence.rs # Private live/recovered comparison evidence seam.
-|   |-- review_baseline.rs # Bounded restart-stable non-admitting capsule.
+|   |-- review_baseline.rs # Bounded restart-stable capsule and rooted file custody.
 |   |-- review_closure.rs # Shared exact-key compiler-review/custody checks.
 |   |-- source_review.rs   # Custody/evidence join and aggregate review input.
 |   |-- source_triage.rs   # Compiler-row source/provenance triage.

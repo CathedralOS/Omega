@@ -1190,10 +1190,12 @@ The current ordinary reconstruction ledger binds the exact source-path-free
 dependency closure consumed by package-aware compilation alongside package,
 target, and canonical rows. It is projected only from validated compiler inputs
 and retains every reachable package identity and requester-local alias edge,
-but no package display name, source root, immutable resolution, or source byte.
-Recovered row envelopes must be joined to that separately reconstructed
-closure. Renaming an unused alias or adding/removing an unused reachable package
-invalidates ledger equality; relocating the same graph does not. This closes a
+but no separately copied package display name, source root, immutable
+resolution, or source byte. Each opaque package identity still binds its
+declared name and source lineage. Recovered row envelopes must be joined to that
+separately reconstructed closure. Renaming an unused alias or adding/removing an
+unused reachable package invalidates ledger equality; relocating the same graph
+does not. This closes a
 subject coordinate in the current replay gate, not transitive certificate/open-
 obligation composition or lock authority.
 

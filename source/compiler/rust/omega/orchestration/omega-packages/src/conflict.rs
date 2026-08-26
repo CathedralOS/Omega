@@ -1,4 +1,6 @@
-use crate::record_file::{RecordFileError, RecordFileLimits, RecordFileRoot};
+use crate::record_file::{
+    RecordFileError, RecordFileLimits, RecordFileRoot, is_portable_record_file_name,
+};
 use crate::{
     ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflict,
     ReviewOnlyCapabilityConflictFingerprint, ReviewOnlyCapabilityConflictSet,
@@ -228,20 +230,7 @@ pub struct ReviewOnlyRootPolicyName(String);
 
 impl ReviewOnlyRootPolicyName {
     pub fn parse(value: &str) -> Result<Self, ReviewOnlyRootPolicyNameError> {
-        if value.is_empty()
-            || value.len() > ROOT_POLICY_NAME_MAXIMUM_BYTES
-            || value.contains('/')
-            || value.contains('\\')
-            || value.bytes().any(|byte| byte.is_ascii_control())
-            || matches!(value, "." | "..")
-            || value.ends_with('.')
-            || !value.bytes().all(|byte| {
-                byte.is_ascii_lowercase()
-                    || byte.is_ascii_digit()
-                    || matches!(byte, b'.' | b'-' | b'_')
-            })
-            || is_windows_reserved_path_component(value)
-        {
+        if !is_portable_record_file_name(value, ROOT_POLICY_NAME_MAXIMUM_BYTES) {
             return Err(ReviewOnlyRootPolicyNameError::InvalidName);
         }
         Ok(Self(value.to_owned()))
@@ -459,18 +448,6 @@ fn map_root_policy_file_error(error: RecordFileError) -> ReviewOnlyRootPolicyFil
             ReviewOnlyRootPolicyFileError::StageNameSpaceExhausted { directory }
         }
     }
-}
-
-fn is_windows_reserved_path_component(component: &str) -> bool {
-    let stem = component.split('.').next().unwrap_or(component);
-    let uppercase = stem.to_ascii_uppercase();
-    matches!(uppercase.as_str(), "CON" | "PRN" | "AUX" | "NUL")
-        || uppercase
-            .strip_prefix("COM")
-            .or_else(|| uppercase.strip_prefix("LPT"))
-            .is_some_and(|suffix| {
-                matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
-            })
 }
 
 /// Closed failure vocabulary for canonical root-policy encoding and recovery.

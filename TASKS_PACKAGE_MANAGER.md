@@ -1967,9 +1967,11 @@ complete.
   a source-handle-free `OrdinaryPackageObligationLedger`. It contains the exact
   package, target, compiler-consumed dependency closure, strictly ordered
   canonical semantic rows, risk, keys, and complete row bytes while excluding
-  package names, source roots, resolutions, source bytes, and explanatory source
-  coordinates. The closure is projected only from validated compiler inputs and
-  binds every reachable package identity and requester-local alias edge.
+  copied package display-name strings, source roots, resolutions, source bytes,
+  and explanatory source coordinates. Each opaque package identity still binds
+  its declared name and source lineage. The closure is projected only from
+  validated compiler inputs and binds every reachable package identity and
+  requester-local alias edge.
   Recovered row envelopes establish canonical framing only and must be joined
   to the separately reconstructed closure. The selected local compiler
   reconstructs the complete ledger from checked semantics and requires exact
@@ -2024,8 +2026,17 @@ complete.
   or serious review; project authority can replace them. A recovered capsule
   produces the same conflicts, triage,
   and source-review packets as live baseline state, including when all old
-  source is unavailable. This closes the review-restart mechanism, not accepted
-  lock persistence: the capsule has no `PackageInstance`, resolution, project-
+  source is unavailable. Capsule v2 now also has a capability-rooted file-
+  custody layer. Trusted command orchestration supplies an already-open
+  project-owned directory and one bounded lowercase portable direct-child
+  filename. Recovery opens without following symlinks, reads under the capsule
+  ceiling, performs the strict canonical decode, then rereads the retained file
+  and rechecks its live pathname identity. New records use a synchronized
+  private same-directory stage and atomic no-overwrite publication; Unix mode is
+  `0600`. Nested names, existing destinations, symlinks, directories,
+  corruption, and over-limit records reject. This closes the review-restart
+  filesystem mechanism, not accepted lock persistence: the capsule has no
+  `PackageInstance`, resolution, project-
   mutation, or lock-promotion path. Promotion remains blocked on
   `RECHECKABLE-PACKAGE-EVIDENCE`, transitive admission closure, and the accepted
   lock schema; producer provenance cannot promote it.

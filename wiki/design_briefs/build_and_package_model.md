@@ -943,10 +943,11 @@ preferred whenever it preserves the same meaning with less machinery.
 The current ordinary review vocabulary now exercises that rule directly. A
 source-handle-free `OrdinaryPackageObligationLedger` retains one exact package,
 target, compiler-consumed dependency closure, and strictly ordered canonical row
-set while leaving source paths, resolutions, bytes, names, and explanatory
-coordinates outside that graph coordinate. The closure comes only from
-validated compiler inputs and retains every reachable package identity and
-requester-local alias edge. Recovered row envelopes prove only canonical
+set while leaving source paths, resolutions, bytes, copied display-name strings,
+and explanatory coordinates outside that graph coordinate. Each opaque package
+identity still binds its declared name and source lineage. The closure comes
+only from validated compiler inputs and retains every reachable package identity
+and requester-local alias edge. Recovered row envelopes prove only canonical
 framing and must be joined to that separately reconstructed closure. The local
 compiler reconstructs the complete ledger from checked semantics and requires
 exact equality, and fresh closure-review publication performs that
@@ -1818,9 +1819,15 @@ operation-specific lanes without giving package code a decoder, while a parent
 association and aggregate byte budget prevent accidental mix-and-match and
 unbounded pre-rejection retention. Recovered rows and replay records use
 distinct review-only types and cannot impersonate newly compiler-issued
-evidence. The capsule checksum and association are corruption/consistency
-detection, not authenticity or evidence of serious review, and the type has no route to
-accepted lock state or `PackageInstance`. Promotion
+evidence. The capsule can be persisted only as a direct child of an explicitly
+supplied project-owned directory capability under a bounded lowercase portable
+name. Recovery does not follow symlinks, reads under the capsule ceiling,
+performs canonical decode, then rereads the retained handle and rechecks its
+live pathname identity. New files use synchronized private staging and atomic
+no-overwrite publication; Unix mode is `0600`. This is review-state custody,
+not accepted-lock storage. The capsule checksum and association are corruption/
+consistency detection, not authenticity or evidence of serious review, and the
+type has no route to accepted lock state or `PackageInstance`. Promotion
 requires independent source-and-artifact obligation reconstruction, certificate
 checking, transitive open-obligation disclosure, and local admission decisions;
 completing producer provenance cannot promote the capsule.

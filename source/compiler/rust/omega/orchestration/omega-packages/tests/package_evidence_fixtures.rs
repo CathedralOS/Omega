@@ -9,11 +9,14 @@ use omega_compiler::{
 use omega_packages::{
     CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits,
     PackageSourceVerificationPhase, PackageTriageDisposition, PackageTriageReason,
-    ReviewOnlyBaselineCapsule, ReviewOnlyBaselineLimits, SourceLineage, SourceResolveError,
-    WorkspaceMemberPath, assemble_initial_source_review, assemble_update_source_review,
-    assemble_update_source_review_from_baseline, compile_resolved_package_reviews,
+    ReviewOnlyBaselineCapsule, ReviewOnlyBaselineDirectory, ReviewOnlyBaselineFileError,
+    ReviewOnlyBaselineLimits, ReviewOnlyBaselineName, ReviewOnlyBaselineNameError,
+    ReviewOnlyCapabilityConflictLimits, SourceLineage, SourceResolveError, WorkspaceMemberPath,
+    assemble_initial_source_review, assemble_update_source_review,
+    assemble_update_source_review_from_baseline, compare_review_only_capabilities,
+    compare_review_only_capabilities_from_baseline, compile_resolved_package_reviews,
     resolve_workspace_package_closure, triage_initial_install, triage_review_update,
-    triage_update_without_admission_baseline,
+    triage_review_update_from_baseline, triage_update_without_admission_baseline,
 };
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -681,6 +684,192 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             )
             .expect("recovered baseline survives unavailable old source");
             assert_eq!(recovered_unavailable, unavailable_review);
+
+            if *package == "arithmetic-kernels" {
+                let baseline_directory_path = cache.join("review-baselines");
+                let outside_directory = cache.join("outside-review-baselines");
+                std::fs::create_dir(&baseline_directory_path)
+                    .expect("create explicit review-baseline directory");
+                std::fs::create_dir(&outside_directory)
+                    .expect("create outside review-baseline directory");
+                let baseline_directory_capability = cap_std::fs::Dir::open_ambient_dir(
+                    &baseline_directory_path,
+                    cap_std::ambient_authority(),
+                )
+                .expect("open explicit review-baseline directory capability");
+                let baseline_directory = ReviewOnlyBaselineDirectory::from_capability(
+                    baseline_directory_capability,
+                    &baseline_directory_path,
+                )
+                .expect("bind explicit review-baseline directory capability");
+                let baseline_name = ReviewOnlyBaselineName::parse("candidate.baseline")
+                    .expect("canonical review-baseline filename");
+                let baseline_limits = ReviewOnlyBaselineLimits::default();
+                let encoded = baseline
+                    .encode(baseline_limits)
+                    .expect("encode persisted fixture baseline");
+                baseline_directory
+                    .persist_new_capsule(&baseline_name, &baseline, baseline_limits)
+                    .expect("persist review-only baseline capsule");
+                assert_eq!(
+                    std::fs::read_dir(&baseline_directory_path)
+                        .expect("review-baseline directory")
+                        .count(),
+                    1,
+                    "successful baseline publication removes its private stage"
+                );
+                let reopened = baseline_directory
+                    .recover_capsule(&baseline_name, baseline_limits)
+                    .expect("recover review-only baseline capsule");
+                assert_eq!(
+                    reopened
+                        .encode(baseline_limits)
+                        .expect("reencode reopened baseline"),
+                    encoded
+                );
+                assert_eq!(
+                    compare_review_only_capabilities_from_baseline(
+                        &reopened,
+                        &reviews,
+                        &closure,
+                        ReviewOnlyCapabilityConflictLimits::default(),
+                    )
+                    .expect("reopened baseline comparison"),
+                    compare_review_only_capabilities(
+                        &reviews,
+                        &reviews,
+                        &closure,
+                        ReviewOnlyCapabilityConflictLimits::default(),
+                    )
+                    .expect("live baseline comparison")
+                );
+                assert_eq!(
+                    triage_review_update_from_baseline(&reopened, &reviews, &unavailable),
+                    unavailable_triage,
+                    "reopened baseline preserves unavailable-source triage"
+                );
+                assert_eq!(
+                    assemble_update_source_review_from_baseline(
+                        &reopened,
+                        &reviews,
+                        &[],
+                        &closure,
+                        omega_packages::PackageSourceReviewLimits::default(),
+                    )
+                    .expect("reopened baseline preserves standalone source review"),
+                    unavailable_review
+                );
+                assert!(matches!(
+                    baseline_directory.persist_new_capsule(
+                        &baseline_name,
+                        &baseline,
+                        baseline_limits
+                    ),
+                    Err(ReviewOnlyBaselineFileError::DestinationExists { .. })
+                ));
+                assert_eq!(
+                    std::fs::read(baseline_directory_path.join(baseline_name.as_str()))
+                        .expect("existing baseline remains readable"),
+                    encoded
+                );
+
+                let too_small = ReviewOnlyBaselineLimits::new(
+                    encoded.len() - 1,
+                    1_024,
+                    16_384,
+                    128,
+                    4 * 1024,
+                    256,
+                    65_536,
+                    32 * 1024 * 1024,
+                );
+                assert!(matches!(
+                    baseline_directory.recover_capsule(&baseline_name, too_small),
+                    Err(ReviewOnlyBaselineFileError::ByteLimitExceeded { .. })
+                ));
+
+                for invalid_name in [
+                    "",
+                    "/candidate.baseline",
+                    "nested/candidate.baseline",
+                    "../candidate.baseline",
+                    "candidate\\baseline",
+                    "Candidate.baseline",
+                    "candidate.",
+                    "NUL.txt",
+                    "COM1",
+                ] {
+                    assert_eq!(
+                        ReviewOnlyBaselineName::parse(invalid_name),
+                        Err(ReviewOnlyBaselineNameError::InvalidName),
+                        "accepted noncanonical review-baseline name {invalid_name:?}"
+                    );
+                }
+                assert_eq!(
+                    ReviewOnlyBaselineName::parse(&"a".repeat(256)),
+                    Err(ReviewOnlyBaselineNameError::InvalidName)
+                );
+
+                let corrupt_name =
+                    ReviewOnlyBaselineName::parse("corrupt.baseline").expect("corrupt name");
+                let mut corrupt = encoded.clone();
+                corrupt[0] ^= 1;
+                std::fs::write(baseline_directory_path.join(corrupt_name.as_str()), corrupt)
+                    .expect("write corrupt review baseline");
+                assert!(matches!(
+                    baseline_directory.recover_capsule(&corrupt_name, baseline_limits),
+                    Err(ReviewOnlyBaselineFileError::Capsule(_))
+                ));
+
+                let directory_name = ReviewOnlyBaselineName::parse("directory.baseline")
+                    .expect("directory leaf name");
+                std::fs::create_dir(baseline_directory_path.join(directory_name.as_str()))
+                    .expect("create non-file baseline leaf");
+                assert!(matches!(
+                    baseline_directory.recover_capsule(&directory_name, baseline_limits),
+                    Err(ReviewOnlyBaselineFileError::NotRegularFile { .. })
+                ));
+
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::{PermissionsExt, symlink};
+
+                    assert_eq!(
+                        std::fs::metadata(baseline_directory_path.join(baseline_name.as_str()))
+                            .expect("persisted baseline metadata")
+                            .permissions()
+                            .mode()
+                            & 0o777,
+                        0o600
+                    );
+                    let outside_record = outside_directory.join("outside.baseline");
+                    std::fs::write(&outside_record, &encoded)
+                        .expect("write outside review baseline");
+                    let link_name =
+                        ReviewOnlyBaselineName::parse("link.baseline").expect("baseline link name");
+                    symlink(
+                        &outside_record,
+                        baseline_directory_path.join(link_name.as_str()),
+                    )
+                    .expect("create baseline leaf symlink");
+                    assert!(matches!(
+                        baseline_directory.recover_capsule(&link_name, baseline_limits),
+                        Err(ReviewOnlyBaselineFileError::NotRegularFile { .. })
+                    ));
+                    assert!(matches!(
+                        baseline_directory.persist_new_capsule(
+                            &link_name,
+                            &baseline,
+                            baseline_limits
+                        ),
+                        Err(ReviewOnlyBaselineFileError::DestinationExists { .. })
+                    ));
+                    assert_eq!(
+                        std::fs::read(outside_record).expect("outside baseline remains unchanged"),
+                        encoded
+                    );
+                }
+            }
         }
         let _ = std::fs::remove_dir_all(cache);
     }
