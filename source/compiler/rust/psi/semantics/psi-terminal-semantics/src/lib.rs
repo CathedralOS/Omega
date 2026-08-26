@@ -295,6 +295,7 @@ use ScalarLeafOperandShape as Operands;
 use ScalarLeafResultShape as ResultShape;
 
 operation_semantic_rows! {
+    EstablishPayloadlessCase => ("schema:operation:establish-payloadless-case", LeafDenotation, None),
     EstablishByteSequenceLiteral => ("schema:operation:establish-byte-sequence-literal", LeafDenotation, None),
     EstablishTrivialAffineLocal => ("schema:operation:establish-trivial-affine-local", LeafDenotation, None),
     Call => ("algebra:call:call", CallComposition, None),
@@ -674,14 +675,14 @@ mod tests {
 
     #[test]
     fn operation_inventory_is_exact_unique_and_closed() {
-        assert_eq!(OperationSemanticTag::ALL.len(), 41);
-        assert_eq!(OperationSemanticRow::ALL.len(), 41);
+        assert_eq!(OperationSemanticTag::ALL.len(), 42);
+        assert_eq!(OperationSemanticRow::ALL.len(), 42);
         assert_eq!(
             OperationSemanticRow::ALL
                 .iter()
                 .filter(|row| row.custody == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            36,
+            37,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -703,7 +704,7 @@ mod tests {
                 .map(|row| row.tag)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            41,
+            42,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -711,7 +712,7 @@ mod tests {
                 .map(|row| row.identity)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            41,
+            42,
         );
         assert!(
             OperationSemanticRow::ALL

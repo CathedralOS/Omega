@@ -9,6 +9,52 @@ pub(super) fn validate_unit_operation_static(
     operation: &psi_terminal::Operation,
 ) -> Result<(), ModuleError> {
     match &operation.kind {
+        OperationKind::EstablishPayloadlessCase { result_case } => {
+            let Some(result) = operation.result.structural() else {
+                return Err(ModuleError::PayloadlessCaseResultMismatch(operation.id));
+            };
+            let Some(place) = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == result.place)
+            else {
+                return Err(ModuleError::PayloadlessCaseResultMismatch(operation.id));
+            };
+            if !matches!(
+                place.kind,
+                StructuralPlaceKind::OperationResult { producer, structural_type }
+                    if producer == operation.id && structural_type == result.structural_type
+            ) || result.multiplicity != StructuralMultiplicity::Unrestricted
+                || !result.qualifications.is_empty()
+                || !result.claims.is_empty()
+            {
+                return Err(ModuleError::PayloadlessCaseResultMismatch(operation.id));
+            }
+            let Some(declaration) = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == result.structural_type)
+            else {
+                return Err(ModuleError::UnknownStructuralType(result.structural_type));
+            };
+            let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+                return Err(ModuleError::PayloadlessCaseRequiresSum {
+                    operation: operation.id,
+                    structural_type: result.structural_type,
+                    result_case: *result_case,
+                });
+            };
+            if !cases
+                .iter()
+                .any(|case| case.id == *result_case && case.fields.is_empty())
+            {
+                return Err(ModuleError::PayloadlessCaseRequiresPayloadlessMember {
+                    operation: operation.id,
+                    structural_type: result.structural_type,
+                    result_case: *result_case,
+                });
+            }
+        }
         OperationKind::CallUnit {
             callee,
             structural_arguments,

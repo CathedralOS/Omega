@@ -102,6 +102,7 @@ mod evidence_lowering;
 mod float_meaning_projection;
 mod nonzero_divisor_certificate;
 mod operation_emission;
+mod payloadless_case_return;
 mod scalar_call_closure;
 mod scalar_graph_lowering;
 mod scalar_graph_module;
@@ -153,6 +154,7 @@ use operation_emission::{
     emit_boolean_expression, emit_direct_expression, emit_scalar_binding,
     emit_staged_scalar_call_binding, finalize_operation_proofs,
 };
+use payloadless_case_return::lower_payloadless_case_return_machine;
 use scalar_call_closure::{checked_scalar_call_closure, lower_scalar_call_closure};
 use scalar_graph_lowering::{
     KnownDirectScalar, contains_short_circuit, direct_expression_contains_short_circuit,
@@ -956,6 +958,19 @@ fn lower_selected_machine(
             return unsupported("structural call result transfer requires an attached signature");
         }
         return lower_structural_call_return_machine(checked, plan);
+    }
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_returns
+        .payloadless_case_for_machine(selection.machine)
+    {
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported(
+                "payloadless structural case return requires an attached signature",
+            );
+        }
+        return lower_payloadless_case_return_machine(checked, plan);
     }
     if let Some(plan) = checked
         .facts

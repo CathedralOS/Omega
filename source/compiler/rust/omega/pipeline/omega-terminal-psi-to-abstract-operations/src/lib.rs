@@ -480,6 +480,19 @@ fn lower_machine(
     machine: &TerminalMachine,
     structural_types: &[psi_terminal::StructuralTypeDeclaration],
 ) -> Result<TerminalAbstractFunction, LoweringError> {
+    if let Some(operation) = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::EstablishPayloadlessCase { .. }
+            )
+        })
+    {
+        return Err(LoweringError::UnsupportedPayloadlessCase(operation.id));
+    }
     if let Some(result) = machine.result.structural() {
         return lower_structural_machine(machine, result, structural_types);
     }
@@ -549,6 +562,9 @@ fn lower_machine(
         });
         for operation in &block.operations {
             match operation.kind.clone() {
+                OperationKind::EstablishPayloadlessCase { .. } => {
+                    return Err(LoweringError::UnsupportedPayloadlessCase(operation.id));
+                }
                 OperationKind::EstablishByteSequenceLiteral { destination, bytes } => {
                     let (place, ordinal, structural_type) = byte_sequence_literals
                         .iter()
@@ -1775,6 +1791,9 @@ fn lower_structural_machine(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
     SemanticIdentity(CodecError),
+    /// Terminal preserves the exact payloadless sum case, but Omega has no
+    /// target-neutral abstract operation for realizing that structural value.
+    UnsupportedPayloadlessCase(psi_core::OperationId),
     /// Psi preserves exact byte-sequence literals, but native realization is
     /// deliberately fenced until the selected boundary has a byte-view ABI.
     UnsupportedByteSequenceLiteral(psi_core::OperationId),

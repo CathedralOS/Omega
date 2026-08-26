@@ -1,7 +1,7 @@
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, EvidenceIdentity, MachineId,
     ObligationId, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId,
-    StructuralDomainId, StructuralTypeId, ValueId,
+    StructuralCaseId, StructuralDomainId, StructuralTypeId, ValueId,
 };
 use psi_proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
@@ -22,7 +22,8 @@ use psi_terminal_codec::{decode_module, encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
-    TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError, TerminalScalarValue,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
+    TerminalPayloadlessCaseResult, TerminalPayloadlessCaseValue, TerminalScalarValue,
     TerminalStructuralValue, interpret_terminal_artifact_measured,
     interpret_terminal_artifact_with_effect_handler_measured,
 };
@@ -41,6 +42,88 @@ fn unit_artifact_interprets_as_a_value_less_normal_result() {
         measured
             .usage()
             .at(FuelChargeSite::Edge(edge_id(1)))
+            .unwrap()
+            .units(),
+        1
+    );
+}
+
+#[test]
+fn payloadless_case_construction_returns_exact_case_and_costs_one_operation() {
+    let structural_type = structural_type_id(1);
+    let result_case = structural_case_id(1);
+    let operation_place = place_id(1);
+    let result_place = place_id(2);
+    let mut module = unit_module();
+    module.structural_types = vec![StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "test::Outcome".into(),
+        shape: StructuralTypeShape::Sum {
+            cases: vec![psi_terminal::StructuralCaseDeclaration {
+                id: result_case,
+                identity: "Success".into(),
+                fields: Vec::new(),
+            }],
+        },
+    }];
+    let machine = &mut module.machines[0];
+    machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: result_place,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+    });
+    machine.structural_places = vec![
+        StructuralPlaceDeclaration {
+            id: operation_place,
+            kind: psi_core::StructuralPlaceKind::OperationResult {
+                producer: operation_id(1),
+                structural_type,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: result_place,
+            kind: psi_core::StructuralPlaceKind::Result,
+        },
+    ];
+    machine.blocks[0].operations = vec![Operation {
+        id: operation_id(1),
+        result: OperationResult::Structural(StructuralOperationResult {
+            place: operation_place,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::EstablishPayloadlessCase { result_case },
+    }];
+    machine.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(1),
+        source: operation_place,
+        returned_claims: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+
+    let semantic = encode_module(&module).expect("payloadless case semantics encode");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let measured =
+        interpret_terminal_artifact_measured(&semantic, &proof, &AdmissionProfile::default(), &[])
+            .expect("verified payloadless case executes");
+
+    assert_eq!(
+        measured.value(),
+        TerminalExecutionResult::PayloadlessCase(TerminalPayloadlessCaseResult {
+            value: TerminalPayloadlessCaseValue {
+                structural_type,
+                result_case,
+            },
+        })
+    );
+    assert_eq!(measured.usage().total_units(), 2);
+    assert_eq!(
+        measured
+            .usage()
+            .at(FuelChargeSite::Operation(operation_id(1)))
             .unwrap()
             .units(),
         1
@@ -3627,6 +3710,10 @@ fn claim_id(raw: u64) -> ClaimId {
 
 fn structural_type_id(raw: u64) -> StructuralTypeId {
     StructuralTypeId::new(raw).unwrap()
+}
+
+fn structural_case_id(raw: u64) -> StructuralCaseId {
+    StructuralCaseId::new(raw).unwrap()
 }
 
 fn structural_domain_id(raw: u64) -> StructuralDomainId {

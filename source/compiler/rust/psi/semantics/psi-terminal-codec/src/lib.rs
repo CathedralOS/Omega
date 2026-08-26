@@ -88,7 +88,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 28;
+const FORMAT_MARKER: u16 = 29;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -718,6 +718,44 @@ fn validate_operation_foundation(
     operation: &Operation,
 ) -> Result<(), CodecError> {
     match &operation.kind {
+        OperationKind::EstablishPayloadlessCase { result_case } => {
+            let Some(result) = operation.result.structural() else {
+                return malformed("payloadless case establishment has no structural result");
+            };
+            if result.multiplicity != psi_terminal::StructuralMultiplicity::Unrestricted
+                || !result.qualifications.is_empty()
+                || !result.claims.is_empty()
+            {
+                return malformed("payloadless case establishment has an invalid result surface");
+            }
+            if !matches!(
+                machine.structural_places.iter().find(|place| place.id == result.place),
+                Some(StructuralPlaceDeclaration {
+                    kind: StructuralPlaceKind::OperationResult { producer, structural_type },
+                    ..
+                }) if *producer == operation.id && *structural_type == result.structural_type
+            ) {
+                return malformed("payloadless case establishment has no matching result place");
+            }
+            let Some(declaration) = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == result.structural_type)
+            else {
+                return malformed("payloadless case establishment has an unknown structural type");
+            };
+            let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+                return malformed("payloadless case establishment requires a sum type");
+            };
+            if !cases
+                .iter()
+                .any(|case| case.id == *result_case && case.fields.is_empty())
+            {
+                return malformed(
+                    "payloadless case establishment requires an exact payloadless member",
+                );
+            }
+        }
         OperationKind::EstablishByteSequenceLiteral { destination, .. } => {
             if operation.result != OperationResult::Unit {
                 return malformed("byte-sequence literal establishment declares a scalar result");

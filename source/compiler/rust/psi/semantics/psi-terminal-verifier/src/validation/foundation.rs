@@ -612,7 +612,81 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 }
             }
             TerminalMachineResult::Structural(result) => {
-                if result.multiplicity == StructuralMultiplicity::Unrestricted {
+                let exact_unrestricted_payloadless_result =
+                    result.multiplicity == StructuralMultiplicity::Unrestricted
+                        && result.qualifications.is_empty()
+                        && !machine.blocks.is_empty()
+                        && machine.blocks.iter().all(|block| {
+                            let Terminator::ReturnStructural {
+                                source,
+                                returned_claims,
+                                ..
+                            } = &block.terminator
+                            else {
+                                return true;
+                            };
+                            if !returned_claims.is_empty() {
+                                return false;
+                            }
+                            let Some(StructuralPlaceDeclaration {
+                                kind:
+                                    StructuralPlaceKind::OperationResult {
+                                        producer,
+                                        structural_type,
+                                    },
+                                ..
+                            }) = machine
+                                .structural_places
+                                .iter()
+                                .find(|place| place.id == *source)
+                            else {
+                                return false;
+                            };
+                            if *structural_type != result.structural_type {
+                                return false;
+                            }
+                            machine
+                                .blocks
+                                .iter()
+                                .flat_map(|block| &block.operations)
+                                .find(|operation| operation.id == *producer)
+                                .is_some_and(|operation| {
+                                    matches!(
+                                        operation.kind,
+                                        OperationKind::EstablishPayloadlessCase { .. }
+                                    ) && operation.result.structural().is_some_and(
+                                        |operation_result| {
+                                            operation_result.place == *source
+                                                && operation_result.structural_type
+                                                    == result.structural_type
+                                                && operation_result.multiplicity
+                                                    == StructuralMultiplicity::Unrestricted
+                                                && operation_result.qualifications.is_empty()
+                                                && operation_result.claims.is_empty()
+                                        },
+                                    )
+                                })
+                        })
+                        && machine.blocks.iter().any(|block| {
+                            matches!(block.terminator, Terminator::ReturnStructural { .. })
+                        })
+                        && machine
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.operations)
+                            .all(|operation| {
+                                !matches!(
+                                    operation.kind,
+                                    OperationKind::Call { .. }
+                                        | OperationKind::CallUnit { .. }
+                                        | OperationKind::CallStructuralScalar { .. }
+                                        | OperationKind::CallStructural { .. }
+                                        | OperationKind::BoundaryCall { .. }
+                                )
+                            });
+                if result.multiplicity == StructuralMultiplicity::Unrestricted
+                    && !exact_unrestricted_payloadless_result
+                {
                     return Err(ModuleError::StructuralResultMustBeOwned(machine.id));
                 }
                 if !types.contains_key(&result.structural_type) {

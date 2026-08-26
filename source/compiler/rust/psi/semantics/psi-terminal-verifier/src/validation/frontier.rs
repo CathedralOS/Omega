@@ -768,7 +768,33 @@ pub(super) fn validate_structural_frontier(
                         block: block.id,
                     });
                 }
-                if returned_claims.is_empty()
+                let exact_payloadless_claim_free_return = returned_claims.is_empty()
+                    && source_signature.1 == StructuralMultiplicity::Unrestricted
+                    && source_signature.2.is_empty()
+                    && machine
+                        .structural_places
+                        .iter()
+                        .find(|place| place.id == *source)
+                        .and_then(|place| match place.kind {
+                            StructuralPlaceKind::OperationResult { producer, .. } => machine
+                                .blocks
+                                .iter()
+                                .flat_map(|block| &block.operations)
+                                .find(|operation| operation.id == producer),
+                            _ => None,
+                        })
+                        .is_some_and(|operation| {
+                            matches!(
+                                operation.kind,
+                                OperationKind::EstablishPayloadlessCase { .. }
+                            ) && operation.result.structural().is_some_and(|result| {
+                                result.place == *source
+                                    && result.multiplicity == StructuralMultiplicity::Unrestricted
+                                    && result.qualifications.is_empty()
+                                    && result.claims.is_empty()
+                            })
+                        });
+                if (returned_claims.is_empty() && !exact_payloadless_claim_free_return)
                     || returned_claims.windows(2).any(|pair| pair[0] >= pair[1])
                 {
                     return Err(ModuleError::NonCanonicalStructuralReturnClaims {

@@ -7771,11 +7771,21 @@ Remaining N6/N8 work:
   in canonical identity. Structural validation rejects a foreign/non-sum case,
   noncanonical or non-dense rows, cross-table obligation or selector collisions,
   mismatched named terms/interfaces, and orphan terms. Guarded rows add no
-  operation or fuel-bearing site. Executable matching-exit reconstruction,
+  operation or fuel-bearing site. The next bounded prerequisite is also live:
+  a zero-input `[copy]` machine over a closed payloadless sum can now lower one
+  exact case construction followed by `ReturnStructural`. Terminal format 29 /
+  vocabulary 31 encode the structural operation canonically, validation binds
+  it to an exact payloadless member of the result sum, reconstruction emits the
+  corresponding case-membership fact, the interpreter returns the exact case,
+  and fixed fuel is exactly two units (one construction plus one return).
+  Resumable exhaustion at either charge cannot replay the construction, and
+  proof metadata still adds no runtime operation or fuel. Payload-bearing cases,
+  parameters/locals/internal calls, qualifications, machine contracts, and
+  wider structural-return shapes remain fenced; Omega/native lowering rejects
+  this target-neutral construction explicitly until tagged sum materialization
+  lands. Executable guarded matching-exit reconstruction,
   vacuity/forwarding-aware derivation provenance, caller import, and validity
-  replay remain explicitly fail-closed: Terminal has no independently justified
-  exact-case structural-return carrier yet, so verification rejects rather than
-  trusting a producer-authored exit label.
+  replay remain fail-closed pending the next stage-5 rung.
 
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct

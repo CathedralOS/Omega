@@ -1,7 +1,7 @@
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, EvidenceIdentity, IntegerSign,
     IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition,
-    ScalarTerm, ScalarType, ServiceId, StructuralTypeId, ValueId,
+    ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralTypeId, ValueId,
 };
 use psi_proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
@@ -12,10 +12,11 @@ use psi_terminal::{
     CrashCause, CrashRouteBucket, CrashRouteGuard, EntryClaim, MachineContract,
     NominalAffineCleanup, Operation, OperationKind, OperationResult, ServiceDeclaration,
     StructuralAccess, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use psi_terminal_codec::{CodecError, decode_module, encode_module, terminal_psi_identity};
 use psi_terminal_fixed_fuel::{
@@ -68,6 +69,75 @@ fn unit_return_is_one_normal_edge_unit() {
     assert_eq!(segments.len(), 1);
     assert_eq!(segments[0].end_edge(), edge_id(900));
     assert_eq!(segments[0].ceiling_units(), 1);
+}
+
+#[test]
+fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
+    let structural_type = structural_type_id(910);
+    let result_case = structural_case_id(910);
+    let operation_place = place_id(910);
+    let result_place = place_id(911);
+    let mut module = unit_fixture();
+    module.structural_types = vec![StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "test::Outcome".into(),
+        shape: StructuralTypeShape::Sum {
+            cases: vec![psi_terminal::StructuralCaseDeclaration {
+                id: result_case,
+                identity: "Success".into(),
+                fields: Vec::new(),
+            }],
+        },
+    }];
+    let machine = &mut module.machines[0];
+    machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: result_place,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+    });
+    machine.structural_places = vec![
+        StructuralPlaceDeclaration {
+            id: operation_place,
+            kind: psi_core::StructuralPlaceKind::OperationResult {
+                producer: operation_id(910),
+                structural_type,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: result_place,
+            kind: psi_core::StructuralPlaceKind::Result,
+        },
+    ];
+    machine.blocks[0].operations = vec![Operation {
+        id: operation_id(910),
+        result: OperationResult::Structural(StructuralOperationResult {
+            place: operation_place,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::EstablishPayloadlessCase { result_case },
+    }];
+    machine.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: edge_id(910),
+        source: operation_place,
+        returned_claims: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("payloadless case module verifies");
+    let certificate = derive_fixed_entry_fuel(&verified, machine_id(900))
+        .expect("payloadless case has an exact fixed bound");
+
+    assert_eq!(certificate.ceiling_units(), 2);
+    validate_fixed_entry_fuel(&verified, &certificate).unwrap();
 }
 
 #[test]
@@ -1025,7 +1095,7 @@ fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
         position: 0,
         is_self: false,
         structural_type: array,
-        multiplicity: StructuralMultiplicity::Affine,
+        multiplicity: StructuralMultiplicity::Linear,
         qualifications: Vec::new(),
     }];
     caller.structural_places = vec![StructuralPlaceDeclaration {
@@ -2228,3 +2298,4 @@ id_constructor!(service_id, ServiceId);
 id_constructor!(place_id, PlaceId);
 id_constructor!(claim_id, ClaimId);
 id_constructor!(structural_type_id, StructuralTypeId);
+id_constructor!(structural_case_id, StructuralCaseId);
