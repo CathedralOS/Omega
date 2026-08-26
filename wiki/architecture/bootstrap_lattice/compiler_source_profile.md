@@ -88,6 +88,14 @@ implementation, or a bootstrap dependency. It recompiles the same product
 source. Likewise, a conservatively generated production-compiler executable
 may still contain and run the full optimizer when it compiles user programs.
 
+Use “spec-compliant” only with its subject named. Delta conforms to the Delta
+specification. `omega-bootstrap` is deliberately incomplete in Omega input
+coverage but must compile every admitted `Ωself` program according to the full
+Omega meaning of the forms it accepts. The produced `omega` is the compiler
+that must accept and implement the full Omega specification. Separately, that
+compiler's own executable may have conservative machine code. Conflating these
+four claims recreates the discarded Omega0/Omega1 ambiguity.
+
 ## Decision status
 
 The architecture is settled; only the exact contents of the two source

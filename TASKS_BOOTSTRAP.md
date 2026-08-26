@@ -29,96 +29,57 @@ Delta bridge source ──[delta compiler]────────────�
 Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
 ```
 
-In artifact shorthand this is `Alpha → Beta → Gamma → Delta → omega-bootstrap
-→ omega [→ omega]`. Selection of new bootstrap-language rungs stops at Delta.
-Everything to its right is a compiler artifact or a build edge; the `omega`
-artifacts implement the already-specified full Omega language rather than
-introducing another bootstrap dialect.
+In language-capability terms this is `Alpha → Beta → Gamma → Delta → Omega`.
+`omega-bootstrap` is an intervening compiler artifact, not Epsilon, Omega0, or
+another language rung. The optional second `omega` rebuilds the same source for
+executable quality; it does not select another source surface.
 
-The corresponding language-capability view is simply
-`Alpha → Beta → Gamma → Delta → Omega`. `omega-bootstrap` appears only in the
-artifact view because it is a Delta-written compiler, not a language. The
-bracketed second `omega` is the same product source rebuilt for executable
-quality, not another feature surface or compiler generation.
+Only two source decisions remain:
 
-There are exactly two source-surface inventories left to settle. Only the first
-creates a language specification; the second constrains how one
-ordinary-Omega program is authored:
-
-| Surface | Kind | Required closure |
+| Contract | Decision | Working bias |
 | --- | --- | --- |
-| Delta v1 | independent robust compiler-host language, C-like in power and Omega-shaped where cheap | the complete Delta source of the canonical Delta compiler and `omega-bootstrap`, plus explicit coherence, robustness, safety, and maintainability arguments |
-| `Ωself` | compositional subset of already-valid Omega, with no private meaning | the complete Omega source of production `omega` |
+| Delta v1 | the independent language used by both the canonical Delta compiler and `omega-bootstrap` | robust deterministic C-class compiler power; regular data/control/modules; fixed, bump, or paged allocation is allowed when specified, bounded, and explicit about exhaustion |
+| `Ωself` | the ordinary-Omega profile used by the production compiler's own source | retain useful compiler-building forms; avoid proof-program mathematics and dependent/proof-indexed forms; measure generics/domains, numeric tags, mixed record-plus-sum declarations, and complex transition payloads before refactoring |
 
-There are three source closures but only these two surface contracts: the
-canonical Delta compiler and `omega-bootstrap` are both Delta-v1 programs; the
-production compiler is ordinary Omega constrained by `Ωself`. Do not derive a
-third inventory from the fact that the three programs have different jobs.
+Delta v1 is a language specification. `Ωself` is an incidental authoring
+restriction with no private syntax or meaning. The canonical Delta compiler and
+bridge are two Delta programs, not two Delta dialects. The product compiler is
+one ordinary Omega program constrained by `Ωself`; it may implement a full-Omega
+feature without using that feature in its own source. Ordinary facilities leave
+`Ωself` only when a concrete refactor reduces total source, bridge, and assurance
+cost—not merely the feature count.
 
-Use this working direction until complete-source measurements overturn it:
+Keep the three compiler obligations distinct:
 
-| Surface | Default | Deliberate pressure points |
+| Artifact | Accepts | Required result |
 | --- | --- | --- |
-| Delta v1 | a coherent C-class compiler host with regular data/control, modules, deterministic bounded storage or allocation, explicit exhaustion/failure, and sealed byte/artifact/diagnostic/exit I/O | exact arithmetic, aggregate, call, arena, representation, and module inventory still follows the two complete Delta source closures plus robustness arguments; runtime-sized allocation may use fixed, bump, or paged backing, but never inherits an ambient host allocator implicitly |
-| `Ωself` | retain ordinary compiler-building Omega facilities once real source uses them | presumptively omit proof-program mathematics and dependent/proof-indexed forms; measure advanced generics/domains, numeric schema tags, mixed record-plus-sum declarations, and aggregate transition payloads |
+| lower-rung-published Delta compiler | Delta v1 | builds the exact Delta bridge closure |
+| `omega-bootstrap` | frozen `Ωself` | compiles admitted Omega exactly, possibly with conservative code generation |
+| production `omega` | full Omega | implements the full specification, optimizer, advanced lowering, and specified artifact behavior |
 
-For ordinary `Ωself` facilities, a concrete cheaper source refactor is
-required to justify exclusion. Feature-count reduction by itself is not a win.
-
-`omega-bootstrap` is written in Delta and need only accept `Ωself`. The
-production source is written in `Ωself` but must define a compiler that accepts
-full Omega and contains the production optimizer and advanced lowering. A
-compiler does not need to use a language feature in order to implement that
-feature for its users.
-
-Those two source choices discharge three artifact obligations:
-
-| Artifact | Must accept | Must contain or produce |
-| --- | --- | --- |
-| lower-rung-published Delta compiler | Delta v1 | a correct `omega-bootstrap` executable from the exact Delta bridge closure |
-| `omega-bootstrap` | frozen `Ωself` | a semantically exact, possibly conservative production-compiler executable |
-| production `omega` | full Omega | the full optimizer, advanced lowering, and specified artifact behavior |
-
-The first production binary may be slow because the bridge lowered it
-conservatively; its accepted language and the compiler implementation it
-contains are still complete. Only the optional bracketed edge is an Omega
-self-rebuild. Detailed rationale and the feature-disposition procedure live in
+Thus the bridge is input-incomplete, while the first `omega` it produces is
+already the full product compiler. A slow compiler binary is not a partial
+compiler. Only the optional `omega` → `omega` edge is strict self-hosting.
+Detailed rationale and the feature-disposition procedure live in
 [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
 
-Use the role names precisely in tasks and status reports. `omega-bootstrap` is
-the deliberately input-incomplete bridge compiler, not an “Omega 0” generation.
-The first `omega` it produces is already the full-spec production compiler; a
-later rebuild changes the quality of that compiler's executable, not its source
-language, implementation obligations, or generation number.
+Queue guardrails:
 
-Guardrails for this queue:
-
-- The proof kernel is cross-cutting assurance, with Beta and Gamma
-  implementations; Gamma is not the proof-checker rung.
-- Artifact authority is subject-qualified operational refinement, never bare
-  kernel acceptance. Bootstrap gates reconstruct the source/artifact subjects,
-  observation profile, semantics versions, checked bridge graph, and disclosed
-  admissions; a physical-target claim remains a deployment admission.
-- Compiler authority follows direct lower-rooted source-to-artifact refinement;
-  cross-compiler agreement is optional bug-finding evidence. See
+- Gamma is a language rung that also hosts one proof-kernel implementation; it
+  is not “the proof-checker rung.” The proof kernel and refinement machinery are
+  cross-cutting assurance.
+- Compiler authority comes from direct lower-rooted source-to-artifact
+  refinement. Do not add a DDC lane: another compiler's agreement is useful
+  differential evidence, not authority or a release dependency. See
   [D5](wiki/architecture/bootstrap_lattice/decisions.md#d5--direct-checked-refinement-closes-compiler-provenance).
-- Do not create a diverse-double-compilation lane. The complete lower-rooted
-  chain checks source correspondence and semantic refinement at every compiler
-  edge directly, which subsumes the relevant DDC provenance question. Another
-  producer may find bugs but cannot add authority or become a release
-  dependency merely by agreeing.
-- The current Rust Psi/Omega compiler stays under the explicitly suffixed
-  `bootstrap/onramps/omega-rust/` owner as an optional differential producer.
-  `compiler/{psi,omega}/` owns Omega-written product source.
-- `Psi` and `Omega` are permanent product responsibilities, not additional
-  bootstrap rungs. Their unsuffixed product roots survive self-hosting; only an
-  external-language on-ramp receives an implementation-language suffix.
-- Standalone Terminal-Psi interpreters, verifiers, REPLs, proof explorers,
-  viewers, and debuggers are not in the hosted compiler closure unless the
-  compiler executable imports them. Product Terminal-Psi representation and
-  lowering modules that it does import remain ordinary source dependencies.
-- `omega-bootstrap` may use a direct checked-IR lowering. It need not use
-  Terminal Psi internally merely because it compiles product modules that do.
+- `compiler/{psi,omega}/` are permanent Omega-written product owners.
+  External-language implementations carry suffixes under `bootstrap/onramps/`;
+  the maintained Rust implementation is an optional comparator.
+- Product Terminal-Psi modules belong to the source closure only when the
+  compiler imports them. Standalone interpreters, verifiers, REPLs, proof
+  explorers, viewers, and debuggers are not bootstrap dependencies.
+- The bridge may lower through its own checked IR. It need not adopt Terminal
+  Psi internally.
 
 ## Delta → omega-bootstrap → production Omega readiness
 
@@ -201,64 +162,21 @@ explicit failure. Maintain that evidence only in
 
 ## Current language-design blockers
 
-The visibility rule for private access between distinct logical modules in one
-package is unspecified. Until it is ruled, the bridge rejects that case. Public
-cross-package access and same-module private access remain unblocked, including
-the current two-package nominal-data artifact. The selected constant-aggregate,
-runtime-record, and direct-field-receiver slices are deliberately same-module
-and do not depend on this ruling.
+These are the only current literal language/profile blockers. Everything else
+below is implementation or engineering work.
 
-Checkpoint 000001's product lexer also conflicts with the current language
-guide: Unicode XID identifiers contradict its ASCII-transparent wording,
-`\u{...}` escapes contradict its explicit prohibition, raw-string semantics
-are absent, and `u32` cursors are used directly where the specified `Array` and
-`Slice` indexing/count interfaces require `u64`. Explicit exact `as` widening is
-settled and implicit widening is forbidden; the current direct uses still need
-a product-source refactor or a distinct heterogeneous conversion/comparison
-ruling. Those are product-language ruling blockers recorded under
-`OMEGA-PRODUCT-COMPILER-SOURCE` in
-[`TASKS.md`](TASKS.md). They do not block bridge implementation for source
-forms whose meaning is already settled, as the closed same-module runtime-
-record tranche demonstrates. No implementation or engineering difficulty below
-is otherwise a design blocker.
+| Missing ruling | Work that remains valid meanwhile | Decision owner |
+| --- | --- | --- |
+| private visibility between distinct logical modules in one package | public cross-package and same-module private access | Omega language/product source |
+| checkpoint lexer conflicts: Unicode XID versus ASCII-transparent identifiers, `\u{...}` versus its prohibition, unspecified raw strings, and direct `u32` cursors against `u64` collection interfaces | bridge every already-specified lexer form; exact explicit widening is settled, while implicit widening remains forbidden | `OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md) |
+| observable order of effectful or trapping named-record fields | pure nontrapping fields in declaration order, including `SourceId { value: source_id }` | Omega language |
+| observable call-argument evaluation order | calls whose argument order cannot be observed | Omega language |
+| zero initialization when an explicit sum discriminant moves the first case away from zero | sums without explicit discriminants; bridge-private compiler-controlled layout | Omega language |
+| meaning and precedence of the product-only `Owner::provider_defaults` convention | opaque custody and bounded candidate discovery with no claimed selection | product owner: refactor to specified `Build::select_provider` or publish the legacy convention |
 
-Omega also does not yet specify observable evaluation order among effectful or
-trapping fields of a runtime named-record literal. CKIR4 therefore admits only
-pure, non-trapping leaf fields and canonicalizes them by declaration ordinal;
-broader constructor fields remain design-blocked until the language owner rules
-their order. The exact `SourceId { value: source_id }` dependency does not need
-that ruling.
-
-Call-argument evaluation order is likewise still advisory rather than
-normative in the language guide, while the current bridge lowering evaluates
-arguments left-to-right. Until the language owner rules it, admitted bridge
-calls must have argument expressions whose relative order cannot be observed;
-effectful or trapping argument combinations remain blocked.
-
-The sum specification has one unresolved interaction outside the first bridge
-slice: explicit discriminants can move the first case away from zero despite
-the zero-initialization rule. Default aggregate layout is compiler-controlled,
-so declaration-order case identity must not be described as a unique public
-byte ABI. The first payload-sum tranche remains unblocked by excluding explicit
-discriminants and deriving one bridge-private layout from the checked
-declaration graph.
-
-The language guide specifies exact nominal provider selection and says target
-packages contribute defaults, but it does not specify the product source's
-current `Owner::provider_defaults(defaults: &mut Owner)` declaration convention.
-It now also specifies that runtime-bearing conformance and concrete
-implementation selections close replacement cohorts transitively, while an
-independently replaceable crossing must use an independently selected boundary
-requirement. That settles the cohort effect of a completed selection; it does
-not settle how this product-only default declaration creates or overrides one.
-The Rust on-ramp recognizes that name suffix and scans the body for
-`select_provider`; that implementation convention is not language authority.
-The product owner must either rewrite target defaults into an already-normative
-`Build::select_provider<Service, Provider>` surface or publish the declaration,
-receiver, target-scope, and duplicate/default precedence rules. Until then the
-bridge may retain that spelling as opaque custody or use it in an explicitly
-bounded cost fixture, but it must not claim general provider-default selection
-semantics from it.
+Completed-selection cohort closure is already settled; it does not define the
+legacy provider-default declaration. Likewise, the Rust on-ramp's recognition
+of that spelling is implementation evidence, not language authority.
 
 ## External contract dependency
 
