@@ -775,21 +775,72 @@ impl WrittenOutput {
             app_bundle_publication,
         })
     }
+}
 
-    pub(super) fn into_report_parts(
+/// Complete legacy compiler-output custody immediately before report return.
+///
+/// The unpublished and written cases derive report cardinality rather than
+/// accepting a Boolean, category, or rearrangeable receipt tuple from the
+/// driver. The exact program-storage binding is likewise projected only from
+/// the retained bridge during the consuming handoff.
+pub(super) enum LegacyCompilerOutputCustody {
+    Unpublished,
+    Written(WrittenOutput),
+}
+
+impl LegacyCompilerOutputCustody {
+    pub(super) const fn unpublished() -> Self {
+        Self::Unpublished
+    }
+
+    pub(super) const fn written(output: WrittenOutput) -> Self {
+        Self::Written(output)
+    }
+
+    pub(super) fn output_path(&self) -> Option<&std::path::Path> {
+        match self {
+            Self::Unpublished => None,
+            Self::Written(output) => Some(&output.path),
+        }
+    }
+
+    pub(super) fn into_compile_report(
         self,
-    ) -> (
-        std::path::PathBuf,
-        super::CompileOutputKind,
-        Option<super::ExecutablePublicationReceipt>,
-        Option<super::ExecutablePublicationReceipt>,
-    ) {
-        (
-            self.path,
-            self.kind,
-            self.executable_publication,
-            self.app_bundle_publication,
-        )
+        root_path: std::path::PathBuf,
+        source_file_count: usize,
+        program_storage_entry_bridge: Option<super::ProgramStorageEntryNativeBridgePlan>,
+        build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
+        build_observation_summary: Option<super::build_config::BuildObservationSummary>,
+    ) -> Result<super::CompileReport, &'static str> {
+        let program_storage_entry = program_storage_entry_bridge
+            .as_ref()
+            .map(|bridge| bridge.binding().clone());
+        match self {
+            Self::Unpublished => super::CompileReport::checked(
+                root_path,
+                source_file_count,
+                false,
+                super::CompileOutputKind::CheckOnly,
+                None,
+                None,
+                program_storage_entry,
+                program_storage_entry_bridge,
+                build_evaluation_usage,
+                build_observation_summary,
+            ),
+            Self::Written(output) => super::CompileReport::checked(
+                root_path,
+                source_file_count,
+                true,
+                output.kind,
+                output.executable_publication,
+                output.app_bundle_publication,
+                program_storage_entry,
+                program_storage_entry_bridge,
+                build_evaluation_usage,
+                build_observation_summary,
+            ),
+        }
     }
 }
 
@@ -1449,9 +1500,10 @@ fn mark_executable_if_needed(_path: &std::path::Path) -> Result<(), Diagnostic> 
 mod tests {
     use super::super::ExecutablePublicationDestination;
     use super::{
-        ExecutablePublicationEvidence, FNV_OFFSET, ValidatedExecutablePublication, WrittenOutput,
-        build_final_footprint_certificate, fingerprint_into, validate_published_executable_bytes,
-        validate_staged_executable_bytes, write_validated_executable_output_file,
+        ExecutablePublicationEvidence, FNV_OFFSET, LegacyCompilerOutputCustody,
+        ValidatedExecutablePublication, WrittenOutput, build_final_footprint_certificate,
+        fingerprint_into, validate_published_executable_bytes, validate_staged_executable_bytes,
+        write_validated_executable_output_file,
     };
 
     fn compiler_text_validation() -> omega_image::CompilerTextValidationEvidence {
@@ -1599,6 +1651,50 @@ mod tests {
         let mut changed_format = image;
         changed_format.format = "redirected".into();
         assert!(evidence.validate(&changed_format, &certificate).is_err());
+    }
+
+    #[test]
+    fn legacy_output_custody_derives_unpublished_and_object_reports() {
+        let root_path = std::path::PathBuf::from("Main/main.omg");
+        let unpublished = LegacyCompilerOutputCustody::unpublished();
+        assert!(unpublished.output_path().is_none());
+        let report = unpublished
+            .into_compile_report(root_path.clone(), 3, None, None, None)
+            .expect("unpublished output report");
+        assert_eq!(report.root_path(), root_path);
+        assert_eq!(report.source_file_count, 3);
+        assert!(!report.wrote_output());
+        assert_eq!(
+            report.output_kind(),
+            super::super::CompileOutputKind::CheckOnly
+        );
+        assert!(report.executable_publication().is_none());
+        assert!(report.app_bundle_publication().is_none());
+
+        let object_path = std::path::PathBuf::from("build/main.omgobj");
+        let object = LegacyCompilerOutputCustody::written(
+            WrittenOutput::checked(
+                &root_path,
+                object_path.clone(),
+                super::super::CompileOutputKind::ObjectContainer,
+                None,
+                None,
+            )
+            .expect("checked object-container output"),
+        );
+        assert_eq!(object.output_path(), Some(object_path.as_path()));
+        let report = object
+            .into_compile_report(root_path, 4, None, None, None)
+            .expect("object-container output report");
+        assert_eq!(report.source_file_count, 4);
+        assert!(report.wrote_output());
+        assert_eq!(
+            report.output_kind(),
+            super::super::CompileOutputKind::ObjectContainer
+        );
+        assert!(report.executable_publication().is_none());
+        assert!(report.app_bundle_publication().is_none());
+        assert!(report.checked_native_executable_path().is_none());
     }
 
     #[test]
@@ -1791,6 +1887,32 @@ mod tests {
                 Some(bundle_retained.clone()),
             )
             .is_ok()
+        );
+        let native = LegacyCompilerOutputCustody::written(
+            WrittenOutput::checked(
+                &root_path,
+                output.clone(),
+                super::super::CompileOutputKind::NativeExecutable,
+                Some(retained.clone()),
+                Some(bundle_retained.clone()),
+            )
+            .expect("checked native output custody"),
+        );
+        assert_eq!(native.output_path(), Some(output.as_path()));
+        let native = native
+            .into_compile_report(root_path.clone(), 5, None, None, None)
+            .expect("native output report custody");
+        assert_eq!(native.source_file_count, 5);
+        assert!(native.wrote_output());
+        assert_eq!(
+            native.output_kind(),
+            super::super::CompileOutputKind::NativeExecutable
+        );
+        assert_eq!(native.executable_publication(), Some(&retained));
+        assert_eq!(native.app_bundle_publication(), Some(&bundle_retained));
+        assert_eq!(
+            native.checked_native_executable_path(),
+            Some(output.as_path())
         );
         assert!(
             WrittenOutput::checked(

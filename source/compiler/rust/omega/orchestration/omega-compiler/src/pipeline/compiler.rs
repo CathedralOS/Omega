@@ -13,7 +13,7 @@ use crate::pipeline::compile_policy::{
     ExecutableTcbBuildPolicy, ExecutableTcbInstallationAuthorization,
 };
 use crate::pipeline::compile_report::CompileReport;
-use crate::pipeline::output::write_output;
+use crate::pipeline::output::{LegacyCompilerOutputCustody, write_output};
 use crate::pipeline::stages::{
     backend_plan_to_native_image_payload, checked_trees_to_state_graph,
     control_flow_to_backend_plan, source_files_to_syntax_trees, state_graph_to_control_flow,
@@ -601,19 +601,15 @@ impl Compiler {
             if emit_auxiliary_artifacts {
                 write_pipeline_shell(&self.options)?;
             }
-            return CompileReport::checked(
-                self.options.root_path,
-                source_file_count,
-                false,
-                super::CompileOutputKind::CheckOnly,
-                None,
-                None,
-                None,
-                None,
-                build_evaluation_usage,
-                build_observation_summary,
-            )
-            .map_err(|message| vec![Diagnostic::error(message)]);
+            return LegacyCompilerOutputCustody::unpublished()
+                .into_compile_report(
+                    self.options.root_path,
+                    source_file_count,
+                    None,
+                    build_evaluation_usage,
+                    build_observation_summary,
+                )
+                .map_err(|message| vec![Diagnostic::error(message)]);
         }
 
         if requires_native_backend {
@@ -723,7 +719,7 @@ impl Compiler {
             .map_err(|message| vec![Diagnostic::error(message)]);
         }
 
-        let (output_kind, executable_publication, app_bundle_publication) = if installs_output {
+        let output = if installs_output {
             let written_output = write_output(
                 &self.options,
                 &executable_tcb_installation_authorization,
@@ -738,8 +734,7 @@ impl Compiler {
                     )
                 },
             )?;
-            let (output_path, output_kind, executable_publication, app_bundle_publication) =
-                written_output.into_report_parts();
+            let output = LegacyCompilerOutputCustody::written(written_output);
             if emit_auxiliary_artifacts {
                 if let Some(bridge) = &program_storage_entry_bridge {
                     write_program_storage_entry_snapshot(&self.options, bridge)?;
@@ -748,36 +743,34 @@ impl Compiler {
                     &self.options,
                     &backend.plan,
                     &emission_plan,
-                    Some(output_path.as_path()),
+                    Some(
+                        output
+                            .output_path()
+                            .expect("written compiler output retains its exact destination"),
+                    ),
                 )?;
                 write_timings(&self.options, timings.as_slice())?;
             }
-            (output_kind, executable_publication, app_bundle_publication)
+            output
         } else if emit_auxiliary_artifacts {
             write_emission_plan(&self.options, &backend.plan, &emission_plan, None)?;
-            (super::CompileOutputKind::CheckOnly, None, None)
+            LegacyCompilerOutputCustody::unpublished()
         } else {
-            (super::CompileOutputKind::CheckOnly, None, None)
+            LegacyCompilerOutputCustody::unpublished()
         };
 
         if emit_auxiliary_artifacts {
             write_pipeline_shell(&self.options)?;
         }
 
-        CompileReport::checked(
-            self.options.root_path,
-            source_file_count,
-            installs_output,
-            output_kind,
-            executable_publication,
-            app_bundle_publication,
-            program_storage_entry_bridge
-                .as_ref()
-                .map(|bridge| bridge.binding().clone()),
-            program_storage_entry_bridge,
-            build_evaluation_usage,
-            build_observation_summary,
-        )
-        .map_err(|message| vec![Diagnostic::error(message)])
+        output
+            .into_compile_report(
+                self.options.root_path,
+                source_file_count,
+                program_storage_entry_bridge,
+                build_evaluation_usage,
+                build_observation_summary,
+            )
+            .map_err(|message| vec![Diagnostic::error(message)])
     }
 }
