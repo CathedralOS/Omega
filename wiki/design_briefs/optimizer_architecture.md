@@ -150,7 +150,8 @@ canonical Terminal Psi semantic + proof sections
     -> ValidatedOptimizedAbstractPlan
        { clean TerminalAbstractOperationPlan (borrowed access only),
          retained OptimizationRun,
-         optimized-plan projection validation receipt }
+         optimized-plan projection validation receipt,
+         validated pre-physical structured manifest + text projection }
     -> abstract operations and target-independent storage decisions
     -> lowering optimization
     -> ValidatedOptimizedTargetOperations
@@ -218,6 +219,18 @@ target/native realization identity. A domain-separated projection identity
 binds all of those fields plus the independent validator identity, so later
 custody and manifest joins cannot name only the optimizer-authored bundle while
 silently losing the translation validator.
+
+That bridge now also retains a validated pre-physical manifest. The structured
+record binds the Terminal-Psi root, fuel schedule, initial/final unit revisions,
+exact selections, work ceiling and aggregate usage, complete ordered pass and
+decision rows, transformation ledger, replay/cache bundle, projection receipt,
+and source/final structural statistics under a domain-separated identity. Its
+human text renderer projects those same rows, including consumed fact,
+validator, provenance, and logical-fuel identities. The record explicitly says
+physical data is unavailable before realization; it has no authority to invent
+zero code size, zero spills, a zero frame, or allocator success. A later
+physical/publication manifest must join this identity to independently
+validated target, allocation, emission, and artifact records.
 
 The first register-allocation slice follows the same custody discipline. It
 derives exact physical-view candidates from the selected CFG, target register
@@ -1035,6 +1048,14 @@ An opt-enabled build emits a deterministic optimization manifest containing:
 Human text/HTML views are projections of a structured compiler-owned record.
 They do not enter semantic identity. The report must be suppressible without
 changing optimization decisions.
+
+The current Rust slice implements the structured/text projection through the
+validated abstract-plan boundary only. It is intentionally named a
+pre-physical manifest and marks allocator, frame/spill, emitted-size, and
+publication fields unavailable. `OPT-MANIFEST-SCHEMA` remains open until a
+downstream manifest joins those physical records, enters artifact/rebuild
+metadata, and the compiler exposes a suppressible report request without
+entering native optimization during ordinary check-only builds.
 
 The decision-row substrate is self-authenticating rather than caller-stamped.
 Each row derives its identity from the exact input unit, candidate, rule,

@@ -27,8 +27,15 @@ use omega_optimization_unit::{
 use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ScalarType, ValueId};
 use psi_terminal_fuel::TerminalFuelSchedule;
 
+mod prephysical_manifest;
 mod projection;
 
+pub use prephysical_manifest::{
+    OptimizationManifestStage, OptimizationStructuralStatistics, PhysicalOptimizationDataStatus,
+    PrePhysicalOptimizationManifest, PrePhysicalOptimizationManifestError,
+    ValidatedPrePhysicalOptimizationManifest, project_pre_physical_optimization_manifest,
+    validate_pre_physical_optimization_manifest,
+};
 pub use projection::{
     OptimizedAbstractPlanProjectionError, ValidatedOptimizedAbstractPlanProjection,
     validate_optimized_abstract_plan_projection,

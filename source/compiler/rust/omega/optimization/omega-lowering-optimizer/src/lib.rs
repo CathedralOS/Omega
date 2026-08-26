@@ -19,8 +19,9 @@ use omega_optimization_unit::{
 };
 use omega_optimization_validation::{
     OptimizationUnitValidationError, OptimizedAbstractPlanProjectionError,
-    ValidatedOptimizedAbstractPlanProjection, validate_optimized_abstract_plan_projection,
-    validate_psi_rewrite_candidate,
+    PrePhysicalOptimizationManifestError, ValidatedOptimizedAbstractPlanProjection,
+    ValidatedPrePhysicalOptimizationManifest, project_pre_physical_optimization_manifest,
+    validate_optimized_abstract_plan_projection, validate_psi_rewrite_candidate,
 };
 use omega_psi_optimizer::{
     OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit, RuleRegistryError,
@@ -50,6 +51,7 @@ pub struct ValidatedOptimizedAbstractPlan {
     run: OptimizationRun,
     plan: TerminalAbstractOperationPlan,
     validation: ValidatedOptimizedAbstractPlanProjection,
+    pre_physical_manifest: ValidatedPrePhysicalOptimizationManifest,
 }
 
 /// Clean target lowering paired with the complete optimized abstract custody
@@ -149,6 +151,10 @@ impl ValidatedOptimizedAbstractPlan {
     pub const fn validation(&self) -> ValidatedOptimizedAbstractPlanProjection {
         self.validation
     }
+
+    pub const fn pre_physical_manifest(&self) -> &ValidatedPrePhysicalOptimizationManifest {
+        &self.pre_physical_manifest
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -165,6 +171,7 @@ pub enum OptimizedAbstractProjectionError {
     LedgerCommitMismatch,
     ManifestUsageMismatch,
     IndependentValidation(OptimizedAbstractPlanProjectionError),
+    PrePhysicalManifest(PrePhysicalOptimizationManifestError),
 }
 
 impl std::fmt::Display for OptimizedAbstractProjectionError {
@@ -206,10 +213,24 @@ pub fn project_optimization_run(
         run.identity_bundle(),
     )
     .map_err(OptimizedAbstractProjectionError::IndependentValidation)?;
+    let pre_physical_manifest = project_pre_physical_optimization_manifest(
+        run.session().input(),
+        run.session().unit(),
+        run.selections(),
+        run.budget_per_pass(),
+        work_usage(run.usage()),
+        run.decisions(),
+        run.pass_manifests(),
+        run.transformation_ledger(),
+        run.identity_bundle(),
+        validation,
+    )
+    .map_err(OptimizedAbstractProjectionError::PrePhysicalManifest)?;
     Ok(ValidatedOptimizedAbstractPlan {
         run,
         plan,
         validation,
+        pre_physical_manifest,
     })
 }
 
@@ -430,6 +451,10 @@ fn project_parameter(
 #[cfg(test)]
 mod tests {
     use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
+    use omega_optimization_validation::{
+        PhysicalOptimizationDataStatus, PrePhysicalOptimizationManifestError,
+        validate_pre_physical_optimization_manifest,
+    };
     use omega_psi_optimizer::{built_in_psi_registry, run_psi_pipeline};
     use omega_target::NativeTarget;
     use omega_terminal_abstract_operations::TerminalAbstractOperation;
@@ -698,6 +723,121 @@ mod tests {
         assert_eq!(target.target(), NativeTarget::linux_x64());
         assert_eq!(target.optimized().commits().len(), 1);
         assert_eq!(target.target_operations().functions.len(), 1);
+    }
+
+    #[test]
+    fn pre_physical_manifest_is_deterministic_structured_and_independently_validated() {
+        let selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let first =
+            project_optimization_run(run(exact_add_verified(), selections.clone())).unwrap();
+        let second = project_optimization_run(run(exact_add_verified(), selections)).unwrap();
+        let manifest = first.pre_physical_manifest().record();
+
+        assert_eq!(manifest, second.pre_physical_manifest().record());
+        assert_eq!(manifest.identity, manifest.recomputed_identity());
+        assert_eq!(
+            manifest.physical_data,
+            PhysicalOptimizationDataStatus::UnavailableBeforePhysicalRealization
+        );
+        assert_eq!(manifest.initial_unit, first.transformation_ledger().input());
+        assert_eq!(manifest.final_unit, first.unit().identity);
+        assert_eq!(manifest.projection, first.validation().identity());
+        assert_eq!(manifest.decision_log, *first.decisions());
+        assert_eq!(manifest.pass_manifests, first.pass_manifests());
+        assert_eq!(
+            manifest.transformation_ledger,
+            *first.transformation_ledger()
+        );
+        assert_eq!(manifest.source_statistics.functions, 1);
+        assert_eq!(manifest.source_statistics.blocks, 1);
+        assert_eq!(manifest.source_statistics.nodes, 4);
+        assert_eq!(manifest.optimized_statistics.nodes, 4);
+        let text = manifest.render_text();
+        assert!(text.contains("SparseConditionalConstantPropagation"));
+        assert!(text.contains("physical data: unavailable before physical realization"));
+        assert!(text.contains("candidate verdicts: applied=1, skipped=0, rejected=0"));
+        assert!(text.contains("fact: accepted-obligation:"));
+        assert!(text.contains("source: operation:"));
+        assert!(text.contains("fuel: operation:"));
+
+        let replay = validate_pre_physical_optimization_manifest(
+            manifest,
+            first.verified_input(),
+            first.unit(),
+            first.selections(),
+            first.budget_per_pass(),
+            work_usage(first.usage()),
+            first.decisions(),
+            first.pass_manifests(),
+            first.transformation_ledger(),
+            first.identity_bundle(),
+            first.validation(),
+        )
+        .unwrap();
+        assert_eq!(replay, *first.pre_physical_manifest());
+
+        let mut corrupted = manifest.clone();
+        corrupted.optimized_statistics.nodes += 1;
+        corrupted.identity = corrupted.recomputed_identity();
+        assert_eq!(
+            validate_pre_physical_optimization_manifest(
+                &corrupted,
+                first.verified_input(),
+                first.unit(),
+                first.selections(),
+                first.budget_per_pass(),
+                work_usage(first.usage()),
+                first.decisions(),
+                first.pass_manifests(),
+                first.transformation_ledger(),
+                first.identity_bundle(),
+                first.validation(),
+            ),
+            Err(PrePhysicalOptimizationManifestError::ContentMismatch)
+        );
+
+        let mut omitted_pass = manifest.clone();
+        omitted_pass.pass_manifests.clear();
+        omitted_pass.identity = omitted_pass.recomputed_identity();
+        assert_eq!(
+            validate_pre_physical_optimization_manifest(
+                &omitted_pass,
+                first.verified_input(),
+                first.unit(),
+                first.selections(),
+                first.budget_per_pass(),
+                work_usage(first.usage()),
+                first.decisions(),
+                first.pass_manifests(),
+                first.transformation_ledger(),
+                first.identity_bundle(),
+                first.validation(),
+            ),
+            Err(PrePhysicalOptimizationManifestError::ContentMismatch)
+        );
+
+        let mut wrong_selections = manifest.clone();
+        wrong_selections.selections =
+            OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
+        wrong_selections.identity = wrong_selections.recomputed_identity();
+        assert_eq!(
+            validate_pre_physical_optimization_manifest(
+                &wrong_selections,
+                first.verified_input(),
+                first.unit(),
+                first.selections(),
+                first.budget_per_pass(),
+                work_usage(first.usage()),
+                first.decisions(),
+                first.pass_manifests(),
+                first.transformation_ledger(),
+                first.identity_bundle(),
+                first.validation(),
+            ),
+            Err(PrePhysicalOptimizationManifestError::ContentMismatch)
+        );
     }
 
     #[test]

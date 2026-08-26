@@ -399,9 +399,16 @@ These facts constrain the work below.
   ledger, usage, and identity-bundle evidence over the full initial-to-final
   chain. Independent projection rejects reordered or omitted manifests, even
   when the omitted pass committed nothing. Duplicate candidate identities fail
-  closed. The top-level publication manifest/report remains open for
-  selection, provenance/fuel, realization, code-size, and later allocator
-  records.
+  closed. A new independently validated pre-physical manifest now joins the
+  exact selections, pass rows, decision-log and identity-bundle digests,
+  transformation ledger, provenance/fuel mapping, per-pass work ceiling and
+  aggregate usage, abstract projection receipt, and source/final structural
+  statistics under one domain-separated content identity. Its deterministic
+  text view is downstream of that structured record. It explicitly records
+  that physical realization data is unavailable rather than publishing zero or
+  guessed code-size, spill, frame, or allocation statistics. The final
+  publication manifest/report remains open for those downstream records and
+  artifact/rebuild integration.
 - `omega-lowering-optimizer` now owns a custody-preserving bridge from a
   completed `OptimizationRun` to a clean `TerminalAbstractOperationPlan`.
   Projection replays every retained candidate declaration through the
@@ -409,10 +416,11 @@ These facts constrain the work below.
   agreement, revalidates the transformed unit against the immutable verifier
   context, and independently reconstructs the projected plan shape. The opaque
   result retains the run, exact named selections, decisions, accepted facts,
-  ledger, and validation receipt; it exposes the plan only by borrow and does
-  not claim native publication authority. Focused tests cover empty-selection
-  identity, proof-certified constant folding, block-parameter copy propagation,
-  deterministic replay, projection corruption, commit corruption, ordered
+  ledger, validation receipt, and validated pre-physical manifest; it exposes
+  the plan only by borrow and does not claim native publication authority.
+  Focused tests cover empty-selection identity, proof-certified constant
+  folding, block-parameter copy propagation, deterministic replay, projection
+  corruption, commit corruption, manifest field/identity corruption, ordered
   multi-pass evidence corruption, and clean target lowering. The new
   `omega-optimization-pipeline` orchestration crate accepts only an explicit
   nonempty named selection and per-pass budget; it performs artifact admission,
