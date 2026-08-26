@@ -1644,6 +1644,12 @@ declared operator meaning, collection, scalar index or optional endpoints, and
 inclusive-end semantics. Changing any retained field changes the row; missing,
 ambiguous, or mismatched checked custody rejects. The same recursive projector
 allows indexed expressions inside arrays.
+Without changing the v69/row-v27 bytes, checked proof custody now includes one
+exact `OperatorDeclaration` owner row for every non-crash public-operator
+`requires`/`ensures` fact. Projection rejoins that declaration symbol, kind,
+and fact exactly; missing, duplicate, or mismatched rows reject. Operator
+contracts remain Omega's existing unnamed surface—this adds neither binding
+syntax nor evidence lanes.
 Review v52 and canonical row v12 add blocking standalone public-proposition
 shape. Every package-owned `pub proposition` is retained whether used or not;
 primitive publication records only vocabulary, while witness and transparent

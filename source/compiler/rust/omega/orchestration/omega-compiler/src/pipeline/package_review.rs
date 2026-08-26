@@ -4218,7 +4218,9 @@ fn project_public_operators(
         let context = ContractProjectionContext {
             subject_kind: "public operator",
             subject_name: declaration_path,
-            owner: psi_checked_trees::ContractProofFactOwner::Unknown,
+            owner: psi_checked_trees::ContractProofFactOwner::OperatorDeclaration {
+                operator_symbol: declaration.symbol,
+            },
             point: psi_facts::ProgramPoint::Definition {
                 symbol: declaration.symbol,
             },
@@ -4232,7 +4234,6 @@ fn project_public_operators(
             compilation.operator_contracts(declaration),
             &context,
             &binders,
-            ContractProjectionPolicy::PublicOperator,
         )?;
         let matching_crash = compilation
             .facts
@@ -5449,7 +5450,6 @@ fn project_machine_parameter_contract(
                 compilation.state_signature_contracts(signature),
                 &context,
                 &binders,
-                ContractProjectionPolicy::Callable,
             )?;
             let published_crash = project_signature_crash_routes(
                 compilation,
@@ -6973,13 +6973,6 @@ struct ContractProjectionContext<'a> {
     lifetime_binders: &'a [psi_typed_trees::name::Identifier],
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ContractProjectionPolicy {
-    Callable,
-    PublicTraitRequirement,
-    PublicOperator,
-}
-
 fn project_callable_contracts(
     compilation: &CheckedCompilation,
     machine: &psi_typed_trees::machine::Machine,
@@ -7006,7 +6999,6 @@ fn project_callable_contracts(
         compilation.machine_contracts(machine),
         &context,
         binders,
-        ContractProjectionPolicy::Callable,
     )
 }
 
@@ -7021,7 +7013,6 @@ fn project_trait_requirement_contracts(
         compilation.state_signature_contracts(requirement),
         context,
         binders,
-        ContractProjectionPolicy::PublicTraitRequirement,
     )
 }
 
@@ -7030,7 +7021,6 @@ fn project_contracts(
     contracts: &[psi_typed_trees::signature::SignatureContract],
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
-    policy: ContractProjectionPolicy,
 ) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
     use psi_typed_trees::{domain::ProofFact, signature::SignatureContractKind};
 
@@ -7148,14 +7138,6 @@ fn project_contracts(
                     checked.evidence_term,
                     &fact,
                 )?
-            } else if policy == ContractProjectionPolicy::PublicOperator {
-                if contract.binding.is_some() {
-                    return Err(vec![Diagnostic::error(format!(
-                        "reviewed {} `{}` binds operator-contract evidence not yet represented by public-operator review",
-                        context.subject_kind, context.subject_name
-                    ))]);
-                }
-                None
             } else {
                 let checked = checked_contract_fact(compilation, context, fact_handle, kind)?;
                 validate_checked_contract_evidence(

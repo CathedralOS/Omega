@@ -1248,6 +1248,14 @@ complete.
   absent, ambiguous, or mismatched checked selection custody rejects. Indexed
   children now remain exact inside arrays instead of forcing the parent row to
   fail closed.
+  A checked-custody follow-up keeps the v69/row-v27 byte format unchanged while
+  closing public operator declarations: every non-crash `requires`/`ensures`
+  fact now retains one exact `OperatorDeclaration` owner keyed by the operator
+  symbol, and review requires that row before projecting the existing
+  structural contract. Missing, duplicate, wrong-owner, wrong-kind, or wrong-
+  fact custody rejects. This does not add named operator-contract syntax or an
+  evidence lane; Omega's operator contracts remain the existing unnamed
+  surface.
   Review v43 and
   canonical row v3 represent static-machine parameters directly. Structural
   contracts retain their complete alpha-normalized nested telescope, value

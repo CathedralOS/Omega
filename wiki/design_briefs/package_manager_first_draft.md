@@ -641,6 +641,12 @@ collection, scalar index or optional range endpoints, and inclusivity. Changes
 to any of those semantic fields change comparison identity; missing, ambiguous,
 or mismatched checked custody rejects. Indexed children compose recursively
 inside arrays.
+The v69/row-v27 encoding remains unchanged while checked custody now covers
+public operator declarations. Each non-crash operator `requires`/`ensures` fact
+must rejoin exactly one `OperatorDeclaration` owner keyed by the declaration's
+exact symbol before its existing structural row projects. Missing, duplicate,
+or mismatched owner/kind/fact custody rejects. This introduces no named
+operator-contract syntax or evidence lane; operator contracts remain unnamed.
 Review v52 and canonical row v12 add one blocking standalone row for every
 package-owned `pub proposition`, including an unused bodyless declaration.
 The row retains alpha-normalized binders, parameter types, witness interface,

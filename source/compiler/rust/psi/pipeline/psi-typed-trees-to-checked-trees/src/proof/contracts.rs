@@ -154,6 +154,30 @@ pub(crate) fn append_machine_contract_facts(
     }
 }
 
+pub(crate) fn append_operator_declaration_contract_facts(
+    program: &psi_typed_trees::TypedTrees,
+    operator: &psi_typed_trees::operator::OperatorDefinition,
+    contract_facts: &mut psi_arena::Arena<ContractProofFact>,
+) {
+    let owner = ContractProofFactOwner::OperatorDeclaration {
+        operator_symbol: operator.symbol,
+    };
+    for contract in program.operator_contracts(operator) {
+        let Some(kind) = super::contract_fact_kind(&contract.kind) else {
+            continue;
+        };
+        for fact in super::fact_handles(contract.facts) {
+            contract_facts.append(ContractProofFact {
+                kind,
+                owner,
+                fact,
+                evidence_term: None,
+                qualification_authorization: None,
+            });
+        }
+    }
+}
+
 pub(crate) fn append_state_contract_facts(
     program: &psi_typed_trees::TypedTrees,
     machine: &psi_typed_trees::machine::Machine,

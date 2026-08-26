@@ -152,18 +152,6 @@ fn successful_checking_finalizes_nested_intrinsic_logical_operators() {
                 AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
             )
     }));
-    let indexed = checked
-        .expression_table
-        .iter_expressions()
-        .find_map(|(expression, node)| {
-            matches!(
-                node,
-                psi_typed_trees::expression::ExpressionNode::Indexed(_)
-            )
-            .then_some(expression)
-        })
-        .expect("checked program retains indexed expression");
-    assert!(crate::authored_selections::typed_operator_is_definitely_intrinsic(&checked, indexed));
     assert!(checked.authored_declaration_selections().all_finalized());
 }
 
@@ -196,6 +184,18 @@ fn successful_checking_finalizes_index_and_range_operator_occurrences() {
                 AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
             )
     }));
+    let indexed = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| {
+            matches!(
+                node,
+                psi_typed_trees::expression::ExpressionNode::Indexed(_)
+            )
+            .then_some(expression)
+        })
+        .expect("checked program retains indexed expression");
+    assert!(crate::authored_selections::typed_operator_is_definitely_intrinsic(&checked, indexed));
     assert!(checked.authored_declaration_selections().all_finalized());
 }
 

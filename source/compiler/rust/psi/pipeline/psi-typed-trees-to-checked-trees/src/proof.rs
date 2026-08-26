@@ -7,8 +7,9 @@ mod obligations;
 pub(crate) use contracts::machine_parameter_evidence_signatures;
 use contracts::{
     append_inherited_trait_contract_facts, append_machine_contract_facts,
-    append_state_contract_facts, append_state_signature_contract_facts, build_contract_call_facts,
-    build_contract_exit_facts, build_contract_operator_use_facts, estimated_contract_fact_capacity,
+    append_operator_declaration_contract_facts, append_state_contract_facts,
+    append_state_signature_contract_facts, build_contract_call_facts, build_contract_exit_facts,
+    build_contract_operator_use_facts, estimated_contract_fact_capacity,
 };
 use obligations::lower_proof_obligation;
 
@@ -187,6 +188,14 @@ pub(crate) fn build_proof_facts_with_operators(
             &mut contract_facts,
             &mut evidence_terms,
         );
+    }
+    for operator in program.operators().iter().chain(
+        program
+            .domain_definitions()
+            .iter()
+            .flat_map(|domain| program.domain_operators(domain)),
+    ) {
+        append_operator_declaration_contract_facts(program, operator, &mut contract_facts);
     }
     let (mut contract_fact_refs, contract_calls) =
         build_contract_call_facts(program, borrow, &contract_facts);

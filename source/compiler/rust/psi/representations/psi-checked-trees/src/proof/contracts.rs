@@ -26,6 +26,9 @@ pub enum ContractProofFactOwner {
         owner_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
     },
+    OperatorDeclaration {
+        operator_symbol: SymbolHandle,
+    },
     OperatorUse {
         expression: ExpressionHandle,
         origin: CheckedValueOrigin,
