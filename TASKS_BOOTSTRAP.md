@@ -282,14 +282,15 @@ evidence stay in
 | compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, remaining concrete Trapping arithmetic/casts, and the observed ranking clause | exact widening, canonical leaf-plus-literal addition, and one recursive pure full-width `u32 in Trapping` `+`/`-`/`*` tree are closed through persisted lower-rooted OMGRFN16. Call and CaseDispatch argument vectors are exact when they contain at most one potentially trapping argument and pure/nontrapping siblings; multiple observable trap sites still require the unresolved order ruling. Broader receivers, recursion, and packages remain separate |
 | source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; the product build now uses normative explicit provider selection, but the one-requirement OMGCOMP2 fixture is still only cost evidence for the six-requirement product `Console` closure; do not infer target-default semantics or import general boundary traits into Delta |
 
-The next bounded increments are selected, but their version numbers are not.
-Assign a new OMGRSW/OMGLOW/CKIR/OMGRFN family only when one lane is taken so
-parallel design notes cannot claim the same successor number. The intended
-cuts are:
+The next bounded increments are selected. Assign a new
+OMGRSW/OMGLOW/CKIR/OMGRFN identity only when its lane actually begins so
+parallel design notes cannot claim the same successor number. CKIR15 is now
+reserved by the independently checked generalized-view contract; its producer,
+meaning, backend, and refinement joins remain open. The intended cuts are:
 
 | Lane | Next general relation | Deliberate exclusions of that cut |
 | --- | --- | --- |
-| data/views | guarded shared-byte head/tail lowering with an ordered vector of pure, total pass-through arguments and more than one occurrence/synthetic block | effectful or independently trapping siblings, mutable-view operations, dynamic indexing, and full `u64` collection arithmetic |
+| data/views | guarded shared-byte head/tail lowering from a runtime-capable direct `&[u8]` parameter, with the same ordered vector of direct pass-through parameter binders on both arms and more than one occurrence/synthetic block | computed/effectful/independently trapping siblings, mutable-view operations, dynamic indexing, and full `u64` collection arithmetic |
 | scalar/control | direct pure same-carrier `u64 < u64`, including full-width literals/fields/parameters and true-edge range custody into state parameters | nested arithmetic operands, mixed carriers, calls, indexing, mutation, and the other comparison operators |
 | provider plan | one complete six-requirement `Console` candidate selected by the authoritative `Build::select_provider<Console, ConsoleNativeProvider>()`, retained through checked calls and conservative execution | first add an explicit authoritative build-source identity to the compilation envelope (OMGCOMP2 source labels are custody-only); checked-adapter execution then depends on the selected generalized view-vector cut. Provider admission, defaults-as-selection, general installation/runtime authority, Q7 package authority, and Q8 multi-target build migration remain excluded |
 
@@ -300,15 +301,23 @@ Cartesian test matrix inside one verifier.
 
 - [ ] Close the compiler-data/view lane through general parsing, resolution,
   checking, diagnostics, conservative lowering, and artifact reconstruction.
-  OMGRSW4/CKIR12/OMGRFN14 now close the bounded program-static shared-byte-view
-  window used by `console_write_bytes`: exact literal bytes, immutable
+  OMGRSW4/CKIR12/OMGRFN14 now close a bounded program-static shared-byte-view
+  prerequisite for `console_write_bytes`: exact literal bytes, immutable
   `{ptr,len}` transport, a nonempty fact, head access, and one-element tail
-  subslicing. The next cut generalizes the true-edge argument vector to retain
-  pure/total pass-through values before, between, and after head/tail and proves
-  at least two independent or recurrent guarded occurrences. Continue from
-  that cost evidence toward the general lane; the
+  subslicing. The next cut admits a runtime-capable direct view parameter,
+  generalizes the true-edge argument vector to retain the same direct
+  pass-through parameter binders before, between, and after head/tail, and
+  proves at least two independent or recurrent guarded occurrences. The false
+  edge carries that exact pass-through vector unchanged; computed expressions,
+  duplicates, substitutions, and reordering reject. Continue from that cost
+  evidence toward the general lane; the
   closed slice does not claim general indexing, mutable slices, allocation,
   UTF-8 meaning, or same-carrier `u64` collection operations.
+  The platform-neutral
+  [`CKIR15` carrier/reference contract](bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V15.md)
+  is closed; do not
+  promote that reference milestone to producer, backend, Rust-free meaning,
+  refinement, or product-source acceptance before each independent join lands.
 - [ ] Close the remaining unblocked compiler-control/scalar forms one general
   vertical relation at a time. OMGRSW7/OMGLOWF/CKIR14 now close the checkpoint's
   recursive pure full-width trapping-`u32` `+`/`-`/`*` tranche with ordinary
@@ -347,8 +356,13 @@ Cartesian test matrix inside one verifier.
   tail, and `newline`, while CKIR12 admits only one synthetic head/tail edge and
   no pass-through values. Do not substitute a synthetic adapter and claim the
   product path. This item is
-  product-checkpoint/engineering gated rather than language-design blocked;
-  do not infer target-default semantics from compatibility spellings or claim
+  product-checkpoint/engineering gated rather than language-design blocked.
+  The vector milestone is necessary but does not alone accept the exact product
+  adapter: its `terminates by bytes -> Slice::Length` ranking clause,
+  `reaches Console`, runtime view origin, provider-owned boundary call, and
+  surrounding call/receiver closure remain explicit implementation
+  prerequisites. Do not infer target-default semantics from compatibility
+  spellings or claim
   provider admission, general boundary traits in Delta, or compilation
   authority from the bounded relation.
   Give ProviderPlan a fresh focused assurance family rather than patching the

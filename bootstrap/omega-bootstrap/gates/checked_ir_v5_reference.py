@@ -87,6 +87,7 @@ class SchemaCapabilities:
     full_width_u32: bool = False
     require_trapping_add: bool = False
     require_full_u32_arithmetic: bool = False
+    generalized_nonempty_edges: bool = False
 
 
 _BASE_OPCODES = frozenset(range(1, 15))
@@ -110,6 +111,12 @@ SCHEMA_CAPABILITIES = {
         allow_static_byte_view=True,
         full_width_u32=True,
         require_full_u32_arithmetic=True,
+    ),
+    15: SchemaCapabilities(
+        _BASE_OPCODES | set(range(15, 28)),
+        allow_static_byte_view=True,
+        full_width_u32=True,
+        generalized_nonempty_edges=True,
     ),
 }
 
@@ -594,7 +601,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
     full_u32_arithmetic_counts = {opcode: 0 for opcode in (8, 26, 27)}
     full_u32_arithmetic_values: set[int] = {
         value_id for value_id, type_id in enumerate(value_types)
-        if (capabilities.require_full_u32_arithmetic
+        if (capabilities.full_width_u32
             and types[type_id][1:] ==
             (2, 1, 0, 0, 0, 0, 0xFFFF_FFFF))
     }
@@ -645,7 +652,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
         if opcode == 1:
             require(imm1 == 0 and types[result_type][1] in (1, 2, 3), "const type")
             require(types[result_type][6] <= imm0 <= types[result_type][7], "const range")
-            if (capabilities.require_full_u32_arithmetic and
+            if (capabilities.full_width_u32 and
                     types[result_type][1:] ==
                     (2, 1, 0, 0, 0, 0, 0xFFFF_FFFF)):
                 full_u32_arithmetic_values.add(result_id)
@@ -675,7 +682,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
                     "load ref")
             require(result_type == place_types[op_values[0]]
                     and types[result_type][1] in (1, 2, 3), "load type")
-            if (capabilities.require_full_u32_arithmetic and
+            if (capabilities.full_width_u32 and
                     types[result_type][1:] ==
                     (2, 1, 0, 0, 0, 0, 0xFFFF_FFFF)
                     and op_values[0] in arithmetic_loadable_places):
@@ -718,7 +725,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
                             and value_types[op_values[0]] == result_type
                             and value_types[op_values[1]] == result_type,
                             "canonical full-width arithmetic")
-                if (capabilities.require_full_u32_arithmetic
+                if (capabilities.full_width_u32
                         and types[result_type][1:] ==
                         (2, 1, 0, 0, 0, 0, 0xFFFF_FFFF)
                         and value_types[op_values[0]] == result_type
@@ -783,7 +790,7 @@ def decode(contents: bytes, *, expected_major: int = 5,
             require(types[result_type] ==
                     (result_type, 2, 1, 0, 0, 0, 0, expected_high),
                     "IntegerWiden canonical u32 Trapping result")
-            if capabilities.require_full_u32_arithmetic:
+            if capabilities.full_width_u32:
                 full_u32_arithmetic_values.add(result_id)
             integer_widen_count += 1
         elif opcode == 22:
@@ -894,8 +901,13 @@ def decode(contents: bytes, *, expected_major: int = 5,
         or any(block[3] & 1 for block in blocks)
         or any(byte_view_counts.values())
     )
+    if capabilities.generalized_nonempty_edges:
+        require(byte_view_selected, "CKIR15 requires generalized byte-view edges")
     if capabilities.require_static_byte_view:
         require(all(byte_view_counts.values()), "CKIR12 requires byte-view operations 22-25")
+    elif capabilities.generalized_nonempty_edges and byte_view_selected:
+        require(all(byte_view_counts[opcode] for opcode in (23, 24, 25)),
+                "CKIR15 requires byte-view operations 23-25")
     elif allow_static_byte_view and byte_view_selected:
         require(all(byte_view_counts.values()), "partial byte-view relation")
     if capabilities.require_full_u32_arithmetic:
@@ -1010,7 +1022,109 @@ def decode(contents: bytes, *, expected_major: int = 5,
     require(next_arm == len(arms) and next_arm_arg == len(arm_args),
             "unused case arm rows")
 
-    if allow_static_byte_view and byte_view_selected:
+    if capabilities.generalized_nonempty_edges:
+        synthetic = [block[0] for block in blocks if block[3] & 1]
+        require(len(synthetic) >= 2, "multiple synthetic nonempty-edge blocks")
+        total_pass_parameters = 0
+        for synthetic_id in synthetic:
+            synthetic_block = blocks[synthetic_id]
+            require(1 <= synthetic_block[6] <= 6,
+                    "generalized synthetic parameter shape")
+            parameter_ids = list(span(synthetic_block[5], synthetic_block[6],
+                                      len(block_params), "synthetic parameters"))
+            parameters = [block_params[parameter_id] for parameter_id in parameter_ids]
+            require(types[parameters[0][3]][1] == 7,
+                    "synthetic leading slice parameter type")
+            incoming = predecessors[synthetic_id]
+            require(len(incoming) == 1, "synthetic unique predecessor")
+            source, edge_slot, condition, arguments = incoming[0]
+            source_term = terminators[source]
+            require(source_term[3] == 2 and edge_slot == 0
+                    and source_term[10] != synthetic_id,
+                    "synthetic true-edge-only predecessor")
+            require(len(arguments) == len(parameters),
+                    "synthetic incoming argument shape")
+            require(all(value_types[argument] == parameter[3]
+                        for argument, parameter in zip(arguments, parameters)),
+                    "synthetic incoming exact parameter types")
+            condition_op = value_operations[condition]
+            require(condition_op != NO_ID and operations[condition_op][3] == 23,
+                    "synthetic predecessor condition")
+            condition_operand = operands[operations[condition_op][8]]
+            require(arguments[0] == condition_operand,
+                    "synthetic condition/passed-slice identity")
+            pass_arguments = arguments[1:]
+            require(all(value_operations[value] == NO_ID for value in pass_arguments),
+                    "synthetic pass-throughs must be direct parameters")
+            require(len(set(pass_arguments)) == len(pass_arguments)
+                    and arguments[0] not in pass_arguments,
+                    "synthetic pass-through binder identity")
+            total_pass_parameters += len(pass_arguments)
+            false_arguments = source_term[12]
+            false_values = tuple(operands[
+                source_term[11]:source_term[11] + false_arguments
+            ])
+            require(false_values == tuple(arguments[1:]),
+                    "synthetic false-edge pass-through identity")
+            false_target = blocks[source_term[10]]
+            false_parameters = block_params[
+                false_target[5]:false_target[5] + false_target[6]
+            ]
+            require(all(value_types[value] == parameter[3]
+                        for value, parameter in zip(false_values, false_parameters)),
+                    "synthetic false-edge exact parameter types")
+
+            operation_ids = list(span(synthetic_block[7], synthetic_block[8],
+                                      len(operations), "synthetic operations"))
+            require(len(operation_ids) == 2, "synthetic exact head/tail operations")
+            require([operations[op_id][3] for op_id in operation_ids] == [24, 25],
+                    "synthetic head-then-tail operation order")
+            partials: dict[int, int] = {}
+            for op_id in operation_ids:
+                operation = operations[op_id]
+                require(operation[3] in (24, 25) and operation[9] == 1
+                        and operands[operation[8]] == parameters[0][4],
+                        "synthetic operation shape")
+                require(operation[3] not in partials,
+                        "duplicate synthetic partial operation")
+                partials[operation[3]] = operation[6]
+            require(set(partials) == {24, 25}, "synthetic head/tail coverage")
+
+            synthetic_term = terminators[synthetic_id]
+            require(synthetic_term[3] == 1 and synthetic_term[7] != NO_ID
+                    and blocks[synthetic_term[7]][3] == 0,
+                    "synthetic authored jump target")
+            jump_arguments = tuple(operands[
+                synthetic_term[8]:synthetic_term[8] + synthetic_term[9]
+            ])
+            jump_target = blocks[synthetic_term[7]]
+            jump_parameters = block_params[
+                jump_target[5]:jump_target[5] + jump_target[6]
+            ]
+            require(all(value_types[value] == parameter[3]
+                        for value, parameter in zip(jump_arguments, jump_parameters)),
+                    "synthetic jump exact parameter types")
+            pass_values = [parameter[4] for parameter in parameters[1:]]
+            observed_pass = [value for value in jump_arguments
+                             if value not in partials.values()]
+            require(jump_arguments.count(partials[24]) == 1
+                    and jump_arguments.count(partials[25]) == 1,
+                    "synthetic partial result placement")
+            require(jump_arguments.index(partials[24]) < jump_arguments.index(partials[25]),
+                    "synthetic authored head-before-tail order")
+            require(observed_pass == pass_values,
+                    "synthetic ordered pass-through vector")
+
+        require(total_pass_parameters > 0,
+                "generalized relation requires a pass-through position")
+        require(byte_view_counts[24] == len(synthetic)
+                and byte_view_counts[25] == len(synthetic),
+                "partial byte-view operations must be synthetic-owned")
+
+        rooted_views = {root for root in roots if types[nodes[root][1]][1] == 7}
+        require(all(types[node[1]][1] != 7 or node[0] in rooted_views for node in nodes),
+                "byte-view literal must be a StaticByteView root")
+    elif allow_static_byte_view and byte_view_selected:
         synthetic = [block[0] for block in blocks if block[3] & 1]
         require(len(synthetic) == 1, "unique synthetic nonempty-edge block")
         synthetic_id = synthetic[0]

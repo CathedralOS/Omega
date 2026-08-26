@@ -1,0 +1,13 @@
+# Precise cache profile for the platform-neutral CKIR15 generalized guarded-
+# view carrier. Producer, backend, meaning, and refinement inputs deliberately
+# remain outside this reference-only milestone.
+script bootstrap/omega-bootstrap/gates/delta-checked-ir-v15-reference.sh
+
+input bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V15.md
+input bootstrap/omega-bootstrap/gates/checked_ir_v2_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v3_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v4_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v5_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v14_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v15_reference.py
+input bootstrap/omega-bootstrap/gates/delta-checked-ir-v15-fixture.py
