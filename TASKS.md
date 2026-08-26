@@ -124,20 +124,23 @@ Remaining:
   cases and rejects a tampered stream. Parsing and every later Psi/Omega phase remain open; this
   checkpoint does not complete the product compiler task.
 
-  Checkpoint 000001's compiled sources and exact extracted build prelude still
-  match the refreshed snapshot, but the fast gate currently rejects drift in
-  `Cargo.lock` and the workspace `Cargo.toml`. Refresh the manifest, profile,
-  and complete Cargo/provider provenance together; do not weaken the gate or
-  update only the first mismatch. Still replace
+  Checkpoint 000001's manifest, profile, Cargo/provider provenance, and exact
+  extracted build prelude are refreshed together after the current product
+  changes. The product build now directly selects the complete
+  `ConsoleNativeProvider` through the normative
+  `Build::select_provider<Console, ConsoleNativeProvider>` surface, so this
+  checkpoint no longer depends observably on the Rust-recognized
+  `Owner::provider_defaults` suffix convention. The fast gate accepts that
+  coherent closure and rejects later source, provenance, prelude,
+  feature-partition, or resource drift until the complete evidence set is
+  reviewed and refreshed again. Still replace
   `source/compiler/omega/build.omg`'s legacy `target ... {}` blocks with the
   ordinary `Build` target-selection form already required by the build/extern
-  design. Resolve the target-package default source convention at the same
-  boundary: the current `Owner::provider_defaults(defaults: &mut Owner)`
-  declarations are recognized by Rust suffix convention but are not specified
-  as general Omega syntax. Either express those defaults through the normative
-  `Build::select_provider<Service, Provider>` surface or publish the exact
-  declaration, receiver, target-scope, and duplicate/default precedence rules.
-  Then publish a new source checkpoint if those changes alter the closure.
+  design. Target-package defaults outside this explicitly selected product
+  closure still require either that same ordinary build surface or exact
+  declaration, receiver, target-scope, and duplicate/default precedence rules;
+  do not generalize the compatibility suffix from this checkpoint. Publish a
+  new source checkpoint when the target-form migration alters the closure.
 
   The lexical claim is design-blocked at explicit specification conflicts. The
   current Omega-written lexer accepts Unicode XID identifiers despite the

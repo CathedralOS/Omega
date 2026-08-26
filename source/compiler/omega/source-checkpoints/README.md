@@ -23,13 +23,15 @@ The manifest and census are evidence, never an allowlist for `omega-bootstrap`.
 The bridge must implement the published profile generally and reject excluded
 Omega before publication.
 
-Current status: checkpoint 000001's compiled sources and extracted
-`BUILD_PRELUDE` still match its refreshed snapshot, but the fast gate rejects
-current `Cargo.lock` and workspace `Cargo.toml` provenance drift. The product
-owner must refresh the complete manifest, profile, and provenance set together;
-verification must never be weakened or stopped after the first mismatch. The
-snapshot includes the prelude's public build vocabulary and package-identity
-declaration. The hosted adapter publishes the versioned structural
+Current status: checkpoint 000001 is a coherent snapshot of its refreshed
+product closure. The fast gate pins compiled source and Cargo/provider
+provenance, including the exact `BUILD_PRELUDE` extracted from
+`source/compiler/rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs`.
+The refreshed snapshot includes the prelude's public build vocabulary and
+package-identity declaration, plus the product build's explicit typed Console
+provider selection. Future drift must again refresh the manifest, profile, and
+prelude together; verification must never be weakened or stopped after the
+first mismatch. The hosted adapter publishes the versioned structural
 `OMGLEX1` observation, and the complete gate compares it byte for byte with an
 independent Rust encoder across accepted, rejected-prefix, and capacity cases,
 then proves a tampered stream is rejected. The census remains bounded checkpoint
