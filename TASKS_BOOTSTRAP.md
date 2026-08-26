@@ -272,48 +272,25 @@ evidence stay in
 | --- | --- | --- |
 | compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; recurrent guarded head/tail over a runtime-capable direct `&[u8]`, with ordered direct-binder pass-through vectors, is closed through CKIR15/OMGRFN17. Its direct pure full-width `u64 < u64` prerequisite and true-edge range custody are closed through CKIR16/OMGRFN18; mutable views, dynamic indexing, computed/effectful siblings, and the remaining same-carrier `u64` collection operations remain open |
 | compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, remaining concrete Trapping arithmetic/casts, and the observed ranking clause | exact widening, canonical leaf-plus-literal addition, one recursive pure full-width `u32 in Trapping` `+`/`-`/`*` tree, and direct pure full-width `u64 < u64` with true-edge range custody are closed through persisted lower-rooted OMGRFN18. Call and CaseDispatch argument vectors are exact when they contain at most one potentially trapping argument and pure/nontrapping siblings; multiple observable trap sites still require the unresolved order ruling. Other `u64` operations, broader receivers, recursion, and packages remain separate |
-| source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; the product build now uses normative explicit provider selection, but the one-requirement OMGCOMP2 fixture is still only cost evidence for the six-requirement product `Console` closure; do not infer target-default semantics or import general boundary traits into Delta |
+| source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; OMGCOMP3/OMGRSW9/OMGRFN19 close the exact build role and complete six-requirement product `Console` plan structurally, while checked execution and provider admission remain open; do not infer target-default semantics or import general boundary traits into Delta |
 
 The next actions are intentionally capability-shaped. Exact version identities,
-fixture matrices, and byte ceilings remain with their contracts and gates.
+fixture matrices, byte ceilings, and completed milestones remain with their
+contracts, gates, and Git history rather than as checked-off tasks here.
 
-- [x] Take the next scalar/control slice as direct pure same-carrier `u64 < u64`
-  with full-width operands and true-edge range custody. Carry both halves through
-  storage, calls/edges where exercised, meaning, emission, and reconstruction;
-  do not widen this into arithmetic, mixed carriers, dynamic indexing, or other
-  comparisons. Preserve the current restriction on multiple observably trapping
-  call/transition arguments until evaluation order is ruled. OMGRSW8,
-  OMGLOWH/CKIR16, the conservative backend, and persisted lower-rooted OMGRFN18
-  close this bounded relation; final `Ωself` admission and the remaining `u64`
-  collection surface stay open.
-- [x] Add the authoritative build-source identity required by provider
-  selection. OMGCOMP3 requires exactly one explicitly marked root-package build
-  source and closes native/self, version-cross-pair, role, ownership, and
-  resource teeth. It grants no accepted-lock or compilation authority.
-- [ ] Carry the product build's explicit six-requirement `Console` selection
-  through one complete `ProviderPlan`, checked calls, conservative execution,
-  and lower-rooted reconstruction. OMGRSW9 and OMGRFN19 close the separately
-  named structural milestone: the explicit build selection, six requirements,
-  two checked adapters, four target intrinsics, complete plan rows, retained
-  requirement-targeted calls, native/self identity, and lower-rooted R1-R5
-  reconstruction. They do not execute adapters or admit the provider. Continue
-  from that witness through the ranking/reach facts, provider-owned boundary
-  call, surrounding receiver closure, checked IR, conservative execution, and
-  artifact reconstruction.
-- [x] Correct Delta lowermachine's contextual state-declaration scan. Phase 2
-  now joins `state` to the exact phase-1 machine/state ordinal and identifier,
-  consumes its comment-aware balanced header, and enters only the state body;
-  phase 1 excludes direct `->` targets from contextual `state`, `let`, and
-  sealed-I/O recognition. A focused twelve-name canary covers Delta keywords
-  and boundary-intrinsic spellings and requires Rust-on-ramp, native-
-  lowermachine, and self-built-lowermachine assembly identity plus identical
-  status-37 execution.
-- [x] Extend the phase-1 transition-target exclusion across full lexical trivia.
-  Phase 1 now records the `->` token relation and lets the ordinary scanner
-  consume whitespace and complete `//` comments before excluding the next word
-  from contextual declaration and sealed-I/O recognition. The focused canary
-  carries comments before `write_byte`, `state`, `let`, and `read_byte` targets
-  while retaining native/self artifact identity and status-37 execution.
+- [ ] Carry OMGRSW9's selected `Console` adapters and ranked helper through a
+  checked, platform-neutral execution relation. Preserve the exact service,
+  requirement, plan, candidate, reach, ranking, recurrent head/tail, and
+  receiverless/static-owner identities while observing ordered abstract
+  `Console::write_byte` calls. OMGRSW9 and OMGRFN19 already close selection and
+  structural reconstruction; do not redo plan resolution or present selection
+  as provider admission. This milestone grants no syscall, ELF, installed
+  provider, package authority, or compilation authority.
+- [ ] After an admitted provider installation and its target calling plan are
+  available, carry that same checked relation through conservative native
+  boundary execution and direct artifact reconstruction. Until then, keep the
+  provider-effect milestone separate and fail closed rather than manufacturing
+  authority from OMGRSW9's selected plan.
 
 Implement each as a general relation rather than file-name checks, declaration
 counts, compiler-source AST permutations, or a Cartesian matrix in one verifier.

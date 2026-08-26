@@ -355,8 +355,8 @@ establishes the implementation and assurance cost.
 | borrowed slices and byte-string literals | presumptively retain; selected recurrent shared-view cost closed | checkpoint 000001 uses shared `&[u8]`, mutable `&mut [u8]`, `.len`, guarded `u64` indexing, tail subslicing, and differently sized keyword literals; OMGRSW4/CKIR12/OMGRFN14 close exact 0–32-byte plain-ASCII literals and one guarded static head/tail, while CKIR15/OMGRFN17 generalize the direct shared-byte-view relation to a runtime-capable machine parameter, recurrent guarded head/tail, and exact ordered pass-through vectors on both edges. CKIR16/OMGRFN18 separately close the direct full-width `u64 < u64` guard and true-edge range prerequisite; compare the remaining general facility with fixed-buffer-plus-span duplication while keeping mutable views, dynamic indexing, computed/effectful siblings, allocation, UTF-8, and other same-carrier `u64` collection operations separate |
 | payload-bearing enums/sum data | presumptively retain | compare direct syntax/IR modeling with separate explicit-tag records; splitting is a cost option, not a prior ruling |
 | state machines, state parameters, mutation, calls, and explicit result fields | presumptively retain for the observed finite forms | checkpoint 000001 expresses every lexical loop with this surface; widen from the closed finite call tranches compositionally, while continuing to exclude observable argument-order combinations and implicit branching value results until their separate rules are settled |
-| boundary traits, target-qualified/bodyless machines, `satisfies`, and compiler-intrinsic realizations | measure the exact sealed product forms | checkpoint 000001 contains one boundary trait, 20 target-qualified machines, 18 `satisfies` clauses, 16 bodyless leaves, and 16 compiler-intrinsic realizations; price that product source cluster without importing general boundary traits into Delta's separately sealed host interface; a one-requirement fixture measures the relation but does not establish complete conformance for the six-requirement product `Console` |
-| static provider path arguments and default selection | measure from checkpoint 000001; build-role custody plus exact one-row resolution cost closed | OMGCOMP2 binds an exact Linux-x86-64/native-provider two-package, three-source fixture while leaving provider spellings opaque; OMGRSW6 resolves its one exact requirement, applicable bodyless intrinsic candidate, and receiver call without selecting that candidate. OMGCOMP3 now marks exactly one root-package source as the build input without deriving the role from a filename, readable machine name, declaration order, provider defaults, or candidate uniqueness. Its four-source carrier already transports the explicit `Build::select_provider<Console, ConsoleNativeProvider>` bytes and the six-requirement source closure opaquely. The next resolver must harvest selection only from that role and derive one complete plan. Complete-plan checking, lowering, admission, accepted-closure authority, and execution remain open, and the checkpoint is not evidence for general generics or a ruling for target-package defaults outside this closure |
+| boundary traits, target-qualified/bodyless machines, `satisfies`, and compiler-intrinsic realizations | measure the exact sealed product forms; complete structural `Console` plan cost closed | checkpoint 000001 contains one boundary trait, 20 target-qualified machines, 18 `satisfies` clauses, 16 bodyless leaves, and 16 compiler-intrinsic realizations. OMGRSW9/OMGRFN19 close the selected six-requirement `Console` plan structurally, including two checked adapters and four compiler-intrinsic leaves. Checked adapter execution, provider admission, native boundary effects, and the remaining general product surface stay separate; none imports general boundary traits into Delta's sealed host interface |
+| static provider path arguments and explicit build selection | measure from checkpoint 000001; exact build-role and complete-plan structural cost closed | OMGCOMP3 marks exactly one root-package build source without deriving the role from a filename, readable machine name, declaration order, provider defaults, or candidate uniqueness. OMGRSW9 harvests the explicit `Build::select_provider<Console, ConsoleNativeProvider>` only from that role and retains the complete six-requirement plan; OMGRFN19 reconstructs that relation independently. Selection is not admission: checked execution, installed-provider authority, the accepted-closure join, and native effects remain open. This checkpoint is not evidence for general generics or a ruling for target-package defaults outside this closure |
 | basic generic declarations and calls | presumptively retain when used; not yet observed | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication; require a later checkpoint with actual declarations before implementing or admitting the general bridge surface |
 | generated ordinary-Omega data and pinned generators | presumptively retain closure rules | checkpoint 000001 imports generated Unicode range arrays; bind generated source, generator, and external data as deterministic inputs while treating the arrays as ordinary admitted Omega rather than a private compiler exception |
 | concrete domains and domain arithmetic | presumptively retain when used; not yet observed | retain ordinary named domains when a later checkpoint uses them to keep arithmetic or compiler contexts regular; compare unusually broad domain machinery with explicit contexts and narrow operations |
@@ -421,35 +421,27 @@ None grants source semantics, provider selection, the independently expected
 commitment, or accepted-lock authority; that join remains an external
 compilation-authority dependency rather than an `Ωself` feature.
 
-The OMGCOMP2/OMGRSW6 provider cost fixture deliberately reduces `Console` to
-one requirement and stops after requirement/realization/call resolution. The
-real standard-library trait contains six requirements and selection admits only
-a complete candidate. The fixture therefore cannot establish product provider
-closure by itself. Checkpoint 000001 now carries the exact explicit
-`Build::select_provider<Service, Provider>` selection in the product build.
-Target-package sources still contain the compatibility
-`Owner::provider_defaults` convention, which the language guide does not
-specify; bootstrap work must ignore that suffix as authority and preserve the
-distinction instead of elevating Rust on-ramp recognition rules into Omega
-semantics. The structural OMGCOMP2 envelope did not identify which source was
-the build input: source labels are custody/order metadata and the Rust product
-path receives an explicit `build_source_id` from project discovery. OMGCOMP3
-closes that transport gap by assigning one exact root-package source row the
-build role. The complete-plan resolver must retain that row, the selecting
-machine, and exact source span. Uniqueness of a readable `build` name, filename
-convention, declaration order, provider default, or candidate still cannot
-manufacture the role. Accepted-lock/closure evidence must separately join the
-exact envelope before the role has package or compilation authority.
+The historical OMGCOMP2/OMGRSW6 provider fixture deliberately reduces
+`Console` to one requirement and cannot establish product provider closure.
+OMGCOMP3 closes the transport gap by assigning one exact root-package source
+row the build role. OMGRSW9 then harvests the explicit
+`Build::select_provider<Service, Provider>` call only from that role and retains
+the selecting machine, source span, all six requirements, and the complete
+candidate plan. A readable `build` name, filename convention, declaration
+order, compatibility `Owner::provider_defaults` suffix, or candidate uniqueness
+still cannot manufacture the role or selection. Accepted-lock/closure evidence
+must separately join the exact envelope before either has package or
+compilation authority.
 
 The complete plan has two checked adapters (`write`, `write_line`) and four
 compiler-intrinsic leaves. OMGRSW9 and OMGRFN19 close that static relation; they
-do not execute any row or admit the selected provider. A milestone claiming the
-actual product adapter path must carry the generalized recurrent view relation,
-ranking/reach facts, provider-owned boundary call, and surrounding receiver
-closure through checked IR, conservative execution, and artifact
-reconstruction. `console_write_bytes` passes the service token and newline
-around head/tail on two guarded edges; CKIR12 by itself owns exactly one
-synthetic block and no pass-through vector.
+do not execute any row or admit the selected provider. The next unblocked
+milestone carries `console_write_bytes`, its ranking/reach facts, two recurrent
+guarded head/tail paths, and its exact requirement-targeted calls through a
+platform-neutral checked execution relation. That relation may observe ordered
+abstract `Console::write_byte` events, but cannot claim an installed provider,
+syscall, or native artifact. Native boundary execution remains a later join
+with provider admission and the target calling plan.
 
 Source-unit membership is a separate question from language features.
 Standalone terminal-Psi tools, interpreters, REPLs, proof explorers, viewers,
