@@ -235,10 +235,6 @@ pub(crate) fn lower_proof_facts(
                     .source_trees
                     .domain_path_members(membership.domain)
                     .to_vec();
-                let domain_use_span = authored_path
-                    .last()
-                    .map(|member| member.source_span())
-                    .unwrap_or_default();
                 let expanded = expand_domain_reference(
                     lowerer.source_trees,
                     membership.domain_symbol,
@@ -258,7 +254,6 @@ pub(crate) fn lower_proof_facts(
                             value,
                             domain,
                             domain_symbol: atom.symbol,
-                            domain_use_span,
                         }),
                     );
                 }

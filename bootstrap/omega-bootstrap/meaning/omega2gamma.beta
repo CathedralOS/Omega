@@ -30,9 +30,8 @@
 ; fields), case data (integer tags; (Pair tag payload) payloads with by-name field mapping), slices
 ; (local .len/[i]/[a..]/[a..b] via nth/drop/take, as_slice + postfix), value calls (whole-RHS and
 ; expression-embedded via hoist+source-rewrite), machine tail-call arms, value arms (literal/expression),
-; logical &&/|| layers, standalone decimal shifts in [0,30] as *2^k / signed
-; arithmetic-shift helper, the compiler profile's byte mask `x & 255` through
-; a normalized signed remainder helper, max/min
+; logical &&/|| layers, standalone decimal shifts in [0,30] as *2^k / /2^k,
+; the compiler profile's nonnegative byte mask `x & 255` as `x % 256`, max/min
 ; builtins, normative
 ; `terminates by measure -> Profile;` clause skip, dual-channel
 ; (Pair exit stdout) output convention. UNSUPPORTED constructs REFUSE with E2G-UNSUPPORTED markers —
@@ -944,7 +943,7 @@ proc parse_cmp0() {
         a = alloc(2, '>', a, bg)
         to loop
     }
-    state shr {                        ; a >> k -> signed arithmetic shift by the admitted literal k
+    state shr {                        ; a >> k -> a / 2^k for the admitted standalone literal k
         adv()
         skip_ws()
         shstart = word[2097144]
@@ -961,7 +960,7 @@ proc parse_cmp0() {
         rk = rk - 1
         to shre
     }
-    state shrd { a = alloc(2, 'H', a, alloc(0, rp, 0, 0))  to loop }
+    state shrd { a = alloc(2, '/', a, alloc(0, rp, 0, 0))  to loop }
     state ge  { adv()  let bge = parse_sum()  a = alloc(2, 'G', a, bge)  to loop }
     state eqx {
         adv()  adv()
@@ -1774,7 +1773,6 @@ proc print_expr(node) {
         to c_ge when (op == 'G')
         to c_ne when (op == 'N')
         to c_band when (op == 'B')
-        to c_ashr when (op == 'H')
         to c_and when (op == 'A')
         to c_or when (op == 'O')
         to c_max when (op == 'X')
@@ -1818,8 +1816,7 @@ proc print_expr(node) {
         emit("E2G-UNSUPPORTED-bitwise-and")
         return 0
     }
-    state c_band_byte { emit("(mask8 ")  print_expr(word[node + 16])  write_byte(')')  return 0 }
-    state c_ashr { emit("(ashr ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
+    state c_band_byte { emit("(% ")  print_expr(word[node + 16])  emit(" 256)")  return 0 }
     state c_and { emit("(* ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
     state c_or { emit("(lt 0 (+ ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  emit("))")  return 0 }
     state c_max {
@@ -3537,17 +3534,6 @@ proc emit_field_zeros(count) {
 
 proc render() {
     state h {
-        ; Gamma's remainder follows signed division.  A direct `x % 256`
-        ; therefore produces -1 for the compiler's signed representation of
-        ; 0xffffffff, while Delta `x & 255` produces the byte 255.  Bind the
-        ; remainder once so masks of effect-free and call expressions alike
-        ; retain one evaluation.
-        emit("(def mask8 (x) (let r (% x 256) (if (lt r 0) (+ 256 r) r))) ")
-        ; Gamma division truncates toward zero, whereas Delta's signed right
-        ; shift rounds a negative quotient down.  Correct the quotient when a
-        ; negative dividend leaves a remainder; x and p remain single-evaluated
-        ; function arguments.
-        emit("(def ashr (x p) (let q (/ x p) (let r (% x p) (if (lt r 0) (- q 1) q)))) ")
         to arrhelp when (word[6000040] > 0)             ; arrays use nth/setl (+ listeq/listcat)
         to arrhelp when (word[6000024] > 0)             ; compact scalar carrier also uses nth/setl
         to strhelp0                                     ; no arrays -> maybe just the string helpers

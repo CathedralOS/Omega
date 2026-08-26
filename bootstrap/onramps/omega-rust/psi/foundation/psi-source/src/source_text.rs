@@ -67,10 +67,6 @@ impl SourceText {
     pub fn is_source_backed(&self) -> bool {
         self.source_span.span.start != self.source_span.span.end
     }
-
-    pub fn source_span(&self) -> SourceSpan {
-        self.source_span
-    }
 }
 
 impl From<&str> for SourceText {

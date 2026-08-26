@@ -251,11 +251,6 @@ pub(crate) fn lower_proposition_application(
                 }
             }),
             symbol,
-            use_span: argument
-                .path
-                .last()
-                .map(|member| member.source_span())
-                .unwrap_or_default(),
         });
     }
     let parameters = if let Some(declaration) = declaration {
@@ -304,7 +299,6 @@ pub(crate) fn lower_proposition_application(
         name: crate::name::lower_name(&call.target),
         binder_arguments: typed_binder_arguments.into_boxed_slice(),
         arguments,
-        use_span: call.target.source_span(),
     })
 }
 

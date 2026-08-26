@@ -412,7 +412,7 @@ internal IR merely because it compiles product modules that implement it.
 proof kernel .... check.beta + checker.gamma; cross-cutting derivation checker           [Rust-free, audited]
 omega-bootstrap . accepts exact Ωself and rejects the rest; may itself run slowly         [hosted bridge]
 omega ........... full-spec compiler with optimizer; own binary may be conservative  [one hosted production build]
-Psi ............. product source semantics + terminal IR; bridge accepts required source  [not a rung]
+Psi ............. source semantics + terminal IR inside both compiler products            [not a rung]
 ```
 
 **What "provable" buys at the top:** in the completed architecture, a certificate

@@ -1,5 +1,5 @@
-// Delta-written shared OMGLOW4/5/6/7/8/9/A/B/C/D/E resolved-source lowerer. This component
-// consumes exact OMGCOMP plus the paired canonical OMGRSW1/2/3/4/5, validates only the framing and
+// Delta-written shared OMGLOW4/5/6/7/8/9/A/B/C/D resolved-source lowerer. This component
+// consumes exact OMGCOMP plus the paired canonical OMGRSW1/2/3/4, validates only the framing and
 // relations it uses, reparses body spans through witness identities, recomputes
 // copy/layout/zero properties, and emits paired CKIR schema-major 4 through 12 only after
 // complete preflight.  The selected root is projected from OMGRSW1 and typed
@@ -536,19 +536,18 @@ machine Main::next_token(&mut self) {
     state ident_done() { self.tok = 256; self.tok_len = self.pos - self.tok_start; transition 0 { _ -> done() } }
     state digit0() { transition self.c >= 48 { true -> digit1() _ -> ascii() } }
     state digit1() { transition self.c < 58 { true -> integer_begin() _ -> ascii() } }
-    // Parse complete u32 decimal payloads with two base-65536 limbs.  ck3[59]
-    // was previously unused and is now tokenizer-local high-limb scratch.
-    state integer_begin() { self.int_value = 0; self.ck3[59] = 0; transition 0 { _ -> integer_loop() } }
+    state integer_begin() { self.int_value = 0; transition 0 { _ -> integer_loop() } }
     state integer_loop() { transition self.pos < self.limit { true -> integer_byte() _ -> integer_done() } }
     state integer_byte() { self.c = self.source[self.pos]; transition self.c >= 48 { true -> integer_high() _ -> integer_done() } }
-    state integer_high() { transition self.c < 58 { true -> integer_low_limb() _ -> integer_done() } }
-    state integer_low_limb() { self.match_ok=self.int_value*10+self.c-48; self.int_value=self.match_ok%65536; self.match_ok=self.match_ok/65536; transition 0 { _ -> integer_high_limb() } }
-    state integer_high_limb() { self.match_ok=self.ck3[59]*10+self.match_ok; transition self.match_ok<=65535 { true -> integer_add() _ -> bad() } }
-    state integer_add() { self.ck3[59]=self.match_ok; self.pos=self.pos+1; transition 0 { _ -> integer_loop() } }
-    state integer_done() { transition self.ck3[59]<32768 { true -> integer_pack_low() _ -> integer_pack_high() } }
-    state integer_pack_low() { self.int_value=self.int_value+self.ck3[59]*65536; transition 0 { _ -> integer_token() } }
-    state integer_pack_high() { self.int_value=self.int_value+(self.ck3[59]-32768)*65536-2147483647-1; transition 0 { _ -> integer_token() } }
-    state integer_token() { self.tok = 257; self.tok_len = self.pos - self.tok_start; transition 0 { _ -> done() } }
+    state integer_high() { transition self.c < 58 { true -> integer_bound() _ -> integer_done() } }
+    state integer_bound() { transition self.int_value < 214748364 { true -> integer_add() _ -> integer_last() } }
+    state integer_last() { transition self.int_value == 214748364 { true -> integer_last_digit() _ -> bad() } }
+    state integer_last_digit() { transition self.c < 56 { true -> integer_add() _ -> bad() } }
+    state integer_add() {
+        self.int_value = self.int_value * 10 + self.c - 48; self.pos = self.pos + 1;
+        transition 0 { _ -> integer_loop() }
+    }
+    state integer_done() { self.tok = 257; self.tok_len = self.pos - self.tok_start; transition 0 { _ -> done() } }
     state ascii() { transition self.c < 128 { true -> punctuation() _ -> bad() } }
     state punctuation() { self.tok = self.c; self.tok_len = 1; self.pos = self.pos + 1; transition 0 { _ -> done() } }
     state exhausted() { self.status = 252; }
@@ -663,20 +662,6 @@ machine Main::read_witness_u32(&mut self, at: i32) {
     state done() { }
 }
 
-// Semantic scalar words may use every u32 bit pattern.  The signed i32 cell
-// retains that pattern exactly; callers use this decoder only in scalar
-// endpoint positions and never confuse a high scalar with structural NO_ID.
-machine Main::read_witness_scalar_u32(&mut self, at: i32) {
-    self.decoded = 0 - 1;
-    transition at >= 0 { true -> room() _ -> bad() }
-    state room() { transition at <= self.witness_n - 4 { true -> low() _ -> bad() } }
-    state low() { self.decoded = self.witness[at] + self.witness[at+1]*256 + self.witness[at+2]*65536; transition self.witness[at+3] < 128 { true -> low_high() _ -> high() } }
-    state low_high() { self.decoded = self.decoded + self.witness[at+3]*16777216; transition 0 { _ -> done() } }
-    state high() { self.decoded = self.decoded + (self.witness[at+3]-128)*16777216-2147483647-1; transition 0 { _ -> done() } }
-    state bad() { self.reject(); transition 0 { _ -> done() } }
-    state done() { }
-}
-
 machine Main::read_frame(&mut self) {
     self.i = 0;
     transition 0 { _ -> header() }
@@ -715,13 +700,10 @@ machine Main::read_frame(&mut self) {
     state relation8() { self.resolution_version = 0; self.ck3[39] = 10; transition 0 { _ -> fixed7() } }
     state relation9_check() { transition self.frame_header[6] == 67 { true -> relation9() _ -> relation10_check() } }
     state relation9() { self.resolution_version = 0; self.ck3[39] = 11; transition 0 { _ -> fixed7() } }
-    state relation10_check() { transition self.frame_header[6] == 68 { true -> relation10() _ -> relation11_check() } }
+    state relation10_check() { transition self.frame_header[6] == 68 { true -> relation10() _ -> bad() } }
     state relation10() { self.resolution_version = 0; self.ck3[39] = 12; transition 0 { _ -> fixed7() } }
-    state relation11_check() { transition self.frame_header[6] == 69 { true -> relation11() _ -> bad() } }
-    state relation11() { self.resolution_version = 0; self.ck3[39] = 13; transition 0 { _ -> fixed7() } }
     state fixed7() { transition self.frame_header[7] == 0 { true -> version() _ -> bad() } }
-    state version() { transition self.ck3[39] == 13 { true -> version14() _ -> version13_check() } }
-    state version13_check() { transition self.ck3[39] == 12 { true -> version13() _ -> version12_check() } }
+    state version() { transition self.ck3[39] == 12 { true -> version13() _ -> version12_check() } }
     state version12_check() { transition self.ck3[39] == 11 { true -> version12() _ -> version11_check() } }
     state version11_check() { transition self.ck3[39] == 10 { true -> version11() _ -> version10_check() } }
     state version10_check() { transition self.ck3[39] == 9 { true -> version10() _ -> version_digit() } }
@@ -730,7 +712,6 @@ machine Main::read_frame(&mut self) {
     state version11() { transition self.frame_header[8] == 11 { true -> version1() _ -> bad() } }
     state version12() { transition self.frame_header[8] == 12 { true -> version1() _ -> bad() } }
     state version13() { transition self.frame_header[8] == 13 { true -> version1() _ -> bad() } }
-    state version14() { transition self.frame_header[8] == 14 { true -> version1() _ -> bad() } }
     state version1() { transition self.frame_header[9] == 0 { true -> version2() _ -> bad() } }
     state version2() { transition self.frame_header[10] == 0 { true -> version3() _ -> bad() } }
     state version3() { transition self.frame_header[11] == 0 { true -> fixed_fields() _ -> bad() } }
@@ -749,10 +730,8 @@ machine Main::read_frame(&mut self) {
     }
     state relation_selector() { transition self.ck3[39] >= 6 { true -> selected_relation_low() _ -> reserved() } }
     state selected_relation_low() { transition self.decoded >= 1 { true -> selected_relation_high() _ -> bad() } }
-    state selected_relation_high() { transition self.decoded <= 5 { true -> selected_relation_exact() _ -> bad() } }
-    state selected_relation_exact() { transition self.ck3[39] == 13 { true -> selected_relation_v5() _ -> selected_relation_v4_check() } }
-    state selected_relation_v5() { transition self.decoded == 5 { true -> selected_relation() _ -> bad() } }
-    state selected_relation_v4_check() { transition self.ck3[39] == 12 { true -> selected_relation_v4() _ -> selected_relation_old() } }
+    state selected_relation_high() { transition self.decoded <= 4 { true -> selected_relation_exact() _ -> bad() } }
+    state selected_relation_exact() { transition self.ck3[39] == 12 { true -> selected_relation_v4() _ -> selected_relation_old() } }
     state selected_relation_v4() { transition self.decoded == 4 { true -> selected_relation() _ -> bad() } }
     state selected_relation_old() { transition self.decoded <= 3 { true -> selected_relation() _ -> bad() } }
     state selected_relation() { self.resolution_version = self.decoded; transition 0 { _ -> comp_limit() } }
@@ -1018,7 +997,7 @@ machine Main::decode_witness_header(&mut self) {
     state ceilings10() { transition self.w_block_parameter_count <= 4096 { true -> relations() _ -> over() } }
     state relations() { transition self.w_unit_count == self.source_count { true -> version_relation() _ -> bad() } }
     state version_relation() { transition self.resolution_version == 3 { true -> version3_nonempty() _ -> version4_check() } }
-    state version4_check() { transition self.resolution_version >= 4 { true -> declaration_sum() _ -> version12_empty() } }
+    state version4_check() { transition self.resolution_version == 4 { true -> declaration_sum() _ -> version12_empty() } }
     state version3_nonempty() { transition self.ck3[42] >= 1 { true -> declaration_sum() _ -> bad() } }
     state version12_empty() { transition self.ck3[42] == 0 { true -> declaration_sum() _ -> bad() } }
     state declaration_sum() { transition self.w_declaration_count == self.w_record_count + self.ck3[42] + self.w_machine_count { true -> offsets_header() _ -> bad() } }
@@ -1155,16 +1134,8 @@ machine Main::load_types(&mut self) {
     state words() {
         self.read_witness_u32(self.table_pos + 8); self.i32_backing1[221824 + self.i] = self.decoded;
         self.read_witness_u32(self.table_pos + 12); self.i32_backing1[230016 + self.i] = self.decoded;
-        transition self.resolution_version==5 { true -> scalar_words_v5() _ -> scalar_words_legacy() }
-    }
-    state scalar_words_legacy() {
         self.read_witness_u32(self.table_pos + 16); self.i32_backing1[98304 + self.i] = self.decoded;
         self.read_witness_u32(self.table_pos + 20); self.i32_backing1[131072 + self.i] = self.decoded;
-        transition self.status == 0 { true -> kind1() _ -> done() }
-    }
-    state scalar_words_v5() {
-        self.read_witness_scalar_u32(self.table_pos + 16); self.i32_backing1[98304 + self.i] = self.decoded;
-        self.read_witness_scalar_u32(self.table_pos + 20); self.i32_backing1[131072 + self.i] = self.decoded;
         transition self.status == 0 { true -> kind1() _ -> done() }
     }
     state kind1() { transition self.i32_backing0[363080 + self.i] == 1 { true -> scalar_flags() _ -> kind2() } }
@@ -1177,12 +1148,7 @@ machine Main::load_types(&mut self) {
     state scalar_flags() { transition self.i32_backing1[65536 + self.i] <= 1 { true -> scalar_payload0() _ -> bad() } }
     state scalar_payload0() { transition self.i32_backing1[221824 + self.i] == 0 { true -> scalar_payload1() _ -> bad() } }
     state scalar_payload1() { transition self.i32_backing1[230016 + self.i] == 0 { true -> scalar_range() _ -> bad() } }
-    state scalar_range() { transition self.i32_backing1[131072 + self.i] < 0 { true -> scalar_full_range() _ -> scalar_legacy_range() } }
-    state scalar_full_range() { transition self.resolution_version==5 { true -> scalar_full_kind() _ -> bad() } }
-    state scalar_full_kind() { transition self.i32_backing0[363080+self.i]==2 { true -> scalar_full_max() _ -> bad() } }
-    state scalar_full_max() { transition self.i32_backing1[131072 + self.i]==0-1 { true -> scalar_full_low() _ -> bad() } }
-    state scalar_full_low() { transition self.i32_backing1[98304 + self.i]==0 { true -> scalar_kind_bound() _ -> bad() } }
-    state scalar_legacy_range() { transition self.i32_backing1[98304 + self.i] <= self.i32_backing1[131072 + self.i] { true -> scalar_kind_bound() _ -> bad() } }
+    state scalar_range() { transition self.i32_backing1[98304 + self.i] <= self.i32_backing1[131072 + self.i] { true -> scalar_kind_bound() _ -> bad() } }
     state scalar_kind_bound() { transition self.i32_backing0[363080 + self.i] == 1 { true -> u8_bound() _ -> save() } }
     state u8_bound() { transition self.i32_backing1[131072 + self.i] <= 255 { true -> save() _ -> bad() } }
     state bool_row() { transition self.i32_backing1[65536 + self.i] == 0 { true -> bool_payload0() _ -> bad() } }
@@ -1238,11 +1204,8 @@ machine Main::load_types(&mut self) {
     state canonical_bool() { self.ck_bool_type = self.w_record_count + self.ck3[42]; transition self.i32_backing0[363080 + self.ck_bool_type] == 3 { true -> canonical_u32() _ -> bad() } }
     state canonical_u32() { self.ck_u32_full_type = self.w_record_count + self.ck3[42] + 1; transition self.i32_backing0[363080 + self.ck_u32_full_type] == 2 { true -> u32_low() _ -> bad() } }
     state u32_low() { transition self.i32_backing1[98304 + self.ck_u32_full_type] == 0 { true -> u32_high() _ -> bad() } }
-    state u32_high() { transition self.resolution_version==5 { true -> u32_high_v5() _ -> u32_high_legacy() } }
-    state u32_high_v5() { transition self.i32_backing1[131072 + self.ck_u32_full_type] == 0-1 { true -> trapping_begin() _ -> bad() } }
-    state u32_high_legacy() { transition self.i32_backing1[131072 + self.ck_u32_full_type] == 2147483647 { true -> trapping_begin() _ -> bad() } }
-    state trapping_begin() { transition self.resolution_version >= 4 { true -> slice_optional() _ -> trapping_setup() } }
-    state slice_optional() { transition self.resolution_version==4 { true -> slice_required() _ -> trapping_setup() } }
+    state u32_high() { transition self.i32_backing1[131072 + self.ck_u32_full_type] == 2147483647 { true -> trapping_begin() _ -> bad() } }
+    state trapping_begin() { transition self.resolution_version == 4 { true -> slice_required() _ -> trapping_setup() } }
     state slice_required() { transition self.ck3[60] >= 0 { true -> trapping_setup() _ -> bad() } }
     state trapping_setup() { self.ck3[50] = 0 - 1; self.i = 0; transition 0 { _ -> trapping_rows() } }
     state trapping_rows() { transition self.i < self.type_count { true -> trapping_kind() _ -> done() } }
@@ -1251,9 +1214,7 @@ machine Main::load_types(&mut self) {
     state trapping_payload0() { transition self.i32_backing1[221824 + self.i] == 0 { true -> trapping_payload1() _ -> trapping_next() } }
     state trapping_payload1() { transition self.i32_backing1[230016 + self.i] == 0 { true -> trapping_low() _ -> trapping_next() } }
     state trapping_low() { transition self.i32_backing1[98304 + self.i] == 0 { true -> trapping_high() _ -> trapping_next() } }
-    state trapping_high() { transition self.resolution_version==5 { true -> trapping_high_v5() _ -> trapping_high_legacy() } }
-    state trapping_high_v5() { transition self.i32_backing1[131072 + self.i] == 0-1 { true -> trapping_found() _ -> trapping_next() } }
-    state trapping_high_legacy() { transition self.i32_backing1[131072 + self.i] == 2147483647 { true -> trapping_found() _ -> trapping_next() } }
+    state trapping_high() { transition self.i32_backing1[131072 + self.i] == 2147483647 { true -> trapping_found() _ -> trapping_next() } }
     state trapping_found() { self.ck3[50] = self.i; transition 0 { _ -> done() } }
     state trapping_next() { self.i = self.i + 1; transition 0 { _ -> trapping_rows() } }
     state over() { self.exhaust(); transition 0 { _ -> done() } }
@@ -2410,9 +2371,7 @@ machine Main::expression_assignable(&mut self, expected: i32, actual: i32) {
     }
     state typed_range() { transition self.i32_backing0[363080 + expected] == 1 { true -> numeric_range() _ -> typed_u32() } }
     state typed_u32() { transition self.i32_backing0[363080 + expected] == 2 { true -> numeric_range() _ -> yes() } }
-    state numeric_range() { transition expected==self.ck3[50] { true -> full_u32() _ -> numeric_low() } }
-    state full_u32() { transition self.ck3[39]==13 { true -> yes() _ -> numeric_low() } }
-    state numeric_low() { transition self.expr_lo >= self.i32_backing1[98304 + expected] { true -> numeric_high() _ -> done() } }
+    state numeric_range() { transition self.expr_lo >= self.i32_backing1[98304 + expected] { true -> numeric_high() _ -> done() } }
     state numeric_high() { transition self.expr_hi <= self.i32_backing1[131072 + expected] { true -> yes() _ -> done() } }
     state yes() { self.match_ok = 1; }
     state done() { }
@@ -2664,8 +2623,7 @@ machine Main::parse_postfix(&mut self) {
     // in a call only when it is the call's sole such argument; every sibling
     // must be a pure/total/nontrapping expression.  The already-admitted
     // direct receiver shapes are themselves pure and nontrapping.
-    state call_arg_order_version() { transition self.ck3[39] == 11 { true -> call_arg_order_bundle() _ -> call_arg_order_v13() } }
-    state call_arg_order_v13() { transition self.ck3[39]==13 { true -> call_arg_order_pure() _ -> call_arg_emit_check() } }
+    state call_arg_order_version() { transition self.ck3[39] == 11 { true -> call_arg_order_bundle() _ -> call_arg_emit_check() } }
     state call_arg_order_bundle() { transition self.bundle_mode == 1 { true -> call_arg_order_selected_bound() _ -> call_arg_order_pure() } }
     state call_arg_order_selected_bound() { transition self.ck3[52] <= self.call_arg_cursors[16 + self.call_arg_index] + 1 { true -> call_arg_order_pure() _ -> bad() } }
     state call_arg_order_pure() { transition self.ck3[45] == 1 { true -> call_arg_emit_check() _ -> call_arg_order_first() } }
@@ -2974,54 +2932,13 @@ machine Main::combine_add(&mut self) {
     state done() { }
 }
 
-// CKIR13 admits one same-carrier full-width subtraction relation.  The left
-// operand is an exact canonical Trapping-u32 field/parameter leaf; the right
-// is either another exact same-typed leaf or an anonymous u32 literal.
-// Successful-result analysis is deliberately conservative: underflow remains
-// a runtime trap and the result interval is the complete u32 carrier.
-machine Main::combine_subtract(&mut self) {
-    transition self.ck3[39]==13 { true -> left_type() _ -> bad() }
-    state left_type() { transition self.left_type==self.ck3[50] { true -> left_leaf() _ -> bad() } }
-    state left_leaf() { transition self.left_lvalue==1 { true -> left_subject_field() _ -> bad() } }
-    state left_subject_field() { transition self.left_subject_kind==1 { true -> left_pure() _ -> left_subject_parameter() } }
-    state left_subject_parameter() { transition self.left_subject_kind==2 { true -> left_pure() _ -> bad() } }
-    state left_pure() { transition self.ck3[46]==1 { true -> right_kind() _ -> bad() } }
-    state right_kind() { transition self.expr_type==0-2 { true -> right_literal() _ -> right_typed() } }
-    state right_literal() { transition self.expr_lvalue==0 { true -> emit() _ -> bad() } }
-    state right_typed() { transition self.expr_type==self.ck3[50] { true -> right_leaf() _ -> bad() } }
-    state right_leaf() { transition self.expr_lvalue==1 { true -> right_subject_field() _ -> bad() } }
-    state right_subject_field() { transition self.expr_subject_kind==1 { true -> right_pure() _ -> right_subject_parameter() } }
-    state right_subject_parameter() { transition self.expr_subject_kind==2 { true -> right_pure() _ -> bad() } }
-    state right_pure() { transition self.ck3[45]==1 { true -> emit() _ -> bad() } }
-    state emit() {
-        self.target_type=self.left_type;
-        self.record_binary_expression(26,self.left_type,self.i32_backing1[172544+self.left_type]);
-        transition self.status==0 { true -> result() _ -> done() }
-    }
-    state result() {
-        self.expr_type=self.target_type; self.expr_lo=0; self.expr_hi=0-1;
-        self.expr_lvalue=0; self.expr_mutable=0; self.expr_subject_kind=0; self.expr_subject_id=0-1;
-        self.expr_receiver_shape=0; self.expr_path_depth=0; self.guard_fact_valid=0; self.ck3[45]=0;
-        self.expr_tree_depth=self.depth; transition self.saved_pos>self.expr_tree_depth { true -> right_depth() _ -> depth_add() }
-    }
-    state right_depth() { self.expr_tree_depth=self.saved_pos; transition 0 { _ -> depth_add() } }
-    state depth_add() { self.expr_tree_depth=self.expr_tree_depth+1; transition self.expr_tree_depth<=8 { true -> done() _ -> exhausted() } }
-    state exhausted() { self.status=252; }
-    state bad() { self.reject(); }
-    state done() { }
-}
-
 machine Main::parse_add(&mut self) {
     self.parse_integer_widen();
     transition self.status == 0 { true -> loop() _ -> done() }
-    state loop() { transition self.tok == 43 { true -> plus() _ -> subtract_check() } }
-    state subtract_check() { transition self.tok==45 { true -> subtract() _ -> done() } }
-    state plus() { self.comparison_opcode=8; self.push_expression(); transition self.status == 0 { true -> right() _ -> done() } }
-    state subtract() { self.comparison_opcode=26; self.push_expression(); transition self.status == 0 { true -> right() _ -> done() } }
+    state loop() { transition self.tok == 43 { true -> plus() _ -> done() } }
+    state plus() { self.push_expression(); transition self.status == 0 { true -> right() _ -> done() } }
     state right() { self.next_token(); self.parse_integer_widen(); transition self.status == 0 { true -> restore() _ -> done() } }
-    state restore() { self.saved_pos = self.expr_tree_depth; self.pop_left_expression(); transition self.comparison_opcode==26 { true -> subtract_combine() _ -> combine_plus() } }
-    state combine_plus() { self.combine_add(); transition self.status==0 { true -> loop() _ -> done() } }
-    state subtract_combine() { self.combine_subtract(); transition self.status==0 { true -> loop() _ -> done() } }
+    state restore() { self.saved_pos = self.expr_tree_depth; self.pop_left_expression(); self.combine_add(); transition self.status == 0 { true -> loop() _ -> done() } }
     state done() { }
 }
 
@@ -4867,9 +4784,8 @@ machine Main::publish_ckir(&mut self) {
     state pub_magic() {
         write_byte(79); write_byte(77); write_byte(71); write_byte(67);
         write_byte(75); write_byte(73); write_byte(82); write_byte(0);
-        transition self.ck3[39] == 13 { true -> pub_magic_v13() _ -> pub_magic_v12_check() }
+        transition self.ck3[39] == 12 { true -> pub_magic_v12() _ -> pub_magic_v11_check() }
     }
-    state pub_magic_v12_check() { transition self.ck3[39] == 12 { true -> pub_magic_v12() _ -> pub_magic_v11_check() } }
     state pub_magic_v11_check() { transition self.ck3[39] == 11 { true -> pub_magic_v11() _ -> pub_magic_v10_check() } }
     state pub_magic_v10_check() { transition self.ck3[39] == 10 { true -> pub_magic_v10() _ -> pub_magic_v9_check() } }
     state pub_magic_v9_check() { transition self.ck3[39] == 9 { true -> pub_magic_v9() _ -> pub_magic_v8_check() } }
@@ -4886,7 +4802,6 @@ machine Main::publish_ckir(&mut self) {
     state pub_magic_v10() { write_byte(10); write_byte(0); write_byte(0); write_byte(0); transition 0 { _ -> pub_target() } }
     state pub_magic_v11() { write_byte(11); write_byte(0); write_byte(0); write_byte(0); transition 0 { _ -> pub_target() } }
     state pub_magic_v12() { write_byte(12); write_byte(0); write_byte(0); write_byte(0); transition 0 { _ -> pub_target() } }
-    state pub_magic_v13() { write_byte(13); write_byte(0); write_byte(0); write_byte(0); transition 0 { _ -> pub_target() } }
     state pub_target() {
         write_byte(1); write_byte(0);
         transition self.conformance_entry >= 0 { true -> pub_flags_entry() _ -> pub_flags_library() }
@@ -5262,11 +5177,11 @@ machine Main::publish_ckir(&mut self) {
     state pub_case_arm_argument_ref2() { write_byte((self.c >> 16) & 255); transition 0 { _ -> pub_case_arm_argument_ref3() } }
     state pub_case_arm_argument_ref3() { write_byte((self.c >> 24) & 255); self.i = self.i + 1; transition 0 { _ -> pub_case_arm_arguments() } }
 
-    state pub_shared_word0() { transition self.c < 0 { true -> pub_shared_negative0() _ -> pub_shared_nonnegative0() } }
-    state pub_shared_negative0() { self.saved_int_value=0-self.c-1; write_byte(255-(self.saved_int_value&255)); self.saved_int_value=self.saved_int_value/256; transition 0 { _ -> pub_shared_negative1() } }
-    state pub_shared_negative1() { write_byte(255-(self.saved_int_value&255)); self.saved_int_value=self.saved_int_value/256; transition 0 { _ -> pub_shared_negative2() } }
-    state pub_shared_negative2() { write_byte(255-(self.saved_int_value&255)); self.saved_int_value=self.saved_int_value/256; transition 0 { _ -> pub_shared_negative3() } }
-    state pub_shared_negative3() { write_byte(255-(self.saved_int_value&255)); transition 0 { _ -> pub_shared_after_word() } }
+    state pub_shared_word0() { transition self.c < 0 { true -> pub_shared_absent0() _ -> pub_shared_nonnegative0() } }
+    state pub_shared_absent0() { write_byte(255); transition 0 { _ -> pub_shared_absent1() } }
+    state pub_shared_absent1() { write_byte(255); transition 0 { _ -> pub_shared_absent2() } }
+    state pub_shared_absent2() { write_byte(255); transition 0 { _ -> pub_shared_absent3() } }
+    state pub_shared_absent3() { write_byte(255); transition 0 { _ -> pub_shared_after_word() } }
     state pub_shared_nonnegative0() { write_byte(self.c & 255); transition 0 { _ -> pub_shared_word1() } }
     state pub_shared_word1() { write_byte((self.c >> 8) & 255); transition 0 { _ -> pub_shared_word2() } }
     state pub_shared_word2() { write_byte((self.c >> 16) & 255); transition 0 { _ -> pub_shared_word3() } }
@@ -5357,12 +5272,7 @@ machine Main::main(&mut self) {
     state synthetic_relation() { transition self.ck3[39] == 12 { true -> synthetic_emit() _ -> feature_relation() } }
     state synthetic_emit() { self.emit_synthetic_nonempty_block(); transition self.status == 0 { true -> static_view_required() _ -> finish() } }
     state static_view_required() { transition self.ck3[58] > 0 { true -> feature_relation() _ -> rejected() } }
-    state feature_relation() { transition self.ck3[39] == 13 { true -> subtraction_scan_begin() _ -> trapping_add_relation() } }
-    state subtraction_scan_begin() { self.i=0; transition 0 { _ -> subtraction_scan() } }
-    state subtraction_scan() { transition self.i<self.op_count { true -> subtraction_row() _ -> rejected() } }
-    state subtraction_row() { transition self.i32_backing1[349184+self.i]==26 { true -> constants() _ -> subtraction_next() } }
-    state subtraction_next() { self.i=self.i+1; transition 0 { _ -> subtraction_scan() } }
-    state trapping_add_relation() { transition self.ck3[39] == 11 { true -> trapping_add_required() _ -> integer_widen_relation() } }
+    state feature_relation() { transition self.ck3[39] == 11 { true -> trapping_add_required() _ -> integer_widen_relation() } }
     state trapping_add_required() { transition self.ck3[52] > 0 { true -> constants() _ -> rejected() } }
     state integer_widen_relation() { transition self.ck3[39] == 10 { true -> integer_widen_required() _ -> greater_relation() } }
     state integer_widen_required() { transition self.ck3[51] > 0 { true -> constants() _ -> rejected() } }

@@ -269,7 +269,6 @@ pub(crate) fn lower_signature_contracts(
                     binding: contract.binding.as_ref().map(crate::name::lower_name),
                     facts,
                     token_count: contract.token_count,
-                    source_span: contract.source_span,
                 },
             );
     }

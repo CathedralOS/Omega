@@ -74,24 +74,12 @@ impl Default for StateParameter {
     }
 }
 
-#[derive(Debug, Clone, Default, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SignatureContract {
     pub kind: SignatureContractKind,
     pub binding: Option<DiagnosticName>,
     pub facts: psi_arena::HandleSpan<crate::domain::ProofFact>,
     pub token_count: usize,
-    /// Complete authored clause coordinates. Empty for compiler-generated
-    /// contracts and excluded from semantic equality and snapshots.
-    pub source_span: psi_source::SourceSpan,
-}
-
-impl PartialEq for SignatureContract {
-    fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind
-            && self.binding == other.binding
-            && self.facts == other.facts
-            && self.token_count == other.token_count
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

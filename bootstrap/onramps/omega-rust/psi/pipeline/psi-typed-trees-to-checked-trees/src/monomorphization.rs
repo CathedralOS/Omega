@@ -2477,7 +2477,6 @@ fn copy_signature_contract(
                                 .cloned(),
                         ),
                         domain_symbol: remapped_symbol(membership.domain_symbol, symbols),
-                        domain_use_span: membership.domain_use_span,
                     },
                 )
             }
@@ -2505,13 +2504,11 @@ fn copy_signature_contract(
                                     const_literal: argument.const_literal.clone(),
                                     evidence_projection: argument.evidence_projection.clone(),
                                     symbol: remapped_symbol(argument.symbol, symbols),
-                                    use_span: argument.use_span,
                                 }
                             })
                             .collect::<Vec<_>>()
                             .into_boxed_slice(),
                         arguments,
-                        use_span: application.use_span,
                     },
                 )
             }

@@ -1,18 +1,12 @@
 # Bridge refinement reconstruction
 
-The current successor carrier is [`OMGRFN15`](OMGCOMP_REFINEMENT_WITNESS_V15.md):
-`OMGRFNF\0` / version 15 binds exact OMGCOMP and OMGRSW5 to CKIR13's direct
-full-width `u32 in Trapping` subtraction relation and its exact conservative
-artifact. Independent R1–R5 executables consume one immutable producer-backed
-success frame, reconstruct exact source/witness/CKIR13/result/ELF bytes, and
-keep the underflow carrier structural: both source-result and CKIR-result owners
-reject it rather than admitting a successful claim.
-
-The immediately preceding [`OMGRFN14`](OMGCOMP_REFINEMENT_WITNESS_V14.md)
-carrier remains the admitted program-static shared-byte-view relation. Its
-independent R1–R5 executables retain the one-byte true path and empty false path,
-exact literal, descriptor, nonempty guard, deferred head/tail edge, result 70,
-and complete ELF template as a required regression.
+The current successor carrier is [`OMGRFN14`](OMGCOMP_REFINEMENT_WITNESS_V14.md):
+`OMGRFNE\0` / version 14 binds exact OMGCOMP and OMGRSW4 to CKIR12's bounded
+program-static shared-byte-view relation and its exact conservative artifact.
+Independent R1–R5 executables consume one immutable producer-backed frame for
+both the one-byte true path and empty false path, reconstruct the exact literal,
+descriptor, nonempty guard, deferred head/tail edge, result 70, and complete ELF
+template.
 
 The immediately preceding trapping-add carrier remains
 [`OMGRFN13`](OMGCOMP_REFINEMENT_WITNESS_V13.md): `OMGRFND\0` / version 13 binds

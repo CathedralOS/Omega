@@ -55,46 +55,21 @@ pub enum PropositionFormula {
     BooleanExpression(ExpressionHandle),
 }
 
-#[derive(Debug, Clone, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PropositionApplication {
     pub proposition: SymbolHandle,
     pub name: Identifier,
     pub binder_arguments: Box<[PropositionBinderArgument]>,
     pub arguments: HandleSpan<ExpressionHandle>,
-    /// Exact authored proposition selection. Source coordinates are
-    /// explanatory and deliberately excluded from semantic equality.
-    pub use_span: psi_source::SourceSpan,
 }
 
-impl PartialEq for PropositionApplication {
-    fn eq(&self, other: &Self) -> bool {
-        self.proposition == other.proposition
-            && self.name == other.name
-            && self.binder_arguments == other.binder_arguments
-            && self.arguments == other.arguments
-    }
-}
-
-#[derive(Debug, Clone, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PropositionBinderArgument {
     pub kind: PropositionBinderArgumentKind,
     pub path: Box<[Identifier]>,
     pub const_literal: Option<psi_numerics::literals::IntegerLiteral>,
     pub evidence_projection: Option<crate::expression::EvidenceProjection>,
     pub symbol: SymbolHandle,
-    /// Exact authored terminal static selection, or the empty span for a
-    /// generated argument. Excluded from semantic equality.
-    pub use_span: psi_source::SourceSpan,
-}
-
-impl PartialEq for PropositionBinderArgument {
-    fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind
-            && self.path == other.path
-            && self.const_literal == other.const_literal
-            && self.evidence_projection == other.evidence_projection
-            && self.symbol == other.symbol
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

@@ -833,7 +833,6 @@ fn machine_from_signature(
         ranking_range: ExpressionHandle::invalid(),
         service_reach_is_installation_bound: false,
         service_reaches: signature.service_reaches,
-        service_reach_clause_spans: Vec::new(),
         invokes: signature.invokes,
         suspends: signature.suspends,
         blocks: signature.blocks,

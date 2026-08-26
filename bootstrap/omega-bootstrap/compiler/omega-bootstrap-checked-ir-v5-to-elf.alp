@@ -123,7 +123,7 @@ machine Main::read_u16(&mut self) -> i32 {
     state done() { return self.word; }
 }
 
-// Structural CKIR words are either 0..INT_MAX or the exact NO_ID bit pattern.
+// CKIR words are either 0..INT_MAX or the exact NO_ID bit pattern.
 machine Main::read_u32(&mut self) -> i32 {
     self.read_raw(); self.word = self.c;
     transition self.status == 0 { true -> b1() _ -> done() }
@@ -136,21 +136,6 @@ machine Main::read_u32(&mut self) -> i32 {
     state no_id_low() { transition self.word == 16777215 { true -> no_id() _ -> bad() } }
     state no_id() { self.word = 0 - 1; transition 0 { _ -> done() } }
     state bad() { self.reject(); transition 0 { _ -> done() } }
-    state done() { return self.word; }
-}
-
-// CKIR13 semantic scalar words admit every u32 bit pattern.  Retain the bits
-// in one signed cell; this decoder is used only for type endpoints and Const
-// immediates, never for IDs/counts/offsets.
-machine Main::read_scalar_u32(&mut self) -> i32 {
-    self.read_raw(); self.word=self.c;
-    transition self.status==0 { true -> b1() _ -> done() }
-    state b1() { self.read_raw(); self.word=self.word+self.c*256; transition self.status==0 { true -> b2() _ -> done() } }
-    state b2() { self.read_raw(); self.word=self.word+self.c*65536; transition self.status==0 { true -> b3() _ -> done() } }
-    state b3() { self.read_raw(); transition self.status==0 { true -> high() _ -> done() } }
-    state high() { transition self.c<128 { true -> low_high() _ -> high_bit() } }
-    state low_high() { self.word=self.word+self.c*16777216; transition 0 { _ -> done() } }
-    state high_bit() { self.word=self.word+(self.c-128)*16777216-2147483647-1; transition 0 { _ -> done() } }
     state done() { return self.word; }
 }
 
@@ -205,8 +190,7 @@ machine Main::read_header(&mut self) {
     state major9() { transition self.word == 9 { true -> keep_major() _ -> major10() } }
     state major10() { transition self.word == 10 { true -> keep_major() _ -> major11() } }
     state major11() { transition self.word == 11 { true -> keep_major() _ -> major12() } }
-    state major12() { transition self.word == 12 { true -> keep_major() _ -> major13() } }
-    state major13() { transition self.word == 13 { true -> keep_major() _ -> bad() } }
+    state major12() { transition self.word == 12 { true -> keep_major() _ -> bad() } }
     state keep_major() { self.schema_major = self.word; transition 0 { _ -> minor_read() } }
     state minor_read() { self.word = self.read_u16(); transition self.status == 0 { true -> minor() _ -> done() } }
     state minor() { transition self.word == 0 { true -> target_read() _ -> bad() } }
@@ -287,9 +271,7 @@ machine Main::parse_types(&mut self) {
     state loop() { transition self.i < self.type_count { true -> row() _ -> done() } }
     state row() { self.word = self.read_u32(); transition self.status == 0 { true -> id() _ -> done() } }
     state id() { transition self.word == self.i { true -> kind() _ -> bad() } }
-    state kind() { self.metadata_arena[0 + self.i] = self.read_u8(); self.metadata_arena[8192 + self.i] = self.read_u8(); self.expect_zero_u16(); self.metadata_arena[16384 + self.i] = self.read_u32(); self.metadata_arena[24576 + self.i] = self.read_u32(); transition self.schema_major==13 { true -> scalar_words() _ -> legacy_words() } }
-    state legacy_words() { self.metadata_arena[32768 + self.i] = self.read_u32(); self.metadata_arena[40960 + self.i] = self.read_u32(); transition self.status == 0 { true -> flag() _ -> done() } }
-    state scalar_words() { self.metadata_arena[32768 + self.i] = self.read_scalar_u32(); self.metadata_arena[40960 + self.i] = self.read_scalar_u32(); transition self.status == 0 { true -> flag() _ -> done() } }
+    state kind() { self.metadata_arena[0 + self.i] = self.read_u8(); self.metadata_arena[8192 + self.i] = self.read_u8(); self.expect_zero_u16(); self.metadata_arena[16384 + self.i] = self.read_u32(); self.metadata_arena[24576 + self.i] = self.read_u32(); self.metadata_arena[32768 + self.i] = self.read_u32(); self.metadata_arena[40960 + self.i] = self.read_u32(); transition self.status == 0 { true -> flag() _ -> done() } }
     state flag() { transition self.metadata_arena[8192 + self.i] <= 1 { true -> classify() _ -> bad() } }
     state classify() { transition self.metadata_arena[0 + self.i] { 1 -> scalar8() 2 -> scalar32() 3 -> boolean() 4 -> nominal() 5 -> array() 6 -> sum_nominal() 7 -> shared_byte_view() _ -> bad() } }
     state scalar8() { transition self.metadata_arena[16384 + self.i] == 0 { true -> scalar8_p1() _ -> bad() } }
@@ -299,11 +281,7 @@ machine Main::parse_types(&mut self) {
     state scalar8_layout() { self.metadata_arena[49152 + self.i] = 1; self.metadata_arena[57344 + self.i] = 1; self.metadata_arena[65536 + self.i] = 1; self.metadata_arena[73728 + self.i] = 1; self.metadata_arena[81920 + self.i] = 1; transition self.metadata_arena[32768 + self.i] == 0 { true -> scalar_zero() _ -> scalar_nozero() } }
     state scalar32() { transition self.metadata_arena[16384 + self.i] == 0 { true -> scalar32_p1() _ -> bad() } }
     state scalar32_p1() { transition self.metadata_arena[24576 + self.i] == 0 { true -> scalar32_range() _ -> bad() } }
-    state scalar32_range() { transition self.metadata_arena[40960 + self.i]<0 { true -> scalar32_full() _ -> scalar32_legacy_range() } }
-    state scalar32_full() { transition self.schema_major==13 { true -> scalar32_full_exact() _ -> bad() } }
-    state scalar32_full_exact() { transition self.metadata_arena[32768+self.i]==0 { true -> scalar32_full_max() _ -> bad() } }
-    state scalar32_full_max() { transition self.metadata_arena[40960+self.i]==0-1 { true -> scalar32_layout() _ -> bad() } }
-    state scalar32_legacy_range() { transition self.metadata_arena[32768 + self.i] <= self.metadata_arena[40960 + self.i] { true -> scalar32_layout() _ -> bad() } }
+    state scalar32_range() { transition self.metadata_arena[32768 + self.i] <= self.metadata_arena[40960 + self.i] { true -> scalar32_layout() _ -> bad() } }
     state scalar32_layout() { self.metadata_arena[49152 + self.i] = 4; self.metadata_arena[57344 + self.i] = 4; self.metadata_arena[65536 + self.i] = 1; self.metadata_arena[73728 + self.i] = 1; self.metadata_arena[81920 + self.i] = 1; transition self.metadata_arena[32768 + self.i] == 0 { true -> scalar_zero() _ -> scalar_nozero() } }
     state boolean() { transition self.metadata_arena[8192 + self.i] == 0 { true -> bool_payload0() _ -> bad() } }
     state bool_payload0() { transition self.metadata_arena[16384 + self.i] == 0 { true -> bool_payload1() _ -> bad() } }
@@ -329,7 +307,7 @@ machine Main::parse_types(&mut self) {
     state array_range1() { transition self.metadata_arena[40960 + self.i] == 0 { true -> array_type() _ -> bad() } }
     state array_type() { self.found = self.valid_id(self.metadata_arena[16384 + self.i], self.type_count); transition self.found == 1 { true -> array_len() _ -> bad() } }
     state array_len() { transition self.metadata_arena[24576 + self.i] <= 65536 { true -> intern() _ -> exhausted() } }
-    state shared_byte_view() { transition self.schema_major == 12 { true -> shared_flags() _ -> bad() } }
+    state shared_byte_view() { transition self.schema_major >= 12 { true -> shared_flags() _ -> bad() } }
     state shared_flags() { transition self.metadata_arena[8192 + self.i] == 0 { true -> shared_unique() _ -> bad() } }
     state shared_unique() { transition self.slice_type < 0 { true -> shared_payload0() _ -> bad() } }
     state shared_payload0() { self.found = self.valid_id(self.metadata_arena[16384 + self.i], self.type_count); transition self.found == 1 { true -> shared_payload1() _ -> bad() } }
@@ -350,9 +328,7 @@ machine Main::parse_types(&mut self) {
     state canonical_u32() { transition self.metadata_arena[0 + self.i] == 2 { true -> canonical_u32_low() _ -> canonical_u32_v12() } }
     state canonical_u32_v12() { transition self.schema_major == 12 { true -> intern_setup() _ -> bad() } }
     state canonical_u32_low() { transition self.metadata_arena[32768 + self.i] == 0 { true -> canonical_u32_high() _ -> bad() } }
-    state canonical_u32_high() { transition self.schema_major==13 { true -> canonical_u32_high13() _ -> canonical_u32_high_legacy() } }
-    state canonical_u32_high13() { transition self.metadata_arena[40960+self.i]==0-1 { true -> intern_setup() _ -> bad() } }
-    state canonical_u32_high_legacy() { transition self.metadata_arena[40960 + self.i] == 2147483647 { true -> intern_setup() _ -> bad() } }
+    state canonical_u32_high() { transition self.metadata_arena[40960 + self.i] == 2147483647 { true -> intern_setup() _ -> bad() } }
     state intern_setup() { self.j = 0; transition 0 { _ -> intern_loop() } }
     state intern_loop() { transition self.j < self.i { true -> intern_compare() _ -> advance() } }
     state intern_compare() { transition self.metadata_arena[0 + self.j] == self.metadata_arena[0 + self.i] { true -> intern_flags() _ -> intern_next() } }
@@ -601,9 +577,7 @@ machine Main::parse_constants(&mut self) {
     state classify() { self.type_id = self.constant_arena[0 + self.i]; transition self.metadata_arena[0 + self.type_id] { 1 -> scalar() 2 -> scalar() 3 -> scalar() 4 -> record() 5 -> array() 7 -> shared_bytes() _ -> bad() } }
     state scalar() { transition self.constant_arena[16384 + self.i] == 0 { true -> scalar_low() _ -> bad() } }
     state scalar_low() { transition self.constant_arena[24576 + self.i] >= self.metadata_arena[32768 + self.type_id] { true -> scalar_high() _ -> bad() } }
-    state scalar_high() { transition self.schema_major==13 { true -> scalar_high13() _ -> scalar_high_legacy() } }
-    state scalar_high13() { transition self.metadata_arena[40960+self.type_id]==0-1 { true -> retain() _ -> scalar_high_legacy() } }
-    state scalar_high_legacy() { transition self.constant_arena[24576 + self.i] <= self.metadata_arena[40960 + self.type_id] { true -> retain() _ -> bad() } }
+    state scalar_high() { transition self.constant_arena[24576 + self.i] <= self.metadata_arena[40960 + self.type_id] { true -> retain() _ -> bad() } }
     state record() { self.found = self.metadata_arena[16384 + self.type_id]; transition self.constant_arena[24576 + self.i] == 0 { true -> record_arity() _ -> bad() } }
     state record_arity() { transition self.constant_arena[16384 + self.i] == self.metadata_arena[106496 + 256 + self.found] { true -> record_cap() _ -> bad() } }
     state record_cap() { transition self.constant_arena[16384 + self.i] <= 4 { true -> retain() _ -> exhausted() } }
@@ -639,10 +613,7 @@ machine Main::parse_operations(&mut self) {
     state owner_next() { self.current_block = self.current_block + 1; transition 0 { _ -> owner_seek() } }
     state row() { self.word = self.read_u32(); transition self.status == 0 { true -> id() _ -> done() } }
     state id() { transition self.word == self.i { true -> values() _ -> bad() } }
-    state values() { self.operation_arena[0 + self.i] = self.read_u32(); self.operation_arena[32768 + self.i] = self.read_u32(); self.operation_arena[65536 + self.i] = self.read_u8(); self.operation_arena[98304 + self.i] = self.read_u8(); self.expect_zero_u16(); self.operation_arena[131072 + self.i] = self.read_u32(); self.operation_arena[163840 + self.i] = self.read_u32(); self.operation_arena[196608 + self.i] = self.read_u32(); self.operation_arena[229376 + self.i] = self.read_u32(); transition self.schema_major==13 { true -> scalar_immediate() _ -> legacy_immediate() } }
-    state legacy_immediate() { self.operation_arena[262144 + self.i] = self.read_u32(); transition 0 { _ -> immediate1() } }
-    state scalar_immediate() { self.operation_arena[262144 + self.i] = self.read_scalar_u32(); transition 0 { _ -> immediate1() } }
-    state immediate1() { self.operation_arena[294912 + self.i] = self.read_u32(); transition self.status == 0 { true -> owner_machine() _ -> done() } }
+    state values() { self.operation_arena[0 + self.i] = self.read_u32(); self.operation_arena[32768 + self.i] = self.read_u32(); self.operation_arena[65536 + self.i] = self.read_u8(); self.operation_arena[98304 + self.i] = self.read_u8(); self.expect_zero_u16(); self.operation_arena[131072 + self.i] = self.read_u32(); self.operation_arena[163840 + self.i] = self.read_u32(); self.operation_arena[196608 + self.i] = self.read_u32(); self.operation_arena[229376 + self.i] = self.read_u32(); self.operation_arena[262144 + self.i] = self.read_u32(); self.operation_arena[294912 + self.i] = self.read_u32(); transition self.status == 0 { true -> owner_machine() _ -> done() } }
     state owner_machine() { transition self.operation_arena[0 + self.i] == self.metadata_arena[106496 + 38528 + self.current_block] { true -> owner_block() _ -> bad() } }
     state owner_block() { transition self.operation_arena[32768 + self.i] == self.current_block { true -> operand_start() _ -> bad() } }
     state operand_start() { transition self.operation_arena[196608 + self.i] == self.next { true -> operand_span() _ -> bad() } }
@@ -1013,23 +984,17 @@ machine Main::validate_operations(&mut self) {
     state version10() { transition self.progress > 0 { true -> done() _ -> bad() } }
     state version11_relation() { transition self.schema_major == 11 { true -> version11() _ -> version12_relation() } }
     state version11() { transition self.progress > 0 { true -> done() _ -> bad() } }
-    state version12_relation() { transition self.schema_major == 12 { true -> version12_static() _ -> version13_relation() } }
+    state version12_relation() { transition self.schema_major == 12 { true -> version12_static() _ -> done() } }
     state version12_static() { transition self.slice_static_count > 0 { true -> version12_nonempty() _ -> bad() } }
     state version12_nonempty() { transition self.slice_nonempty_count > 0 { true -> version12_head() _ -> bad() } }
     state version12_head() { transition self.slice_head_count > 0 { true -> version12_tail() _ -> bad() } }
     state version12_tail() { transition self.slice_tail_count > 0 { true -> done() _ -> bad() } }
-    state version13_relation() { transition self.schema_major==13 { true -> version13() _ -> done() } }
-    state version13() { transition self.progress>0 { true -> done() _ -> bad() } }
-    state classify() { self.current_block = self.operation_arena[32768 + self.i]; self.current_machine = self.operation_arena[0 + self.i]; transition self.operation_arena[65536 + self.i] { 1 -> constant() 2 -> self_place() 3 -> field_place() 4 -> index_place() 5 -> load() 6 -> store() 7 -> copy() 8 -> add() 9 -> less() 10 -> call() 11 -> copy_constant() 12 -> less() 13 -> constructor() 14 -> case_constructor() 15 -> logical_not() 16 -> logical_binary() 17 -> logical_binary() 18 -> scalar_equal() 19 -> greater() 20 -> greater() 21 -> integer_widen() 22 -> static_byte_view() 23 -> slice_nonempty() 24 -> slice_head() 25 -> slice_tail() 26 -> subtract() _ -> bad() } }
+    state classify() { self.current_block = self.operation_arena[32768 + self.i]; self.current_machine = self.operation_arena[0 + self.i]; transition self.operation_arena[65536 + self.i] { 1 -> constant() 2 -> self_place() 3 -> field_place() 4 -> index_place() 5 -> load() 6 -> store() 7 -> copy() 8 -> add() 9 -> less() 10 -> call() 11 -> copy_constant() 12 -> less() 13 -> constructor() 14 -> case_constructor() 15 -> logical_not() 16 -> logical_binary() 17 -> logical_binary() 18 -> scalar_equal() 19 -> greater() 20 -> greater() 21 -> integer_widen() 22 -> static_byte_view() 23 -> slice_nonempty() 24 -> slice_head() 25 -> slice_tail() _ -> bad() } }
     state constant() { transition self.operation_arena[98304 + self.i] == 1 { true -> constant_operands() _ -> bad() } }
     state constant_operands() { transition self.operation_arena[229376 + self.i] == 0 { true -> constant_imm1() _ -> bad() } }
     state constant_imm1() { transition self.operation_arena[294912 + self.i] == 0 { true -> constant_type() _ -> bad() } }
     state constant_type() { self.type_id = self.operation_arena[163840 + self.i]; transition self.metadata_arena[0 + self.type_id] <= 3 { true -> constant_low() _ -> bad() } }
-    state constant_low() { transition self.schema_major==13 { true -> constant_full_check() _ -> constant_legacy_low() } }
-    state constant_full_check() { transition self.metadata_arena[0+self.type_id]==2 { true -> constant_full_type() _ -> constant_legacy_low() } }
-    state constant_full_type() { transition self.metadata_arena[32768+self.type_id]==0 { true -> constant_full_high() _ -> constant_legacy_low() } }
-    state constant_full_high() { transition self.metadata_arena[40960+self.type_id]==0-1 { true -> advance() _ -> constant_legacy_low() } }
-    state constant_legacy_low() { transition self.operation_arena[262144 + self.i] >= self.metadata_arena[32768 + self.type_id] { true -> constant_high() _ -> bad() } }
+    state constant_low() { transition self.operation_arena[262144 + self.i] >= self.metadata_arena[32768 + self.type_id] { true -> constant_high() _ -> bad() } }
     state constant_high() { transition self.operation_arena[262144 + self.i] <= self.metadata_arena[40960 + self.type_id] { true -> advance() _ -> bad() } }
     state self_place() { transition self.operation_arena[98304 + self.i] == 2 { true -> self_operands() _ -> bad() } }
     state self_operands() { transition self.operation_arena[229376 + self.i] == 0 { true -> self_imms() _ -> bad() } }
@@ -1097,8 +1062,6 @@ machine Main::validate_operations(&mut self) {
     state copy_constant_copyable() { transition self.metadata_arena[73728 + self.type_id] == 1 { true -> copy_constant_mark() _ -> bad() } }
     state copy_constant_mark() { self.constant_arena[40960 + self.const_id] = 1; transition 0 { _ -> advance() } }
     state add() { transition self.operation_arena[98304 + self.i] == 1 { true -> binary_operands() _ -> bad() } }
-    state subtract() { transition self.schema_major==13 { true -> subtract_result_kind() _ -> bad() } }
-    state subtract_result_kind() { transition self.operation_arena[98304+self.i]==1 { true -> binary_operands() _ -> bad() } }
     state binary_operands() { transition self.operation_arena[229376 + self.i] == 2 { true -> binary_imms() _ -> bad() } }
     state binary_imms() { transition self.operation_arena[262144 + self.i] == 0 { true -> binary_imm1() _ -> bad() } }
     state binary_imm1() { transition self.operation_arena[294912 + self.i] == 0 { true -> binary_values() _ -> bad() } }
@@ -1108,16 +1071,7 @@ machine Main::validate_operations(&mut self) {
     state add_result() { transition self.metadata_arena[0 + self.operation_arena[163840 + self.i]] == self.metadata_arena[0 + self.type_id] { true -> add_numeric() _ -> bad() } }
     state add_numeric() { transition self.metadata_arena[0 + self.type_id] == 1 { true -> add_seen() _ -> add_u32() } }
     state add_u32() { transition self.metadata_arena[0 + self.type_id] == 2 { true -> add_seen() _ -> bad() } }
-    state add_seen() { transition self.operation_arena[65536+self.i]==26 { true -> subtract_selected_right() _ -> add_seen_legacy() } }
-    state add_seen_legacy() { transition self.schema_major == 11 { true -> add_selected_right() _ -> advance() } }
-    state subtract_selected_right() { transition self.type_id==self.type2 { true -> subtract_selected_result() _ -> bad() } }
-    state subtract_selected_result() { transition self.operation_arena[163840+self.i]==self.type_id { true -> subtract_selected_flag() _ -> bad() } }
-    state subtract_selected_flag() { transition self.metadata_arena[8192+self.type_id]==1 { true -> subtract_selected_payload0() _ -> bad() } }
-    state subtract_selected_payload0() { transition self.metadata_arena[16384+self.type_id]==0 { true -> subtract_selected_payload1() _ -> bad() } }
-    state subtract_selected_payload1() { transition self.metadata_arena[24576+self.type_id]==0 { true -> subtract_selected_low() _ -> bad() } }
-    state subtract_selected_low() { transition self.metadata_arena[32768+self.type_id]==0 { true -> subtract_selected_high() _ -> bad() } }
-    state subtract_selected_high() { transition self.metadata_arena[40960+self.type_id]==0-1 { true -> subtract_selected_count() _ -> bad() } }
-    state subtract_selected_count() { self.progress=self.progress+1; transition 0 { _ -> advance() } }
+    state add_seen() { transition self.schema_major == 11 { true -> add_selected_right() _ -> advance() } }
     state add_selected_right() { transition self.type_id == self.type2 { true -> add_selected_result() _ -> advance() } }
     state add_selected_result() { transition self.operation_arena[163840 + self.i] == self.type_id { true -> add_selected_flag() _ -> advance() } }
     state add_selected_flag() { transition self.metadata_arena[8192 + self.type_id] == 1 { true -> add_selected_payload0() _ -> advance() } }
@@ -1205,7 +1159,7 @@ machine Main::validate_operations(&mut self) {
     state integer_widen_target_high() { transition self.metadata_arena[40960 + self.type2] == 2147483647 { true -> integer_widen_seen() _ -> bad() } }
     state integer_widen_seen() { transition self.schema_major == 10 { true -> integer_widen_count() _ -> advance() } }
     state integer_widen_count() { self.progress = self.progress + 1; transition 0 { _ -> advance() } }
-    state static_byte_view() { transition self.schema_major == 12 { true -> static_result() _ -> bad() } }
+    state static_byte_view() { transition self.schema_major >= 12 { true -> static_result() _ -> bad() } }
     state static_result() { transition self.operation_arena[98304 + self.i] == 1 { true -> static_operands() _ -> bad() } }
     state static_operands() { transition self.operation_arena[229376 + self.i] == 0 { true -> static_reserved() _ -> bad() } }
     state static_reserved() { transition self.operation_arena[294912 + self.i] == 0 { true -> static_root() _ -> bad() } }
@@ -1213,7 +1167,7 @@ machine Main::validate_operations(&mut self) {
     state static_root_kind() { self.type_id = self.constant_arena[0 + self.const_id]; transition self.metadata_arena[0 + self.type_id] == 7 { true -> static_result_type() _ -> bad() } }
     state static_result_type() { transition self.operation_arena[163840 + self.i] == self.type_id { true -> static_mark() _ -> bad() } }
     state static_mark() { self.constant_arena[40960 + self.const_id] = 1; self.slice_static_count = self.slice_static_count + 1; transition 0 { _ -> advance() } }
-    state slice_nonempty() { transition self.schema_major == 12 { true -> slice_nonempty_result() _ -> bad() } }
+    state slice_nonempty() { transition self.schema_major >= 12 { true -> slice_nonempty_result() _ -> bad() } }
     state slice_nonempty_result() { transition self.operation_arena[98304 + self.i] == 1 { true -> slice_nonempty_operands() _ -> bad() } }
     state slice_nonempty_operands() { transition self.operation_arena[229376 + self.i] == 1 { true -> slice_nonempty_imm0() _ -> bad() } }
     state slice_nonempty_imm0() { transition self.operation_arena[262144 + self.i] == 0 { true -> slice_nonempty_imm1() _ -> bad() } }
@@ -1222,7 +1176,7 @@ machine Main::validate_operations(&mut self) {
     state slice_nonempty_source() { self.type_id = self.value_arena[0 + self.value]; transition self.metadata_arena[0 + self.type_id] == 7 { true -> slice_nonempty_type() _ -> bad() } }
     state slice_nonempty_type() { transition self.operation_arena[163840 + self.i] == self.bool_type { true -> slice_nonempty_seen() _ -> bad() } }
     state slice_nonempty_seen() { self.slice_nonempty_count = self.slice_nonempty_count + 1; transition 0 { _ -> advance() } }
-    state slice_head() { transition self.schema_major == 12 { true -> slice_head_result() _ -> bad() } }
+    state slice_head() { transition self.schema_major >= 12 { true -> slice_head_result() _ -> bad() } }
     state slice_head_result() { transition self.operation_arena[98304 + self.i] == 1 { true -> slice_head_operands() _ -> bad() } }
     state slice_head_operands() { transition self.operation_arena[229376 + self.i] == 1 { true -> slice_head_imm0() _ -> bad() } }
     state slice_head_imm0() { transition self.operation_arena[262144 + self.i] == 0 { true -> slice_head_imm1() _ -> bad() } }
@@ -1231,7 +1185,7 @@ machine Main::validate_operations(&mut self) {
     state slice_head_source() { self.type_id = self.value_arena[0 + self.value]; transition self.metadata_arena[0 + self.type_id] == 7 { true -> slice_head_type() _ -> bad() } }
     state slice_head_type() { transition self.operation_arena[163840 + self.i] == self.metadata_arena[16384 + self.type_id] { true -> slice_head_seen() _ -> bad() } }
     state slice_head_seen() { self.slice_head_count = self.slice_head_count + 1; transition 0 { _ -> advance() } }
-    state slice_tail() { transition self.schema_major == 12 { true -> slice_tail_result() _ -> bad() } }
+    state slice_tail() { transition self.schema_major >= 12 { true -> slice_tail_result() _ -> bad() } }
     state slice_tail_result() { transition self.operation_arena[98304 + self.i] == 1 { true -> slice_tail_operands() _ -> bad() } }
     state slice_tail_operands() { transition self.operation_arena[229376 + self.i] == 1 { true -> slice_tail_imm0() _ -> bad() } }
     state slice_tail_imm0() { transition self.operation_arena[262144 + self.i] == 0 { true -> slice_tail_imm1() _ -> bad() } }
@@ -1714,8 +1668,8 @@ machine Main::trap_jcc(&mut self, opcode: i32) {
 }
 
 machine Main::range_check_eax(&mut self, type: i32) {
-    self.code_byte(61); self.code_signed_u32(self.metadata_arena[32768 + type]); self.trap_jcc(130);
-    self.code_byte(61); self.code_signed_u32(self.metadata_arena[40960 + type]); self.trap_jcc(135);
+    self.code_byte(61); self.code_u32(self.metadata_arena[32768 + type]); self.trap_jcc(130);
+    self.code_byte(61); self.code_u32(self.metadata_arena[40960 + type]); self.trap_jcc(135);
 }
 
 machine Main::copy_leaf_to(&mut self, type: i32, source_offset: i32, destination_offset: i32) {
@@ -1779,8 +1733,8 @@ machine Main::emit_sum_copy(&mut self, type: i32, destination_base: i32) {
 
 machine Main::emit_operation(&mut self, op: i32) {
     self.current_op = op; self.current_block = self.operation_arena[32768 + op]; self.current_machine = self.operation_arena[0 + op];
-    transition self.operation_arena[65536 + op] { 1 -> constant() 2 -> self_place() 3 -> field_place() 4 -> index_place() 5 -> load() 6 -> store() 7 -> copy() 8 -> add() 9 -> less() 10 -> call_setup() 11 -> copy_constant() 12 -> less_equal() 13 -> constructor_setup() 14 -> case_constructor_setup() 15 -> logical_not() 16 -> logical_and() 17 -> logical_or() 18 -> scalar_equal_emit() 19 -> greater_emit() 20 -> greater_equal_emit() 21 -> integer_widen_emit() 22 -> static_byte_view_emit() 23 -> slice_nonempty_emit() 24 -> slice_head_emit() 25 -> slice_tail_emit() 26 -> subtract_emit() _ -> bad() }
-    state constant() { self.code_byte(184); self.code_signed_u32(self.operation_arena[262144 + op]); self.store_value_eax(self.operation_arena[131072 + op]); transition 0 { _ -> done() } }
+    transition self.operation_arena[65536 + op] { 1 -> constant() 2 -> self_place() 3 -> field_place() 4 -> index_place() 5 -> load() 6 -> store() 7 -> copy() 8 -> add() 9 -> less() 10 -> call_setup() 11 -> copy_constant() 12 -> less_equal() 13 -> constructor_setup() 14 -> case_constructor_setup() 15 -> logical_not() 16 -> logical_and() 17 -> logical_or() 18 -> scalar_equal_emit() 19 -> greater_emit() 20 -> greater_equal_emit() 21 -> integer_widen_emit() 22 -> static_byte_view_emit() 23 -> slice_nonempty_emit() 24 -> slice_head_emit() 25 -> slice_tail_emit() _ -> bad() }
+    state constant() { self.code_byte(184); self.code_u32(self.operation_arena[262144 + op]); self.store_value_eax(self.operation_arena[131072 + op]); transition 0 { _ -> done() } }
     state self_place() { self.code_byte(72); self.code_byte(139); self.code_byte(133); self.code_signed_u32(0 - 8); self.store_place_rax(self.operation_arena[131072 + op]); transition 0 { _ -> done() } }
     state field_place() { self.place = self.operand_at(self.operation_arena[196608 + op]); self.load_place_rax(self.place); self.code_byte(72); self.code_byte(5); self.code_u32(self.metadata_arena[106496 + 17024 + self.operation_arena[262144 + op]]); self.store_place_rax(self.operation_arena[131072 + op]); transition 0 { _ -> done() } }
     state index_place() { self.place = self.operand_at(self.operation_arena[196608 + op]); self.value = self.operand_at(self.operation_arena[196608 + op] + 1); self.type_id = self.value_arena[204800 + self.place]; self.load_place_rax(self.place); self.code_byte(73); self.code_byte(137); self.code_byte(194); self.load_value_eax(self.value); transition 0 { _ -> index_move() } }
@@ -1800,7 +1754,6 @@ machine Main::emit_operation(&mut self, op: i32) {
     state copy_leaves() { self.emit_copy_leaves(self.type_id, 0); transition 0 { _ -> done() } }
     state copy_constant() { self.place = self.operand_at(self.operation_arena[196608 + op]); self.const_id = self.operation_arena[262144 + op]; self.type_id = self.constant_arena[0 + self.const_id]; self.load_place_rax(self.place); self.code_byte(73); self.code_byte(137); self.code_byte(194); self.code_byte(72); self.code_byte(141); self.code_byte(53); self.code_rel32(self.rx_size - 4096 + self.constant_arena[57344 + self.const_id]); self.code_byte(76); self.code_byte(137); self.code_byte(215); self.code_byte(185); self.code_u32(self.metadata_arena[49152 + self.type_id]); self.code_byte(243); self.code_byte(164); transition 0 { _ -> done() } }
     state add() { self.value = self.operand_at(self.operation_arena[196608 + op]); self.value2 = self.operand_at(self.operation_arena[196608 + op] + 1); self.type_id = self.operation_arena[163840 + op]; self.load_value_eax(self.value); self.code_byte(3); self.code_byte(133); self.code_signed_u32(0 - self.value_arena[163840 + self.value2]); self.trap_jcc(130); self.range_check_eax(self.type_id); self.store_value_eax(self.operation_arena[131072 + op]); transition 0 { _ -> done() } }
-    state subtract_emit() { self.value=self.operand_at(self.operation_arena[196608+op]); self.value2=self.operand_at(self.operation_arena[196608+op]+1); self.type_id=self.operation_arena[163840+op]; self.load_value_eax(self.value); self.code_byte(43); self.code_byte(133); self.code_signed_u32(0-self.value_arena[163840+self.value2]); self.trap_jcc(130); self.range_check_eax(self.type_id); self.store_value_eax(self.operation_arena[131072+op]); transition 0 { _ -> done() } }
     state less() { self.value = self.operand_at(self.operation_arena[196608 + op]); self.value2 = self.operand_at(self.operation_arena[196608 + op] + 1); self.load_value_eax(self.value); self.code_byte(59); self.code_byte(133); self.code_signed_u32(0 - self.value_arena[163840 + self.value2]); self.code_byte(15); self.code_byte(146); self.code_byte(192); self.code_byte(15); self.code_byte(182); self.code_byte(192); self.store_value_eax(self.operation_arena[131072 + op]); transition 0 { _ -> done() } }
     state less_equal() { self.value = self.operand_at(self.operation_arena[196608 + op]); self.value2 = self.operand_at(self.operation_arena[196608 + op] + 1); self.load_value_eax(self.value); self.code_byte(59); self.code_byte(133); self.code_signed_u32(0 - self.value_arena[163840 + self.value2]); self.code_byte(15); self.code_byte(150); self.code_byte(192); self.code_byte(15); self.code_byte(182); self.code_byte(192); self.store_value_eax(self.operation_arena[131072 + op]); transition 0 { _ -> done() } }
     state logical_not() { self.value = self.operand_at(self.operation_arena[196608 + op]); self.load_value_eax(self.value); self.code_byte(131); self.code_byte(240); self.code_byte(1); self.store_value_eax(self.operation_arena[131072 + op]); transition 0 { _ -> done() } }

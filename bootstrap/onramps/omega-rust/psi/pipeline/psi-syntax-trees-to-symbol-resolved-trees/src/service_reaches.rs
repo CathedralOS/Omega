@@ -3,7 +3,6 @@ use psi_language_semantics::{
     ServiceReachId, ServiceReachRowId, ServiceReachRowTable, ServiceReachTable,
 };
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
-use psi_symbol_resolved_trees::machine::AuthoredServiceReachSelection;
 use psi_symbol_resolved_trees::name::DiagnosticName;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 use std::fmt;
@@ -70,24 +69,6 @@ pub(crate) fn normalize_service_reaches(
                 .map(|(_, reaches)| reaches.as_slice())
                 .expect("surviving resolved machine retains its pending authored service row");
             validate_machine_service_reaches(program, &services, machine, authored)?;
-            let authored_selections = authored
-                .iter()
-                .map(|use_name| {
-                    let service = service_for_name(&program.symbols, &services, use_name.as_str())
-                        .expect("validated authored service reach has an exact declaration");
-                    let declaration = services
-                        .definition(service)
-                        .expect("resolved service id has a definition")
-                        .symbol;
-                    AuthoredServiceReachSelection {
-                        use_name: psi_source::SourceText::new(
-                            use_name.as_str(),
-                            use_name.source_span(),
-                        ),
-                        declaration,
-                    }
-                })
-                .collect::<Vec<_>>();
             let mut names = authored
                 .iter()
                 .map(|name| name.as_str().to_owned())
@@ -111,7 +92,6 @@ pub(crate) fn normalize_service_reaches(
                     &mut rows,
                     names.iter().map(String::as_str),
                 ),
-                authored_selections,
             ))
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
@@ -150,14 +130,9 @@ pub(crate) fn normalize_service_reaches(
     program.machines.for_each_mut(|machine| {
         machine.service_reach_row = machine_rows
             .iter()
-            .find(|(symbol, _, _)| *symbol == machine.symbol)
-            .map(|(_, row, _)| *row)
+            .find(|(symbol, _)| *symbol == machine.symbol)
+            .map(|(_, row)| *row)
             .unwrap_or(ServiceReachRowTable::EMPTY_ROW);
-        machine.authored_service_reach_selections = machine_rows
-            .iter()
-            .find(|(symbol, _, _)| *symbol == machine.symbol)
-            .map(|(_, _, selections)| selections.clone())
-            .unwrap_or_default();
     });
 
     let signature_spans = program

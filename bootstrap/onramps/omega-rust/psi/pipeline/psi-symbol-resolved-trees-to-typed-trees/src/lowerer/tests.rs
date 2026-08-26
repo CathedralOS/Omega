@@ -2770,51 +2770,6 @@ fn typed_snapshots_publish_only_normalized_service_reach() {
 }
 
 #[test]
-fn typed_machines_retain_direct_reach_selections_and_contract_clause_spans() {
-    let source = r#"boundary trait Console {}
-boundary trait Filesystem {}
-machine synchronize()
-reaches Console
-reaches Filesystem
-requires 1 == 1
-{}
-"#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let machine = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "synchronize")
-        .expect("typed machine");
-    let source_text = |span: psi_source::SourceSpan| &source[span.span.start..span.span.end];
-
-    assert_eq!(
-        machine
-            .service_reach_clause_spans
-            .iter()
-            .copied()
-            .map(source_text)
-            .collect::<Vec<_>>(),
-        ["reaches Console", "reaches Filesystem"],
-    );
-    assert_eq!(machine.authored_service_reach_selections.len(), 2);
-    for selection in &machine.authored_service_reach_selections {
-        assert!(selection.use_name.is_source_backed());
-        assert_eq!(
-            source_text(selection.use_name.source_span()),
-            selection.use_name.as_str(),
-        );
-        assert!(selection.declaration.is_valid());
-    }
-    let [contract] = typed.machine_contracts(machine) else {
-        panic!("one typed machine contract")
-    };
-    assert_eq!(source_text(contract.source_span), "requires 1 == 1");
-}
-
-#[test]
 fn retains_installation_bound_reach_through_typed_snapshot() {
     let source = r#"
         boundary trait MachineControl {}

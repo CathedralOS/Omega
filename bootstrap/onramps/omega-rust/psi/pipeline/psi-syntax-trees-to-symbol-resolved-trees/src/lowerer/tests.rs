@@ -2070,55 +2070,6 @@ fn normalizes_service_rows_from_resolved_boundary_trait_symbols() {
 }
 
 #[test]
-fn resolves_direct_reach_uses_to_exact_declarations_and_retains_clause_spans() {
-    let source = r#"boundary trait Console {}
-boundary trait Filesystem {}
-machine synchronize()
-reaches Console
-reaches Filesystem
-requires 1 == 1
-{}
-"#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let program = lower_syntax_trees(&syntax).expect("resolve");
-    let machine = program
-        .machines
-        .iter()
-        .find(|machine| machine.name.as_str() == "synchronize")
-        .expect("machine");
-    let source_text = |span: psi_source::SourceSpan| &source[span.span.start..span.span.end];
-
-    assert_eq!(
-        machine
-            .service_reach_clause_spans
-            .iter()
-            .copied()
-            .map(source_text)
-            .collect::<Vec<_>>(),
-        ["reaches Console", "reaches Filesystem"],
-    );
-    assert_eq!(machine.authored_service_reach_selections.len(), 2);
-    for selection in &machine.authored_service_reach_selections {
-        assert!(selection.use_name.is_source_backed());
-        assert_eq!(
-            source_text(selection.use_name.source_span()),
-            selection.use_name.as_str(),
-        );
-        let declaration = program
-            .traits
-            .iter()
-            .find(|definition| definition.name.as_str() == selection.use_name.as_str())
-            .expect("selected boundary trait");
-        assert_eq!(selection.declaration, declaration.symbol);
-    }
-    let [contract] = program.machine_contracts(machine) else {
-        panic!("one machine contract")
-    };
-    assert_eq!(source_text(contract.source_span), "requires 1 == 1");
-}
-
-#[test]
 fn rejects_unknown_machine_service_reach_before_resolved_trees() {
     let source = r#"
         machine work()

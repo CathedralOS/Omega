@@ -1381,14 +1381,12 @@ mod tests {
             const_literal: None,
             evidence_projection: None,
             symbol,
-            use_span: Default::default(),
         };
         let application = |binders: [SymbolHandle; 2]| PropositionApplication {
             proposition: relation_symbol,
             name: Identifier::generated_static("Related"),
             binder_arguments: binders.map(binder_argument).into(),
             arguments,
-            use_span: Default::default(),
         };
 
         assert!(exact_relation_application_matches(
