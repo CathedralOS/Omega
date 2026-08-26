@@ -7364,9 +7364,15 @@ state through a raw address.
   zero encoding. Success returns the exact step and page unchanged; every
   permission/cache/software/PAT field remains uninterpreted, and no backing,
   placement, hierarchy, mapping, TLB, installation, CR3, or machine-control
-  authority is granted. A later aggregator must bind four such validated images
-  to the endpoint-consistent descriptor before authority-bearing mapping work.
-  Physical backing, address-space-profile hierarchy, mappings, installation,
+  authority is granted. An ordinary Cathedral aggregator now replays
+  endpoint/role consistency, independently validates one complete single-entry
+  image for each PML4, PDPT, PD, and PT level, and binds every image step to its
+  named descriptor step by exact table address, index, entry address,
+  target/PFN, and full uninterpreted PTE equality. Success returns the exact
+  endpoints, descriptor, and four pages unchanged. It still grants no backing,
+  placement, hierarchy, mapping, TLB, installation, CR3, or machine-control
+  authority and chooses no layout or permission policy. Physical backing,
+  address-space-profile hierarchy, authority-bearing mappings, installation,
   and teardown remain. Do not restore a compiler-owned page-table model.
 
 #### Exception roots and first timer
