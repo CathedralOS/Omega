@@ -308,12 +308,12 @@ fixture matrices, and byte ceilings remain with their contracts and gates.
   and boundary-intrinsic spellings and requires Rust-on-ramp, native-
   lowermachine, and self-built-lowermachine assembly identity plus identical
   status-37 execution.
-- [ ] Extend the phase-1 transition-target exclusion across full lexical trivia.
-  The focused fix recognizes direct `-> name` targets and whitespace, but a
-  `//` comment between `->` and a contextual target name can still make the raw
-  backward scan classify that name as statement or sealed-I/O syntax. Add that
-  exact canary, consume the same trivia contract as the main scanner, and retain
-  native/self artifact identity plus execution agreement.
+- [x] Extend the phase-1 transition-target exclusion across full lexical trivia.
+  Phase 1 now records the `->` token relation and lets the ordinary scanner
+  consume whitespace and complete `//` comments before excluding the next word
+  from contextual declaration and sealed-I/O recognition. The focused canary
+  carries comments before `write_byte`, `state`, `let`, and `read_byte` targets
+  while retaining native/self artifact identity and status-37 execution.
 
 Implement each as a general relation rather than file-name checks, declaration
 counts, compiler-source AST permutations, or a Cartesian matrix in one verifier.

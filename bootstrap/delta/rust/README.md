@@ -37,7 +37,8 @@ without making a historical host-I/O implementation part of each template.
 `lowermachine-contextual-state-test.sh` separately requires the Rust producer,
 the Rust-built lowermachine, and its self-built fixed point to emit identical
 assembly and execute the same twelve-state chain when state identifiers reuse
-Delta keywords and sealed boundary-intrinsic spellings.
+Delta keywords and sealed boundary-intrinsic spellings, including transition
+targets separated from `->` by line-comment trivia.
 
 ## Run
 
