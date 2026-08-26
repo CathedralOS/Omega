@@ -1530,6 +1530,10 @@ fn primitive_request_snapshot(
             "established-owned",
             std::ptr::from_ref(established).cast::<()>(),
         ),
+        PlacementAuthorityRef::EstablishedOwnedAtomic(established) => (
+            "established-owned-atomic",
+            std::ptr::from_ref(established).cast::<()>(),
+        ),
     };
     PrimitiveRequestSnapshot {
         plan: request.plan,
@@ -2313,6 +2317,234 @@ fn provider_existing_content_establishes_owned_stable_placement() {
     assert_eq!(established.occurrence().normalized_identity(), 96);
     assert_eq!(established.validity_receipt().normalized_identity(), 93);
     assert_eq!(established.custody_receipt().normalized_identity(), 94);
+}
+
+#[test]
+fn provider_existing_content_establishes_and_retires_owned_atomic_placement() {
+    let plan = atomic_word_placement();
+    let (extent, content) = provider_existing_content(&plan, 0xa400, 4, 301, 302);
+    let origin = extent.origin();
+    let lineage = extent.lineage_root();
+    let profile = {
+        let loan = extent.loan(0, 4).expect("Atomic profile loan");
+        atomic_word_profile(&loan)
+    };
+    let admission_id = PlacementAdmissionId::from_normalized_identity(305).expect("admission");
+    let admission = admit_owned_placement(admission_id, extent, &plan, &profile)
+        .expect("owned Atomic admission");
+    let dormant =
+        adopt_owned_atomic(admission, content).expect("provider-evidenced Atomic adoption");
+    let claim = dormant.resident_claim();
+    let validity = dormant.validity_receipt();
+    let custody = dormant.custody_receipt();
+    assert_eq!(dormant.admission(), admission_id);
+    assert_eq!(dormant.placement_plan().identity(), plan.identity());
+    assert_eq!(dormant.profile_receipt().normalized_identity(), 155);
+    assert_eq!(dormant.extent().origin(), origin);
+    assert_eq!(dormant.extent().lineage_root(), lineage);
+    assert_eq!(claim.normalized_identity(), 304);
+
+    let first_occurrence =
+        PlacedOccurrenceId::from_normalized_identity(306).expect("first Atomic occurrence");
+    let established = dormant
+        .view(first_occurrence)
+        .expect("owned Atomic resident view");
+    assert_eq!(established.admission(), admission_id);
+    assert_eq!(established.occurrence(), first_occurrence);
+    assert_eq!(established.resident_claim(), claim);
+    assert_eq!(established.validity_receipt(), validity);
+    assert_eq!(established.custody_receipt(), custody);
+
+    {
+        let projection = established
+            .project(field_key(plan.access(), "head"))
+            .expect("resident Atomic field projection");
+        assert_eq!(projection.observation(), ObservationModel::Atomic);
+        assert_eq!(projection.resident_claim(), Some(claim));
+        assert_eq!(projection.placed_occurrence(), Some(first_occurrence));
+
+        let request = projection
+            .atomic_compare_exchange_once(MemoryOrdering::ReceivePublish, MemoryOrdering::Receive)
+            .expect("resident Atomic single-attempt compare-exchange")
+            .into_primitive_request();
+        assert_eq!(request.resident_claim(), Some(claim));
+        assert_eq!(request.placed_occurrence(), Some(first_occurrence));
+        let atomic = request
+            .into_atomic_primitive_access()
+            .expect("resident Atomic specialization");
+        assert_eq!(
+            atomic.operation(),
+            AtomicAccessOperation::CompareExchangeOnce {
+                success: MemoryOrdering::ReceivePublish,
+                failure: MemoryOrdering::Receive,
+            }
+        );
+        atomic
+            .validate_for_lowering()
+            .expect("resident Atomic specialization replays exact custody");
+        let request = atomic.into_primitive_request();
+        assert_eq!(request.resident_claim(), Some(claim));
+        assert_eq!(request.placed_occurrence(), Some(first_occurrence));
+    }
+
+    let dormant = established
+        .retire_resident()
+        .expect("resident-preserving Atomic retirement");
+    assert_eq!(dormant.resident_claim(), claim);
+    assert_eq!(dormant.validity_receipt(), validity);
+    assert_eq!(dormant.custody_receipt(), custody);
+    assert_eq!(dormant.extent().origin(), origin);
+    assert_eq!(dormant.extent().lineage_root(), lineage);
+
+    let second_occurrence =
+        PlacedOccurrenceId::from_normalized_identity(307).expect("second Atomic occurrence");
+    let second = dormant
+        .view(second_occurrence)
+        .expect("re-view of the same Atomic resident");
+    assert_eq!(second.resident_claim(), claim);
+    assert_eq!(second.occurrence(), second_occurrence);
+    assert_ne!(second.occurrence(), first_occurrence);
+}
+
+#[test]
+fn atomic_adoption_is_observation_specific_and_returns_both_inputs() {
+    let stable = stable_word_placement();
+    let (extent, content) = provider_existing_content(&stable, 0xa480, 4, 311, 312);
+    let origin = extent.origin();
+    let claim = content.resident_claim();
+    let profile = stable_word_profile(&extent);
+    let admission = admit_owned_placement(
+        PlacementAdmissionId::from_normalized_identity(315).expect("admission"),
+        extent,
+        &stable,
+        &profile,
+    )
+    .expect("owned Stable admission");
+
+    let rejection = adopt_owned_atomic(admission, content)
+        .expect_err("Stable content cannot enter the Atomic adoption route");
+    assert!(rejection.diagnostic().0.contains("Atomic adoption"));
+    let (admission, content, diagnostic) = rejection.into_parts();
+    assert!(diagnostic.0.contains("Atomic adoption"));
+    assert_eq!(admission.extent().origin(), origin);
+    assert_eq!(content.resident_claim(), claim);
+
+    let dormant = adopt_owned_stable(admission, content)
+        .expect("rejected inputs remain valid for their exact Stable route");
+    assert_eq!(dormant.resident_claim(), claim);
+
+    let atomic = atomic_word_placement();
+    let (extent, content) = provider_existing_content(&atomic, 0xa4c0, 4, 316, 317);
+    let atomic_claim = content.resident_claim();
+    let profile = {
+        let loan = extent.loan(0, 4).expect("Atomic profile loan");
+        atomic_word_profile(&loan)
+    };
+    let admission = admit_owned_placement(
+        PlacementAdmissionId::from_normalized_identity(320).expect("Atomic admission"),
+        extent,
+        &atomic,
+        &profile,
+    )
+    .expect("owned Atomic admission");
+    let rejection = adopt_owned_stable(admission, content)
+        .expect_err("Atomic content cannot enter the Stable adoption route");
+    assert!(rejection.diagnostic().0.contains("Stable adoption"));
+    let (admission, content, diagnostic) = rejection.into_parts();
+    assert!(diagnostic.0.contains("Stable adoption"));
+    assert_eq!(content.resident_claim(), atomic_claim);
+    let dormant = adopt_owned_atomic(admission, content)
+        .expect("rejected inputs remain valid for their exact Atomic route");
+    assert_eq!(dormant.resident_claim(), atomic_claim);
+}
+
+#[test]
+fn atomic_resident_lifecycle_returns_complete_carriers_on_authority_drift() {
+    let plan = atomic_word_placement();
+    let (extent, content) = provider_existing_content(&plan, 0xa500, 4, 321, 322);
+    let profile = {
+        let loan = extent.loan(0, 4).expect("Atomic profile loan");
+        atomic_word_profile(&loan)
+    };
+    let admission = admit_owned_placement(
+        PlacementAdmissionId::from_normalized_identity(325).expect("admission"),
+        extent,
+        &plan,
+        &profile,
+    )
+    .expect("owned Atomic admission");
+    let mut dormant = adopt_owned_atomic(admission, content).expect("Atomic adoption");
+    let claim = dormant.resident_claim();
+    let validity = dormant.validity_receipt();
+    let custody = dormant.custody_receipt();
+
+    let coincident = uart_extent_with_lineage(0xa500, 4, 326);
+    let wrong_profile = {
+        let loan = coincident
+            .loan(0, 4)
+            .expect("coincident Atomic profile loan");
+        atomic_word_profile(&loan)
+    };
+    let retained_profile = std::mem::replace(&mut dormant.admission.profile, wrong_profile);
+    let occurrence = PlacedOccurrenceId::from_normalized_identity(327).expect("Atomic occurrence");
+    let rejection = dormant
+        .view(occurrence)
+        .expect_err("Atomic view must replay exact retained placement authority");
+    assert!(rejection.diagnostic().0.contains("placement authority"));
+    let (mut dormant, returned_occurrence, diagnostic) = rejection.into_parts();
+    assert!(diagnostic.0.contains("placement authority"));
+    assert_eq!(returned_occurrence, occurrence);
+    assert_eq!(dormant.resident_claim(), claim);
+    assert_eq!(dormant.validity_receipt(), validity);
+    assert_eq!(dormant.custody_receipt(), custody);
+    dormant.admission.profile = retained_profile;
+
+    let mut established = dormant
+        .view(returned_occurrence)
+        .expect("repaired Atomic resident view");
+    let (_, replacement_content) = provider_existing_content(&plan, 0xa500, 4, 328, 329);
+    let retained_content = std::mem::replace(&mut established.content, replacement_content);
+    let rejection = established
+        .retire_resident()
+        .expect_err("Atomic retirement must replay exact provider content custody");
+    assert!(rejection.diagnostic().0.contains("provider content grant"));
+    let (mut established, diagnostic) = rejection.into_parts();
+    assert!(diagnostic.0.contains("provider content grant"));
+    assert_eq!(established.occurrence(), occurrence);
+    established.content = retained_content;
+
+    {
+        let projection = established
+            .project(field_key(plan.access(), "head"))
+            .expect("repaired resident Atomic projection");
+        let mut request = projection
+            .atomic_compare_exchange(MemoryOrdering::ReceivePublish, MemoryOrdering::Receive)
+            .expect("resident Atomic compare-exchange")
+            .into_primitive_request();
+        request.resident_claim = Some(
+            ResidentClaimId::from_normalized_identity(331).expect("substituted resident claim"),
+        );
+        request = expect_exact_atomic_rejection(request, "resident identities");
+        request.resident_claim = Some(claim);
+        request.placed_occurrence = Some(
+            PlacedOccurrenceId::from_normalized_identity(332)
+                .expect("substituted placed occurrence"),
+        );
+        request = expect_exact_atomic_rejection(request, "resident identities");
+        request.placed_occurrence = Some(occurrence);
+        request
+            .into_atomic_primitive_access()
+            .expect("repaired Atomic request preserves its original authority")
+            .validate_for_lowering()
+            .expect("repaired Atomic specialization replays");
+    }
+
+    let dormant = established
+        .retire_resident()
+        .expect("repaired Atomic carrier retires without reminting custody");
+    assert_eq!(dormant.resident_claim(), claim);
+    assert_eq!(dormant.validity_receipt(), validity);
+    assert_eq!(dormant.custody_receipt(), custody);
 }
 
 #[test]

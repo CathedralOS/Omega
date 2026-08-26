@@ -61,11 +61,14 @@ pub(super) fn project_placed_field<'view, 'extent>(
             key.slot()
         ))
     })?;
-    if required_observation.is_some_and(|required| descriptor.observation() != required) {
-        return Err(AccessPlanDiagnostic(format!(
-            "field `{}` observation is not valid for established owned Stable access",
-            descriptor.field()
-        )));
+    if let Some(required) = required_observation {
+        if descriptor.observation() != required {
+            return Err(AccessPlanDiagnostic(format!(
+                "field `{}` observation is not valid for established owned {:?} access",
+                descriptor.field(),
+                required
+            )));
+        }
     }
     let supply = resources.field(key).ok_or_else(|| {
         AccessPlanDiagnostic(format!(

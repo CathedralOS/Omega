@@ -4,6 +4,7 @@
 //! occurrence to an exact whole-range `ExtentLoan` and forwards the lender's
 //! claim and provider receipts through placed field access.
 
+use super::owned_resident_custody::validate_resident_observation;
 use super::{
     AccessFieldKey, AccessPlanDiagnostic, AdmittedResourceProfile, BorrowPolarity,
     DormantOwnedResident, ObservationModel, PlacedFieldProjection, PlacedOccurrenceId,
@@ -258,7 +259,11 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
                 ))
             },
         )?;
-        Ok(())
+        validate_resident_observation(
+            &self.plan,
+            ObservationModel::Stable,
+            "borrowed resident retirement",
+        )
     }
 
     /// Explicitly end this placed occurrence and release its exact loan. The

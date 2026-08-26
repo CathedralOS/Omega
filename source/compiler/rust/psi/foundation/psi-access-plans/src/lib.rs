@@ -24,6 +24,7 @@ mod corresponded_stable;
 mod corresponded_stable_compound;
 mod field_projection;
 mod normalized_identities;
+mod owned_atomic_resident_custody;
 mod owned_placement_lifecycle;
 mod owned_resident_custody;
 mod placement_admission;
@@ -52,6 +53,11 @@ pub use corresponded_stable_compound::{
     CorrespondedStableCompoundMutationAccessRequest,
 };
 pub use field_projection::{PlacedFieldAccess, PlacedFieldProjection};
+pub use owned_atomic_resident_custody::{
+    DormantOwnedAtomicResident, EstablishedOwnedAtomicPlacement, OwnedAtomicAdoptionError,
+    OwnedAtomicResidentRetirementError, OwnedAtomicResidentViewEstablishmentError,
+    adopt_owned_atomic,
+};
 pub use owned_resident_custody::adopt_owned_stable;
 pub use placement_admission::{admit_owned_placement, admit_placement, place};
 pub use primitive_specialization::{
