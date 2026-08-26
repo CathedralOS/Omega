@@ -5303,8 +5303,10 @@ Owners:
   survives syntax snapshots, resolved and typed trees, and checked
   proof-contract traversal. Public package review v56
   now retains it as a closed payload-free parameter kind, distinct from both
-  structural and nominal machine contracts. The core
-  `PrivateCallbackSlot<machine Requirement>` declaration can now be published.
+  structural and nominal machine contracts. The core now publishes the inert
+  `PrivateCallbackSlot<machine Requirement>` declaration, and package review
+  retains an explicitly named public conformance with its exact toolchain-owned
+  trait and requirement-identity argument. No ambient lookup is introduced.
   The declaration shape is now settled. A target package declares one stable
   typed slot as an explicitly named
   `Layout satisfies PrivateCallbackSlot<Trait::requirement>` conformance, and

@@ -4605,6 +4605,70 @@ machine build(builder: &mut Build) { }
 }
 
 #[test]
+fn review_projects_public_core_private_callback_slot_conformance() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"use omega::language::core::layout;
+
+pub trait WindowProcedure {
+    machine call();
+}
+pub data WndClassLayout { }
+
+pub WndClassWindowProcedureSlot:
+    WndClassLayout satisfies
+        PrivateCallbackSlot<WindowProcedure::call>;
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("public private-callback-slot fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("toolchain-owned requirement-identity conformance should project");
+    let [conformance] = review.public_conformances() else {
+        panic!("one public private-callback-slot conformance")
+    };
+    assert_eq!(conformance.identity().path(), "WndClassWindowProcedureSlot");
+    let PackageReviewConformanceSubject::Nominal(subject) = conformance.subject() else {
+        panic!("private callback slot must retain its nominal layout subject")
+    };
+    assert_eq!(subject.path(), "WndClassLayout");
+    let interface = conformance.interface();
+    assert_eq!(interface.trait_identity().path(), "PrivateCallbackSlot");
+    assert!(matches!(
+        interface.trait_identity().owner(),
+        PackageReviewNominalOwner::ToolchainSource(_)
+    ));
+    let [argument] = interface.arguments() else {
+        panic!("one exact callback requirement identity argument")
+    };
+    assert!(argument.canonical().contains("WindowProcedure"));
+    assert!(argument.canonical().contains("call"));
+    assert!(interface.requirements().is_empty());
+    assert!(review.canonical_rows().unwrap().iter().any(|row| {
+        row.kind() == PackageReviewCanonicalRowKind::PublicConformance
+            && row.risk() == PackageReviewCanonicalRowRisk::Blocking
+    }));
+}
+
+#[test]
 fn public_conformance_rows_are_alpha_normalized_and_exclude_private_realizations() {
     let Some(target) = host_target_name() else {
         return;

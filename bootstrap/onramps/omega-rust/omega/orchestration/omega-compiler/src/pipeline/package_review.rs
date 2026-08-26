@@ -7216,13 +7216,16 @@ fn collect_evidence_requirements(
     }
     if type_parameters.iter().any(|parameter| {
         !matches!(
-            parameter.kind,
+            &parameter.kind,
             psi_typed_trees::data::TypeParameterKind::Type
                 | psi_typed_trees::data::TypeParameterKind::Const { .. }
+                | psi_typed_trees::data::TypeParameterKind::Machine {
+                    contract: psi_typed_trees::data::MachineParameterContract::RequirementIdentity
+                }
         )
     }) {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed evidence trait `{}` uses a static machine or proposition parameter not yet represented by package review",
+            "reviewed evidence trait `{}` uses a structural/nominal machine or proposition parameter not represented by package review",
             definition.name
         ))]);
     }
