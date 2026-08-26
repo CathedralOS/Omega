@@ -36,7 +36,7 @@ fn retains_trait_machine_identity_category_and_exact_requirement_symbol() {
     assert!(matches!(
         parameter.kind,
         TypeParameterKind::Machine {
-            contract: MachineParameterContract::DeclarationIdentity
+            contract: MachineParameterContract::RequirementIdentity
         }
     ));
 

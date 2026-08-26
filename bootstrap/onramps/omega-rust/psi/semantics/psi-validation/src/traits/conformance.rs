@@ -730,7 +730,7 @@ fn validate_machine_declaration_identity_arguments(
         .zip(applied_arguments)
     {
         let TypeParameterKind::Machine {
-            contract: psi_typed_trees::data::MachineParameterContract::DeclarationIdentity,
+            contract: psi_typed_trees::data::MachineParameterContract::RequirementIdentity,
         } = &parameter.kind
         else {
             continue;
@@ -753,7 +753,7 @@ fn validate_machine_declaration_identity_arguments(
                         candidate.kind,
                         TypeParameterKind::Machine {
                             contract:
-                                psi_typed_trees::data::MachineParameterContract::DeclarationIdentity
+                                psi_typed_trees::data::MachineParameterContract::RequirementIdentity
                         }
                     )
             })

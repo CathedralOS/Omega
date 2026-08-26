@@ -32,7 +32,7 @@ fn resolves_trait_requirement_argument_as_exact_state_identity() {
     assert!(matches!(
         parameter.kind,
         TypeParameterKind::Machine {
-            contract: MachineParameterContract::DeclarationIdentity
+            contract: MachineParameterContract::RequirementIdentity
         }
     ));
 
