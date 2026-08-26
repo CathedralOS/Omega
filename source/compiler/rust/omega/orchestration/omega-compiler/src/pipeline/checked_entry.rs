@@ -702,17 +702,20 @@ fn compile_to_checked_inner_with_replay(
             selected_provider_plan_facts,
             &build_config.grants,
         )?;
-    let component_progress = selected_program_entry_source_signature
-        .as_ref()
-        .map(|source| {
-            crate::pipeline::component_progress::build_component_progress_manifest(
-                checked_program,
-                &selected_provider_plan_facts,
-                source.machine_symbol(),
-                source.normalized_callable_identity().to_owned(),
-            )
-        })
-        .transpose()?;
+    let component_progress =
+        crate::pipeline::component_progress::build_selected_component_progress_manifest(
+            checked_program,
+            &selected_provider_plan_facts,
+            selected_program_entry_source_signature
+                .as_ref()
+                .map(|source| {
+                    crate::pipeline::component_progress::ExactComponentProgressRoot::new(
+                        source.machine_symbol(),
+                        source.normalized_callable_identity(),
+                    )
+                }),
+            None,
+        )?;
     crate::pipeline::operator_adapter_dispatch::rewrite_selected_operator_adapter_calls(
         checked_program,
         &selected_provider_plan_facts,

@@ -2,7 +2,74 @@ use omega_effects::provider_plan::ProviderBinding;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
 
-pub(super) fn build_component_progress_manifest(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct ExactComponentProgressRoot<'a> {
+    machine: SymbolHandle,
+    callable_identity: &'a str,
+}
+
+impl<'a> ExactComponentProgressRoot<'a> {
+    pub(super) const fn new(machine: SymbolHandle, callable_identity: &'a str) -> Self {
+        Self {
+            machine,
+            callable_identity,
+        }
+    }
+}
+
+/// Resolve the one selected component entry and construct its canonical
+/// progress manifest. An exact source-selected root outranks the test-harness
+/// name fallback; absence of both means that this checked product has no
+/// component root and therefore no manifest.
+pub(super) fn build_selected_component_progress_manifest(
+    program: &psi_checked_trees::CheckedTrees,
+    selected: &omega_effects::SelectedProviderPlanFacts,
+    exact_source_root: Option<ExactComponentProgressRoot<'_>>,
+    test_entry_name: Option<&str>,
+) -> Result<Option<omega_effects::ComponentProgressManifest>, Vec<Diagnostic>> {
+    let root = if let Some(root) = exact_source_root {
+        root
+    } else if let Some(entry_name) = test_entry_name {
+        let matches = program
+            .machines()
+            .iter()
+            .filter(|machine| machine.name.as_str() == entry_name)
+            .collect::<Vec<_>>();
+        let [entry] = matches.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "selected test entry `{entry_name}` resolves to {} checked machines",
+                matches.len()
+            ))]);
+        };
+        let callable_identity = program
+            .normalized_machine_overload_identity(entry)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "selected test entry `{entry_name}` has no normalized callable identity"
+                ))]
+            })?
+            .identity();
+        return build_component_progress_manifest(
+            program,
+            selected,
+            entry.symbol,
+            callable_identity,
+        )
+        .map(Some);
+    } else {
+        return Ok(None);
+    };
+
+    build_component_progress_manifest(
+        program,
+        selected,
+        root.machine,
+        root.callable_identity.to_owned(),
+    )
+    .map(Some)
+}
+
+fn build_component_progress_manifest(
     program: &psi_checked_trees::CheckedTrees,
     selected: &omega_effects::SelectedProviderPlanFacts,
     entry_machine: SymbolHandle,
@@ -208,7 +275,10 @@ fn machine_callable_identity(
 
 #[cfg(test)]
 mod tests {
-    use super::reject_undischarged_build_bound_progress;
+    use super::{
+        ExactComponentProgressRoot, build_selected_component_progress_manifest,
+        reject_undischarged_build_bound_progress,
+    };
     use omega_effects::provider_plan::{
         ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod,
         ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
@@ -217,6 +287,39 @@ mod tests {
     use omega_effects::{
         CheckedComponentProgressDemand, ComponentProgressManifest, SelectedProviderPlanFacts,
     };
+    use psi_checked_trees::CheckedTrees;
+    use psi_symbols::SymbolHandle;
+
+    fn empty_selected() -> SelectedProviderPlanFacts {
+        SelectedProviderPlanFacts::from_selected_plans(Vec::new())
+            .expect("empty provider selection")
+    }
+
+    fn push_machine(
+        program: &mut CheckedTrees,
+        name: &str,
+        machine_index: u32,
+        with_entry: bool,
+    ) -> SymbolHandle {
+        let machine_symbol = SymbolHandle::from_arena_index(machine_index);
+        let mut machine = psi_checked_trees::machine::Machine {
+            symbol: machine_symbol,
+            name: psi_checked_trees::name::Identifier::generated(name),
+            ..Default::default()
+        };
+        if with_entry {
+            program.typed.push_machine_state(
+                &mut machine,
+                psi_checked_trees::state::State {
+                    symbol: SymbolHandle::from_arena_index(machine_index + 1),
+                    name: psi_checked_trees::name::Identifier::generated("entry"),
+                    ..Default::default()
+                },
+            );
+        }
+        program.typed.push_machine(machine);
+        machine_symbol
+    }
 
     fn selected() -> SelectedProviderPlanFacts {
         let plan = ProviderPlan {
@@ -283,6 +386,140 @@ mod tests {
             statement_ordinal: 4,
             call_ordinal,
         }
+    }
+
+    #[test]
+    fn absent_component_root_builds_no_manifest() {
+        assert_eq!(
+            build_selected_component_progress_manifest(
+                &CheckedTrees::default(),
+                &empty_selected(),
+                None,
+                None,
+            ),
+            Ok(None),
+        );
+    }
+
+    #[test]
+    fn exact_component_root_retains_its_callable_identity() {
+        let mut program = CheckedTrees::default();
+        let machine = push_machine(&mut program, "Application::run", 20, true);
+        let selected = empty_selected();
+        let manifest = build_selected_component_progress_manifest(
+            &program,
+            &selected,
+            Some(ExactComponentProgressRoot::new(
+                machine,
+                "Application::run#exact",
+            )),
+            None,
+        )
+        .expect("exact root should build a manifest")
+        .expect("exact root should be present");
+
+        assert_eq!(manifest.entry_callable_identity(), "Application::run#exact");
+        assert_eq!(
+            manifest.selected_provider_closure_identity(),
+            selected.normalized_identity()
+        );
+        assert!(manifest.pending().is_empty());
+    }
+
+    #[test]
+    fn exact_component_root_outranks_named_harness_fallback() {
+        let mut program = CheckedTrees::default();
+        let machine = push_machine(&mut program, "Application::run", 20, true);
+        let manifest = build_selected_component_progress_manifest(
+            &program,
+            &empty_selected(),
+            Some(ExactComponentProgressRoot::new(
+                machine,
+                "Application::run#source",
+            )),
+            Some("missing::HarnessEntry"),
+        )
+        .expect("exact source root should bypass the harness fallback")
+        .expect("exact source root should be present");
+
+        assert_eq!(
+            manifest.entry_callable_identity(),
+            "Application::run#source"
+        );
+    }
+
+    #[test]
+    fn unique_named_harness_root_uses_its_normalized_callable_identity() {
+        let mut program = CheckedTrees::default();
+        let machine_symbol = push_machine(&mut program, "Fixture::entry", 20, true);
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .expect("named harness machine");
+        let expected = program
+            .normalized_machine_overload_identity(machine)
+            .expect("named harness callable identity")
+            .identity();
+
+        let manifest = build_selected_component_progress_manifest(
+            &program,
+            &empty_selected(),
+            None,
+            Some("Fixture::entry"),
+        )
+        .expect("unique harness root should build a manifest")
+        .expect("unique harness root should be present");
+
+        assert_eq!(manifest.entry_callable_identity(), expected);
+    }
+
+    #[test]
+    fn named_harness_root_rejects_missing_and_duplicate_machines_exactly() {
+        let missing = build_selected_component_progress_manifest(
+            &CheckedTrees::default(),
+            &empty_selected(),
+            None,
+            Some("Fixture::entry"),
+        )
+        .expect_err("missing harness root must reject");
+        assert_eq!(
+            missing[0].message,
+            "selected test entry `Fixture::entry` resolves to 0 checked machines"
+        );
+
+        let mut duplicate = CheckedTrees::default();
+        push_machine(&mut duplicate, "Fixture::entry", 20, true);
+        push_machine(&mut duplicate, "Fixture::entry", 30, true);
+        let duplicate = build_selected_component_progress_manifest(
+            &duplicate,
+            &empty_selected(),
+            None,
+            Some("Fixture::entry"),
+        )
+        .expect_err("duplicate harness roots must reject");
+        assert_eq!(
+            duplicate[0].message,
+            "selected test entry `Fixture::entry` resolves to 2 checked machines"
+        );
+    }
+
+    #[test]
+    fn named_harness_root_requires_a_normalized_callable_identity() {
+        let mut program = CheckedTrees::default();
+        push_machine(&mut program, "Fixture::entry", 20, false);
+
+        let diagnostics = build_selected_component_progress_manifest(
+            &program,
+            &empty_selected(),
+            None,
+            Some("Fixture::entry"),
+        )
+        .expect_err("a bodyless harness root has no normalized callable identity");
+        assert_eq!(
+            diagnostics[0].message,
+            "selected test entry `Fixture::entry` has no normalized callable identity"
+        );
     }
 
     #[test]
