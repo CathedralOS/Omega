@@ -1204,6 +1204,16 @@ a target has multiple simultaneously legal forms with a performance tradeoff,
 choosing among them becomes an explicit named policy decision with its own
 receipt.
 
+An alternative also carries an encoded-realization contract distinct from the
+selected instruction's semantic and ABI custody. It names which selected
+operands actually feed the encoding, which physical units the realization uses,
+defines, or clobbers, and its memory, stack, trap, and control behavior. The
+distinction is material: x86's XOR-zero subtraction reads no external source
+operand even though it realizes a semantic subtraction, while a return's ABI
+result remains live in RAX/X0 even though the return opcode does not read that
+operand. Catalog, pre-allocation, and post-allocation identities bind this
+contract; the strict pre-allocation codec is v3 for the same reason.
+
 Orchestration reconstructs this sidecar for ordinary selected homes,
 fixed-view-copy output, and an explicit literal-fold sequence, always retaining
 the matching transformed custody and validated post-allocation manifest. This
@@ -1221,18 +1231,23 @@ noncanonical bytes, and publish decoded register/flag footprints.
 `omega-optimization-pipeline` then builds an immutable pre-layout fragment
 artifact rooted in both the selected plan and post-allocation machine sidecar.
 Every row binds its instruction, chosen alternative, canonical bytes, resolved
-size, and decoded footprint. Replayed validation compares explicit reads and
-writes, flag defs/clobbers, and catalog size bounds with the post-allocation
-sidecar. Conditional branches are explicit layout-deferred rows. Returns are
-separately effect-deferred because a raw return has control, stack, memory, and
-trap behavior beyond the current minimal semantic catalog. Consequently this
-artifact is neither a concatenated code section nor emission/publication
-authority.
+size, decoded footprint, and encoded-realization effects under its v2 identity.
+Replayed validation compares external physical reads/writes, implicit units,
+memory, stack, trap, control, and catalog size bounds with the chosen catalog
+alternative. x86-64 near return is independently decoded as canonical `C3` and
+records RSP use/def, RIP def, an eight-byte activation-stack read/pop, possible
+architectural fault, and return control. AArch64 independently decodes canonical
+`RET X30` (`C0 03 5F D6`) and records X30 use, PC def, unchanged stack, no memory
+access, and possible architectural fault. Neither form falsely reports the ABI
+result operand as an encoded read. Conditional branches alone remain explicit
+layout-deferred rows. Consequently this artifact is neither a concatenated code
+section nor emission/publication authority.
 
 Before the legacy assigned-operation emitter can be bypassed, the clean lane
-still needs expanded encoded-effect refinements (including zero idioms),
-layout-resolved branches, truthful return effects, whole-program spans and
-relocations, and publication enforcement of the independent verifier receipt.
+still needs layout-resolved branches, a whole-function exit contract covering
+frame balance, callee preservation, link/return state and enabled hardening
+features, whole-program spans and relocations, and publication enforcement of
+the independent verifier receipt.
 
 ## Decision policy, search, and ML
 

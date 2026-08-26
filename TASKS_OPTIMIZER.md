@@ -1168,6 +1168,13 @@ dependency.
   remain encoder-resolved. x86 exact subtraction publishes four ordered,
   applicability-qualified pseudo alternatives and retains the constraint
   row's RFLAGS clobber; AArch64 publishes one flag-transparent SUB alternative.
+  Each alternative now also declares its exact encoded realization separately
+  from the selected instruction's semantic/ABI custody: external operand
+  dependencies, implicit unit uses/defs/clobbers, memory, stack adjustment,
+  architectural-fault possibility, and control behavior. This makes the x86
+  XOR-zero subtraction alternative honestly independent of its semantic input
+  operands and makes return instructions honest about hardware state without
+  pretending the returned value is encoded in `RET`.
 
   The new `omega-machine-optimizer` independently computes and replays an
   immutable pre-allocation sidecar from the sealed validated selected-analysis
@@ -1182,7 +1189,8 @@ dependency.
   binds the transformed selected identity; no pre-transformation analysis fact
   crosses that boundary.
 
-  The sidecar also has a strict, versioned, self-authenticating binary codec.
+  The sidecar also has a strict, versioned, self-authenticating binary codec
+  (currently v3 after adding encoded-realization content).
   Decoding rejects wrong framing or version, truncated or trailing data,
   unknown closed-vocabulary tags, and any identity/content mismatch. It grants
   no rewrite, home, emission, or publication authority.
@@ -1218,20 +1226,25 @@ dependency.
   immediate boundary.
 
   Opt-in orchestration joins those fragments to the exact selected plan and
-  post-allocation sidecar. Its immutable v1 identity binds both roots, every
-  instruction ID and chosen alternative, the canonical bytes, and decoded
-  register/flag footprints. It compares byte counts with each target size
-  declaration and physical reads/writes/implicit effects with the sidecar.
-  Conditional branches and returns are retained as explicit deferred rows:
-  branches require resolved layout, while returns require truthful control,
-  stack, memory, and trap effects before byte verification. This artifact
-  grants no layout, executable emission, or publication authority.
+  post-allocation sidecar. Its immutable v2 identity binds both roots, every
+  instruction ID and chosen alternative, the canonical bytes, the decoded
+  physical footprint, and the complete encoded-realization effects. It compares
+  byte counts with each target size declaration and requires the target decoder
+  to reproduce the catalog alternative's realization exactly. x86-64 near
+  return is verified as canonical `C3`, with RSP use/def, RIP def, an eight-byte
+  activation-stack read/pop, possible architectural fault, and return control.
+  AArch64 `RET X30` is verified as canonical `C0 03 5F D6`, with X30 use, PC
+  def, possible architectural fault, unchanged stack, and no encoded X0 read.
+  The selected return value remains separate ABI custody in RAX/X0. Only
+  conditional branches remain explicit deferred rows because they require
+  resolved layout. This artifact grants no layout, executable emission, or
+  publication authority.
 
   Remaining to close: complete memory/trap/call/cleanup vocabularies as
-  selected IR admits them, encoded-vs-semantic effect refinements such as x86
-  XOR zero idioms, resolved branch/layout evidence, truthful return encoding,
-  whole-program span/relocation validation, and publication-side enforcement
-  of the independent encoding receipt.
+  selected IR admits them, resolved branch/layout evidence, a whole-function
+  exit contract covering frame balance, callee preservation, link/return state,
+  and enabled hardening features, whole-program span/relocation validation, and
+  publication-side enforcement of the independent encoding receipt.
 
 - **OPT-PRE-RA-MACHINE.** Add machine copy propagation, cheap rematerialization
   hints, and instruction-alternative selection before allocation.

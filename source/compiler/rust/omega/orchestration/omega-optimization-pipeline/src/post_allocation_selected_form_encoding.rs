@@ -11,15 +11,15 @@ use omega_terminal_isa_x86_64::{
     X86_64SelectedFormEncodingError, encode_x86_64_terminal_selected_form,
 };
 use omega_terminal_selected_instructions::{
-    TerminalMachineAlternativeFamily, TerminalMachineAlternativeKey, TerminalMachineSizeKnowledge,
-    TerminalSelectedInstruction, TerminalSelectedInstructionId, TerminalSelectedInstructionKind,
-    TerminalSelectedTerminator,
+    TerminalMachineAlternativeFamily, TerminalMachineAlternativeKey, TerminalMachineEncodedEffects,
+    TerminalMachineSizeKnowledge, TerminalSelectedInstruction, TerminalSelectedInstructionId,
+    TerminalSelectedInstructionKind, TerminalSelectedTerminator,
 };
 use sha2::{Digest, Sha256};
 
 use crate::StagedOptimizedPostAllocationMachinePlan;
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v1";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v2";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalSelectedFormEncodingIdentity([u8; 32]);
@@ -33,7 +33,6 @@ impl TerminalSelectedFormEncodingIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeferredTerminalControlEncodingReason {
     RequiresResolvedBranchLayout,
-    RequiresExpandedControlAndStackEffects,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,13 +41,14 @@ pub struct TerminalSelectedFormDecodedFootprint {
     pub register_writes: Vec<RegisterViewId>,
     pub implicit_defs: Vec<RegisterUnitId>,
     pub implicit_clobbers: Vec<RegisterUnitId>,
+    pub encoded: TerminalMachineEncodedEffects,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalSelectedFormEncodingState {
     Encoded {
         bytes: Vec<u8>,
-        footprint: TerminalSelectedFormDecodedFootprint,
+        footprint: Box<TerminalSelectedFormDecodedFootprint>,
     },
     DeferredControl {
         reason: DeferredTerminalControlEncodingReason,
@@ -229,12 +229,6 @@ fn encode_row(
                 reason: DeferredTerminalControlEncodingReason::RequiresResolvedBranchLayout,
             }
         }
-        TerminalSelectedInstructionKind::ReturnI64 => {
-            TerminalSelectedFormEncodingState::DeferredControl {
-                reason:
-                    DeferredTerminalControlEncodingReason::RequiresExpandedControlAndStackEffects,
-            }
-        }
         kind => encode_scalar(
             architecture,
             selected.id,
@@ -264,7 +258,7 @@ fn encode_scalar(
         .iter()
         .map(|operand| operand.view)
         .collect::<Vec<_>>();
-    let (bytes, reads, writes, writes_flags) = match architecture {
+    let (bytes, reads, writes, encoded_effects) = match architecture {
         Architecture::X86_64 => {
             let encoded = encode_x86_64_terminal_selected_form(physical, kind, alternative, &views)
                 .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
@@ -272,7 +266,7 @@ fn encode_scalar(
                 encoded.bytes().to_vec(),
                 encoded.footprint().register_reads.clone(),
                 encoded.footprint().register_writes.clone(),
-                encoded.footprint().writes_rflags,
+                encoded.footprint().encoded.clone(),
             )
         }
         Architecture::Aarch64 => {
@@ -283,72 +277,53 @@ fn encode_scalar(
                 encoded.bytes().to_vec(),
                 encoded.footprint().register_reads.clone(),
                 encoded.footprint().register_writes.clone(),
-                encoded.footprint().writes_nzcv,
+                encoded.footprint().encoded.clone(),
             )
         }
     };
-    validate_operand_footprint(instruction, machine, &reads, &writes)?;
-    let flag_name = match architecture {
-        Architecture::X86_64 => "rflags",
-        Architecture::Aarch64 => "nzcv",
-    };
-    let flag_units = &physical
-        .model()
-        .view_named(flag_name)
-        .ok_or(OptimizedSelectedFormEncodingError::ImplicitFootprintMismatch(instruction))?
-        .units;
-    let expected_defs = if matches!(kind, TerminalSelectedInstructionKind::CompareI64Zero) {
-        flag_units.clone()
-    } else {
-        Vec::new()
-    };
-    let expected_clobbers = if matches!(
-        (architecture, kind),
-        (
-            Architecture::X86_64,
-            TerminalSelectedInstructionKind::ExactSubtractI64 { .. }
-        )
-    ) {
-        flag_units.clone()
-    } else {
-        Vec::new()
-    };
-    if writes_flags != (!expected_defs.is_empty() || !expected_clobbers.is_empty())
-        || machine.implicit_unit_defs != expected_defs
-        || machine.implicit_unit_clobbers != expected_clobbers
-    {
+    validate_operand_footprint(instruction, machine, &encoded_effects, &reads, &writes)?;
+    if encoded_effects != machine.alternative.encoded {
         return Err(OptimizedSelectedFormEncodingError::ImplicitFootprintMismatch(instruction));
     }
     validate_size(instruction, machine.alternative.size, bytes.len())?;
     Ok(TerminalSelectedFormEncodingState::Encoded {
         bytes,
-        footprint: TerminalSelectedFormDecodedFootprint {
+        footprint: Box::new(TerminalSelectedFormDecodedFootprint {
             register_reads: reads,
             register_writes: writes,
-            implicit_defs: expected_defs,
-            implicit_clobbers: expected_clobbers,
-        },
+            implicit_defs: encoded_effects.implicit_unit_defs.clone(),
+            implicit_clobbers: encoded_effects.implicit_unit_clobbers.clone(),
+            encoded: encoded_effects,
+        }),
     })
 }
 
 fn validate_operand_footprint(
     instruction: TerminalSelectedInstructionId,
     machine: &TerminalPostAllocationMachineInstruction,
+    encoded: &TerminalMachineEncodedEffects,
     reads: &[RegisterViewId],
     writes: &[RegisterViewId],
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let expected_reads = machine
-        .operands
+    let resolve = |operand: u16| {
+        machine
+            .operands
+            .iter()
+            .find(|row| row.operand == operand)
+            .map(|row| row.view)
+    };
+    let expected_reads = encoded
+        .external_operand_reads
         .iter()
-        .filter(|operand| !operand.read_units.is_empty())
-        .map(|operand| operand.view)
-        .collect::<Vec<_>>();
-    let expected_writes = machine
-        .operands
+        .map(|operand| resolve(*operand))
+        .collect::<Option<Vec<_>>>()
+        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(instruction))?;
+    let expected_writes = encoded
+        .external_operand_writes
         .iter()
-        .filter(|operand| !operand.write_units.is_empty())
-        .map(|operand| operand.view)
-        .collect::<Vec<_>>();
+        .map(|operand| resolve(*operand))
+        .collect::<Option<Vec<_>>>()
+        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(instruction))?;
     if reads != expected_reads || writes != expected_writes {
         return Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(instruction));
     }
@@ -399,17 +374,71 @@ fn encoding_identity(
                 encode_views(&mut hasher, &footprint.register_writes);
                 encode_units(&mut hasher, &footprint.implicit_defs);
                 encode_units(&mut hasher, &footprint.implicit_clobbers);
+                encode_effects(&mut hasher, &footprint.encoded);
             }
             TerminalSelectedFormEncodingState::DeferredControl { reason } => {
                 hasher.update([1]);
                 hasher.update([match reason {
                     DeferredTerminalControlEncodingReason::RequiresResolvedBranchLayout => 0,
-                    DeferredTerminalControlEncodingReason::RequiresExpandedControlAndStackEffects => 1,
                 }]);
             }
         }
     }
     TerminalSelectedFormEncodingIdentity(hasher.finalize().into())
+}
+
+fn encode_effects(hasher: &mut Sha256, effects: &TerminalMachineEncodedEffects) {
+    hasher.update((effects.external_operand_reads.len() as u64).to_le_bytes());
+    for operand in &effects.external_operand_reads {
+        hasher.update(operand.to_le_bytes());
+    }
+    hasher.update((effects.external_operand_writes.len() as u64).to_le_bytes());
+    for operand in &effects.external_operand_writes {
+        hasher.update(operand.to_le_bytes());
+    }
+    encode_units(hasher, &effects.implicit_unit_uses);
+    encode_units(hasher, &effects.implicit_unit_defs);
+    encode_units(hasher, &effects.implicit_unit_clobbers);
+    use omega_terminal_selected_instructions::{
+        TerminalMachineEncodedControlEffect as Control,
+        TerminalMachineEncodedMemoryEffect as Memory, TerminalMachineEncodedStackEffect as Stack,
+        TerminalMachineEncodedTrapBehavior as Trap,
+    };
+    match effects.memory {
+        Memory::NoneV1 => hasher.update([0]),
+        Memory::ReadActivationStackV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            hasher.update([1]);
+            hasher.update(stack_pointer.0.to_le_bytes());
+            hasher.update(byte_count.to_le_bytes());
+        }
+    }
+    match effects.stack {
+        Stack::UnchangedV1 => hasher.update([0]),
+        Stack::PopBytesV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            hasher.update([1]);
+            hasher.update(stack_pointer.0.to_le_bytes());
+            hasher.update(byte_count.to_le_bytes());
+        }
+    }
+    hasher.update([match effects.trap {
+        Trap::NeverV1 => 0,
+        Trap::MayArchitecturalFaultV1 => 1,
+    }]);
+    match effects.control {
+        Control::FallThroughV1 => hasher.update([0]),
+        Control::ConditionalRelativeBranchV1 => hasher.update([1]),
+        Control::ReturnFromActivationStackV1 => hasher.update([2]),
+        Control::ReturnIndirectRegisterV1 { target } => {
+            hasher.update([3]);
+            hasher.update(target.0.to_le_bytes());
+        }
+    }
 }
 
 fn encode_alternative(hasher: &mut Sha256, alternative: TerminalMachineAlternativeKey) {

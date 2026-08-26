@@ -9,10 +9,12 @@ use omega_terminal_selected_instructions::{
     TerminalMachineAlternative, TerminalMachineAlternativeApplicability,
     TerminalMachineAlternativeFamily, TerminalMachineAlternativeKey, TerminalMachineBarrier,
     TerminalMachineCallEffect, TerminalMachineCleanupEffect, TerminalMachineEffectCatalogIdentity,
-    TerminalMachineLatencyKnowledge, TerminalMachineMemoryEffect, TerminalMachineSizeKnowledge,
-    TerminalMachineTrapBehavior, TerminalSelectedBlockId, TerminalSelectedInstructionId,
-    TerminalSelectedInstructionKind, TerminalSelectedInstructionPlanIdentity,
-    TerminalSelectedInstructionProvenance,
+    TerminalMachineEncodedControlEffect, TerminalMachineEncodedEffects,
+    TerminalMachineEncodedMemoryEffect, TerminalMachineEncodedStackEffect,
+    TerminalMachineEncodedTrapBehavior, TerminalMachineLatencyKnowledge,
+    TerminalMachineMemoryEffect, TerminalMachineSizeKnowledge, TerminalMachineTrapBehavior,
+    TerminalSelectedBlockId, TerminalSelectedInstructionId, TerminalSelectedInstructionKind,
+    TerminalSelectedInstructionPlanIdentity, TerminalSelectedInstructionProvenance,
 };
 use psi_core::{
     EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, ObligationId, OperationId, ValueId,
@@ -25,7 +27,7 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalPreAllocationMachineEffectDecodeError {
@@ -305,12 +307,76 @@ fn decode_alternative(
     if cursor.byte()? != 0 {
         return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField);
     }
+    let encoded = decode_encoded_effects(cursor)?;
     Ok(TerminalMachineAlternative {
         key,
         applicability,
         size,
         latency: TerminalMachineLatencyKnowledge::StableBaselineUnavailable,
+        encoded,
     })
+}
+
+fn decode_encoded_effects(
+    cursor: &mut Cursor<'_>,
+) -> Result<TerminalMachineEncodedEffects, TerminalPreAllocationMachineEffectDecodeError> {
+    let external_operand_reads = decode_u16s(cursor)?;
+    let external_operand_writes = decode_u16s(cursor)?;
+    let implicit_unit_uses = decode_units(cursor)?;
+    let implicit_unit_defs = decode_units(cursor)?;
+    let implicit_unit_clobbers = decode_units(cursor)?;
+    let memory = match cursor.byte()? {
+        0 => TerminalMachineEncodedMemoryEffect::NoneV1,
+        1 => TerminalMachineEncodedMemoryEffect::ReadActivationStackV1 {
+            stack_pointer: omega_register_model::RegisterViewId(cursor.u16()?),
+            byte_count: cursor.u16()?,
+        },
+        _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
+    };
+    let stack = match cursor.byte()? {
+        0 => TerminalMachineEncodedStackEffect::UnchangedV1,
+        1 => TerminalMachineEncodedStackEffect::PopBytesV1 {
+            stack_pointer: omega_register_model::RegisterViewId(cursor.u16()?),
+            byte_count: cursor.u16()?,
+        },
+        _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
+    };
+    let trap = match cursor.byte()? {
+        0 => TerminalMachineEncodedTrapBehavior::NeverV1,
+        1 => TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
+    };
+    let control = match cursor.byte()? {
+        0 => TerminalMachineEncodedControlEffect::FallThroughV1,
+        1 => TerminalMachineEncodedControlEffect::ConditionalRelativeBranchV1,
+        2 => TerminalMachineEncodedControlEffect::ReturnFromActivationStackV1,
+        3 => TerminalMachineEncodedControlEffect::ReturnIndirectRegisterV1 {
+            target: omega_register_model::RegisterViewId(cursor.u16()?),
+        },
+        _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
+    };
+    Ok(TerminalMachineEncodedEffects {
+        external_operand_reads,
+        external_operand_writes,
+        implicit_unit_uses,
+        implicit_unit_defs,
+        implicit_unit_clobbers,
+        memory,
+        stack,
+        trap,
+        control,
+    })
+}
+
+fn decode_u16s(
+    cursor: &mut Cursor<'_>,
+) -> Result<Vec<u16>, TerminalPreAllocationMachineEffectDecodeError> {
+    let count = cursor.length()?;
+    let mut values = Vec::with_capacity(count.min(cursor.remaining()));
+    for _ in 0..count {
+        values.push(cursor.u16()?);
+    }
+    Ok(values)
 }
 
 fn decode_target(
@@ -520,6 +586,10 @@ mod tests {
                                 size: TerminalMachineSizeKnowledge::ExactBytes(3),
                                 latency:
                                     TerminalMachineLatencyKnowledge::StableBaselineUnavailable,
+                                encoded: TerminalMachineEncodedEffects::fallthrough_v1(
+                                    vec![0],
+                                    vec![],
+                                ),
                             },
                             TerminalMachineAlternative {
                                 key: TerminalMachineAlternativeKey {
@@ -538,6 +608,10 @@ mod tests {
                                 },
                                 latency:
                                     TerminalMachineLatencyKnowledge::StableBaselineUnavailable,
+                                encoded: TerminalMachineEncodedEffects::fallthrough_v1(
+                                    vec![0, 1],
+                                    vec![2],
+                                ),
                             },
                             TerminalMachineAlternative {
                                 key: TerminalMachineAlternativeKey {
@@ -553,6 +627,25 @@ mod tests {
                                 size: TerminalMachineSizeKnowledge::ExactBytes(4),
                                 latency:
                                     TerminalMachineLatencyKnowledge::StableBaselineUnavailable,
+                                encoded: TerminalMachineEncodedEffects {
+                                    external_operand_reads: vec![],
+                                    external_operand_writes: vec![],
+                                    implicit_unit_uses: vec![RegisterUnitId(0)],
+                                    implicit_unit_defs: vec![RegisterUnitId(1)],
+                                    implicit_unit_clobbers: vec![],
+                                    memory:
+                                        TerminalMachineEncodedMemoryEffect::ReadActivationStackV1 {
+                                            stack_pointer:
+                                                omega_register_model::RegisterViewId(12),
+                                            byte_count: 8,
+                                        },
+                                    stack: TerminalMachineEncodedStackEffect::PopBytesV1 {
+                                        stack_pointer: omega_register_model::RegisterViewId(12),
+                                        byte_count: 8,
+                                    },
+                                    trap: TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                                    control: TerminalMachineEncodedControlEffect::ReturnFromActivationStackV1,
+                                },
                             },
                         ],
                     }],
@@ -587,10 +680,10 @@ mod tests {
         );
 
         let mut unsupported_version = encoded.clone();
-        unsupported_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
+        unsupported_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
         assert_eq!(
             TerminalPreAllocationMachineEffectPlan::decode(&unsupported_version),
-            Err(TerminalPreAllocationMachineEffectDecodeError::UnsupportedVersion(3))
+            Err(TerminalPreAllocationMachineEffectDecodeError::UnsupportedVersion(2))
         );
 
         let mut stale_identity = encoded.clone();

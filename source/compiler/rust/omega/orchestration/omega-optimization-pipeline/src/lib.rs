@@ -1613,12 +1613,40 @@ mod tests {
                         TerminalSelectedFormEncodingState::DeferredControl { .. }
                     ))
                     .count(),
-                3
+                1
             );
             assert!(encodings.rows().iter().all(|row| match &row.state {
                 TerminalSelectedFormEncodingState::Encoded { bytes, .. } => !bytes.is_empty(),
                 TerminalSelectedFormEncodingState::DeferredControl { .. } => true,
             }));
+            let returns = encodings
+                .rows()
+                .iter()
+                .filter(|row| {
+                    row.alternative.family
+                        == omega_terminal_selected_instructions::TerminalMachineAlternativeFamily::ReturnI64
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(returns.len(), 2);
+            for returned in returns {
+                let TerminalSelectedFormEncodingState::Encoded { bytes, footprint } =
+                    &returned.state
+                else {
+                    panic!("returns have layout-independent target encodings")
+                };
+                assert_eq!(
+                    bytes.as_slice(),
+                    if target.architecture == omega_target::Architecture::X86_64 {
+                        &[0xc3][..]
+                    } else {
+                        &[0xc0, 0x03, 0x5f, 0xd6][..]
+                    }
+                );
+                assert!(footprint.register_reads.is_empty());
+                assert!(footprint.register_writes.is_empty());
+                assert!(footprint.encoded.external_operand_reads.is_empty());
+                assert!(footprint.encoded.external_operand_writes.is_empty());
+            }
             validate_optimized_layout_independent_selected_form_encoding(
                 selected_stage.selected(),
                 &post,

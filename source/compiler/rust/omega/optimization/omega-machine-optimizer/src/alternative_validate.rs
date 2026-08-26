@@ -200,7 +200,7 @@ fn reconstruct_instruction(
             &operands,
             alternative.applicability,
             physical,
-        )? && chosen.replace(*alternative).is_some()
+        )? && chosen.replace(alternative.clone()).is_some()
         {
             return Err(
                 TerminalPostAllocationMachineError::AmbiguousApplicableAlternatives {
