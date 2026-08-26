@@ -146,7 +146,12 @@ pub(crate) fn finalize_checked_authored_selections(
                         .unwrap_or_else(SymbolHandle::invalid),
                 ),
                 (AuthoredDeclarationSelectionLateBinding::CheckedOperator, _)
-                    if matches!(node, ExpressionNode::Binary(_) | ExpressionNode::Unary(_)) =>
+                    if matches!(
+                        node,
+                        ExpressionNode::Binary(_)
+                            | ExpressionNode::Indexed(_)
+                            | ExpressionNode::Unary(_)
+                    ) =>
                 {
                     checked_operator_target(program, facts, expression, node)
                 }
@@ -840,38 +845,57 @@ fn resolve_authored_operator_without_use_fact<'program>(
     use psi_language_core::OperatorSpelling;
     use psi_typed_trees::expression::BinaryOperator;
 
-    let ExpressionNode::Binary(binary) = node else {
-        return None;
+    let (spelling, operand_types) = match node {
+        ExpressionNode::Binary(binary) => {
+            let spelling = match binary.operator {
+                BinaryOperator::Add => OperatorSpelling::Add,
+                BinaryOperator::Subtract => OperatorSpelling::Subtract,
+                BinaryOperator::Multiply => OperatorSpelling::Multiply,
+                BinaryOperator::Divide => OperatorSpelling::Divide,
+                BinaryOperator::Modulo => OperatorSpelling::Modulo,
+                BinaryOperator::Equal => OperatorSpelling::Equal,
+                BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
+                BinaryOperator::Less => OperatorSpelling::Less,
+                BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
+                BinaryOperator::Greater => OperatorSpelling::Greater,
+                BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
+                BinaryOperator::And
+                | BinaryOperator::BitwiseAnd
+                | BinaryOperator::BitwiseOr
+                | BinaryOperator::BitwiseXor
+                | BinaryOperator::Or
+                | BinaryOperator::ShiftLeft
+                | BinaryOperator::ShiftRight => return None,
+            };
+            (
+                spelling,
+                vec![
+                    Some(authored_operand_type(program, binary.left)?),
+                    Some(authored_operand_type(program, binary.right)?),
+                ],
+            )
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let collection = Some(authored_operand_type(program, indexed.collection)?);
+            match program.expression_table.expression(indexed.index) {
+                ExpressionNode::Range(range) => (
+                    OperatorSpelling::Range,
+                    vec![
+                        collection,
+                        authored_operand_type(program, range.start),
+                        authored_operand_type(program, range.end),
+                    ],
+                ),
+                _ => (
+                    OperatorSpelling::Index,
+                    vec![collection, authored_operand_type(program, indexed.index)],
+                ),
+            }
+        }
+        _ => return None,
     };
-    let spelling = match binary.operator {
-        BinaryOperator::Add => OperatorSpelling::Add,
-        BinaryOperator::Subtract => OperatorSpelling::Subtract,
-        BinaryOperator::Multiply => OperatorSpelling::Multiply,
-        BinaryOperator::Divide => OperatorSpelling::Divide,
-        BinaryOperator::Modulo => OperatorSpelling::Modulo,
-        BinaryOperator::Equal => OperatorSpelling::Equal,
-        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-        BinaryOperator::Less => OperatorSpelling::Less,
-        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-        BinaryOperator::Greater => OperatorSpelling::Greater,
-        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        BinaryOperator::And
-        | BinaryOperator::BitwiseAnd
-        | BinaryOperator::BitwiseOr
-        | BinaryOperator::BitwiseXor
-        | BinaryOperator::Or
-        | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight => return None,
-    };
-    let operand_types = [
-        authored_operand_type(program, binary.left)?,
-        authored_operand_type(program, binary.right)?,
-    ];
-    let candidates = psi_typed_trees::operator::resolve_spelling_for_operands(
-        program,
-        spelling,
-        &operand_types.map(Some),
-    );
+    let candidates =
+        psi_typed_trees::operator::resolve_spelling_for_operands(program, spelling, &operand_types);
     let [candidate] = candidates.as_slice() else {
         return None;
     };
@@ -882,6 +906,9 @@ fn authored_operand_type(
     program: &TypedTrees,
     expression: psi_typed_trees::expression::ExpressionHandle,
 ) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
+    if !expression.is_valid() {
+        return None;
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => authored_operand_type(program, atomic.value),
         ExpressionNode::Borrow(borrow) => authored_operand_type(program, borrow.target),
@@ -983,31 +1010,42 @@ fn operator_has_no_authored_spelling_candidate(
     program: &TypedTrees,
     node: &ExpressionNode,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = node else {
-        // Unary operators have no authored declaration dispatch surface.
-        return matches!(node, ExpressionNode::Unary(_));
-    };
     use psi_language_core::OperatorSpelling;
     use psi_typed_trees::expression::BinaryOperator;
-    let spelling = match binary.operator {
-        BinaryOperator::Add => OperatorSpelling::Add,
-        BinaryOperator::Subtract => OperatorSpelling::Subtract,
-        BinaryOperator::Multiply => OperatorSpelling::Multiply,
-        BinaryOperator::Divide => OperatorSpelling::Divide,
-        BinaryOperator::Modulo => OperatorSpelling::Modulo,
-        BinaryOperator::Equal => OperatorSpelling::Equal,
-        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-        BinaryOperator::Less => OperatorSpelling::Less,
-        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-        BinaryOperator::Greater => OperatorSpelling::Greater,
-        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        BinaryOperator::And
-        | BinaryOperator::BitwiseAnd
-        | BinaryOperator::BitwiseOr
-        | BinaryOperator::BitwiseXor
-        | BinaryOperator::Or
-        | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight => return true,
+    let spelling = match node {
+        ExpressionNode::Binary(binary) => match binary.operator {
+            BinaryOperator::Add => OperatorSpelling::Add,
+            BinaryOperator::Subtract => OperatorSpelling::Subtract,
+            BinaryOperator::Multiply => OperatorSpelling::Multiply,
+            BinaryOperator::Divide => OperatorSpelling::Divide,
+            BinaryOperator::Modulo => OperatorSpelling::Modulo,
+            BinaryOperator::Equal => OperatorSpelling::Equal,
+            BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
+            BinaryOperator::Less => OperatorSpelling::Less,
+            BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
+            BinaryOperator::Greater => OperatorSpelling::Greater,
+            BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
+            BinaryOperator::And
+            | BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::BitwiseXor
+            | BinaryOperator::Or
+            | BinaryOperator::ShiftLeft
+            | BinaryOperator::ShiftRight => return true,
+        },
+        ExpressionNode::Indexed(indexed) => {
+            if matches!(
+                program.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            ) {
+                OperatorSpelling::Range
+            } else {
+                OperatorSpelling::Index
+            }
+        }
+        // Unary operators have no authored declaration dispatch surface.
+        ExpressionNode::Unary(_) => return true,
+        _ => return false,
     };
     psi_typed_trees::operator::resolve_spelling(program, spelling, None).is_empty()
 }
@@ -1199,8 +1237,12 @@ pub(crate) fn typed_operator_is_definitely_intrinsic(
     program: &TypedTrees,
     expression: psi_typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    let operand = match program.expression_table.expression(expression) {
+    let node = program.expression_table.expression(expression);
+    let operand = match node {
         ExpressionNode::Binary(binary) => binary.left,
+        ExpressionNode::Indexed(_) => {
+            return operator_has_no_authored_spelling_candidate(program, node);
+        }
         ExpressionNode::Unary(unary) => unary.operand,
         _ => return false,
     };

@@ -633,6 +633,14 @@ identities with recursively projected values. Fields sort by exact identity,
 so authored order is stable; changing the case, field, or value changes
 comparison identity. Unresolved/mismatched symbols and private public-interface
 selections reject.
+Review v69 and canonical row v27 admit indexed and ranged contract expressions.
+The authored `[` token enters declaration-selection custody, and checked
+lowering must finalize one exact public-interface `Index` or `Range` meaning
+before review. Canonical rows retain builtin versus declared meaning, the
+collection, scalar index or optional range endpoints, and inclusivity. Changes
+to any of those semantic fields change comparison identity; missing, ambiguous,
+or mismatched checked custody rejects. Indexed children compose recursively
+inside arrays.
 Review v52 and canonical row v12 add one blocking standalone row for every
 package-owned `pub proposition`, including an unused bodyless declaration.
 The row retains alpha-normalized binders, parameter types, witness interface,

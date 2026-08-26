@@ -1239,6 +1239,15 @@ complete.
   case, field, or value changes evidence; unresolved or nonmatching symbols
   reject, and the existing public-interface gate rejects private constructors
   before review.
+  Review v69 and canonical row v27 add indexed and ranged contract expressions.
+  The parser retains `[` as an authored operator token; checked lowering must
+  finalize exactly one public-interface `Index` or `Range` selection before
+  review records its builtin or declared meaning. Rows retain the collection,
+  scalar index or optional range endpoints, and inclusive-end bit recursively.
+  Changing an index, endpoint, or inclusivity changes canonical evidence;
+  absent, ambiguous, or mismatched checked selection custody rejects. Indexed
+  children now remain exact inside arrays instead of forcing the parent row to
+  fail closed.
   Review v43 and
   canonical row v3 represent static-machine parameters directly. Structural
   contracts retain their complete alpha-normalized nested telescope, value

@@ -390,12 +390,14 @@ fn expression_candidates(
     let mut candidates = Vec::new();
 
     match expressions.expression(expression) {
-        ExpressionNode::Binary(_) | ExpressionNode::Unary(_) => candidates.push(Candidate {
-            expression,
-            source_span: expression_span,
-            kind: Kind::Operator,
-            target: CandidateTarget::LateBound(LateBinding::CheckedOperator),
-        }),
+        ExpressionNode::Binary(_) | ExpressionNode::Indexed(_) | ExpressionNode::Unary(_) => {
+            candidates.push(Candidate {
+                expression,
+                source_span: expression_span,
+                kind: Kind::Operator,
+                target: CandidateTarget::LateBound(LateBinding::CheckedOperator),
+            })
+        }
         ExpressionNode::Call(call) => {
             if call.operational_acknowledgement.origin
                 == psi_language_semantics::CallOperationalAcknowledgementOrigin::Source

@@ -1637,6 +1637,13 @@ Field order follows exact semantic field identity rather than source order.
 Changed cases/fields/values change the row; unresolved or mismatched symbols
 reject, while private constructor selection is rejected by the existing public-
 interface gate before projection.
+Review v69 and canonical row v27 admit indexed and ranged contract expressions.
+`[` retains an authored operator span and must join exactly one checked public-
+interface `Index` or `Range` selection. Canonical identity carries builtin or
+declared operator meaning, collection, scalar index or optional endpoints, and
+inclusive-end semantics. Changing any retained field changes the row; missing,
+ambiguous, or mismatched checked custody rejects. The same recursive projector
+allows indexed expressions inside arrays.
 Review v52 and canonical row v12 add blocking standalone public-proposition
 shape. Every package-owned `pub proposition` is retained whether used or not;
 primitive publication records only vocabulary, while witness and transparent

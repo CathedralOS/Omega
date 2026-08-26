@@ -1453,8 +1453,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 68);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 26);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 69);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 27);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -7685,8 +7685,8 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         "array element order is semantic contract identity",
     );
 
-    let unsupported = TempPackage::new();
-    unsupported.write(
+    let nested = TempPackage::new();
+    nested.write(
         "main.omg",
         r#"pub proposition values(items: [i32; 1]);
 pub machine consume(source: [i32; 1])
@@ -7694,25 +7694,41 @@ requires values([source[0]])
 { }
 "#,
     );
-    unsupported.write(
+    nested.write(
         "build.omg",
         r#"target windows_x64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
     let checked = compile_to_checked_with_packages(
-        &unsupported.0.join("main.omg"),
+        &nested.0.join("main.omg"),
         Some("windows_x64"),
-        package_inputs(&unsupported.0),
+        package_inputs(&nested.0),
     )
-    .expect("array containing an indexed expression should still check");
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("an unsupported nested form must keep the complete array fail-closed");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("contract expression form not yet represented")
-    }));
+    .expect("array containing an indexed expression should check");
+    let nested_review = project_checked_package_review(&checked)
+        .expect("array containing an indexed expression should project");
+    let consume = nested_review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("consume"))
+        .expect("public nested-index consumer");
+    let [contract] = consume.contracts() else {
+        panic!("one nested-index requirement")
+    };
+    let PackageReviewContractFact::Proposition(application) = contract.fact() else {
+        panic!("one nested-index proposition application")
+    };
+    assert_eq!(
+        application.arguments(),
+        [PackageReviewContractExpression::Array(vec![
+            PackageReviewContractExpression::Indexed {
+                meaning: PackageReviewContractOperatorMeaning::Builtin,
+                collection: Box::new(PackageReviewContractExpression::Parameter(0)),
+                index: Box::new(PackageReviewContractExpression::Integer("0".to_owned())),
+            },
+        ])]
+    );
 }
 
 #[test]
@@ -7854,6 +7870,118 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .message
             .contains("public interface selects private data `Hidden`")
     }));
+}
+
+#[test]
+fn review_projects_checked_index_and_range_contract_expressions() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub proposition selected(value: i32);
+pub proposition window(values: &[i32]);
+pub machine inspect(values: [i32; 2])
+requires
+    selected(values[0]),
+    window(values[0..1])
+{ }
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("indexed public contract fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("checked index and range expressions should project");
+    let inspect = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("inspect"))
+        .expect("public indexed-contract callable");
+    let [selected, window] = inspect.contracts() else {
+        panic!("two indexed requirements")
+    };
+
+    let PackageReviewContractFact::Proposition(selected) = selected.fact() else {
+        panic!("selected proposition application")
+    };
+    let [
+        PackageReviewContractExpression::Indexed {
+            meaning,
+            collection,
+            index,
+        },
+    ] = selected.arguments()
+    else {
+        panic!("selected argument is one indexed expression")
+    };
+    assert_eq!(*meaning, PackageReviewContractOperatorMeaning::Builtin);
+    assert_eq!(**collection, PackageReviewContractExpression::Parameter(0));
+    assert_eq!(
+        **index,
+        PackageReviewContractExpression::Integer("0".to_owned())
+    );
+
+    let PackageReviewContractFact::Proposition(window) = window.fact() else {
+        panic!("window proposition application")
+    };
+    let [
+        PackageReviewContractExpression::Indexed {
+            meaning,
+            collection,
+            index,
+        },
+    ] = window.arguments()
+    else {
+        panic!("window argument is one indexed expression")
+    };
+    assert_eq!(*meaning, PackageReviewContractOperatorMeaning::Builtin);
+    assert_eq!(**collection, PackageReviewContractExpression::Parameter(0));
+    assert_eq!(
+        **index,
+        PackageReviewContractExpression::Range {
+            start: Some(Box::new(PackageReviewContractExpression::Integer(
+                "0".to_owned(),
+            ))),
+            end: Some(Box::new(PackageReviewContractExpression::Integer(
+                "1".to_owned(),
+            ))),
+            end_inclusive: false,
+        }
+    );
+    let baseline_bytes = review
+        .canonical_review_bytes()
+        .expect("indexed contract review must encode canonically");
+
+    package.write(
+        "main.omg",
+        r#"pub proposition selected(value: i32);
+pub proposition window(values: &[i32]);
+pub machine inspect(values: [i32; 2])
+requires
+    selected(values[1]),
+    window(values[0..=1])
+{ }
+"#,
+    );
+    let changed = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("changed indexed public contract fixture should check");
+    let changed_bytes = project_checked_package_review(&changed)
+        .expect("changed checked index and range expressions should project")
+        .canonical_review_bytes()
+        .expect("changed indexed contract review must encode canonically");
+    assert_ne!(baseline_bytes, changed_bytes);
 }
 
 #[test]

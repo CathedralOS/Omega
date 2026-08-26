@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 68;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 69;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 26;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 27;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -1450,6 +1450,26 @@ fn encode_contract_expression(
                 encode_contract_expression(encoder, &field.value)
             })?;
         }
+        PackageReviewContractExpression::Indexed {
+            meaning,
+            collection,
+            index,
+        } => {
+            encoder.byte(16);
+            encode_contract_operator_meaning(encoder, meaning)?;
+            encode_contract_expression(encoder, collection)?;
+            encode_contract_expression(encoder, index)?;
+        }
+        PackageReviewContractExpression::Range {
+            start,
+            end,
+            end_inclusive,
+        } => {
+            encoder.byte(17);
+            encoder.option(start.as_deref(), encode_contract_expression)?;
+            encoder.option(end.as_deref(), encode_contract_expression)?;
+            encoder.boolean(*end_inclusive);
+        }
         PackageReviewContractExpression::ByteSequence(value) => {
             encoder.byte(12);
             encoder.bytes(value)?;
@@ -1540,13 +1560,7 @@ fn encode_contract_expression(
             right,
         } => {
             encoder.byte(6);
-            match meaning {
-                PackageReviewContractOperatorMeaning::Builtin => encoder.byte(0),
-                PackageReviewContractOperatorMeaning::Declared(coordinate) => {
-                    encoder.byte(1);
-                    encode_operator_coordinate(encoder, coordinate)?;
-                }
-            }
+            encode_contract_operator_meaning(encoder, meaning)?;
             encoder.byte(match operator {
                 PackageReviewContractBinaryOperator::Add => 0,
                 PackageReviewContractBinaryOperator::And => 1,
@@ -1577,6 +1591,20 @@ fn encode_contract_expression(
                 PackageReviewContractUnaryOperator::LogicalNot => 1,
             });
             encode_contract_expression(encoder, operand)?;
+        }
+    }
+    Ok(())
+}
+
+fn encode_contract_operator_meaning(
+    encoder: &mut Encoder,
+    meaning: &PackageReviewContractOperatorMeaning,
+) -> Result<(), PackageReviewEncodingError> {
+    match meaning {
+        PackageReviewContractOperatorMeaning::Builtin => encoder.byte(0),
+        PackageReviewContractOperatorMeaning::Declared(coordinate) => {
+            encoder.byte(1);
+            encode_operator_coordinate(encoder, coordinate)?;
         }
     }
     Ok(())

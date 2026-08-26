@@ -687,6 +687,13 @@ by exact package-qualified data, optional case, and field identities plus
 recursive field values. Fields canonicalize by exact identity instead of
 authored order. Changed cases/fields/values change review identity; unresolved,
 mismatched, or private public-interface selections reject.
+Review v69/canonical row v27 retains indexed and ranged contract expressions.
+The authored `[` token must finalize through one exact checked public-interface
+`Index` or `Range` selection. Rows preserve builtin or declared meaning,
+collection, scalar index or optional range endpoints, and inclusivity. Changing
+an index, endpoint, or inclusive end changes review identity; missing,
+ambiguous, or mismatched custody rejects. Indexed children compose recursively
+inside arrays.
 Trait `invariant` clauses are retired rather than awaiting a package row.
 Requirements also retain whether their checked declaration
 supplies a default realization; implementation bodies remain checked source
