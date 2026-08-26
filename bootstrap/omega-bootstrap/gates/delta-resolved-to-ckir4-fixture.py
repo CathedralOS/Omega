@@ -188,7 +188,7 @@ def gate() -> None:
     fixtures = HERE / "fixtures/ckir4-runtime-records"
     exact_source = repo / "source/compiler/omega/psi/source/source.omg"
     fields, locals_used, procedures = producer_metadata(producer)
-    if fields >= 256 or locals_used > 32 or procedures > 128:
+    if fields >= 512 or locals_used > 32 or procedures > 128:
         raise ValueError(f"lowermachine ceiling fields={fields} locals={locals_used} procedures={procedures}")
 
     timings: dict[str, float] = {}

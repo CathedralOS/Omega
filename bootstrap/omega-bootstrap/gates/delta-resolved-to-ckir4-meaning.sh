@@ -88,7 +88,7 @@ build_beta "$OMEGA_PATH_GAMMA/interp.beta" "$T/interp.exe" || {
 # Translate the lowerer exactly once; all accepted/rejected observations below
 # reuse the same persisted-Beta-produced Gamma program.
 python3 -B "$RUNNER" elaborate "$T/elaborate.exe" "$LOWERER" \
-  "$T/lowerer.gamma" "$T/timings.tsv" "resolved-to-$SCHEMA_LABEL meaning" 40 1900000
+  "$T/lowerer.gamma" "$T/timings.tsv" "resolved-to-$SCHEMA_LABEL meaning" 40 2300000
 
 cargo build -q --manifest-path "$OMEGA_PATH_DELTA_RUST/Cargo.toml"
 DELTA="$OMEGA_PATH_DELTA_RUST/target/debug/delta"

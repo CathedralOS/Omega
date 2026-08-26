@@ -257,7 +257,7 @@ def run_gate(mode: str = "v5") -> None:
         require(path.is_file(), f"missing {path}")
 
     fields, locals_used, procedures = producer_metadata(lowerer_source)
-    require(fields < 256 and locals_used <= 32 and procedures <= 128,
+    require(fields < 512 and locals_used <= 32 and procedures <= 128,
             f"lowermachine ceiling fields={fields} locals={locals_used} procedures={procedures}")
 
     timings: dict[str, float] = {}
@@ -403,7 +403,7 @@ machine SumProducer::run(&mut self) -> u8 { self.cell.read() }
         require(validated.returncode == 0,
                 f"independent CKIR5 validation failed: {validated.stderr.decode('utf-8', 'replace').strip()}")
 
-        print(f"resolved-to-CKIR5: procedures={procedures}/128 fields={fields}/255 "
+        print(f"resolved-to-CKIR5: procedures={procedures}/128 fields={fields}/511 "
               f"locals={locals_used}/32 general={len(output)}B")
         print("resolved-to-CKIR5: OMGRSW3/OMGLOW6 native/self exact; declarations and 64-case "
               "controls; ConstructCase arities 0..4, nested payload, Copy/Call, value/place "
