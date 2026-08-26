@@ -141,16 +141,14 @@ Remaining:
   current Omega-written lexer accepts Unicode XID identifiers despite the
   guide's ASCII-transparent/source-payload-only wording, accepts `\u{...}`
   escapes even though the guide forbids codepoint-to-byte escapes, and accepts
-  raw strings whose delimiter/content rules are not yet normative there. Its
-  `u32` cursors also flow into fixed-array indexing and compare directly with
-  slice `.len`, while the specified `Array`/`Slice` index and count interfaces
-  use `u64`. Chapter 5 now settles explicit denotation-preserving integer
-  widening with `as` and separately forbids implicit widening; it does not make
-  these direct `u32`/`u64` uses valid. The product owner must refactor them to
-  explicit conversions or obtain a distinct heterogeneous-conversion/comparison
-  ruling, then preserve the corresponding rejection canaries. Until then, the
-  checkpoint records tested implementation behavior but does not claim
-  full-spec lexical conformance for those forms.
+  raw strings whose delimiter/content rules are not yet normative there. The
+  product source now uses the specified `u64` `Array`/`Slice` index and count
+  carrier for byte coordinates, collection counts, and scan indices throughout
+  the checkpoint while retaining `u32` for Unicode scalar values; the earlier
+  implicit `u32`/`u64` indexing and `.len` comparisons are gone without adding
+  a heterogeneous-conversion rule. The checkpoint still records the three
+  unsettled lexical behaviors but does not claim full-spec lexical conformance
+  for them.
 
   Two broader evaluation/layout rulings must also close before a source
   checkpoint may depend on them observably. Call-argument and aggregate-literal
@@ -7762,13 +7760,21 @@ boundary without its corresponding checked law.
   convention bridge is now live: the sealed locator survives compiler provider
   extraction through `ExternalBindingKind`, `HostImportLocator`, and
   `HostBindingMechanism`, with target drift rejected before host-ABI insertion.
-  Machine emission, runtime replay, and object-symbol planning explicitly fail
-  closed on normalized rows at the still-string-backed physical boundary rather
-  than reconstructing text.
+  Object planning now retains an atomic locator side table keyed by the exact
+  object symbol, deduplicates exact rows, rejects target drift, and carries the
+  normalized case into final-image import identity. Relocation planning joins
+  normalized calls by exact locator equality and rejects missing or ambiguous
+  rows. PE final emission consumes raw `PeByName` library/export bytes without
+  UTF-8 reconstruction and emits `PeByOrdinal` through the ordinal flag in both
+  lookup tables; malformed coordinates, duplicate rows, and target drift reject
+  before mutation. Versioned ELF and Mach-O normalized rows remain explicit
+  fail-closed boundaries rather than being reconstructed as text. Production
+  machine emission and runtime replay likewise remain string-backed and fail
+  closed on normalized rows.
   The existing source evaluator is isolated behind an explicitly temporary
   `StringBackedImportBootstrap` variant. Source `via` evaluation, exact fixed-
-  array widths, object-format-specific PE-name/PE-ordinal/versioned-ELF planning,
-  and PE/ELF emission remain engineering joins.
+  array widths, normalized outbound-call machine emission/runtime replay, and
+  versioned-ELF symbol-version planning/emission remain engineering joins.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no
