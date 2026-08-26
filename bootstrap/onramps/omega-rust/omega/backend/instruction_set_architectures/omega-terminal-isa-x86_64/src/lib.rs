@@ -4,6 +4,12 @@
 //! installation facts. It does not depend on either legacy operation graph or
 //! any source-shaped Psi representation.
 
+mod native_fuel_runtime;
+
+pub use native_fuel_runtime::{
+    X86NativeFuelTransferRuntimeEncoding, encode_native_fuel_transfer_runtime,
+};
+
 use omega_calling_conventions::{MachineRegister, RegisterSet};
 use omega_target::Architecture;
 use omega_terminal_installation_evidence::{

@@ -5008,10 +5008,15 @@ Remaining:
   rather than installation authority. External-root planning now admits that
   structural projection only through a sealed value joined to the exact
   admitted target policy; arbitrary transfer-plan and validation-receipt
-  identities no longer select dynamic metering. The remaining native slice is
-  to make target encoders and image replay produce that evidence, carry it
-  through the installation format, and construct the sealed installed-transfer
-  custody.
+  identities no longer select dynamic metering. The Linux x86-64 target owner
+  now encodes the plan's exact activation save, sponsor-stack switch and call,
+  restore, `.text`-base retry, and tail jump. Its product exposes the two typed
+  relocation fields, exact state footprint, and 24-byte realized sponsor-stack
+  peak; profile, transport, reserved-register, displacement, alignment, and
+  ceiling drift reject. These remain unrelocated target bytes, not executable
+  custody. The remaining native slice is to add AArch64, make image replay
+  produce the evidence, carry it through the installation format, and
+  construct the sealed installed-transfer custody.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof
