@@ -225,7 +225,6 @@ fn replay_commits(run: &OptimizationRun) -> Result<(), OptimizedAbstractProjecti
         if declaration.input() != unit.identity
             || declaration.identity() != commit.candidate
             || declaration.rule() != commit.rule
-            || declaration.output() != commit.output
             || declaration.provenance() != commit.provenance
         {
             return Err(OptimizedAbstractProjectionError::CommitReplayMismatch);

@@ -20,8 +20,9 @@ use crate::{
 
 /// Validator-owned receipt for one optimized-unit to abstract-plan projection.
 ///
-/// This is a custody identity, not the final native realization identity and
-/// not a claim that the history-derived unit revision is a content hash.
+/// This is a custody identity, not the final native realization identity. The
+/// final unit is independently identified by its canonical content; the
+/// transformation ledger separately retains the accepted rewrite history.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ValidatedOptimizedAbstractPlanProjection {
     terminal_psi: TerminalPsiIdentity,

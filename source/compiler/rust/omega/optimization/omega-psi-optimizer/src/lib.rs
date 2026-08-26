@@ -52,13 +52,11 @@ pub use rules::{
 mod tests {
     use std::collections::BTreeSet;
 
-    use omega_optimization_core::{
-        AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationUnitIdentity,
-    };
+    use omega_optimization_core::{AnalysisInvalidationSet, AnalysisKind, AnalysisSet};
     use omega_optimization_unit::{
         EffectLink, OptimizationBlock, OptimizationEdge, OptimizationFact, OptimizationNode,
         PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinition,
-        ValueDefinitionSite, ValueUse,
+        ValueDefinitionSite, ValueUse, recompute_psi_optimization_unit_identity,
     };
     use omega_terminal_abstract_operations::{
         TerminalAbstractOperation as O, TerminalAbstractSuccessor, TerminalValueBinding,
@@ -156,9 +154,11 @@ mod tests {
         }
     }
 
-    fn unit(functions: Vec<PsiOptimizationFunction>, revision: &[u8]) -> PsiOptimizationUnit {
-        PsiOptimizationUnit {
-            identity: OptimizationUnitIdentity::from_canonical_bytes(revision),
+    fn unit(functions: Vec<PsiOptimizationFunction>, _revision: &[u8]) -> PsiOptimizationUnit {
+        let mut unit = PsiOptimizationUnit {
+            identity: omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
+                b"pending test content",
+            ),
             terminal_psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([9; 32]),
@@ -167,7 +167,9 @@ mod tests {
             entry: functions[0].machine,
             accepted_obligation_facts: Vec::new(),
             functions,
-        }
+        };
+        unit.identity = recompute_psi_optimization_unit_identity(&unit);
+        unit
     }
 
     fn block_parameter_constant_unit(
@@ -499,6 +501,46 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>();
         assert_eq!(cached, cold);
+    }
+
+    #[test]
+    fn analysis_manager_rejects_stale_content_on_require_cold_and_commit_paths() {
+        let valid = unit(
+            vec![function(100, 1, vec![(1, Terminator::Return)])],
+            b"valid-analysis-content",
+        );
+        let mut stale = valid.clone();
+        stale.functions[0].blocks[0].nodes[0].effect.output += 1;
+        let recomputed = recompute_psi_optimization_unit_identity(&stale);
+        let is_stale = |error: AnalysisManagerError| {
+            matches!(
+                error,
+                AnalysisManagerError::StaleUnitIdentity {
+                    stored,
+                    recomputed: actual,
+                } if stored == stale.identity && actual == recomputed
+            )
+        };
+
+        let mut require_manager = AnalysisManager::new(&valid);
+        assert!(is_stale(
+            require_manager
+                .require(&stale, AnalysisKind::ControlFlowGraph)
+                .unwrap_err()
+        ));
+        assert!(is_stale(
+            AnalysisManager::compute_cold_parallel(
+                &stale,
+                AnalysisSet::new([AnalysisKind::ControlFlowGraph]),
+            )
+            .unwrap_err()
+        ));
+        let mut commit_manager = AnalysisManager::new(&valid);
+        assert!(is_stale(
+            commit_manager
+                .commit_revision(&stale, AnalysisInvalidationSet::default(), false)
+                .unwrap_err()
+        ));
     }
 
     #[test]

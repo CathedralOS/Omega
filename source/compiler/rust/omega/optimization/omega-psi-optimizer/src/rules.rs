@@ -1645,7 +1645,7 @@ fn assemble_built_in_registry(
 pub(crate) mod tests {
     use omega_optimization_unit::{
         AcceptedObligationFact, OptimizationFact, attach_accepted_obligation_facts,
-        reconstruct_psi_optimization_unit_seed,
+        recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
     };
     use omega_optimization_validation::{
         OptimizationUnitValidationError, validate_boolean_evaluation_candidate,
@@ -2092,13 +2092,7 @@ pub(crate) mod tests {
         };
         *constant = IntegerValue::Unsigned(10);
         function.facts.truncate(2);
-        unit.identity = omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
-            if saturating {
-                b"saturating-add-fixture"
-            } else {
-                b"wrapping-add-fixture"
-            },
-        );
+        unit.identity = recompute_psi_optimization_unit_identity(&unit);
         unit
     }
 
@@ -2168,12 +2162,7 @@ pub(crate) mod tests {
         };
         *constant = IntegerValue::Unsigned(0b1100);
         function.facts.truncate(2);
-        unit.identity =
-            omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(match kind {
-                BitwiseFixtureKind::And => b"bitwise-and-fixture",
-                BitwiseFixtureKind::Or => b"bitwise-or-fixture",
-                BitwiseFixtureKind::Xor => b"bitwise-xor-fixture",
-            });
+        unit.identity = recompute_psi_optimization_unit_identity(&unit);
         unit
     }
 
@@ -2264,13 +2253,7 @@ pub(crate) mod tests {
         ) {
             function.facts.truncate(2);
         }
-        unit.identity =
-            omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(match kind {
-                ShiftFixtureKind::ExactLeft => b"exact-shift-left-fixture",
-                ShiftFixtureKind::ExactRight => b"exact-shift-right-fixture",
-                ShiftFixtureKind::WrappingLeft => b"wrapping-shift-left-fixture",
-                ShiftFixtureKind::WrappingRight => b"wrapping-shift-right-fixture",
-            });
+        unit.identity = recompute_psi_optimization_unit_identity(&unit);
         unit
     }
 
@@ -2307,13 +2290,7 @@ pub(crate) mod tests {
             };
             *constant = IntegerValue::Unsigned(0);
         }
-        unit.identity = omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
-            if zero_divisor {
-                b"zero-divisor-fixture"
-            } else {
-                b"exact-divide-fixture"
-            },
-        );
+        unit.identity = recompute_psi_optimization_unit_identity(&unit);
         unit
     }
 

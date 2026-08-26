@@ -3,12 +3,16 @@ use std::collections::{BTreeMap, BTreeSet};
 use omega_optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationUnitIdentity,
 };
-use omega_optimization_unit::PsiOptimizationUnit;
+use omega_optimization_unit::{PsiOptimizationUnit, recompute_psi_optimization_unit_identity};
 
 use super::{AnalysisProduct, analysis_dependencies, compute_analysis};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AnalysisManagerError {
+    StaleUnitIdentity {
+        stored: OptimizationUnitIdentity,
+        recomputed: OptimizationUnitIdentity,
+    },
     RevisionMismatch {
         expected: OptimizationUnitIdentity,
         actual: OptimizationUnitIdentity,
@@ -88,6 +92,7 @@ impl AnalysisManager {
         unit: &PsiOptimizationUnit,
         requested: AnalysisSet,
     ) -> Result<Vec<AnalysisProduct>, AnalysisManagerError> {
+        validate_content_identity(unit)?;
         let kinds = requested.iter().collect::<Vec<_>>();
         let mut rows = std::thread::scope(|scope| {
             let mut handles = Vec::with_capacity(kinds.len());
@@ -118,6 +123,7 @@ impl AnalysisManager {
         declared: AnalysisInvalidationSet,
         validate_retained: bool,
     ) -> Result<AnalysisRevisionCommit, AnalysisManagerError> {
+        validate_content_identity(unit)?;
         let invalidated = invalidation_closure(declared);
         if validate_retained {
             for (kind, cached) in self
@@ -144,6 +150,7 @@ impl AnalysisManager {
     }
 
     fn require_revision(&self, unit: &PsiOptimizationUnit) -> Result<(), AnalysisManagerError> {
+        validate_content_identity(unit)?;
         if unit.identity != self.revision {
             return Err(AnalysisManagerError::RevisionMismatch {
                 expected: self.revision,
@@ -171,6 +178,17 @@ impl AnalysisManager {
         self.cache.insert(kind, product);
         Ok(())
     }
+}
+
+fn validate_content_identity(unit: &PsiOptimizationUnit) -> Result<(), AnalysisManagerError> {
+    let recomputed = recompute_psi_optimization_unit_identity(unit);
+    if unit.identity != recomputed {
+        return Err(AnalysisManagerError::StaleUnitIdentity {
+            stored: unit.identity,
+            recomputed,
+        });
+    }
+    Ok(())
 }
 
 fn invalidation_closure(declared: AnalysisInvalidationSet) -> BTreeSet<AnalysisKind> {

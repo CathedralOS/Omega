@@ -296,6 +296,17 @@ reachability, and acyclicity—before any rule may inspect the unit. When Termin
 Psi later admits wider cyclic control flow, that expansion must arrive as an
 explicit vocabulary/validator change rather than an optimizer-only exception.
 
+The unit revision is a versioned content identity, not a rewrite-path token.
+Its canonical encoding excludes only the identity field and transformation
+history while binding the complete retained function metadata, CFG, operation
+payloads, facts, effects, ownership, provenance, and logical-fuel state.
+Construction and accepted-fact attachment recompute it. Independent rewrite
+validation applies a declared patch, recomputes the accepted output identity,
+and only then returns the new revision; a rule does not manufacture that
+identity by hashing its own candidate. Equal accepted content reached through
+different legal histories therefore shares one unit identity, while the
+ordered transformation ledger continues to distinguish those histories.
+
 SSA applies naturally to scalar values. Memory, ownership, and cleanup are not
 forced into a scalar fiction. They use explicit versioned tokens/frontiers so a
 pass can prove that a rewrite preserves all relevant state. Address-stable
@@ -303,8 +314,9 @@ places remain address-stable even if scalar values around them are promoted.
 
 ## Analysis system
 
-Analyses are deterministic functions of a unit revision and declared context.
-The analysis manager caches them and invalidates only what a committed rewrite
+Analyses are deterministic functions of a content-addressed unit revision and
+declared context. The analysis manager checks that address before cached, cold,
+or revision-commit work, then invalidates only what a committed rewrite
 declares invalid.
 
 The baseline set is:
@@ -436,9 +448,10 @@ estimate, and typed replacement. A literal operand-fact identity binds the
 input revision, machine, value, scalar type, exact definition site, constant
 payload, and source operation; a raw source operation ID is not sufficient
 rewrite evidence. Its candidate identity covers that canonical declaration;
-the output revision chains the input and candidate identities. The independent
+the candidate does not own an output-revision identity. The independent
 validator—not the rule—reconstructs each fact identity and the arithmetic,
-produces the new unit, and attaches its own validator identity. A
+produces the new unit, recomputes its canonical content identity, and attaches
+its own validator identity. A
 proof-certified scalar candidate additionally has a distinct witness shape
 that names the admitted operation-obligation fact; a goal-free candidate cannot
 carry one. That fact identity binds the Terminal-Psi identity, proof-bundle
@@ -618,19 +631,21 @@ registers to assigned target operations. Its target model includes:
   limits; and
 - registers reserved by dispatch, metering, platform, or installed providers.
 
-The first implemented substrate is deliberately data-only. `omega-regalloc`
-defines register units, named views/classes, read/write footprints,
-preservation conventions, and reservation overlays, then validates their
-closure without depending on either ISA. A separate closed Register Constraint
-Catalog binds stable family/variant keys to explicit operand use/def roles,
-classes, optional fixed views, canonical ties, early clobbers, implicit
+The first implemented substrate is deliberately data-only.
+`omega-register-model` owns register units, named views/classes, read/write
+footprints, preservation conventions, and reservation overlays, then validates
+their closure without depending on either ISA. A separate closed Register
+Constraint Catalog binds stable family/variant keys to explicit operand use/def
+roles, classes, optional fixed views, canonical ties, early clobbers, implicit
 uses/defs/clobbers, and an exact required-key inventory. Generic validation
 checks catalog structure against a validated physical model; each ISA then
 compares every row with its own canonical target semantics so a same-class
 register substitution cannot pass. Clean Terminal ISA crates construct those
 values, and opt-in orchestration passes both validated artifacts through an
 opaque target-register environment rather than discovering a target through
-global state. The baseline
+global state. `omega-regalloc` currently remains an API-compatible facade over
+the representation crate; allocation logic will consume the model without
+becoming its representation owner. The baseline
 x86-64 model uses lane units so `al` and `ah` are disjoint while `ax`/`eax`/`rax`
 alias the appropriate union, and records `eax`'s full-register zeroing write.
 The baseline AArch64 model gives encoding-number-31 stack and zero-register
@@ -871,6 +886,7 @@ files under `source/compiler/rust/omega/`:
 omega/
   foundation/omega-optimization-core/
   representations/omega-optimization-unit/
+  representations/omega-register-model/
   optimization/
     omega-psi-optimizer/
     omega-lowering-optimizer/
