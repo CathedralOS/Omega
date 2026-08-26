@@ -68,6 +68,10 @@ impl RuleScheduleKey {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuleRegistryError {
     DuplicateRule(OptimizationRuleIdentity),
+    MixedPasses {
+        expected: OptimizationPassIdentity,
+        actual: OptimizationPassIdentity,
+    },
 }
 
 impl std::fmt::Display for RuleRegistryError {
@@ -87,6 +91,7 @@ impl std::error::Error for RuleRegistryError {}
 #[derive(Debug, Clone)]
 pub struct OrderedRuleRegistry {
     rules: Arc<[Arc<dyn PsiOptimizationRule>]>,
+    pass: Option<OptimizationPassIdentity>,
     identity: OptimizationRuleSetIdentity,
 }
 
@@ -96,10 +101,21 @@ impl OrderedRuleRegistry {
     ) -> Result<Self, RuleRegistryError> {
         let rules = rules.into_iter().collect::<Vec<_>>();
         let mut seen = BTreeSet::new();
+        let mut pass = None;
         let mut identities = Vec::with_capacity(rules.len());
         for rule in &rules {
             let contract = rule.contract();
             let key = RuleScheduleKey::from_contract(contract);
+            match pass {
+                None => pass = Some(key.pass),
+                Some(expected) if expected != key.pass => {
+                    return Err(RuleRegistryError::MixedPasses {
+                        expected,
+                        actual: key.pass,
+                    });
+                }
+                Some(_) => {}
+            }
             if !seen.insert(key.rule) {
                 return Err(RuleRegistryError::DuplicateRule(key.rule));
             }
@@ -109,8 +125,15 @@ impl OrderedRuleRegistry {
             .map_err(|duplicate| RuleRegistryError::DuplicateRule(duplicate.0))?;
         Ok(Self {
             rules: rules.into(),
+            pass,
             identity,
         })
+    }
+
+    /// The named pass group implemented by this registry. Empty registries
+    /// have no pass and therefore produce no pass-manifest row.
+    pub const fn pass(&self) -> Option<OptimizationPassIdentity> {
+        self.pass
     }
 
     pub const fn identity(&self) -> OptimizationRuleSetIdentity {
@@ -205,6 +228,14 @@ mod tests {
         reversed.reverse();
         let reversed = OrderedRuleRegistry::new(reversed).unwrap();
         assert_ne!(forward.identity(), reversed.identity());
+    }
+
+    #[test]
+    fn one_registry_cannot_blur_multiple_named_pass_groups() {
+        assert!(matches!(
+            OrderedRuleRegistry::new([rule(b"pass-a", b"rule-a"), rule(b"pass-b", b"rule-b")]),
+            Err(RuleRegistryError::MixedPasses { .. })
+        ));
     }
 
     #[test]
