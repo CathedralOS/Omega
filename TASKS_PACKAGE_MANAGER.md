@@ -785,6 +785,15 @@ complete.
   three-package canary proves the root review names leaf ownership exactly
   without granting root authored authority over leaf.
 
+  Milestone 2026-08-26: package review no longer trusts the retained semantic-
+  dependency sidecar by itself. Immediately before projection, the compiler
+  rederives the complete canonical table from the final typed program and
+  checked facts and requires exact ordered equality. Missing, extra,
+  duplicated, reordered, or altered rows reject before package qualification;
+  orchestration still receives only the versioned canonical projection, not
+  private typed or checked handles. This reuses the existing coherent checked
+  derivation and introduces neither a public IR contract nor nominal Chi.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
   forms, nominal type references on public/private declaration surfaces,

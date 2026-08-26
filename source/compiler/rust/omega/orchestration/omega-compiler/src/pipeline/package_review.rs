@@ -2720,6 +2720,18 @@ fn project_semantic_dependencies(
     compilation: &CheckedCompilation,
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedSemanticDependencyRow>, Vec<Diagnostic>> {
+    let derived = psi_typed_trees_to_checked_trees::derive_checked_semantic_dependencies(
+        &compilation.typed,
+        &compilation.facts,
+    );
+    if derived != compilation.facts.flow.semantic_dependencies {
+        return Err(vec![Diagnostic::error(format!(
+            "retained checked semantic-dependency evidence does not equal compiler rederivation (retained {} rows, derived {} rows)",
+            compilation.facts.flow.semantic_dependencies.rows.len(),
+            derived.rows.len(),
+        ))]);
+    }
+
     let mut projected: Vec<ProjectedSemanticDependencyRow> = Vec::new();
     for checked in &compilation.facts.flow.semantic_dependencies.rows {
         let consumer = nominal_identity(compilation, checked.consumer_machine)?;

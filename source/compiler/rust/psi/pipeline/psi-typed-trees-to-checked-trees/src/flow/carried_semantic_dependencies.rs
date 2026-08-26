@@ -7,7 +7,12 @@ use psi_language_semantics::{PermissionEventKind, PermissionEventSource};
 use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::{TypedTrees, types::TypeReferenceHandle};
 
-pub(crate) fn build_checked_semantic_dependencies(
+/// Rederive the complete canonical semantic-dependency table from compiler
+/// authority rather than trusting a previously retained table.
+///
+/// `program` must be the final typed program paired with `facts`. The retained
+/// `facts.flow.semantic_dependencies` rows are deliberately not consulted.
+pub(crate) fn derive_checked_semantic_dependencies(
     program: &TypedTrees,
     facts: &CheckFacts,
 ) -> CheckedSemanticDependencies {
@@ -392,5 +397,37 @@ fn push_promoting(rows: &mut Vec<CheckedSemanticDependency>, candidate: CheckedS
         }
     } else {
         rows.push(candidate);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::derive_checked_semantic_dependencies;
+    use psi_source_files_to_tokens::Lexer;
+    use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use psi_tokens_to_syntax_trees::parse_syntax_trees;
+
+    #[test]
+    fn derivation_ignores_retained_rows_and_reproduces_lowering_output() {
+        let tokens = Lexer::new(
+            r#"
+            pub data Token { value: u64; }
+            pub machine make() -> Token { Token { value: 7u64 } }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let mut checked = crate::lower_typed_trees(typed).expect("check");
+        let expected = checked.facts.flow.semantic_dependencies.clone();
+        assert!(!expected.rows.is_empty(), "fixture must carry dependencies");
+
+        checked.facts.flow.semantic_dependencies.rows.clear();
+        let rederived = derive_checked_semantic_dependencies(&checked.typed, &checked.facts);
+
+        assert_eq!(rederived, expected);
     }
 }

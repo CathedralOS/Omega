@@ -61,7 +61,10 @@ real package fixture demonstrates an irreducible external contract.
   declaration symbols with private/public disposition. The compiler review
   projection qualifies those symbols by exact package ownership and emits
   blocking canonical semantic-dependency rows; checked-tree handles never
-  escape into review artifacts or lock-shaped data.
+  escape into review artifacts or lock-shaped data. Before projection, the
+  compiler rederives the complete canonical sidecar from final typed and
+  checked state and requires exact ordered equality, so missing, duplicated,
+  reordered, or altered retained rows fail closed.
 - Authored declaration identity separately rejects every exact selection of an
   owner-attached `T::drop` hook, both before checked evaluation and after late
   call finalization. Automatic cleanup is compiler-carried semantics rather
