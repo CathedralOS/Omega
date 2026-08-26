@@ -1,0 +1,26 @@
+// Lowermachine regression: Delta keywords and boundary intrinsic names remain
+// valid contextual state identifiers.  The chained control flow makes every
+// declaration and target observable, while the final assertion catches an
+// omitted or misclassified state body.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; count: i32; }
+machine Main::main(&mut self) {
+    self.count = 0;
+    transition 0 { _ -> plain() }
+    state plain() { self.count = self.count + 1; transition 0 { _ -> boundary() } }
+    state // comments between state and its name are lexical trivia
+    boundary // ignored header delimiters: ( ) {
+    ( // ignored header delimiters: ( ) {
+    ) // comments between the header and body are lexical trivia
+    { self.count = self.count + 1; transition 0 { _ -> write_byte() } }
+    state write_byte() { self.count = self.count + 1; transition 0 { _ -> transition() } }
+    state transition() { self.count = self.count + 1; transition 0 { _ -> state() } }
+    state state() { self.count = self.count + 1; transition 0 { _ -> let() } }
+    state let() { self.count = self.count + 1; transition 0 { _ -> return() } }
+    state return() { self.count = self.count + 1; transition 0 { _ -> write_line() } }
+    state write_line() { self.count = self.count + 1; transition 0 { _ -> assert() } }
+    state assert() { self.count = self.count + 1; transition 0 { _ -> machine() } }
+    state machine() { self.count = self.count + 1; transition 0 { _ -> read_byte() } }
+    state read_byte() { self.count = self.count + 1; transition 0 { _ -> self() } }
+    state self() { self.count = self.count + 1; assert self.count == 12; self.console.exit_process(37); }
+}

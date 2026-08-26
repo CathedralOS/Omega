@@ -34,6 +34,10 @@ trap. The raw self-compile fixed point compares that complete implementation.
 Older exact lowering templates are projected to their former one-byte-write
 shape inside `test_aarch64.sh` so they continue to test lowering semantics
 without making a historical host-I/O implementation part of each template.
+`lowermachine-contextual-state-test.sh` separately requires the Rust producer,
+the Rust-built lowermachine, and its self-built fixed point to emit identical
+assembly and execute the same twelve-state chain when state identifiers reuse
+Delta keywords and sealed boundary-intrinsic spellings.
 
 ## Run
 
