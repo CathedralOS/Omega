@@ -1,6 +1,7 @@
 use psi_build_time_evaluation::{
     BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildTimeValue,
     PreparedBuildMachineProgram, evaluate_build_machine_arguments_measured,
+    evaluate_const_array_lengths, evaluate_zero_argument_machine,
 };
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -139,6 +140,53 @@ fn opt_in_const_boundary_rejects_an_affine_nominal_record() {
         .expect_err("an affine nominal record cannot cross the opt-in const result boundary");
     assert!(error.contains("not ConstEvaluable"), "{error}");
     assert!(error.contains("affine or linear type `Receipt`"), "{error}");
+}
+
+#[test]
+fn zero_argument_integer_position_uses_const_evaluable_admission_and_exact_int_decoding() {
+    let mut typed = typed(
+        r#"
+        data Receipt { code: u8; }
+        machine count() -> u64 { 3 }
+        machine decision() -> bool { true }
+        machine receipt() -> Receipt { Receipt { code: 1 } }
+        data Buffer { bytes: [u8; count()]; }
+        "#,
+    );
+    let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
+
+    assert_eq!(
+        evaluate_zero_argument_machine(&typed, &admission, "count", "array length"),
+        Ok(3)
+    );
+
+    let non_integer =
+        evaluate_zero_argument_machine(&typed, &admission, "decision", "array length")
+            .expect_err("a copyable non-integer snapshot must not cross an integer const position");
+    assert_eq!(
+        non_integer,
+        "machine `decision` returns `bool`, not an integer type"
+    );
+
+    let affine = evaluate_zero_argument_machine(&typed, &admission, "receipt", "array length")
+        .expect_err("the position helper must apply ConstEvaluable before decoding");
+    assert!(affine.contains("not ConstEvaluable"), "{affine}");
+    assert!(
+        affine.contains("affine or linear type `Receipt`"),
+        "{affine}"
+    );
+
+    evaluate_const_array_lengths(&mut typed)
+        .expect("the fixed-array integration should retain its literal substitution");
+    assert!(
+        typed
+            .type_reference_table
+            .fixed_array_lengths()
+            .any(|(_, length)| matches!(
+                length,
+                psi_typed_trees::types::FixedArrayLength::Literal(3)
+            ))
+    );
 }
 
 #[test]
