@@ -169,18 +169,43 @@ fn evaluate_zero_argument_machine_with_optional_custody(
         ));
     }
 
-    match custody {
-        Some(custody) => admission.require_common_floor_for_invocation(typed, machine, custody)?,
-        None => admission.require_common_floor(typed, machine)?,
-    }
-
-    psi_checked_interpreter::evaluate_const_machine(typed, machine_name)
+    let value = match custody {
+        Some(custody) => admission.evaluate_const_evaluable_machine_for_invocation(
+            typed,
+            machine_name,
+            Vec::new(),
+            custody,
+        )?,
+        None => admission.evaluate_const_evaluable_machine(typed, machine_name, Vec::new())?,
+    };
+    let crate::BuildTimeValue::Int(value) = value else {
+        let entry = entry_state(typed, machine);
+        return match entry.and_then(|state| typed.primitive_type_reference(state.return_type)) {
+            Some(primitive) => Err(format!(
+                "machine `{machine_name}` returns `{}`, not an integer type",
+                primitive.name()
+            )),
+            None => Err(format!(
+                "machine `{machine_name}` does not declare an integer return type"
+            )),
+        };
+    };
+    Ok(value)
 }
 
 /// The parameter count of the machine's entry state (the body of a free
 /// machine; mirrors the interpreter's entry-state selection: the state named
 /// like the machine's leaf, else the first state).
 fn entry_state_parameter_count(typed: &TypedTrees, machine: &Machine) -> usize {
+    entry_state(typed, machine)
+        .map(|state| typed.state_parameters(state).len())
+        .unwrap_or(0)
+}
+
+fn entry_state<'a>(
+    typed: &'a TypedTrees,
+    machine: &Machine,
+) -> Option<&'a psi_typed_trees::state::State> {
     let leaf = machine
         .name
         .as_str()
@@ -188,11 +213,8 @@ fn entry_state_parameter_count(typed: &TypedTrees, machine: &Machine) -> usize {
         .next()
         .unwrap_or_default();
     let states = typed.machine_states(machine);
-    let entry = states
+    states
         .iter()
         .find(|state| state.name.as_str() == leaf)
-        .or_else(|| states.first());
-    entry
-        .map(|state| typed.state_parameters(state).len())
-        .unwrap_or(0)
+        .or_else(|| states.first())
 }

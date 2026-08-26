@@ -8196,11 +8196,15 @@ checked-result arithmetic decision listed below.
   fixed arrays, closed `[copy]` records, and only the realized case/payload of a
   closed sum; constraints reuse their already-checked carrier. Reference,
   slice, Text, dynamic/open/generic/opaque, atomic, affine-record, and malformed
-  type/value shapes reject with a component path and no panic. Existing
-  compiler-owned plan evaluators do not opt in implicitly while their affine
-  result vocabularies remain unchanged. Caller migration, quotient snapshots,
-  `ConstMaterializable`, target capsules/observations, and representation bytes
-  remain subsequent.
+  type/value shapes reject with a component path and no panic. The first
+  position-owner migration is live: zero-argument integer machines used by
+  fixed-array lengths and const-generic arguments now cross the opt-in boundary
+  after exact invocation-custody/common-floor admission, decode only an exact
+  integer snapshot, and preserve the owning position's nonnegative and host-
+  width conversion checks. Other compiler-owned plan evaluators do not opt in
+  implicitly while their affine result vocabularies remain unchanged. Quotient
+  snapshots, `ConstMaterializable`, target capsules/observations, and
+  representation bytes remain subsequent.
 
   Materialize one compiler-owned versioned typed capsule shared by evaluator and
   backend. Expose only its closed subject-qualified observation vocabulary; do
