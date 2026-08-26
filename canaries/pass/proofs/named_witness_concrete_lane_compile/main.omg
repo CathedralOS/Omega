@@ -1,0 +1,41 @@
+// The concrete named-witness lane must remain complete before trait-owned
+// contracts extend it: introduce an exact producer, capture a named output,
+// pass that term positionally after `;`, and project only the carrierless
+// evidence interface in proof-static position.
+
+trait Evidence {
+    machine witness() -> i32;
+}
+
+proposition ready() evidence Evidence;
+proposition selected<machine Witness>();
+
+ConcreteEvidence: satisfies Evidence {
+    machine witness() -> i32 {
+        1
+    }
+}
+
+machine produce()
+ensures output: ready()
+{
+    output = ConcreteEvidence;
+}
+
+machine pass()
+requires input: ready()
+ensures output: ready()
+{
+    output = input;
+}
+
+machine eliminate()
+requires input: ready()
+requires selected<input.witness>()
+{
+}
+
+machine exercise() {
+    let (; output: produced) = produce();
+    let (; output: forwarded) = pass(; produced);
+}
