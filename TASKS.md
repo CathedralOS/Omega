@@ -1486,8 +1486,8 @@ Owners:
   through authorization to request custody behind unchanged re-exports. The
   1,289-line root has reached its natural boundary of normalized public
   vocabulary/value APIs, root-owned carrier declarations, and top-level
-  placement validation orchestration. All 81
-  unit tests, the current 440-function production inventory, diagnostics,
+  placement validation orchestration. All 84
+  unit tests, the production inventory, diagnostics,
   custody, retry behavior, and the public surface remain unchanged.
 - Implement `Extent::Resident<P, T>` as the owned exact-range dormant-content
   qualification, including invariant type indices, mutual exclusion with
@@ -1495,15 +1495,20 @@ Owners:
   resident-preserving retirement, partial-view retirement fences, and explicit
   migration through `Vacant`. Carry non-runtime custody in the resident claim.
   The concrete foundation now seals a provider-issued nonzero
-  `ResidentClaimId` into dormant owned Stable content; explicit view consumes
-  that carrier into a fresh nonzero `PlacedOccurrenceId`, field/access/lowering
-  requests retain both identities, and resident-preserving retirement returns
-  the same claim and receipts for a later fresh view. Ordinary borrowed views
-  retain neither identity. Borrowed resident views retain the lender's exact
-  claim and provider receipts, one fresh placed occurrence, and a whole-range
-  shared or exclusive `ExtentLoan`; ending the view releases only that loan and
-  remints nothing. Source-visible domain establishment, `Vacant` transitions,
-  partial moves, Terminal propagation, and installation remain.
+  `ResidentClaimId` into distinct dormant owned Stable and Atomic-only content
+  carriers. Each explicit owned view consumes its carrier into a fresh nonzero
+  `PlacedOccurrenceId`; field/access/lowering requests retain both identities,
+  and resident-preserving retirement returns the same claim and receipts for a
+  later fresh view. Adoption, view, projection, specialization, and retirement
+  independently replay the exact observation route, placement/profile/resource
+  authority, and complete provider content grant; rejection returns every
+  non-Clone input or carrier unchanged. Ordinary borrowed views retain neither
+  identity. Stable borrowed resident views retain the lender's exact claim and
+  provider receipts, one fresh placed occurrence, and a whole-range shared or
+  exclusive `ExtentLoan`; ending the view releases only that loan and remints
+  nothing. Source-visible domain establishment, Atomic borrowed-resident
+  views, `Vacant` transitions, partial moves, Terminal propagation, and
+  installation remain.
 - Complete the atomic 2x2 compare-exchange family: existing observing strong
   and weak forms require copyable residents; new non-observing strong and weak
   forms return the proposal on failure and may transfer affine or linear
@@ -1520,11 +1525,16 @@ Owners:
   width, decisive/single-attempt axes, and their distinct closed result shapes
   are independently replayed. Affine or linear observing residents reject;
   `try_exchange*`-only fields remain rowless and gain neither observing nor
-  selected-encoding authority. Only the existing observing-decisive call is
-  currently derivable. Source calls for the other families, runtime result and
-  resident custody, an atomic attempt or retry, the non-observing comparison
-  key/selected-encoding law, Terminal rows, provider binding, backend operation
-  identity, and lowering remain open.
+  selected-encoding authority. A separate provider-backed Atomic-only owned
+  lifecycle now retains one exact runtime resident claim, provider receipts,
+  admission, and placed occurrence through Atomic projection and primitive
+  specialization, then returns the unchanged claim on resident-preserving
+  retirement. It is not joined to the checked contract and performs no atomic
+  attempt. Only the existing observing-decisive call is currently derivable.
+  Source calls for the other families, checked-contract/runtime-resident and
+  runtime-result custody joins, an atomic attempt or retry, the non-observing
+  comparison key/selected-encoding law, Terminal rows, provider binding,
+  backend operation identity, and lowering remain open.
 - Close generic `ResidentContentTransfer<P, T>` applications at final
   composition from concrete and symbolic artifact demand, verify one selected
   provider covers the reconstructed application set, and bind exact issuance

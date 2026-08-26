@@ -45,7 +45,12 @@ fn validate_owned_stable_adoption(
         ));
     }
 
-    validate_owned_content_binding(admission, content)
+    validate_owned_content_binding(admission, content)?;
+    validate_resident_observation(
+        &admission.placement_plan,
+        ObservationModel::Stable,
+        "Stable adoption",
+    )
 }
 
 pub(super) fn validate_owned_content_binding(
@@ -101,14 +106,22 @@ pub(super) fn validate_provider_content_binding(
             "provider existing-content mapping era does not match the admitted Extent".into(),
         ));
     }
+    Ok(())
+}
+
+pub(super) fn validate_resident_observation(
+    plan: &ValidatedPlacementPlan,
+    required: ObservationModel,
+    route: &str,
+) -> Result<(), AccessPlanDiagnostic> {
     if let Some(descriptor) = plan
         .access()
         .field_descriptors()
         .iter()
-        .find(|descriptor| descriptor.observation() != ObservationModel::Stable)
+        .find(|descriptor| descriptor.observation() != required)
     {
         return Err(AccessPlanDiagnostic(format!(
-            "field `{}` uses {:?} observation and cannot enter the Stable adoption route",
+            "field `{}` uses {:?} observation and cannot enter the {route}",
             descriptor.field(),
             descriptor.observation()
         )));
@@ -153,5 +166,9 @@ pub(super) fn validate_owned_resident_authority(
             "{transition} could not replay the retained provider content grant: {diagnostic}"
         ))
     })?;
-    Ok(())
+    validate_resident_observation(
+        &admission.placement_plan,
+        ObservationModel::Stable,
+        transition,
+    )
 }

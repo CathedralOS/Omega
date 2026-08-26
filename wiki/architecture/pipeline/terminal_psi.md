@@ -2067,6 +2067,17 @@ parent claim, range, polarity, and lifetime. Installation metadata records the
 binding demanded by an artifact but is never itself authority: the installer
 must consume the corresponding provider receipt and custody.
 
+The concrete foundation now has separate provider-backed Stable and
+Atomic-only owned resident lifecycles. The Atomic route consumes an exact
+owned placement admission plus the non-Clone existing-content grant, replays
+their plan/profile/resource, observation, origin, lineage, geometry,
+provenance, era, claim, and receipt binding at every transition, and retains
+the claim and one caller-supplied occurrence through projection and primitive
+specialization. Resident-preserving retirement returns the same dormant grant;
+rejection returns every input or carrier unchanged. This is still below
+Terminal and is not joined to the checked Atomic result contract, a source
+call, an attempted operation, provider selection, or target lowering.
+
 Each projected event retains the placed occurrence, normalized `P` and `T`,
 canonical field key, already-normalized displacement and width, logical field
 extent, physical effect footprint, operation family, plan receipt, and all
