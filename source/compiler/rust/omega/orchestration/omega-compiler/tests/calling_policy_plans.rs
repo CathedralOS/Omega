@@ -386,6 +386,38 @@ fn callback_private_materialization_rejects_overlapping_named_slots() {
 }
 
 #[test]
+fn callback_private_materialization_is_absent_from_semantic_projection() {
+    let source = CALLBACK_MATERIALIZATION_POLICY.replace(
+        "data ForeignRecord {",
+        "machine Spread::read_private_slot(&mut self) -> u64 {\n    self.WndClassWindowProcedureSlot\n}\n\ndata ForeignRecord {",
+    );
+    let rendered = compile_std_negative("semantic-projection", &source);
+
+    assert!(
+        rendered.contains("Spread")
+            && rendered.contains("has no field")
+            && rendered.contains("WndClassWindowProcedureSlot"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
+fn callback_private_materialization_is_absent_from_semantic_assignment() {
+    let source = CALLBACK_MATERIALIZATION_POLICY.replace(
+        "data ForeignRecord {",
+        "machine Spread::write_private_slot(&mut self) {\n    self.WndClassWindowProcedureSlot = 0;\n}\n\ndata ForeignRecord {",
+    );
+    let rendered = compile_std_negative("semantic-assignment", &source);
+
+    assert!(
+        rendered.contains("Spread")
+            && rendered.contains("has no field")
+            && rendered.contains("WndClassWindowProcedureSlot"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
 fn callback_private_materialization_rejects_a_machine_as_slot_identity() {
     let source = CALLBACK_MATERIALIZATION_POLICY.replace(
         "Plan::place_private<WndClassWindowProcedureSlot>(plan, 8)",
