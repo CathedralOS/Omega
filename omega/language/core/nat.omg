@@ -245,16 +245,14 @@ ensures
 // Multiplicative identity in SLOT vocabulary. `one()` computes to Succ Zero;
 // the three cited constructor-form laws reduce mul(a, one()) through
 // add(a, mul(a, Zero)) to a.
-machine mul_identity(a: Nat) -> Nat
+machine mul_identity(a: Nat)
 satisfies CommutativeSemiring::mul_identity
 ensures
-    result == a;
     (mul(a, one())) == a
 {
     mul_succ_right(a, Nat::Zero);
     mul_zero_right(a);
     add_zero_right(a);
-    transition { _ -> (a) }
 }
 
 // DISTRIBUTIVITY -- CITATION-FREE (the rearrange-mode acceptance,

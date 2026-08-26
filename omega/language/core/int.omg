@@ -147,13 +147,12 @@ ensures
 // theorem no longer repeats add_int's componentwise implementation. The
 // requires hypothesis exchanges inside the goal's addend multiset under
 // the add ring license (hypothesis-exchange tier).
-machine add_int_respects_eq(a: IntPair, a2: IntPair, b: IntPair) -> IntPair
+machine add_int_respects_eq(a: IntPair, a2: IntPair, b: IntPair)
 requires
     int_pair_equivalent(a, a2)
 ensures
     int_pair_equivalent(add_int(a, b), add_int(a2, b))
 {
-    transition { _ -> (add_int(a, b)) }
 }
 
 // ~ is symmetric: the hypothesis read right-to-left.
@@ -211,7 +210,7 @@ ensures
     transition { _ -> (add_int(a, z)) }
 }
 
-machine mul_int_identity(a: IntPair) -> IntPair
+machine mul_int_identity(a: IntPair)
 satisfies CommutativeSemiring::mul_identity
 ensures
     (mul_int(a, one_int())) == (a)
@@ -222,8 +221,6 @@ ensures
     mul_one_right(a.pos);
     add_zero_left(a.neg);
     add_zero_right(a.pos);
-    let unit: IntPair = one_int();
-    transition { _ -> (mul_int(a, unit)) }
 }
 
 // Negation is an involution: two pair swaps rebuild every field of `a`
