@@ -130,16 +130,24 @@ These facts constrain the work below.
   The validation crate owns a second coupled fixed-point implementation, built
   without an optimizer dependency, and reconstructs that snapshot before a
   propagated fact can authorize a rewrite. A selected-arm block-parameter
-  complement fixture passes this independent gate. `OPT-SCCP` remains open for
-  the rest of the closed Terminal-Psi scalar vocabulary; semantic analyses also
-  remain open for the wider proof/effect/ownership vocabulary.
+  complement fixture passes this independent gate. `OPT-SCCP` now covers every
+  currently foldable closed Terminal-Psi integer and Boolean operation;
+  structural-field and call results remain overdefined without source facts.
+  The task reopens when the scalar vocabulary grows (including any future
+  trapping or exact-float policy). Semantic analyses remain open for the wider
+  proof/effect/ownership vocabulary.
 - Conservative node-effect summaries now distinguish pure scalar work,
   structural state, internal calls, boundary calls, services, and control.
   Unknown internal-call crash/suspension/observation behavior remains `May`;
-  only represented facts can narrow it. Fixed-point scalar liveness publishes
-  canonical block and node entry/exit sets and handles cyclic synthetic CFGs,
-  preparing dead-scalar rules without treating the current acyclic Terminal
-  slice as an architectural limitation.
+  only represented facts can narrow it. Function summaries now compute a
+  deterministic call-graph fixed point over reachable blocks, propagating
+  observable/structural/crash/suspension knowledge plus exact service and
+  boundary identity sets through recursive calls. Unknown callees stay `May`,
+  while closed pure recursion does not invent effects; every summary retains
+  canonical transitive provenance and its unit revision. Fixed-point scalar
+  liveness publishes canonical block and node entry/exit sets and handles
+  cyclic synthetic CFGs, preparing dead-scalar rules without treating the
+  current acyclic Terminal slice as an architectural limitation.
 - The optimization unit now reconstructs an exhaustive observation row for
   every Terminal abstract operation. Each row retains definitions/uses, the
   effect token, ownership and cleanup events, exact Psi provenance and logical

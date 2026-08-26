@@ -8,7 +8,9 @@ use omega_optimization_unit::{
     derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
-use psi_core::{BlockId, EdgeId, IntegerValue, MachineId, OperationId, ValueId};
+use psi_core::{
+    BlockId, BoundaryMachineId, EdgeId, IntegerValue, MachineId, OperationId, ServiceId, ValueId,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UseDefinitionAnalysis {
@@ -155,6 +157,20 @@ pub struct NodeEffectSummary {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EffectSummaryAnalysis {
     pub nodes: Vec<NodeEffectSummary>,
+    pub functions: Vec<FunctionEffectSummary>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunctionEffectSummary {
+    pub machine: MachineId,
+    pub observable: EffectKnowledge,
+    pub structural_state: EffectKnowledge,
+    pub crash: EffectKnowledge,
+    pub suspension: EffectKnowledge,
+    pub services: Vec<ServiceId>,
+    pub boundaries: Vec<BoundaryMachineId>,
+    pub support: Vec<PsiProvenance>,
+    pub revision: OptimizationUnitIdentity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -725,7 +741,169 @@ pub(super) fn effect_summaries(unit: &PsiOptimizationUnit) -> EffectSummaryAnaly
             }
         }
     }
-    EffectSummaryAnalysis { nodes }
+    EffectSummaryAnalysis {
+        nodes,
+        functions: transitive_function_effects(unit),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PendingFunctionEffect {
+    observable: EffectKnowledge,
+    structural_state: EffectKnowledge,
+    crash: EffectKnowledge,
+    suspension: EffectKnowledge,
+    services: BTreeSet<ServiceId>,
+    boundaries: BTreeSet<BoundaryMachineId>,
+    support: BTreeSet<PsiProvenance>,
+    callees: BTreeSet<MachineId>,
+}
+
+fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffectSummary> {
+    fn join(left: EffectKnowledge, right: EffectKnowledge) -> EffectKnowledge {
+        use EffectKnowledge::{May, No, Yes};
+        match (left, right) {
+            (May, _) | (_, May) => May,
+            (Yes, _) | (_, Yes) => Yes,
+            (No, No) => No,
+        }
+    }
+
+    let machines = unit
+        .functions
+        .iter()
+        .map(|function| function.machine)
+        .collect::<BTreeSet<_>>();
+    let mut summaries = BTreeMap::<MachineId, PendingFunctionEffect>::new();
+    for function in &unit.functions {
+        let mut summary = PendingFunctionEffect {
+            observable: EffectKnowledge::No,
+            structural_state: EffectKnowledge::No,
+            crash: EffectKnowledge::No,
+            suspension: EffectKnowledge::No,
+            services: BTreeSet::new(),
+            boundaries: BTreeSet::new(),
+            support: BTreeSet::new(),
+            callees: BTreeSet::new(),
+        };
+        let reachable = semantically_reachable_blocks(function);
+        for node in function
+            .blocks
+            .iter()
+            .filter(|block| reachable.contains(&block.id))
+            .flat_map(|block| &block.nodes)
+        {
+            summary.support.extend(node.provenance.iter().copied());
+            match &node.operation {
+                O::CallUnit { callee, .. }
+                | O::CallStructuralScalar { callee, .. }
+                | O::CallStructural { callee, .. }
+                | O::Call { callee, .. } => {
+                    summary.callees.insert(*callee);
+                    if !machines.contains(callee) {
+                        summary.observable = EffectKnowledge::May;
+                        summary.structural_state = EffectKnowledge::May;
+                        summary.crash = EffectKnowledge::May;
+                        summary.suspension = EffectKnowledge::May;
+                    }
+                }
+                O::PortWrite { service, .. } => {
+                    summary.services.insert(*service);
+                    let (_, observable, structural, crash, suspension) =
+                        operation_effect(&node.operation);
+                    summary.observable = join(summary.observable, observable);
+                    summary.structural_state = join(summary.structural_state, structural);
+                    summary.crash = join(summary.crash, crash);
+                    summary.suspension = join(summary.suspension, suspension);
+                }
+                O::BoundaryCall { boundary, .. } => {
+                    summary.boundaries.insert(*boundary);
+                    let (_, observable, structural, crash, suspension) =
+                        operation_effect(&node.operation);
+                    summary.observable = join(summary.observable, observable);
+                    summary.structural_state = join(summary.structural_state, structural);
+                    summary.crash = join(summary.crash, crash);
+                    summary.suspension = join(summary.suspension, suspension);
+                }
+                _ => {
+                    let (_, observable, structural, crash, suspension) =
+                        operation_effect(&node.operation);
+                    summary.observable = join(summary.observable, observable);
+                    summary.structural_state = join(summary.structural_state, structural);
+                    summary.crash = join(summary.crash, crash);
+                    summary.suspension = join(summary.suspension, suspension);
+                }
+            }
+        }
+        summaries.insert(function.machine, summary);
+    }
+
+    loop {
+        let prior = summaries.clone();
+        let mut changed = false;
+        for summary in summaries.values_mut() {
+            for callee in summary.callees.clone() {
+                let Some(callee) = prior.get(&callee) else {
+                    continue;
+                };
+                let before = summary.clone();
+                summary.observable = join(summary.observable, callee.observable);
+                summary.structural_state = join(summary.structural_state, callee.structural_state);
+                summary.crash = join(summary.crash, callee.crash);
+                summary.suspension = join(summary.suspension, callee.suspension);
+                summary.services.extend(callee.services.iter().copied());
+                summary.boundaries.extend(callee.boundaries.iter().copied());
+                summary.support.extend(callee.support.iter().copied());
+                changed |= *summary != before;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+
+    summaries
+        .into_iter()
+        .map(|(machine, summary)| FunctionEffectSummary {
+            machine,
+            observable: summary.observable,
+            structural_state: summary.structural_state,
+            crash: summary.crash,
+            suspension: summary.suspension,
+            services: summary.services.into_iter().collect(),
+            boundaries: summary.boundaries.into_iter().collect(),
+            support: summary.support.into_iter().collect(),
+            revision: unit.identity,
+        })
+        .collect()
+}
+
+fn semantically_reachable_blocks(function: &PsiOptimizationFunction) -> BTreeSet<BlockId> {
+    let successors = function
+        .blocks
+        .iter()
+        .map(|block| {
+            (
+                block.id,
+                block
+                    .nodes
+                    .last()
+                    .map(|node| scalar_operation_successors(&node.operation))
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|edge| edge.target)
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut reachable = BTreeSet::new();
+    let mut pending = vec![function.entry];
+    while let Some(block) = pending.pop() {
+        if reachable.insert(block) {
+            pending.extend(successors.get(&block).into_iter().flatten().copied());
+        }
+    }
+    reachable
 }
 
 fn operation_effect(
