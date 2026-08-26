@@ -187,6 +187,20 @@ fn fixed_boolean_array_type(program: &mut TypedTrees, width: usize) -> TypeRefer
         })
 }
 
+fn fixed_nested_boolean_array_type(
+    program: &mut TypedTrees,
+    rows: usize,
+    columns: usize,
+) -> TypeReferenceHandle {
+    let row_type = fixed_boolean_array_type(program, columns);
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: row_type,
+            length: FixedArrayLength::Literal(rows),
+        })
+}
+
 fn fixed_integer_array_type(
     program: &mut TypedTrees,
     primitive: &'static str,
@@ -244,6 +258,17 @@ fn boolean_array_literal(program: &mut TypedTrees, values: &[bool]) -> Expressio
     program
         .expression_table
         .insert(ExpressionNode::ArrayLiteral(elements))
+}
+
+fn nested_boolean_array_literal(program: &mut TypedTrees, rows: &[&[bool]]) -> ExpressionHandle {
+    let rows = rows
+        .iter()
+        .map(|row| boolean_array_literal(program, row))
+        .collect::<Vec<_>>();
+    let rows = program.expression_table.insert_expression_handles(rows);
+    program
+        .expression_table
+        .insert(ExpressionNode::ArrayLiteral(rows))
 }
 
 fn integer_array_literal(
@@ -2168,6 +2193,44 @@ fn proof_fact_literal_substitution_retains_value_landing_and_recursive_fact_shap
         context(&float_array_value),
         context(&no_values),
     ));
+
+    let nested_boolean_array_parameter = symbol(960);
+    let nested_boolean_array_name =
+        named_argument(&mut program, "flag_rows", nested_boolean_array_parameter);
+    let exact_nested_boolean_array_literal =
+        nested_boolean_array_literal(&mut program, &[&[true, false], &[false, true]]);
+    let row_drifted_boolean_array_literal =
+        nested_boolean_array_literal(&mut program, &[&[true, false], &[true, false]]);
+    let flattened_boolean_array_literal =
+        boolean_array_literal(&mut program, &[true, false, false, true]);
+    let nested_boolean_array_value = vec![ProofValueSubstitution::nested_boolean_array(
+        nested_boolean_array_parameter,
+        &[Arc::from(&[true, false][..]), Arc::from(&[false, true][..])],
+    )];
+    assert!(proof_facts_match(
+        &program,
+        &ProofFact::Expression(nested_boolean_array_name),
+        &ProofFact::Expression(exact_nested_boolean_array_literal),
+        context(&nested_boolean_array_value),
+        context(&no_values),
+    ));
+    assert!(!proof_facts_match(
+        &program,
+        &ProofFact::Expression(nested_boolean_array_name),
+        &ProofFact::Expression(row_drifted_boolean_array_literal),
+        context(&nested_boolean_array_value),
+        context(&no_values),
+    ));
+    assert!(
+        !proof_facts_match(
+            &program,
+            &ProofFact::Expression(nested_boolean_array_name),
+            &ProofFact::Expression(flattened_boolean_array_literal),
+            context(&nested_boolean_array_value),
+            context(&no_values),
+        ),
+        "container-delimited traces distinguish nested and flat arrays with identical leaves"
+    );
 }
 
 #[test]
@@ -2980,6 +3043,70 @@ fn direct_lift_runtime_accepts_exact_boolean_array_literals() {
 }
 
 #[test]
+fn direct_lift_runtime_accepts_exact_nested_boolean_array_literals() {
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(
+        &mut program,
+        symbol(982),
+        "NestedBooleanArrayLiteralQ",
+        symbol(983),
+        "NestedBooleanArrayLiteralR",
+    );
+    let carrier = carrier_type(&mut program);
+    let fixed_booleans = fixed_nested_boolean_array_type(&mut program, 2, 3);
+    let literal =
+        nested_boolean_array_literal(&mut program, &[&[true, false, true], &[false, true, false]]);
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([literal]);
+    let call = call_with_arguments(arguments);
+    let state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    let request = push_representative(&mut program, &[(fixed_booleans, false, false)], carrier);
+
+    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
+        .expect("an exact depth-two Boolean array needs no adaptation");
+    assert_eq!(
+        plan.input_relations,
+        [InputRelation::ExactEquality(fixed_booleans)]
+    );
+    let runtime = plan
+        .direct_lift_correspondence
+        .expect("nested Boolean-array literal runtime correspondence");
+    assert_eq!(
+        runtime.positions,
+        [super::DirectLiftRuntimePosition {
+            source: super::DirectLiftArgumentSource::Literal(
+                super::runtime_correspondence::ClosedLiftLiteral::NestedBooleanArray {
+                    rows: Arc::from(vec![
+                        Arc::from(&[true, false, true][..]),
+                        Arc::from(&[false, true, false][..]),
+                    ]),
+                    target_type: program.normalized_type_identity(fixed_booleans),
+                },
+            ),
+            representative_parameter: symbol(100),
+        }]
+    );
+    let mut row_boundary_drift = runtime.clone();
+    row_boundary_drift.positions[0].source = super::DirectLiftArgumentSource::Literal(
+        super::runtime_correspondence::ClosedLiftLiteral::NestedBooleanArray {
+            rows: Arc::from(vec![
+                Arc::from(&[true, false][..]),
+                Arc::from(&[true, false, true, false][..]),
+            ]),
+            target_type: program.normalized_type_identity(fixed_booleans),
+        },
+    );
+    assert_ne!(
+        runtime, row_boundary_drift,
+        "row boundaries remain evidence identity"
+    );
+}
+
+#[test]
 fn direct_lift_runtime_accepts_exact_integer_array_literals() {
     use super::runtime_correspondence::ClosedIntegerArrayElement;
 
@@ -3580,6 +3707,126 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
         (29, short_float_array, two_f32_array),
         (30, computed_float_array, one_f32_array),
         (31, short_float_array, constrained_float_array),
+    ] {
+        assert_eq!(
+            super::closed_lift_literal_for_representative(&program, expression, target, position),
+            Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
+        );
+    }
+
+    let exact_nested_boolean_array =
+        nested_boolean_array_literal(&mut program, &[&[true], &[false]]);
+    let ragged_nested_boolean_array =
+        nested_boolean_array_literal(&mut program, &[&[true], &[false, true]]);
+    let exact_nested_boolean_type = fixed_nested_boolean_array_type(&mut program, 2, 1);
+    let wrong_outer_width_nested_boolean_type = fixed_nested_boolean_array_type(&mut program, 1, 1);
+    let constrained_boolean_row =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: constrained,
+                length: FixedArrayLength::Literal(1),
+            });
+    let constrained_nested_boolean_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: constrained_boolean_row,
+                length: FixedArrayLength::Literal(2),
+            });
+    let unresolved_boolean_row =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: bool_type,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: symbol(984),
+                    name: Identifier::generated_static("M"),
+                },
+            });
+    let unresolved_inner_width_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: unresolved_boolean_row,
+                length: FixedArrayLength::Literal(2),
+            });
+    let exact_boolean_row = fixed_boolean_array_type(&mut program, 1);
+    let unresolved_outer_width_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: exact_boolean_row,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: symbol(985),
+                    name: Identifier::generated_static("N"),
+                },
+            });
+    let nested_integer_type = program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: one_i8_array,
+            length: FixedArrayLength::Literal(1),
+        });
+    let nested_integer_array = {
+        let row = integer_array_literal(&mut program, [IntegerLiteral::from_value(1)]);
+        let rows = program.expression_table.insert_expression_handles([row]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(rows))
+    };
+    let computed_nested_boolean_array = {
+        let row = program
+            .expression_table
+            .insert_expression_handles([computed]);
+        let row = program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(row));
+        let rows = program.expression_table.insert_expression_handles([row]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(rows))
+    };
+    let one_by_one_nested_boolean_type = fixed_nested_boolean_array_type(&mut program, 1, 1);
+    let deeper_nested_boolean_type = {
+        let matrix = fixed_nested_boolean_array_type(&mut program, 1, 1);
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: matrix,
+                length: FixedArrayLength::Literal(1),
+            })
+    };
+    let deeper_nested_boolean_array = {
+        let matrix = nested_boolean_array_literal(&mut program, &[&[true]]);
+        let matrices = program.expression_table.insert_expression_handles([matrix]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(matrices))
+    };
+    for (position, expression, target) in [
+        (
+            32,
+            exact_nested_boolean_array,
+            wrong_outer_width_nested_boolean_type,
+        ),
+        (33, ragged_nested_boolean_array, exact_nested_boolean_type),
+        (
+            34,
+            exact_nested_boolean_array,
+            constrained_nested_boolean_type,
+        ),
+        (35, exact_nested_boolean_array, unresolved_inner_width_type),
+        (36, exact_nested_boolean_array, unresolved_outer_width_type),
+        (37, nested_integer_array, nested_integer_type),
+        (
+            38,
+            computed_nested_boolean_array,
+            one_by_one_nested_boolean_type,
+        ),
+        (39, deeper_nested_boolean_array, deeper_nested_boolean_type),
+        (40, nested_integer_array, one_by_one_nested_boolean_type),
+        (41, boolean_array, one_by_one_nested_boolean_type),
     ] {
         assert_eq!(
             super::closed_lift_literal_for_representative(&program, expression, target, position),

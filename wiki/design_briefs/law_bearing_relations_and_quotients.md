@@ -812,7 +812,13 @@ identity are retained without element coercion. A direct fixed float array may
 likewise contain only float literals at an exact literal-width `[f32; N]` or
 `[f64; N]` target. Each element independently follows the scalar format rule;
 ordered spelling/format evidence and normalized array identity are retained
-without evaluating computed elements. Exact
+without evaluating computed elements. A direct exact depth-two Boolean array
+may likewise feed only its exact literal-width `[[bool; M]; N]` target. Every
+row is a direct exact-width array literal and every leaf is a Boolean literal.
+Row boundaries, ordered values, and normalized outer array identity remain
+evidence. Proof-value array traces delimit every container, preventing a
+nested array from colliding with a flat array carrying the same ordered
+leaves. Exact
 structural substitution can match a dependent representative `P` fact that
 mentions a literal-fed parameter only when public `Q` contains the identical
 post-substitution fact. Boolean value, integer spelling, landed type and
@@ -823,7 +829,8 @@ out-of-range integers, mismatched floats, mutable/non-byte, undersized, or
 otherwise constrained byte-string targets, raw strings not already
 context-landed for a bare fixed array, noncanonical or heterogeneous
 byte/Boolean arrays, mismatched or out-of-range integer arrays, mismatched or
-computed float arrays, nested or data arrays, other aggregates, zero-value,
+computed float arrays, ragged, deeper, numeric, or data nested arrays, other
+aggregates, zero-value,
 casts, calls, computations,
 constrained/generic
 targets, mutable/attached targets, and every literal supplied to `define`
