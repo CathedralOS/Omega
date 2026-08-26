@@ -615,6 +615,13 @@ result-case identity, the public selector when named, checked evidence-lane
 position, and canonical fact. Review requires exactly one matching checked
 producer carrier. Group/row reordering is stable; changing the arm or public
 selector changes comparison identity.
+Review v66 and canonical row v24 retain public-operator crash ceilings. Checked
+lowering emits one operator-symbol-keyed row for every root and domain-homed
+operator, including an explicit empty ceiling, and review rederives the whole
+table before projection. Canonical cause buckets contain truth or exact
+structural guard expressions, preserving package-qualified calls, members, and
+declared overloads instead of runtime-predicate display fallbacks. Reordering
+or duplicating routes is stable; changing a cause or guard changes identity.
 Review v52 and canonical row v12 add one blocking standalone row for every
 package-owned `pub proposition`, including an unused bodyless declaration.
 The row retains alpha-normalized binders, parameter types, witness interface,
@@ -641,8 +648,8 @@ blocking `PublicOperator` row keyed by package-qualified declaration identity
 plus the compiler's canonical operand and result-dispatch identities. The row
 retains boundary status, fixed spelling, complete signature shape, and directly
 projected declaration contracts even when unused. Binary contract expressions
-now name the exact declared overload or explicit builtin meaning. Unsupported
-operator crash contracts and unresolved proof-static selections reject closed.
+now name the exact declared overload or explicit builtin meaning. Unresolved
+proof-static selections reject closed.
 Complete name-first conformances now carry declaration-owned `pub` through
 syntax, source profiling, resolved/typed/checked trees, and stage snapshots.
 The common exact-symbol gate rejects private cross-package selection and

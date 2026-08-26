@@ -667,6 +667,13 @@ checked evidence-lane position, and canonical fact. Projection must rejoin one
 exact producer-side checked guarded-guarantee carrier; missing, duplicate, or
 mismatched carriers reject. Group and row ordering are stable, while moving a
 fact between cases or renaming its public selector changes review identity.
+Review v66/canonical row v24 retains public-operator crash ceilings. Checked
+lowering creates one exact operator-symbol-keyed row for every root and domain-
+homed operator, including a crash-free row; review requires the complete table
+to equal compiler rederivation. Cause buckets retain truth or exact structural
+guard expressions with package-qualified call/member/declared-overload
+identity. Route ordering and duplicates are stable, while changed causes or
+guards change canonical evidence.
 Trait `invariant` clauses are retired rather than awaiting a package row.
 Requirements also retain whether their checked declaration
 supplies a default realization; implementation bodies remain checked source
@@ -776,8 +783,8 @@ package-qualified declaration identity with the compiler's canonical operand
 and result-dispatch identities; its value retains boundary status, fixed
 spelling, complete signature shape, and contracts projected directly from the
 declaration even when unused. Public contract binaries now encode either one
-exact declared overload coordinate or explicit builtin meaning. Unsupported
-operator crash contracts and unresolved proof-static selections reject closed.
+exact declared overload coordinate or explicit builtin meaning. Unresolved
+proof-static selections reject closed.
 Complete name-first conformances now retain their own ordinary `pub` bit
 through syntax, source profiling, resolved/typed/checked trees, and all stage
 snapshots. Exact authored-selection gates reject private cross-package

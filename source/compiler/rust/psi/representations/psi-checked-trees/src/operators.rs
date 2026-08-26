@@ -1,7 +1,8 @@
-use crate::CheckedValueOrigin;
-use psi_arena::{Arena, HandleSpan};
+use crate::{CheckedValueOrigin, CrashCause};
+use psi_arena::{Arena, Handle, HandleSpan};
 use psi_language_core::operator_spelling::OperatorSpelling;
 use psi_symbols::SymbolHandle;
+use psi_typed_trees::domain::ProofFact;
 use psi_typed_trees::expression::ExpressionHandle;
 use psi_typed_trees::signature::SignatureContract;
 use psi_typed_trees::types::TypeReferenceHandle;
@@ -278,11 +279,70 @@ impl CheckedOperatorContractUse<'_> {
     }
 }
 
+/// One checked, cause-normalized crash bucket on an operator declaration.
+/// Fact handles are compiler-private joins back into typed Psi; package review
+/// projects their exact structural identity only after checking succeeds.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedOperatorCrashBucket {
+    cause: CrashCause,
+    unconditional: bool,
+    facts: Vec<Handle<ProofFact>>,
+}
+
+impl CheckedOperatorCrashBucket {
+    pub fn new(cause: CrashCause, unconditional: bool, facts: Vec<Handle<ProofFact>>) -> Self {
+        Self {
+            cause,
+            unconditional,
+            facts,
+        }
+    }
+
+    pub const fn cause(&self) -> CrashCause {
+        self.cause
+    }
+
+    pub const fn is_unconditional(&self) -> bool {
+        self.unconditional
+    }
+
+    pub fn facts(&self) -> &[Handle<ProofFact>] {
+        &self.facts
+    }
+}
+
+/// Complete checked crash surface for one exact operator declaration. One row
+/// exists even when the operator publishes no crash routes, so absence cannot
+/// be confused with an empty ceiling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedOperatorCrashContract {
+    operator_symbol: SymbolHandle,
+    buckets: Vec<CheckedOperatorCrashBucket>,
+}
+
+impl CheckedOperatorCrashContract {
+    pub fn new(operator_symbol: SymbolHandle, buckets: Vec<CheckedOperatorCrashBucket>) -> Self {
+        Self {
+            operator_symbol,
+            buckets,
+        }
+    }
+
+    pub const fn operator_symbol(&self) -> SymbolHandle {
+        self.operator_symbol
+    }
+
+    pub fn buckets(&self) -> &[CheckedOperatorCrashBucket] {
+        &self.buckets
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedOperatorFacts {
     pub uses: Arena<CheckedOperatorUseFact>,
     pub named_uses: Arena<CheckedNamedOperatorUseFact>,
     pub candidates: Arena<CheckedOperatorCandidateFact>,
+    pub operator_crash_contracts: Vec<CheckedOperatorCrashContract>,
 }
 
 impl CheckedOperatorFacts {
@@ -295,7 +355,16 @@ impl CheckedOperatorFacts {
             uses,
             named_uses,
             candidates,
+            operator_crash_contracts: Vec::new(),
         }
+    }
+
+    pub fn with_operator_crash_contracts(
+        mut self,
+        operator_crash_contracts: Vec<CheckedOperatorCrashContract>,
+    ) -> Self {
+        self.operator_crash_contracts = operator_crash_contracts;
+        self
     }
 
     pub fn expression_use(&self, expression: ExpressionHandle) -> Option<&CheckedOperatorUseFact> {

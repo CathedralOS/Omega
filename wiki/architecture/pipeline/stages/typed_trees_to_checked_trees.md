@@ -117,6 +117,13 @@ Must own:
   term identity. Package review may rejoin that internal row after successful
   checking, but must not infer guarded publication from source text or install
   it as an unconditional postcondition.
+- Complete operator-crash custody. Checked lowering retains one row keyed by
+  exact operator symbol for every root and domain-homed declaration, including
+  an explicit empty ceiling. Cause-normalized buckets retain unconditionality
+  or exact typed proof-fact joins. Package review rederives this compiler-
+  private table, then projects guarded facts through its package-qualified
+  structural expression vocabulary; runtime predicate display fallbacks do not
+  become operator API identity.
 
 The package projector reads each fact from the earliest coherent compiler-owned
 representation in which that fact is semantically complete, then joins checked

@@ -1614,6 +1614,14 @@ Projection rejoins exactly one producer-side checked guarded-guarantee carrier;
 missing, duplicate, or mismatched custody rejects. Authored group/row ordering
 is irrelevant, while moving a fact between cases or renaming a public selector
 changes canonical identity.
+Review v66 and canonical row v24 admit public-operator crash ceilings. Checked
+lowering issues one exact operator-symbol-keyed crash-contract row for every
+root and domain-homed operator, including crash-free declarations, and package
+review requires the retained table to equal compiler rederivation. Cause
+buckets retain unconditional truth or canonical structural guard expressions;
+the latter use package-qualified call, member, and selected-overload identity
+rather than textual runtime-predicate fallbacks. Clause/guard ordering and
+duplicates are stable; a changed cause or guard changes the operator row.
 Review v52 and canonical row v12 add blocking standalone public-proposition
 shape. Every package-owned `pub proposition` is retained whether used or not;
 primitive publication records only vocabulary, while witness and transparent
@@ -1640,8 +1648,8 @@ package-qualified declaration identity plus the compiler's canonical operand
 and result-dispatch identities; the value retains boundary status, fixed
 spelling, the complete signature, and declaration contracts without depending
 on use-site facts. Public contract binaries retain an exact declared overload
-coordinate or explicit builtin meaning rather than only a token. Unsupported
-operator crash contracts or unresolved proof-static selections reject closed.
+coordinate or explicit builtin meaning rather than only a token. Unresolved
+proof-static selections reject closed.
 Complete name-first conformances now retain their declaration-owned `pub`
 through syntax, source profiling, resolved/typed/checked trees, and stage
 snapshots. Exact selection gates reject private cross-package use and public-
