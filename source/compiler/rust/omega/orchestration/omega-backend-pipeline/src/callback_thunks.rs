@@ -1,6 +1,7 @@
 use omega_backend_plan::{
     BoundNominalCallbackPlacement, CallbackThunkPlan, callback_placement_binding_identity,
-    canonical_callback_private_symbol, validate_bound_nominal_callback_placement,
+    canonical_callback_private_symbol, plan_callback_root_schedule, replay_callback_root_schedule,
+    validate_bound_nominal_callback_placement,
 };
 use omega_control_flow::ControlFlowPlan;
 use psi_diagnostics::Diagnostic;
@@ -34,17 +35,43 @@ pub(super) fn plan_callback_thunks(
                     placement.canonical_requirement_overload, entry_key.segment_index
                 )));
             }
-            Ok(CallbackThunkPlan {
-                placement_index,
-                placement_identity: callback_placement_binding_identity(placement),
-                entry_key,
-                function_identity: omega_control_flow::MachineFunctionIdentity::callback_thunk(
+            let function_identity =
+                omega_control_flow::MachineFunctionIdentity::callback_thunk(
                     entry_key,
                     placement_index,
                 )
-                .expect("resolved callback entry must have a valid function identity"),
-                private_symbol: canonical_callback_private_symbol(placement),
-            })
+                .expect("resolved callback entry must have a valid function identity");
+            let private_symbol = canonical_callback_private_symbol(placement);
+            let root_schedule = Arc::new(
+                plan_callback_root_schedule(
+                    placement_index,
+                    placement,
+                    entry_key,
+                    function_identity,
+                    Arc::clone(&private_symbol),
+                )
+                .map_err(|error| {
+                    Diagnostic::error(format!(
+                        "nominal callback use for `{}` could not retain its root schedule: {error}",
+                        placement.canonical_requirement_overload
+                    ))
+                })?,
+            );
+            let plan = CallbackThunkPlan {
+                placement_index,
+                placement_identity: callback_placement_binding_identity(placement),
+                entry_key,
+                function_identity,
+                private_symbol,
+                root_schedule,
+            };
+            replay_callback_root_schedule(&plan.root_schedule, placement).map_err(|error| {
+                Diagnostic::error(format!(
+                    "nominal callback use for `{}` retained an invalid root schedule: {error}",
+                    placement.canonical_requirement_overload
+                ))
+            })?;
+            Ok(plan)
         })
         .collect::<Result<Vec<_>, _>>()?;
     for (index, plan) in plans.iter().enumerate() {
@@ -117,7 +144,7 @@ mod tests {
         let (control_flow, placement) = fixture();
         let placement_identity = callback_placement_binding_identity(&placement);
 
-        let plans = plan_callback_thunks(&control_flow, &[placement])
+        let plans = plan_callback_thunks(&control_flow, &[placement.clone()])
             .expect("selected callback entry should resolve");
 
         assert_eq!(plans.len(), 1);
@@ -134,6 +161,21 @@ mod tests {
             plans[0].entry_key
         );
         assert!(plans[0].private_symbol.starts_with("__omega_callback_e"));
+        assert_eq!(plans[0].root_schedule.entry_key(), plans[0].entry_key);
+        assert_eq!(
+            plans[0].root_schedule.function_identity(),
+            plans[0].function_identity
+        );
+        assert_eq!(
+            plans[0].root_schedule.activation().runtime_flow_entry(),
+            plans[0].entry_key
+        );
+        assert_eq!(
+            plans[0].root_schedule.internal_call_plan(),
+            &plans[0].root_schedule.boundary_entry_plan().plan().call
+        );
+        replay_callback_root_schedule(&plans[0].root_schedule, &placement)
+            .expect("callback schedule must independently replay");
     }
 
     #[test]

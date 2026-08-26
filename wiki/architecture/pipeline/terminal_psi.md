@@ -203,7 +203,11 @@ is neither slot identity nor a calling-plan coordinate.
 
 Legacy native planning already binds each such row to the selected control-flow
 entry and one deterministic private thunk symbol, failing closed if the entry
-was lost. This is still address-free planning: multi-entry code emission and
+was lost. Each thunk now also owns one address-free callback-root schedule:
+the exact canonical entry, activation-local runtime-flow/dispatch/storage/frame
+identities, validated boundary entry plan, and its internal argument/result
+bridge replay together before target instruction selection. This is still
+address-free planning: multi-entry code emission and
 placement of the private symbol into the registrar's declared native slot are
 separate lowering steps. The placement step consumes only a complete validated
 outbound plan: missing, duplicate, overlapping, shape-incompatible, or
