@@ -1,8 +1,13 @@
 use omega_compiler::{
     CompileOptions, Optimization, PackageCompilationInputs, PackageDependencyBinding,
-    PackageSourceBinding, compile_options as compile, compile_to_checked,
-    compile_to_checked_with_packages,
+    PackageSourceBinding, compile_to_checked, compile_to_checked_with_packages,
 };
+
+fn compile(
+    options: CompileOptions,
+) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
+    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+}
 use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};

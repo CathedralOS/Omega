@@ -7,12 +7,18 @@
 // dir ops. (These canaries signal success via "PASS: …" on stdout and exit with the
 // final write's byte count, so the assertion is on stdout, not the exit code.)
 #![cfg(target_os = "macos")]
-use omega_compiler::{CompileOptions, compile_options as compile_program};
+use omega_compiler::CompileOptions;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_ENTRY_STAGE: AtomicU64 = AtomicU64::new(1);
+
+fn compile_program(
+    options: CompileOptions,
+) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
+    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+}
 
 fn compile_exact_macos_entry(
     options: CompileOptions,
