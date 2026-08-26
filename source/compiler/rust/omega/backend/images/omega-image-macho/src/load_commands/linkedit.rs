@@ -40,13 +40,21 @@ pub(crate) fn write_empty_macho_dysymtab_command(bytes: &mut Vec<u8>) {
 
 pub(crate) fn write_macho_dyld_info_command(
     bytes: &mut Vec<u8>,
+    rebase_offset: usize,
+    rebase_size: usize,
     bind_offset: usize,
     bind_size: usize,
 ) {
     write_u32(bytes, 0x8000_0022);
     write_u32(bytes, MACHO_DYLD_INFO_COMMAND_SIZE as u32);
-    write_u32(bytes, 0);
-    write_u32(bytes, 0);
+    write_u32(
+        bytes,
+        u32::try_from(rebase_offset).expect("Mach-O rebase offset overflow"),
+    );
+    write_u32(
+        bytes,
+        u32::try_from(rebase_size).expect("Mach-O rebase size overflow"),
+    );
     write_u32(
         bytes,
         u32::try_from(bind_offset).expect("Mach-O bind offset overflow"),
@@ -61,4 +69,22 @@ pub(crate) fn write_macho_dyld_info_command(
     write_u32(bytes, 0);
     write_u32(bytes, 0);
     write_u32(bytes, 0);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::write_macho_dyld_info_command;
+
+    #[test]
+    fn dyld_info_retains_rebase_and_bind_ranges_independently() {
+        let mut bytes = Vec::new();
+        write_macho_dyld_info_command(&mut bytes, 0x8000, 5, 0x8005, 0);
+
+        let word = |offset| u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
+        assert_eq!(word(0), 0x8000_0022);
+        assert_eq!(word(8), 0x8000);
+        assert_eq!(word(12), 5);
+        assert_eq!(word(16), 0x8005);
+        assert_eq!(word(20), 0);
+    }
 }

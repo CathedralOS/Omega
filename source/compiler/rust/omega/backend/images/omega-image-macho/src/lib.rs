@@ -11,6 +11,7 @@ mod imports;
 mod layout;
 mod load_commands;
 mod plan;
+mod rebases;
 
 use code_signature::macho_ad_hoc_code_signature;
 use entry::macho_entry_text_offset;
@@ -28,6 +29,7 @@ use load_commands::{
     write_macho_uuid_command,
 };
 use plan::plan_macho_image;
+use rebases::macho_rebase_info;
 
 pub fn emit_macho_aarch64_executable(
     mut image: FinalImage,
@@ -37,12 +39,20 @@ pub fn emit_macho_aarch64_executable(
     // import binds against its library's ordinal (index + 1).
     let dylibs = macho_dylib_list(&import_thunks);
     let bind_info = macho_bind_info(&import_thunks, &dylibs);
-    let plan = plan_macho_image(&image, import_thunks.len(), bind_info.len(), &dylibs);
+    let rebase_info = macho_rebase_info(&image)?;
+    let plan = plan_macho_image(
+        &image,
+        import_thunks.len(),
+        rebase_info.bytes.len(),
+        bind_info.len(),
+        &dylibs,
+    );
     let entry_offset = plan.text_offset + macho_entry_text_offset(&image)?;
     let layout = plan.final_image_layout();
 
     patch_import_thunks(&mut image, &layout, &import_thunks)?;
     apply_aarch64_relocations(&mut image, &layout, "Mach-O direct executable")?;
+    rebase_info.validate_patched_preferred_pointers(&image, &layout)?;
     validate_import_thunk_footprints(&mut image, &import_thunks)?;
     let executable_regions = place_executable_regions(&image, layout)?;
 
@@ -73,13 +83,19 @@ pub fn emit_macho_aarch64_executable(
     for dylib in &dylibs {
         write_macho_load_dylib_command(&mut bytes, dylib);
     }
-    if plan.has_imports {
-        write_macho_dyld_info_command(&mut bytes, plan.bind_offset, bind_info.len());
+    if plan.has_dyld_info {
+        write_macho_dyld_info_command(
+            &mut bytes,
+            plan.rebase_offset,
+            rebase_info.bytes.len(),
+            plan.bind_offset,
+            bind_info.len(),
+        );
     }
     write_macho_linkedit_segment(
         &mut bytes,
         plan.linkedit_vmaddr,
-        plan.bind_offset,
+        plan.linkedit_offset,
         plan.linkedit_filesize,
         plan.linkedit_vmsize,
     );
@@ -96,6 +112,8 @@ pub fn emit_macho_aarch64_executable(
         bytes.resize(plan.data_offset, 0);
         bytes.extend(&image.memory.data);
     }
+    bytes.resize(plan.rebase_offset, 0);
+    bytes.extend(&rebase_info.bytes);
     bytes.resize(plan.bind_offset, 0);
     bytes.extend(bind_info);
     bytes.resize(plan.code_signature_offset, 0);
