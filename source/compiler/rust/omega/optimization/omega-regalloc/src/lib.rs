@@ -27,6 +27,11 @@ mod home_assignment_identity;
 mod home_assignment_model;
 mod home_assignment_validate;
 mod identity;
+mod literal_fold_compute;
+mod literal_fold_identity;
+mod literal_fold_model;
+mod literal_fold_transform;
+mod literal_fold_validate;
 mod live_range_compute;
 mod live_range_identity;
 mod live_range_model;
@@ -57,6 +62,9 @@ pub use home_assignment_identity::terminal_register_home_identity;
 pub use home_assignment_model::*;
 pub use home_assignment_validate::validate_terminal_register_homes;
 pub use identity::terminal_liveness_identity;
+pub use literal_fold_identity::terminal_literal_fold_identity;
+pub use literal_fold_model::*;
+pub use literal_fold_validate::validate_terminal_literal_fold;
 pub use live_range_identity::terminal_live_range_identity;
 pub use live_range_model::*;
 pub use live_range_validate::validate_terminal_live_ranges;
@@ -295,6 +303,50 @@ pub fn classify_terminal_pressure_recovery<S: ValidatedTerminalSelectedAnalysis>
         budget,
     )?;
     validate_terminal_recovery_classifications(selected, ranges, legality, spill_choices, plan)
+}
+
+/// Fold one already-classified incoming unsigned-12-bit literal into its
+/// immediately following exact-add consumer. This is one explicit named
+/// transformation, not a generic rematerializer, optimizer level, or loop.
+#[allow(clippy::too_many_arguments)]
+pub fn fold_terminal_selected_incoming_literal<S: ValidatedTerminalSelectedAnalysis>(
+    selected: &S,
+    ranges: &ValidatedTerminalLiveRanges,
+    legality: &ValidatedTerminalAllocationLegality,
+    spill_choices: &ValidatedTerminalSpillChoices,
+    recovery: &ValidatedTerminalRecoveryClassifications,
+    availability: &ValidatedTerminalAllocatorAvailability,
+    register_environment: TargetRegisterEnvironmentIdentity,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    policy: TerminalLiteralFoldPolicy,
+    budget: omega_optimization_core::OptimizationWorkBudget,
+) -> Result<ValidatedTerminalLiteralFold, TerminalLiteralFoldError> {
+    let plan = literal_fold_compute::compute_terminal_literal_fold(
+        selected,
+        ranges,
+        legality,
+        spill_choices,
+        recovery,
+        availability,
+        register_environment,
+        constraints,
+        selected_keys,
+        policy,
+        budget,
+    )?;
+    validate_terminal_literal_fold(
+        selected,
+        ranges,
+        legality,
+        spill_choices,
+        recovery,
+        availability,
+        register_environment,
+        constraints,
+        selected_keys,
+        plan,
+    )
 }
 
 #[cfg(test)]

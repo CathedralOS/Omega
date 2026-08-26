@@ -216,7 +216,8 @@ fn classify_victim(
     }
     let defining = unique_definition(function, selected, victim.id, defining_id)?;
     match defining.kind {
-        TerminalSelectedInstructionKind::ExactAddI64 { .. } => {
+        TerminalSelectedInstructionKind::ExactAddI64 { .. }
+        | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => {
             return no_recovery(TerminalNoAdmittedRecoveryReason::ProofBearingDefinition);
         }
         TerminalSelectedInstructionKind::MaterializeI64 { .. } => {}

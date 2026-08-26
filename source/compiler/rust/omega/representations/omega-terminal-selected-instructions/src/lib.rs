@@ -55,6 +55,7 @@ pub struct TerminalSelectedConstraintKeys {
     pub materialize_i64: RegisterConstraintKey,
     pub copy_i64: RegisterConstraintKey,
     pub add_i64: RegisterConstraintKey,
+    pub add_i64_immediate: RegisterConstraintKey,
     pub compare_i64_zero: RegisterConstraintKey,
     pub conditional_branch: RegisterConstraintKey,
     pub return_i64: RegisterConstraintKey,
@@ -162,6 +163,13 @@ pub enum TerminalSelectedInstructionKind {
     /// before target lowering. The obligation remains semantic custody even
     /// when the target uses the same physical row as wrapping addition.
     ExactAddI64 {
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
+    /// Exact mathematical addition with the right source value encoded as an
+    /// instruction immediate. Proof and source-value custody remain explicit.
+    ExactAddI64Immediate {
+        immediate: IntegerValue,
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,
     },

@@ -58,7 +58,7 @@ identity!(
 );
 identity!(
     TargetRegisterEnvironmentIdentity,
-    b"omega.target-register-environment-identity.v2\0"
+    b"omega.target-register-environment-identity.v3\0"
 );
 
 pub(super) fn physical_register_model_identity(
@@ -158,6 +158,7 @@ pub fn target_register_environment_identity(
         selected_keys.materialize_i64,
         selected_keys.copy_i64,
         selected_keys.add_i64,
+        selected_keys.add_i64_immediate,
         selected_keys.compare_i64_zero,
         selected_keys.conditional_branch,
         selected_keys.return_i64,

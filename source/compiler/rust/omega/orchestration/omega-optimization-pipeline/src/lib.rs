@@ -187,18 +187,21 @@ mod tests {
         PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
         TerminalAllocationLegalityError, TerminalAllocatorAvailabilityError,
         TerminalAllocatorAvailabilityPolicy, TerminalArchitecturalUnitActionKind,
-        TerminalFixedViewCopyError, TerminalFixedViewCopyPolicy, TerminalLiveRangeError,
-        TerminalLiveRangeFragment, TerminalLiveRangePoint, TerminalLivenessError,
-        TerminalRecoveryClassification, TerminalRecoveryClassificationPolicy,
-        TerminalRecoveryVictimRole, TerminalRegisterHomeError, TerminalRegisterHomePlan,
-        TerminalSpillChoicePolicy, TerminalVirtualFixedConstraintSite, TerminalVirtualInterference,
-        analyze_terminal_live_ranges, analyze_terminal_liveness, choose_terminal_spill_victims,
-        classify_terminal_pressure_recovery, materialize_terminal_allocator_availability,
-        terminal_allocation_legality_identity, terminal_fixed_view_copy_identity,
-        terminal_live_range_identity, terminal_liveness_identity, terminal_register_home_identity,
+        TerminalFixedViewCopyError, TerminalFixedViewCopyPolicy, TerminalLiteralFoldPlan,
+        TerminalLiteralFoldPolicy, TerminalLiveRangeError, TerminalLiveRangeFragment,
+        TerminalLiveRangePoint, TerminalLivenessError, TerminalRecoveryClassification,
+        TerminalRecoveryClassificationPolicy, TerminalRecoveryVictimRole,
+        TerminalRegisterHomeError, TerminalRegisterHomePlan, TerminalSpillChoicePolicy,
+        TerminalVirtualFixedConstraintSite, TerminalVirtualInterference,
+        analyze_terminal_allocation_legality, analyze_terminal_live_ranges,
+        analyze_terminal_liveness, choose_terminal_spill_victims,
+        classify_terminal_pressure_recovery, fold_terminal_selected_incoming_literal,
+        materialize_terminal_allocator_availability, terminal_allocation_legality_identity,
+        terminal_fixed_view_copy_identity, terminal_live_range_identity,
+        terminal_liveness_identity, terminal_register_home_identity,
         validate_post_allocation_optimization_manifest, validate_terminal_allocation_legality,
         validate_terminal_allocator_availability, validate_terminal_fixed_view_copies,
-        validate_terminal_live_ranges, validate_terminal_liveness,
+        validate_terminal_literal_fold, validate_terminal_live_ranges, validate_terminal_liveness,
         validate_terminal_register_homes,
     };
     use omega_register_model::{
@@ -1710,6 +1713,221 @@ mod tests {
                     ..
                 }
             ));
+        }
+    }
+
+    #[test]
+    fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architectures() {
+        for (target, sole_view_name) in [
+            (NativeTarget::linux_x64(), "rax"),
+            (NativeTarget::linux_arm64(), "x0"),
+        ] {
+            let ranges = stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_exact_add_conditional(target)).unwrap(),
+            )
+            .unwrap();
+            let environment = ranges
+                .liveness_stage()
+                .selected_stage()
+                .register_environment();
+            let sole_view = environment
+                .physical()
+                .model()
+                .view_named(sole_view_name)
+                .unwrap()
+                .id;
+            let availability = materialize_terminal_allocator_availability(
+                environment.identity(),
+                environment.target(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+                TerminalAllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
+                    views: vec![sole_view],
+                },
+            )
+            .unwrap();
+            let legality =
+                stage_optimized_allocation_legality_with_availability(ranges, availability)
+                    .unwrap();
+            let ranges = legality.live_range_stage();
+            let selected = ranges.liveness_stage().selected_stage();
+            let environment = selected.register_environment();
+            let choices = choose_terminal_spill_victims(
+                legality.legality(),
+                ranges.ranges(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+                TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                budget(),
+            )
+            .unwrap();
+            let recovery = classify_terminal_pressure_recovery(
+                selected.selected(),
+                ranges.ranges(),
+                legality.legality(),
+                &choices,
+                TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                budget(),
+            )
+            .unwrap();
+            let fold_one = fold_terminal_selected_incoming_literal(
+                selected.selected(),
+                ranges.ranges(),
+                legality.legality(),
+                &choices,
+                &recovery,
+                legality.allocator_availability(),
+                environment.identity(),
+                environment.constraints(),
+                environment.allocation_constraint_keys(),
+                TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+                budget(),
+            )
+            .unwrap();
+            assert_eq!(fold_one.receipt().applied_count(), 1);
+            assert_eq!(
+                TerminalLiteralFoldPlan::decode(&fold_one.plan().encode()).unwrap(),
+                *fold_one.plan()
+            );
+            let mut corrupted_recipe = fold_one.plan().clone();
+            corrupted_recipe.functions[0]
+                .action
+                .as_mut()
+                .unwrap()
+                .immediate += 1;
+            assert!(matches!(
+                validate_terminal_literal_fold(
+                    selected.selected(),
+                    ranges.ranges(),
+                    legality.legality(),
+                    &choices,
+                    &recovery,
+                    legality.allocator_availability(),
+                    environment.identity(),
+                    environment.constraints(),
+                    environment.allocation_constraint_keys(),
+                    corrupted_recipe,
+                ),
+                Err(omega_regalloc::TerminalLiteralFoldError::DecisionMismatch { .. })
+            ));
+            let folded_add = &fold_one.transformed().functions[0].blocks[1].instructions[1];
+            assert!(matches!(
+                folded_add.kind,
+                TerminalSelectedInstructionKind::ExactAddI64Immediate {
+                    immediate: IntegerValue::Unsigned(8),
+                    ..
+                }
+            ));
+            assert_eq!(folded_add.provenance.operations.len(), 2);
+            assert_eq!(folded_add.provenance.obligations.len(), 1);
+
+            let liveness_one = analyze_terminal_liveness(&fold_one).unwrap();
+            let ranges_one = analyze_terminal_live_ranges(&fold_one, &liveness_one).unwrap();
+            let legality_one = analyze_terminal_allocation_legality(
+                &ranges_one,
+                legality.allocator_availability(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+            )
+            .unwrap();
+            let choices_one = choose_terminal_spill_victims(
+                &legality_one,
+                &ranges_one,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+                TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                budget(),
+            )
+            .unwrap();
+            assert_eq!(
+                choices_one.plan().functions[0]
+                    .choice
+                    .as_ref()
+                    .unwrap()
+                    .incoming,
+                TerminalVirtualRegisterId(4)
+            );
+            let recovery_one = classify_terminal_pressure_recovery(
+                &fold_one,
+                &ranges_one,
+                &legality_one,
+                &choices_one,
+                TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                budget(),
+            )
+            .unwrap();
+            let fold_two = fold_terminal_selected_incoming_literal(
+                &fold_one,
+                &ranges_one,
+                &legality_one,
+                &choices_one,
+                &recovery_one,
+                legality.allocator_availability(),
+                environment.identity(),
+                environment.constraints(),
+                environment.allocation_constraint_keys(),
+                TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+                budget(),
+            )
+            .unwrap();
+            assert_eq!(fold_two.receipt().applied_count(), 1);
+
+            let liveness_two = analyze_terminal_liveness(&fold_two).unwrap();
+            let ranges_two = analyze_terminal_live_ranges(&fold_two, &liveness_two).unwrap();
+            let legality_two = analyze_terminal_allocation_legality(
+                &ranges_two,
+                legality.allocator_availability(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+            )
+            .unwrap();
+            let choices_two = choose_terminal_spill_victims(
+                &legality_two,
+                &ranges_two,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+                TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                budget(),
+            )
+            .unwrap();
+            assert!(
+                choices_two
+                    .plan()
+                    .functions
+                    .iter()
+                    .all(|function| function.choice.is_none())
+            );
+            let homes = omega_regalloc::assign_terminal_register_homes(
+                &legality_two,
+                &ranges_two,
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+            )
+            .unwrap();
+            assert_eq!(
+                homes.plan().functions[0].assignments.len(),
+                fold_two.transformed().functions[0].virtual_registers.len()
+            );
         }
     }
 

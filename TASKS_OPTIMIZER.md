@@ -69,9 +69,10 @@ These facts constrain the work below.
   Target-owned v1 catalogs cover scalar System V/Microsoft and AAPCS64/Darwin
   call/return banks plus Linux syscall and conservative inline-assembly state,
   then add the first ordinary materialize-i64, copy-i64, three-address add-i64,
-  compare-zero, and conditional-branch rows with explicit flags and
-  instruction-pointer state. The add row is flag-transparent on both targets;
-  x86-64 can realize it with LEA rather than inventing a two-address tie. This
+  two-operand add-i64-immediate, compare-zero, and conditional-branch rows with
+  explicit flags and instruction-pointer state. Both add rows are flag-
+  transparent; x86-64 can realize them with LEA rather than inventing a two-
+  address tie. This
   row describes physical register constraints only: exact, wrapping, or
   trapping arithmetic policy must remain in semantic lowering and may use this
   row only after any required overflow obligation is discharged.
@@ -1033,19 +1034,30 @@ dependency.
   anchors, and canonical future flexible uses. It positively classifies only
   the current cleanup-free non-address u64 literal source; every unsupported
   victim gets an exact no-admitted-recovery reason, never an inferred spill.
-  The identity-bound codec and structurally separate replay grant no strategy,
-  code mutation, fuel movement, storage, frame, emission, or publication
-  authority. The separately validated allocator-availability boundary now
+  The classification identity and replay grant no strategy, code mutation,
+  fuel movement, storage, frame, emission, or publication authority. The
+  separately validated allocator-availability boundary now
   supplies that production pressure vertical without misusing reservation
   overlays: retaining only `rdi` on x86-64 or `x0` on AArch64 makes the second
   exact-add literal the deterministic incoming victim on both targets, while
   fixed views outside the flexible allowlist remain exact and legal. The victim
-  is positively classified as the immediate-u64 literal `8`. Default staging
-  retains every environment-allocatable view and preserves the former
-  spill-free homes. Next implement a separately named literal
-  sink/rematerialization transform with complete reanalysis. Selected-value
-  ownership/proof custody and target frame policy must still join before any
-  victim can become a typed spill or reload.
+  is positively classified as the immediate-u64 literal `8`. The separate
+  `SelectedIncomingU12ExactAddImmediateV1` policy now consumes only that exact
+  incoming, single-use, immediately adjacent unsigned-u12 case. It replaces
+  `MaterializeI64 + ExactAddI64` with proof-bearing
+  `ExactAddI64Immediate`, preserves both operations and both logical-fuel
+  settlements exactly once, retains the add obligation and accepted fact,
+  removes the victim, and globally redensifies later instruction/VReg IDs.
+  Its strict recipe codec roots the complete input custody and transformed
+  selected identity; replay reconstructs the full CFG before granting a sealed
+  reanalysis carrier. With a sole flexible `rax`/`x0` view, two separately
+  requested folds with complete liveness/range/legality/pressure reanalysis
+  close both leaf pressure points and reach homes. There is no implicit loop,
+  build hook, general rematerialization, spill, frame, or emission authority.
+  Default staging retains every environment-allocatable view and preserves the
+  former spill-free homes. Selected-value ownership/proof custody and target
+  frame policy must still join before any victim can become a typed spill or
+  reload.
   Provider/runtime reservation requirements must either join the active profile
   or fail closed.
 
@@ -1078,6 +1090,13 @@ dependency.
   rematerialization candidate. It records the incoming-versus-active role,
   original instruction/value/provenance/fuel anchors, and future use demands.
   Eligibility does not select, move, duplicate, or charge an instruction.
+
+  `SelectedIncomingU12ExactAddImmediateV1` closes one physical-form alternative
+  only: an incoming unsigned-u12 literal, uniquely materialized immediately
+  before its sole flexible right use by a proof-bearing exact add. It folds the
+  literal into the target-owned immediate row and preserves semantic/fuel
+  custody under complete replay and reanalysis. It is not a general spill or
+  rematerialization mechanism and never runs unless explicitly invoked.
 
 - **OPT-STACK-SLOTS.** Assign aligned frame slots with lifetime-based reuse,
   outgoing-call areas, ABI shadow space/red-zone policy, dynamic restrictions,
