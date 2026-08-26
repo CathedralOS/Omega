@@ -453,6 +453,7 @@ impl ExpressionTable {
                     target: call.target.clone(),
                     machine_arguments: call.machine_arguments.clone(),
                     quotient_operation: call.quotient_operation.clone(),
+                    private_layout_operation: call.private_layout_operation.clone(),
                     arguments,
                     evidence_arguments: call.evidence_arguments.clone(),
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -1452,6 +1453,7 @@ impl ExpressionTable {
                     target: call.target,
                     machine_arguments: call.machine_arguments,
                     quotient_operation: call.quotient_operation,
+                    private_layout_operation: call.private_layout_operation,
                     arguments,
                     evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -1671,6 +1673,7 @@ impl ExpressionTable {
                     target: call.target.clone(),
                     machine_arguments: Box::default(),
                     quotient_operation: None,
+                    private_layout_operation: None,
                     arguments,
                     evidence_arguments: call.evidence_arguments.to_vec().into_boxed_slice(),
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -2160,9 +2163,18 @@ pub struct TableCallExpression {
     /// formation, operation correspondence, and the named conformance before
     /// this request can become executable.
     pub quotient_operation: Option<QuotientOperationRequest>,
+    /// Exact compiler-known `Plan::place_private<Slot>` request. The selected
+    /// conformance is proof-static identity; ordinary generic dispatch never
+    /// sees it and source code never receives the resulting private place.
+    pub private_layout_operation: Option<PrivateLayoutOperationRequest>,
     pub arguments: HandleSpan<ExpressionHandle>,
     pub evidence_arguments: Box<[Identifier]>,
     pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateLayoutOperationRequest {
+    pub selected_slot: StaticMachineArgument,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

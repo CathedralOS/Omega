@@ -996,6 +996,7 @@ mod dependency_tests {
                 target: Identifier::generated("proof"),
                 machine_arguments: Box::default(),
                 quotient_operation: None,
+                private_layout_operation: None,
                 arguments,
                 evidence_arguments: Box::default(),
                 operational_acknowledgement: Default::default(),

@@ -39,6 +39,7 @@ impl<'program> Evaluator<'program> {
             filesystem_observation_evidence_bytes: 0,
             filesystem_observation_resource_halt: None,
             filesystem_operation_attempt_stack: Vec::new(),
+            private_layout_placements: Vec::new(),
             usage: EvaluationUsage::empty(),
             // OMEGA_INTERP_STEP_BUDGET overrides the default for
             // measurement / long-running sample runs (dev knob, same

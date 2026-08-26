@@ -216,13 +216,18 @@ impl CallExpression {
 
 impl TableCallExpression {
     pub fn display_name(&self, table: &ExpressionTable) -> String {
-        let machine_arguments = if self.machine_arguments.is_empty() {
+        let private_slot = self
+            .private_layout_operation
+            .as_ref()
+            .map(|operation| &operation.selected_slot);
+        let machine_arguments = if self.machine_arguments.is_empty() && private_slot.is_none() {
             String::new()
         } else {
             format!(
                 "<{}>",
                 self.machine_arguments
                     .iter()
+                    .chain(private_slot)
                     .map(StaticMachineArgument::display_name)
                     .collect::<Vec<_>>()
                     .join(", ")

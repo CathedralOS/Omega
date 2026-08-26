@@ -825,6 +825,10 @@ fn encode_machine_parameter_contract(
     contract: &PackageReviewMachineParameterContract,
 ) -> Result<(), PackageReviewEncodingError> {
     match contract {
+        PackageReviewMachineParameterContract::DeclarationIdentity => {
+            encoder.byte(2);
+            Ok(())
+        }
         PackageReviewMachineParameterContract::Structural(signature) => {
             encoder.byte(0);
             encode_machine_parameter_signature(encoder, signature)

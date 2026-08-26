@@ -1,0 +1,28 @@
+// FAIL CANARY. A package-local Plan::place_private lookalike cannot mint the
+// compiler-owned private-layout operation receipt.
+boundary trait Callback {
+    machine call(value: u64) -> u64;
+}
+
+trait PrivateCallbackSlot<machine Requirement> {
+}
+
+data Layout {
+}
+
+Slot: Layout satisfies PrivateCallbackSlot<Callback::call>;
+
+data Plan {
+}
+
+machine Plan::place_private(plan: Plan, offset: u64) -> Plan {
+    plan
+}
+
+data Main {
+    plan: Plan;
+}
+
+machine Main::main(&mut self) {
+    self.plan = Plan::place_private<Slot>(self.plan, 8);
+}

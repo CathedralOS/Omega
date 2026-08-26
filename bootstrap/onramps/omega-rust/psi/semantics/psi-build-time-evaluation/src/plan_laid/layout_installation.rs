@@ -58,13 +58,15 @@ pub fn compute_plan_laid_layouts_with_authority(
                     })?;
             }
         }
-        let report = crate::compute_layout_plan(typed, &record.policy_machine, &record.schema_data)
-            .map_err(|reason| {
+        let native_report =
+            crate::compute_native_layout_plan(typed, &record.policy_machine, &record.schema_data)
+                .map_err(|reason| {
                 vec![Diagnostic::error(format!(
                     "plan-laid value type `{}`: {reason}",
                     record.synthetic_name
                 ))]
             })?;
+        let report = &native_report.layout;
         let Some(size) = report.size else {
             return Err(vec![Diagnostic::error(format!(
                 "plan-laid value type `{}`: policy `{}` produced a dynamic plan; a dynamic \
@@ -366,6 +368,7 @@ pub fn compute_plan_laid_layouts_with_authority(
             policy_symbol,
             policy_plan_machine_symbol,
             validated_layout: report.clone(),
+            private_callback_demands: native_report.private_callback_demands,
             offsets,
             bit_fields,
             integer_fields,

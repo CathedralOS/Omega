@@ -588,6 +588,13 @@ pub(super) fn validate_trait_application_obligations(
         return;
     }
 
+    validate_machine_declaration_identity_arguments(
+        program,
+        applied_trait,
+        applied_arguments,
+        application_label,
+        diagnostics,
+    );
     validate_proposition_family_arguments(
         program,
         applied_trait,
@@ -706,6 +713,85 @@ pub(super) fn validate_trait_application_obligations(
                 obligation.subject_name,
                 trait_application_label(program, required_trait, &obligation.arguments),
             ))),
+        }
+    }
+}
+
+fn validate_machine_declaration_identity_arguments(
+    program: &TypedTrees,
+    applied_trait: &TraitDefinition,
+    applied_arguments: &[TypeReferenceHandle],
+    application_label: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for (parameter, argument) in program
+        .trait_type_parameters(applied_trait)
+        .iter()
+        .zip(applied_arguments)
+    {
+        let TypeParameterKind::Machine {
+            contract: psi_typed_trees::data::MachineParameterContract::DeclarationIdentity,
+        } = &parameter.kind
+        else {
+            continue;
+        };
+        let TypeReferenceNode::Named { symbol, name } =
+            program.type_reference_table.type_reference(*argument)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "{application_label} declaration-identity argument `{}` must be one exact machine or trait-requirement name",
+                parameter.name,
+            )));
+            continue;
+        };
+
+        if symbol.is_valid()
+            && program.symbols.get(*symbol).kind == psi_symbols::SymbolKind::MachineParameter
+            && program.data_type_parameters.iter().any(|(_, candidate)| {
+                candidate.symbol == *symbol
+                    && matches!(
+                        candidate.kind,
+                        TypeParameterKind::Machine {
+                            contract:
+                                psi_typed_trees::data::MachineParameterContract::DeclarationIdentity
+                        }
+                    )
+            })
+        {
+            continue;
+        }
+
+        if !symbol.is_valid() || program.symbols.get(*symbol).kind != psi_symbols::SymbolKind::State
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "{application_label} argument `{name}` for declaration-identity parameter `{}` is not an exact machine or trait requirement",
+                parameter.name,
+            )));
+            continue;
+        }
+
+        // Trait requirement paths are signature-free. An overload addition
+        // therefore invalidates every such identity use rather than allowing
+        // an expected call shape or a visible satisfier to choose one row.
+        if let Some((declaring_trait, selected_requirement)) =
+            program.traits().iter().find_map(|trait_definition| {
+                program
+                    .trait_machine_signatures(trait_definition)
+                    .iter()
+                    .find(|requirement| requirement.symbol == *symbol)
+                    .map(|requirement| (trait_definition, requirement))
+            })
+        {
+            let same_name_count = program
+                .trait_machine_signatures(declaring_trait)
+                .iter()
+                .filter(|requirement| requirement.name == selected_requirement.name)
+                .count();
+            if same_name_count != 1 {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{application_label} declaration-identity argument `{name}` does not resolve to one exact trait requirement; signature-free references reject overloads",
+                )));
+            }
         }
     }
 }

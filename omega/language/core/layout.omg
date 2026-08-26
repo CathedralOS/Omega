@@ -118,18 +118,34 @@ pub data FieldEntry {
 // the schema field and may repeat only for `Bits` fragments. Positions past
 // `entry_count` are meaningless. The compiler checks field coverage, exact
 // source tiling for fragments, destination bounds/overlap, and fixed-plan
-// size/alignment before anything trusts the plan. The settled native-layout
-// extension adds a bounded private-materialization catalog whose entries cite
-// exact named `PrivateCallbackSlot<Requirement>` conformance applications.
-// That source ABI and its `Plan::place_private` constructor remain engineering
-// work; neither raw slot identities nor callback addresses enter this record
-// in the interim.
+// size/alignment before anything trusts the plan. Native layout evaluation
+// retains a compiler-private demand catalog beside this semantic value; each
+// entry comes from an executed `Plan::place_private` call citing one exact
+// named `PrivateCallbackSlot<Requirement>` conformance. Neither raw slot
+// identities nor callback addresses enter this record.
 pub data Plan {
     entries: [FieldEntry; 64];
     entry_count: u64;
     size_fixed: u64;
     size_is_dynamic: bool;
     align: u64;
+}
+
+// Compiler-known relationship for one semantic-field-free native slot. The
+// machine argument is an exact signature-free callback requirement; declaring
+// a conformance is inert until an authoritative layout policy explicitly cites
+// it through `Plan::place_private<Conformance>`.
+pub trait PrivateCallbackSlot<machine Requirement> {
+}
+
+// The ordinary value signature is an identity operation so helpers can compose
+// plans without exposing a private field in `Plan`. The one authored static
+// argument is sealed compiler metadata, not a generic parameter of this
+// machine: typed lowering records the exact conformance separately and build-
+// time evaluation emits a private-placement receipt while returning `plan`
+// unchanged. Runtime code receives no slot identity or callback address.
+pub machine Plan::place_private(plan: Plan, offset: u64) -> Plan {
+    plan
 }
 
 // Placed-access policy vocabulary (chapter 20). `Plan` above is the current

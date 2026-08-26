@@ -1277,6 +1277,7 @@ mod tests {
                     representative_operation: static_argument("representative"),
                     selected_theorem: static_argument("ExactRespect"),
                 }),
+                private_layout_operation: None,
                 arguments,
                 evidence_arguments: Box::default(),
                 operational_acknowledgement: Default::default(),

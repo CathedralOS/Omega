@@ -3,6 +3,7 @@ use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::lookup::top_level_type_symbol;
+use crate::symbols::targets::resolve_free_machine_entry_state_symbol;
 
 pub(in crate::symbols) fn assign_type_reference_symbols(
     program: &mut SymbolResolvedTrees,
@@ -25,6 +26,31 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                         matches!(
                             parameter.kind,
                             psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let trait_machine_identity_slots = program
+        .roots
+        .traits
+        .iter()
+        .map(|trait_definition| {
+            (
+                trait_definition.name.as_str().to_owned(),
+                program
+                    .tables
+                    .declarations
+                    .data_type_parameters
+                    .span_or_empty(trait_definition.type_parameters)
+                    .iter()
+                    .map(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            psi_symbol_resolved_trees::data::TypeParameterKind::Machine {
+                                contract: psi_symbol_resolved_trees::data::MachineParameterContract::DeclarationIdentity
+                            }
                         )
                     })
                     .collect::<Vec<_>>(),
@@ -125,6 +151,18 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                             &type_parameters,
                             selection.trait_arguments,
                             proposition_slots,
+                        );
+                    }
+                    if let Some((_, machine_slots)) = trait_machine_identity_slots
+                        .iter()
+                        .find(|(name, _)| name == selection.trait_name.as_str())
+                    {
+                        assign_machine_declaration_identity_argument_symbols(
+                            symbols,
+                            child_type_references,
+                            &type_parameters,
+                            selection.trait_arguments,
+                            machine_slots,
                         );
                     }
                 }
@@ -298,7 +336,71 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                 proposition_slots,
             );
         }
+        if let Some((_, machine_slots)) = trait_machine_identity_slots
+            .iter()
+            .find(|(name, _)| name == conformance.trait_name.as_str())
+        {
+            assign_machine_declaration_identity_argument_symbols(
+                symbols,
+                child_type_references,
+                &local_type_parameters,
+                conformance.arguments,
+                machine_slots,
+            );
+        }
     });
+}
+
+/// Reclassify arguments in declaration-identity machine slots after the
+/// selected trait has supplied their categories. Type-reference parsing keeps
+/// `Trait::requirement` as one delimiter-safe named leaf; this pass binds that
+/// leaf to the exact State symbol without pretending it is a runtime type.
+pub(in crate::symbols) fn assign_machine_declaration_identity_argument_symbols(
+    symbols: &SymbolTable,
+    child_type_references: &mut Arena<psi_symbol_resolved_trees::types::TypeReference>,
+    local_type_parameters: &[psi_symbol_resolved_trees::data::TypeParameter],
+    arguments: HandleSpan<psi_symbol_resolved_trees::types::TypeReference>,
+    machine_slots: &[bool],
+) {
+    for (argument, is_machine_identity) in child_type_references
+        .span_mut_or_empty(arguments)
+        .iter_mut()
+        .zip(machine_slots)
+    {
+        if !is_machine_identity {
+            continue;
+        }
+        let psi_symbol_resolved_trees::types::TypeReference::Named { symbol, name } = argument
+        else {
+            continue;
+        };
+        let local = local_type_parameters
+            .iter()
+            .find(|parameter| {
+                parameter.name.as_str() == name.as_str()
+                    && matches!(
+                        parameter.kind,
+                        psi_symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
+                    )
+            })
+            .map(|parameter| parameter.symbol)
+            .unwrap_or_else(SymbolHandle::invalid);
+        if local.is_valid() {
+            *symbol = local;
+            continue;
+        }
+
+        let rendered = name.as_str();
+        let exact_requirement = symbols
+            .find_descendant_by_path(symbols.root(), rendered.split("::"))
+            .filter(|candidate| symbols.get(*candidate).kind == SymbolKind::State)
+            .unwrap_or_else(SymbolHandle::invalid);
+        *symbol = if exact_requirement.is_valid() {
+            exact_requirement
+        } else {
+            resolve_free_machine_entry_state_symbol(symbols, rendered)
+        };
+    }
 }
 
 pub(in crate::symbols) fn assign_proposition_family_argument_symbols(
