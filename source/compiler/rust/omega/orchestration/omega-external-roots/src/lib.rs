@@ -968,7 +968,7 @@ pub struct InterruptAcknowledgement {
 }
 
 /// Sealed installation evidence for one provider-completed interrupt
-/// acknowledgement operation.
+/// acknowledgement requirement.
 ///
 /// The selected reach row is descriptive, not authority. Construction joins
 /// it back to the exact installed root, provider execution, acknowledgement
@@ -990,7 +990,7 @@ pub struct InstalledInterruptCompletionRoute {
 }
 
 impl InstalledInterruptCompletionRoute {
-    fn from_provider_operation(
+    fn from_provider_requirement(
         acknowledgement: &InterruptAcknowledgement,
         completion_requirement_identity: &str,
     ) -> Result<Self, ExternalRootDiagnostic> {
@@ -1210,7 +1210,7 @@ impl InterruptAcknowledgementReceipt {
         acknowledgement: &InterruptAcknowledgement,
         completion_requirement_identity: &str,
     ) -> Result<Self, ExternalRootDiagnostic> {
-        let route = InstalledInterruptCompletionRoute::from_provider_operation(
+        let route = InstalledInterruptCompletionRoute::from_provider_requirement(
             acknowledgement,
             completion_requirement_identity,
         )?;
