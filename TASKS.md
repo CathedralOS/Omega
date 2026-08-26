@@ -1149,6 +1149,12 @@ Owners:
   embedded inputs become retirement debt and consumed inputs cite their exact
   consumer. Finish owned destruction/move-out evidence before returning
   `Granted & Vacant`.
+  The first source-visible establishment carrier is design-blocked on
+  [OWNER_QUESTIONS.md Q12](OWNER_QUESTIONS.md#q12--source-result-schema-for-placed-view-establishment):
+  the core operation signatures and nominal outcome/returned-row schema must
+  be fixed before source typing can publish an owned `Placed<P, T>` call.
+  Existing Rust admission and occurrence identifiers remain implementation
+  scaffolding and must not be promoted into a source ABI.
 - Derive readable, destructive-read, writable, and atomic field accessors while
   keeping logical extents distinct from whole-transfer footprints. Enforce
   total decode/encode, exact provider width/alignment, and operation-specific
