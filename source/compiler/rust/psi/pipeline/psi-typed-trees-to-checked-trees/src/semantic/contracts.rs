@@ -195,8 +195,12 @@ pub(super) fn append_contract_semantic_facts(
             state_symbol: arm.caller_state_symbol,
             statement_index: arm.statement_index,
         };
-        let mut refs = HandleSpan::empty();
         for row in &arm.rows {
+            // Each guarantee has its own validity intersection. Copies rooted
+            // at that row's result/reference/interface dependencies belong to
+            // one context so a write to any dependency invalidates the row,
+            // without coupling otherwise independent guarded rows.
+            let mut refs = HandleSpan::empty();
             let guarantee = proof.outcome_specific_guarantees.get(row.guarantee);
             let contract = ContractProofFact {
                 kind: ContractProofFactKind::Ensures,
@@ -221,17 +225,32 @@ pub(super) fn append_contract_semantic_facts(
                     _ => {}
                 }
             }
-            let fact = facts.append_fact(Fact {
-                place: FactPlace::Unknown,
-                point,
-                origin: FactOrigin::CallEnsures,
-                evidence: QualificationEvidence::default(),
-                payload,
-            });
-            facts.append_ref(&mut refs, fact);
-        }
-        if !refs.is_empty() {
-            facts.append_context(point, refs);
+            let dependency_places =
+                places::outcome_specific_fact_dependency_places(program, facts, proof, arm, row);
+            if dependency_places.is_empty() {
+                let fact = facts.append_fact(Fact {
+                    place: FactPlace::Unknown,
+                    point,
+                    origin: FactOrigin::CallEnsures,
+                    evidence: QualificationEvidence::default(),
+                    payload,
+                });
+                facts.append_ref(&mut refs, fact);
+            } else {
+                for place in dependency_places {
+                    let fact = facts.append_fact(Fact {
+                        place: FactPlace::Place(place),
+                        point,
+                        origin: FactOrigin::CallEnsures,
+                        evidence: QualificationEvidence::default(),
+                        payload,
+                    });
+                    facts.append_ref(&mut refs, fact);
+                }
+            }
+            if !refs.is_empty() {
+                facts.append_context(point, refs);
+            }
         }
     }
 

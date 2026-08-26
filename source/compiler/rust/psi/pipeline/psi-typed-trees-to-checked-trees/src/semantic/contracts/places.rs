@@ -34,174 +34,94 @@ pub(crate) fn contract_fact_dependency_places(
     contract: &ContractProofFact,
 ) -> Vec<PlaceHandle> {
     let mut places = Vec::new();
-    match program.proof_facts.get(contract.fact) {
-        psi_typed_trees::domain::ProofFact::Expression(expression) => {
-            append_contract_expression_dependency_places(
-                program,
-                facts,
-                contract,
-                *expression,
-                &mut places,
-            );
-        }
-        psi_typed_trees::domain::ProofFact::Membership(membership) => {
-            append_contract_expression_dependency_places(
-                program,
-                facts,
-                contract,
-                membership.value,
-                &mut places,
-            );
-        }
-        psi_typed_trees::domain::ProofFact::Proposition(application) => {
-            for argument in program
-                .expression_table
-                .expression_handles(application.arguments)
-            {
-                append_contract_expression_dependency_places(
-                    program,
-                    facts,
-                    contract,
-                    *argument,
-                    &mut places,
-                );
-            }
+    for expression in
+        crate::contract_occurrences::fact_referenced_occurrences(program, contract.fact)
+    {
+        if let Some(place) = contract_expression_place(program, facts, contract, expression) {
+            push_unique_place(facts, &mut places, place);
         }
     }
     places
 }
 
-fn append_contract_expression_dependency_places(
+/// Resolve the structured validity inputs retained for an outcome-specific
+/// caller row. Contract occurrences remain typed expression handles until this
+/// point; parameter and `result` paths are instantiated through the exact
+/// source call rather than reconstructed from normalized display labels.
+pub(crate) fn outcome_specific_fact_dependency_places(
     program: &psi_typed_trees::TypedTrees,
     facts: &mut FactPlan,
-    contract: &ContractProofFact,
-    expression: ExpressionHandle,
-    places: &mut Vec<PlaceHandle>,
-) {
-    if !expression.is_valid() {
-        return;
+    proof: &ProofFacts,
+    arm: &psi_checked_trees::OutcomeSpecificArmFact,
+    row: &psi_checked_trees::OutcomeSpecificArmRowFact,
+) -> Vec<PlaceHandle> {
+    let mut places = Vec::new();
+    if let Some(result) = crate::semantic_places::canonical_place_to_fact_place_in_state(
+        program,
+        facts,
+        arm.caller_state_symbol,
+        arm.statement_index,
+        row.validity.result_occurrence,
+    ) {
+        push_unique_place(facts, &mut places, result);
     }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Member(member)
-            if matches!(
-                program.expression_table.expression(member.receiver),
-                ExpressionNode::Call(_)
-            ) =>
-        {
-            // Denotational call results have no place of their own. Retain
-            // every argument occurrence root so any intersecting write or
-            // revision transition invalidates the fact.
-            append_contract_expression_dependency_places(
-                program,
-                facts,
-                contract,
-                member.receiver,
-                places,
-            );
-        }
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-            if let Some(place) = contract_expression_place(program, facts, contract, expression) {
-                places.push(place);
-            }
-        }
-        ExpressionNode::Borrow(inner) => append_contract_expression_dependency_places(
+
+    let mut calls = proof.contract_calls.iter().filter_map(|(_, call)| {
+        (call.caller_machine_symbol == arm.caller_machine_symbol
+            && call.caller_state_symbol == arm.caller_state_symbol
+            && call.statement_index == arm.result_call_statement_index
+            && call.call_ordinal == 0)
+            .then_some(call)
+    });
+    let Some(call) = calls.next() else {
+        return places;
+    };
+    if calls.next().is_some() {
+        return places;
+    }
+
+    // Evidence interfaces are carrierless: the checked interface/type owns no
+    // independent runtime place, loan, or lease. Its structured scope can
+    // therefore retain only the concrete proposition occurrences that carry
+    // that evidence at this arm. Re-project those roots here (and deduplicate
+    // below) so a future interface carrier cannot silently fall back to an
+    // identity-label convention.
+    let interface_occurrences = row
+        .validity
+        .evidence_interface_scope
+        .as_ref()
+        .map(|scope| scope.retained_occurrences.as_slice())
+        .unwrap_or(&[]);
+    for expression in row
+        .validity
+        .referenced_occurrences
+        .iter()
+        .chain(interface_occurrences)
+    {
+        if let Some(place) = crate::semantic_places::instantiate_outcome_contract_expression_place(
             program,
             facts,
-            contract,
-            inner.target,
-            places,
-        ),
-        ExpressionNode::Atomic(atomic) => {
-            append_contract_expression_dependency_places(
-                program,
-                facts,
-                contract,
-                atomic.value,
-                places,
-            );
-            append_contract_expression_dependency_places(
-                program,
-                facts,
-                contract,
-                atomic.result,
-                places,
-            );
+            call,
+            arm.statement_index,
+            row.validity.result_occurrence,
+            *expression,
+        ) {
+            push_unique_place(facts, &mut places, place);
         }
-        ExpressionNode::Binary(binary) => {
-            append_contract_expression_dependency_places(
-                program,
-                facts,
-                contract,
-                binary.left,
-                places,
-            );
-            append_contract_expression_dependency_places(
-                program,
-                facts,
-                contract,
-                binary.right,
-                places,
-            );
-        }
-        ExpressionNode::Cast(cast) => append_contract_expression_dependency_places(
-            program, facts, contract, cast.value, places,
-        ),
-        ExpressionNode::Call(call) => {
-            append_contract_expression_dependency_places(
-                program,
-                facts,
-                contract,
-                call.receiver,
-                places,
-            );
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                append_contract_expression_dependency_places(
-                    program, facts, contract, *argument, places,
-                );
-            }
-        }
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                append_contract_expression_dependency_places(
-                    program, facts, contract, *value, places,
-                );
-            }
-        }
-        ExpressionNode::Range(range) => {
-            append_contract_expression_dependency_places(
-                program,
-                facts,
-                contract,
-                range.start,
-                places,
-            );
-            append_contract_expression_dependency_places(
-                program, facts, contract, range.end, places,
-            );
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                append_contract_expression_dependency_places(
-                    program,
-                    facts,
-                    contract,
-                    field.value,
-                    places,
-                );
-            }
-        }
-        ExpressionNode::Unary(unary) => append_contract_expression_dependency_places(
-            program,
-            facts,
-            contract,
-            unary.operand,
-            places,
-        ),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+    }
+    places
+}
+
+fn push_unique_place(facts: &FactPlan, places: &mut Vec<PlaceHandle>, candidate: PlaceHandle) {
+    let candidate_place = facts.places.get(candidate);
+    let candidate_segments = facts.place_segments.span_or_empty(candidate_place.segments);
+    let duplicate = places.iter().any(|place| {
+        let place = facts.places.get(*place);
+        place.root == candidate_place.root
+            && facts.place_segments.span_or_empty(place.segments) == candidate_segments
+    });
+    if !duplicate {
+        places.push(candidate);
     }
 }
 

@@ -7673,8 +7673,17 @@ Remaining N6/N8 work:
   while omitted named and unnamed rows remain fact-only. Sibling arms cannot see
   either facts or terms, and selectors add no runtime statement or second call.
   Computed, mutable, or otherwise untracked result origins reject. Validity
-  intersections and exact Terminal retention/replay remain fail-closed until
-  stages 4-5 land.
+  stage 4 is now live: every guarded row retains a structured descriptor for
+  the exact saved-result occurrence, every proposition occurrence, and the
+  carrierless evidence-interface scope before normalized labels erase caller
+  places. The shared contract-occurrence walker also retains a dynamic indexed
+  place's selector occurrence. Semantic publication instantiates those handles
+  through the exact producer call and saved-result override, groups each row's
+  dependency roots into one validity intersection, and keeps independent rows
+  in independent contexts. Intersecting result/reference writes invalidate the
+  affected fact and selected term; unrelated writes and sibling arms preserve
+  only their own applicable rows. Exact Terminal retention/replay remains
+  fail-closed until stage 5 lands.
 
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct

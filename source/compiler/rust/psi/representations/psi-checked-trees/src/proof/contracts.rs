@@ -91,8 +91,34 @@ pub struct OutcomeSpecificArmRowFact {
     /// saved result occurrence have been substituted.
     pub instantiated_proposition: Option<crate::CheckedPropositionApplication>,
     pub instantiated_identity: Option<String>,
+    /// Structured checked validity input retained before normalized labels
+    /// erase caller-place structure. The result occurrence always
+    /// participates; `referenced_occurrences` are expressions in the
+    /// producer contract and are instantiated through the exact source call.
+    /// The interface identity carries any additional witness scope without
+    /// reconstructing it from display strings.
+    pub validity: OutcomeSpecificValidityFact,
     /// Present only for an explicitly selected named row.
     pub selected_term: Option<Handle<CheckedEvidenceTerm>>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OutcomeSpecificValidityFact {
+    pub result_occurrence: ExpressionHandle,
+    pub referenced_occurrences: Vec<ExpressionHandle>,
+    pub evidence_interface_scope: Option<OutcomeSpecificEvidenceInterfaceScopeFact>,
+}
+
+/// Checked structural lifetime input contributed by a witness-bearing
+/// proposition's carrierless evidence interface. Type handles preserve the
+/// interface's exact reference-region nodes; retained occurrences name the
+/// value scopes intersected with them at the caller arm.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OutcomeSpecificEvidenceInterfaceScopeFact {
+    pub interface: crate::CheckedEvidenceInterfaceIdentity,
+    pub evidence_type: psi_typed_trees::types::TypeReferenceHandle,
+    pub reference_regions: Vec<psi_typed_trees::types::TypeReferenceHandle>,
+    pub retained_occurrences: Vec<ExpressionHandle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

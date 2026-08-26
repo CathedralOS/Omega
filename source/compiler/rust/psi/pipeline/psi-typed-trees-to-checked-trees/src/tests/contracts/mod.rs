@@ -479,12 +479,43 @@ fn outcome_specific_selected_term_is_available_from_saved_immutable_call() {
         .find(|machine| machine.name.as_str() == "caller")
         .and_then(|machine| checked.machine_states(machine).first())
         .expect("caller entry state");
-    assert!(matches!(
-        &checked.statement_table.statements(caller_state.statement_nodes)
-            [arm.result_call_statement_index],
-        psi_typed_trees::statement::StatementNode::LocalData(local)
-            if local.name.as_str() == "saved"
-    ));
+    let psi_typed_trees::statement::StatementNode::LocalData(saved) = &checked
+        .statement_table
+        .statements(caller_state.statement_nodes)[arm.result_call_statement_index]
+    else {
+        panic!("saved call statement must remain a local")
+    };
+    assert_eq!(saved.name.as_str(), "saved");
+    let validity = &arm.rows[0].validity;
+    assert_eq!(validity.result_occurrence, arm.result_expression);
+    assert_eq!(validity.referenced_occurrences.len(), 1);
+    let interface_scope = validity
+        .evidence_interface_scope
+        .as_ref()
+        .expect("witness-bearing proposition retains its interface scope");
+    assert_eq!(
+        interface_scope.retained_occurrences,
+        validity.referenced_occurrences
+    );
+    assert!(interface_scope.reference_regions.is_empty());
+    assert!(
+        checked
+            .facts
+            .semantic
+            .contexts_at_point(psi_facts::ProgramPoint::Statement {
+                machine_symbol: arm.caller_machine_symbol,
+                state_symbol: arm.caller_state_symbol,
+                statement_index: arm.statement_index,
+            })
+            .flat_map(|context| context.facts())
+            .any(|fact| matches!(
+                fact.place,
+                psi_facts::FactPlace::Place(place)
+                    if checked.facts.semantic.places.get(place).root
+                        == psi_facts::PlaceRoot::Symbol(saved.symbol)
+            )),
+        "the saved result occurrence must root the guarded validity context"
+    );
     let selected = arm.rows[0]
         .selected_term
         .expect("selected caller-local term");
@@ -492,6 +523,71 @@ fn outcome_specific_selected_term_is_available_from_saved_immutable_call() {
         checked.facts.proof.evidence_terms.get(selected).name,
         "local"
     );
+}
+
+#[test]
+fn outcome_specific_indexed_validity_retains_collection_and_index() {
+    let checked = lower_typed_trees(parse_typed_trees(
+        r#"
+        trait Evidence {}
+        data Outcome [copy] { case Success; case Failure; }
+        proposition accepted(result_value: Outcome, observed: i32) evidence Evidence;
+
+        machine produce(items: &[i32], index: u64) -> Outcome
+        requires incoming: accepted(Outcome::Success, items[index])
+        ensures Outcome::Success -> { selected: accepted(result, items[index]); }
+        { selected = incoming; Outcome::Success }
+
+        machine caller(items: &[i32], index: u64)
+        requires seed: accepted(Outcome::Success, items[index])
+        {
+            let saved: Outcome = produce(items, index; seed);
+            transition saved {
+                Outcome::Success { ; selected: local } -> consume(items, index, saved; local)
+                Outcome::Failure { } -> {}
+            }
+            state consume(items: &[i32], index: u64, value: Outcome)
+            requires needed: accepted(value, items[index]) {}
+        }
+        "#,
+    ))
+    .expect("indexed guarded fact should retain both the indexed place and selector value");
+    let arm = checked
+        .facts
+        .proof
+        .outcome_specific_arms
+        .iter()
+        .next()
+        .map(|(_, arm)| arm)
+        .expect("one matching caller arm");
+    assert_eq!(
+        arm.rows[0].validity.referenced_occurrences.len(),
+        3,
+        "result, indexed collection place, and index selector are distinct occurrences"
+    );
+    let root_names = checked
+        .facts
+        .semantic
+        .contexts_at_point(psi_facts::ProgramPoint::Statement {
+            machine_symbol: arm.caller_machine_symbol,
+            state_symbol: arm.caller_state_symbol,
+            statement_index: arm.statement_index,
+        })
+        .flat_map(|context| context.facts())
+        .filter_map(|fact| match fact.place {
+            psi_facts::FactPlace::Place(place) => {
+                match checked.facts.semantic.places.get(place).root {
+                    psi_facts::PlaceRoot::Symbol(symbol) => {
+                        Some(crate::labels::symbol_name(&checked, symbol))
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(root_names.iter().any(|name| name == "items"));
+    assert!(root_names.iter().any(|name| name == "index"));
 }
 
 #[test]
@@ -528,6 +624,200 @@ fn outcome_specific_omitted_named_and_unnamed_rows_are_fact_only_in_matching_arm
         .expect("one matching caller arm");
     assert_eq!(arm.rows.len(), 2);
     assert!(arm.rows.iter().all(|row| row.selected_term.is_none()));
+    assert!(
+        arm.rows
+            .iter()
+            .all(|row| row.validity.result_occurrence == arm.result_expression)
+    );
+    assert!(arm.rows[0].validity.evidence_interface_scope.is_some());
+    assert!(arm.rows[1].validity.evidence_interface_scope.is_none());
+}
+
+#[test]
+fn outcome_specific_validity_invalidates_only_on_referenced_writes() {
+    for (mutated_field, should_invalidate) in [("value", true), ("other", false)] {
+        let source = format!(
+            r#"
+            trait Evidence {{}}
+            data Record {{ value: i32; other: i32; }}
+            data Outcome [copy] {{ case Success; case Failure; }}
+            proposition accepted(result_value: Outcome, observed: i32) evidence Evidence;
+
+            machine produce(observed: i32) -> Outcome
+            requires incoming: accepted(Outcome::Success, observed)
+            ensures Outcome::Success -> {{ selected: accepted(result, observed); }}
+            {{ selected = incoming; Outcome::Success }}
+
+            machine caller(record: &mut Record)
+            requires seed: accepted(Outcome::Success, record.value)
+            {{
+                let saved: Outcome = produce(record.value; seed);
+                transition saved {{
+                    Outcome::Success {{ ; selected: local }} -> consume(record, saved; local)
+                    Outcome::Failure {{ }} -> {{}}
+                }}
+                state consume(target: &mut Record, value: Outcome)
+                requires needed: accepted(value, target.value)
+                {{ target.{mutated_field} = 7; }}
+            }}
+            "#,
+        );
+        let checked = lower_typed_trees(parse_typed_trees(&source))
+            .expect("guarded evidence should satisfy the target before its write");
+        let arm = checked
+            .facts
+            .proof
+            .outcome_specific_arms
+            .iter()
+            .next()
+            .map(|(_, arm)| arm)
+            .expect("one matching caller arm");
+        assert_eq!(
+            arm.rows[0].validity.referenced_occurrences.len(),
+            2,
+            "result and observed parameter are structural occurrences"
+        );
+        let guarantee = checked
+            .facts
+            .proof
+            .outcome_specific_guarantees
+            .get(arm.rows[0].guarantee)
+            .fact;
+        let consume = checked
+            .machines()
+            .iter()
+            .flat_map(|machine| checked.machine_states(machine))
+            .find(|state| state.name.as_str() == "consume")
+            .expect("consume state");
+        let call = checked
+            .facts
+            .flow
+            .control
+            .calls
+            .iter()
+            .find_map(|(_, call)| (call.target_symbol == consume.symbol).then_some(call))
+            .expect("consume call flow");
+        let invalidated = checked
+            .facts
+            .flow
+            .invalidations
+            .events
+            .span_or_empty(call.invalidations)
+            .iter()
+            .any(|event| {
+                matches!(
+                    checked.facts.semantic.facts.get(event.fact).payload,
+                    psi_facts::FactPayload::ContractPropositionApplication { fact, .. }
+                        if fact == guarantee
+                )
+            });
+        assert_eq!(
+            invalidated, should_invalidate,
+            "mutation of `{mutated_field}` must follow exact referenced-place overlap"
+        );
+    }
+}
+
+#[test]
+fn outcome_specific_validity_contexts_do_not_couple_independent_rows() {
+    let checked = lower_typed_trees(parse_typed_trees(
+        r#"
+        trait Evidence {}
+        data Record { value: i32; other: i32; }
+        data Outcome [copy] { case Success; case Failure; }
+        proposition left_accepted(result_value: Outcome, observed: i32) evidence Evidence;
+        proposition right_accepted(result_value: Outcome, observed: i32) evidence Evidence;
+
+        machine produce(left: i32, right: i32) -> Outcome
+        requires left_in: left_accepted(Outcome::Success, left)
+        requires right_in: right_accepted(Outcome::Success, right)
+        ensures Outcome::Success -> {
+            selected_left: left_accepted(result, left);
+            selected_right: right_accepted(result, right);
+        }
+        {
+            selected_left = left_in;
+            selected_right = right_in;
+            Outcome::Success
+        }
+
+        machine caller(record: &mut Record)
+        requires left_seed: left_accepted(Outcome::Success, record.value)
+        requires right_seed: right_accepted(Outcome::Success, record.other)
+        {
+            let saved: Outcome = produce(record.value, record.other; left_seed, right_seed);
+            transition saved {
+                Outcome::Success {
+                    ; selected_left: local_left, selected_right: local_right
+                } -> consume(record, saved; local_left, local_right)
+                Outcome::Failure { } -> {}
+            }
+            state consume(target: &mut Record, value: Outcome)
+            requires left_needed: left_accepted(value, target.value)
+            requires right_needed: right_accepted(value, target.other)
+            { target.value = 7; }
+        }
+        "#,
+    ))
+    .expect("independent guarded rows should satisfy the target before its write");
+    let arm = checked
+        .facts
+        .proof
+        .outcome_specific_arms
+        .iter()
+        .next()
+        .map(|(_, arm)| arm)
+        .expect("one matching caller arm");
+    assert_eq!(arm.rows.len(), 2);
+    let guarantee_facts = arm
+        .rows
+        .iter()
+        .map(|row| {
+            checked
+                .facts
+                .proof
+                .outcome_specific_guarantees
+                .get(row.guarantee)
+                .fact
+        })
+        .collect::<Vec<_>>();
+    let consume = checked
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.machine_states(machine))
+        .find(|state| state.name.as_str() == "consume")
+        .expect("consume state");
+    let call = checked
+        .facts
+        .flow
+        .control
+        .calls
+        .iter()
+        .find_map(|(_, call)| (call.target_symbol == consume.symbol).then_some(call))
+        .expect("consume call flow");
+    let invalidated = checked
+        .facts
+        .flow
+        .invalidations
+        .events
+        .span_or_empty(call.invalidations)
+        .iter()
+        .filter_map(
+            |event| match checked.facts.semantic.facts.get(event.fact).payload {
+                psi_facts::FactPayload::ContractPropositionApplication { fact, .. }
+                    if guarantee_facts.contains(&fact) =>
+                {
+                    Some(fact)
+                }
+                _ => None,
+            },
+        )
+        .collect::<Vec<_>>();
+    assert!(invalidated.contains(&guarantee_facts[0]));
+    assert!(
+        !invalidated.contains(&guarantee_facts[1]),
+        "a write to the left row dependency must not invalidate the independent right row"
+    );
 }
 
 #[test]
