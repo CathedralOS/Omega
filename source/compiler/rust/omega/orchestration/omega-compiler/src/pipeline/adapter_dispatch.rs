@@ -21,8 +21,10 @@
 //!   trait's remaining primitives through it. This is how a std surface
 //!   method becomes proven Omega code over its own byte-level primitives.
 
+use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct AdapterRow {
@@ -67,10 +69,36 @@ struct ExpressionRewrite {
     adapter: AdapterRow,
 }
 
-pub(crate) fn rewrite_adapter_calls(
-    typed: &mut TypedTrees,
+#[derive(Debug, Clone, Default)]
+struct BoundaryAdapterRewriteBatch {
+    statement_rewrites: Vec<StatementRewrite>,
+    expression_rewrites: Vec<ExpressionRewrite>,
+}
+
+impl BoundaryAdapterRewriteBatch {
+    fn is_empty(&self) -> bool {
+        self.statement_rewrites.is_empty() && self.expression_rewrites.is_empty()
+    }
+}
+
+pub(crate) fn settle_selected_boundary_adapter_dispatch(
+    checked: &mut Arc<CheckedTrees>,
     selected_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    let rewrites = plan_selected_boundary_adapter_rewrites(checked, selected_plans)?;
+    if rewrites.is_empty() {
+        return Ok(());
+    }
+
+    apply_selected_boundary_adapter_rewrites(Arc::make_mut(checked), rewrites);
+    Ok(())
+}
+
+fn plan_selected_boundary_adapter_rewrites(
+    checked: &CheckedTrees,
+    selected_plans: &omega_effects::SelectedProviderPlanFacts,
+) -> Result<BoundaryAdapterRewriteBatch, Vec<Diagnostic>> {
+    let typed = &checked.typed;
     let mut adapters = Vec::new();
     let mut diagnostics = Vec::new();
     for plan in selected_plans.plans() {
@@ -97,7 +125,10 @@ pub(crate) fn rewrite_adapter_calls(
         }
     }
     if adapters.is_empty() {
-        return diagnostics.is_empty().then_some(()).ok_or(diagnostics);
+        return diagnostics
+            .is_empty()
+            .then(BoundaryAdapterRewriteBatch::default)
+            .ok_or(diagnostics);
     }
 
     // Exact typed field symbol -> exact boundary-trait symbol. Field spellings
@@ -321,7 +352,18 @@ pub(crate) fn rewrite_adapter_calls(
         return Err(diagnostics);
     }
 
-    for mut rewrite in statement_rewrites {
+    Ok(BoundaryAdapterRewriteBatch {
+        statement_rewrites,
+        expression_rewrites,
+    })
+}
+
+fn apply_selected_boundary_adapter_rewrites(
+    checked: &mut CheckedTrees,
+    rewrites: BoundaryAdapterRewriteBatch,
+) {
+    let typed = &mut checked.typed;
+    for mut rewrite in rewrites.statement_rewrites {
         if rewrite.adapter.forward_receiver {
             let receiver_expression = synthesize_place_expression(
                 &mut typed.expression_table,
@@ -345,7 +387,7 @@ pub(crate) fn rewrite_adapter_calls(
             psi_typed_trees::statement::StatementNode::Call(rewrite.call);
     }
 
-    for mut rewrite in expression_rewrites {
+    for mut rewrite in rewrites.expression_rewrites {
         if rewrite.adapter.forward_receiver {
             let old_arguments = typed
                 .expression_table
@@ -362,8 +404,6 @@ pub(crate) fn rewrite_adapter_calls(
         *typed.expression_table.expression_mut(rewrite.expression) =
             psi_typed_trees::expression::ExpressionNode::Call(rewrite.call);
     }
-
-    Ok(())
 }
 
 fn resolve_selected_adapter_row(
@@ -751,6 +791,7 @@ mod tests {
         }
         boundary trait Forward {
             machine send(value: i32);
+            machine reflect(value: i32) -> i32;
         }
 
         data EchoProvider {}
@@ -771,6 +812,10 @@ mod tests {
         data ForwardProvider {}
         machine ForwardProvider::send_adapter(service: Forward, value: i32)
             satisfies Forward::send {}
+        machine ForwardProvider::reflect_adapter(service: Forward, value: i32) -> i32
+            satisfies Forward::reflect {
+            transition { _ -> (value) }
+        }
 
         data EchoClient { service: Echo; }
         machine EchoClient::run(&mut self) -> i32 {
@@ -782,6 +827,12 @@ mod tests {
         machine OtherClient::run(&mut self) -> i32 {
             self.service.emit(2);
             transition { _ -> (self.service.echo(35)) }
+        }
+
+        data ForwardClient { service: Forward; }
+        machine ForwardClient::run(&mut self) -> i32 {
+            self.service.send(3);
+            transition { _ -> (self.service.reflect(35)) }
         }
     "#;
 
@@ -803,6 +854,25 @@ mod tests {
                 .expect("type exact adapter-dispatch fixture");
         let plans = crate::pipeline::provider_plans::derive_satisfies_plans(&typed, None);
         Fixture { typed, plans }
+    }
+
+    fn checked_fixture() -> (CheckedTrees, Vec<ProviderPlan>) {
+        let fixture = fixture();
+        let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(fixture.typed)
+            .expect("check exact adapter-dispatch fixture");
+        (checked, fixture.plans)
+    }
+
+    fn selected_plan(
+        plans: &[ProviderPlan],
+        schema: &str,
+    ) -> omega_effects::SelectedProviderPlanFacts {
+        let selected = plan(plans, schema);
+        omega_effects::SelectedProviderPlanFacts::from_selection(
+            std::slice::from_ref(selected),
+            std::slice::from_ref(&selected.name),
+        )
+        .expect("select exact adapter plan")
     }
 
     fn plan<'plans>(plans: &'plans [ProviderPlan], schema: &str) -> &'plans ProviderPlan {
@@ -1168,35 +1238,254 @@ mod tests {
         );
     }
 
-    #[test]
-    fn late_invalid_call_prevents_statement_and_value_rewrites() {
-        let mut fixture = fixture();
-        let selected_names = fixture
-            .plans
-            .iter()
-            .map(|plan| plan.name.clone())
-            .collect::<Vec<_>>();
-        let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
-            &fixture.plans,
-            &selected_names,
-        )
-        .expect("select exact fixture plans");
-
-        let statement_before = fixture
+    fn statement_call(
+        checked: &CheckedTrees,
+        target: &str,
+    ) -> (
+        psi_arena::HandleSpan<psi_typed_trees::statement::StatementNode>,
+        usize,
+        psi_typed_trees::statement::TableCall,
+    ) {
+        checked
             .typed
             .machines()
             .iter()
-            .flat_map(|machine| fixture.typed.machine_states(machine))
+            .flat_map(|machine| checked.typed.machine_states(machine))
             .flat_map(|state| {
-                fixture
+                checked
                     .typed
                     .statement_table
                     .statements(state.statement_nodes)
+                    .iter()
+                    .enumerate()
+                    .filter_map(move |(index, statement)| match statement {
+                        psi_typed_trees::statement::StatementNode::Call(call)
+                            if call.target.as_str() == target =>
+                        {
+                            Some((state.statement_nodes, index, call.clone()))
+                        }
+                        _ => None,
+                    })
             })
-            .find(|statement| matches!(statement, psi_typed_trees::statement::StatementNode::Call(call) if call.target.as_str() == "emit"))
-            .expect("fixture emit statement")
-            .clone();
-        let calls = fixture
+            .next()
+            .unwrap_or_else(|| panic!("missing statement call `{target}`"))
+    }
+
+    fn expression_call(
+        checked: &CheckedTrees,
+        target: &str,
+    ) -> (
+        psi_typed_trees::expression::ExpressionHandle,
+        psi_typed_trees::expression::TableCallExpression,
+    ) {
+        checked
+            .typed
+            .expression_table
+            .expression_entries()
+            .find_map(|(handle, expression)| match expression {
+                ExpressionNode::Call(call) if call.target.as_str() == target => {
+                    Some((handle, call.clone()))
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("missing value call `{target}`"))
+    }
+
+    fn adapter_entry_symbol(
+        checked: &CheckedTrees,
+        machine_name: &str,
+    ) -> psi_symbols::SymbolHandle {
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == machine_name)
+            .unwrap_or_else(|| panic!("missing adapter `{machine_name}`"));
+        checked
+            .typed
+            .machine_states(machine)
+            .first()
+            .expect("adapter entry")
+            .symbol
+    }
+
+    #[test]
+    fn shared_exact_success_clones_only_after_complete_preflight() {
+        let (checked, plans) = checked_fixture();
+        let selected = selected_plan(&plans, "Echo");
+        let (statement_span, statement_index, statement_before) = statement_call(&checked, "emit");
+        let (expression, expression_before) = expression_call(&checked, "echo");
+        let facts_before = checked.facts.clone();
+        let original_contents = checked.clone();
+        let original = Arc::new(checked);
+        let mut settled = Arc::clone(&original);
+
+        settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+            .expect("exact selected boundary adapters rewrite");
+
+        assert!(
+            !Arc::ptr_eq(&settled, &original),
+            "a shared successful settlement must publish through a fresh Arc"
+        );
+        assert_eq!(original.as_ref(), &original_contents);
+        let psi_typed_trees::statement::StatementNode::Call(statement_after) =
+            &settled.typed.statement_table.statements(statement_span)[statement_index]
+        else {
+            panic!("rewritten statement is not a call")
+        };
+        assert_eq!(
+            statement_after.target.as_str(),
+            "EchoProvider::emit_adapter"
+        );
+        assert_eq!(
+            statement_after.target_symbol,
+            adapter_entry_symbol(&settled, "EchoProvider::emit_adapter")
+        );
+        assert!(statement_after.receiver.is_empty());
+        assert!(!statement_after.receiver_symbol.is_valid());
+        assert_eq!(statement_after.arguments, statement_before.arguments);
+
+        let ExpressionNode::Call(expression_after) =
+            settled.typed.expression_table.expression(expression)
+        else {
+            panic!("rewritten value expression is not a call")
+        };
+        assert_eq!(
+            expression_after.target.as_str(),
+            "EchoProvider::echo_adapter"
+        );
+        assert_eq!(
+            expression_after.target_symbol,
+            adapter_entry_symbol(&settled, "EchoProvider::echo_adapter")
+        );
+        assert!(!expression_after.receiver.is_valid());
+        assert_eq!(expression_after.arguments, expression_before.arguments);
+        assert_eq!(settled.facts, facts_before);
+    }
+
+    #[test]
+    fn shared_self_forwarding_success_publishes_exact_receivers_and_argument_spans() {
+        let (checked, plans) = checked_fixture();
+        let selected = selected_plan(&plans, "Forward");
+        let (statement_span, statement_index, statement_before) = statement_call(&checked, "send");
+        let statement_arguments_before = checked
+            .typed
+            .statement_table
+            .expression_handles(statement_before.arguments)
+            .to_vec();
+        let (expression, expression_before) = expression_call(&checked, "reflect");
+        let expression_arguments_before = checked
+            .typed
+            .expression_table
+            .expression_handles(expression_before.arguments)
+            .to_vec();
+        let expression_count_before = checked.typed.expression_table.expression_count();
+        let facts_before = checked.facts.clone();
+        let original_contents = checked.clone();
+        let original = Arc::new(checked);
+        let mut settled = Arc::clone(&original);
+
+        settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+            .expect("exact self-forwarding adapters rewrite");
+
+        assert!(!Arc::ptr_eq(&settled, &original));
+        assert_eq!(original.as_ref(), &original_contents);
+        assert_eq!(
+            settled.typed.expression_table.expression_count(),
+            expression_count_before + 2,
+            "the statement receiver `self.service` must append exactly Name + Member"
+        );
+
+        let psi_typed_trees::statement::StatementNode::Call(statement_after) =
+            &settled.typed.statement_table.statements(statement_span)[statement_index]
+        else {
+            panic!("rewritten forwarding statement is not a call")
+        };
+        assert_eq!(
+            statement_after.target.as_str(),
+            "ForwardProvider::send_adapter"
+        );
+        assert_eq!(
+            statement_after.target_symbol,
+            adapter_entry_symbol(&settled, "ForwardProvider::send_adapter")
+        );
+        assert!(statement_after.receiver.is_empty());
+        assert!(!statement_after.receiver_symbol.is_valid());
+        let statement_arguments = settled
+            .typed
+            .statement_table
+            .expression_handles(statement_after.arguments);
+        assert_eq!(
+            &statement_arguments[1..],
+            statement_arguments_before.as_slice()
+        );
+        let ExpressionNode::Member(forwarded_receiver) = settled
+            .typed
+            .expression_table
+            .expression(statement_arguments[0])
+        else {
+            panic!("forwarded statement receiver must be an exact member expression")
+        };
+        assert_eq!(forwarded_receiver.member.as_str(), "service");
+        assert_eq!(
+            forwarded_receiver.member_symbol,
+            statement_before.receiver_symbol
+        );
+        let ExpressionNode::Name(receiver_head) = settled
+            .typed
+            .expression_table
+            .expression(forwarded_receiver.receiver)
+        else {
+            panic!("forwarded member receiver must retain its `self` name head")
+        };
+        assert_eq!(
+            settled
+                .typed
+                .expression_table
+                .name_path_members(receiver_head.members)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>(),
+            vec!["self"]
+        );
+
+        let ExpressionNode::Call(expression_after) =
+            settled.typed.expression_table.expression(expression)
+        else {
+            panic!("rewritten forwarding value is not a call")
+        };
+        assert_eq!(
+            expression_after.target.as_str(),
+            "ForwardProvider::reflect_adapter"
+        );
+        assert_eq!(
+            expression_after.target_symbol,
+            adapter_entry_symbol(&settled, "ForwardProvider::reflect_adapter")
+        );
+        assert!(!expression_after.receiver.is_valid());
+        let expression_arguments = settled
+            .typed
+            .expression_table
+            .expression_handles(expression_after.arguments);
+        assert_eq!(expression_arguments[0], expression_before.receiver);
+        assert_eq!(
+            &expression_arguments[1..],
+            expression_arguments_before.as_slice()
+        );
+        assert_eq!(settled.facts, facts_before);
+    }
+
+    #[test]
+    fn late_invalid_call_prevents_statement_and_value_rewrites() {
+        let (mut checked, plans) = checked_fixture();
+        let selected_names = plans
+            .iter()
+            .map(|plan| plan.name.clone())
+            .collect::<Vec<_>>();
+        let selected =
+            omega_effects::SelectedProviderPlanFacts::from_selection(&plans, &selected_names)
+                .expect("select every exact fixture plan");
+        let calls = checked
             .typed
             .expression_table
             .expression_entries()
@@ -1206,40 +1495,42 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(calls.len(), 2);
-        let first_before = fixture.typed.expression_table.expression(calls[0]).clone();
         let ExpressionNode::Call(mut invalid) =
-            fixture.typed.expression_table.expression(calls[1]).clone()
+            checked.typed.expression_table.expression(calls[1]).clone()
         else {
             unreachable!()
         };
         invalid.target_symbol = psi_symbols::SymbolHandle::invalid();
-        *fixture.typed.expression_table.expression_mut(calls[1]) = ExpressionNode::Call(invalid);
+        *checked.typed.expression_table.expression_mut(calls[1]) = ExpressionNode::Call(invalid);
+        let before = checked.clone();
+        let original = Arc::new(checked);
+        let mut rejected = Arc::clone(&original);
 
-        let diagnostics = rewrite_adapter_calls(&mut fixture.typed, &selected)
+        let diagnostics = settle_selected_boundary_adapter_dispatch(&mut rejected, &selected)
             .expect_err("one invalid late call rejects the complete batch");
         assert!(
             diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.message.contains("not exact target symbol"))
         );
-        assert_eq!(
-            fixture.typed.expression_table.expression(calls[0]),
-            &first_before,
-            "a valid value call must remain untouched"
-        );
-        let statement_after = fixture
-            .typed
-            .machines()
-            .iter()
-            .flat_map(|machine| fixture.typed.machine_states(machine))
-            .flat_map(|state| {
-                fixture
-                    .typed
-                    .statement_table
-                    .statements(state.statement_nodes)
-            })
-            .find(|statement| matches!(statement, psi_typed_trees::statement::StatementNode::Call(call) if call.target.as_str() == "emit"))
-            .expect("fixture emit statement remains boundary call");
-        assert_eq!(statement_after, &statement_before);
+        assert!(Arc::ptr_eq(&rejected, &original));
+        assert_eq!(rejected.as_ref(), &before);
+    }
+
+    #[test]
+    fn empty_settlement_preserves_shared_arc_identity_and_contents() {
+        let (checked, _) = checked_fixture();
+        let original_contents = checked.clone();
+        let original = Arc::new(checked);
+        let mut settled = Arc::clone(&original);
+
+        settle_selected_boundary_adapter_dispatch(
+            &mut settled,
+            &omega_effects::SelectedProviderPlanFacts::default(),
+        )
+        .expect("a program without selected boundary adapters is already settled");
+
+        assert!(Arc::ptr_eq(&settled, &original));
+        assert_eq!(settled.as_ref(), &original_contents);
     }
 }
