@@ -1915,6 +1915,7 @@ fn primitive_computed_value_preserves_transparent_result(
                     active_states,
                     parameters,
                     aliases,
+                    TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_DEPTH,
                     remaining_computed_depth - 1,
                 )
             }
@@ -1943,12 +1944,13 @@ fn primitive_computed_value_preserves_transparent_result(
 }
 
 /// Admit one fixed-array literal directly below a primitive index projection.
-/// Typing has already established one primitive element type from the indexed
-/// result. Every eagerly evaluated element publishes its complete call frame;
-/// primitive computation shells share the same depth budget consumed by the
-/// index projection. Nested aggregate literals remain outside this cohort
-/// because this expression site carries no independent contextual aggregate
-/// type for validating them.
+/// Typing has already established one primitive result through the complete
+/// index chain. Every eagerly evaluated element publishes its complete call
+/// frame; primitive computation shells share the same depth budget consumed by
+/// the index projection. A nested array literal may consume the existing
+/// aggregate-depth-two rail without resetting either budget. Records and other
+/// aggregates remain outside this cohort because an array element carries no
+/// independent contextual nominal type for validating them.
 #[allow(clippy::too_many_arguments)]
 fn concrete_array_literal_index_operand_preserves_transparent_result(
     program: &TypedTrees,
@@ -1958,8 +1960,12 @@ fn concrete_array_literal_index_operand_preserves_transparent_result(
     active_states: &mut Vec<SymbolHandle>,
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
+    remaining_aggregate_depth: usize,
     remaining_computed_depth: usize,
 ) -> bool {
+    if remaining_aggregate_depth == 0 {
+        return false;
+    }
     let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(expression)
     else {
         return false;
@@ -1982,6 +1988,19 @@ fn concrete_array_literal_index_operand_preserves_transparent_result(
                     parameters,
                     aliases,
                 ),
+                ExpressionNode::ArrayLiteral(_) if remaining_aggregate_depth > 1 => {
+                    concrete_array_literal_index_operand_preserves_transparent_result(
+                        program,
+                        current_machine,
+                        *element,
+                        symbols,
+                        active_states,
+                        parameters,
+                        aliases,
+                        remaining_aggregate_depth - 1,
+                        remaining_computed_depth,
+                    )
+                }
                 ExpressionNode::Binary(_)
                 | ExpressionNode::Cast(_)
                 | ExpressionNode::Indexed(_)

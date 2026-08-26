@@ -7329,11 +7329,15 @@ compiler concept is introduced.
   computation-depth-two budget. The literal receiver may use the existing
   two-level aggregate budget while carrying that reduced computation budget
   unchanged; a third aggregate level remains fenced. The same primitive
-  assignment may directly index a fixed-array literal whose eagerly evaluated
-  elements contain bounded calls or use the one remaining scalar-computation
-  shell; all element and index writes publish even when the selected index is
-  constant. One outer scalar shell may instead consume that remaining budget;
-  combining both remains a third-shell fence.
+  assignment may directly index a fixed-array literal, including one nested
+  fixed-array level, whose eagerly evaluated elements contain bounded calls or
+  use the one remaining scalar-computation shell; all element and independently
+  bounded index-call writes publish even when a selected index is constant. The
+  nested literal consumes the existing aggregate-depth-two rail without
+  resetting the call or computation budgets. A third array level and
+  reference-valued or opaque/recursive elements remain fenced. One outer scalar
+  shell may instead consume the remaining computation budget; combining both
+  remains a third-shell fence.
   Indexing irreversibly coarsens to the nearest backing collection while
   preserving independent index-call writes. Finite named-state SCCs accept only
   bijective write-capable parameter permutations. Primitive-only concrete
