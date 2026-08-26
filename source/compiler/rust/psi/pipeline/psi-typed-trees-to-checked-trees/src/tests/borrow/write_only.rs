@@ -182,8 +182,8 @@ fn record_path_fixed_byte_array_dynamic_index_observation_remains_rejected() {
 }
 
 #[test]
-fn record_path_fixed_byte_array_range_remains_rejected() {
-    let rendered = rendered_rejection(
+fn record_path_fixed_byte_array_static_range_is_writable() {
+    lower_typed_trees(typed(
         r#"
             data Inner { bytes: [u8; 4]; }
             data Outer { inner: Inner; }
@@ -192,9 +192,140 @@ fn record_path_fixed_byte_array_range_remains_rejected() {
                 outer.inner.bytes[1..3] = [1, 2];
             }
         "#,
+    ))
+    .expect("a statically normalized byte range behind an eligible record path should lower");
+}
+
+#[test]
+fn record_path_fixed_byte_array_symbolic_range_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner { bytes: [u8; 4]; }
+            data Outer { inner: Inner; }
+
+            machine fill(outer: &write Outer, start: u64 [0..=2]) {
+                outer.inner.bytes[start..3] = [1, 2, 3];
+            }
+        "#,
     );
     assert!(
-        rendered.contains("unsupported write-only projection") && rendered.contains("range"),
+        rendered.contains("bounds are not statically known")
+            && rendered.contains("requires literal bounds"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn record_path_fixed_byte_array_open_ended_range_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner { bytes: [u8; 4]; }
+            data Outer { inner: Inner; }
+
+            machine fill(outer: &write Outer) {
+                outer.inner.bytes[1..] = [1, 2, 3];
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("omitted end") && rendered.contains("statically known end bound"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn record_path_fixed_byte_array_range_nonliteral_rhs_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner { bytes: [u8; 4]; }
+            data Outer { inner: Inner; }
+
+            machine fill(outer: &write Outer, replacement: [u8; 2]) {
+                outer.inner.bytes[1..3] = replacement;
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("from a non-literal value")
+            && rendered.contains("array literal of 2 byte(s)"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn record_path_fixed_byte_array_out_of_bounds_range_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner { bytes: [u8; 4]; }
+            data Outer { inner: Inner; }
+
+            machine fill(outer: &write Outer) {
+                outer.inner.bytes[3..5] = [1, 2];
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("range") && rendered.contains("length 4"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn record_path_fixed_byte_array_reversed_range_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner { bytes: [u8; 4]; }
+            data Outer { inner: Inner; }
+
+            machine fill(outer: &write Outer) {
+                outer.inner.bytes[3..1] = [1, 2];
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("cannot prove subslice range ordering `3..1`")
+            && rendered.contains("slice length 4"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn record_path_fixed_byte_array_range_bound_observation_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner {
+                bytes: [u8; 4];
+                start: u8 [0..=2];
+            }
+            data Outer { inner: Inner; }
+
+            machine fill(outer: &write Outer) {
+                outer.inner.bytes[outer.inner.start..3] = [1, 2, 3];
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("reads field `start` from write-only parameter `outer`")
+            && rendered.contains("never grants observation"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn record_path_fixed_byte_array_range_rhs_observation_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            data Inner { bytes: [u8; 4]; }
+            data Outer { inner: Inner; }
+
+            machine fill(outer: &write Outer) {
+                outer.inner.bytes[1..3] = [outer.inner.bytes[0], 2];
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("reads through index projection of write-only parameter `outer`")
+            && rendered.contains("never observation"),
         "unexpected diagnostic: {rendered}"
     );
 }

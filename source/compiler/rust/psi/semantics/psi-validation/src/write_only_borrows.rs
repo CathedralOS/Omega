@@ -351,9 +351,10 @@ fn validate_statement(
 }
 
 /// Validate the first exact range-replacement rung: a statically normalized
-/// half-open window of a direct `&write [u8; N]`, replaced by an array literal
-/// of exactly the same width. Returns whether the target was such a range even
-/// when another checker owns its eventual rejection.
+/// half-open window of a direct `&write [u8; N]` or an eligible common-field
+/// path ending in `[u8; N]`, replaced by an array literal of exactly the same
+/// width. Returns whether the target was such a range even when another checker
+/// owns its eventual rejection.
 fn validate_write_only_byte_range_assignment(
     program: &TypedTrees,
     machine: &Machine,
@@ -366,10 +367,22 @@ fn validate_write_only_byte_range_assignment(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return false;
     };
-    let Some(root) = direct_write_only_root(program, indexed.collection, roots) else {
-        return false;
-    };
-    let Some((element_type, collection_len)) = fixed_byte_array_shape(program, root.referee) else {
+    let (root, collection_type) =
+        if let Some(root) = direct_write_only_root(program, indexed.collection, roots) {
+            (root, root.referee)
+        } else {
+            let Some(collection_type) =
+                write_only_record_field_type(program, indexed.collection, roots)
+            else {
+                return false;
+            };
+            let Some(root) = mentioned_write_only_root(program, indexed.collection, roots) else {
+                return false;
+            };
+            (root, collection_type)
+        };
+    let Some((element_type, collection_len)) = fixed_byte_array_shape(program, collection_type)
+    else {
         return false;
     };
     let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
