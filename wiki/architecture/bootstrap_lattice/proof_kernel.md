@@ -21,11 +21,16 @@ Its product-local rename is tracked in
 assurance owner.
 
 ```text
-Alpha → Beta → Gamma → Delta                   language spine
-              ↘       ↙       ↓
-                proof kernel   omega-bootstrap → production omega
-                assurance      hosted compiler edge
+language spine:     Alpha → Beta → Gamma → Delta
+assurance service:          Beta/Gamma implementations → proof kernel
+hosted build:                                  delta compiler
+                                                      ↓
+                                               omega-bootstrap → production omega
 ```
+
+The rows are roles, not serial stages. In particular, programs do not pass
+through the proof kernel between Gamma and Delta; Beta and Gamma merely host
+independent implementations of the same cross-cutting checker.
 
 ## Judgment
 

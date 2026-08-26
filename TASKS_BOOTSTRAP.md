@@ -110,6 +110,9 @@ Guardrails for this queue:
 - The current Rust Psi/Omega compiler stays under the explicitly suffixed
   `bootstrap/onramps/omega-rust/` owner as an optional differential producer.
   `compiler/{psi,omega}/` owns Omega-written product source.
+- `Psi` and `Omega` are permanent product responsibilities, not additional
+  bootstrap rungs. Their unsuffixed product roots survive self-hosting; only an
+  external-language on-ramp receives an implementation-language suffix.
 - Standalone Terminal-Psi interpreters, verifiers, REPLs, proof explorers,
   viewers, and debuggers are not in the hosted compiler closure unless the
   compiler executable imports them. Product Terminal-Psi representation and

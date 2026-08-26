@@ -134,9 +134,9 @@ compiler then builds the Delta-written, `Ωself`-limited `omega-bootstrap`, whic
 performs the hosted build of full production Omega. Delta is independently
 specified; Omega-like spelling does not make it an Omega subset. `Ωself` is a
 source profile rather than another language rung, and `omega-bootstrap` is a
-compiler artifact rather than another language. An optional Omega→Omega rebuild may optimize
-that compiler's own binary, but produces the same compiler and is not another
-rung or required dependency. Its active queue lives in
+compiler artifact rather than another language. An optional Omega→Omega rebuild
+may optimize that compiler's own binary, but produces the same compiler and is
+not another rung or required dependency. Its active queue lives in
 [`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md), while the canonical ownership map
 lives in
 [`repository_structure.md`](wiki/architecture/bootstrap_lattice/repository_structure.md).
