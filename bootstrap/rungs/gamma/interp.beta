@@ -24,20 +24,23 @@
 ;
 ; Memory:  2097152 SRC [2 MiB,6 MiB)  2097144 CUR  2097136 LEN  2097128 APTR  2097120 NFUNC
 ;          2097112 ENVN 2097104 FRAMEBASE 2097096 ARGSP 2097088 ARG_EXHAUSTED
+;          2097080 ARENA_EXHAUSTED
 ;          6291456 FUNCS [6 MiB,7 MiB)
-;          7340032 ENV [7 MiB,12 MiB)  12582912 SMALL_INTS (-1..65535; ends just above 14 MiB)
+;          7340032 ENV [7 MiB,12 MiB)
 ;          14680096 ARG_SCRATCH [4 KiB; 512 values)  14684192 VTAIL_SENTINEL
-;          16777216 ARENA (~48 MiB)
-; AST/value nodes are 4 words [tag,f0,f1,f2] (32-byte stride). Func entries 3 words
+;          16777216 ARENA [16 MiB,63 MiB), leaving 1 MiB for the descending Alpha stack
+; AST/value nodes are 2-4 words [tag,f0,f1,f2]. Func entries 3 words
 ; [name_off, paramlist, body]. Env entries 2 words [name_off, value]; -1 = unnamed arg.
 ;
 ; AST tags:   0 INT(v) 1 VAR(off) 2 PRIM(op,a,b) 3 IF(c,t,e) 4 LET(off,e,body)
 ;             5 CALL(foff,args) 6 CONS(head,tail) 7 CONAPP(con_off,args)
 ;             8 MATCH(scrut,arms) 9 PVAR(off) 10 PCON(con_off,varlist) 11 ARM(pat,body)
+; pattern tags: 12 PNIL 13 PZEROTREE 14 PCONS 15 PNODE 16 PCHUNKS
 ; value tags: 100 VINT(n)  101 VCON(con_off, value-arglist)
-;             102 VCONS(con_off, head, tail) — compact internal form of `(Cons h t)`
-;             103 VTAIL(function_off, evaluated-value-list) — evaluator-private trampoline request
-;             104 VNODE(left,right)  105 VCHUNKS(length,root) — compact internal ADT forms
+;             102 VCONS(head, tail) — headerless tagged handle for `(Cons h t)`
+;             103 VTAIL(function_index, evaluated-value-list) — evaluator-private trampoline request
+;             104 VNODE(left,right)  105 VCHUNKS(length,root) — headerless tagged handles
+; A nullary constructor value reuses its immutable tag-7 AST node.
 
 proc slurp() {
     let n = 0
@@ -56,7 +59,8 @@ proc slurp() {
     state done {
         word[2097136] = n        ; LEN
         word[2097144] = 0        ; CUR
-        word[2097128] = 16777216 ; APTR — arena base at 16 MB: ~48 MB of node space up to the VM's 64 MB.
+        word[2097128] = 16777216 ; APTR — arena base at 16 MB: 47 MB of node space, then a 1 MB
+                                 ;   reserve for Alpha's descending call stack.
                                  ;   (The old base 3145728 gave only 1 MB before FUNCS at 4194304; a big
                                  ;   eval — e.g. a whole certifier run — silently overflowed into the
                                  ;   function table and corrupted the result. There is no arena free/GC,
@@ -66,7 +70,14 @@ proc slurp() {
         word[2097104] = 0        ; FRAMEBASE
         word[2097096] = 14680096 ; ARGSP — checked evaluator-private argument scratch
         word[2097088] = 0        ; ARG_EXHAUSTED
+        word[2097080] = 0        ; ARENA_EXHAUSTED
         word[14684192] = 103     ; stable evaluator-private VTAIL sentinel
+        word[14684224] = 0       ; allocation-failure AST sentinel: INT(0)
+        word[14684232] = 0
+        word[14684256] = 100     ; allocation-failure value sentinel: VINT(0)
+        word[14684264] = 0
+        word[14684288] = 100     ; stable boxed -1 (nonnegative u32 values are immediate)
+        word[14684296] = 0 - 1
         return 0
     }
     state exhausted { return 252 }
@@ -158,14 +169,90 @@ proc parse_number() {
     }
 }
 
-proc alloc(tag, f0, f1, f2) {
+proc allocation_exhausted(tag) {
+    word[2097080] = 1
+    state value { to value_sentinel when (tag >= 100)  return 14684224 }
+    state value_sentinel { return 14684256 }
+}
+
+proc alloc2(tag, f0) {
     let p = word[2097128]
-    word[p] = tag
-    word[p + 8] = f0
-    word[p + 16] = f1
-    word[p + 24] = f2
-    word[2097128] = p + 32
-    return p
+    state room {
+        to exhausted when (p > 66060272)
+        word[p] = tag
+        word[p + 8] = f0
+        word[2097128] = p + 16
+        return p
+    }
+    state exhausted { return allocation_exhausted(tag) }
+}
+
+proc alloc3(tag, f0, f1) {
+    let p = word[2097128]
+    state room {
+        to exhausted when (p > 66060264)
+        word[p] = tag
+        word[p + 8] = f0
+        word[p + 16] = f1
+        word[2097128] = p + 24
+        return p
+    }
+    state exhausted { return allocation_exhausted(tag) }
+}
+
+proc alloc4(tag, f0, f1, f2) {
+    let p = word[2097128]
+    state room {
+        ; Alpha's committed seeds have 64 MiB and a stack descending from that
+        ; boundary. Fail closed before the arena can collide with its 1 MiB reserve.
+        to exhausted when (p > 66060256)
+        word[p] = tag
+        word[p + 8] = f0
+        word[p + 16] = f1
+        word[p + 24] = f2
+        word[2097128] = p + 32
+        return p
+    }
+    state exhausted { return allocation_exhausted(tag) }
+}
+
+; The three hottest two-field ADTs use disjoint out-of-memory pointer ranges as
+; representation-only tags. Their payload stays two aligned words in the arena;
+; the returned handle selects the constructor without a third header word.
+proc alloc_cons(head, tail) {
+    let p = word[2097128]
+    state room {
+        to exhausted when (p > 66060272)
+        word[p] = head
+        word[p + 8] = tail
+        word[2097128] = p + 16
+        return p + 201326592
+    }
+    state exhausted { return allocation_exhausted(102) }
+}
+
+proc alloc_node(left, right) {
+    let p = word[2097128]
+    state room {
+        to exhausted when (p > 66060272)
+        word[p] = left
+        word[p + 8] = right
+        word[2097128] = p + 16
+        return p + 67108864
+    }
+    state exhausted { return allocation_exhausted(104) }
+}
+
+proc alloc_chunks(length, root) {
+    let p = word[2097128]
+    state room {
+        to exhausted when (p > 66060272)
+        word[p] = length
+        word[p + 8] = root
+        word[2097128] = p + 16
+        return p + 134217728
+    }
+    state exhausted { return allocation_exhausted(105) }
 }
 
 ; do the names at SRC offsets o1 and o2 (each ending at a delimiter) match?
@@ -239,6 +326,27 @@ proc is_chunks_name(off) {       ; the 6-char constructor name "Chunks"
     state yes { return 1 }
 }
 
+proc is_nil_name(off) {          ; the 3-char constructor name "Nil"
+    state c1 { to c2 when (byte[2097152 + off] == 'N')  return 0 }
+    state c2 { to c3 when (byte[2097152 + off + 1] == 'i')  return 0 }
+    state c3 { to c4 when (byte[2097152 + off + 2] == 'l')  return 0 }
+    state c4 { to yes when (is_delim(byte[2097152 + off + 3]) == 1)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_zerotree_name(off) {     ; the 8-char constructor name "ZeroTree"
+    state c1 { to c2 when (byte[2097152 + off] == 'Z')  return 0 }
+    state c2 { to c3 when (byte[2097152 + off + 1] == 'e')  return 0 }
+    state c3 { to c4 when (byte[2097152 + off + 2] == 'r')  return 0 }
+    state c4 { to c5 when (byte[2097152 + off + 3] == 'o')  return 0 }
+    state c5 { to c6 when (byte[2097152 + off + 4] == 'T')  return 0 }
+    state c6 { to c7 when (byte[2097152 + off + 5] == 'r')  return 0 }
+    state c7 { to c8 when (byte[2097152 + off + 6] == 'e')  return 0 }
+    state c8 { to c9 when (byte[2097152 + off + 7] == 'e')  return 0 }
+    state c9 { to yes when (is_delim(byte[2097152 + off + 8]) == 1)  return 0 }
+    state yes { return 1 }
+}
+
 proc is_upper(c) {               ; capitalized head => a constructor (ADT value)
     state c1 { to no when (c < 'A')  to c2 }
     state c2 { to no when (c > 'Z')  return 1 }
@@ -246,30 +354,40 @@ proc is_upper(c) {               ; capitalized head => a constructor (ADT value)
 }
 
 ; ---- boxed values: VINT(100,n), VCON(101, con_off, arglist of value-ptrs),
-;      VCONS(102, con_off, head, tail), VNODE(104,left,right), and
+;      VCONS(102, head, tail), VNODE(104,left,right), and
 ;      VCHUNKS(105,length,root). The compact tags are representation-only:
 ;      matching and printing remain exactly those of the corresponding ADTs. ----
 proc mk_int(n) {
-    ; Compiler/interpreter workloads repeatedly recreate loop indices, bytes,
-    ; booleans, and bounded offsets. Intern that dense range outside the arena:
-    ; it preserves the boxed-value ABI and exact integer semantics while keeping
-    ; millions of short-lived VINTs from consuming the no-GC evaluation arena.
-    state low { to allocated when (n < 0 - 1)  to high }
-    state high { to allocated when (n > 65535)  to interned }
-    state interned {
-        let p = 12582912 + (n + 1) * 32
-        word[p] = 100
-        word[p + 8] = n
-        word[p + 16] = 0
-        word[p + 24] = 0
-        return p
-    }
-    state allocated { return alloc(100, n, 0, 0) }
+    ; Common compiler offsets and every u32 value use negative immediate words rather
+    ; than consuming the no-GC arena. Values outside this bounded range retain
+    ; the ordinary boxed path, so Gamma's full signed-word behavior is unchanged.
+    state negative { to minus_one when (n == 0 - 1)  to low }
+    state minus_one { return 14684288 }
+    state low { to boxed when (n < 0)  to high }
+    state high { to boxed when (n > 4294967295)  return 0 - n - 2 }
+    state boxed { return alloc2(100, n) }
 }
 
 proc get_int(v) {                ; the integer of a VINT (0 for a constructor)
-    state chk { to vint when (word[v] == 100)  return 0 }
+    state immediate { to direct when (v < 0 - 1)  to tagged }
+    state direct { return 0 - v - 2 }
+    state tagged { to constructor when (v >= 83886080)  to boxed }
+    state boxed { to vint when (word[v] == 100)  return 0 }
     state vint { return word[v + 8] }
+    state constructor { return 0 }
+}
+
+proc value_tag(v) {
+    state immediate { to vint when (v < 0 - 1)  to raw }
+    ; Raw boxed/AST pointers and hot Node handles take the shortest paths.
+    state raw { to raw_pointer when (v < 83886080)  to node }
+    state node { to vnode when (v < 150994944)  to chunks }
+    state chunks { to vchunks when (v < 218103808)  to vcons }
+    state raw_pointer { return word[v] }
+    state vint { return 100 }
+    state vcons { return 102 }
+    state vchunks { return 105 }
+    state vnode { return 104 }
 }
 
 ; ---- parser ----
@@ -280,7 +398,7 @@ proc parse_args() {              ; exprs until ')', as a CONS list
     state more {
         let h = parse_expr()
         let t = parse_args()
-        return alloc(6, h, t, 0)
+        return alloc3(6, h, t)
     }
 }
 
@@ -291,7 +409,7 @@ proc parse_params() {            ; param NAMES until ')', as a CONS of name-offs
         let poff = word[2097144]
         skip_ident()
         let t = parse_params()
-        return alloc(6, poff, t, 0)
+        return alloc3(6, poff, t)
     }
 }
 
@@ -299,7 +417,7 @@ proc parse_expr() {
     skip_ws()
     let c = cbyte()
     state num { to do_num when (is_digit(c) == 1)  to lparen }
-    state do_num { return alloc(0, parse_number(), 0, 0) }
+    state do_num { return alloc2(0, parse_number()) }
     state lparen { to compound when (c == '(')  to atom }
     state compound {
         adv()
@@ -314,7 +432,7 @@ proc parse_expr() {
         let b = parse_expr()
         skip_ws()
         adv()
-        return alloc(2, h, a, b)
+        return alloc4(2, h, a, b)
     }
     state head {
         let hoff = word[2097144]
@@ -328,7 +446,7 @@ proc parse_expr() {
         let e1 = parse_expr()
         skip_ws()
         adv()
-        return alloc(3, c1, t1, e1)
+        return alloc4(3, c1, t1, e1)
     }
     state k_let { to do_let when (name_is3(hoff, 'l', 'e', 't') == 1)  to k_eq }
     state do_let {
@@ -339,7 +457,7 @@ proc parse_expr() {
         let body = parse_expr()
         skip_ws()
         adv()
-        return alloc(4, noff, e2, body)
+        return alloc4(4, noff, e2, body)
     }
     state k_eq { to do_eq when (name_is2(hoff, 'e', 'q') == 1)  to k_lt }
     state do_eq {
@@ -347,7 +465,7 @@ proc parse_expr() {
         let b2 = parse_expr()
         skip_ws()
         adv()
-        return alloc(2, 'e', a2, b2)
+        return alloc4(2, 'e', a2, b2)
     }
     state k_lt { to do_lt when (name_is2(hoff, 'l', 't') == 1)  to k_match }
     state do_lt {
@@ -355,7 +473,7 @@ proc parse_expr() {
         let b3 = parse_expr()
         skip_ws()
         adv()
-        return alloc(2, 'l', a3, b3)
+        return alloc4(2, 'l', a3, b3)
     }
     state k_match { to do_match when (is_match_kw(hoff) == 1)  to k_con }
     state do_match {                         ; (match E (pat body)...)
@@ -363,28 +481,28 @@ proc parse_expr() {
         let arms = parse_arms()
         skip_ws()
         adv()
-        return alloc(8, scrut, arms, 0)
+        return alloc3(8, scrut, arms)
     }
     state k_con { to do_con when (is_upper(byte[2097152 + hoff]) == 1)  to do_call }
     state do_con {                           ; (Con args...) constructor
         let cargs = parse_args()
         skip_ws()
         adv()
-        return alloc(7, hoff, cargs, 0)
+        return alloc3(7, hoff, cargs)
     }
     state do_call {                          ; (fn args...) call
         let args = parse_args()
         skip_ws()
         adv()
-        return alloc(5, hoff, args, 0)
+        return alloc3(5, hoff, args)
     }
     state atom {
         let voff = word[2097144]
         skip_ident()
         to nullcon when (is_upper(byte[2097152 + voff]) == 1)
-        return alloc(1, voff, 0, 0)          ; variable
+        return alloc2(1, voff)          ; variable
     }
-    state nullcon { return alloc(7, voff, 0, 0) }   ; bare Uppercase => nullary constructor
+    state nullcon { return alloc3(7, voff, 0) }
 }
 
 proc parse_pvars() {             ; pattern variable NAMES until ')', a CONS of offsets
@@ -394,7 +512,7 @@ proc parse_pvars() {             ; pattern variable NAMES until ')', a CONS of o
         let voff = word[2097144]
         skip_ident()
         let t = parse_pvars()
-        return alloc(6, voff, t, 0)
+        return alloc3(6, voff, t)
     }
 }
 
@@ -409,15 +527,37 @@ proc parse_pat() {               ; (Con v0 v1...) | var
         let vars = parse_pvars()
         skip_ws()
         adv()                    ; ')'
-        return alloc(10, coff, vars, 0)      ; PCON
+        to known_nil when (is_nil_name(coff) == 1)
+        to known_zerotree when (is_zerotree_name(coff) == 1)
+        to known_cons when (is_cons_name(coff) == 1)
+        to known_node when (is_node_name(coff) == 1)
+        to known_chunks when (is_chunks_name(coff) == 1)
+        return alloc3(10, coff, vars)      ; PCON
     }
+    state known_nil { return alloc3(12, coff, vars) }
+    state known_zerotree { return alloc3(13, coff, vars) }
+    state known_cons { return alloc3(14, coff, vars) }
+    state known_node { return alloc3(15, coff, vars) }
+    state known_chunks { return alloc3(16, coff, vars) }
     state atom {
         let voff = word[2097144]
         skip_ident()
         to nullcon when (is_upper(byte[2097152 + voff]) == 1)
-        return alloc(9, voff, 0, 0)          ; PVAR (binds anything)
+        return alloc2(9, voff)          ; PVAR (binds anything)
     }
-    state nullcon { return alloc(10, voff, 0, 0) }   ; nullary constructor pattern (Nil, Z)
+    state nullcon {
+        to atom_nil when (is_nil_name(voff) == 1)
+        to atom_zerotree when (is_zerotree_name(voff) == 1)
+        to atom_cons when (is_cons_name(voff) == 1)
+        to atom_node when (is_node_name(voff) == 1)
+        to atom_chunks when (is_chunks_name(voff) == 1)
+        return alloc3(10, voff, 0)
+    }
+    state atom_nil { return alloc3(12, voff, 0) }
+    state atom_zerotree { return alloc3(13, voff, 0) }
+    state atom_cons { return alloc3(14, voff, 0) }
+    state atom_node { return alloc3(15, voff, 0) }
+    state atom_chunks { return alloc3(16, voff, 0) }
 }
 
 proc parse_arms() {              ; (pat body) pairs until ')', a CONS of ARM nodes
@@ -430,7 +570,7 @@ proc parse_arms() {              ; (pat body) pairs until ')', a CONS of ARM nod
         skip_ws()
         adv()                    ; ')'
         let t = parse_arms()
-        return alloc(6, alloc(11, pat, body, 0), t, 0)
+        return alloc3(6, alloc3(11, pat, body), t)
     }
 }
 
@@ -484,6 +624,23 @@ proc func_lookup(noff) {
     state hit { return i }
 }
 
+; Resolve a call AST once, then memoize the immutable function-table index in
+; its private f0 word as `-index-1`. Function declarations are fixed after
+; parsing, so this removes repeated global name scans without changing Gamma
+; evaluation, call order, or fuel accounting.
+proc resolve_call(expr) {
+    let ref = word[expr + 8]
+    state cached { to hit when (ref < 0)  to lookup }
+    state hit { return 0 - ref - 1 }
+    state lookup {
+        let fi = func_lookup(ref)
+        to missing when (fi < 0)
+        word[expr + 8] = 0 - fi - 1
+        return fi
+    }
+    state missing { return 0 - 1 }
+}
+
 ; ---- environment (named bindings; lookup is frame-local) ----
 
 proc env_push(off, val) {
@@ -522,7 +679,7 @@ proc eval_args(args, fuel) {         ; AST arg-CONS -> value-CONS (evaluated)
     state more {
         let h = eval(word[args + 8], fuel)
         let t = eval_args(word[args + 16], fuel)
-        return alloc(6, h, t, 0)
+        return alloc3(6, h, t)
     }
 }
 
@@ -584,6 +741,7 @@ proc tail_match_body(scrut, arms, fuel) {
 ; consume one Beta/Alpha return frame per logical iteration.
 proc eval_tail(expr, fuel) {
     state loop {
+        to arena_exhausted when (word[2097080] != 0)
         to exhausted when (fuel <= 0)
         let tag = word[expr]
         to tail_let when (tag == 4)
@@ -592,6 +750,7 @@ proc eval_tail(expr, fuel) {
         to tail_match when (tag == 8)
         return eval(expr, fuel)
     }
+    state arena_exhausted { return 14684256 }
     state exhausted { return mk_int(0) }
     state tail_let {
         let lv = eval(word[expr + 16], fuel)
@@ -618,19 +777,18 @@ proc eval_tail(expr, fuel) {
     state tail_call {
         let values = word[2097096]
         eval_scratch_args(word[expr + 16], fuel)
-        word[14684200] = word[expr + 8]
+        word[14684200] = resolve_call(expr)
         word[14684208] = values
         word[14684216] = word[2097096]
         return 14684192
     }
 }
 
-proc eval_call(foff, args, fuel) {
+proc eval_call(fi, args, fuel) {
     let base = word[2097112]         ; env depth before args
     let savebase = word[2097104]
     let values = word[2097096]
     eval_scratch_args(args, fuel)
-    let fi = func_lookup(foff)
     state install {
         to exhausted when (word[2097088] != 0)
         word[2097112] = base
@@ -642,7 +800,7 @@ proc eval_call(foff, args, fuel) {
     state body {
         let r = eval_tail(word[6291456 + fi * 24 + 16], fuel - 1)
         to exhausted when (word[2097088] != 0)
-        to tail when (word[r] == 103)
+        to tail when (r == 14684192)
         word[2097112] = base
         word[2097104] = savebase
         return r
@@ -654,9 +812,8 @@ proc eval_call(foff, args, fuel) {
         return mk_int(0)
     }
     state tail {
-        foff = word[r + 8]
+        fi = word[r + 8]
         values = word[r + 16]
-        fi = func_lookup(foff)
         fuel = fuel - 1
         to install
     }
@@ -679,7 +836,7 @@ proc eval_conapp(con, args, fuel) {
         ; value-arglist nodes of the generic constructor representation.
         let h = eval(word[args + 8], fuel)
         let t = eval(word[rest + 8], fuel)
-        return alloc(102, con, h, t)
+        return alloc_cons(h, t)
     }
     state node_name {
         to node_arity when (is_node_name(con) == 1)
@@ -692,7 +849,7 @@ proc eval_conapp(con, args, fuel) {
         to generic when (word[nrest + 16] != 0)
         let left = eval(word[args + 8], fuel)
         let right = eval(word[nrest + 8], fuel)
-        return alloc(104, left, right, 0)
+        return alloc_node(left, right)
     }
     state chunks_name {
         to chunks_arity when (is_chunks_name(con) == 1)
@@ -705,42 +862,37 @@ proc eval_conapp(con, args, fuel) {
         to generic when (word[crest + 16] != 0)
         let length = eval(word[args + 8], fuel)
         let root = eval(word[crest + 8], fuel)
-        return alloc(105, length, root, 0)
+        return alloc_chunks(length, root)
     }
     state generic {
-        return alloc(101, con, eval_args(args, fuel), 0)
+        return alloc3(101, con, eval_args(args, fuel))
     }
 }
 
 proc try_match_compact_cons(pat, val) {
-    state namechk {
-        to no when (name_eq(word[pat + 8], word[val + 8]) == 0)
-        let pv = word[pat + 16]
-        to done when (pv == 0)
-        env_push(word[pv + 8], word[val + 16])
-        pv = word[pv + 16]
-        to done when (pv == 0)
-        env_push(word[pv + 8], word[val + 24])
-        to done
-    }
-    state no { return 0 }
-    state done { return 1 }
-}
-
-proc try_match_compact_pair(pat, val, expected) {
-    state namechk {
-        to node when (expected == 104)
-        to chunks
-    }
-    state node { to no when (is_node_name(word[pat + 8]) == 0)  to bind }
-    state chunks { to no when (is_chunks_name(word[pat + 8]) == 0)  to bind }
+    let payload = val - 201326592
     state bind {
         let pv = word[pat + 16]
         to no when (pv == 0)
-        env_push(word[pv + 8], word[val + 8])
+        env_push(word[pv + 8], word[payload])
         pv = word[pv + 16]
         to no when (pv == 0)
-        env_push(word[pv + 8], word[val + 16])
+        env_push(word[pv + 8], word[payload + 8])
+        pv = word[pv + 16]
+        to no when (pv != 0)
+        return 1
+    }
+    state no { return 0 }
+}
+
+proc try_match_compact_pair(pat, payload) {
+    state bind {
+        let pv = word[pat + 16]
+        to no when (pv == 0)
+        env_push(word[pv + 8], word[payload])
+        pv = word[pv + 16]
+        to no when (pv == 0)
+        env_push(word[pv + 8], word[payload + 8])
         pv = word[pv + 16]
         to no when (pv != 0)
         return 1
@@ -750,21 +902,51 @@ proc try_match_compact_pair(pat, val, expected) {
 
 ; try to match pattern `pat` against value `val`; on success push its bindings.
 proc try_match(pat, val) {
-    state isvar { to pvar when (word[pat] == 9)  to iscon }
+    let ptag = word[pat]
+    let vtag = 0
+    state isvar { to pvar when (ptag == 9)  to iscon }
     state pvar {                     ; PVAR — binds anything to the whole value
         env_push(word[pat + 8], val)
         return 1
     }
     state iscon {
-        to compact_cons when (word[val] == 102)
-        to compact_node when (word[val] == 104)
-        to compact_chunks when (word[val] == 105)
-        to no when (word[val] != 101)        ; PCON needs a constructor value
+        vtag = value_tag(val)
+        to nullary_ast when (vtag == 7)
+        to compact_cons when (vtag == 102)
+        to compact_node when (vtag == 104)
+        to compact_chunks when (vtag == 105)
+        to no when (vtag != 101)        ; PCON needs a constructor value
         to namechk
     }
-    state compact_cons { return try_match_compact_cons(pat, val) }
-    state compact_node { return try_match_compact_pair(pat, val, 104) }
-    state compact_chunks { return try_match_compact_pair(pat, val, 105) }
+    state nullary_ast {
+        to nullary_nil when (ptag == 12)
+        to nullary_zerotree when (ptag == 13)
+        to no when (name_eq(word[pat + 8], word[val + 8]) == 0)
+        to no when (word[pat + 16] != 0)
+        return 1
+    }
+    state nullary_nil {
+        to no when (is_nil_name(word[val + 8]) == 0)
+        to no when (word[pat + 16] != 0)
+        return 1
+    }
+    state nullary_zerotree {
+        to no when (is_zerotree_name(word[val + 8]) == 0)
+        to no when (word[pat + 16] != 0)
+        return 1
+    }
+    state compact_cons {
+        to no when (ptag != 14)
+        return try_match_compact_cons(pat, val)
+    }
+    state compact_node {
+        to no when (ptag != 15)
+        return try_match_compact_pair(pat, val - 67108864)
+    }
+    state compact_chunks {
+        to no when (ptag != 16)
+        return try_match_compact_pair(pat, val - 134217728)
+    }
     state no { return 0 }
     state namechk {
         to no when (name_eq(word[pat + 8], word[val + 8]) == 0)   ; constructor must match
@@ -777,9 +959,11 @@ proc try_match(pat, val) {
     }
     state bindloop {
         to bindbody when (pv != 0)
+        to no when (av != 0)
         return 1
     }
     state bindbody {
+        to no when (av == 0)
         env_push(word[pv + 8], word[av + 8])
         pv = word[pv + 16]
         av = word[av + 16]
@@ -811,6 +995,8 @@ proc eval_match(scrut, arms, fuel) {
 }
 
 proc eval(expr, fuel) {
+    state arena { to arena_exhausted when (word[2097080] != 0)  to fuelchk }
+    state arena_exhausted { return 14684256 }
     state fuelchk { to live when (fuel >= 1)  return 0 }   ; OutOfFuel sentinel
     state live {
         let tag = word[expr]
@@ -864,9 +1050,15 @@ proc eval(expr, fuel) {
         return r
     }
     state t5 { to t_call when (tag == 5)  to t7 }
-    state t_call { return eval_call(word[expr + 8], word[expr + 16], fuel) }
+    state t_call { return eval_call(resolve_call(expr), word[expr + 16], fuel) }
     state t7 { to t_conapp when (tag == 7)  to t8 }
-    state t_conapp { return eval_conapp(word[expr + 8], word[expr + 16], fuel) }
+    state t_conapp {
+        ; Immutable nullary constructor syntax is already the complete value;
+        ; reusing it avoids allocating identical Nil/ZeroTree values in loops.
+        to t_nullcon when (word[expr + 16] == 0)
+        return eval_conapp(word[expr + 8], word[expr + 16], fuel)
+    }
+    state t_nullcon { return expr }
     state t8 { to t_match when (tag == 8)  return 0 }
     state t_match { return eval_match(word[expr + 8], word[expr + 16], fuel) }
 }
@@ -905,34 +1097,35 @@ proc print_con_name(off) {           ; the constructor name lives at SRC[off]
 }
 
 proc print_value(v) {
-    state vint { to do_int when (word[v] == 100)  to vcons }
-    state do_int { emit_dec(word[v + 8])  return 0 }
-    state vcons { to compact_cons when (word[v] == 102)  to vnode }
+    let tag = value_tag(v)
+    state vint { to do_int when (tag == 100)  to vcons }
+    state do_int { emit_dec(get_int(v))  return 0 }
+    state vcons { to nullary_ast when (tag == 7)  to compact_cons_check }
+    state nullary_ast { print_con_name(word[v + 8])  return 0 }
+    state compact_cons_check { to compact_cons when (tag == 102)  to vnode }
     state compact_cons {
-        write_byte('(')
-        print_con_name(word[v + 8])
+        emit("(Cons ")
+        print_value(word[v - 201326592])
         write_byte(' ')
-        print_value(word[v + 16])
-        write_byte(' ')
-        print_value(word[v + 24])
+        print_value(word[v - 201326584])
         write_byte(')')
         return 0
     }
-    state vnode { to compact_node when (word[v] == 104)  to vchunks }
+    state vnode { to compact_node when (tag == 104)  to vchunks }
     state compact_node {
         emit("(Node ")
-        print_value(word[v + 8])
+        print_value(word[v - 67108864])
         write_byte(' ')
-        print_value(word[v + 16])
+        print_value(word[v - 67108856])
         write_byte(')')
         return 0
     }
-    state vchunks { to compact_chunks when (word[v] == 105)  to vcon }
+    state vchunks { to compact_chunks when (tag == 105)  to vcon }
     state compact_chunks {
         emit("(Chunks ")
-        print_value(word[v + 8])
+        print_value(word[v - 134217728])
         write_byte(' ')
-        print_value(word[v + 16])
+        print_value(word[v - 134217720])
         write_byte(')')
         return 0
     }
@@ -972,15 +1165,22 @@ proc main() {
         to defbody when (is_def() == 1)
         to run
     }
-    state defbody { parse_def()  skip_ws()  to defloop }
+    state defbody {
+        parse_def()
+        to arena_exhausted when (word[2097080] != 0)
+        skip_ws()
+        to defloop
+    }
     state run {
         let result = eval(parse_expr(), 50000000)   ; fuel: an upper BOUND on calls, not a cost — programs
                                                     ; that terminate sooner are unaffected. 1M starved real
                                                     ; certifier runs (each list index is an O(i) nth chain).
+        to arena_exhausted when (word[2097080] != 0)
         to argument_exhausted when (word[2097088] != 0)
         print_value(result)          ; render the value (int or constructor tree)
         write_byte(10)
         return get_int(result)       ; and deliver an int result as the exit code
     }
+    state arena_exhausted { return 254 }
     state argument_exhausted { return 253 }
 }

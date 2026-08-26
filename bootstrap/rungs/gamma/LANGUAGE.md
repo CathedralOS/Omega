@@ -32,14 +32,22 @@ catch-all binding. Evaluation is pure; recursion is bounded by explicit
 interpreter fuel, so exhaustion is a reference-evaluation outcome rather than an
 invisible unbounded computation. Tail-position `let`, `if`, `match`, and call
 chains are trampolined: a terminating tail-recursive Gamma program does not also
-depend on the Beta/Alpha return-stack depth. The interpreter may intern bounded
-integers and compact ordinary two-field `Cons` cells internally. It may likewise
+depend on the Beta/Alpha return-stack depth. The interpreter may represent a
+bounded integer range immediately and compact ordinary two-field `Cons` cells
+internally. It may likewise
 compact the ordinary `Node` and `Chunks` constructors used by the bootstrap
 translator's persistent-array carrier; matching and the canonical printed
-constructor tree are unchanged by those representations. The canonical
+constructor tree are unchanged by those representations. It may classify known
+constructor patterns while parsing as long as arbitrary constructor names and
+exact constructor arities retain the same matching behavior. The canonical
 interpreter may also use bounded private scratch storage to transfer
 already-evaluated call arguments; those slots are never Gamma values and are
-released when the callee parameters are bound.
+released when the callee parameters are bound. It may cache the function-table
+index resolved for a parsed call expression; the cache is private evaluator
+metadata and leaves source name resolution, argument evaluation, fuel, and
+observable values unchanged. Exhausting the canonical
+interpreter's private source, argument, or node capacities is a fail-closed host
+outcome and never publishes a partial Gamma value.
 
 ## Statically checked surface
 
