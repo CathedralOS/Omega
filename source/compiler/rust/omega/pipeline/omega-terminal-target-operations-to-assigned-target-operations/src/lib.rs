@@ -1176,6 +1176,7 @@ fn integer_expression_contains_call(expression: &TerminalTargetIntegerExpression
             integer_expression_contains_call(operand)
         }
         TerminalTargetIntegerExpression::WrappingAdd { left, right, .. }
+        | TerminalTargetIntegerExpression::ExactAdd { left, right, .. }
         | TerminalTargetIntegerExpression::BitwiseAnd { left, right, .. }
         | TerminalTargetIntegerExpression::BitwiseOr { left, right, .. }
         | TerminalTargetIntegerExpression::BitwiseXor { left, right, .. }
@@ -1201,8 +1202,10 @@ fn integer_expression_contains_call(expression: &TerminalTargetIntegerExpression
         }
         | TerminalTargetIntegerExpression::SaturatingAdd { left, right, .. }
         | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. }
+        | TerminalTargetIntegerExpression::ExactSubtract { left, right, .. }
         | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. }
         | TerminalTargetIntegerExpression::WrappingMultiply { left, right, .. }
+        | TerminalTargetIntegerExpression::ExactMultiply { left, right, .. }
         | TerminalTargetIntegerExpression::SaturatingMultiply { left, right, .. }
         | TerminalTargetIntegerExpression::ExactDivide { left, right, .. }
         | TerminalTargetIntegerExpression::ExactRemainder { left, right, .. }
@@ -1323,7 +1326,7 @@ fn assign_expression(
         locations: &BTreeMap<usize, TerminalAssignedScalarLocation>,
         architecture: Architecture,
         next_spill: &mut u32,
-        constructor: fn(
+        constructor: impl FnOnce(
             OperationId,
             Box<TerminalAssignedIntegerExpression>,
             Box<TerminalAssignedIntegerExpression>,
@@ -1406,10 +1409,12 @@ fn assign_expression(
         }),
         TerminalTargetIntegerExpression::IntegerExactCast {
             psi_operation,
+            obligation,
             source_type,
             operand,
         } => Ok(TerminalAssignedIntegerExpression::IntegerExactCast {
             psi_operation: *psi_operation,
+            obligation: *obligation,
             source_type: *source_type,
             operand: Box::new(assign_expression(
                 operand,
@@ -1513,11 +1518,13 @@ fn assign_expression(
         }),
         TerminalTargetIntegerExpression::ExactShiftRight {
             psi_operation,
+            obligation,
             count_type,
             value,
             count,
         } => Ok(TerminalAssignedIntegerExpression::ExactShiftRight {
             psi_operation: *psi_operation,
+            obligation: *obligation,
             count_type: *count_type,
             value: Box::new(assign_expression(
                 value,
@@ -1534,11 +1541,13 @@ fn assign_expression(
         }),
         TerminalTargetIntegerExpression::ExactShiftLeft {
             psi_operation,
+            obligation,
             count_type,
             value,
             count,
         } => Ok(TerminalAssignedIntegerExpression::ExactShiftLeft {
             psi_operation: *psi_operation,
+            obligation: *obligation,
             count_type: *count_type,
             value: Box::new(assign_expression(
                 value,
@@ -1570,6 +1579,28 @@ fn assign_expression(
                 right,
             },
         ),
+        TerminalTargetIntegerExpression::ExactAdd {
+            psi_operation,
+            obligation,
+            left,
+            right,
+        } => {
+            let obligation = *obligation;
+            binary(
+                *psi_operation,
+                left,
+                right,
+                locations,
+                architecture,
+                next_spill,
+                move |psi_operation, left, right| TerminalAssignedIntegerExpression::ExactAdd {
+                    psi_operation,
+                    obligation,
+                    left,
+                    right,
+                },
+            )
+        }
         TerminalTargetIntegerExpression::SaturatingAdd {
             psi_operation,
             left,
@@ -1604,6 +1635,30 @@ fn assign_expression(
                 right,
             },
         ),
+        TerminalTargetIntegerExpression::ExactSubtract {
+            psi_operation,
+            obligation,
+            left,
+            right,
+        } => {
+            let obligation = *obligation;
+            binary(
+                *psi_operation,
+                left,
+                right,
+                locations,
+                architecture,
+                next_spill,
+                move |psi_operation, left, right| {
+                    TerminalAssignedIntegerExpression::ExactSubtract {
+                        psi_operation,
+                        obligation,
+                        left,
+                        right,
+                    }
+                },
+            )
+        }
         TerminalTargetIntegerExpression::SaturatingSubtract {
             psi_operation,
             left,
@@ -1638,6 +1693,30 @@ fn assign_expression(
                 right,
             },
         ),
+        TerminalTargetIntegerExpression::ExactMultiply {
+            psi_operation,
+            obligation,
+            left,
+            right,
+        } => {
+            let obligation = *obligation;
+            binary(
+                *psi_operation,
+                left,
+                right,
+                locations,
+                architecture,
+                next_spill,
+                move |psi_operation, left, right| {
+                    TerminalAssignedIntegerExpression::ExactMultiply {
+                        psi_operation,
+                        obligation,
+                        left,
+                        right,
+                    }
+                },
+            )
+        }
         TerminalTargetIntegerExpression::SaturatingMultiply {
             psi_operation,
             left,
@@ -1657,106 +1736,146 @@ fn assign_expression(
         ),
         TerminalTargetIntegerExpression::ExactDivide {
             psi_operation,
+            obligation,
             left,
             right,
-        } => binary(
-            *psi_operation,
-            left,
-            right,
-            locations,
-            architecture,
-            next_spill,
-            |psi_operation, left, right| TerminalAssignedIntegerExpression::ExactDivide {
-                psi_operation,
+        } => {
+            let obligation = *obligation;
+            binary(
+                *psi_operation,
                 left,
                 right,
-            },
-        ),
+                locations,
+                architecture,
+                next_spill,
+                move |psi_operation, left, right| TerminalAssignedIntegerExpression::ExactDivide {
+                    psi_operation,
+                    obligation,
+                    left,
+                    right,
+                },
+            )
+        }
         TerminalTargetIntegerExpression::ExactRemainder {
             psi_operation,
+            obligation,
             left,
             right,
-        } => binary(
-            *psi_operation,
-            left,
-            right,
-            locations,
-            architecture,
-            next_spill,
-            |psi_operation, left, right| TerminalAssignedIntegerExpression::ExactRemainder {
-                psi_operation,
+        } => {
+            let obligation = *obligation;
+            binary(
+                *psi_operation,
                 left,
                 right,
-            },
-        ),
+                locations,
+                architecture,
+                next_spill,
+                move |psi_operation, left, right| {
+                    TerminalAssignedIntegerExpression::ExactRemainder {
+                        psi_operation,
+                        obligation,
+                        left,
+                        right,
+                    }
+                },
+            )
+        }
         TerminalTargetIntegerExpression::WrappingDivide {
             psi_operation,
+            obligation,
             left,
             right,
-        } => binary(
-            *psi_operation,
-            left,
-            right,
-            locations,
-            architecture,
-            next_spill,
-            |psi_operation, left, right| TerminalAssignedIntegerExpression::WrappingDivide {
-                psi_operation,
+        } => {
+            let obligation = *obligation;
+            binary(
+                *psi_operation,
                 left,
                 right,
-            },
-        ),
+                locations,
+                architecture,
+                next_spill,
+                move |psi_operation, left, right| {
+                    TerminalAssignedIntegerExpression::WrappingDivide {
+                        psi_operation,
+                        obligation,
+                        left,
+                        right,
+                    }
+                },
+            )
+        }
         TerminalTargetIntegerExpression::WrappingRemainder {
             psi_operation,
+            obligation,
             left,
             right,
-        } => binary(
-            *psi_operation,
-            left,
-            right,
-            locations,
-            architecture,
-            next_spill,
-            |psi_operation, left, right| TerminalAssignedIntegerExpression::WrappingRemainder {
-                psi_operation,
+        } => {
+            let obligation = *obligation;
+            binary(
+                *psi_operation,
                 left,
                 right,
-            },
-        ),
+                locations,
+                architecture,
+                next_spill,
+                move |psi_operation, left, right| {
+                    TerminalAssignedIntegerExpression::WrappingRemainder {
+                        psi_operation,
+                        obligation,
+                        left,
+                        right,
+                    }
+                },
+            )
+        }
         TerminalTargetIntegerExpression::SaturatingDivide {
             psi_operation,
+            obligation,
             left,
             right,
-        } => binary(
-            *psi_operation,
-            left,
-            right,
-            locations,
-            architecture,
-            next_spill,
-            |psi_operation, left, right| TerminalAssignedIntegerExpression::SaturatingDivide {
-                psi_operation,
+        } => {
+            let obligation = *obligation;
+            binary(
+                *psi_operation,
                 left,
                 right,
-            },
-        ),
+                locations,
+                architecture,
+                next_spill,
+                move |psi_operation, left, right| {
+                    TerminalAssignedIntegerExpression::SaturatingDivide {
+                        psi_operation,
+                        obligation,
+                        left,
+                        right,
+                    }
+                },
+            )
+        }
         TerminalTargetIntegerExpression::SaturatingRemainder {
             psi_operation,
+            obligation,
             left,
             right,
-        } => binary(
-            *psi_operation,
-            left,
-            right,
-            locations,
-            architecture,
-            next_spill,
-            |psi_operation, left, right| TerminalAssignedIntegerExpression::SaturatingRemainder {
-                psi_operation,
+        } => {
+            let obligation = *obligation;
+            binary(
+                *psi_operation,
                 left,
                 right,
-            },
-        ),
+                locations,
+                architecture,
+                next_spill,
+                move |psi_operation, left, right| {
+                    TerminalAssignedIntegerExpression::SaturatingRemainder {
+                        psi_operation,
+                        obligation,
+                        left,
+                        right,
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -1959,6 +2078,7 @@ fn expression_parameter_locations(
                 collect(operand, locations)?;
             }
             TerminalTargetIntegerExpression::WrappingAdd { left, right, .. }
+            | TerminalTargetIntegerExpression::ExactAdd { left, right, .. }
             | TerminalTargetIntegerExpression::BitwiseAnd { left, right, .. }
             | TerminalTargetIntegerExpression::BitwiseOr { left, right, .. }
             | TerminalTargetIntegerExpression::BitwiseXor { left, right, .. }
@@ -1984,8 +2104,10 @@ fn expression_parameter_locations(
             }
             | TerminalTargetIntegerExpression::SaturatingAdd { left, right, .. }
             | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. }
+            | TerminalTargetIntegerExpression::ExactSubtract { left, right, .. }
             | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. }
             | TerminalTargetIntegerExpression::WrappingMultiply { left, right, .. }
+            | TerminalTargetIntegerExpression::ExactMultiply { left, right, .. }
             | TerminalTargetIntegerExpression::SaturatingMultiply { left, right, .. } => {
                 collect(left, locations)?;
                 collect(right, locations)?;
@@ -2332,7 +2454,8 @@ mod tests {
         TerminalTargetStructuralParameter,
     };
     use psi_core::{
-        EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId,
+        EdgeId, IntegerSign, IntegerType, ObligationId, OperationId, PlaceId, ScalarType,
+        StructuralTypeId,
     };
     use psi_terminal::{
         SemanticFingerprint, StructuralMultiplicity, StructuralPathSegment,
@@ -2544,6 +2667,55 @@ mod tests {
                 location: TerminalAssignedScalarLocation::IncomingStack { byte_offset: 16 },
                 ..
             }
+        ));
+    }
+
+    #[test]
+    fn exact_arithmetic_obligation_survives_register_assignment() {
+        let obligation = ObligationId::new(17).expect("obligation");
+        let mut plan = expression_plan(
+            NativeTarget::linux_x64(),
+            TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+            TerminalScalarParameterLocation::Register(MachineRegister::X86Rsi),
+        );
+        let TerminalTargetOperation::ReturnIntegerExpression { expression, .. } =
+            &mut plan.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let TerminalTargetIntegerExpression::WrappingAdd {
+            psi_operation,
+            left,
+            right,
+        } = std::mem::replace(
+            expression,
+            TerminalTargetIntegerExpression::Immediate {
+                source_value: ValueId::new(3).expect("result"),
+                value: psi_core::IntegerValue::Unsigned(0),
+            },
+        )
+        else {
+            unreachable!()
+        };
+        *expression = TerminalTargetIntegerExpression::ExactAdd {
+            psi_operation,
+            obligation,
+            left,
+            right,
+        };
+
+        let assigned = assign_registers(&plan).expect("assign exact arithmetic homes");
+        let TerminalAssignedOperation::ReturnIntegerExpression { expression, .. } =
+            &assigned.functions[0].operation
+        else {
+            panic!("fixture must remain an expression")
+        };
+        assert!(matches!(
+            expression,
+            TerminalAssignedIntegerExpression::ExactAdd {
+                obligation: retained,
+                ..
+            } if *retained == obligation
         ));
     }
 

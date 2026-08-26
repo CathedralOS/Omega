@@ -73,7 +73,10 @@ fn checked_source_exact_add_uses_known_addend_bound() {
             .iter()
             .any(|operation| matches!(
                 operation,
-                TerminalAbstractOperation::WrappingIntegerAdd { .. }
+                TerminalAbstractOperation::ExactIntegerAdd {
+                    obligation: retained,
+                    ..
+                } if *retained == obligation
             ))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
@@ -400,7 +403,10 @@ fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
             .iter()
             .any(|operation| matches!(
                 operation,
-                TerminalAbstractOperation::WrappingIntegerSubtract { .. }
+                TerminalAbstractOperation::ExactIntegerSubtract {
+                    obligation: retained,
+                    ..
+                } if *retained == obligation
             ))
     );
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

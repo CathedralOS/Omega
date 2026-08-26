@@ -538,6 +538,7 @@ fn conditional_call_argument_division_plan(target: NativeTarget) -> TerminalTarg
                                     left: Box::new(
                                         TerminalTargetIntegerExpression::WrappingDivide {
                                             psi_operation: operation_id(1),
+                                            obligation: psi_core::ObligationId::new(1).unwrap(),
                                             left: Box::new(immediate(2, 24)),
                                             right: Box::new(immediate(3, 3)),
                                         },
@@ -565,6 +566,7 @@ fn conditional_call_argument_division_plan(target: NativeTarget) -> TerminalTarg
                                         expression:
                                             TerminalTargetIntegerExpression::ExactRemainder {
                                                 psi_operation: operation_id(4),
+                                                obligation: psi_core::ObligationId::new(1).unwrap(),
                                                 left: Box::new(immediate(6, 43)),
                                                 right: Box::new(immediate(7, 6)),
                                             },
@@ -651,6 +653,7 @@ fn conditional_condition_division_plan(target: NativeTarget) -> TerminalTargetOp
                     scalar_type,
                     left: Box::new(TerminalTargetIntegerExpression::WrappingDivide {
                         psi_operation: operation_id(1),
+                        obligation: psi_core::ObligationId::new(1).unwrap(),
                         left: Box::new(immediate(2, 24)),
                         right: Box::new(immediate(3, 3)),
                     }),
@@ -715,6 +718,7 @@ fn conditional_arm_division_plan(
                         source_value: value_id(2),
                         expression: TerminalTargetIntegerExpression::WrappingDivide {
                             psi_operation: operation_id(1),
+                            obligation: psi_core::ObligationId::new(1).unwrap(),
                             left: Box::new(immediate(3, if signed { i64::MIN } else { 24 })),
                             right: Box::new(immediate(4, if signed { -1 } else { 3 })),
                         },
@@ -727,6 +731,7 @@ fn conditional_arm_division_plan(
                         source_value: value_id(5),
                         expression: TerminalTargetIntegerExpression::ExactRemainder {
                             psi_operation: operation_id(2),
+                            obligation: psi_core::ObligationId::new(1).unwrap(),
                             left: Box::new(immediate(6, 29)),
                             right: Box::new(immediate(7, 5)),
                         },
@@ -773,6 +778,7 @@ fn division_argument_plan(target: NativeTarget) -> TerminalTargetOperationPlan {
                                 scalar_type,
                                 expression: TerminalTargetIntegerExpression::WrappingDivide {
                                     psi_operation: operation_id(1),
+                                    obligation: psi_core::ObligationId::new(1).unwrap(),
                                     left: Box::new(TerminalTargetIntegerExpression::Immediate {
                                         source_value: value_id(2),
                                         value: IntegerValue::Signed(i64::MIN.into()),

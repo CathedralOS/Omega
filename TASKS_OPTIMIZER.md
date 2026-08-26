@@ -1,6 +1,6 @@
 # Optimizer Tasks
 
-Last audited: 2026-08-25.
+Last audited: 2026-08-26.
 
 This file is the execution queue for Omega optimization. The durable semantic
 model, pass architecture, folder ownership, build hook, verification boundary,
@@ -66,6 +66,14 @@ These facts constrain the work below.
   and cleanup metadata. `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open
   until verified proof/range evidence and complete path-sensitive place and
   ownership frontiers survive the Terminal-Psi lowering boundary.
+- Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
+  division, and remainder now retain their exact obligation identities through
+  Terminal abstract, target, and assigned-target operations. Exact add,
+  subtract, and multiply remain distinct from wrapping operations until final
+  ISA opcode realization. The optimization unit indexes these operation-to-
+  obligation references and its independent validator reconstructs that index;
+  the references are not accepted facts until joined with verifier-owned
+  evidence, so the unit tasks remain open.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.

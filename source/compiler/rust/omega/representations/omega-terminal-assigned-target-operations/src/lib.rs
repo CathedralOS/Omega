@@ -474,6 +474,7 @@ pub enum TerminalAssignedIntegerExpression {
     },
     IntegerExactCast {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         source_type: IntegerType,
         operand: Box<TerminalAssignedIntegerExpression>,
     },
@@ -506,18 +507,26 @@ pub enum TerminalAssignedIntegerExpression {
     },
     ExactShiftLeft {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         count_type: IntegerType,
         value: Box<TerminalAssignedIntegerExpression>,
         count: Box<TerminalAssignedIntegerExpression>,
     },
     ExactShiftRight {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         count_type: IntegerType,
         value: Box<TerminalAssignedIntegerExpression>,
         count: Box<TerminalAssignedIntegerExpression>,
     },
     WrappingAdd {
         psi_operation: OperationId,
+        left: Box<TerminalAssignedIntegerExpression>,
+        right: Box<TerminalAssignedIntegerExpression>,
+    },
+    ExactAdd {
+        psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         left: Box<TerminalAssignedIntegerExpression>,
         right: Box<TerminalAssignedIntegerExpression>,
     },
@@ -531,6 +540,12 @@ pub enum TerminalAssignedIntegerExpression {
         left: Box<TerminalAssignedIntegerExpression>,
         right: Box<TerminalAssignedIntegerExpression>,
     },
+    ExactSubtract {
+        psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
+        left: Box<TerminalAssignedIntegerExpression>,
+        right: Box<TerminalAssignedIntegerExpression>,
+    },
     SaturatingSubtract {
         psi_operation: OperationId,
         left: Box<TerminalAssignedIntegerExpression>,
@@ -541,33 +556,45 @@ pub enum TerminalAssignedIntegerExpression {
         left: Box<TerminalAssignedIntegerExpression>,
         right: Box<TerminalAssignedIntegerExpression>,
     },
+    ExactMultiply {
+        psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
+        left: Box<TerminalAssignedIntegerExpression>,
+        right: Box<TerminalAssignedIntegerExpression>,
+    },
     ExactDivide {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         left: Box<TerminalAssignedIntegerExpression>,
         right: Box<TerminalAssignedIntegerExpression>,
     },
     ExactRemainder {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         left: Box<TerminalAssignedIntegerExpression>,
         right: Box<TerminalAssignedIntegerExpression>,
     },
     WrappingDivide {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         left: Box<TerminalAssignedIntegerExpression>,
         right: Box<TerminalAssignedIntegerExpression>,
     },
     WrappingRemainder {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         left: Box<TerminalAssignedIntegerExpression>,
         right: Box<TerminalAssignedIntegerExpression>,
     },
     SaturatingDivide {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         left: Box<TerminalAssignedIntegerExpression>,
         right: Box<TerminalAssignedIntegerExpression>,
     },
     SaturatingRemainder {
         psi_operation: OperationId,
+        obligation: psi_core::ObligationId,
         left: Box<TerminalAssignedIntegerExpression>,
         right: Box<TerminalAssignedIntegerExpression>,
     },
