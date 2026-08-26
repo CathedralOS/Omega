@@ -139,6 +139,14 @@ compiler loading still recognizes both free `build` and scoped
 provider canaries and three deliberately failing build-authority canaries use
 the scoped form.
 
+The rest of the repository is now closed: all 1,338 tracked free build roots
+declare an explicit role and both package orchestration and compiler loading
+enforce the shared grammar. A corpus canary proves the five exceptions each
+remain exactly one scoped root with no competing free root. The unresolved
+behavior is therefore isolated to the early scoped-root bypass in compiler
+role validation and scoped-name acceptance during build-machine selection;
+there is no broader migration dependency hiding behind this question.
+
 ### Problem statement
 
 One `build.omg` currently has two incompatible meanings. Package-aware readers

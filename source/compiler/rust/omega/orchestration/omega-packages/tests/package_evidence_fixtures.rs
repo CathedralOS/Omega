@@ -5,6 +5,7 @@ use omega_compiler::{
     PackageReviewContractKind, PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
     PackageReviewPropositionEvidence, PackageReviewRepresentationAbiCommitment,
     PackageReviewRepresentationMechanism, PackageReviewSourceLocationRole,
+    decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
 };
 use omega_packages::{
     CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits,
@@ -537,6 +538,12 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 "{} review encoding must be nonempty",
                 node.source().key().name().as_str()
             );
+            let ledger_bytes =
+                encode_ordinary_package_obligation_ledger(issued.obligation_ledger())
+                    .expect("compiler-issued review retains a canonical obligation ledger");
+            let recovered = decode_ordinary_package_obligation_ledger(&ledger_bytes)
+                .expect("retained obligation ledger should recover canonically");
+            assert_eq!(&recovered, issued.obligation_ledger());
         }
 
         let root_review = reviews
