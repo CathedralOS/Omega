@@ -2560,6 +2560,18 @@ standard library by path.
       which the resolver contract deliberately excludes. Consuming the standard
       library currently requires authenticating and materializing roughly 9,300
       tracked files to obtain 59.
+
+      Progress 2026-08-26: the transport floor now requests the selected
+      revision at depth one with `blob:limit=<source-byte-ceiling + 1>`, disables
+      lazy object fetching during authentication/materialization, and restores
+      the resolver-owned canonical bare-repository configuration after Git's
+      temporary promisor setup. A required individually inadmissible blob stays
+      outside quarantine custody and resolution rejects. An exact object-ID pin
+      re-authenticates and reuses existing cache custody without contacting the
+      remote; symbolic selectors still refetch and observe movement. The task
+      remains open: until Q2 supplies a selected member path, an admissible
+      whole-root package still requires every blob in its authenticated tree and
+      materializes the whole root.
 - [x] **Stop mirroring `filesystem_host.omg` in Rust.** `FilesystemHostOperation`
       duplicates the trait's declared machines, and two `#[test]` functions in
       `psi-checked-interpreter/src/evaluator/filesystem_host_operation.rs` read
