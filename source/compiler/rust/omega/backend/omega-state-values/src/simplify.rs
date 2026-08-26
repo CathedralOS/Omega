@@ -2119,6 +2119,7 @@ mod tests {
                         continuation: psi_checked_trees::statement::TransitionTargetHandle::invalid(
                         ),
                         guard,
+                        proof_selectors: Default::default(),
                         exit: Default::default(),
                         source_span: Default::default(),
                     })
