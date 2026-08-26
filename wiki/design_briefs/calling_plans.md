@@ -1291,8 +1291,13 @@ transport, independently replayed hot charges/cold dispatchers, installed
 are live. The installation record keeps semantic/source rows unchanged and
 adds an optional target recipe, source fingerprint, source-to-metered function
 map, and exact hot/semantic/cold charge catalog; plain-image records require the
-section to be absent. The target-runtime opaque-state save, sponsor-stack
-switch, and exhaustion transfer entry remain unimplemented.
+section to be absent. Linux x86-64 also has a compiler-owned transfer/resume
+encoder and a distinct replayed image product: it saves and restores the exact
+admitted opaque state, switches to the sponsor stack, calls one typed sponsor
+symbol, reconstructs the retry address from its `.text` offset, and retains
+unrelocated/final entry bytes, physical footprint, and sponsor-stack peak.
+Installed transfer custody, the exact authored sponsor-policy join, and the
+other target-runtime encoders remain open.
 
 ## Still open
 
