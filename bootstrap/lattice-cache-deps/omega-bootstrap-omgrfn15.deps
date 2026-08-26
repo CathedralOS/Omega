@@ -1,6 +1,7 @@
-# Precise cache profile for the explicitly non-admitting OMGRFN15 candidate
-# frame/reference seam.  This is not persisted-Beta R1--R5 closure.
-script bootstrap/assurance/refinement/omega-bootstrap/omgrfn15-reference-gate.sh
+# Precise cache profile for OMGRFN15's immutable-frame direct full-u32
+# subtraction composition. Rung compiler/assembler inputs remain covered by
+# CORE.
+script bootstrap/assurance/refinement/omega-bootstrap/omgrfn15-same-frame-composite.sh
 
 input bootstrap/onramps/delta-rust
 input bootstrap/omega-bootstrap/compiler/omega-bootstrap-resolve.alp
@@ -15,8 +16,11 @@ input bootstrap/omega-bootstrap/gates/checked_ir_v5_reference.py
 input bootstrap/omega-bootstrap/gates/checked_ir_v13_reference.py
 input bootstrap/omega-bootstrap/gates/delta-resolved-to-ckir13-fixture.py
 input bootstrap/omega-bootstrap/gates/fixtures/ckir13-full-u32-subtract
-input bootstrap/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V15.md
+
+input bootstrap/assurance/refinement/omega-bootstrap/omgrfn4-frame-omgcomp-custody.beta
+input bootstrap/assurance/refinement/omega-bootstrap/omgrfn5-frame-omgcomp-custody.beta
 input bootstrap/assurance/refinement/omega-bootstrap/omgrfn6_bundle.py
+input bootstrap/assurance/refinement/omega-bootstrap/omgrfn15-materialize-r1-r2.py
+input bootstrap/assurance/refinement/omega-bootstrap/omgrfn15-materialize-r3-r5.py
 input bootstrap/assurance/refinement/omega-bootstrap/omgrfn15_bundle.py
-input bootstrap/assurance/refinement/omega-bootstrap/omgrfn15_reference.py
-input bootstrap/assurance/refinement/omega-bootstrap/omgrfn15-reference-gate.py
+input bootstrap/assurance/refinement/omega-bootstrap/omgrfn15_checker_model.py
