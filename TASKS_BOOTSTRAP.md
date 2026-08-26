@@ -141,7 +141,7 @@ At every bridge milestone:
 
 ### 1. Consume product checkpoints and enforce provisional `Ωself`
 
-- [ ] Consume refreshed checkpoint 000001 as the current coherent lexical
+- [x] Consume refreshed checkpoint 000001 as the current coherent lexical
   product closure and reconcile bridge coverage against its source/profile
   changes. Its manifest, profile, Cargo/provider provenance, and extracted
   build prelude now pass together. Its repository-path dependency replay remains
@@ -187,9 +187,14 @@ does not admit a facility to final `Ωself`.
   compositional relations: state parameters, mutation, calls, result fields,
   ranges, concrete trapping arithmetic, required casts, and any retained
   ranking form. The admitted selected frontier is CKIR12 with OMGRFN14. The
-  next known gap is the UTF-8 arithmetic whose subtraction results feed
-  multiplication/addition; close it as a general compositional relation from
-  that frontier.
+  next known gap is the pure same-carrier full-width `u32 in Trapping`
+  arithmetic used by UTF-8 decoding: nine subtraction nodes, six
+  multiplication nodes, and six addition nodes across the two-, three-, and
+  four-byte decode trees. Close `+`, `-`, `*`, precedence, association,
+  parentheses, and intermediate-result composition as one bounded recursive
+  relation from that frontier. Preserve operation-by-operation trapping and
+  CKIR12 view composition; do not replace the relation with enumerated source
+  expressions or assignment/guard/call/transition permutations.
   Continue to reject call arguments whose observable or trapping relative order
   depends on the unresolved language rule.
 - [ ] Close source-graph and selected product-binding forms over resolver-owned
