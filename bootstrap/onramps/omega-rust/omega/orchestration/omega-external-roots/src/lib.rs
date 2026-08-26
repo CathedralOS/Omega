@@ -20,8 +20,10 @@ use omega_executable_installation::{
     InstallationRegistryAuthority, InstalledCode, InstalledCodeContext,
 };
 pub use omega_terminal_installation_evidence::{
-    NativeFuelContextLayout, NativeFuelTargetPlanProjection, SponsorContextTransport,
-    TerminalObjectEvidence, TerminalStackDemandEvidence,
+    NativeFuelActivationStateSlot, NativeFuelContextLayout, NativeFuelRuntimeEntryIdentity,
+    NativeFuelSavedValue, NativeFuelSponsorStackPlan, NativeFuelTargetPlanProjection,
+    NativeFuelTransferRuntimePlanProjection, SponsorContextTransport, TerminalObjectEvidence,
+    TerminalStackDemandEvidence,
 };
 pub use psi_core::FuelScheduleIdentity;
 use psi_layout_plans::EntryStubId;
@@ -97,14 +99,6 @@ normalized_id!(
     "fuel-suspension validation receipt"
 );
 normalized_id!(NativeFuelMeterPlanId, "native fuel-meter plan");
-normalized_id!(
-    FuelExhaustionTransferPlanId,
-    "fuel-exhaustion transfer plan"
-);
-normalized_id!(
-    DynamicFuelMeterValidationReceiptId,
-    "dynamic fuel-meter validation receipt"
-);
 normalized_id!(StateValidationReceiptId, "machine-state validation receipt");
 normalized_id!(InterruptInvocationId, "interrupt invocation");
 normalized_id!(InterruptEntryReceiptId, "interrupt entry receipt");
