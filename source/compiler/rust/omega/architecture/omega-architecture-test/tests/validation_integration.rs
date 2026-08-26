@@ -2500,7 +2500,7 @@ fn local_dynamic_coercion_rejects_bodyless_static_conformance() {
 }
 
 #[test]
-fn reassigned_local_dynamic_binding_requires_physical_descriptor_lowering() {
+fn same_conformance_local_dynamic_rebind_retains_both_exact_selections() {
     let typed = typed_program_from_source(
         r#"
         trait Shape {
@@ -2510,7 +2510,36 @@ fn reassigned_local_dynamic_binding_requires_physical_descriptor_lowering() {
         Primary: Item satisfies Shape {
             machine code(&self) -> i32 { 1 }
         }
+        machine dispatch(value: &dyn Shape) -> i32 { value.code() }
 
+        machine choose(first: Item, second: Item) -> i32 {
+            let mut erased: &dyn Shape = &first as &dyn Item::Primary;
+            erased = &second as &dyn Item::Primary;
+            dispatch(erased)
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect("same-conformance dynamic rebind");
+    let selections = psi_validation::collect_dynamic_conformance_selections(&typed)
+        .expect("exact rebind selections");
+    assert_eq!(selections.len(), 2);
+    assert_eq!(selections[0].binding, selections[1].binding);
+    assert_eq!(selections[0].target_trait, selections[1].target_trait);
+    assert_eq!(selections[0].conformance, selections[1].conformance);
+    assert_ne!(selections[0].source_symbol, selections[1].source_symbol);
+    assert!(selections[0].statement_index < selections[1].statement_index);
+}
+
+#[test]
+fn direct_call_through_rebound_dynamic_local_remains_fenced() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Shape { machine code(&self) -> i32; }
+        data Item {}
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { 1 }
+        }
         machine choose(first: Item, second: Item) -> i32 {
             let mut erased: &dyn Shape = &first as &dyn Item::Primary;
             erased = &second as &dyn Item::Primary;
@@ -2520,10 +2549,72 @@ fn reassigned_local_dynamic_binding_requires_physical_descriptor_lowering() {
     );
 
     let diagnostics = validate_program(&typed)
-        .expect_err("a reassigned dynamic binding cannot use a stale initializer selection");
+        .expect_err("direct local dispatch after a rebind has no lowering authority");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("direct call through rebound dynamic local `erased` remains fenced")
+    }));
+}
+
+#[test]
+fn dynamic_rebind_without_an_exact_cast_cannot_reuse_the_initializer_selection() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Shape { machine code(&self) -> i32; }
+        data Item {}
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { 1 }
+        }
+        machine dispatch(value: &dyn Shape) -> i32 { value.code() }
+        machine choose(first: Item, second: Item) -> i32 {
+            let mut erased: &dyn Shape = &first as &dyn Item::Primary;
+            erased = &second;
+            dispatch(erased)
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("an unselected assignment must not leave stale descriptor authority");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("requires an exact direct-place named-conformance cast")
+    }));
+}
+
+#[test]
+fn different_conformance_local_dynamic_rebind_remains_rejected() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Shape { machine code(&self) -> i32; }
+        data Item {}
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { 1 }
+        }
+        Secondary: Item satisfies Shape {
+            machine code(&self) -> i32 { 2 }
+        }
+
+        machine choose(first: Item, second: Item) -> i32 {
+            let mut erased: &dyn Shape = &first as &dyn Item::Primary;
+            erased = &second as &dyn Item::Secondary;
+            erased.code()
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a bounded rebind cannot change exact conformance identity");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("must retain its exact trait and named conformance")
+    }));
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
-            "local dynamic binding `erased` is reassigned; physical descriptor lowering is required before mutable dynamic bindings can dispatch",
+            "a recast binds to a reference-typed let (`let v: &T = &x as &T;`) in this rung",
         )
     }));
 }

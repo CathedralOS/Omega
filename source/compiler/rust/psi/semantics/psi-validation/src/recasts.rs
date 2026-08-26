@@ -84,10 +84,17 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
     // range discharge needs the value's declared type); the positional
     // sweep below only judges strays (literal-only).
     let mut judged_qualifications: Vec<ExpressionHandle> = Vec::new();
+    let dynamic_rebindings =
+        crate::traits::collect_dynamic_conformance_selections(program).unwrap_or_default();
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
                 judge_statement_qualification_casts(
                     program,
                     machine,
@@ -96,6 +103,27 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                     &mut judged_qualifications,
                     diagnostics,
                 );
+                if let StatementNode::Assignment(assignment) = statement {
+                    let value = strip_mutable(program, assignment.value);
+                    if dynamic_rebindings.iter().any(|selection| {
+                        selection.machine == machine.symbol
+                            && selection.state == state.symbol
+                            && selection.statement_index == statement_index
+                            && selection.occurrence == value
+                            && matches!(
+                                program.expression_table.expression(value),
+                                ExpressionNode::Cast(cast)
+                                    if cast.form.is_recast()
+                                        && crate::traits::dynamic_trait_symbol(
+                                            program,
+                                            cast.target_type,
+                                        )
+                                        .is_some()
+                            )
+                    }) {
+                        blessed.push(value);
+                    }
+                }
                 let StatementNode::LocalData(local) = statement else {
                     continue;
                 };

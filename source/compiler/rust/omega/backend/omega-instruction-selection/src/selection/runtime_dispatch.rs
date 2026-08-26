@@ -1321,13 +1321,131 @@ pub(crate) fn emit_local_dynamic_conformance_descriptor(
         .semantics
         .facts
         .dynamic_conformances
-        .for_binding(source_key.machine, source_key.state, target_slot.symbol)
+        .at_statement(
+            source_key.machine,
+            source_key.state,
+            target_slot.symbol,
+            statement_index,
+        )
     else {
         return false;
     };
-    if selection.statement_index != statement_index
-        || selection.source_path.last() != Some(&selection.source_name)
+    emit_exact_dynamic_conformance_descriptor(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        target_slot,
+        expressions,
+        initializer,
+        selection,
+        selected_instructions,
+    )
+}
+
+pub(crate) fn emit_local_dynamic_conformance_rebind(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let ExpressionNode::Name(target_name) = expressions.expression(target) else {
+        return false;
+    };
+    let Some(target_leaf) = expressions.name_path_members(target_name.members).last() else {
+        return false;
+    };
+    let mut selections = input
+        .control_flow
+        .semantics
+        .facts
+        .dynamic_conformances
+        .selections
+        .iter()
+        .filter(|selection| {
+            selection.machine == source_key.machine
+                && selection.state == source_key.state
+                && selection.statement_index == statement_index
+                && selection.binding_name == *target_leaf
+                && (!target_name.symbol.is_valid() || selection.binding == target_name.symbol)
+        });
+    let Some(selection) = selections.next() else {
+        return false;
+    };
+    if selections.next().is_some() {
+        return true;
+    }
+    let Some(prior) = input
+        .control_flow
+        .semantics
+        .facts
+        .dynamic_conformances
+        .for_receiver(
+            source_key.machine,
+            source_key.state,
+            selection.binding,
+            &selection.binding_name,
+            statement_index,
+        )
+    else {
+        return true;
+    };
+    if prior.target_trait != selection.target_trait
+        || prior.source_data != selection.source_data
+        || prior.conformance != selection.conformance
+        || prior.rows != selection.rows
     {
+        return true;
+    }
+    let mut slots = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .filter_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && slot.symbol == selection.binding
+                && matches!(
+                    slot.kind,
+                    omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+                ))
+            .then_some(slot)
+        });
+    let Some(target_slot) = slots.next() else {
+        return true;
+    };
+    if slots.next().is_some() {
+        return true;
+    }
+    emit_exact_dynamic_conformance_descriptor(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        target_slot,
+        expressions,
+        value,
+        selection,
+        selected_instructions,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_exact_dynamic_conformance_descriptor(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    target_slot: &omega_runtime_storage::RuntimeFrameSlot,
+    expressions: &ExpressionTable,
+    initializer: ExpressionHandle,
+    selection: &psi_checked_trees::DynamicConformanceBindingFact,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    if selection.source_path.last() != Some(&selection.source_name) {
         return true;
     }
     let Some(conformance) = selection.conformance else {

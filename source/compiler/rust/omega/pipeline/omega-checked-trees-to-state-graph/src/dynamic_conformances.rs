@@ -47,21 +47,63 @@ fn validate_selection(
         .ok_or_else(|| {
             Diagnostic::error("state-graph dynamic selection statement coordinate is out of range")
         })?;
-    let psi_checked_trees::statement::StatementNode::LocalData(local) = statement else {
-        return Err(Diagnostic::error(
-            "state-graph dynamic selection coordinate is not a local-data statement",
-        ));
+    let is_rebind = matches!(
+        statement,
+        psi_checked_trees::statement::StatementNode::Assignment(_)
+    );
+    let occurrence = match statement {
+        psi_checked_trees::statement::StatementNode::LocalData(local) => {
+            if local.symbol != selection.binding || local.name != selection.binding_name {
+                return Err(Diagnostic::error(
+                    "state-graph dynamic selection binding disagrees with its exact local declaration",
+                ));
+            }
+            strip_mutable(program, local.initial_value)?
+        }
+        psi_checked_trees::statement::StatementNode::Assignment(assignment) => {
+            let ExpressionNode::Name(target) =
+                program.expression_table.expression(assignment.target)
+            else {
+                return Err(Diagnostic::error(
+                    "state-graph dynamic rebind target is not the exact local binding",
+                ));
+            };
+            let target_name = program
+                .expression_table
+                .name_path_members(target.members)
+                .last()
+                .ok_or_else(|| {
+                    Diagnostic::error("state-graph dynamic rebind target path is empty")
+                })?
+                .clone();
+            if target_name != selection.binding_name {
+                return Err(Diagnostic::error(
+                    "state-graph dynamic rebind target is not the exact local binding",
+                ));
+            }
+            let declaration = exact_source_declaration(
+                program,
+                machine,
+                state,
+                selection.statement_index,
+                std::slice::from_ref(&target_name),
+            )?;
+            if declaration.symbol != selection.binding {
+                return Err(Diagnostic::error(
+                    "state-graph dynamic rebind target identity drifted",
+                ));
+            }
+            strip_mutable(program, assignment.value)?
+        }
+        _ => {
+            return Err(Diagnostic::error(
+                "state-graph dynamic selection coordinate is neither a local declaration nor an exact rebind assignment",
+            ));
+        }
     };
-    if local.symbol != selection.binding || local.name != selection.binding_name {
-        return Err(Diagnostic::error(
-            "state-graph dynamic selection binding disagrees with its exact local declaration",
-        ));
-    }
-
-    let occurrence = strip_mutable(program, local.initial_value)?;
     if occurrence != selection.occurrence || !exact_expression(program, occurrence) {
         return Err(Diagnostic::error(
-            "state-graph dynamic selection occurrence disagrees with its exact initializer",
+            "state-graph dynamic selection occurrence disagrees with its exact initializer or rebind value",
         ));
     }
     let ExpressionNode::Cast(cast) = program.expression_table.expression(occurrence) else {
@@ -128,7 +170,34 @@ fn validate_selection(
         .ok_or_else(|| {
             Diagnostic::error("state-graph dynamic selection names a bodyless conformance")
         })?;
-    validate_rows(program, rows, &selection.rows)
+    validate_rows(program, rows, &selection.rows)?;
+    if is_rebind {
+        let prior = program
+            .facts
+            .dynamic_conformances
+            .selections
+            .iter()
+            .filter(|candidate| {
+                candidate.machine == selection.machine
+                    && candidate.state == selection.state
+                    && candidate.binding == selection.binding
+                    && candidate.statement_index < selection.statement_index
+            })
+            .max_by_key(|candidate| candidate.statement_index)
+            .ok_or_else(|| {
+                Diagnostic::error("state-graph dynamic rebind has no earlier exact selection")
+            })?;
+        if prior.target_trait != selection.target_trait
+            || prior.source_data != selection.source_data
+            || prior.conformance != selection.conformance
+            || prior.rows != selection.rows
+        {
+            return Err(Diagnostic::error(
+                "state-graph dynamic rebind changed its exact carrier, trait, conformance, or normalized row map",
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn exact_machine<'program>(
@@ -646,7 +715,7 @@ mod tests {
     use psi_checked_trees::machine::Machine;
     use psi_checked_trees::signature::{StateParameter, StateSignature};
     use psi_checked_trees::state::State;
-    use psi_checked_trees::statement::{StatementNode, TableLocalData};
+    use psi_checked_trees::statement::{StatementNode, TableAssignment, TableLocalData};
     use psi_checked_trees::trait_definition::{
         Conformance, ConformanceImplementation, ConformanceRow, ConformanceRowSource,
         ConformanceSubject, TraitDefinition,
@@ -994,6 +1063,50 @@ mod tests {
         program
     }
 
+    fn fixture_with_exact_rebind() -> CheckedTrees {
+        let mut program = fixture(false, RowShape::Honest);
+        let initial = program.facts.dynamic_conformances.selections[0].clone();
+        let ExpressionNode::Cast(cast) = program
+            .typed
+            .expression_table
+            .expression(initial.occurrence)
+            .clone()
+        else {
+            panic!("fixture cast");
+        };
+        let occurrence = program
+            .typed
+            .expression_table
+            .insert(ExpressionNode::Cast(cast));
+        let target = source_name_expression(&mut program, symbol(BINDING), "erased");
+        let mut statement_nodes = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == symbol(SOURCE_MACHINE))
+            .and_then(|machine| program.machine_states(machine).first())
+            .map(|state| state.statement_nodes)
+            .expect("fixture source state");
+        program.typed.statement_table.push_statement(
+            &mut statement_nodes,
+            StatementNode::Assignment(TableAssignment {
+                target,
+                value: occurrence,
+            }),
+        );
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == symbol(SOURCE_MACHINE))
+            .cloned()
+            .expect("fixture source machine");
+        program.typed.machine_states_mut(&machine)[0].statement_nodes = statement_nodes;
+        let mut rebound = initial;
+        rebound.occurrence = occurrence;
+        rebound.statement_index = 1;
+        program.facts.dynamic_conformances.selections.push(rebound);
+        program
+    }
+
     fn error(program: &CheckedTrees) -> String {
         validated_dynamic_conformance_bindings(program)
             .expect_err("invalid dynamic carrier must fail closed")
@@ -1009,6 +1122,36 @@ mod tests {
             assert_eq!(bindings, program.facts.dynamic_conformances.binding_facts());
             assert_eq!(bindings.selections[0].rows.len(), 2);
         }
+    }
+
+    #[test]
+    fn exact_same_conformance_rebind_replays_as_the_latest_binding_version() {
+        let program = fixture_with_exact_rebind();
+        let bindings =
+            validated_dynamic_conformance_bindings(&program).expect("exact dynamic rebind carrier");
+        assert_eq!(bindings.selections.len(), 2);
+        let latest = bindings
+            .for_receiver(
+                symbol(SOURCE_MACHINE),
+                symbol(SOURCE_STATE),
+                symbol(BINDING),
+                &name("erased"),
+                2,
+            )
+            .expect("latest exact rebind");
+        assert_eq!(latest.statement_index, 1);
+        assert_eq!(latest.conformance, Some(symbol(CONFORMANCE)));
+    }
+
+    #[test]
+    fn rebind_target_and_prior_identity_fail_closed() {
+        let mut target = fixture_with_exact_rebind();
+        target.facts.dynamic_conformances.selections[1].binding = symbol(90);
+        assert!(error(&target).contains("target identity drifted"));
+
+        let mut prior = fixture_with_exact_rebind();
+        prior.facts.dynamic_conformances.selections[0].rows.pop();
+        assert!(error(&prior).contains("partial or expanded"));
     }
 
     #[test]
