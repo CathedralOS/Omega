@@ -2,8 +2,9 @@
 
 use super::*;
 
-/// Build the exact checked carrier for `T in D -> T in D` whole-root
-/// passthrough. Every wider ownership or control shape is omitted atomically.
+/// Build the exact checked carriers for `T in D -> T in D` whole-root
+/// passthrough and the separate zero-input payload-less sum-case constructor.
+/// Every wider ownership or control shape is omitted atomically.
 pub(crate) fn build_checked_structural_return_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -14,6 +15,14 @@ pub(crate) fn build_checked_structural_return_plans(
         .iter()
         .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
         .filter_map(|machine| build_structural_return_machine(program, facts, &mut shapes, machine))
+        .collect::<Vec<_>>();
+    let payloadless_case_machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+        .filter_map(|machine| {
+            build_payloadless_case_return_machine(program, facts, &mut shapes, machine)
+        })
         .collect::<Vec<_>>();
     let retained = machines
         .iter()
@@ -31,6 +40,12 @@ pub(crate) fn build_checked_structural_return_plans(
                 )
                 .chain(std::iter::once(plan.result.type_identity.as_str()))
         })
+        .chain(payloadless_case_machines.iter().flat_map(|plan| {
+            [
+                plan.attachment_type_identity.as_str(),
+                plan.result.type_identity.as_str(),
+            ]
+        }))
         .collect::<BTreeSet<_>>();
     let retained_domains = machines
         .iter()
@@ -51,7 +66,158 @@ pub(crate) fn build_checked_structural_return_plans(
         structural_types: shapes.types.into_values().collect(),
         structural_domains: shapes.domains,
         machines,
+        payloadless_case_machines,
     }
+}
+
+fn build_payloadless_case_return_machine(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Option<CheckedPayloadlessCaseReturnMachinePlan> {
+    let [state] = program.machine_states(machine) else {
+        return None;
+    };
+    let [StatementNode::Expression(return_expression)] =
+        program.statement_table.statements(state.statement_nodes)
+    else {
+        return None;
+    };
+    if !machine.lifetime_parameters.is_empty()
+        || !program.machine_type_parameters(machine).is_empty()
+        || !program.machine_owned_data(machine).is_empty()
+        || !program.machine_trait_conformances(machine).is_empty()
+        || !machine.conformance_bounds.is_empty()
+        || !program.machine_invokes(machine).is_empty()
+        || machine.suspends
+        || machine.blocks
+        || !program.machine_contracts(machine).is_empty()
+        || !program.state_contracts(state).is_empty()
+        || !program.state_parameters(state).is_empty()
+    {
+        return None;
+    }
+    let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
+    if !facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(state_flow.calls)
+        .is_empty()
+        || !service_reach_is_empty(facts, state_flow.service_reach)
+        || !service_reach_plan_is_empty(
+            facts,
+            facts.service_reaches.plan_for_machine(machine.symbol)?,
+        )
+    {
+        return None;
+    }
+
+    let binders = machine_binders(program, machine);
+    let (attachment_type_identity, structural_parameters) =
+        structural_signature(program, shapes, machine, state, &binders)?;
+    if !structural_parameters.is_empty() {
+        return None;
+    }
+    let TypeReferenceNode::Named {
+        symbol: result_data_symbol,
+        ..
+    } = program
+        .type_reference_table
+        .type_reference(state.return_type)
+    else {
+        return None;
+    };
+    if crate::checks::type_multiplicity(program, state.return_type) != Multiplicity::Unrestricted {
+        return None;
+    }
+    let result_qualifications =
+        parameter_qualifications(program, shapes, state.return_type, &binders)?;
+    if !result_qualifications.is_empty() {
+        return None;
+    }
+    let returned_case_symbol = match program.expression_table.expression(*return_expression) {
+        // The canonical payload-less constructor is represented as its exact
+        // two-symbol nominal path (`Sum::Case`), not as an empty record.
+        ExpressionNode::Name(path)
+            if path.head_symbol == *result_data_symbol
+                && path.symbol.is_valid()
+                && program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    == 2 =>
+        {
+            path.symbol
+        }
+        // Retain the equivalent explicit empty-brace case form if the parser
+        // preserves it as a structural literal.
+        ExpressionNode::StructLiteral(literal)
+            if literal.type_symbol == *result_data_symbol
+                && literal.case_name.is_some()
+                && program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .is_empty() =>
+        {
+            literal.case_symbol?
+        }
+        _ => return None,
+    };
+    let result_data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == *result_data_symbol)?;
+    let result_members = program.data_members(result_data);
+    if result_members.len() < 2
+        || result_members.iter().any(|member| {
+            !matches!(
+                member,
+                DataMember::Variant(variant)
+                    if program.data_payload_fields(variant).is_empty()
+            )
+        })
+    {
+        return None;
+    }
+    let returned_case_identity = result_members.iter().find_map(|member| {
+        let DataMember::Variant(variant) = member else {
+            return None;
+        };
+        (variant.symbol == returned_case_symbol).then(|| {
+            variant
+                .identity
+                .map(|identity| format!("#{identity}"))
+                .unwrap_or_else(|| variant.name.as_str().to_owned())
+        })
+    })?;
+    let result_type_identity = shapes.add_type(state.return_type, &binders, &[])?;
+    let CheckedUnitStructuralTypeShape::Sum { cases } =
+        &shapes.types.get(&result_type_identity)?.shape
+    else {
+        return None;
+    };
+    if cases.len() != result_members.len()
+        || !cases.iter().all(|case| case.fields.is_empty())
+        || !cases
+            .iter()
+            .any(|case| case.identity == returned_case_identity)
+    {
+        return None;
+    }
+
+    Some(CheckedPayloadlessCaseReturnMachinePlan {
+        machine: machine.symbol,
+        state: state.symbol,
+        attachment_type_identity,
+        result: CheckedStructuralResultPlan {
+            type_identity: result_type_identity,
+            multiplicity: Multiplicity::Unrestricted,
+            qualifications: result_qualifications,
+        },
+        returned_case_identity,
+    })
 }
 
 /// Build the bounded internal structural-result call slice. The caller has

@@ -481,14 +481,20 @@ impl CheckedUnitEffectPlans {
     }
 }
 
-/// Source-handle-free checked plan for the first exact whole-root structural
-/// result transfer. The slice admits one linear parameter, one matching entry
-/// claim, and one checker-derived identity reshuffle.
+/// Source-handle-free checked plans for the bounded structural-result lanes.
+/// Claim-bearing machines admit an exact whole-root linear transfer; the
+/// separate payload-less-case lane admits exact zero-input unrestricted sum
+/// construction without manufacturing claim custody.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralReturnPlans {
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
     pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub machines: Vec<CheckedStructuralReturnMachinePlan>,
+    /// Exact zero-input constructors for one payload-less case of a closed
+    /// unrestricted sum. These remain separate from claim-bearing whole-root
+    /// transfers so downstream consumers cannot confuse construction with a
+    /// parameter claim reshuffle.
+    pub payloadless_case_machines: Vec<CheckedPayloadlessCaseReturnMachinePlan>,
 }
 
 impl CheckedStructuralReturnPlans {
@@ -498,6 +504,30 @@ impl CheckedStructuralReturnPlans {
     ) -> Option<&CheckedStructuralReturnMachinePlan> {
         self.machines.iter().find(|plan| plan.machine == machine)
     }
+
+    pub fn payloadless_case_for_machine(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<&CheckedPayloadlessCaseReturnMachinePlan> {
+        self.payloadless_case_machines
+            .iter()
+            .find(|plan| plan.machine == machine)
+    }
+}
+
+/// Source-handle-free checked plan for the first exact nominal sum-case
+/// result constructor. The selected case owns no payload, and the result is a
+/// closed, qualification-free unrestricted sum, so no runtime input or
+/// ownership claim participates in construction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedPayloadlessCaseReturnMachinePlan {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub attachment_type_identity: String,
+    pub result: CheckedStructuralResultPlan,
+    /// Normalized identity from the selected case declaration, not its source
+    /// spelling or arena handle.
+    pub returned_case_identity: String,
 }
 
 /// Source-handle-free checked plan for the first internal structural-result

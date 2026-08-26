@@ -5,6 +5,7 @@ use psi_checked_trees::{
 
 mod calls;
 mod cleanup;
+mod returns;
 mod shared_convergence;
 
 use psi_checked_trees::{
