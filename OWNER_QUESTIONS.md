@@ -301,3 +301,55 @@ role from names.
 - Tempting but wrong: keep std toolchain-owned internally while presenting it
   as an ordinary package at the import surface; that preserves two identities
   for one dependency and defeats capability review.
+
+## Q8 — Requested versus source-selected build targets
+
+### Context
+
+The build/package design gives durable `Build` one selected `TargetProfile` and
+shows ordinary source assigning `builder.target`. The migration/reference
+compiler still discovers target availability through transitional
+`target name {}` items and receives the selected target from its invocation.
+The Omega-written compiler's `build.omg` consequently declares four selectable
+targets while binding one entry root for each. Its checkpoint build prelude has
+no `TargetProfile`, target field, or target-selection operation yet.
+
+### Problem statement
+
+Replacing those four declarations with one ordinary assignment is not a
+mechanical syntax migration. A singular source-chosen target would collapse the
+compiler package's cross-target availability, while `Target::Host` or an
+implicitly preinitialized field would make ambient invocation state select
+semantic build output without a specified Omega value or retained authored
+acceptance. Conversely, treating `Build.target` as a set would contradict the
+settled singular durable projection. The language does not yet say how an
+external requested target enters the build machine, how source accepts or
+rejects it, or which fact establishes the one normalized selected target.
+
+### Proposed direction
+
+Separate invocation request from durable selection. Give the build activation
+an immutable, exact requested `TargetProfile`, and require ordinary build source
+to accept that value into the singular durable `Build.target` (directly or
+through one ordinary operation). Source may constrain the closed profiles it
+supports with normal Omega control flow; the compiler product can therefore
+accept its four supported profiles without declaring four competing selected
+outputs. Normalize and retain both request identity and authored acceptance,
+and reject omission, substitution, or multiple selections. Resolve a `Host`
+convenience before semantic build evaluation so ambient host identity never
+enters the durable artifact implicitly.
+
+### Alternates
+
+- Acceptable if target support is entirely expressed by root/provider
+  availability: initialize an immutable selected target from the invocation
+  and remove source-level target selection, but revise the durable `Build`
+  model and explain how source rejects unsupported targets.
+- Acceptable if source must enumerate support independently: add an ordinary
+  supported-target collection plus a separate singular selection operation;
+  keep their identities distinct and require the requested target to belong to
+  the authored collection.
+- Tempting but wrong: replace the four product declarations with the current
+  development host's concrete profile.
+- Tempting but wrong: add a magical `Target::Host` case whose meaning changes
+  after source evaluation or is omitted from normalized build identity.

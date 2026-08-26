@@ -133,12 +133,18 @@ Remaining:
   `Owner::provider_defaults` suffix convention. The fast gate accepts that
   coherent closure and rejects later source, provenance, prelude,
   feature-partition, or resource drift until the complete evidence set is
-  reviewed and refreshed again. Still replace
-  `source/compiler/omega/build.omg`'s legacy `target ... {}` blocks with the
-  ordinary `Build` target-selection form already required by the build/extern
-  design. Target-package defaults outside this explicitly selected product
-  closure still require either that same ordinary build surface or exact
-  declaration, receiver, target-scope, and duplicate/default precedence rules;
+  reviewed and refreshed again. Replacing
+  `source/compiler/omega/build.omg`'s legacy `target ... {}` blocks is
+  design-blocked on **OWNER_QUESTIONS Q8**. The file currently declares four
+  selectable targets while the normative durable `Build` projection owns one
+  selected target and the checkpoint's actual toolchain prelude exposes no
+  requested-target input, target field, or selection operation. Settle how the
+  external request becomes an exact Omega value and how ordinary build source
+  accepts it without collapsing cross-target availability or inventing ambient
+  `Host` semantics; then migrate and refresh the checkpoint closure.
+  Target-package defaults outside this explicitly selected product closure
+  still require either that same ordinary build surface or exact declaration,
+  receiver, target-scope, and duplicate/default precedence rules;
   do not generalize the compatibility suffix from this checkpoint. Publish a
   new source checkpoint when the target-form migration alters the closure.
 
