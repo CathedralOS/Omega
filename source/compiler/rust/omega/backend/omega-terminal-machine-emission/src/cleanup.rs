@@ -1081,6 +1081,9 @@ fn append_expected_partial_residuals(
                     psi_terminal::StructuralFieldType::Structural(_)
                         | psi_terminal::StructuralFieldType::Scalar(_)
                         | psi_terminal::StructuralFieldType::IeeeFloat(_)
+                        | psi_terminal::StructuralFieldType::ByteSequence(
+                            psi_terminal::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
                 )
         })
     {

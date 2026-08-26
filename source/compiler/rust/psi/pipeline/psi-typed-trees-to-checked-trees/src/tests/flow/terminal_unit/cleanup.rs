@@ -203,12 +203,20 @@ fn partial_cleanup_fails_closed_outside_finite_structural_record_paths() {
 fn mixed_scalar_and_affine_record_retains_only_structural_residual_cleanup() {
     let checked = checked(
         r#"
+        domain [u8; 3]::Utf8
+        requires
+            valid_utf8(self);
+        domain [u8; 8]::Utf8
+        requires
+            valid_utf8(self);
         data Token { value: u64; }
         data Mixed {
             before: u8;
+            before_bytes: [u8; 3] in Utf8;
             before_float: f32;
             left: Token;
             between: bool;
+            between_bytes: [u8; 8] in Utf8;
             between_float: f64;
             right: Token;
             after: u64;
@@ -251,9 +259,11 @@ fn mixed_scalar_and_affine_record_retains_only_structural_residual_cleanup() {
             .collect::<Vec<_>>(),
         vec![
             ("before", true),
+            ("before_bytes", false),
             ("before_float", true),
             ("left", false),
             ("between", true),
+            ("between_bytes", false),
             ("between_float", true),
             ("right", false),
             ("after", true),
@@ -279,6 +289,28 @@ fn mixed_scalar_and_affine_record_retains_only_structural_residual_cleanup() {
         "both exact IEEE source formats remain ordered checked shape identity"
     );
     assert_eq!(
+        fields
+            .iter()
+            .filter_map(|field| match field.field_type {
+                CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
+                    Some((field.identity.as_str(), carrier))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                "before_bytes",
+                psi_checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity: 3 },
+            ),
+            (
+                "between_bytes",
+                psi_checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity: 8 },
+            ),
+        ],
+        "bounded byte carriers retain exact source capacities and declaration order"
+    );
+    assert_eq!(
         plan.residual_affine_discards
             .iter()
             .map(|discard| discard.path.clone())
@@ -286,7 +318,35 @@ fn mixed_scalar_and_affine_record_retains_only_structural_residual_cleanup() {
         vec![vec![CheckedUnitStructuralPathSegment::Field(
             "left".to_owned()
         )]],
-        "unrestricted integer, Boolean, and float fields are cleanup-free even before, between, and after affine fields"
+        "scalar, float, and bounded-byte fields are cleanup-free even before, between, and after affine fields"
+    );
+}
+
+#[test]
+fn partial_cleanup_keeps_borrowed_byte_views_fenced() {
+    let checked = checked(
+        r#"
+        domain [u8]::Utf8
+        requires
+            valid_utf8(self);
+        data Token { value: u64; }
+        data Mixed { view: &[u8] in Utf8; left: Token; right: Token; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::enter(value: Mixed) {
+            Sink::take(value.right);
+        }
+        "#,
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_partial_affine_unit_cleanups
+            .for_machine(machine_named(&checked, "enter"))
+            .is_none(),
+        "a borrowed byte view needs explicit loan retirement and cannot enter no-code cleanup"
     );
 }
 

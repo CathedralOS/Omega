@@ -397,12 +397,20 @@ fn ordered_nominal_cleanup_lowering_deduplicates_a_shared_helper_across_two_acti
 
 fn partial_affine_unit_checked_fixture() -> CheckedTrees {
     let source = r#"
+        domain [u8; 3]::Utf8
+        requires
+            valid_utf8(self);
+        domain [u8; 8]::Utf8
+        requires
+            valid_utf8(self);
         data Token { value: u64; }
         data Quartet {
             before: u8;
+            before_bytes: [u8; 3] in Utf8;
             before_float: f32;
             first: Token;
             between: bool;
+            between_bytes: [u8; 8] in Utf8;
             between_float: f64;
             second: Token;
             third: Token;
@@ -515,6 +523,28 @@ fn partial_affine_unit_cleanup_lowers_exact_terminal_paths_before_verification()
             ("before_float", psi_core::IeeeFloatFormat::Binary32),
             ("between_float", psi_core::IeeeFloatFormat::Binary64),
         ]
+    );
+    assert_eq!(
+        fields
+            .iter()
+            .filter_map(|field| match field.field_type {
+                StructuralFieldType::ByteSequence(carrier) => {
+                    Some((field.identity.as_str(), carrier))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                "before_bytes",
+                psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity: 3 },
+            ),
+            (
+                "between_bytes",
+                psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+            ),
+        ],
+        "Terminal identity retains both exact bounded byte capacities"
     );
     let Terminator::ReturnUnitPartialAffine {
         trivial_affine_discards,
@@ -836,6 +866,41 @@ fn partial_affine_unit_cleanup_lowering_rejects_stale_path_type_and_coordinates(
         lower_partial_affine_unit_cleanup_machine(&scalar_as_structural, &scalar_plan),
         Err(LoweringError::Unsupported(
             "partial affine Unit residual field partition drifted"
+        ))
+    ));
+
+    let mut bounded_as_borrowed = partial_affine_unit_checked_fixture();
+    let byte_plan = bounded_as_borrowed
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .machines[0]
+        .clone();
+    let source_identity = byte_plan.machine.structural_parameters[0]
+        .type_identity
+        .clone();
+    let shape = bounded_as_borrowed
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .structural_types
+        .iter_mut()
+        .find(|shape| shape.identity == source_identity)
+        .expect("partial source shape");
+    let CheckedUnitStructuralTypeShape::Record { fields } = &mut shape.shape else {
+        unreachable!()
+    };
+    fields
+        .iter_mut()
+        .find(|field| field.identity == "before_bytes")
+        .expect("bounded byte field")
+        .field_type = CheckedUnitStructuralFieldType::ByteSequence(
+        psi_checked_trees::CheckedByteSequenceCarrier::BorrowedView,
+    );
+    assert!(matches!(
+        lower_partial_affine_unit_cleanup_machine(&bounded_as_borrowed, &byte_plan),
+        Err(LoweringError::Unsupported(
+            "partial affine Unit field path or type identity drifted"
         ))
     ));
 
