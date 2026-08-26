@@ -10,7 +10,8 @@ use omega_compiler::{
     PackageReviewDangerousAuthorityClass, PackageReviewDataKind, PackageReviewDataMember,
     PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentKind, PackageReviewDomainSemanticRole,
-    PackageReviewExternalBinding, PackageReviewMachineParameterContract, PackageReviewNominalOwner,
+    PackageReviewExternalBinding, PackageReviewExternalRequirement,
+    PackageReviewMachineParameterContract, PackageReviewNominalOwner,
     PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
     PackageReviewPropositionEvidence, PackageReviewPublicPropositionBody,
     PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
@@ -1366,7 +1367,11 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .unwrap_or_else(|| panic!("missing external supply for {callable}"));
         assert_eq!(supply.binding(), &binding);
         assert_eq!(
-            supply.conformance().trait_identity().path(),
+            supply
+                .conformance()
+                .expect("trait-bound external supply")
+                .trait_identity()
+                .path(),
             "ExternalSurface"
         );
         let callable_row = review
@@ -1416,6 +1421,296 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             PackageReviewCanonicalRowRisk::OpaqueBlocking
         );
         assert_eq!(decoded.key_bytes(), row.key_bytes());
+    }
+}
+
+#[test]
+fn review_joins_external_boundary_operator_supply_without_implying_visibility() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data F32 {}
+pub boundary operator F32::minimum(left: f32, right: f32) -> f32;
+pub boundary operator F32::maximum(left: f32, right: f32) -> f32;
+
+pub data FloatProvider {}
+pub machine FloatProvider::minimum(left: f32, right: f32) -> f32
+    satisfies F32::minimum
+    via Binding::CompilerIntrinsic;
+machine FloatProvider::maximum(left: f32, right: f32) -> f32
+    satisfies F32::maximum
+    via Binding::CompilerIntrinsic;
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("external boundary-operator fixture should check and select exact intrinsics");
+    let review = project_checked_package_review(&checked)
+        .expect("external boundary-operator supply should project exactly");
+
+    assert_eq!(review.external_executable_supply().len(), 2);
+    for requirement in ["minimum", "maximum"] {
+        let callable_path = format!("FloatProvider::{requirement}");
+        let declaration = review
+            .public_operators()
+            .iter()
+            .find(|operator| {
+                operator.coordinate().identity().path() == format!("F32::{requirement}")
+            })
+            .unwrap_or_else(|| panic!("missing public operator {requirement}"));
+        let supply = review
+            .external_executable_supply()
+            .iter()
+            .find(|supply| supply.callable().path() == callable_path)
+            .unwrap_or_else(|| panic!("missing external supply for {callable_path}"));
+        assert!(matches!(
+            supply.requirement(),
+            PackageReviewExternalRequirement::Operator(operator)
+                if operator == declaration.coordinate()
+        ));
+        assert_eq!(supply.operator(), Some(declaration.coordinate()));
+        assert_eq!(supply.conformance(), None);
+        assert_eq!(
+            supply.binding(),
+            &PackageReviewExternalBinding::CompilerIntrinsic
+        );
+
+        let selected = review
+            .selected_providers()
+            .iter()
+            .find(|provider| provider.schema_declaration() == declaration.coordinate().identity())
+            .unwrap_or_else(|| panic!("missing selected provider for {requirement}"));
+        let [selected_row] = selected.row_declarations() else {
+            panic!("one selected realization for {requirement}")
+        };
+        assert_eq!(selected_row.realization(), supply.callable());
+        assert_eq!(
+            selected_row.requirement().owner(),
+            declaration.coordinate().identity().owner()
+        );
+        assert!(matches!(
+            selected.rows()[0].binding,
+            omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+        ));
+    }
+
+    let public_callable = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "FloatProvider::minimum")
+        .expect("public external operator leaf should remain public callable API");
+    assert_eq!(
+        public_callable.supply(),
+        PackageReviewCallableSupply::ExternalRealization
+    );
+    assert_eq!(public_callable.operator_realizations().len(), 1);
+    assert!(
+        review
+            .callables()
+            .iter()
+            .all(|callable| callable.identity().path() != "FloatProvider::maximum"),
+        "private external operator leaf must not become public callable API"
+    );
+
+    let rows = review
+        .canonical_rows()
+        .expect("canonical external operator-supply rows");
+    let supply_rows = rows
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply)
+        .collect::<Vec<_>>();
+    assert_eq!(supply_rows.len(), 2);
+    assert!(supply_rows.iter().all(|row| {
+        row.risk() == PackageReviewCanonicalRowRisk::OpaqueBlocking
+            && row.source().authored_locations().is_some_and(|locations| {
+                locations.iter().any(|location| {
+                    location.role() == PackageReviewSourceLocationRole::Declaration
+                        && location.relative_path() == "main.omg"
+                })
+            })
+    }));
+    for row in supply_rows {
+        let encoded = encode_package_review_canonical_row(row)
+            .expect("external operator-supply recovery envelope should encode");
+        let decoded = decode_package_review_canonical_row(&encoded)
+            .expect("external operator-supply recovery envelope should decode");
+        assert_eq!(
+            decoded.kind(),
+            PackageReviewCanonicalRowKind::ExternalExecutableSupply
+        );
+        assert_eq!(
+            decoded.risk(),
+            PackageReviewCanonicalRowRisk::OpaqueBlocking
+        );
+        assert_eq!(decoded.key_bytes(), row.key_bytes());
+    }
+}
+
+#[test]
+fn external_boundary_operator_overloads_keep_distinct_requirement_coordinates() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Float {}
+pub boundary operator Float::add(left: f32, right: f32) -> f32;
+pub boundary operator Float::add(left: f64, right: f64) -> f64;
+
+pub data F32Provider {}
+pub machine F32Provider::add(left: f32, right: f32) -> f32
+    satisfies Float::add
+    via Binding::CompilerIntrinsic;
+pub data F64Provider {}
+pub machine F64Provider::add(left: f64, right: f64) -> f64
+    satisfies Float::add
+    via Binding::CompilerIntrinsic;
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("external boundary-operator overloads should select independently");
+    let review = project_checked_package_review(&checked)
+        .expect("external boundary-operator overloads should project exactly");
+    let overloads = review
+        .public_operators()
+        .iter()
+        .filter(|operator| operator.coordinate().identity().path() == "Float::add")
+        .collect::<Vec<_>>();
+    assert_eq!(overloads.len(), 2);
+    assert_ne!(
+        overloads[0].coordinate().parameter_dispatch(),
+        overloads[1].coordinate().parameter_dispatch()
+    );
+
+    for (callable, primitive) in [("F32Provider::add", "f32"), ("F64Provider::add", "f64")] {
+        let supply = review
+            .external_executable_supply()
+            .iter()
+            .find(|supply| supply.callable().path() == callable)
+            .unwrap_or_else(|| panic!("missing external supply for {callable}"));
+        let operator = supply.operator().expect("operator requirement");
+        assert!(operator.parameter_dispatch().contains(primitive));
+        assert!(
+            overloads
+                .iter()
+                .any(|declaration| declaration.coordinate() == operator)
+        );
+        let callable_row = review
+            .callables()
+            .iter()
+            .find(|candidate| candidate.identity() == supply.callable())
+            .expect("public external leaf callable");
+        assert_eq!(callable_row.operator_realizations(), [operator.clone()]);
+    }
+}
+
+#[test]
+fn unsupported_external_boundary_operator_neighbors_remain_fail_closed() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#;
+    let cases = [
+        (
+            "private-operator",
+            r#"data F32 {}
+boundary operator F32::minimum(left: f32, right: f32) -> f32;
+data FloatProvider {}
+machine FloatProvider::minimum(left: f32, right: f32) -> f32
+    satisfies F32::minimum
+    via Binding::CompilerIntrinsic;
+"#,
+            "realizes non-public operator",
+        ),
+        (
+            "aliased",
+            r#"pub data F32 {}
+pub boundary operator F32::minimum(left: f32, right: f32) -> f32;
+data FloatProvider {}
+machine FloatProvider::minimum(left: f32, right: f32) -> f32
+    satisfies F32::minimum as Selected
+    via Binding::CompilerIntrinsic;
+"#,
+            "through an alias not yet represented",
+        ),
+        (
+            "fixed-token",
+            r#"pub data Float {}
+pub boundary operator + Float::add(left: f32, right: f32) -> f32;
+data FloatProvider {}
+machine FloatProvider::add(left: f32, right: f32) -> f32
+    satisfies Float::add
+    via Binding::CompilerIntrinsic;
+"#,
+            "before external token dispatch is represented",
+        ),
+        (
+            "generic-machine",
+            r#"pub data F32 {}
+pub boundary operator F32::minimum(left: f32, right: f32) -> f32;
+data FloatProvider {}
+machine FloatProvider::minimum<T>(left: f32, right: f32) -> f32
+    satisfies F32::minimum
+    via Binding::CompilerIntrinsic;
+"#,
+            "generic or lifetime-parameterized boundary operator",
+        ),
+    ];
+
+    for (label, source, expected) in cases {
+        let package = TempPackage::new();
+        package.write("main.omg", source);
+        package.write("build.omg", build);
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .unwrap_or_else(|diagnostics| panic!("{label} fixture should check: {diagnostics:?}"));
+        let diagnostics = project_checked_package_review(&checked)
+            .expect_err("unsupported external operator realization must fail closed");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{label}: {diagnostics:?}"
+        );
     }
 }
 
@@ -2088,8 +2383,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 71);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 29);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 72);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 30);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -5489,7 +5784,7 @@ pub machine provide_identity(input: i32) -> i32
 satisfies CheckedMath::identity
 via Binding::Syscall(60);
 "#,
-            "through external executable supply not yet represented",
+            "one exact boundary operator",
         ),
         (
             "bodyless",

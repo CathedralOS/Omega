@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 71;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 72;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 29;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 30;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -1230,7 +1230,16 @@ fn encode_external_executable_supply_key(
     supply: &PackageReviewExternalExecutableSupply,
 ) -> Result<(), PackageReviewEncodingError> {
     encode_nominal(encoder, &supply.callable)?;
-    encode_callable_conformance(encoder, &supply.conformance)
+    match &supply.requirement {
+        PackageReviewExternalRequirement::Trait(conformance) => {
+            encoder.byte(0);
+            encode_callable_conformance(encoder, conformance)
+        }
+        PackageReviewExternalRequirement::Operator(operator) => {
+            encoder.byte(1);
+            encode_operator_coordinate(encoder, operator)
+        }
+    }
 }
 
 fn encode_external_executable_supply(

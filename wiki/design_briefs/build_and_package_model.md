@@ -1263,18 +1263,19 @@ Every package-owned bodyless external realization, including a private
 implementation leaf, therefore projects as a separate blocking
 executable-supply trust row, not as callable API, reach, boundary
 representation, accepted proof, or Terminal evidence. The row binds the exact
-package-qualified callable and conformance application to one closed mechanism:
-import library and symbol, syscall number, compiler intrinsic, vtable slot,
-vtable field, or table-function field. Projection cross-checks the machine
-supply mode, conformance binding, and external-binding table and rejects
+package-qualified callable and tagged requirement application—trait conformance
+or operator overload coordinate—to one closed mechanism: import library and
+symbol, syscall number, compiler intrinsic, vtable slot, vtable field, or table-
+function field. Projection cross-checks the machine supply mode, satisfies
+binding, and external-binding table and rejects
 missing, duplicate, mismatched, or unsupported state. It makes no claim that
 the supplied executable was audited or that its implementation satisfies the
 callable contract.
 
 The compiler reads each component from the earliest coherent private
 representation in which it is semantically settled. Structural external-
-binding identity may come from pre-Terminal state and join checked callable and
-conformance identity only after successful compilation. This checker may move
+binding identity may come from pre-Terminal state and join the checked callable
+and requirement identity only after successful compilation. This checker may move
 with compiler internals; only the versioned canonical row is durable. Psi may
 repeat the consistency invariant as a downstream backstop, but no package
 format or public IR depends on it. Nominal Chi is unwarranted unless later work
@@ -1294,6 +1295,19 @@ promoted into public callable rows. Canonical recovery, source accounting, and
 conflict rendering carry the row; none of them asserts an audit or Terminal
 verification.
 
+Package review v72/canonical row v30 generalizes that same row's key from a
+trait-only conformance to a tagged exact requirement: either the complete trait
+conformance application or one existing package-qualified operator overload
+coordinate. The first operator lane accepts bodyless external supply for a
+public, named, nongeneric boundary operator. Public realization machines also
+retain the coordinate in their callable row; private leaves remain absent from
+public callable API while retaining their opaque supply row. Selected-provider
+evidence remains separate and is cross-checked against the exact operator,
+realization symbol, package, normalized machine identity, and structural
+binding. Thus disclosure never implies selection. Compiler-known intrinsics
+are the first executable mechanism; ordinary or private operators, aliases,
+generic/lifetime applications, and fixed-token boundary operators reject.
+
 Package review v71/canonical row v29 binds each supported checked ordinary
 operator realization into its public callable value, whether the declaration
 has a fixed token or only its named call surface. Checked lowering retains the exact
@@ -1305,10 +1319,10 @@ equality/`&&` `requires`/`ensures` contract judgment, then records the selected
 public, nongeneric, lifetime-free operator's existing package-qualified
 overload coordinate. Post-check redirection and coordinated typed-contract
 mutation both reject. Changing only a valid selected declaration changes only
-the callable row. Private, generic/lifetime-parameterized, aliased, bodyless,
-and operator-bound external realizations reject; the last requires a separate
-trust-bearing executable-supply association rather than borrowing the trait-
-supply row. A fixed-token realization uses the same exact declaration
+the callable row. Private, generic/lifetime-parameterized, aliased, and bodyless
+checked realizations reject. Operator-bound external supply uses the distinct
+v72 trust-bearing association rather than borrowing a trait-conformance shape.
+A fixed-token checked realization uses the same exact declaration
 coordinate as its named call surface. Its public-operator row already owns the
 closed compiler spelling, so the realization edge neither repeats that spelling
 nor introduces another identity form. Checked-body boundary realizations use
@@ -1319,7 +1333,7 @@ repeats that exact symbol, slot, checked-adapter binding, package, and machine
 join. A positive named-boundary canary covers the unique-candidate route.
 Fixed-token boundary operators remain fail-closed until checked-adapter token
 dispatch exists. Authored selection across a same-path overloaded family
-remains OWNER Q10; operator-bound external supply remains separate. Operators
+remains OWNER Q10. Operators
 with outcome-specific or crash contracts, and providers with any nonempty
 checked crash behavior, reject until their refinement rules exist. The
 association is a retained compiler-private

@@ -2104,12 +2104,13 @@ complete.
   as its own blocking trust/TCB row.
 
   Acceptance: every package-owned external realization, including a private
-  implementation leaf, binds the exact
-  package-qualified callable and conformance application to one closed
-  compiler-owned mechanism identity: import library and symbol, syscall number,
-  compiler intrinsic, vtable slot, vtable field, or table-function field. The
-  projector cross-checks the machine supply mode, conformance binding, and
-  external-binding table and requires exactly one conformance application;
+  implementation leaf, binds the exact package-qualified callable and tagged
+  requirement application—trait conformance or operator overload coordinate—to
+  one closed compiler-owned mechanism identity: import library and symbol,
+  syscall number, compiler intrinsic, vtable slot, vtable field, or table-
+  function field. The
+  projector cross-checks the machine supply mode, satisfies binding, and
+  external-binding table and requires exactly one satisfies application;
   missing, duplicate, mismatched, or unsupported state
   rejects rather than producing a partial row. This row remains distinct from
   callable API, declared/effective reach, boundary representation, accepted
@@ -2120,7 +2121,7 @@ complete.
   Ratified design decision 2026-08-26: derive each component from the earliest
   coherent compiler-owned representation in which that component is
   semantically settled. Structural binding identity may come from private
-  pre-Terminal state and join the checked callable/conformance association only
+  pre-Terminal state and join the checked callable/requirement association only
   after successful compilation. The projector may move with compiler internals;
   only its versioned canonical row crosses into package orchestration. Psi may
   repeat the consistency check as a backstop, but the package checker does not
@@ -2143,6 +2144,20 @@ complete.
   binding produces exactly one opaque-blocking supply conflict. Six-mechanism,
   private-leaf, stable-key, recovery, malformed-state, and conflict canaries
   cover the lane. No Terminal or audit claim is emitted.
+
+  Milestone 2026-08-26: package review v72/canonical row v30 generalizes the
+  external-supply key to one tagged exact requirement. The existing trait case
+  is unchanged in meaning; the operator case admits a bodyless external leaf
+  for a public, named, nongeneric boundary-operator slot. A public leaf also
+  retains the operator coordinate in its callable row, while a private leaf
+  still receives only the opaque supply and provider rows. Selected external
+  operator plans must rejoin the exact operator, realization symbol, package,
+  normalized machine identity, and structural binding; an unselected row never
+  implies selection. The executable first lane is compiler-known intrinsics.
+  Ordinary or private operators, aliases, generic/lifetime applications, and
+  fixed-token boundary operators remain fail closed. Positive public/private,
+  selected-provider, opaque-risk, recovery, and unsupported-neighbor canaries
+  cover the new association.
 
 ## P4 — Lock and baseline
 
