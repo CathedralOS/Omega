@@ -685,15 +685,22 @@ same-spelled inherited requirements reject as ambiguous. Checked rows and
 backend dispatch match that symbol only. A bare dynamic parameter such as
 `&dyn Ranked` accepts an already-selected dynamic value; the concrete call site
 must first coerce through an exact target such as `&dyn PowerOrder`. No
-candidate set or unique-visible search survives into checking. Physical
-descriptor materialization and private table emission remain subsequent
-implementation rungs. The first pass-through adapter preserves each row's
-complete normalized requirement-overload and selected realization-callable
-identities through checked facts, state graph, control flow, and state-call
+candidate set or unique-visible search survives into checking. The first
+address-free private-table rung now validates the exact selected conformance
+again during target-data planning, sorts runtime slots by normalized
+requirement identity, and emits one deduplicated pointer-aligned data object.
+Each slot begins as one zero-filled pointer word paired in the plan with its
+exact private realization target. Object planning publishes that object's
+private data symbol; relocation planning still must bind each slot to the
+matching function before the table is runnable. The first pass-through adapter
+preserves each row's complete normalized requirement-overload and selected
+realization-callable identities through checked facts, state graph, control
+flow, and state-call
 argument planning. Checked-to-state validation independently reconstructs both
 identities and rejects drift rather than trusting copied handles or short
-spellings. Rebinding, storage, joins, escaping, and component crossing remain
-open. Those consumers use the same complete normalized maps. Each row retains
+spellings. Runtime `{ instance, table }` construction, rebinding, storage,
+joins, escaping, and component crossing remain open. Those consumers use the
+same complete normalized maps. Each row retains
 the declaring trait, requirement, exact satisfier machine, default instantiation
 when applicable, normalized contracts, and selected conformance identity.
 

@@ -8400,8 +8400,14 @@ checked-result arithmetic decision listed below.
   state-call argument planning rejoins that exact descriptor identity to the
   bare parameter's closed candidate catalog. Trait drift,
   unselected dynamic arguments, bodyless conformances, and ambiguous concrete
-  arguments remain fail closed. Physical table bytes/emission and rebound,
-  stored, joined, escaping, or component-crossing descriptors remain open.
+  arguments remain fail closed. Target-data planning now validates those rows
+  again and emits one deduplicated, pointer-aligned private data object per
+  logical selected conformance. Each runtime slot is one zero-filled pointer
+  word paired with its exact address-free realization target; normalized-
+  identity drift rejects before any bytes publish. Function-address
+  relocations, construction of the runtime `{ instance, table }` pair, and
+  rebound, stored, joined, escaping, or component-crossing descriptors remain
+  open.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
   realizations.** Complete hermetic evaluation with crash refinement, target
   capsule, separate result/usage identities, deterministic progress, and

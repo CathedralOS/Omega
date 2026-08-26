@@ -23,6 +23,12 @@ Output: object plan with sections, symbols, and entry symbol under
 
 Primary responsibility: construct artifact-level sections and symbols for text, data, bss, imports, runtime frame storage, machine storage, and the entry function.
 
+Address-free local dynamic-conformance tables arrive as ordinary target-data
+objects: pointer-aligned zero-filled slot bytes plus a private symbol. Object
+planning publishes their exact existing object spans and does not rediscover
+trait rows or choose realization addresses. The following relocation stage
+owns binding each retained address-free row target to a private function.
+
 Backend orchestration shape: the aggregate `BackendPlan` keeps symbolic machine
 instructions, encoded machine bytes, object layout, and relocation records under
 `BackendArtifactRoots`. Individual stages still own their artifact type, but the
