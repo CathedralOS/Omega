@@ -473,11 +473,13 @@ configuration selects the already-declared candidate.
 
 Requirement declarations never select their own provider. In particular, a
 `boundary operator` carries no provider clause: checked satisfiers and
-`satisfies ... via <Binding>` leaves declare candidates, and this build/target
-slot mechanism chooses among them. The retired top-level
-`provider Name : Category;` declaration and operator-local `provider Name`
-clause are bootstrap syntax from a parallel primitive registry and must not be
-preserved as a second selection path.
+`satisfies ... via <Binding>` leaves declare candidates, and compiler policy
+chooses one exact plan. Unique covering selection is implemented. OWNER Q10
+must settle how an authored build/target override applies to a same-path
+overloaded operator family before that override route opens. The retired top-
+level `provider Name : Category;` declaration and operator-local
+`provider Name` clause are bootstrap syntax from a parallel primitive registry
+and must not be preserved as a second selection path.
 
 Selection identities are nominal; binding identities are normalized evaluated
 values. `select_provider` retains two structural type paths through parsing,
@@ -1309,10 +1311,18 @@ trust-bearing executable-supply association rather than borrowing the trait-
 supply row. A fixed-token realization uses the same exact declaration
 coordinate as its named call surface. Its public-operator row already owns the
 closed compiler spelling, so the realization edge neither repeats that spelling
-nor introduces another identity form. Boundary realizations remain outside this
-lane pending selected-provider canaries. Operators with
-outcome-specific or crash contracts, and providers with any nonempty checked
-crash behavior, reject until their refinement rules exist. The association is a retained compiler-private
+nor introduces another identity form. Checked-body boundary realizations use
+the same edge for contract satisfaction. Active choice remains exclusively in
+the existing selected-provider set, whose exact requirement and realizing-
+machine declarations join back to the operator and callable rows. Projection
+repeats that exact symbol, slot, checked-adapter binding, package, and machine
+join. A positive named-boundary canary covers the unique-candidate route.
+Fixed-token boundary operators remain fail-closed until checked-adapter token
+dispatch exists. Authored selection across a same-path overloaded family
+remains OWNER Q10; operator-bound external supply remains separate. Operators
+with outcome-specific or crash contracts, and providers with any nonempty
+checked crash behavior, reject until their refinement rules exist. The
+association is a retained compiler-private
 checked baseline, not a persisted package row, hash, or defense against a
 trusted component rewriting typed state and checked facts; it is not a reason
 for nominal Chi.

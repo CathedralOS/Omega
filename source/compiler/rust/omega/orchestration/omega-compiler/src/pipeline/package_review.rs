@@ -10109,11 +10109,18 @@ fn project_callable_conformances(
                     machine.name, conformance.name, requirement_name
                 ))]);
             }
-            if operator.is_boundary {
+            if operator.is_boundary && operator.spelling.is_some() {
                 return Err(vec![Diagnostic::error(format!(
-                    "reviewed callable `{}` realizes boundary operator `{}::{}` outside the checked operator-realization lane",
+                    "reviewed callable `{}` realizes fixed-token boundary operator `{}::{}` before checked-adapter token dispatch is represented",
                     machine.name, conformance.name, requirement_name
                 ))]);
+            }
+            if operator.is_boundary {
+                validate_selected_boundary_operator_checked_adapter(
+                    compilation,
+                    machine,
+                    operator,
+                )?;
             }
             if !operator.lifetime_parameters.is_empty()
                 || !compilation.operator_type_parameters(operator).is_empty()
@@ -10287,6 +10294,95 @@ fn project_callable_conformances(
         ))]);
     }
     Ok((projected, operator_realizations, external_executable_supply))
+}
+
+fn validate_selected_boundary_operator_checked_adapter(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    operator: &psi_typed_trees::operator::OperatorDefinition,
+) -> Result<(), Vec<Diagnostic>> {
+    let plans = compilation.selected_provider_plans().plans();
+    let provenance = compilation.selected_provider_provenance();
+    if plans.len() != provenance.len() {
+        return Err(vec![Diagnostic::error(
+            "selected boundary-operator provider plans are not aligned with retained declaration provenance",
+        )]);
+    }
+    let slot = psi_typed_trees::operator::boundary_operator_requirement_identity(
+        &compilation.typed,
+        operator,
+    );
+    let matches = plans
+        .iter()
+        .zip(provenance)
+        .filter(|(plan, retained)| {
+            plan.schema.trait_name == slot
+                && retained.provider.schema
+                    == super::provider_plans::ProviderSchemaDeclaration::BoundaryOperator(
+                        operator.symbol,
+                    )
+        })
+        .collect::<Vec<_>>();
+    let [(plan, retained)] = matches.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed checked adapter `{}` realizes boundary operator `{slot}`, but package review found {} exact selected provider plans for that operator",
+            machine.name,
+            matches.len(),
+        ))]);
+    };
+    let [method] = plan.schema.methods.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` must contain exactly one schema method",
+            plan.name,
+        ))]);
+    };
+    let [row] = plan.rows.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` must contain exactly one realization row",
+            plan.name,
+        ))]);
+    };
+    let [requirement_symbol] = retained.provider.row_requirements.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` must retain exactly one requirement declaration",
+            plan.name,
+        ))]);
+    };
+    let [realization_symbol] = retained.provider.row_realizations.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` must retain exactly one realization declaration",
+            plan.name,
+        ))]);
+    };
+    let expected_machine_identity = compilation
+        .normalized_machine_overload_identity(machine)
+        .map(|identity| identity.identity())
+        .unwrap_or_default();
+    let expected_package = compilation
+        .typed
+        .symbols
+        .symbol_package_identity(machine.symbol);
+    if retained.plan != **plan
+        || *requirement_symbol != operator.symbol
+        || *realization_symbol != machine.symbol
+        || method.requirement_owner != slot
+        || method.requirement_identity != slot
+        || row.requirement_identity != slot
+        || !matches!(
+            &row.binding,
+            omega_effects::provider_plan::ProviderBinding::CheckedAdapter {
+                machine_identity,
+                machine_package_identity,
+            } if machine_identity == &expected_machine_identity
+                && *machine_package_identity == expected_package
+        )
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` does not join exact operator `{slot}` to checked adapter `{}`",
+            plan.name, machine.name,
+        ))]);
+    }
+    Ok(())
 }
 
 fn validate_external_binding_payload(

@@ -802,8 +802,15 @@ Private, generic/lifetime-parameterized, aliased, bodyless, and operator-bound
 external realizations remain fail-closed. A fixed-token realization points to
 the same exact declaration coordinate as its named call surface; the joined
 public-operator row owns the closed compiler spelling. The callable edge does
-not duplicate it or create another identity. Boundary realizations remain
-outside this lane pending selected-provider canaries. The projection never substitutes an overload
+not duplicate it or create another identity. Checked-body boundary realizations
+use the same satisfaction edge, while the existing selected-provider set alone
+identifies the active target plan and rejoins its exact operator requirement and
+realizing machine. Projection repeats the exact symbol, slot, checked-adapter
+binding, package, and machine join. A named-boundary canary covers unique
+selection. Fixed-token boundary operators remain fail-closed until checked-
+adapter token dispatch exists. Authored override of a same-path overloaded
+operator family remains OWNER Q10, and operator-bound external supply remains
+separate. The projection never substitutes an overload
 display name or a runtime-layout-only
 type identity for this contract surface.
 

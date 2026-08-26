@@ -409,3 +409,52 @@ closed.
   that happens to type-check at the use site.
 - Tempting but wrong: retain only a solver `Proven` verdict without the selected
   theorem identity, ordered premises, per-side application, and replay data.
+
+## Q10 — Selecting an overloaded boundary-operator provider family
+
+### Context
+
+Each boundary-operator overload already has an exact package-qualified
+provider-plan slot and may have checked or external provider candidates. A
+unique covering candidate can be selected without source policy. The ordinary
+build override is currently `builder.select_provider<Service, Provider>()`,
+where `Service` resolves to one boundary-trait declaration. A boundary operator
+instead has a descriptive path plus an overload coordinate.
+
+### Problem statement
+
+`CheckedMath::offset_zero` identifies an operator family, not necessarily one
+overload. The existing static path has no position for parameter/result
+dispatch identity, so treating it as one exact slot is unsound when several
+boundary operators share that path. Silently applying the override to whichever
+symbol resolution encounters first, to only the provider's matching subset, or
+to every overload without an atomic completeness rule would make selection
+context- or declaration-order-dependent. Inventing a stringified signature
+would duplicate compiler identity in source.
+
+### Proposed direction
+
+Keep the concise existing form and define an operator path in
+`select_provider` as an atomic family selection. Resolve the exact
+package-qualified path, enumerate every applicable boundary-operator overload
+coordinate in that family for the selected target, and require the selected
+provider type to contribute exactly one complete candidate for every member.
+Select all of those plans together or reject the complete declaration. A
+project requiring different providers should use distinct descriptive operator
+paths rather than splitting one overload family through hidden signature
+syntax.
+
+### Alternates
+
+- Acceptable if per-overload selection is genuinely required: introduce one
+  ordinary typed declaration-reference value whose canonical meaning already
+  includes the overload coordinate, then let `select_provider` consume it. Do
+  not add package-manager-only signature syntax.
+- Acceptable as a stricter first release: forbid authored overrides for
+  boundary operators and require target policy or one unique covering candidate
+  for every exact slot.
+- Tempting but wrong: select the first same-path operator symbol or use return
+  type/display spelling to break the tie.
+- Tempting but wrong: encode the normalized signature as an authored string.
+- Tempting but wrong: apply a family override only to overloads the provider
+  happens to implement and leave the rest on unrelated defaults.
