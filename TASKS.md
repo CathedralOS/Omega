@@ -5320,6 +5320,14 @@ Owners:
   same path- and version-valid fact context, never a sequence of fallback
   obligation kinds.
 
+  The first normalization rung is live for exact integer bounds, exact resolved
+  bare-name bounds, and finite immutable local bare-name copy chains. Two
+  half-open windows whose exclusive end and start normalize to the same value
+  are ordinarily disjoint. Inclusive symbolic ends, mutable or computed local
+  aliases, ambiguous local identities, cycles, and distinct unresolved bounds
+  remain conservative. The canonical captured-place compatibility judgment and
+  proof-consuming tactics remain open.
+
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the
   captured versions; the conclusion is scoped to the resulting loan
