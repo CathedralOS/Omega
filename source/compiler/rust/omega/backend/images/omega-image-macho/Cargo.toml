@@ -13,5 +13,6 @@ psi-arena = { path = "../../../../psi/foundation/psi-arena" }
 psi-diagnostics = { path = "../../../../psi/foundation/psi-diagnostics" }
 omega-image = { path = "../omega-image" }
 omega-calling-conventions = { path = "../../../foundation/omega-calling-conventions" }
+omega-object-file = { path = "../../object/omega-object-file" }
 
 sha2 = "0.10"

@@ -854,6 +854,7 @@ version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
  "omega-image",
+ "omega-object-file",
  "psi-arena",
  "psi-diagnostics",
  "sha2",
