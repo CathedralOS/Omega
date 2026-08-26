@@ -1,9 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_regalloc::{
-    FixedRegisterOperand, PhysicalRegisterModel, PreservationConvention, RegisterClass,
-    RegisterClassId, RegisterConstraint, RegisterReservationOverlay, RegisterUnit, RegisterUnitId,
-    RegisterUnitKind, RegisterView, RegisterViewId, RegisterWriteSemantics, ReservationReason,
+    PhysicalRegisterModel, PreservationConvention, RegisterClass, RegisterClassId,
+    RegisterConstraintCatalog, RegisterConstraintCatalogValidationError, RegisterConstraintFamily,
+    RegisterConstraintId, RegisterConstraintKey, RegisterInstructionConstraint,
+    RegisterOperandAccess, RegisterOperandConstraint, RegisterReservationOverlay, RegisterUnit,
+    RegisterUnitId, RegisterUnitKind, RegisterView, RegisterViewId, RegisterWriteSemantics,
+    ReservationReason, ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    validate_register_constraint_catalog,
 };
 use omega_target::Architecture;
 
@@ -15,6 +19,45 @@ const GPR8_HIGH: RegisterClassId = RegisterClassId(4);
 const VECTOR128: RegisterClassId = RegisterClassId(5);
 const FLAGS: RegisterClassId = RegisterClassId(6);
 const INSTRUCTION_POINTER: RegisterClassId = RegisterClassId(7);
+
+pub const X86_64_SYSTEM_V_CALL: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Call,
+    variant: 0,
+};
+pub const X86_64_MICROSOFT_CALL: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Call,
+    variant: 1,
+};
+pub const X86_64_SYSTEM_V_RETURN: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Return,
+    variant: 0,
+};
+pub const X86_64_MICROSOFT_RETURN: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Return,
+    variant: 1,
+};
+pub const X86_64_LINUX_SYSTEM_CALL: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::SystemCall,
+    variant: 0,
+};
+pub const X86_64_INLINE_ASSEMBLY_DEFAULT: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::InlineAssembly,
+    variant: 0,
+};
+
+/// Closed v1 inventory owned by the x86-64 target.
+///
+/// This is deliberately limited to the two scalar calling conventions and the
+/// syscall/inline-assembly rows already represented by the physical model. It
+/// is not a claim that the target's ordinary instruction inventory is complete.
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 6] = [
+    X86_64_SYSTEM_V_CALL,
+    X86_64_MICROSOFT_CALL,
+    X86_64_SYSTEM_V_RETURN,
+    X86_64_MICROSOFT_RETURN,
+    X86_64_LINUX_SYSTEM_CALL,
+    X86_64_INLINE_ASSEMBLY_DEFAULT,
+];
 
 struct ModelBuilder {
     units: Vec<RegisterUnit>,
@@ -283,31 +326,6 @@ pub fn x86_64_physical_register_model() -> PhysicalRegisterModel {
             gpr_units["r15"].clone(),
         ),
     ];
-    let constraints = vec![
-        RegisterConstraint {
-            name: "linux-x86_64-syscall".into(),
-            fixed_inputs: fixed_operands(
-                &named_views,
-                &["rax", "rdi", "rsi", "rdx", "r10", "r8", "r9"],
-            ),
-            fixed_outputs: fixed_operands(&named_views, &["rax"]),
-            early_clobbers: Vec::new(),
-            clobbers: sorted_units(
-                gpr_units["rcx"]
-                    .iter()
-                    .copied()
-                    .chain(gpr_units["r11"].iter().copied())
-                    .chain([flags_unit]),
-            ),
-        },
-        RegisterConstraint {
-            name: "x86-inline-assembly-default".into(),
-            fixed_inputs: Vec::new(),
-            fixed_outputs: Vec::new(),
-            early_clobbers: Vec::new(),
-            clobbers: complement(&all_units, &fixed, &[]),
-        },
-    ];
     PhysicalRegisterModel {
         architecture: Architecture::X86_64,
         units: builder.units,
@@ -315,8 +333,236 @@ pub fn x86_64_physical_register_model() -> PhysicalRegisterModel {
         classes: builder.classes,
         conventions,
         reservations,
+    }
+}
+
+/// Build the authoritative x86-64 register-constraint catalog v1 against one
+/// independently validated physical model.
+///
+/// Call and return rows describe the currently represented scalar ABI lane.
+/// The result operand is kept distinct so its definition does not masquerade
+/// as an undifferentiated caller-saved clobber.
+pub fn x86_64_register_constraint_catalog(
+    model: &ValidatedPhysicalRegisterModel,
+) -> RegisterConstraintCatalog {
+    let physical = model.model();
+    assert_eq!(physical.architecture, Architecture::X86_64);
+
+    let view = |name: &str| {
+        physical
+            .view_named(name)
+            .unwrap_or_else(|| panic!("validated x86-64 model must define {name}"))
+    };
+    let fixed = |operand: u16, access: RegisterOperandAccess, name: &str| {
+        let view = view(name);
+        RegisterOperandConstraint {
+            operand,
+            access,
+            class: view.class,
+            fixed_view: Some(view.id),
+            tied_to: None,
+            early_clobber: false,
+        }
+    };
+    let convention = |name: &str| {
+        physical
+            .conventions
+            .iter()
+            .find(|convention| convention.name == name)
+            .unwrap_or_else(|| panic!("validated x86-64 model must define {name}"))
+    };
+
+    let rsp_units = view("rsp").units.clone();
+    let rip_units = view("rip").units.clone();
+    let rax_units = view("rax").units.clone();
+    let control_defs = sorted_units(rsp_units.iter().copied().chain(rip_units.iter().copied()));
+    let call_clobbers = |convention: &PreservationConvention| {
+        convention
+            .caller_saved
+            .iter()
+            .copied()
+            .filter(|unit| !rax_units.contains(unit) && !control_defs.contains(unit))
+            .collect::<Vec<_>>()
+    };
+
+    let sysv = convention("system-v-amd64");
+    let microsoft = convention("microsoft-x64");
+    let all_units = physical
+        .units
+        .iter()
+        .map(|unit| unit.id)
+        .collect::<Vec<_>>();
+    let fixed_machine_state =
+        sorted_units(rsp_units.iter().copied().chain(rip_units.iter().copied()));
+    let syscall_clobbers = sorted_units(
+        view("rcx")
+            .units
+            .iter()
+            .copied()
+            .chain(view("r11").units.iter().copied())
+            .chain(view("rflags").units.iter().copied()),
+    );
+
+    let constraints = vec![
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key: X86_64_SYSTEM_V_CALL,
+            operands: ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+                .into_iter()
+                .enumerate()
+                .map(|(operand, name)| {
+                    fixed(
+                        u16::try_from(operand).expect("operand index fits u16"),
+                        RegisterOperandAccess::Use,
+                        name,
+                    )
+                })
+                .chain([fixed(6, RegisterOperandAccess::Def, "rax")])
+                .collect(),
+            implicit_uses: rsp_units.clone(),
+            implicit_defs: control_defs.clone(),
+            clobbers: call_clobbers(sysv),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(1),
+            key: X86_64_MICROSOFT_CALL,
+            operands: ["rcx", "rdx", "r8", "r9"]
+                .into_iter()
+                .enumerate()
+                .map(|(operand, name)| {
+                    fixed(
+                        u16::try_from(operand).expect("operand index fits u16"),
+                        RegisterOperandAccess::Use,
+                        name,
+                    )
+                })
+                .chain([fixed(4, RegisterOperandAccess::Def, "rax")])
+                .collect(),
+            implicit_uses: rsp_units.clone(),
+            implicit_defs: control_defs.clone(),
+            clobbers: call_clobbers(microsoft),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(2),
+            key: X86_64_SYSTEM_V_RETURN,
+            operands: vec![fixed(0, RegisterOperandAccess::Use, "rax")],
+            implicit_uses: rsp_units.clone(),
+            implicit_defs: control_defs.clone(),
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(3),
+            key: X86_64_MICROSOFT_RETURN,
+            operands: vec![fixed(0, RegisterOperandAccess::Use, "rax")],
+            implicit_uses: rsp_units,
+            implicit_defs: control_defs,
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(4),
+            key: X86_64_LINUX_SYSTEM_CALL,
+            operands: ["rax", "rdi", "rsi", "rdx", "r10", "r8", "r9"]
+                .into_iter()
+                .enumerate()
+                .map(|(operand, name)| {
+                    fixed(
+                        u16::try_from(operand).expect("operand index fits u16"),
+                        if operand == 0 {
+                            RegisterOperandAccess::UseDef
+                        } else {
+                            RegisterOperandAccess::Use
+                        },
+                        name,
+                    )
+                })
+                .collect(),
+            implicit_uses: rip_units.clone(),
+            implicit_defs: rip_units,
+            clobbers: syscall_clobbers,
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(5),
+            key: X86_64_INLINE_ASSEMBLY_DEFAULT,
+            operands: Vec::new(),
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: complement(&all_units, &fixed_machine_state, &[]),
+        },
+    ];
+
+    RegisterConstraintCatalog {
+        architecture: Architecture::X86_64,
+        required: X86_64_REQUIRED_REGISTER_CONSTRAINTS.to_vec(),
         constraints,
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum X86_64RegisterConstraintCatalogValidationError {
+    PhysicalModelArchitectureMismatch,
+    Structural(RegisterConstraintCatalogValidationError),
+    TargetSemanticMismatch(RegisterConstraintKey),
+}
+
+impl std::fmt::Display for X86_64RegisterConstraintCatalogValidationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "invalid x86-64 register constraint catalog: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for X86_64RegisterConstraintCatalogValidationError {}
+
+/// Validate generic catalog structure, then independently require every row
+/// to equal the x86-64 target owner's canonical semantics for that exact key.
+/// This second comparison rejects class-compatible register substitutions and
+/// omitted architectural clobbers that a target-neutral validator cannot name.
+pub fn validate_x86_64_register_constraint_catalog(
+    catalog: RegisterConstraintCatalog,
+    model: &ValidatedPhysicalRegisterModel,
+) -> Result<ValidatedRegisterConstraintCatalog, X86_64RegisterConstraintCatalogValidationError> {
+    if model.model().architecture != Architecture::X86_64 {
+        return Err(
+            X86_64RegisterConstraintCatalogValidationError::PhysicalModelArchitectureMismatch,
+        );
+    }
+    let validated = validate_register_constraint_catalog(catalog, model)
+        .map_err(X86_64RegisterConstraintCatalogValidationError::Structural)?;
+    let canonical = x86_64_register_constraint_catalog(model);
+    for key in X86_64_REQUIRED_REGISTER_CONSTRAINTS {
+        let Some(actual) = validated
+            .catalog()
+            .constraints
+            .iter()
+            .find(|constraint| constraint.key == key)
+        else {
+            return Err(
+                X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(key),
+            );
+        };
+        let expected = canonical
+            .constraints
+            .iter()
+            .find(|constraint| constraint.key == key)
+            .expect("target-owned inventory and rows are closed together");
+        if actual != expected {
+            return Err(
+                X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(key),
+            );
+        }
+    }
+    if let Some(unexpected) = validated.catalog().constraints.iter().find(|constraint| {
+        X86_64_REQUIRED_REGISTER_CONSTRAINTS
+            .binary_search(&constraint.key)
+            .is_err()
+    }) {
+        return Err(
+            X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(unexpected.key),
+        );
+    }
+    Ok(validated)
 }
 
 fn sorted_units(units: impl IntoIterator<Item = RegisterUnitId>) -> Vec<RegisterUnitId> {
@@ -346,20 +592,6 @@ fn view_ids(views: &BTreeMap<String, RegisterViewId>, names: &[&str]) -> Vec<Reg
     names.iter().map(|name| views[*name]).collect()
 }
 
-fn fixed_operands(
-    views: &BTreeMap<String, RegisterViewId>,
-    names: &[&str],
-) -> Vec<FixedRegisterOperand> {
-    names
-        .iter()
-        .enumerate()
-        .map(|(operand, name)| FixedRegisterOperand {
-            operand: u16::try_from(operand).expect("operand index fits u16"),
-            view: views[*name],
-        })
-        .collect()
-}
-
 fn overlay(
     name: &str,
     reason: ReservationReason,
@@ -374,7 +606,10 @@ fn overlay(
 
 #[cfg(test)]
 mod tests {
-    use omega_regalloc::{RegisterModelValidationError, validate_physical_register_model};
+    use omega_regalloc::{
+        RegisterConstraintCatalogValidationError, RegisterModelValidationError,
+        validate_physical_register_model,
+    };
 
     use super::*;
 
@@ -393,12 +628,161 @@ mod tests {
         );
         assert!(!model.view_named("ah").unwrap().allocatable);
         assert!(!model.view_named("rsp").unwrap().allocatable);
+    }
+
+    #[test]
+    fn register_constraint_catalog_closes_the_required_x86_64_inventory() {
+        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let validated = validate_x86_64_register_constraint_catalog(
+            x86_64_register_constraint_catalog(&model),
+            &model,
+        )
+        .unwrap();
+        let catalog = validated.catalog();
+        assert_eq!(
+            catalog.required.as_slice(),
+            X86_64_REQUIRED_REGISTER_CONSTRAINTS
+        );
+
+        let sysv_call = &catalog.constraints[0];
+        assert_eq!(sysv_call.key, X86_64_SYSTEM_V_CALL);
+        assert_eq!(sysv_call.operands.len(), 7);
+        assert_eq!(sysv_call.operands[6].access, RegisterOperandAccess::Def);
+        assert_eq!(
+            sysv_call.operands[6].fixed_view,
+            Some(model.model().view_named("rax").unwrap().id)
+        );
         assert!(
             model
-                .constraints
+                .model()
+                .view_named("rsp")
+                .unwrap()
+                .units
                 .iter()
-                .any(|row| row.name == "linux-x86_64-syscall")
+                .all(|unit| sysv_call.implicit_uses.contains(unit)
+                    && sysv_call.implicit_defs.contains(unit))
         );
+
+        let syscall = &catalog.constraints[4];
+        assert_eq!(syscall.key, X86_64_LINUX_SYSTEM_CALL);
+        assert_eq!(syscall.operands[0].access, RegisterOperandAccess::UseDef);
+        assert_eq!(
+            syscall.operands[0].fixed_view,
+            Some(model.model().view_named("rax").unwrap().id)
+        );
+        for clobbered in ["rcx", "r11", "rflags"] {
+            assert!(
+                model
+                    .model()
+                    .view_named(clobbered)
+                    .unwrap()
+                    .units
+                    .iter()
+                    .all(|unit| syscall.clobbers.contains(unit))
+            );
+        }
+    }
+
+    #[test]
+    fn missing_required_x86_64_constraint_rejects() {
+        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let mut catalog = x86_64_register_constraint_catalog(&model);
+        catalog.constraints.remove(3);
+        for (id, constraint) in catalog.constraints.iter_mut().enumerate() {
+            constraint.id = RegisterConstraintId(u16::try_from(id).unwrap());
+        }
+        assert_eq!(
+            validate_x86_64_register_constraint_catalog(catalog, &model),
+            Err(X86_64RegisterConstraintCatalogValidationError::Structural(
+                RegisterConstraintCatalogValidationError::MissingRequiredConstraint(
+                    X86_64_MICROSOFT_RETURN,
+                ),
+            )),
+        );
+    }
+
+    #[test]
+    fn target_inventory_cannot_erase_a_required_key_and_its_row_together() {
+        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let mut catalog = x86_64_register_constraint_catalog(&model);
+        catalog.required.remove(3);
+        catalog.constraints.remove(3);
+        for (id, constraint) in catalog.constraints.iter_mut().enumerate() {
+            constraint.id = RegisterConstraintId(u16::try_from(id).unwrap());
+        }
+        assert_eq!(
+            validate_x86_64_register_constraint_catalog(catalog, &model),
+            Err(
+                X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
+                    X86_64_MICROSOFT_RETURN,
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn x86_64_constraint_semantic_corruption_rejects() {
+        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let mut wrong_class = x86_64_register_constraint_catalog(&model);
+        wrong_class.constraints[0].operands[6].class = VECTOR128;
+        assert_eq!(
+            validate_x86_64_register_constraint_catalog(wrong_class, &model),
+            Err(X86_64RegisterConstraintCatalogValidationError::Structural(
+                RegisterConstraintCatalogValidationError::FixedViewClassMismatch {
+                    constraint: RegisterConstraintId(0),
+                    operand: 6,
+                },
+            )),
+        );
+
+        let mut contradictory_post_state = x86_64_register_constraint_catalog(&model);
+        let unit = contradictory_post_state.constraints[0].implicit_defs[0];
+        contradictory_post_state.constraints[0].clobbers.push(unit);
+        contradictory_post_state.constraints[0]
+            .clobbers
+            .sort_unstable();
+        assert_eq!(
+            validate_x86_64_register_constraint_catalog(contradictory_post_state, &model),
+            Err(X86_64RegisterConstraintCatalogValidationError::Structural(
+                RegisterConstraintCatalogValidationError::DefClobberOverlap {
+                    constraint: RegisterConstraintId(0),
+                    unit,
+                },
+            )),
+        );
+    }
+
+    #[test]
+    fn x86_64_target_semantics_reject_compatible_substitution_and_missing_clobbers() {
+        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let mut wrong_syscall_register = x86_64_register_constraint_catalog(&model);
+        wrong_syscall_register.constraints[4].operands[4].fixed_view =
+            Some(model.model().view_named("r11").unwrap().id);
+        assert_eq!(
+            validate_x86_64_register_constraint_catalog(wrong_syscall_register, &model),
+            Err(
+                X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
+                    X86_64_LINUX_SYSTEM_CALL,
+                )
+            )
+        );
+
+        for clobber in ["rcx", "r11", "rflags"] {
+            let mut missing_clobber = x86_64_register_constraint_catalog(&model);
+            let omitted = model.model().view_named(clobber).unwrap().units[0];
+            missing_clobber.constraints[4]
+                .clobbers
+                .retain(|unit| *unit != omitted);
+            assert_eq!(
+                validate_x86_64_register_constraint_catalog(missing_clobber, &model),
+                Err(
+                    X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
+                        X86_64_LINUX_SYSTEM_CALL,
+                    )
+                ),
+                "omitting {clobber} state must reject",
+            );
+        }
     }
 
     #[test]

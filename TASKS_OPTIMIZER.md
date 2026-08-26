@@ -39,8 +39,9 @@ These facts constrain the work below.
   registers. It has no general liveness, interference, spilling, splitting,
   coalescing, or frame allocation. The clean Terminal assignment lane handles
   bounded forms but is also not a general allocator.
-- `omega-regalloc` now owns a target-neutral declarative physical-register
-  vocabulary and total structural validator, but performs no allocation.
+- `omega-regalloc` now owns separate target-neutral declarative physical-
+  register and instruction-constraint vocabularies with total structural
+  validators, but performs no allocation.
   ISA-owned x86-64 declarations split every GPR into exact byte/word/dword/qword
   storage lanes, retain non-allocatable high-byte views, model 32-bit
   zero-extension, and cover XMM, RFLAGS, and RIP state. AArch64 declarations
@@ -48,13 +49,20 @@ These facts constrain the work below.
   low/high halves so AAPCS64 can preserve only the required low half of
   `v8`-`v15`, and cover NZCV, FPCR, FPSR, and PC. Both models publish ABI
   argument/result order, complete caller/callee/fixed partitions, stack/red-zone
-  facts, selectable frame/dispatch/metering/platform reservations, syscall
-  fixed operands/clobbers, and conservative inline-assembly clobbers. Validator
-  and target corruption tests reject noncanonical/unknown/omitted units, false
-  write footprints, and overlapping preservation partitions. Nothing consumes
-  these declarations in assignment or emission yet; `OPT-REGISTER-MODEL`
-  remains open for the complete per-instruction constraint inventory, target
-  feature variants, and joins to every backend/provider reservation.
+  facts and selectable frame/dispatch/metering/platform reservations. The
+  typed constraint catalog has stable family/variant keys, exact operand
+  use/def roles and classes, optional fixed views, canonical ties, early
+  clobbers, implicit uses/defs/clobbers, and an exact required-key inventory.
+  Target-owned v1 catalogs cover scalar System V/Microsoft and AAPCS64/Darwin
+  call/return banks plus Linux syscall and conservative inline-assembly state.
+  Generic validation rejects malformed IDs, keys, operands, ties, classes,
+  units, and missing/extra inventory; a second ISA-owned comparison rejects
+  class-compatible register substitution or missing architectural state. The
+  former name-only constraint rows have been removed, so there is one
+  constraint authority. Nothing consumes these declarations in assignment or
+  emission yet; `OPT-REGISTER-MODEL` remains open for ordinary instruction and
+  feature-variant inventories, parallel ABI banks/aggregate forms, and joins
+  to every backend/provider reservation.
 - `CompileOptions` contains root, build directory, target, and output policy.
   `BuildConfig` now retains the exact canonical optimization selection set from
   the toolchain build vocabulary. Package-aware admission permits the exact
@@ -150,7 +158,10 @@ These facts constrain the work below.
 - The Psi optimizer now also has immutable compilation-local rule registries.
   They preserve the pass manager's explicit schedule (never hash-sort it),
   reject duplicate rule identities, bind the exact order into a rule-set
-  identity, and share no global mutable registry state. Initial semantic
+  identity, and share no global mutable registry state. Built-in registration
+  rows carry explicit contiguous schedule ordinals, so shuffled contribution
+  arrival reconstructs the same declared schedule without changing the
+  order-preserving public registry contract. Initial semantic
   products cover use/definition rows, scalar constants, exact integer ranges,
   and executable/inexecutable edges. Constants and edge verdicts are now
   projections of one deterministic SCCP fixed point over executable blocks,
@@ -559,7 +570,8 @@ dependency.
   provenance prevent publication even when byte emission succeeds.
 
 - **OPT-DIFFERENTIAL-HARNESS.** Generalize the native differential harness to
-  compare interpreter, O0 native, and optimized native observations.
+  compare interpreter, optimizer-disabled native, and explicitly selected
+  optimized native observations.
 
   Acceptance: generated inputs and curated cases compare result, output bytes,
   crash route, boundary trace, and other exposed observations. A differential
@@ -620,9 +632,11 @@ dependency.
   Current slice: the supported two-family subset has the canonical
   `SparseConditionalConstantPropagation -> CopyPropagation` schedule, distinct
   ordered pass manifests, aggregate replay evidence, per-pass budgets, and
-  deterministic artifact tests. Remaining to close: add schedules for each
-  newly implemented initial family and direct whole-pipeline idempotence plus
-  randomized registry-construction coverage.
+  deterministic artifact tests. Thirty-two shuffled built-in registration
+  orders produce identical full SCCP runs, and a direct second SCCP/copy sweep
+  changes neither final unit nor the composed transformation ledger. Remaining
+  to close: add canonical schedules and the same fixed-point evidence for each
+  newly implemented initial family.
 
 ## P4 — Lowering optimizer and virtual-register form
 
@@ -697,11 +711,27 @@ dependency.
   dispatch, metering, syscall, inline-assembly, and backend-reserved state.
   Target tests detect overlapping or omitted units.
 
+  Current slice: independently validated physical models and the closed
+  Register Constraint Catalog v1 substrate are landed. Required target-owned
+  keys currently cover scalar call/return, Linux syscall, and conservative
+  inline assembly for the existing System V, Microsoft, AAPCS64, and Darwin
+  conventions. Both generic structural and ISA-semantic corruption suites are
+  required. Remaining to close: ordinary instruction keys and fixed/tied
+  constraints, complete integer/vector/aggregate ABI banks, feature-profile
+  variants (including extended vector/floating control state), and dynamic
+  backend/provider reservation closure.
+
 - **OPT-LIVENESS.** Compute block and instruction liveness, live intervals, use
   positions, loop weights, call crossings, and fixed constraints.
 
   Acceptance: conditionals, loops, crash exits, calls, cleanup blocks,
   suspension frontiers, and disconnected functions have focused tests.
+
+  Sequencing: this remains an engineering dependency on
+  `OPT-VIRTUAL-REGISTERS`. The current clean target representation is a nested
+  expression tree with ABI placements, not an instruction CFG with typed
+  virtual defs/uses; liveness must not be faked over already assigned scratch
+  homes or a disconnected toy IR.
 
 - **OPT-LINEAR-SCAN.** Implement deterministic linear-scan allocation with
   class constraints and stable tie breaks.

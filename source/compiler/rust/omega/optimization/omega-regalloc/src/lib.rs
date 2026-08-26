@@ -88,20 +88,168 @@ pub struct RegisterReservationOverlay {
     pub units: Vec<RegisterUnitId>,
 }
 
+/// Dense, catalog-local identity for an instruction constraint row.
+///
+/// IDs are canonical only when they match the row's zero-based position in a
+/// validated [`RegisterConstraintCatalog`]. The key, rather than this ID, is
+/// the stable identity used to join an instruction inventory to its row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FixedRegisterOperand {
+pub struct RegisterConstraintId(pub u16);
+
+/// The semantic family that owns a register-constraint key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RegisterConstraintFamily {
+    Call,
+    Return,
+    SystemCall,
+    InlineAssembly,
+    Instruction,
+}
+
+/// Stable target-owned identity for one constrained instruction form.
+///
+/// `variant` is assigned by the target owner. It distinguishes calling
+/// conventions, syscall ABIs, inline-assembly forms, or instruction forms
+/// without relying on display names or declaration order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RegisterConstraintKey {
+    pub family: RegisterConstraintFamily,
+    pub variant: u32,
+}
+
+/// Dataflow access performed by an explicit instruction operand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RegisterOperandAccess {
+    Use,
+    Def,
+    UseDef,
+}
+
+impl RegisterOperandAccess {
+    const fn reads(self) -> bool {
+        matches!(self, Self::Use | Self::UseDef)
+    }
+
+    const fn writes(self) -> bool {
+        matches!(self, Self::Def | Self::UseDef)
+    }
+}
+
+/// Allocation constraints for one explicit instruction operand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RegisterOperandConstraint {
     pub operand: u16,
-    pub view: RegisterViewId,
+    pub access: RegisterOperandAccess,
+    pub class: RegisterClassId,
+    pub fixed_view: Option<RegisterViewId>,
+    /// Canonical one-way tie to an earlier operand number.
+    pub tied_to: Option<u16>,
+    /// The write happens before unrelated input operands have all been read.
+    pub early_clobber: bool,
+}
+
+/// Complete register effects for one constrained instruction form.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegisterInstructionConstraint {
+    pub id: RegisterConstraintId,
+    pub key: RegisterConstraintKey,
+    pub operands: Vec<RegisterOperandConstraint>,
+    pub implicit_uses: Vec<RegisterUnitId>,
+    pub implicit_defs: Vec<RegisterUnitId>,
+    pub clobbers: Vec<RegisterUnitId>,
+}
+
+/// A target register-constraint inventory and its keyed definitions.
+///
+/// Both vectors are strictly key-sorted in the validated form. `required`
+/// must match the row keys exactly, making omitted and unexpected instruction
+/// forms deterministic validation failures.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegisterConstraintCatalog {
+    pub architecture: Architecture,
+    pub required: Vec<RegisterConstraintKey>,
+    pub constraints: Vec<RegisterInstructionConstraint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RegisterConstraint {
-    pub name: String,
-    pub fixed_inputs: Vec<FixedRegisterOperand>,
-    pub fixed_outputs: Vec<FixedRegisterOperand>,
-    pub early_clobbers: Vec<RegisterUnitId>,
-    pub clobbers: Vec<RegisterUnitId>,
+pub struct ValidatedRegisterConstraintCatalog {
+    architecture: Architecture,
+    catalog: RegisterConstraintCatalog,
 }
+
+impl ValidatedRegisterConstraintCatalog {
+    pub const fn architecture(&self) -> Architecture {
+        self.architecture
+    }
+
+    pub const fn catalog(&self) -> &RegisterConstraintCatalog {
+        &self.catalog
+    }
+
+    pub fn into_catalog(self) -> RegisterConstraintCatalog {
+        self.catalog
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RegisterConstraintCatalogValidationError {
+    ArchitectureMismatch,
+    NonCanonicalConstraintIds,
+    NonCanonicalRequiredKeys,
+    NonCanonicalConstraintKeys,
+    MissingRequiredConstraint(RegisterConstraintKey),
+    UnexpectedConstraint(RegisterConstraintKey),
+    EmptyConstraint(RegisterConstraintId),
+    NonCanonicalOperands(RegisterConstraintId),
+    UnknownClass {
+        constraint: RegisterConstraintId,
+        class: RegisterClassId,
+    },
+    UnknownFixedView {
+        constraint: RegisterConstraintId,
+        view: RegisterViewId,
+    },
+    FixedViewClassMismatch {
+        constraint: RegisterConstraintId,
+        operand: u16,
+    },
+    UnallocatableOperandClass {
+        constraint: RegisterConstraintId,
+        operand: u16,
+    },
+    InvalidOperandTie {
+        constraint: RegisterConstraintId,
+        operand: u16,
+    },
+    IncompatibleOperandTie {
+        constraint: RegisterConstraintId,
+        operand: u16,
+        tied_to: u16,
+    },
+    InvalidEarlyClobber {
+        constraint: RegisterConstraintId,
+        operand: u16,
+    },
+    NonCanonicalImplicitUses(RegisterConstraintId),
+    NonCanonicalImplicitDefs(RegisterConstraintId),
+    NonCanonicalClobbers(RegisterConstraintId),
+    UnknownUnit {
+        constraint: RegisterConstraintId,
+        unit: RegisterUnitId,
+    },
+    DefClobberOverlap {
+        constraint: RegisterConstraintId,
+        unit: RegisterUnitId,
+    },
+}
+
+impl std::fmt::Display for RegisterConstraintCatalogValidationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "invalid register constraint catalog: {self:?}")
+    }
+}
+
+impl std::error::Error for RegisterConstraintCatalogValidationError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreservationConvention {
@@ -123,7 +271,6 @@ pub struct PhysicalRegisterModel {
     pub classes: Vec<RegisterClass>,
     pub conventions: Vec<PreservationConvention>,
     pub reservations: Vec<RegisterReservationOverlay>,
-    pub constraints: Vec<RegisterConstraint>,
 }
 
 impl PhysicalRegisterModel {
@@ -178,8 +325,6 @@ pub enum RegisterModelValidationError {
     ConventionPartitionOverlap(RegisterUnitId),
     ConventionPartitionOmission(RegisterUnitId),
     EmptyReservation,
-    EmptyConstraint,
-    NonCanonicalOperandSet,
 }
 
 impl std::fmt::Display for RegisterModelValidationError {
@@ -210,7 +355,6 @@ pub fn validate_physical_register_model(
         || !unique_names(model.classes.iter().map(|row| row.name.as_str()))
         || !unique_names(model.conventions.iter().map(|row| row.name.as_str()))
         || !unique_names(model.reservations.iter().map(|row| row.name.as_str()))
-        || !unique_names(model.constraints.iter().map(|row| row.name.as_str()))
     {
         return Err(RegisterModelValidationError::DuplicateName);
     }
@@ -316,20 +460,282 @@ pub fn validate_physical_register_model(
         }
         validate_unit_set(&reservation.units, &units)?;
     }
-    for constraint in &model.constraints {
-        if constraint.fixed_inputs.is_empty()
-            && constraint.fixed_outputs.is_empty()
-            && constraint.early_clobbers.is_empty()
+    Ok(ValidatedPhysicalRegisterModel(model))
+}
+
+/// Validates a closed register-constraint inventory against an independently
+/// validated physical register model.
+pub fn validate_register_constraint_catalog(
+    catalog: RegisterConstraintCatalog,
+    model: &ValidatedPhysicalRegisterModel,
+) -> Result<ValidatedRegisterConstraintCatalog, RegisterConstraintCatalogValidationError> {
+    let physical = model.model();
+    if catalog.architecture != physical.architecture {
+        return Err(RegisterConstraintCatalogValidationError::ArchitectureMismatch);
+    }
+    if catalog
+        .constraints
+        .iter()
+        .enumerate()
+        .any(|(expected, constraint)| usize::from(constraint.id.0) != expected)
+    {
+        return Err(RegisterConstraintCatalogValidationError::NonCanonicalConstraintIds);
+    }
+    if catalog.required.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(RegisterConstraintCatalogValidationError::NonCanonicalRequiredKeys);
+    }
+    if catalog
+        .constraints
+        .windows(2)
+        .any(|pair| pair[0].key >= pair[1].key)
+    {
+        return Err(RegisterConstraintCatalogValidationError::NonCanonicalConstraintKeys);
+    }
+
+    validate_required_constraint_inventory(&catalog)?;
+
+    let units = physical
+        .units
+        .iter()
+        .map(|unit| (unit.id, unit))
+        .collect::<BTreeMap<_, _>>();
+    let views = physical
+        .views
+        .iter()
+        .map(|view| (view.id, view))
+        .collect::<BTreeMap<_, _>>();
+    let classes = physical
+        .classes
+        .iter()
+        .map(|class| (class.id, class))
+        .collect::<BTreeMap<_, _>>();
+
+    for constraint in &catalog.constraints {
+        if constraint.operands.is_empty()
+            && constraint.implicit_uses.is_empty()
+            && constraint.implicit_defs.is_empty()
             && constraint.clobbers.is_empty()
         {
-            return Err(RegisterModelValidationError::EmptyConstraint);
+            return Err(RegisterConstraintCatalogValidationError::EmptyConstraint(
+                constraint.id,
+            ));
         }
-        validate_operands(&constraint.fixed_inputs, &views)?;
-        validate_operands(&constraint.fixed_outputs, &views)?;
-        validate_unit_set(&constraint.early_clobbers, &units)?;
-        validate_unit_set(&constraint.clobbers, &units)?;
+        if constraint
+            .operands
+            .windows(2)
+            .any(|pair| pair[0].operand >= pair[1].operand)
+        {
+            return Err(
+                RegisterConstraintCatalogValidationError::NonCanonicalOperands(constraint.id),
+            );
+        }
+
+        for operand in &constraint.operands {
+            let Some(class) = classes.get(&operand.class) else {
+                return Err(RegisterConstraintCatalogValidationError::UnknownClass {
+                    constraint: constraint.id,
+                    class: operand.class,
+                });
+            };
+            if let Some(fixed_view) = operand.fixed_view {
+                let Some(view) = views.get(&fixed_view) else {
+                    return Err(RegisterConstraintCatalogValidationError::UnknownFixedView {
+                        constraint: constraint.id,
+                        view: fixed_view,
+                    });
+                };
+                if view.class != operand.class {
+                    return Err(
+                        RegisterConstraintCatalogValidationError::FixedViewClassMismatch {
+                            constraint: constraint.id,
+                            operand: operand.operand,
+                        },
+                    );
+                }
+            } else if !class
+                .views
+                .iter()
+                .any(|view| views.get(view).is_some_and(|view| view.allocatable))
+            {
+                return Err(
+                    RegisterConstraintCatalogValidationError::UnallocatableOperandClass {
+                        constraint: constraint.id,
+                        operand: operand.operand,
+                    },
+                );
+            }
+            if operand.early_clobber && !operand.access.writes() {
+                return Err(
+                    RegisterConstraintCatalogValidationError::InvalidEarlyClobber {
+                        constraint: constraint.id,
+                        operand: operand.operand,
+                    },
+                );
+            }
+        }
+        validate_operand_ties(constraint)?;
+
+        validate_constraint_unit_set(
+            constraint.id,
+            &constraint.implicit_uses,
+            &units,
+            ConstraintUnitSetKind::ImplicitUses,
+        )?;
+        validate_constraint_unit_set(
+            constraint.id,
+            &constraint.implicit_defs,
+            &units,
+            ConstraintUnitSetKind::ImplicitDefs,
+        )?;
+        validate_constraint_unit_set(
+            constraint.id,
+            &constraint.clobbers,
+            &units,
+            ConstraintUnitSetKind::Clobbers,
+        )?;
+        if let Some(unit) = constraint
+            .implicit_defs
+            .iter()
+            .find(|unit| constraint.clobbers.binary_search(unit).is_ok())
+        {
+            return Err(
+                RegisterConstraintCatalogValidationError::DefClobberOverlap {
+                    constraint: constraint.id,
+                    unit: *unit,
+                },
+            );
+        }
     }
-    Ok(ValidatedPhysicalRegisterModel(model))
+
+    Ok(ValidatedRegisterConstraintCatalog {
+        architecture: catalog.architecture,
+        catalog,
+    })
+}
+
+fn validate_required_constraint_inventory(
+    catalog: &RegisterConstraintCatalog,
+) -> Result<(), RegisterConstraintCatalogValidationError> {
+    let mut required = catalog.required.iter().copied().peekable();
+    let mut actual = catalog
+        .constraints
+        .iter()
+        .map(|constraint| constraint.key)
+        .peekable();
+    loop {
+        match (required.peek().copied(), actual.peek().copied()) {
+            (Some(expected), Some(found)) if expected == found => {
+                required.next();
+                actual.next();
+            }
+            (Some(expected), Some(found)) if expected < found => {
+                return Err(
+                    RegisterConstraintCatalogValidationError::MissingRequiredConstraint(expected),
+                );
+            }
+            (Some(_), Some(found)) => {
+                return Err(RegisterConstraintCatalogValidationError::UnexpectedConstraint(found));
+            }
+            (Some(expected), None) => {
+                return Err(
+                    RegisterConstraintCatalogValidationError::MissingRequiredConstraint(expected),
+                );
+            }
+            (None, Some(found)) => {
+                return Err(RegisterConstraintCatalogValidationError::UnexpectedConstraint(found));
+            }
+            (None, None) => return Ok(()),
+        }
+    }
+}
+
+fn validate_operand_ties(
+    constraint: &RegisterInstructionConstraint,
+) -> Result<(), RegisterConstraintCatalogValidationError> {
+    for operand in &constraint.operands {
+        let Some(tied_to) = operand.tied_to else {
+            continue;
+        };
+        if tied_to >= operand.operand {
+            return Err(
+                RegisterConstraintCatalogValidationError::InvalidOperandTie {
+                    constraint: constraint.id,
+                    operand: operand.operand,
+                },
+            );
+        }
+        let Ok(tied_index) = constraint
+            .operands
+            .binary_search_by_key(&tied_to, |candidate| candidate.operand)
+        else {
+            return Err(
+                RegisterConstraintCatalogValidationError::InvalidOperandTie {
+                    constraint: constraint.id,
+                    operand: operand.operand,
+                },
+            );
+        };
+        let tied = &constraint.operands[tied_index];
+        if tied.tied_to.is_some() {
+            return Err(
+                RegisterConstraintCatalogValidationError::InvalidOperandTie {
+                    constraint: constraint.id,
+                    operand: operand.operand,
+                },
+            );
+        }
+        let fixed_views_compatible = match (operand.fixed_view, tied.fixed_view) {
+            (Some(left), Some(right)) => left == right,
+            _ => true,
+        };
+        let pair_reads = operand.access.reads() || tied.access.reads();
+        let pair_writes = operand.access.writes() || tied.access.writes();
+        if operand.class != tied.class || !fixed_views_compatible || !pair_reads || !pair_writes {
+            return Err(
+                RegisterConstraintCatalogValidationError::IncompatibleOperandTie {
+                    constraint: constraint.id,
+                    operand: operand.operand,
+                    tied_to,
+                },
+            );
+        }
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ConstraintUnitSetKind {
+    ImplicitUses,
+    ImplicitDefs,
+    Clobbers,
+}
+
+fn validate_constraint_unit_set(
+    constraint: RegisterConstraintId,
+    set: &[RegisterUnitId],
+    known: &BTreeMap<RegisterUnitId, &RegisterUnit>,
+    kind: ConstraintUnitSetKind,
+) -> Result<(), RegisterConstraintCatalogValidationError> {
+    if set.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(match kind {
+            ConstraintUnitSetKind::ImplicitUses => {
+                RegisterConstraintCatalogValidationError::NonCanonicalImplicitUses(constraint)
+            }
+            ConstraintUnitSetKind::ImplicitDefs => {
+                RegisterConstraintCatalogValidationError::NonCanonicalImplicitDefs(constraint)
+            }
+            ConstraintUnitSetKind::Clobbers => {
+                RegisterConstraintCatalogValidationError::NonCanonicalClobbers(constraint)
+            }
+        });
+    }
+    if let Some(unit) = set.iter().find(|unit| !known.contains_key(unit)) {
+        return Err(RegisterConstraintCatalogValidationError::UnknownUnit {
+            constraint,
+            unit: *unit,
+        });
+    }
+    Ok(())
 }
 
 fn validate_sequential_ids(
@@ -370,22 +776,6 @@ fn validate_view_set(
     }
     if let Some(view) = set.iter().find(|view| !known.contains_key(view)) {
         return Err(RegisterModelValidationError::UnknownView(*view));
-    }
-    Ok(())
-}
-
-fn validate_operands(
-    operands: &[FixedRegisterOperand],
-    views: &BTreeMap<RegisterViewId, &RegisterView>,
-) -> Result<(), RegisterModelValidationError> {
-    if operands.windows(2).any(|pair| pair[0] >= pair[1]) {
-        return Err(RegisterModelValidationError::NonCanonicalOperandSet);
-    }
-    if let Some(operand) = operands
-        .iter()
-        .find(|operand| !views.contains_key(&operand.view))
-    {
-        return Err(RegisterModelValidationError::UnknownView(operand.view));
     }
     Ok(())
 }
@@ -447,40 +837,110 @@ mod tests {
     fn miniature_model() -> PhysicalRegisterModel {
         PhysicalRegisterModel {
             architecture: Architecture::X86_64,
-            units: vec![RegisterUnit {
-                id: RegisterUnitId(0),
-                name: "r0.storage".into(),
-                bits: 64,
-                kind: RegisterUnitKind::IntegerLane,
-            }],
-            views: vec![RegisterView {
-                id: RegisterViewId(0),
-                name: "r0".into(),
-                class: RegisterClassId(0),
-                units: vec![RegisterUnitId(0)],
-                write_units: vec![RegisterUnitId(0)],
-                bits: 64,
-                write_semantics: RegisterWriteSemantics::ExactView,
-                allocatable: true,
-            }],
-            classes: vec![RegisterClass {
-                id: RegisterClassId(0),
-                name: "integer".into(),
-                views: vec![RegisterViewId(0)],
-            }],
+            units: vec![
+                RegisterUnit {
+                    id: RegisterUnitId(0),
+                    name: "r0.storage".into(),
+                    bits: 64,
+                    kind: RegisterUnitKind::IntegerLane,
+                },
+                RegisterUnit {
+                    id: RegisterUnitId(1),
+                    name: "v0.storage".into(),
+                    bits: 128,
+                    kind: RegisterUnitKind::VectorLane,
+                },
+            ],
+            views: vec![
+                RegisterView {
+                    id: RegisterViewId(0),
+                    name: "r0".into(),
+                    class: RegisterClassId(0),
+                    units: vec![RegisterUnitId(0)],
+                    write_units: vec![RegisterUnitId(0)],
+                    bits: 64,
+                    write_semantics: RegisterWriteSemantics::ExactView,
+                    allocatable: true,
+                },
+                RegisterView {
+                    id: RegisterViewId(1),
+                    name: "v0".into(),
+                    class: RegisterClassId(1),
+                    units: vec![RegisterUnitId(1)],
+                    write_units: vec![RegisterUnitId(1)],
+                    bits: 128,
+                    write_semantics: RegisterWriteSemantics::ExactView,
+                    allocatable: true,
+                },
+            ],
+            classes: vec![
+                RegisterClass {
+                    id: RegisterClassId(0),
+                    name: "integer".into(),
+                    views: vec![RegisterViewId(0)],
+                },
+                RegisterClass {
+                    id: RegisterClassId(1),
+                    name: "vector".into(),
+                    views: vec![RegisterViewId(1)],
+                },
+            ],
             conventions: vec![PreservationConvention {
                 name: "test-call".into(),
                 argument_views: vec![RegisterViewId(0)],
                 result_views: vec![RegisterViewId(0)],
                 caller_saved: vec![RegisterUnitId(0)],
-                callee_saved: Vec::new(),
+                callee_saved: vec![RegisterUnitId(1)],
                 fixed: Vec::new(),
                 stack_alignment: 16,
                 red_zone_bytes: 0,
             }],
             reservations: Vec::new(),
-            constraints: Vec::new(),
         }
+    }
+
+    fn instruction_key(variant: u32) -> RegisterConstraintKey {
+        RegisterConstraintKey {
+            family: RegisterConstraintFamily::Instruction,
+            variant,
+        }
+    }
+
+    fn miniature_catalog() -> RegisterConstraintCatalog {
+        let key = instruction_key(7);
+        RegisterConstraintCatalog {
+            architecture: Architecture::X86_64,
+            required: vec![key],
+            constraints: vec![RegisterInstructionConstraint {
+                id: RegisterConstraintId(0),
+                key,
+                operands: vec![
+                    RegisterOperandConstraint {
+                        operand: 0,
+                        access: RegisterOperandAccess::Use,
+                        class: RegisterClassId(0),
+                        fixed_view: None,
+                        tied_to: None,
+                        early_clobber: false,
+                    },
+                    RegisterOperandConstraint {
+                        operand: 1,
+                        access: RegisterOperandAccess::Def,
+                        class: RegisterClassId(0),
+                        fixed_view: Some(RegisterViewId(0)),
+                        tied_to: Some(0),
+                        early_clobber: true,
+                    },
+                ],
+                implicit_uses: vec![RegisterUnitId(0)],
+                implicit_defs: Vec::new(),
+                clobbers: vec![RegisterUnitId(1)],
+            }],
+        }
+    }
+
+    fn validated_miniature_model() -> ValidatedPhysicalRegisterModel {
+        validate_physical_register_model(miniature_model()).expect("miniature model must validate")
     }
 
     #[test]
@@ -503,6 +963,253 @@ mod tests {
             Err(RegisterModelValidationError::WriteFootprintMismatch(
                 RegisterViewId(0)
             ))
+        );
+    }
+
+    #[test]
+    fn constraint_catalog_accepts_a_closed_required_inventory() {
+        let validated =
+            validate_register_constraint_catalog(miniature_catalog(), &validated_miniature_model())
+                .expect("closed catalog must validate");
+
+        assert_eq!(validated.architecture(), Architecture::X86_64);
+        assert_eq!(validated.catalog().required, vec![instruction_key(7)]);
+    }
+
+    #[test]
+    fn constraint_catalog_rejects_missing_and_unexpected_inventory_rows() {
+        let model = validated_miniature_model();
+        let mut missing = miniature_catalog();
+        missing.required.push(instruction_key(8));
+        assert_eq!(
+            validate_register_constraint_catalog(missing, &model),
+            Err(
+                RegisterConstraintCatalogValidationError::MissingRequiredConstraint(
+                    instruction_key(8)
+                )
+            )
+        );
+
+        let mut unexpected = miniature_catalog();
+        let mut row = unexpected.constraints[0].clone();
+        row.id = RegisterConstraintId(1);
+        row.key = instruction_key(8);
+        unexpected.constraints.push(row);
+        assert_eq!(
+            validate_register_constraint_catalog(unexpected, &model),
+            Err(RegisterConstraintCatalogValidationError::UnexpectedConstraint(instruction_key(8)))
+        );
+    }
+
+    #[test]
+    fn constraint_catalog_rejects_noncanonical_ids_keys_and_operands() {
+        let model = validated_miniature_model();
+        let mut bad_id = miniature_catalog();
+        bad_id.constraints[0].id = RegisterConstraintId(1);
+        assert_eq!(
+            validate_register_constraint_catalog(bad_id, &model),
+            Err(RegisterConstraintCatalogValidationError::NonCanonicalConstraintIds)
+        );
+
+        let mut duplicate_required = miniature_catalog();
+        duplicate_required.required.push(instruction_key(7));
+        assert_eq!(
+            validate_register_constraint_catalog(duplicate_required, &model),
+            Err(RegisterConstraintCatalogValidationError::NonCanonicalRequiredKeys)
+        );
+
+        let mut duplicate_key = miniature_catalog();
+        let mut second_row = duplicate_key.constraints[0].clone();
+        second_row.id = RegisterConstraintId(1);
+        duplicate_key.constraints.push(second_row);
+        assert_eq!(
+            validate_register_constraint_catalog(duplicate_key, &model),
+            Err(RegisterConstraintCatalogValidationError::NonCanonicalConstraintKeys)
+        );
+
+        let mut duplicate_operand = miniature_catalog();
+        duplicate_operand.constraints[0].operands[1].operand = 0;
+        assert_eq!(
+            validate_register_constraint_catalog(duplicate_operand, &model),
+            Err(
+                RegisterConstraintCatalogValidationError::NonCanonicalOperands(
+                    RegisterConstraintId(0)
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn constraint_catalog_rejects_fixed_view_class_corruption() {
+        let model = validated_miniature_model();
+        let mut corrupted = miniature_catalog();
+        corrupted.constraints[0].operands[1].class = RegisterClassId(1);
+
+        assert_eq!(
+            validate_register_constraint_catalog(corrupted, &model),
+            Err(
+                RegisterConstraintCatalogValidationError::FixedViewClassMismatch {
+                    constraint: RegisterConstraintId(0),
+                    operand: 1,
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn constraint_catalog_rejects_unknown_or_unallocatable_operand_domains() {
+        let model = validated_miniature_model();
+        let mut unknown_class = miniature_catalog();
+        unknown_class.constraints[0].operands[0].class = RegisterClassId(u16::MAX);
+        assert_eq!(
+            validate_register_constraint_catalog(unknown_class, &model),
+            Err(RegisterConstraintCatalogValidationError::UnknownClass {
+                constraint: RegisterConstraintId(0),
+                class: RegisterClassId(u16::MAX),
+            })
+        );
+
+        let mut unknown_view = miniature_catalog();
+        unknown_view.constraints[0].operands[1].fixed_view = Some(RegisterViewId(u16::MAX));
+        assert_eq!(
+            validate_register_constraint_catalog(unknown_view, &model),
+            Err(RegisterConstraintCatalogValidationError::UnknownFixedView {
+                constraint: RegisterConstraintId(0),
+                view: RegisterViewId(u16::MAX),
+            })
+        );
+
+        let mut physical = miniature_model();
+        physical.views[1].allocatable = false;
+        let physical = validate_physical_register_model(physical).unwrap();
+        let mut unallocatable = miniature_catalog();
+        unallocatable.constraints[0].operands[0].class = RegisterClassId(1);
+        assert_eq!(
+            validate_register_constraint_catalog(unallocatable, &physical),
+            Err(
+                RegisterConstraintCatalogValidationError::UnallocatableOperandClass {
+                    constraint: RegisterConstraintId(0),
+                    operand: 0,
+                }
+            )
+        );
+
+        let mut empty = miniature_catalog();
+        let row = &mut empty.constraints[0];
+        row.operands.clear();
+        row.implicit_uses.clear();
+        row.implicit_defs.clear();
+        row.clobbers.clear();
+        assert_eq!(
+            validate_register_constraint_catalog(empty, &model),
+            Err(RegisterConstraintCatalogValidationError::EmptyConstraint(
+                RegisterConstraintId(0)
+            ))
+        );
+    }
+
+    #[test]
+    fn constraint_catalog_rejects_malformed_ties_and_early_clobbers() {
+        let model = validated_miniature_model();
+        let mut self_tie = miniature_catalog();
+        self_tie.constraints[0].operands[1].tied_to = Some(1);
+        assert_eq!(
+            validate_register_constraint_catalog(self_tie, &model),
+            Err(
+                RegisterConstraintCatalogValidationError::InvalidOperandTie {
+                    constraint: RegisterConstraintId(0),
+                    operand: 1,
+                }
+            )
+        );
+
+        let mut dangling_tie = miniature_catalog();
+        dangling_tie.constraints[0].operands[1].operand = 2;
+        dangling_tie.constraints[0].operands[1].tied_to = Some(1);
+        assert_eq!(
+            validate_register_constraint_catalog(dangling_tie, &model),
+            Err(
+                RegisterConstraintCatalogValidationError::InvalidOperandTie {
+                    constraint: RegisterConstraintId(0),
+                    operand: 2,
+                }
+            )
+        );
+
+        let mut incompatible_tie = miniature_catalog();
+        incompatible_tie.constraints[0].operands[1].class = RegisterClassId(1);
+        incompatible_tie.constraints[0].operands[1].fixed_view = None;
+        assert_eq!(
+            validate_register_constraint_catalog(incompatible_tie, &model),
+            Err(
+                RegisterConstraintCatalogValidationError::IncompatibleOperandTie {
+                    constraint: RegisterConstraintId(0),
+                    operand: 1,
+                    tied_to: 0,
+                }
+            )
+        );
+
+        let mut early_use = miniature_catalog();
+        early_use.constraints[0].operands[0].early_clobber = true;
+        assert_eq!(
+            validate_register_constraint_catalog(early_use, &model),
+            Err(
+                RegisterConstraintCatalogValidationError::InvalidEarlyClobber {
+                    constraint: RegisterConstraintId(0),
+                    operand: 0,
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn constraint_catalog_rejects_implicit_effect_corruption() {
+        let model = validated_miniature_model();
+        let mut duplicate_use = miniature_catalog();
+        duplicate_use.constraints[0]
+            .implicit_uses
+            .push(RegisterUnitId(0));
+        assert_eq!(
+            validate_register_constraint_catalog(duplicate_use, &model),
+            Err(
+                RegisterConstraintCatalogValidationError::NonCanonicalImplicitUses(
+                    RegisterConstraintId(0)
+                )
+            )
+        );
+
+        let mut unknown_clobber = miniature_catalog();
+        unknown_clobber.constraints[0].clobbers = vec![RegisterUnitId(2)];
+        assert_eq!(
+            validate_register_constraint_catalog(unknown_clobber, &model),
+            Err(RegisterConstraintCatalogValidationError::UnknownUnit {
+                constraint: RegisterConstraintId(0),
+                unit: RegisterUnitId(2),
+            })
+        );
+
+        let mut contradictory_write = miniature_catalog();
+        contradictory_write.constraints[0].implicit_defs = vec![RegisterUnitId(1)];
+        assert_eq!(
+            validate_register_constraint_catalog(contradictory_write, &model),
+            Err(
+                RegisterConstraintCatalogValidationError::DefClobberOverlap {
+                    constraint: RegisterConstraintId(0),
+                    unit: RegisterUnitId(1),
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn constraint_catalog_is_bound_to_the_validated_model_architecture() {
+        let mut wrong_architecture = miniature_catalog();
+        wrong_architecture.architecture = Architecture::Aarch64;
+
+        assert_eq!(
+            validate_register_constraint_catalog(wrong_architecture, &validated_miniature_model()),
+            Err(RegisterConstraintCatalogValidationError::ArchitectureMismatch)
         );
     }
 }

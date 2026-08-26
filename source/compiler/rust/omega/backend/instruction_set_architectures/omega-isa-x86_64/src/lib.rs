@@ -57,7 +57,13 @@ pub use place_copy::{
     place_value_compare_register_writes,
 };
 pub use privileged_effects::*;
-pub use register_model::x86_64_physical_register_model;
+pub use register_model::{
+    X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_LINUX_SYSTEM_CALL, X86_64_MICROSOFT_CALL,
+    X86_64_MICROSOFT_RETURN, X86_64_REQUIRED_REGISTER_CONSTRAINTS, X86_64_SYSTEM_V_CALL,
+    X86_64_SYSTEM_V_RETURN, X86_64RegisterConstraintCatalogValidationError,
+    validate_x86_64_register_constraint_catalog, x86_64_physical_register_model,
+    x86_64_register_constraint_catalog,
+};
 pub use runtime_storage::*;
 pub(crate) use runtime_storage::{
     append_runtime_binary_operation, append_runtime_convert_operation,

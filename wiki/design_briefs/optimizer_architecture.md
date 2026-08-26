@@ -413,7 +413,14 @@ The ordered registry preserves the pass manager's explicit schedule exactly;
 it does not sort cryptographic rule or pass identities. The full ordered list
 is itself identity-bearing, duplicates reject, and each opted-in compilation
 owns an immutable registry value. Reversing two otherwise identical rules is a
-different schedule and therefore a different rule-set identity.
+different schedule and therefore a different rule-set identity. Built-in rule
+contributions separately carry source-declared contiguous schedule ordinals;
+their private assembler sorts by those ordinals before constructing the
+ordered registry. Thus contribution arrival order cannot perturb the declared
+schedule, while no opaque identity sort silently invents policy. A direct
+second sweep of the currently supported SCCP then copy-propagation schedule
+must produce an empty delta; composing that delta preserves the first sweep's
+ledger exactly.
 
 The first Rust candidate vocabulary is intentionally closed rather than an
 opaque callback or byte payload. An exact-integer-evaluation candidate records
@@ -606,18 +613,28 @@ registers to assigned target operations. Its target model includes:
 - registers reserved by dispatch, metering, platform, or installed providers.
 
 The first implemented substrate is deliberately data-only. `omega-regalloc`
-defines register units, named views/classes, read/write footprints, preservation
-conventions, reservation overlays, and fixed/clobber constraints, then validates
-their closure without depending on either ISA. ISA crates construct those
-values and callers will eventually pass a validated model into the allocator;
-the allocator does not discover a target through global state. The baseline
+defines register units, named views/classes, read/write footprints,
+preservation conventions, and reservation overlays, then validates their
+closure without depending on either ISA. A separate closed Register Constraint
+Catalog binds stable family/variant keys to explicit operand use/def roles,
+classes, optional fixed views, canonical ties, early clobbers, implicit
+uses/defs/clobbers, and an exact required-key inventory. Generic validation
+checks catalog structure against a validated physical model; each ISA then
+compares every row with its own canonical target semantics so a same-class
+register substitution cannot pass. ISA crates construct those values and
+callers will eventually pass both validated artifacts into the allocator; the
+allocator does not discover a target through global state. The baseline
 x86-64 model uses lane units so `al` and `ah` are disjoint while `ax`/`eax`/`rax`
 alias the appropriate union, and records `eax`'s full-register zeroing write.
 The baseline AArch64 model gives encoding-number-31 stack and zero-register
 views distinct units, aliases `Wn`/`Xn`, and splits vector halves so the AAPCS64
 low-half preservation rule is not inflated to all 128 bits. These declarations
-do not alter the current scratch-cycling assignment lane and are not allocator
-output evidence. The selected optimizer lane may retain that transitional
+currently include closed scalar call/return rows for System V, Microsoft,
+AAPCS64, and Darwin plus Linux syscall and conservative inline-assembly rows.
+They are not yet a complete ordinary-instruction or feature-profile inventory.
+These declarations do not alter the current scratch-cycling assignment lane
+and are not allocator output evidence. The selected optimizer lane may retain
+that transitional
 lane's assigned plan inside `StagedOptimizedAssignedOperations` to prove
 cross-stage custody, but cannot treat it as allocator-validated input to
 machine emission.

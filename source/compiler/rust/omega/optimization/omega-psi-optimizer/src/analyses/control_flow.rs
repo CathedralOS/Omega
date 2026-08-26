@@ -34,9 +34,12 @@ pub struct ControlFlowAnalysis {
     pub functions: Vec<FunctionControlFlow>,
 }
 
+pub type BlockDominators = (BlockId, Vec<BlockId>);
+pub type FunctionDominators = (MachineId, Vec<BlockDominators>);
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DominatorAnalysis {
-    pub functions: Vec<(MachineId, Vec<(BlockId, Vec<BlockId>)>)>,
+    pub functions: Vec<FunctionDominators>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
