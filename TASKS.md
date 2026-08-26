@@ -7832,6 +7832,21 @@ Remaining N6/N8 work:
   independently. Selection, eligibility, and exact schema verification prove
   no congruence implication and grant no executable authority.
 
+  The first bounded stage-3 correspondence rung is now live. For `lift`
+  requests whose authored runtime arguments are unique direct public parameters
+  in exact declaration order, checked planning proves structural `Q => P`
+  inclusion independently for the selected theorem's left and right
+  representative applications. Every dependent representative `P` fact must
+  match one public `Q` fact after exact value/static substitution; extra `Q`
+  facts are permitted. Each row retains exact public, representative, and
+  verified-theorem contract-fact coordinates, and the plan composes them with
+  the verified theorem and exact runtime correspondence into a non-executable
+  certificate. `define` retains its exact `Q <=> P` bijection. Fixed
+  representative facts remain ordinary call obligations; generic owner
+  substitution, reordered/duplicated/constant/adapted lift arguments, general
+  logical implication, and canonical Terminal replay remain fail-closed, so
+  stage 3 is not complete and stage 4 remains open.
+
   Every request intentionally remains non-executable. Complete admission in
   bounded stages:
 

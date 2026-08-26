@@ -1,9 +1,12 @@
-//! Exact positional runtime correspondence for faithful quotient definitions.
+//! Exact positional runtime correspondence for faithful quotient definitions
+//! and the bounded direct-lift inclusion rung.
 //!
 //! This judgment accepts only direct public parameters in declaration order,
 //! preserves mutable/borrow mode, and matches quotient carriers through the
-//! already-retained representative static application. It does not infer or
-//! select any relation, contract proof, or representative operation.
+//! already-retained representative static application. The lift policy is
+//! intentionally no wider: reorder, duplication, constants, and adaptation
+//! remain for the general implication rung. Neither policy infers or selects a
+//! relation, contract proof, or representative operation.
 
 use super::{
     ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeStaticBinding,
@@ -29,6 +32,17 @@ pub(in crate::quotients) struct DefineRuntimeCorrespondence {
     pub(super) positions: Vec<DefineRuntimePosition>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::quotients) struct DirectLiftRuntimeCorrespondence {
+    pub(super) positions: Vec<DefineRuntimePosition>,
+}
+
+#[derive(Clone, Copy)]
+enum ExactPositionPolicy {
+    Define,
+    DirectLift,
+}
+
 pub(super) fn derive_define_runtime_correspondence(
     program: &TypedTrees,
     machine: &Machine,
@@ -38,8 +52,59 @@ pub(super) fn derive_define_runtime_correspondence(
     result_relation: ExactQuotientRelation,
     representative: &RepresentativeTelescope,
 ) -> Result<DefineRuntimeCorrespondence, RelationPlanError> {
+    derive_exact_position_runtime_correspondence(
+        program,
+        machine,
+        state,
+        call,
+        input_relations,
+        result_relation,
+        representative,
+        ExactPositionPolicy::Define,
+    )
+    .map(|positions| DefineRuntimeCorrespondence { positions })
+}
+
+pub(super) fn derive_direct_lift_runtime_correspondence(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    call: &TableCallExpression,
+    input_relations: &[InputRelation],
+    result_relation: ExactQuotientRelation,
+    representative: &RepresentativeTelescope,
+) -> Result<DirectLiftRuntimeCorrespondence, RelationPlanError> {
+    derive_exact_position_runtime_correspondence(
+        program,
+        machine,
+        state,
+        call,
+        input_relations,
+        result_relation,
+        representative,
+        ExactPositionPolicy::DirectLift,
+    )
+    .map(|positions| DirectLiftRuntimeCorrespondence { positions })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn derive_exact_position_runtime_correspondence(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    call: &TableCallExpression,
+    input_relations: &[InputRelation],
+    result_relation: ExactQuotientRelation,
+    representative: &RepresentativeTelescope,
+    policy: ExactPositionPolicy,
+) -> Result<Vec<DefineRuntimePosition>, RelationPlanError> {
     if !program.machine_type_parameters(machine).is_empty() {
-        return Err(RelationPlanError::DefineOwnerRequiresSubstitution);
+        return Err(match policy {
+            ExactPositionPolicy::Define => RelationPlanError::DefineOwnerRequiresSubstitution,
+            ExactPositionPolicy::DirectLift => {
+                RelationPlanError::DirectLiftOwnerRequiresSubstitution
+            }
+        });
     }
     let public_parameters = program
         .state_parameters(state)
@@ -51,7 +116,10 @@ pub(super) fn derive_define_runtime_correspondence(
         || arguments.len() != representative.parameters.len()
         || input_relations.len() != arguments.len()
     {
-        return Err(RelationPlanError::DefineRuntimeArityMismatch);
+        return Err(match policy {
+            ExactPositionPolicy::Define => RelationPlanError::DefineRuntimeArityMismatch,
+            ExactPositionPolicy::DirectLift => RelationPlanError::DirectLiftRuntimeArityMismatch,
+        });
     }
     if has_duplicate_parameter_symbols(public_parameters.iter().map(|parameter| parameter.symbol))
         || has_duplicate_parameter_symbols(
@@ -61,10 +129,16 @@ pub(super) fn derive_define_runtime_correspondence(
                 .map(|parameter| parameter.symbol),
         )
     {
-        return Err(RelationPlanError::DefineParameterIdentityNotUnique);
+        return Err(match policy {
+            ExactPositionPolicy::Define => RelationPlanError::DefineParameterIdentityNotUnique,
+            ExactPositionPolicy::DirectLift => {
+                RelationPlanError::DirectLiftParameterIdentityNotUnique
+            }
+        });
     }
 
     let mut positions = Vec::with_capacity(arguments.len());
+    let mut seen_lift_arguments = Vec::new();
     for (position, (((public, argument), relation), representative_parameter)) in public_parameters
         .iter()
         .zip(arguments)
@@ -72,14 +146,40 @@ pub(super) fn derive_define_runtime_correspondence(
         .zip(&representative.parameters)
         .enumerate()
     {
-        let argument_symbol = direct_public_parameter_symbol(program, *argument).ok_or(
-            RelationPlanError::DefineArgumentIsNotPublicParameter(position),
-        )?;
+        let argument_symbol =
+            direct_public_parameter_symbol(program, *argument).ok_or(match policy {
+                ExactPositionPolicy::Define => {
+                    RelationPlanError::DefineArgumentIsNotPublicParameter(position)
+                }
+                ExactPositionPolicy::DirectLift => {
+                    RelationPlanError::DirectLiftArgumentIsNotPublicParameter(position)
+                }
+            })?;
+        if matches!(policy, ExactPositionPolicy::DirectLift)
+            && seen_lift_arguments.contains(&argument_symbol)
+        {
+            return Err(RelationPlanError::DirectLiftArgumentIdentityNotUnique);
+        }
+        seen_lift_arguments.push(argument_symbol);
         if argument_symbol != public.symbol {
-            return Err(RelationPlanError::DefineArgumentOrderMismatch(position));
+            return Err(match policy {
+                ExactPositionPolicy::Define => {
+                    RelationPlanError::DefineArgumentOrderMismatch(position)
+                }
+                ExactPositionPolicy::DirectLift => {
+                    RelationPlanError::DirectLiftArgumentOrderMismatch(position)
+                }
+            });
         }
         if public.is_mutable != representative_parameter.is_mutable {
-            return Err(RelationPlanError::DefineParameterModeMismatch(position));
+            return Err(match policy {
+                ExactPositionPolicy::Define => {
+                    RelationPlanError::DefineParameterModeMismatch(position)
+                }
+                ExactPositionPolicy::DirectLift => {
+                    RelationPlanError::DirectLiftParameterModeMismatch(position)
+                }
+            });
         }
         if !input_relation_matches_public_type(program, *relation, public.type_reference)
             || !input_relation_matches_representative_type(
@@ -89,7 +189,14 @@ pub(super) fn derive_define_runtime_correspondence(
                 &representative.static_application.bindings,
             )
         {
-            return Err(RelationPlanError::DefineParameterTypeMismatch(position));
+            return Err(match policy {
+                ExactPositionPolicy::Define => {
+                    RelationPlanError::DefineParameterTypeMismatch(position)
+                }
+                ExactPositionPolicy::DirectLift => {
+                    RelationPlanError::DirectLiftParameterTypeMismatch(position)
+                }
+            });
         }
         positions.push(DefineRuntimePosition {
             public_parameter: public.symbol,
@@ -102,9 +209,12 @@ pub(super) fn derive_define_runtime_correspondence(
         representative.return_type,
         &representative.static_application.bindings,
     ) {
-        return Err(RelationPlanError::DefineResultTypeMismatch);
+        return Err(match policy {
+            ExactPositionPolicy::Define => RelationPlanError::DefineResultTypeMismatch,
+            ExactPositionPolicy::DirectLift => RelationPlanError::DirectLiftResultTypeMismatch,
+        });
     }
-    Ok(DefineRuntimeCorrespondence { positions })
+    Ok(positions)
 }
 
 fn has_duplicate_parameter_symbols(symbols: impl IntoIterator<Item = SymbolHandle>) -> bool {

@@ -16,7 +16,9 @@ use psi_typed_trees::state::State;
 use psi_typed_trees::types::TypeReferenceHandle;
 use std::fmt;
 
+mod correspondence_certificate;
 mod precondition;
+mod proof_fact_identity;
 mod representative;
 mod result_flow;
 mod runtime_correspondence;
@@ -25,6 +27,11 @@ mod theorem;
 mod theorem_schema;
 mod theorem_schema_verification;
 
+use correspondence_certificate::{
+    DirectLiftPreconditionImplication, QuotientCorrespondenceCertificate,
+    compose_define_correspondence_certificate, compose_lift_correspondence_certificate,
+    derive_direct_lift_precondition_implication,
+};
 use precondition::{
     DefinePreconditionCorrespondence, RepresentativePreconditionPartition,
     derive_define_precondition_correspondence, derive_public_precondition_partition,
@@ -41,7 +48,10 @@ use representative::{
 };
 #[cfg(test)]
 use runtime_correspondence::DefineRuntimePosition;
-use runtime_correspondence::{DefineRuntimeCorrespondence, derive_define_runtime_correspondence};
+use runtime_correspondence::{
+    DefineRuntimeCorrespondence, DirectLiftRuntimeCorrespondence,
+    derive_define_runtime_correspondence, derive_direct_lift_runtime_correspondence,
+};
 #[cfg(test)]
 use theorem::derive_selected_theorem_telescope;
 use theorem::{SelectedTheoremPurity, SelectedTheoremTelescope, SelectedTheoremTermination};
@@ -94,13 +104,19 @@ pub(super) struct DirectTerminalRelationPlan {
     expected_theorem_schema: ExpectedTheoremSchema,
     /// Structural verification pairs every expected row with one exact
     /// selected-theorem row. An error remains diagnostic planning state only;
-    /// stages 3/4 must consume the certificate and cannot infer authority from
-    /// the expected schema alone.
+    /// the correspondence rung must consume the certificate and cannot infer
+    /// authority from the expected schema alone.
     pub(super) theorem_schema_verification: Result<VerifiedTheoremSchema, RelationPlanError>,
+    pub(super) direct_lift_correspondence: Option<DirectLiftRuntimeCorrespondence>,
     pub(super) define_correspondence: Option<DefineRuntimeCorrespondence>,
     pub(super) public_precondition: Option<RepresentativePreconditionPartition>,
     pub(super) representative_precondition: Option<RepresentativePreconditionPartition>,
+    pub(super) direct_lift_precondition_implication: Option<DirectLiftPreconditionImplication>,
     pub(super) define_precondition_correspondence: Option<DefinePreconditionCorrespondence>,
+    /// Exact theorem + bounded correspondence composition only. Fixed call
+    /// obligations, general implication/adaptation, and Terminal replay remain
+    /// outside this non-executable certificate.
+    pub(super) correspondence_certificate: Option<QuotientCorrespondenceCertificate>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -153,6 +169,18 @@ pub(super) enum RelationPlanError {
     TheoremSchemaLegalityPremiseMismatch(usize),
     TheoremSchemaConclusionCountMismatch,
     TheoremSchemaConclusionMismatch,
+    DirectLiftOwnerRequiresSubstitution,
+    DirectLiftRuntimeArityMismatch,
+    DirectLiftParameterIdentityNotUnique,
+    DirectLiftArgumentIdentityNotUnique,
+    DirectLiftArgumentIsNotPublicParameter(usize),
+    DirectLiftArgumentOrderMismatch(usize),
+    DirectLiftParameterModeMismatch(usize),
+    DirectLiftParameterTypeMismatch(usize),
+    DirectLiftResultTypeMismatch,
+    DirectLiftLeftPreconditionNotImplied(usize),
+    DirectLiftRightPreconditionNotImplied(usize),
+    DirectLiftTheoremLegalityMismatch,
     DefineOwnerRequiresSubstitution,
     DefineRuntimeArityMismatch,
     DefineParameterIdentityNotUnique,
@@ -262,6 +290,48 @@ impl fmt::Display for RelationPlanError {
             Self::TheoremSchemaConclusionMismatch => formatter.write_str(
                 "the selected theorem conclusion is not the exact result relation over the two exact representative applications",
             ),
+            Self::DirectLiftOwnerRequiresSubstitution => formatter.write_str(
+                "the direct-lift precondition rung does not yet substitute a generic quotient owner",
+            ),
+            Self::DirectLiftRuntimeArityMismatch => formatter.write_str(
+                "the bounded direct-lift rung requires equal public, authored-call, and representative runtime arity",
+            ),
+            Self::DirectLiftParameterIdentityNotUnique => formatter.write_str(
+                "the bounded direct-lift rung requires unique public and representative parameter identities",
+            ),
+            Self::DirectLiftArgumentIdentityNotUnique => formatter.write_str(
+                "the bounded direct-lift rung does not yet admit duplicated public arguments",
+            ),
+            Self::DirectLiftArgumentIsNotPublicParameter(position) => write!(
+                formatter,
+                "direct-lift argument {position} is adapted or constant; this bounded rung accepts only direct public parameters"
+            ),
+            Self::DirectLiftArgumentOrderMismatch(position) => write!(
+                formatter,
+                "direct-lift argument {position} is reordered; this bounded rung accepts only position-preserving public parameters"
+            ),
+            Self::DirectLiftParameterModeMismatch(position) => write!(
+                formatter,
+                "direct-lift parameter {position} changes mutable/borrow mode"
+            ),
+            Self::DirectLiftParameterTypeMismatch(position) => write!(
+                formatter,
+                "direct-lift parameter {position} does not map its exact quotient carrier or ordinary type to the representative parameter"
+            ),
+            Self::DirectLiftResultTypeMismatch => formatter.write_str(
+                "the direct-lift result quotient carrier does not match the representative result",
+            ),
+            Self::DirectLiftLeftPreconditionNotImplied(position) => write!(
+                formatter,
+                "public Q does not contain dependent representative P fact {position} after exact left-application substitution"
+            ),
+            Self::DirectLiftRightPreconditionNotImplied(position) => write!(
+                formatter,
+                "public Q does not contain dependent representative P fact {position} after exact right-application substitution"
+            ),
+            Self::DirectLiftTheoremLegalityMismatch => formatter.write_str(
+                "the direct-lift implication row does not join to one exact verified theorem-legality coordinate",
+            ),
             Self::DefineOwnerRequiresSubstitution => formatter.write_str(
                 "the quotient-facing definition is generic and requires exact owner-telescope substitution",
             ),
@@ -364,6 +434,19 @@ pub(super) fn derive_direct_terminal_plan(
         &selected_theorem,
         &expected_theorem_schema,
     );
+    let direct_lift_correspondence = (request.kind == QuotientOperationKind::Lift)
+        .then(|| {
+            derive_direct_lift_runtime_correspondence(
+                program,
+                machine,
+                state,
+                call,
+                &input_relations,
+                result_relation,
+                &representative,
+            )
+        })
+        .transpose()?;
     let define_correspondence = (request.kind == QuotientOperationKind::Define)
         .then(|| {
             derive_define_runtime_correspondence(
@@ -377,15 +460,15 @@ pub(super) fn derive_direct_terminal_plan(
             )
         })
         .transpose()?;
-    let representative_precondition = define_correspondence
-        .as_ref()
-        .map(|_| {
+    let has_runtime_correspondence =
+        direct_lift_correspondence.is_some() || define_correspondence.is_some();
+    let representative_precondition = has_runtime_correspondence
+        .then(|| {
             derive_representative_precondition_partition(program, &input_relations, &representative)
         })
         .transpose()?;
-    let public_precondition = define_correspondence
-        .as_ref()
-        .map(|_| derive_public_precondition_partition(program, machine, state, &input_relations))
+    let public_precondition = has_runtime_correspondence
+        .then(|| derive_public_precondition_partition(program, machine, state, &input_relations))
         .transpose()?;
     let define_precondition_correspondence = match (
         define_correspondence.as_ref(),
@@ -405,6 +488,49 @@ pub(super) fn derive_direct_terminal_plan(
         }
         _ => None,
     };
+    let direct_lift_precondition_implication = match (
+        direct_lift_correspondence.as_ref(),
+        public_precondition.as_ref(),
+        representative_precondition.as_ref(),
+        theorem_schema_verification.as_ref().ok(),
+    ) {
+        (Some(runtime), Some(public), Some(representative_partition), Some(verified_theorem)) => {
+            Some(derive_direct_lift_precondition_implication(
+                program,
+                machine,
+                state,
+                &representative,
+                public,
+                representative_partition,
+                runtime,
+                &expected_theorem_schema,
+                verified_theorem,
+            )?)
+        }
+        _ => None,
+    };
+    let correspondence_certificate = match request.kind {
+        QuotientOperationKind::Lift => direct_lift_correspondence
+            .as_ref()
+            .zip(direct_lift_precondition_implication.as_ref())
+            .and_then(|(runtime, precondition)| {
+                compose_lift_correspondence_certificate(
+                    &theorem_schema_verification,
+                    runtime,
+                    precondition,
+                )
+            }),
+        QuotientOperationKind::Define => define_correspondence
+            .as_ref()
+            .zip(define_precondition_correspondence.as_ref())
+            .and_then(|(runtime, precondition)| {
+                compose_define_correspondence_certificate(
+                    &theorem_schema_verification,
+                    runtime,
+                    precondition,
+                )
+            }),
+    };
     Ok(DirectTerminalRelationPlan {
         input_relations,
         result_relation,
@@ -416,10 +542,13 @@ pub(super) fn derive_direct_terminal_plan(
         selected_theorem_crash_free,
         expected_theorem_schema,
         theorem_schema_verification,
+        direct_lift_correspondence,
         define_correspondence,
         public_precondition,
         representative_precondition,
+        direct_lift_precondition_implication,
         define_precondition_correspondence,
+        correspondence_certificate,
     })
 }
 
@@ -565,6 +694,23 @@ impl DirectTerminalRelationPlan {
         })
     }
 
+    pub(super) fn render_direct_lift_correspondence(&self) -> Option<String> {
+        self.direct_lift_correspondence
+            .as_ref()
+            .map(|correspondence| {
+                format!(
+                    "direct-lift-runtime=[{}]",
+                    correspondence
+                        .positions
+                        .iter()
+                        .enumerate()
+                        .map(|(position, _)| position.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            })
+    }
+
     pub(super) fn render_representative_precondition(&self) -> Option<String> {
         self.representative_precondition.as_ref().map(|partition| {
             format!(
@@ -573,6 +719,12 @@ impl DirectTerminalRelationPlan {
                 partition.fixed.len()
             )
         })
+    }
+
+    pub(super) fn has_fixed_representative_preconditions(&self) -> bool {
+        self.representative_precondition
+            .as_ref()
+            .is_some_and(|partition| !partition.fixed.is_empty())
     }
 
     pub(super) fn render_public_precondition(&self) -> Option<String> {
@@ -589,6 +741,38 @@ impl DirectTerminalRelationPlan {
         self.define_precondition_correspondence
             .as_ref()
             .map(|correspondence| format!("Q<->P=[dependent:{}]", correspondence.dependent.len()))
+    }
+
+    pub(super) fn render_direct_lift_precondition_implication(&self) -> Option<String> {
+        self.direct_lift_precondition_implication
+            .as_ref()
+            .map(|implication| {
+                let left = implication
+                    .rows
+                    .iter()
+                    .filter(|row| row.application == theorem_schema::TheoremApplicationSide::Left)
+                    .count();
+                let right = implication.rows.len() - left;
+                format!("Q=>P=[left:{left}, right:{right}]")
+            })
+    }
+
+    pub(super) fn render_correspondence_certificate(&self) -> Option<String> {
+        self.correspondence_certificate.as_ref().map(|certificate| {
+            let kind = match &certificate.evidence {
+                correspondence_certificate::QuotientCorrespondenceEvidence::DirectLift {
+                    ..
+                } => "direct-lift",
+                correspondence_certificate::QuotientCorrespondenceEvidence::Define { .. } => {
+                    "define"
+                }
+            };
+            format!(
+                "{kind}-certificate=[theorem#{}:state#{}]",
+                certificate.theorem.theorem_machine_symbol.arena_index(),
+                certificate.theorem.theorem_state_symbol.arena_index(),
+            )
+        })
     }
 }
 

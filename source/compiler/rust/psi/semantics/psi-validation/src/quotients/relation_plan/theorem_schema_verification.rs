@@ -5,19 +5,19 @@
 //! resulting certificate is necessary, but deliberately insufficient, for the
 //! later quotient lifting and terminal replay stages.
 
+use super::proof_fact_identity::{
+    ProofFactIdentityContext, proof_facts_match, static_arguments_match, static_type_identities,
+};
 use super::theorem::SelectedTheoremTelescope;
 use super::theorem_schema::{
     ExpectedTheoremSchema, TheoremApplicationSide, TheoremContractFactLocation,
     TheoremContractOwner, TheoremLegalityPremise, TheoremRepresentativeApplication,
 };
-use super::{
-    RelationPlanError, RepresentativeStaticApplication, RepresentativeStaticBinding,
-    RepresentativeTelescope,
-};
+use super::{RelationPlanError, RepresentativeTelescope};
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::domain::ProofFact;
-use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::signature::{SignatureContractKind, StateParameter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -176,10 +176,14 @@ pub(super) fn verify_selected_theorem_schema(
                 program,
                 representative_fact,
                 actual.fact,
-                &representative_values,
-                &theorem_values,
-                &representative.static_application.bindings,
-                &theorem.static_application.bindings,
+                ProofFactIdentityContext {
+                    values: &representative_values,
+                    static_bindings: &representative.static_application.bindings,
+                },
+                ProofFactIdentityContext {
+                    values: &theorem_values,
+                    static_bindings: &theorem.static_application.bindings,
+                },
             )
         }) else {
             return Err(RelationPlanError::TheoremSchemaLegalityPremiseMismatch(
@@ -382,226 +386,4 @@ fn expression_is_parameter(
     };
     matches!(program.expression_table.expression(expression),
         ExpressionNode::Name(path) if parameter.symbol.is_valid() && path.symbol == parameter.symbol)
-}
-
-fn proof_facts_match(
-    program: &TypedTrees,
-    expected: &ProofFact,
-    actual: &ProofFact,
-    expected_values: &[(SymbolHandle, String)],
-    actual_values: &[(SymbolHandle, String)],
-    expected_static: &[RepresentativeStaticBinding],
-    actual_static: &[RepresentativeStaticBinding],
-) -> bool {
-    let expression_matches = |expected, actual| {
-        proof_expression_identity(program, expected, expected_values)
-            == proof_expression_identity(program, actual, actual_values)
-    };
-    match (expected, actual) {
-        (ProofFact::Expression(expected), ProofFact::Expression(actual)) => {
-            expression_matches(*expected, *actual)
-        }
-        (ProofFact::Membership(expected), ProofFact::Membership(actual)) => {
-            expected.domain_symbol.is_valid()
-                && expected.domain_symbol == actual.domain_symbol
-                && expression_matches(expected.value, actual.value)
-        }
-        (ProofFact::Proposition(expected), ProofFact::Proposition(actual)) => {
-            expected.proposition.is_valid()
-                && expected.proposition == actual.proposition
-                && expected.binder_arguments.len() == actual.binder_arguments.len()
-                && expected
-                    .binder_arguments
-                    .iter()
-                    .zip(&actual.binder_arguments)
-                    .all(|(expected, actual)| {
-                        expected.kind == actual.kind
-                            && binder_argument_identity(expected, expected_static)
-                                == binder_argument_identity(actual, actual_static)
-                    })
-                && {
-                    let expected_arguments = program
-                        .expression_table
-                        .expression_handles(expected.arguments);
-                    let actual_arguments = program
-                        .expression_table
-                        .expression_handles(actual.arguments);
-                    expected_arguments.len() == actual_arguments.len()
-                        && expected_arguments
-                            .iter()
-                            .zip(actual_arguments)
-                            .all(|(expected, actual)| expression_matches(*expected, *actual))
-                }
-        }
-        _ => false,
-    }
-}
-
-fn proof_expression_identity(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    values: &[(SymbolHandle, String)],
-) -> (String, String) {
-    (
-        program.render_proof_expression_with_symbols(expression, values),
-        expression_symbol_trace(program, expression, values),
-    )
-}
-
-fn expression_symbol_trace(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    values: &[(SymbolHandle, String)],
-) -> String {
-    let trace = |expression| expression_symbol_trace(program, expression, values);
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => values
-            .iter()
-            .find_map(|(symbol, value)| {
-                (*symbol == path.symbol || *symbol == path.head_symbol).then(|| value.clone())
-            })
-            .unwrap_or_else(|| format!("name:{:?}:{:?}", path.head_symbol, path.symbol)),
-        ExpressionNode::Call(call) => format!(
-            "call:{:?}:{}:{:?}:{:?}:{:?}:{:?}:[{}]:({})",
-            call.target_symbol,
-            call.machine_arguments
-                .iter()
-                .map(static_argument_identity)
-                .collect::<Vec<_>>()
-                .join(","),
-            call.quotient_operation,
-            call.private_layout_operation,
-            call.evidence_arguments,
-            call.operational_acknowledgement,
-            call.receiver
-                .is_valid()
-                .then(|| trace(call.receiver))
-                .unwrap_or_default(),
-            program
-                .expression_table
-                .expression_handles(call.arguments)
-                .iter()
-                .map(|argument| trace(*argument))
-                .collect::<Vec<_>>()
-                .join(","),
-        ),
-        ExpressionNode::ArrayLiteral(values_span) => program
-            .expression_table
-            .expression_handles(*values_span)
-            .iter()
-            .map(|value| trace(*value))
-            .collect::<Vec<_>>()
-            .join(","),
-        ExpressionNode::Atomic(value) => trace(value.value),
-        ExpressionNode::Binary(value) => format!("{}|{}", trace(value.left), trace(value.right)),
-        ExpressionNode::Cast(value) => format!(
-            "{}:{:?}:{}",
-            trace(value.value),
-            value.semantic_domain_symbol,
-            program.normalized_type_identity(value.target_type)
-        ),
-        ExpressionNode::Indexed(value) => {
-            format!("{}|{}", trace(value.collection), trace(value.index))
-        }
-        ExpressionNode::Member(value) => {
-            format!("{}:{:?}", trace(value.receiver), value.member_symbol)
-        }
-        ExpressionNode::Borrow(value) => trace(value.target),
-        ExpressionNode::Range(value) => format!("{}|{}", trace(value.start), trace(value.end)),
-        ExpressionNode::StructLiteral(value) => format!(
-            "struct:{:?}:{:?}:[{}]",
-            value.type_symbol,
-            value.case_symbol,
-            program
-                .expression_table
-                .struct_fields(value.fields)
-                .iter()
-                .map(|field| format!("{:?}={}", field.field_symbol, trace(field.value)))
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-        ExpressionNode::Unary(value) => trace(value.operand),
-        ExpressionNode::ZeroValue(value) => {
-            format!("zero:{}", program.normalized_type_identity(*value))
-        }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_) => String::new(),
-    }
-}
-
-fn static_type_identities(
-    application: &RepresentativeStaticApplication,
-) -> Vec<(SymbolHandle, String)> {
-    application
-        .bindings
-        .iter()
-        .map(|binding| {
-            (
-                binding.parameter,
-                static_argument_identity(&binding.argument),
-            )
-        })
-        .collect()
-}
-
-fn binder_argument_identity(
-    argument: &psi_typed_trees::proposition::PropositionBinderArgument,
-    substitutions: &[RepresentativeStaticBinding],
-) -> String {
-    substitutions
-        .iter()
-        .find(|binding| binding.parameter == argument.symbol)
-        .map(|binding| static_argument_identity(&binding.argument))
-        .unwrap_or_else(|| {
-            argument.const_literal.as_ref().map_or_else(
-                || format!("symbol:{:?}", argument.symbol),
-                |value| format!("const:{value}"),
-            )
-        })
-}
-
-fn static_arguments_match(left: &StaticMachineArgument, right: &StaticMachineArgument) -> bool {
-    static_argument_identity(left) == static_argument_identity(right)
-}
-
-fn static_argument_identity(argument: &StaticMachineArgument) -> String {
-    let head = if argument.symbol.is_valid() {
-        format!("symbol:{:?}", argument.symbol)
-    } else {
-        format!(
-            "path:{}",
-            argument
-                .path
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::")
-        )
-    };
-    let application = argument
-        .application
-        .as_ref()
-        .map_or_else(String::new, |application| {
-            format!(
-                "<{};{}>",
-                application
-                    .lifetime_arguments
-                    .iter()
-                    .map(|lifetime| lifetime.as_str())
-                    .collect::<Vec<_>>()
-                    .join(","),
-                application
-                    .arguments
-                    .iter()
-                    .map(static_argument_identity)
-                    .collect::<Vec<_>>()
-                    .join(",")
-            )
-        });
-    format!(
-        "{head}{application}:const={:?}:evidence={:?}",
-        argument.const_literal, argument.evidence_projection
-    )
 }

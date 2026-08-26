@@ -1,9 +1,13 @@
+use super::correspondence_certificate::{
+    QuotientCorrespondenceEvidence, compose_lift_correspondence_certificate,
+};
 use super::{
     ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeContractFactLocation,
     RepresentativeContractOwner, RepresentativeRuntimeParameter, RepresentativeStaticApplication,
     RepresentativeStaticBinding, RepresentativeStaticBindingKind, RepresentativeTelescope,
     complete_single_state_result_flow, complete_state_forwarding_result_flow,
-    derive_define_precondition_correspondence, derive_direct_terminal_plan,
+    derive_define_precondition_correspondence, derive_direct_lift_precondition_implication,
+    derive_direct_lift_runtime_correspondence, derive_direct_terminal_plan,
     derive_exact_representative_static_application, derive_public_precondition_partition,
     derive_representative_precondition_partition, derive_representative_telescope,
     derive_selected_theorem_telescope, fallthrough_result_root, immutable_alias_fallthrough_root,
@@ -1180,6 +1184,303 @@ fn selected_theorem_schema_verification_rejects_runtime_evidence_and_const_param
             Err(expected_error),
         );
     }
+}
+
+struct DirectLiftImplicationFixture {
+    program: TypedTrees,
+    public_machine: Machine,
+    public_state: State,
+    representative: RepresentativeTelescope,
+    public_partition: super::RepresentativePreconditionPartition,
+    representative_partition: super::RepresentativePreconditionPartition,
+    runtime: super::DirectLiftRuntimeCorrespondence,
+    expected_theorem: super::theorem_schema::ExpectedTheoremSchema,
+    verified_theorem: super::VerifiedTheoremSchema,
+}
+
+fn direct_lift_implication_fixture(
+    public_fact_uses_exact_symbol: bool,
+) -> DirectLiftImplicationFixture {
+    let (mut program, representative, theorem, expected_theorem) =
+        selected_theorem_schema_fixture(TheoremSchemaMutation::Exact);
+    let verified_theorem =
+        verify_selected_theorem_schema(&program, &representative, &theorem, &expected_theorem)
+            .expect("baseline theorem schema");
+    let public_value_symbol = symbol(870);
+    let public_shared_symbol = symbol(871);
+    let fact_symbol = if public_fact_uses_exact_symbol {
+        public_value_symbol
+    } else {
+        symbol(872)
+    };
+    let public_value = named_argument(&mut program, "value", fact_symbol);
+    let public_extra = {
+        let left = named_argument(&mut program, "value", public_value_symbol);
+        let right = named_argument(&mut program, "value", public_value_symbol);
+        program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left,
+                operator: BinaryOperator::Equal,
+                right,
+            }))
+    };
+    let public_facts = program.proof_facts.insert_many([
+        ProofFact::Expression(public_value),
+        ProofFact::Expression(public_extra),
+    ]);
+    let mut public_machine = Machine::default();
+    program.push_machine_contract(
+        &mut public_machine,
+        SignatureContract {
+            kind: SignatureContractKind::Requires,
+            facts: public_facts,
+            ..Default::default()
+        },
+    );
+    let mut public_state = State::default();
+    for (symbol, name, type_reference) in [
+        (
+            public_value_symbol,
+            "value",
+            representative.parameters[0].type_reference,
+        ),
+        (
+            public_shared_symbol,
+            "shared",
+            representative.parameters[1].type_reference,
+        ),
+    ] {
+        program.push_state_parameter(
+            &mut public_state,
+            StateParameter {
+                symbol,
+                name: Identifier::generated_static(name),
+                type_reference,
+                ..Default::default()
+            },
+        );
+    }
+    let input_relations = [
+        InputRelation::Quotient(expected_theorem.relation_premises[0].relation),
+        InputRelation::ExactEquality(representative.parameters[1].type_reference),
+    ];
+    let public_partition = derive_public_precondition_partition(
+        &program,
+        &public_machine,
+        &public_state,
+        &input_relations,
+    )
+    .expect("exact public fact identities");
+    let representative_partition =
+        derive_representative_precondition_partition(&program, &input_relations, &representative)
+            .expect("exact representative fact identities");
+    let runtime = super::DirectLiftRuntimeCorrespondence {
+        positions: vec![
+            super::DefineRuntimePosition {
+                public_parameter: public_value_symbol,
+                representative_parameter: representative.parameters[0].symbol,
+            },
+            super::DefineRuntimePosition {
+                public_parameter: public_shared_symbol,
+                representative_parameter: representative.parameters[1].symbol,
+            },
+        ],
+    };
+    DirectLiftImplicationFixture {
+        program,
+        public_machine,
+        public_state,
+        representative,
+        public_partition,
+        representative_partition,
+        runtime,
+        expected_theorem,
+        verified_theorem,
+    }
+}
+
+#[test]
+fn direct_lift_q_implies_p_retains_both_exact_theorem_coordinates_and_allows_extra_q() {
+    let fixture = direct_lift_implication_fixture(true);
+    assert_eq!(fixture.public_partition.dependent.len(), 2);
+    assert_eq!(fixture.representative_partition.dependent.len(), 1);
+    let implication = derive_direct_lift_precondition_implication(
+        &fixture.program,
+        &fixture.public_machine,
+        &fixture.public_state,
+        &fixture.representative,
+        &fixture.public_partition,
+        &fixture.representative_partition,
+        &fixture.runtime,
+        &fixture.expected_theorem,
+        &fixture.verified_theorem,
+    )
+    .expect("one matching Q fact may imply P while another Q fact remains extra");
+
+    assert_eq!(implication.rows.len(), 2);
+    assert_eq!(
+        implication.rows[0].application,
+        TheoremApplicationSide::Left
+    );
+    assert_eq!(
+        implication.rows[1].application,
+        TheoremApplicationSide::Right
+    );
+    assert_eq!(implication.rows[0].public.fact_position, 0);
+    assert_eq!(implication.rows[0].representative.fact_position, 0);
+    assert_eq!(implication.rows[0].theorem.fact_position, 1);
+    assert_eq!(implication.rows[1].theorem.fact_position, 2);
+
+    let certificate = compose_lift_correspondence_certificate(
+        &Ok(fixture.verified_theorem.clone()),
+        &fixture.runtime,
+        &implication,
+    )
+    .expect("verified theorem plus exact implication composes");
+    let QuotientCorrespondenceEvidence::DirectLift {
+        runtime,
+        precondition,
+    } = certificate.evidence
+    else {
+        panic!("direct lift evidence")
+    };
+    assert_eq!(runtime, fixture.runtime);
+    assert_eq!(precondition, implication);
+}
+
+#[test]
+fn direct_lift_q_implies_p_rejects_missing_identity_and_theorem_coordinate_tamper() {
+    let missing = direct_lift_implication_fixture(false);
+    assert_eq!(missing.public_partition.dependent.len(), 1);
+    assert_eq!(
+        derive_direct_lift_precondition_implication(
+            &missing.program,
+            &missing.public_machine,
+            &missing.public_state,
+            &missing.representative,
+            &missing.public_partition,
+            &missing.representative_partition,
+            &missing.runtime,
+            &missing.expected_theorem,
+            &missing.verified_theorem,
+        ),
+        Err(RelationPlanError::DirectLiftLeftPreconditionNotImplied(0)),
+    );
+
+    let exact = direct_lift_implication_fixture(true);
+    let mut tampered_theorem = exact.verified_theorem.clone();
+    tampered_theorem.legality_premises.pop();
+    assert_eq!(
+        derive_direct_lift_precondition_implication(
+            &exact.program,
+            &exact.public_machine,
+            &exact.public_state,
+            &exact.representative,
+            &exact.public_partition,
+            &exact.representative_partition,
+            &exact.runtime,
+            &exact.expected_theorem,
+            &tampered_theorem,
+        ),
+        Err(RelationPlanError::DirectLiftTheoremLegalityMismatch),
+    );
+    assert!(
+        compose_lift_correspondence_certificate(
+            &Err(RelationPlanError::TheoremSchemaConclusionMismatch),
+            &exact.runtime,
+            &super::DirectLiftPreconditionImplication { rows: Vec::new() },
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn direct_lift_runtime_rung_rejects_reordered_duplicated_and_adapted_arguments() {
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(&mut program, symbol(880), "ExactQ", symbol(881), "ExactR");
+    let carrier = carrier_type(&mut program);
+    let left_symbol = symbol(882);
+    let right_symbol = symbol(883);
+    let left = named_argument(&mut program, "left", left_symbol);
+    let right = named_argument(&mut program, "right", right_symbol);
+    let adapted = program
+        .expression_table
+        .insert(ExpressionNode::Integer(Default::default()));
+    let mut state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    for (symbol, name) in [(left_symbol, "left"), (right_symbol, "right")] {
+        program.push_state_parameter(
+            &mut state,
+            StateParameter {
+                symbol,
+                name: Identifier::generated_static(name),
+                type_reference: quotient,
+                ..Default::default()
+            },
+        );
+    }
+    let representative = RepresentativeTelescope {
+        machine_symbol: symbol(884),
+        state_symbol: symbol(885),
+        parameters: vec![
+            RepresentativeRuntimeParameter {
+                symbol: symbol(886),
+                type_reference: carrier,
+                is_mutable: false,
+                is_self: false,
+            },
+            RepresentativeRuntimeParameter {
+                symbol: symbol(887),
+                type_reference: carrier,
+                is_mutable: false,
+                is_self: false,
+            },
+        ],
+        return_type: carrier,
+        machine_contracts: HandleSpan::empty(),
+        state_contracts: HandleSpan::empty(),
+        static_application: RepresentativeStaticApplication {
+            lifetime_arguments: Vec::new(),
+            bindings: Vec::new(),
+        },
+    };
+    let relation = ExactQuotientRelation {
+        quotient_type: quotient,
+        quotient_symbol: symbol(880),
+        relation_symbol: symbol(881),
+    };
+    let input_relations = [InputRelation::Quotient(relation); 2];
+    let derive = |program: &mut TypedTrees, arguments: [ExpressionHandle; 2]| {
+        let arguments = program
+            .expression_table
+            .insert_expression_handles(arguments);
+        derive_direct_lift_runtime_correspondence(
+            program,
+            &Machine::default(),
+            &state,
+            &call_with_arguments(arguments),
+            &input_relations,
+            relation,
+            &representative,
+        )
+    };
+
+    assert!(derive(&mut program, [left, right]).is_ok());
+    assert_eq!(
+        derive(&mut program, [right, left]),
+        Err(RelationPlanError::DirectLiftArgumentOrderMismatch(0)),
+    );
+    assert_eq!(
+        derive(&mut program, [left, left]),
+        Err(RelationPlanError::DirectLiftArgumentIdentityNotUnique),
+    );
+    assert_eq!(
+        derive(&mut program, [left, adapted]),
+        Err(RelationPlanError::DirectLiftArgumentIsNotPublicParameter(1)),
+    );
 }
 
 #[test]
