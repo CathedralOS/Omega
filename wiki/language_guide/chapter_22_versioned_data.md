@@ -135,6 +135,14 @@ replaceable edge is an owner-controlled `build.omg` selection. The exact closed
 requirement application is the stable slot identity; providers, artifacts,
 eras, authored strings, and ordinals are not.
 
+Independent replacement is a checked graph property, not a promise made by the
+provider. The composer closes over concrete implementation and runtime-bearing
+conformance selections; every consumer fused to one of those identities joins
+the same replacement cohort, transitively. It either proves the requested cut,
+reports the enlarged cohort for explicit owner acceptance, or rejects it. A
+prebuilt consumer may lack source spans, but its artifact manifest must still
+identify the edge and declaration that enlarged the cohort.
+
 The boundary trait is an interface, not a runtime value. Calls through an
 independent slot require a routed authority carrier, `Service<R> in Bound`,
 established by installation/publication. A fused selection may erase that
@@ -174,6 +182,13 @@ authority, and external claim receives an explicit disposition: drain, retain
 with the old era, migrate, restart/cancel under contract, redirect, or transfer
 to a named receiver that acknowledges ownership. Reclamation requires the
 runtime ledger's residual for the relevant lifetime cohort to be empty.
+
+That residual is explicit accounting, not a heap-reachability query. Any value
+whose meaning pins an era must be affine or linear, carry one accounted pin,
+and have an unavoidable terminal disposition that releases it. Such a carrier
+cannot be `[copy]`; checked explicit duplication creates another non-copy
+carrier and another pin. Detached plain data and permanent gateways that resolve
+through process-lifetime state pin no provider era.
 
 Capture owns device, clock, scheduler, and other boundary reach. Replayable
 upgrade code operates on owned old state and captured context, writes an
