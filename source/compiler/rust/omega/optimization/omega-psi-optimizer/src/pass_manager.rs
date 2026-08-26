@@ -639,11 +639,40 @@ fn block_parameter_count(unit: &PsiOptimizationUnit) -> u64 {
         .sum()
 }
 
+fn control_flow_structure_count(unit: &PsiOptimizationUnit) -> u64 {
+    unit.functions
+        .iter()
+        .map(|function| {
+            1 + u64::try_from(function.blocks.len()).expect("block count fits u64")
+                + function
+                    .blocks
+                    .iter()
+                    .map(|block| {
+                        u64::try_from(block.nodes.len()).expect("node count fits u64")
+                            + block
+                                .nodes
+                                .iter()
+                                .map(|node| {
+                                    u64::try_from(node.successors.len())
+                                        .expect("successor count fits u64")
+                                })
+                                .sum::<u64>()
+                    })
+                    .sum::<u64>()
+        })
+        .sum()
+}
+
 fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistry) -> u64 {
     let copy_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
         b"omega.psi-pass.copy-propagation.v1",
     );
-    if registry.pass() == Some(copy_pass) {
+    let cfg_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
+        b"omega.psi-pass.control-flow-cleanup.v1",
+    );
+    if registry.pass() == Some(cfg_pass) {
+        control_flow_structure_count(unit)
+    } else if registry.pass() == Some(copy_pass) {
         block_parameter_count(unit)
     } else {
         integer_evaluation_operation_count(unit)
@@ -665,8 +694,8 @@ mod tests {
         AnalysisProduct, ExactIntegerAddConstantsRule, PsiOptimizationRule,
         built_in_psi_registries, built_in_psi_registry,
         rules::tests::{
-            boolean_unit, dependent_exact_chain_unit, exact_add_unit,
-            propagated_block_parameter_unit, randomized_sccp_registries,
+            boolean_unit, constant_conditional_same_target_unit, dependent_exact_chain_unit,
+            exact_add_unit, propagated_block_parameter_unit, randomized_sccp_registries,
             redundant_block_parameter_unit, wrapping_add_unit,
         },
     };
@@ -1002,6 +1031,31 @@ mod tests {
     }
 
     #[test]
+    fn named_control_flow_cleanup_reaches_edge_count_fixed_point() {
+        let unit = constant_conditional_same_target_unit(true);
+        let selections = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        let registry = built_in_psi_registry(&selections).unwrap();
+        let (output, commits, usage, _, manifest, ledger) =
+            run_unit(unit.clone(), &registry, budget(8)).unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(usage.commits, 1);
+        assert_eq!(usage.iterations, 2);
+        assert_eq!(output.functions[0].blocks[0].nodes[1].successors.len(), 1);
+        assert_eq!(ledger.records().len(), 1);
+        assert_eq!(ledger.records()[0].provenance.len(), 1);
+        let manifest = manifest.unwrap();
+        assert_eq!(manifest.ordered_rules().len(), 1);
+        assert_eq!(manifest.decisions().len(), 1);
+        assert_eq!(manifest.decisions()[0].consumed_facts().len(), 1);
+
+        let (second, second_commits, _, _, _, second_ledger) =
+            run_unit(output.clone(), &registry, budget(8)).unwrap();
+        assert_eq!(second.identity, output.identity);
+        assert!(second_commits.is_empty());
+        assert!(second_ledger.records().is_empty());
+    }
+
+    #[test]
     fn ordered_multi_rule_group_reaches_a_dependent_exact_fixed_point() {
         let selections =
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
@@ -1054,9 +1108,10 @@ mod tests {
     }
 
     #[test]
-    fn full_sccp_then_copy_second_sweep_is_a_composed_ledger_fixed_point() {
+    fn full_sccp_cfg_copy_second_sweep_is_a_composed_ledger_fixed_point() {
         let selections = OptimizationSelections::new([
             Optimization::SparseConditionalConstantPropagation,
+            Optimization::ControlFlowCleanup,
             Optimization::CopyPropagation,
         ])
         .unwrap();
@@ -1068,16 +1123,17 @@ mod tests {
         ] {
             let (first_output, first_manifests, first_ledger) =
                 run_test_pipeline(initial, &registries);
-            assert_eq!(first_manifests.len(), 2);
+            assert_eq!(first_manifests.len(), 3);
             assert_eq!(first_manifests[0].input(), first_ledger.input());
             assert_eq!(first_manifests[0].output(), first_manifests[1].input());
-            assert_eq!(first_manifests[1].output(), first_ledger.output());
+            assert_eq!(first_manifests[1].output(), first_manifests[2].input());
+            assert_eq!(first_manifests[2].output(), first_ledger.output());
             assert!(!first_ledger.records().is_empty());
 
             let (second_output, second_manifests, second_delta) =
                 run_test_pipeline(first_output.clone(), &registries);
             assert_eq!(second_output, first_output);
-            assert_eq!(second_manifests.len(), 2);
+            assert_eq!(second_manifests.len(), 3);
             assert!(second_delta.records().is_empty());
             assert_eq!(second_delta.input(), second_delta.output());
             assert!(second_manifests.iter().all(|manifest| {

@@ -371,6 +371,22 @@ These facts constrain the work below.
   can now be selected together: orchestration derives the canonical SCCP then
   copy-propagation schedule and retains one chained manifest per named pass,
   including a manifest for a pass that commits no rewrite.
+- The separately named `ControlFlowCleanup` selection now registers the first
+  exact CFG rule: a Boolean-proven `Conditional` becomes the selected `Jump`
+  only when removing the rejected exact `EdgeId` leaves every existing block
+  structurally reachable. This restriction is deliberate: admitted Terminal
+  Psi already requires total reachability, so a standalone unreachable-block
+  deletion rule would be vacuous, while deleting an arm that orphans a crash,
+  cleanup, suspension, or boundary-only region would invalidate the unit. The
+  candidate binds the input revision, condition value and fact identity,
+  Boolean result, both edge identities, source block, and selected-edge-only
+  provenance/fuel. The independent validator reconstructs the SCCP Boolean
+  fact and post-fold reachability, derives the exact selected successor and
+  bindings, constructs and totally validates the output, and requires exact
+  equality outside the source block. A structural CFG cardinality measure
+  decreases by the removed edge. Focused tests cover both Boolean arms,
+  orphan refusal, edge/fuel corruption, manifest/ledger fact custody, and a
+  second fixed-point sweep.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds its input
   revision, rule contract, decision point, affected region, required analyses
@@ -801,6 +817,14 @@ dependency.
   crash, cleanup, suspension, and boundary-only blocks are never classified as
   empty.
 
+  Current slice: exact constant-conditional folding is available under only
+  the explicit `ControlFlowCleanup` selection. It preserves the complete block
+  roster, refuses a fold that would make any block unreachable, retains only
+  the realized selected edge's logical charge, and independently validates the
+  consumed Boolean fact and both edge identities. Empty-block threading,
+  redundant jumps, block-roster-changing unreachable cleanup, and private-
+  machine pruning remain open.
+
 - **OPT-SCCP.** Implement sparse conditional constant propagation over the
   closed integer and Boolean Terminal Psi operations.
 
@@ -843,11 +867,12 @@ dependency.
   neither unit nor ledger, and randomized rule-registration order cannot change
   output because registry order is canonical.
 
-  Current slice: the supported two-family subset has the canonical
-  `SparseConditionalConstantPropagation -> CopyPropagation` schedule, distinct
+  Current slice: the supported three-family subset has the canonical
+  `SparseConditionalConstantPropagation -> ControlFlowCleanup ->
+  CopyPropagation` schedule, distinct
   ordered pass manifests, aggregate replay evidence, per-pass budgets, and
   deterministic artifact tests. Thirty-two shuffled built-in registration
-  orders produce identical full SCCP runs, and a direct second SCCP/copy sweep
+  orders produce identical full SCCP runs, and a direct second SCCP/CFG/copy sweep
   changes neither final unit nor the composed transformation ledger. Remaining
   to close: add canonical schedules and the same fixed-point evidence for each
   newly implemented initial family.

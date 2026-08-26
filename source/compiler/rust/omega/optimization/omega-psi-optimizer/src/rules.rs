@@ -6,9 +6,9 @@ use omega_optimization_core::{
     OptimizationSafetyClass, OptimizationSelections, ScalarConstantFactIdentity,
 };
 use omega_optimization_unit::{
-    BlockParameterIncomingBinding, BooleanConstantRewrite, IntegerConstantRewrite,
-    IntegerEvaluationWitness, NodeLocation, OptimizationFact, ProvenanceRewrite,
-    PsiOptimizationUnit, PsiRewriteCandidate, RedundantBlockParameterRewrite,
+    BlockParameterIncomingBinding, BooleanConstantRewrite, ConstantConditionalRewrite,
+    IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationFact,
+    ProvenanceRewrite, PsiOptimizationUnit, PsiRewriteCandidate, RedundantBlockParameterRewrite,
     RedundantBlockParameterWitness,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
@@ -20,7 +20,152 @@ use crate::{
 };
 
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v1";
+const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v1";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ConstantConditionalFoldRule;
+
+impl ConstantConditionalFoldRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.constant-conditional-fold.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
+            1,
+            AnalysisSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::ScalarConstants,
+            ]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for ConstantConditionalFoldRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        let Some(AnalysisProduct::ScalarConstants(constants)) =
+            analyses.get(AnalysisKind::ScalarConstants)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::ScalarConstants,
+            ));
+        };
+        if analyses.get(AnalysisKind::ControlFlowGraph).is_none() {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::ControlFlowGraph,
+            ));
+        }
+        let mut candidates = Vec::new();
+        for function in &unit.functions {
+            for block in &function.blocks {
+                for (node_index, node) in block.nodes.iter().enumerate() {
+                    let O::Conditional {
+                        condition,
+                        when_true,
+                        when_false,
+                    } = &node.operation
+                    else {
+                        continue;
+                    };
+                    let Some((constant, condition_fact)) =
+                        boolean_constant(constants, function.machine, *condition)
+                    else {
+                        continue;
+                    };
+                    let (selected, rejected) = if constant {
+                        (when_true, when_false)
+                    } else {
+                        (when_false, when_true)
+                    };
+                    if !all_blocks_reachable_after_fold(function, block.id, selected.psi_edge) {
+                        continue;
+                    }
+                    let location = NodeLocation {
+                        machine: function.machine,
+                        block: block.id,
+                        node: u32::try_from(node_index).expect("optimization node indices are u32"),
+                    };
+                    let fuel = node
+                        .fuel
+                        .iter()
+                        .copied()
+                        .filter(|settlement| {
+                            settlement.site
+                                == omega_optimization_unit::PsiProvenance::Edge(selected.psi_edge)
+                        })
+                        .collect::<Vec<_>>();
+                    if fuel.is_empty() {
+                        continue;
+                    }
+                    candidates.push(
+                        PsiRewriteCandidate::new_constant_conditional(
+                            unit.identity,
+                            Self::contract(),
+                            vec![block.id],
+                            vec![ProvenanceRewrite {
+                                output: location,
+                                sources: vec![omega_optimization_unit::PsiProvenance::Edge(
+                                    selected.psi_edge,
+                                )],
+                                fuel,
+                            }],
+                            condition_fact,
+                            -1,
+                            ConstantConditionalRewrite {
+                                location,
+                                condition: *condition,
+                                constant,
+                                selected_edge: selected.psi_edge,
+                                rejected_edge: rejected.psi_edge,
+                            },
+                        )
+                        .map_err(RuleProposalError::InvalidCandidate)?,
+                    );
+                }
+            }
+        }
+        Ok(candidates)
+    }
+}
+
+fn all_blocks_reachable_after_fold(
+    function: &omega_optimization_unit::PsiOptimizationFunction,
+    source: BlockId,
+    selected_edge: psi_core::EdgeId,
+) -> bool {
+    let mut reachable = BTreeSet::new();
+    let mut pending = vec![function.entry];
+    while let Some(block_id) = pending.pop() {
+        if !reachable.insert(block_id) {
+            continue;
+        }
+        let Some(block) = function.blocks.iter().find(|block| block.id == block_id) else {
+            return false;
+        };
+        for edge in block.nodes.iter().flat_map(|node| &node.successors) {
+            if block_id != source || edge.psi_edge == selected_edge {
+                pending.push(edge.target);
+            }
+        }
+    }
+    reachable.len() == function.blocks.len()
+}
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct RedundantBlockParameterRule;
@@ -1538,7 +1683,7 @@ pub fn built_in_psi_registry(
 /// Build the canonical pass-group schedule for an exact named selection set.
 ///
 /// Selection declaration order is not pass order. The explicit schedule below
-/// runs semantic constant propagation before structural copy cleanup, and each
+/// runs semantic constant propagation before CFG and structural copy cleanup, and each
 /// returned registry continues to own exactly one pass identity.
 pub fn built_in_psi_registries(
     selections: &OptimizationSelections,
@@ -1547,7 +1692,9 @@ pub fn built_in_psi_registries(
     if let Some(unsupported) = psi_selections.as_slice().iter().find(|optimization| {
         !matches!(
             optimization,
-            Optimization::SparseConditionalConstantPropagation | Optimization::CopyPropagation
+            Optimization::SparseConditionalConstantPropagation
+                | Optimization::ControlFlowCleanup
+                | Optimization::CopyPropagation
         )
     }) {
         return Err(RuleRegistryError::UnsupportedOptimization(*unsupported));
@@ -1557,6 +1704,9 @@ pub fn built_in_psi_registries(
         registries.push(registry_for_optimization(
             Optimization::SparseConditionalConstantPropagation,
         )?);
+    }
+    if psi_selections.contains(Optimization::ControlFlowCleanup) {
+        registries.push(registry_for_optimization(Optimization::ControlFlowCleanup)?);
     }
     if psi_selections.contains(Optimization::CopyPropagation) {
         registries.push(registry_for_optimization(Optimization::CopyPropagation)?);
@@ -1618,6 +1768,9 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
         register!(28, IntegerLessThanConstantsRule);
         register!(29, IntegerLessOrEqualConstantsRule);
     }
+    if optimization == Optimization::ControlFlowCleanup {
+        register!(0, ConstantConditionalFoldRule);
+    }
     if optimization == Optimization::CopyPropagation {
         register!(0, RedundantBlockParameterRule);
     }
@@ -1650,7 +1803,8 @@ pub(crate) mod tests {
     };
     use omega_optimization_validation::{
         OptimizationUnitValidationError, validate_boolean_evaluation_candidate,
-        validate_integer_evaluation_candidate, validate_redundant_block_parameter_candidate,
+        validate_constant_conditional_candidate, validate_integer_evaluation_candidate,
+        validate_redundant_block_parameter_candidate,
     };
     use omega_terminal_abstract_operations::{
         TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
@@ -1931,6 +2085,73 @@ pub(crate) mod tests {
                             result,
                             value: result,
                             scalar_type,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    pub(crate) fn constant_conditional_same_target_unit(constant: bool) -> PsiOptimizationUnit {
+        let machine = id(651, MachineId::new);
+        let entry = id(652, BlockId::new);
+        let merge = id(653, BlockId::new);
+        let condition = id(654, ValueId::new);
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([23; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry,
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![
+                        TerminalAbstractBlockEntry {
+                            block: entry,
+                            parameters: Vec::new(),
+                            operation_offset: 0,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: merge,
+                            parameters: Vec::new(),
+                            operation_offset: 2,
+                        },
+                    ],
+                    operations: vec![
+                        TerminalAbstractOperation::BooleanConstant {
+                            psi_operation: id(655, OperationId::new),
+                            result: condition,
+                            value: constant,
+                        },
+                        TerminalAbstractOperation::Conditional {
+                            condition,
+                            when_true: TerminalAbstractSuccessor {
+                                psi_edge: id(656, EdgeId::new),
+                                target: merge,
+                                bindings: Vec::new(),
+                            },
+                            when_false: TerminalAbstractSuccessor {
+                                psi_edge: id(657, EdgeId::new),
+                                target: merge,
+                                bindings: Vec::new(),
+                            },
+                        },
+                        TerminalAbstractOperation::ReturnUnit {
+                            psi_edge: id(658, EdgeId::new),
                             cleanup_actions: Vec::new(),
                         },
                     ],
@@ -3004,13 +3225,8 @@ pub(crate) mod tests {
                 AnalysisKind::ScalarConstants
             ))
         );
-        let unsupported = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
-        assert!(matches!(
-            built_in_psi_registry(&unsupported),
-            Err(RuleRegistryError::UnsupportedOptimization(
-                Optimization::ControlFlowCleanup
-            ))
-        ));
+        let cleanup = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        assert_eq!(built_in_psi_registry(&cleanup).unwrap().len(), 1);
         let copy = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
         assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
         let unsupported_combination = OptimizationSelections::new([
@@ -3048,6 +3264,136 @@ pub(crate) mod tests {
             mixed_registries[0].contracts().collect::<Vec<_>>(),
             sccp_registries[0].contracts().collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn constant_conditional_fold_binds_selected_edge_fact_and_fuel() {
+        for constant in [false, true] {
+            let unit = constant_conditional_same_target_unit(constant);
+            let contract = ConstantConditionalFoldRule::contract();
+            let mut manager = crate::AnalysisManager::new(&unit);
+            let products = manager
+                .require_all(&unit, contract.required_analyses())
+                .unwrap()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>();
+            let candidates = ConstantConditionalFoldRule
+                .propose(&unit, RuleAnalysisView::new(&products))
+                .unwrap();
+            assert_eq!(candidates.len(), 1);
+            assert_eq!(candidates[0].consumed_facts().len(), 1);
+            let omega_optimization_unit::PsiRewritePatch::FoldConstantConditional(patch) =
+                candidates[0].patch()
+            else {
+                unreachable!()
+            };
+            assert_eq!(patch.constant, constant);
+            let accepted = validate_constant_conditional_candidate(&unit, &candidates[0]).unwrap();
+            assert_eq!(
+                accepted.validator(),
+                omega_optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
+                    b"omega.validator.constant-conditional-fold.v1"
+                )
+            );
+            let node = &accepted.unit().functions[0].blocks[0].nodes[1];
+            assert!(matches!(
+                node.operation,
+                TerminalAbstractOperation::Jump { psi_edge, .. } if psi_edge == patch.selected_edge
+            ));
+            assert_eq!(
+                node.provenance,
+                [omega_optimization_unit::PsiProvenance::Edge(
+                    patch.selected_edge
+                )]
+            );
+            assert_eq!(node.fuel.len(), 1);
+            assert_eq!(
+                node.fuel[0].site,
+                omega_optimization_unit::PsiProvenance::Edge(patch.selected_edge)
+            );
+        }
+    }
+
+    #[test]
+    fn constant_conditional_fold_refuses_to_orphan_a_branch_region() {
+        let unit = propagated_block_parameter_unit();
+        let contract = ConstantConditionalFoldRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert!(
+            ConstantConditionalFoldRule
+                .propose(&unit, RuleAnalysisView::new(&products))
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn constant_conditional_validator_rejects_edge_and_fuel_corruption() {
+        let unit = constant_conditional_same_target_unit(true);
+        let contract = ConstantConditionalFoldRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let candidate = ConstantConditionalFoldRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .pop()
+            .unwrap();
+        let omega_optimization_unit::PsiRewritePatch::FoldConstantConditional(patch) =
+            candidate.patch()
+        else {
+            unreachable!()
+        };
+        let condition_fact = candidate
+            .scalar_evaluation_witness()
+            .and_then(IntegerEvaluationWitness::unary_operand)
+            .unwrap();
+        let swapped = PsiRewriteCandidate::new_constant_conditional(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            candidate.provenance().to_vec(),
+            condition_fact,
+            -1,
+            ConstantConditionalRewrite {
+                selected_edge: patch.rejected_edge,
+                rejected_edge: patch.selected_edge,
+                ..patch
+            },
+        )
+        .unwrap();
+        assert!(matches!(
+            validate_constant_conditional_candidate(&unit, &swapped),
+            Err(OptimizationUnitValidationError::CandidateEvaluationMismatch)
+        ));
+
+        let mut provenance = candidate.provenance().to_vec();
+        provenance[0].fuel[0].units += 1;
+        let wrong_fuel = PsiRewriteCandidate::new_constant_conditional(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            provenance,
+            condition_fact,
+            -1,
+            patch,
+        )
+        .unwrap();
+        assert!(matches!(
+            validate_constant_conditional_candidate(&unit, &wrong_fuel),
+            Err(OptimizationUnitValidationError::CandidateFuelMismatch)
+        ));
     }
 
     #[test]

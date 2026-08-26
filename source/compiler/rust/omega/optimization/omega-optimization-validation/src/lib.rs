@@ -13,18 +13,19 @@ use omega_optimization_core::{
     OptimizationValidatorIdentity,
 };
 use omega_optimization_unit::{
-    BlockParameterIncomingBinding, BooleanConstantRewrite, IntegerConstantRewrite,
-    IntegerEvaluationWitness, NodeLocation, OptimizationEdge, OptimizationFact, OwnershipEvent,
-    OwnershipFrontierFact, OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace,
-    OwnershipFrontierPartialCustody, OwnershipFrontierSite, OwnershipFrontierSnapshot,
-    PsiNodeObservation, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
-    PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterRewrite, ScalarConstantValue,
-    SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState,
-    ValueDefinition, ValueDefinitionSite, ValueUse, canonical_ownership_frontier_snapshot,
-    derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
-    recompute_psi_optimization_unit_identity, reconstruct_psi_closed_region_observation,
-    reconstruct_psi_observation_model,
+    BlockParameterIncomingBinding, BooleanConstantRewrite, ConstantConditionalRewrite,
+    IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationEdge,
+    OptimizationFact, OwnershipEvent, OwnershipFrontierFact, OwnershipFrontierLiveClaim,
+    OwnershipFrontierOwnedPlace, OwnershipFrontierPartialCustody, OwnershipFrontierSite,
+    OwnershipFrontierSnapshot, PsiNodeObservation, PsiOptimizationFunction, PsiOptimizationUnit,
+    PsiProvenance, PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterRewrite,
+    ScalarConstantValue, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
+    SccpValueRow, SccpValueState, ValueDefinition, ValueDefinitionSite, ValueUse,
+    canonical_ownership_frontier_snapshot, derived_sccp_scalar_constant_fact_identity,
+    literal_scalar_constant_fact_identity, recompute_psi_optimization_unit_identity,
+    reconstruct_psi_closed_region_observation, reconstruct_psi_observation_model,
 };
+use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ScalarType, ValueId};
 use psi_terminal_fuel::TerminalFuelSchedule;
 
@@ -187,6 +188,7 @@ pub enum OptimizationUnitValidationError {
     CandidateLiveBoundaryMismatch,
     CandidateRegionObservationUnavailable,
     CandidateRegionObservationMismatch,
+    CandidateReachabilityMismatch,
     CandidateOutsideRegionMismatch,
     CandidateBlockParameterMismatch,
     CandidateIncomingBindingMismatch,
@@ -549,6 +551,9 @@ pub fn validate_scalar_evaluation_candidate(
         PsiRewritePatch::RemoveRedundantBlockParameter(_) => {
             Err(OptimizationUnitValidationError::CandidatePatchMismatch)
         }
+        PsiRewritePatch::FoldConstantConditional(_) => {
+            Err(OptimizationUnitValidationError::CandidatePatchMismatch)
+        }
     }
 }
 
@@ -566,7 +571,215 @@ pub fn validate_psi_rewrite_candidate(
         PsiRewritePatch::RemoveRedundantBlockParameter(_) => {
             validate_redundant_block_parameter_candidate(input, candidate)
         }
+        PsiRewritePatch::FoldConstantConditional(_) => {
+            validate_constant_conditional_candidate(input, candidate)
+        }
     }
+}
+
+/// Independently replay one Boolean-proven conditional fold. The rejected
+/// edge may be removed only when every existing block remains structurally
+/// reachable, preserving Terminal-Psi's total-CFG admission contract.
+pub fn validate_constant_conditional_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_psi_optimization_unit(input)?;
+    if candidate.input() != input.identity {
+        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
+    }
+    if !candidate
+        .required_analyses()
+        .contains(AnalysisKind::ScalarConstants)
+        || !candidate
+            .required_analyses()
+            .contains(AnalysisKind::ControlFlowGraph)
+        || !candidate
+            .invalidated_analyses()
+            .contains(AnalysisKind::ControlFlowGraph)
+        || !candidate
+            .invalidated_analyses()
+            .contains(AnalysisKind::UseDefinition)
+        || !candidate
+            .invalidated_analyses()
+            .contains(AnalysisKind::EffectSummaries)
+        || candidate.safety_class() != OptimizationSafetyClass::ExactOperationSemantics
+        || !candidate.substitutions().is_empty()
+    {
+        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
+    }
+    let PsiRewritePatch::FoldConstantConditional(patch) = candidate.patch() else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
+    if candidate.decision_point() != patch.location
+        || candidate.affected_blocks() != [patch.location.block]
+    {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
+    let function = input
+        .functions
+        .iter()
+        .find(|function| function.machine == patch.location.machine)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let block = function
+        .blocks
+        .iter()
+        .find(|block| block.id == patch.location.block)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let node = block
+        .nodes
+        .get(usize::try_from(patch.location.node).expect("u32 fits usize"))
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let O::Conditional {
+        condition,
+        when_true,
+        when_false,
+    } = &node.operation
+    else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
+    let condition_fact = candidate
+        .scalar_evaluation_witness()
+        .and_then(IntegerEvaluationWitness::unary_operand)
+        .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+    let constant = literal_boolean_fact(function, input.identity, *condition, condition_fact)
+        .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+    let (selected, rejected) = if constant {
+        (when_true, when_false)
+    } else {
+        (when_false, when_true)
+    };
+    if patch
+        != (ConstantConditionalRewrite {
+            location: patch.location,
+            condition: *condition,
+            constant,
+            selected_edge: selected.psi_edge,
+            rejected_edge: rejected.psi_edge,
+        })
+    {
+        return Err(OptimizationUnitValidationError::CandidateEvaluationMismatch);
+    }
+    if !all_blocks_reachable_after_conditional_fold(
+        function,
+        patch.location.block,
+        selected.psi_edge,
+    ) {
+        return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
+    }
+    let expected_fuel = node
+        .fuel
+        .iter()
+        .copied()
+        .filter(|settlement| settlement.site == PsiProvenance::Edge(selected.psi_edge))
+        .collect::<Vec<_>>();
+    let [provenance] = candidate.provenance() else {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    };
+    if provenance.output != patch.location
+        || provenance.sources != [PsiProvenance::Edge(selected.psi_edge)]
+    {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    }
+    if provenance.fuel != expected_fuel || expected_fuel.is_empty() {
+        return Err(OptimizationUnitValidationError::CandidateFuelMismatch);
+    }
+
+    let mut output = input.clone();
+    let output_function = output
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == patch.location.machine)
+        .expect("candidate function exists");
+    let output_block = output_function
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == patch.location.block)
+        .expect("candidate block exists");
+    let output_node =
+        &mut output_block.nodes[usize::try_from(patch.location.node).expect("u32 fits usize")];
+    output_node.operation = O::Jump {
+        psi_edge: selected.psi_edge,
+        target: selected.target,
+        bindings: selected.bindings.clone(),
+    };
+    output_node.definitions.clear();
+    output_node.uses = selected
+        .bindings
+        .iter()
+        .map(|binding| ValueUse {
+            value: binding.argument,
+            block: patch.location.block,
+            node: patch.location.node,
+        })
+        .collect();
+    output_node.successors = vec![OptimizationEdge {
+        psi_edge: selected.psi_edge,
+        target: selected.target,
+        bindings: selected.bindings.clone(),
+    }];
+    output_node.ownership.clear();
+    output_node.provenance = vec![PsiProvenance::Edge(selected.psi_edge)];
+    output_node.fuel = expected_fuel;
+    output_function.facts = reconstruct_fact_index(output_function);
+    output.identity = recompute_psi_optimization_unit_identity(&output);
+    validate_psi_optimization_unit(&output)?;
+
+    let mut expected = input.clone();
+    let expected_function = expected
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == patch.location.machine)
+        .expect("candidate function exists");
+    let expected_block = expected_function
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == patch.location.block)
+        .expect("candidate block exists");
+    *expected_block = output
+        .functions
+        .iter()
+        .find(|function| function.machine == patch.location.machine)
+        .expect("output function exists")
+        .blocks
+        .iter()
+        .find(|block| block.id == patch.location.block)
+        .expect("output block exists")
+        .clone();
+    expected.identity = output.identity;
+    if expected != output {
+        return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
+    }
+    Ok(ValidatedPsiRewrite {
+        unit: output,
+        candidate: candidate.identity(),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(
+            b"omega.validator.constant-conditional-fold.v1",
+        ),
+    })
+}
+
+fn all_blocks_reachable_after_conditional_fold(
+    function: &PsiOptimizationFunction,
+    source: BlockId,
+    selected_edge: EdgeId,
+) -> bool {
+    let mut reachable = BTreeSet::new();
+    let mut pending = vec![function.entry];
+    while let Some(block_id) = pending.pop() {
+        if !reachable.insert(block_id) {
+            continue;
+        }
+        let Some(block) = function.blocks.iter().find(|block| block.id == block_id) else {
+            return false;
+        };
+        for edge in block.nodes.iter().flat_map(|node| &node.successors) {
+            if block_id != source || edge.psi_edge == selected_edge {
+                pending.push(edge.target);
+            }
+        }
+    }
+    reachable.len() == function.blocks.len()
 }
 
 /// Independently replay one redundant block-parameter elimination. The rule's

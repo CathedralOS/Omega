@@ -1291,9 +1291,9 @@ fn lower_only_optimizer_source_enters_the_same_verified_physical_pipeline() {
 }
 
 #[test]
-fn unsupported_optimizer_source_fails_before_target_lowering() {
+fn control_flow_cleanup_source_reaches_the_publication_gate() {
     let checked = compile_to_checked(&unsupported_optimizer_source_canary(), Some("linux_x64"))
-        .expect("unsupported optimizer selection is retained through checking");
+        .expect("explicit optimizer selection is retained through checking");
     let diagnostics = stage_terminal_component(
         &checked,
         NativeTarget::linux_x64(),
@@ -1301,15 +1301,10 @@ fn unsupported_optimizer_source_fails_before_target_lowering() {
         &AdmissionProfile::default(),
         &[],
     )
-    .expect_err("unsupported named optimization must fail closed");
+    .expect_err("optimized publication remains unavailable");
     assert_eq!(diagnostics.len(), 1);
-    assert!(
-        diagnostics[0]
-            .message
-            .contains("verified optimization failed")
-    );
     assert!(diagnostics[0].message.contains("ControlFlowCleanup"));
-    assert!(!diagnostics[0].message.contains("clean target lowering"));
+    assert!(diagnostics[0].message.contains("no output was installed"));
 }
 
 #[test]

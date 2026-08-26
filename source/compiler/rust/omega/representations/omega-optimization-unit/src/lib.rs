@@ -46,9 +46,9 @@ pub use observation::{
 };
 
 pub use rewrite::{
-    BlockParameterIncomingBinding, BooleanConstantRewrite, IntegerConstantRewrite,
-    IntegerEvaluationWitness, NodeLocation, ProvenanceRewrite, PsiRewriteCandidate,
-    PsiRewriteCandidateError, PsiRewritePatch, RedundantBlockParameterRewrite,
+    BlockParameterIncomingBinding, BooleanConstantRewrite, ConstantConditionalRewrite,
+    IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, ProvenanceRewrite,
+    PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch, RedundantBlockParameterRewrite,
     RedundantBlockParameterWitness, ScalarConstantValue, ScalarEvaluationWitness,
     ScalarSubstitution, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
     SccpValueRow, SccpValueState, derived_sccp_scalar_constant_fact_identity,
