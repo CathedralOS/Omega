@@ -5020,8 +5020,14 @@ Remaining:
   exact `Aarch64Branch26`, `Aarch64Page21`, and `Aarch64PageOffset12`
   relocations, emits through the ELF AArch64 path, and decodes final `BL` plus
   `ADRP`/`ADD` instructions to require the exact sponsor target and `.text`
-  base. The remaining native slice is to connect the admitted runtime into
-  deployed dynamic roots.
+  base. An explicit deployed dynamic-root constructor now selects the dynamic
+  realization from the exact root fuel column and execution environment, binds
+  the sealed attribution and transfer runtime against the exact installed-code
+  occurrence, and then reuses root/provider/slot/trust admission; the ordinary
+  constructor remains fixed-only and substituted installed halves reject. The
+  remaining native slice is deployment-coordinator carriage: no production
+  coordinator currently owns both the final installed attribution and live
+  sponsor-route runtime values needed to call that constructor.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof
