@@ -38,7 +38,9 @@ use psi_typed_trees::proposition::{
 use psi_typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{StatementNode, TableLocalData, TableTransition};
-use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::types::{
+    DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 use std::sync::Arc;
 
 use super::theorem::SelectedTheoremTelescope;
@@ -139,6 +141,29 @@ fn byte_slice_reference_type(
             referee: slice,
             access,
             lifetime: None,
+        })
+}
+
+fn bounded_byte_buffer_type(program: &mut TypedTrees, capacity: usize) -> TypeReferenceHandle {
+    let element_type = primitive_type(program, "u8");
+    let fixed_array = program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(capacity),
+        });
+    let constraints =
+        program
+            .type_reference_table
+            .insert_constraints([TypeConstraintNode::Domain(DomainConstraint {
+                name: Identifier::generated_static("Utf8"),
+                ..Default::default()
+            })]);
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::Constrained {
+            base_type: fixed_array,
+            constraints,
         })
 }
 
@@ -2513,7 +2538,7 @@ fn direct_lift_runtime_accepts_explicit_and_target_landed_float_literals() {
 }
 
 #[test]
-fn direct_lift_runtime_accepts_exact_shared_byte_string_literals() {
+fn direct_lift_runtime_accepts_exact_shared_and_bounded_byte_string_literals() {
     let mut program = TypedTrees::default();
     let quotient = quotient_type(
         &mut program,
@@ -2525,41 +2550,70 @@ fn direct_lift_runtime_accepts_exact_shared_byte_string_literals() {
     let carrier = carrier_type(&mut program);
     let byte_view =
         byte_slice_reference_type(&mut program, psi_language_core::ReferenceAccess::Shared);
+    let bounded_bytes = bounded_byte_buffer_type(&mut program, 8);
     let literal_bytes: Arc<[u8]> = Arc::from(&b"value"[..]);
     let literal = program
         .expression_table
         .insert(ExpressionNode::String(literal_bytes.clone()));
     let arguments = program
         .expression_table
-        .insert_expression_handles([literal]);
+        .insert_expression_handles([literal, literal]);
     let call = call_with_arguments(arguments);
     let state = State {
         return_type: quotient,
         ..Default::default()
     };
-    let request = push_representative(&mut program, &[(byte_view, false, false)], carrier);
+    let request = push_representative(
+        &mut program,
+        &[(byte_view, false, false), (bounded_bytes, false, false)],
+        carrier,
+    );
 
     let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
         .expect("an immutable-image byte string has the exact shared byte-view type");
     assert_eq!(
         plan.input_relations,
-        [InputRelation::ExactEquality(byte_view)]
+        [
+            InputRelation::ExactEquality(byte_view),
+            InputRelation::ExactEquality(bounded_bytes),
+        ]
     );
     let runtime = plan
         .direct_lift_correspondence
         .expect("byte-string literal runtime correspondence");
     assert_eq!(
         runtime.positions,
-        [super::DirectLiftRuntimePosition {
-            source: super::DirectLiftArgumentSource::Literal(
-                super::runtime_correspondence::ClosedLiftLiteral::ByteString(literal_bytes),
-            ),
-            representative_parameter: symbol(100),
-        }]
+        [
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::ByteString {
+                        bytes: literal_bytes.clone(),
+                        target_type: program.normalized_type_identity(byte_view),
+                    },
+                ),
+                representative_parameter: symbol(100),
+            },
+            super::DirectLiftRuntimePosition {
+                source: super::DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::ByteString {
+                        bytes: literal_bytes,
+                        target_type: program.normalized_type_identity(bounded_bytes),
+                    },
+                ),
+                representative_parameter: symbol(101),
+            },
+        ]
+    );
+    assert_ne!(
+        runtime.positions[0].source, runtime.positions[1].source,
+        "shared and owned bounded byte targets remain distinct identity"
     );
     let mut bytes_drift = runtime.clone();
     bytes_drift.positions[0].source = super::DirectLiftArgumentSource::Literal(
-        super::runtime_correspondence::ClosedLiftLiteral::ByteString(Arc::from(&b"other"[..])),
+        super::runtime_correspondence::ClosedLiftLiteral::ByteString {
+            bytes: Arc::from(&b"other"[..]),
+            target_type: program.normalized_type_identity(byte_view),
+        },
     );
     assert_ne!(
         runtime, bytes_drift,
@@ -2746,7 +2800,19 @@ fn direct_lift_literal_fences_mismatched_and_non_scalar_values() {
         .insert(ExpressionNode::String(Arc::from(&b"value"[..])));
     let mutable_byte_view =
         byte_slice_reference_type(&mut program, psi_language_core::ReferenceAccess::Mutable);
-    for (position, target) in [(8, bool_type), (9, mutable_byte_view)] {
+    let undersized_buffer = bounded_byte_buffer_type(&mut program, 4);
+    let bare_byte_array = program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: u8_type,
+            length: FixedArrayLength::Literal(5),
+        });
+    for (position, target) in [
+        (8, bool_type),
+        (9, mutable_byte_view),
+        (10, undersized_buffer),
+        (11, bare_byte_array),
+    ] {
         assert_eq!(
             super::closed_lift_literal_for_representative(&program, string, target, position),
             Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
@@ -2785,7 +2851,7 @@ fn direct_lift_literal_fences_mismatched_and_non_scalar_values() {
                 &program,
                 expression,
                 target,
-                position + 10,
+                position + 12,
             ),
             Ok(None),
         );
@@ -2805,7 +2871,7 @@ fn direct_lift_literal_fences_mismatched_and_non_scalar_values() {
             lifetime_arguments: Vec::new(),
             arguments: HandleSpan::empty(),
         });
-    for (position, target) in [(14, constrained), (15, generic)] {
+    for (position, target) in [(16, constrained), (17, generic)] {
         assert_eq!(
             super::closed_lift_literal_for_representative(&program, cases[4].0, target, position,),
             Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),

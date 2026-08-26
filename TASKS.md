@@ -8048,9 +8048,11 @@ Remaining N6/N8 work:
   at that exact target; derived integer width/signedness/domain or float format
   is retained rather than inferred again. Literal value, canonical spelling,
   and landing ride the occurrence identity; the input relation is exact
-  equality. A quoted raw-byte literal may additionally feed only an exact
-  shared `&[u8]` representative position; its immutable-image bytes are retained
-  as identity, with no encoding domain or owned-buffer adaptation.
+  equality. A quoted raw-byte literal may additionally feed an exact shared
+  `&[u8]` representative position or an exact constrained `[u8; N]` named
+  value-domain buffer when its payload fits. Its immutable-image bytes and
+  exact target identity are retained; planning neither selects an encoding
+  domain nor adapts to a different buffer shape.
   Exact
   structural `Q => P` substitution now permits a
   dependent representative `P` fact to mention a literal-fed position only
@@ -8058,8 +8060,9 @@ Remaining N6/N8 work:
   integer spelling, landed type and arithmetic domain, and float spelling and
   format are all proof-value identity even when rendering would erase a
   difference. Literal-only facts remain fixed ordinary call obligations.
-  Mismatched or out-of-range integers, mismatched floats, constrained/mutable
-  or owned byte-string targets, aggregates, zero-value,
+  Mismatched or out-of-range integers, mismatched floats, mutable/non-byte,
+  undersized, bare fixed-array, or otherwise constrained byte-string targets,
+  aggregates, zero-value,
   casts, calls, computed expressions, constrained/generic targets, mutable or
   attached targets, and literal arguments to `define` remain fail-closed.
   `define` remains strictly position-preserving at exact public

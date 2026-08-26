@@ -120,7 +120,7 @@ pub(super) fn derive_direct_lift_precondition_implication(
                     *landing,
                 )),
                 DirectLiftArgumentSource::Literal(
-                    super::runtime_correspondence::ClosedLiftLiteral::ByteString(bytes),
+                    super::runtime_correspondence::ClosedLiftLiteral::ByteString { bytes, .. },
                 ) => representative_values.push(ProofValueSubstitution::byte_string(
                     position.representative_parameter,
                     bytes,

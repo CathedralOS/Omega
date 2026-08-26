@@ -7,8 +7,8 @@
 //! order preserving; `lift` may explicitly select, permute, and repeat direct
 //! members of the public telescope or supply a closed boolean, integer with an
 //! explicit or exact target-derived landing, float with an explicit or exact
-//! target-derived format, or immutable-image byte string to its exact immutable
-//! representative position.
+//! target-derived format, or immutable-image byte string to its exact shared
+//! byte view or bounded value-domain buffer representative position.
 //! Neither policy infers or selects a relation, contract proof, or
 //! representative operation.
 
@@ -48,7 +48,10 @@ pub(super) enum ClosedLiftLiteral {
         spelling: String,
         landing: FloatFormat,
     },
-    ByteString(std::sync::Arc<[u8]>),
+    ByteString {
+        bytes: std::sync::Arc<[u8]>,
+        target_type: psi_typed_trees::type_identity::NormalizedTypeIdentity,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -274,8 +277,14 @@ pub(super) fn closed_lift_literal_for_representative(
     position: usize,
 ) -> Result<Option<ClosedLiftLiteral>, RelationPlanError> {
     if let ExpressionNode::String(bytes) = program.expression_table.expression(expression) {
-        return exact_shared_byte_slice(program, representative_type)
-            .then(|| ClosedLiftLiteral::ByteString(bytes.clone()))
+        let exact_target = exact_shared_byte_slice(program, representative_type)
+            || crate::expression_types::bounded_byte_buffer_capacity(program, representative_type)
+                .is_some_and(|capacity| bytes.len() <= capacity);
+        return exact_target
+            .then(|| ClosedLiftLiteral::ByteString {
+                bytes: bytes.clone(),
+                target_type: program.normalized_type_identity(representative_type),
+            })
             .map(Some)
             .ok_or(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
     }

@@ -791,17 +791,20 @@ anonymous numeric scalar lands once at that exact target; the certificate
 retains the derived integer width, signedness, and domain or float format. Exact
 equality relates that ordinary input position; the literal value, spelling, and
 landing remain runtime-evidence identity. A quoted raw-byte literal may also
-feed only an exact shared `&[u8]` representative position. The certificate
-retains its immutable-image bytes exactly and infers no encoding domain,
-mutable view, fixed array, or owned-buffer conversion. Exact
+feed an exact shared `&[u8]` representative position or an exact constrained
+`[u8; N]` named value-domain buffer when its payload fits. The certificate
+retains its immutable-image bytes and exact target identity; planning selects
+no encoding domain and performs no mutable-view or different-buffer-shape
+conversion. Exact
 structural substitution can match a dependent representative `P` fact that
 mentions a literal-fed parameter only when public `Q` contains the identical
 post-substitution fact. Boolean value, integer spelling, landed type and
 arithmetic domain, and float spelling and format remain proof-value identity
 even where rendering is equal; there is no evaluation or inferred implication.
 Literal-only facts stay fixed ordinary call obligations. Mismatched or
-out-of-range integers, mismatched floats, constrained/mutable or owned
-byte-string targets, aggregates, zero-value, casts, calls, computations,
+out-of-range integers, mismatched floats, mutable/non-byte, undersized, bare
+fixed-array, or otherwise constrained byte-string targets, aggregates,
+zero-value, casts, calls, computations,
 constrained/generic
 targets, mutable/attached targets, and every literal supplied to `define`
 remain fail-closed. `define` remains strictly
