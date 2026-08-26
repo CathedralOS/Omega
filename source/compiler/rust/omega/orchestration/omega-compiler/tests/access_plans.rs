@@ -2490,3 +2490,229 @@ machine Main::main(&mut self) {}
         loan_snapshot,
     );
 }
+
+#[test]
+fn source_derived_take_plan_rejects_repeatable_profile_and_preserves_retry_custody() {
+    let main = write_program(
+        "source-take-profile-retry",
+        r#"
+use omega::language::core::layout;
+
+pub data Fifo {
+    sample: u32;
+}
+
+pub data DestructivePlacement {
+    entries: [FieldEntry; 64];
+    services: [u64; 32];
+}
+
+machine DestructivePlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let access: AccessPlan = AccessPlan::inaccessible(schema);
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 }
+    };
+    PlacementPlan {
+        layout: Plan {
+            entries: self.entries,
+            entry_count: 1,
+            size_fixed: 4,
+            size_is_dynamic: false,
+            align: 4
+        },
+        access: access.with(
+            schema.fields[0].key,
+            FieldAccess::External {
+                read: ExternalRead::Take,
+                write: false,
+                exposure: Exposure::Exported
+            }
+        ),
+        reach: BoundaryReach {
+            services: self.services,
+            service_count: 0
+        }
+    }
+}
+
+machine retain_source_plan(fifo: &mut Placed<DestructivePlacement, Fifo>) {}
+
+data Main {}
+machine Main::main(&mut self) {}
+"#,
+    );
+    let checked = compile_to_checked(&main, None)
+        .expect("source-derived destructive External placement should reach checked custody");
+    let retained = checked
+        .typed
+        .placed_view_plans
+        .iter()
+        .find(|view| view.policy_name == "DestructivePlacement")
+        .expect("checked destructive External placement row");
+    assert!(matches!(
+        retained
+            .placement
+            .access()
+            .plan()
+            .entries()
+            .first()
+            .expect("retained destructive External field")
+            .access(),
+        FieldAccess::External {
+            read: ExternalRead::Take,
+            write: false,
+            ..
+        }
+    ));
+    assert_eq!(retained.placement.layout().size, Some(4));
+
+    let rights = ExtentRights::from_normalized_identities([extent_identity(
+        430,
+        ExtentRightId::from_normalized_identity,
+    )]);
+    let mut extent = ExtentRootGrant::from_admitted_provider(
+        provider_issuance(28),
+        extent_identity(431, ExtentLineageId::from_normalized_identity),
+        extent_identity(432, AddressSpaceId::from_normalized_identity),
+        rights.clone(),
+        extent_identity(433, ExtentProvenanceId::from_normalized_identity),
+        extent_identity(434, MappingEraId::from_normalized_identity),
+    )
+    .mint(0xb000, 4)
+    .expect("provider destructive External extent");
+    let repeatable_profile = ResourceProfileGrant::from_admitted_provider(
+        ResourceProfileReceiptId::from_normalized_identity(435)
+            .expect("Repeatable profile receipt"),
+        &extent,
+        rights.clone(),
+        BoundaryReach::default(),
+    )
+    .expect("Repeatable provider profile grant")
+    .admit(ResourceProfile {
+        regions: vec![ResourceRegion {
+            offset: 0,
+            length: 4,
+            stable: StableCapability::None,
+            external: ExternalCapability::Access {
+                read: ExternalReadBehavior::Repeatable,
+                write: false,
+                transfers: vec![TransferRule {
+                    width_bits: 32,
+                    alignment_bytes: 4,
+                }],
+            },
+            atomic: AtomicCapability::None,
+            reach: BoundaryReach::default(),
+        }],
+    })
+    .expect("admitted Repeatable External profile");
+    let destructive_profile = ResourceProfileGrant::from_admitted_provider(
+        ResourceProfileReceiptId::from_normalized_identity(436)
+            .expect("Destructive profile receipt"),
+        &extent,
+        rights,
+        BoundaryReach::default(),
+    )
+    .expect("Destructive provider profile grant")
+    .admit(ResourceProfile {
+        regions: vec![ResourceRegion {
+            offset: 0,
+            length: 4,
+            stable: StableCapability::None,
+            external: ExternalCapability::Access {
+                read: ExternalReadBehavior::Destructive,
+                write: false,
+                transfers: vec![TransferRule {
+                    width_bits: 32,
+                    alignment_bytes: 4,
+                }],
+            },
+            atomic: AtomicCapability::None,
+            reach: BoundaryReach::default(),
+        }],
+    })
+    .expect("admitted Destructive External profile");
+
+    let admission_id = PlacementAdmissionId::from_normalized_identity(437)
+        .expect("destructive External placement admission");
+    let loan = extent
+        .loan_mut(0, 4)
+        .expect("exclusive destructive External loan");
+    let loan_snapshot = (
+        loan.polarity(),
+        loan.origin(),
+        loan.lineage_root(),
+        loan.base(),
+        loan.length(),
+        loan.address_space(),
+        loan.rights().clone(),
+        loan.provenance(),
+        loan.era(),
+    );
+    let rejection = admit_placement(admission_id, loan, &retained.placement, &repeatable_profile)
+        .expect_err("Repeatable supply must not satisfy source-requested destructive Take");
+    assert!(
+        rejection
+            .diagnostic()
+            .0
+            .contains("field `sample` requests incompatible External 32-bit read=Take write=false"),
+        "unexpected destructive External diagnostic: {}",
+        rejection.diagnostic().0,
+    );
+    let (loan, _) = rejection.into_parts();
+    assert_eq!(
+        (
+            loan.polarity(),
+            loan.origin(),
+            loan.lineage_root(),
+            loan.base(),
+            loan.length(),
+            loan.address_space(),
+            loan.rights().clone(),
+            loan.provenance(),
+            loan.era(),
+        ),
+        loan_snapshot,
+    );
+
+    let admission = admit_placement(
+        admission_id,
+        loan,
+        &retained.placement,
+        &destructive_profile,
+    )
+    .expect("returned loan supports exact destructive External plan/profile retry");
+    assert_eq!(admission.identity(), admission_id);
+    assert_eq!(admission.profile_receipt(), destructive_profile.receipt());
+    assert_eq!(
+        admission.resources().placement(),
+        retained.placement.identity()
+    );
+    assert_eq!(
+        admission.resources().profile(),
+        destructive_profile.profile().identity(),
+    );
+    let fields = admission.resources().fields();
+    assert_eq!(fields.len(), 1);
+    assert_eq!(fields[0].kind(), EffectiveSupplyKind::External);
+    assert_eq!(fields[0].offset(), 0);
+    assert_eq!(fields[0].width_bits(), 32);
+    assert_eq!(fields[0].alignment_bytes(), 4);
+
+    let loan = admission.withdraw();
+    assert_eq!(
+        (
+            loan.polarity(),
+            loan.origin(),
+            loan.lineage_root(),
+            loan.base(),
+            loan.length(),
+            loan.address_space(),
+            loan.rights().clone(),
+            loan.provenance(),
+            loan.era(),
+        ),
+        loan_snapshot,
+    );
+}
