@@ -238,6 +238,10 @@ mod tests {
         assert_eq!(inputs.root(), first_key.identity());
         assert_eq!(inputs.packages().count(), 1);
         assert!(inputs.package_root(first_key.identity()).is_some());
+        let dependency_closure = inputs.dependency_closure();
+        assert_eq!(dependency_closure.root(), first_key.identity());
+        assert_eq!(dependency_closure.packages(), &[first_key.identity()]);
+        assert!(dependency_closure.dependencies().is_empty());
 
         let _ = std::fs::remove_dir_all(roots);
     }

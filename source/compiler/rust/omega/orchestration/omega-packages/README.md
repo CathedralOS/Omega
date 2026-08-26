@@ -877,6 +877,16 @@ Source, certificates, proof routes, compiler observations, and local decisions
 remain separately bound. The current incomplete review projection therefore does
 not become a package artifact or `PackageInstance` by renaming it.
 
+The current ordinary obligation ledger binds the exact path-free dependency
+closure consumed by the compiler alongside package, target, and canonical rows.
+That closure contains every reachable package identity and requester-local alias
+edge, but excludes package names, source roots, immutable resolutions, and source
+bytes. Recovered row envelopes must be joined to a locally reconstructed closure;
+renaming an unused alias or adding/removing an unused reachable dependency
+invalidates equality, while relocating the same graph does not. This closes the
+ledger's dependency-subject coordinate, not transitive certificate/open-
+obligation composition or lock admission.
+
 ## Target command surface
 
 ```text
@@ -964,11 +974,16 @@ Before fresh closure review publishes those rows, it strips explanatory source
 coordinates into separate provenance, forms a source-handle-free
 `OrdinaryPackageObligationLedger`, reconstructs the complete current row set a
 second time from checked compiler semantics, and requires exact equality.
-Individually recovered row envelopes establish framing only; missing,
-reordered, stale, mixed-package, or mixed-target ledgers reject under local
-comparison. This is a replay gate for the current review vocabulary, not
-accepted package evidence or a lock-promotion path: produced-artifact subjects,
-certificate results, transitive open obligations, schema deltas, dependency
+The ledger also binds the path-free dependency closure projected from validated
+compiler inputs: every reachable package identity and requester-local alias
+edge, but no source root, resolution, package display name, or source byte.
+Individually recovered row envelopes establish framing only and must be joined
+to that separately reconstructed closure; missing, reordered, stale,
+mixed-package, mixed-target, renamed-alias, or changed-closure ledgers reject
+under local comparison, while relocation alone is irrelevant. This is a replay
+gate for the current review vocabulary, not accepted package evidence or a
+lock-promotion path: produced-artifact subjects, certificate results,
+transitive open obligations, schema deltas, transitive dependency-evidence
 composition, and root admissions remain absent.
 Review-only update comparison joins candidate rows to exact resolver custody,
 matches rows linearly by compiler-owned `(kind, key)` coordinates, and retains

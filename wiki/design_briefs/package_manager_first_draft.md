@@ -1186,6 +1186,17 @@ to stabilize this seam. Add one only if implementation discovers a genuine
 reusable semantic boundary, and prefer an existing coherent stage such as Exact
 when it can carry the same meaning with less machinery.
 
+The current ordinary reconstruction ledger binds the exact source-path-free
+dependency closure consumed by package-aware compilation alongside package,
+target, and canonical rows. It is projected only from validated compiler inputs
+and retains every reachable package identity and requester-local alias edge,
+but no package display name, source root, immutable resolution, or source byte.
+Recovered row envelopes must be joined to that separately reconstructed
+closure. Renaming an unused alias or adding/removing an unused reachable package
+invalidates ledger equality; relocating the same graph does not. This closes a
+subject coordinate in the current replay gate, not transitive certificate/open-
+obligation composition or lock authority.
+
 Terminal Psi now provides the first concrete replay ledger: one ordered,
 owner-tagged set covers executable operations, call and nominal-cleanup
 requirements, and contract guarantees, retaining each exact proposition,

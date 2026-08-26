@@ -95,8 +95,13 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let rows = projection
         .canonical_rows()
         .expect("ordinary package obligation rows");
-    let ledger = ordinary_package_obligation_ledger_from_compiler_rows(&rows)
-        .expect("fresh compiler rows should form a canonical ledger");
+    let dependency_closure = original_checked
+        .dependency_closure()
+        .cloned()
+        .expect("package-aware compilation retains its dependency closure");
+    let ledger =
+        ordinary_package_obligation_ledger_from_compiler_rows(dependency_closure.clone(), &rows)
+            .expect("fresh compiler rows should form a canonical ledger");
     validate_ordinary_package_obligation_ledger(&ledger, &original_checked)
         .expect("unchanged checked semantics should reconstruct the same ledger");
 
@@ -109,8 +114,9 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
                 .expect("compiler row recovery envelope should decode")
         })
         .collect::<Vec<_>>();
-    let recovered = recover_ordinary_package_obligation_ledger(&decoded)
-        .expect("decoded rows should form the same canonical ledger");
+    let recovered =
+        recover_ordinary_package_obligation_ledger(dependency_closure.clone(), &decoded)
+            .expect("decoded rows should form the same canonical ledger");
     assert_eq!(recovered, ledger);
     validate_ordinary_package_obligation_ledger(&recovered, &original_checked)
         .expect("decoded framing is inert until exact local reconstruction succeeds");
@@ -121,8 +127,9 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         .position(|row| row.kind() == PackageReviewCanonicalRowKind::PublicData)
         .expect("fixture should produce a public-data row");
     missing.remove(removed);
-    let incomplete = ordinary_package_obligation_ledger_from_compiler_rows(&missing)
-        .expect("an omitted semantic row remains structurally decodable");
+    let incomplete =
+        ordinary_package_obligation_ledger_from_compiler_rows(dependency_closure.clone(), &missing)
+            .expect("an omitted semantic row remains structurally decodable");
     let diagnostics = validate_ordinary_package_obligation_ledger(&incomplete, &original_checked)
         .expect_err("local reconstruction must reject an omitted semantic row");
     assert!(
@@ -134,8 +141,9 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 
     let mut reordered = rows.clone();
     reordered.swap(0, 1);
-    let ordering_error = ordinary_package_obligation_ledger_from_compiler_rows(&reordered)
-        .expect_err("reordered rows are not a canonical ledger");
+    let ordering_error =
+        ordinary_package_obligation_ledger_from_compiler_rows(dependency_closure, &reordered)
+            .expect_err("reordered rows are not a canonical ledger");
     assert!(ordering_error.message().contains("strict canonical order"));
 
     let changed = TempPackage::new();
@@ -155,6 +163,142 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .contains("does not match local reconstruction")),
         "unexpected diagnostics: {diagnostics:#?}"
     );
+}
+
+#[test]
+fn ordinary_package_obligation_ledger_binds_exact_dependency_closure_without_paths() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#;
+    let root = TempPackage::new();
+    root.write("main.omg", "pub data Token { value: u64; }\n");
+    root.write("build.omg", build);
+    let dependency = TempPackage::new();
+    dependency.write("main.omg", "pub data DependencyToken {}\n");
+    dependency.write("build.omg", build);
+    let root_identity = package_identity();
+    let dependency_identity =
+        PackageKeyIdentity::from_digest([42; 32]).expect("dependency package identity");
+    let graph_inputs = |root_path: &Path, dependency_path: &Path, alias: &str| {
+        PackageCompilationInputs::new(
+            root_identity,
+            vec![
+                PackageSourceBinding::new(root_identity, "review-fixture", root_path.to_owned()),
+                PackageSourceBinding::new(
+                    dependency_identity,
+                    "graph-dependency",
+                    dependency_path.to_owned(),
+                ),
+            ],
+            vec![PackageDependencyBinding::new(
+                root_identity,
+                alias,
+                dependency_identity,
+            )],
+        )
+        .expect("two-package graph should validate")
+    };
+    let compile_graph = |root_path: &Path, dependency_path: &Path, alias: &str| {
+        compile_to_checked_with_packages(
+            &root_path.join("main.omg"),
+            Some(target),
+            graph_inputs(root_path, dependency_path, alias),
+        )
+        .expect("unused dependency graph should check")
+    };
+    let ledger_for = |checked: &omega_compiler::CheckedCompilation| {
+        let rows = project_checked_package_review(checked)
+            .expect("dependency-closure review should project")
+            .canonical_rows()
+            .expect("dependency-closure canonical rows");
+        ordinary_package_obligation_ledger_from_compiler_rows(
+            checked
+                .dependency_closure()
+                .cloned()
+                .expect("package-aware compilation retains its dependency closure"),
+            &rows,
+        )
+        .expect("dependency-closure ledger should form")
+    };
+
+    let original_checked = compile_graph(&root.0, &dependency.0, "dependency");
+    let renamed_checked = compile_graph(&root.0, &dependency.0, "renamed_dependency");
+    let original_rows = project_checked_package_review(&original_checked)
+        .expect("original review")
+        .canonical_rows()
+        .expect("original rows");
+    let renamed_rows = project_checked_package_review(&renamed_checked)
+        .expect("renamed review")
+        .canonical_rows()
+        .expect("renamed rows");
+    assert_eq!(
+        original_rows, renamed_rows,
+        "an unused requester-local alias does not alter checked semantic rows"
+    );
+    let original_ledger = ledger_for(&original_checked);
+    let renamed_ledger = ledger_for(&renamed_checked);
+    assert_ne!(
+        original_ledger, renamed_ledger,
+        "the exact compiler-consumed alias still enters ledger identity"
+    );
+    let diagnostics =
+        validate_ordinary_package_obligation_ledger(&original_ledger, &renamed_checked)
+            .expect_err("a stale dependency closure must reject local reconstruction");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("dependency closure does not match local reconstruction")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    let without_dependency = compile_to_checked_with_packages(
+        &root.0.join("main.omg"),
+        Some(target),
+        package_inputs(&root.0),
+    )
+    .expect("root-only graph should check");
+    assert_ne!(
+        original_ledger,
+        ledger_for(&without_dependency),
+        "adding or removing an otherwise unused reachable package changes the ledger"
+    );
+
+    let relocated_root = TempPackage::new();
+    relocated_root.write("main.omg", "pub data Token { value: u64; }\n");
+    relocated_root.write("build.omg", build);
+    let relocated_dependency = TempPackage::new();
+    relocated_dependency.write("main.omg", "pub data DependencyToken {}\n");
+    relocated_dependency.write("build.omg", build);
+    let relocated_checked = compile_graph(&relocated_root.0, &relocated_dependency.0, "dependency");
+    assert_eq!(
+        original_ledger,
+        ledger_for(&relocated_checked),
+        "source/cache relocation does not enter the dependency-closure coordinate"
+    );
+
+    let different_root =
+        PackageKeyIdentity::from_digest([99; 32]).expect("different root package identity");
+    let wrong_root_closure = PackageCompilationInputs::new(
+        different_root,
+        vec![PackageSourceBinding::new(
+            different_root,
+            "review-fixture",
+            root.0.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("alternate root graph should validate")
+    .dependency_closure();
+    let error =
+        ordinary_package_obligation_ledger_from_compiler_rows(wrong_root_closure, &original_rows)
+            .expect_err("row package and dependency-closure root must agree");
+    assert!(error.message().contains("different root package"));
 }
 
 #[test]
