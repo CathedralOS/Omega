@@ -1031,6 +1031,61 @@ mod tests {
     }
 
     #[test]
+    fn mixed_phase_suite_retains_the_full_request_and_exact_psi_projection() {
+        let (semantic, proof) = artifact();
+        let selections = OptimizationSelections::new([
+            Optimization::SparseConditionalConstantPropagation,
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+        ])
+        .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(selections.clone()),
+        )
+        .unwrap();
+
+        assert_eq!(optimized.selections(), &selections);
+        assert_eq!(
+            optimized.psi_selections().as_slice(),
+            &[Optimization::SparseConditionalConstantPropagation]
+        );
+        assert_eq!(optimized.pass_manifests().len(), 1);
+        assert_eq!(
+            optimized.pre_physical_manifest().record().selections,
+            selections
+        );
+    }
+
+    #[test]
+    fn lower_only_suite_reaches_prephysical_custody_without_claiming_psi_work() {
+        let (semantic, proof) = artifact();
+        let selections =
+            OptimizationSelections::new([Optimization::SelectedIncomingU12ExactAddImmediate])
+                .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(selections.clone()),
+        )
+        .unwrap();
+
+        assert_eq!(optimized.selections(), &selections);
+        assert!(optimized.psi_selections().is_empty());
+        assert!(optimized.commits().is_empty());
+        assert!(optimized.pass_manifests().is_empty());
+        assert!(
+            optimized
+                .pre_physical_manifest()
+                .record()
+                .psi_selections
+                .is_empty()
+        );
+    }
+
+    #[test]
     fn unsupported_selected_instruction_source_shape_fails_at_selection_boundary() {
         let (semantic, proof) = artifact();
         let optimized = optimize_artifact_sections(

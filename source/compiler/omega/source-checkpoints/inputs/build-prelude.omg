@@ -13,6 +13,7 @@ pub data Optimization {
     case GlobalValueNumbering;
     case DeadPureScalarElimination;
     case ProofCheckElision;
+    case SelectedIncomingU12ExactAddImmediate;
 }
 pub data Optimizations {
     control_flow_cleanup: u8 in Trapping;
@@ -21,6 +22,7 @@ pub data Optimizations {
     global_value_numbering: u8 in Trapping;
     dead_pure_scalar_elimination: u8 in Trapping;
     proof_check_elision: u8 in Trapping;
+    selected_incoming_u12_exact_add_immediate: u8 in Trapping;
 }
 pub data Build {
     subsystem: Subsystem;
@@ -49,6 +51,7 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
         Optimization::GlobalValueNumbering -> global_value_numbering()
         Optimization::DeadPureScalarElimination -> dead_pure_scalar_elimination()
         Optimization::ProofCheckElision -> proof_check_elision()
+        Optimization::SelectedIncomingU12ExactAddImmediate -> selected_incoming_u12_exact_add_immediate()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -73,5 +76,9 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
 
     state proof_check_elision(&mut self) {
         self.proof_check_elision = self.proof_check_elision + 1;
+    }
+
+    state selected_incoming_u12_exact_add_immediate(&mut self) {
+        self.selected_incoming_u12_exact_add_immediate = self.selected_incoming_u12_exact_add_immediate + 1;
     }
 }

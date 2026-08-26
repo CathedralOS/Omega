@@ -1,9 +1,9 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use omega_optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, Optimization, OptimizationPassIdentity,
-    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
-    OptimizationSelections, ScalarConstantFactIdentity,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, Optimization, OptimizationExecutionPhase,
+    OptimizationPassIdentity, OptimizationRuleContract, OptimizationRuleIdentity,
+    OptimizationSafetyClass, OptimizationSelections, ScalarConstantFactIdentity,
 };
 use omega_optimization_unit::{
     BlockParameterIncomingBinding, BooleanConstantRewrite, IntegerConstantRewrite,
@@ -1543,7 +1543,8 @@ pub fn built_in_psi_registry(
 pub fn built_in_psi_registries(
     selections: &OptimizationSelections,
 ) -> Result<Vec<OrderedRuleRegistry>, RuleRegistryError> {
-    if let Some(unsupported) = selections.as_slice().iter().find(|optimization| {
+    let psi_selections = selections.for_phase(OptimizationExecutionPhase::Psi);
+    if let Some(unsupported) = psi_selections.as_slice().iter().find(|optimization| {
         !matches!(
             optimization,
             Optimization::SparseConditionalConstantPropagation | Optimization::CopyPropagation
@@ -1552,12 +1553,12 @@ pub fn built_in_psi_registries(
         return Err(RuleRegistryError::UnsupportedOptimization(*unsupported));
     }
     let mut registries = Vec::new();
-    if selections.contains(Optimization::SparseConditionalConstantPropagation) {
+    if psi_selections.contains(Optimization::SparseConditionalConstantPropagation) {
         registries.push(registry_for_optimization(
             Optimization::SparseConditionalConstantPropagation,
         )?);
     }
-    if selections.contains(Optimization::CopyPropagation) {
+    if psi_selections.contains(Optimization::CopyPropagation) {
         registries.push(registry_for_optimization(Optimization::CopyPropagation)?);
     }
     Ok(registries)
@@ -3021,6 +3022,32 @@ pub(crate) mod tests {
             built_in_psi_registry(&unsupported_combination),
             Err(RuleRegistryError::UnsupportedOptimizationCombination)
         ));
+
+        let lower_only =
+            OptimizationSelections::new([Optimization::SelectedIncomingU12ExactAddImmediate])
+                .unwrap();
+        assert!(built_in_psi_registry(&lower_only).unwrap().is_empty());
+        assert!(built_in_psi_registries(&lower_only).unwrap().is_empty());
+
+        let sccp =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let mixed = OptimizationSelections::new([
+            Optimization::SparseConditionalConstantPropagation,
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+        ])
+        .unwrap();
+        let sccp_registries = built_in_psi_registries(&sccp).unwrap();
+        let mixed_registries = built_in_psi_registries(&mixed).unwrap();
+        assert_eq!(mixed_registries.len(), 1);
+        assert_eq!(
+            mixed_registries[0].identity(),
+            sccp_registries[0].identity()
+        );
+        assert_eq!(
+            mixed_registries[0].contracts().collect::<Vec<_>>(),
+            sccp_registries[0].contracts().collect::<Vec<_>>()
+        );
     }
 
     #[test]

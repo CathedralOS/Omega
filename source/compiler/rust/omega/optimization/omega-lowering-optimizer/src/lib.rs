@@ -120,6 +120,10 @@ impl ValidatedOptimizedAbstractPlan {
         self.run.selections()
     }
 
+    pub const fn psi_selections(&self) -> &OptimizationSelections {
+        self.run.psi_selections()
+    }
+
     pub const fn budget_per_pass(&self) -> omega_optimization_core::OptimizationWorkBudget {
         self.run.budget_per_pass()
     }
@@ -170,6 +174,7 @@ pub enum OptimizedAbstractProjectionError {
     FinalUnitReplayMismatch,
     LedgerCommitMismatch,
     ManifestUsageMismatch,
+    PsiSelectionProjectionMismatch,
     IndependentValidation(OptimizedAbstractPlanProjectionError),
     PrePhysicalManifest(PrePhysicalOptimizationManifestError),
 }
@@ -188,6 +193,13 @@ impl std::error::Error for OptimizedAbstractProjectionError {}
 pub fn project_optimization_run(
     run: OptimizationRun,
 ) -> Result<ValidatedOptimizedAbstractPlan, OptimizedAbstractProjectionError> {
+    if run.psi_selections()
+        != &run
+            .selections()
+            .for_phase(omega_optimization_core::OptimizationExecutionPhase::Psi)
+    {
+        return Err(OptimizedAbstractProjectionError::PsiSelectionProjectionMismatch);
+    }
     let registries = built_in_psi_registries(run.selections())
         .map_err(OptimizedAbstractProjectionError::Registry)?;
     let ordered_rules = registries
@@ -205,6 +217,7 @@ pub fn project_optimization_run(
         run.session().unit(),
         &plan,
         run.selections(),
+        run.psi_selections(),
         ordered_rule_set,
         baseline_psi_cost_model_identity(),
         run.decisions(),
@@ -217,6 +230,7 @@ pub fn project_optimization_run(
         run.session().input(),
         run.session().unit(),
         run.selections(),
+        run.psi_selections(),
         run.budget_per_pass(),
         work_usage(run.usage()),
         run.decisions(),
@@ -702,6 +716,76 @@ mod tests {
     }
 
     #[test]
+    fn lower_only_suite_records_no_psi_completion() {
+        let selections =
+            OptimizationSelections::new([Optimization::SelectedIncomingU12ExactAddImmediate])
+                .unwrap();
+        let optimized =
+            project_optimization_run(run_pipeline(empty_verified(), selections.clone())).unwrap();
+
+        assert_eq!(optimized.selections(), &selections);
+        assert!(optimized.psi_selections().is_empty());
+        assert_eq!(optimized.plan(), optimized.verified_input().plan());
+        assert!(optimized.commits().is_empty());
+        assert!(optimized.pass_manifests().is_empty());
+        assert_eq!(
+            optimized.pre_physical_manifest().record().selections,
+            selections
+        );
+        assert!(
+            optimized
+                .pre_physical_manifest()
+                .record()
+                .psi_selections
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn mixed_suite_records_only_its_psi_completion() {
+        let selections = OptimizationSelections::new([
+            Optimization::SparseConditionalConstantPropagation,
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+        ])
+        .unwrap();
+        let psi_selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let optimized =
+            project_optimization_run(run_pipeline(exact_add_verified(), selections.clone()))
+                .unwrap();
+
+        assert_eq!(optimized.selections(), &selections);
+        assert_eq!(optimized.psi_selections(), &psi_selections);
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.pass_manifests().len(), 1);
+        assert_eq!(
+            optimized.pre_physical_manifest().record().selections,
+            selections
+        );
+        assert_eq!(
+            optimized.pre_physical_manifest().record().psi_selections,
+            psi_selections
+        );
+    }
+
+    #[test]
+    fn projection_rejects_a_tampered_psi_phase_projection() {
+        let selections = OptimizationSelections::new([
+            Optimization::SparseConditionalConstantPropagation,
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+        ])
+        .unwrap();
+        let mut run = run_pipeline(exact_add_verified(), selections);
+        run.psi_selections = OptimizationSelections::default();
+
+        assert!(matches!(
+            project_optimization_run(run),
+            Err(OptimizedAbstractProjectionError::PsiSelectionProjectionMismatch)
+        ));
+    }
+
+    #[test]
     fn proof_certified_exact_fold_projects_and_remains_target_lowerable() {
         let selections =
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
@@ -766,10 +850,10 @@ mod tests {
             Err(PrePhysicalOptimizationManifestDecodeError::WrongMagic)
         );
         let mut wrong_version = encoded.clone();
-        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&1_u32.to_le_bytes());
         assert_eq!(
             PrePhysicalOptimizationManifest::decode(&wrong_version),
-            Err(PrePhysicalOptimizationManifestDecodeError::UnsupportedVersion(2))
+            Err(PrePhysicalOptimizationManifestDecodeError::UnsupportedVersion(1))
         );
         assert_eq!(
             manifest.physical_data,
@@ -801,6 +885,7 @@ mod tests {
             first.verified_input(),
             first.unit(),
             first.selections(),
+            first.psi_selections(),
             first.budget_per_pass(),
             work_usage(first.usage()),
             first.decisions(),
@@ -821,6 +906,7 @@ mod tests {
                 first.verified_input(),
                 first.unit(),
                 first.selections(),
+                first.psi_selections(),
                 first.budget_per_pass(),
                 work_usage(first.usage()),
                 first.decisions(),
@@ -841,6 +927,7 @@ mod tests {
                 first.verified_input(),
                 first.unit(),
                 first.selections(),
+                first.psi_selections(),
                 first.budget_per_pass(),
                 work_usage(first.usage()),
                 first.decisions(),
@@ -862,6 +949,7 @@ mod tests {
                 first.verified_input(),
                 first.unit(),
                 first.selections(),
+                first.psi_selections(),
                 first.budget_per_pass(),
                 work_usage(first.usage()),
                 first.decisions(),
@@ -921,6 +1009,7 @@ mod tests {
                 optimized.unit(),
                 &corrupted,
                 optimized.selections(),
+                optimized.psi_selections(),
                 registry.identity(),
                 baseline_psi_cost_model_identity(),
                 optimized.decisions(),
@@ -948,6 +1037,7 @@ mod tests {
                 optimized.unit(),
                 &corrupted,
                 optimized.selections(),
+                optimized.psi_selections(),
                 registry.identity(),
                 baseline_psi_cost_model_identity(),
                 optimized.decisions(),

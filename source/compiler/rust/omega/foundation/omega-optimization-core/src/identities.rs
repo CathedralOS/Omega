@@ -83,7 +83,7 @@ canonical_identity!(
 );
 canonical_identity!(
     PrePhysicalOptimizationManifestIdentity,
-    b"omega.pre-physical-optimization-manifest-identity.v1\0"
+    b"omega.pre-physical-optimization-manifest-identity.v2\0"
 );
 canonical_identity!(
     PostAllocationOptimizationManifestIdentity,
@@ -127,7 +127,7 @@ canonical_identity!(
 );
 canonical_identity!(
     OptimizedAbstractPlanProjectionIdentity,
-    b"omega.optimized-abstract-plan-projection-identity.v1\0"
+    b"omega.optimized-abstract-plan-projection-identity.v2\0"
 );
 
 impl OptimizationRuleSetIdentity {

@@ -776,6 +776,14 @@ dependency.
   to close: add canonical schedules and the same fixed-point evidence for each
   newly implemented initial family.
 
+- Named selections now declare a closed execution phase rather than being
+  grouped into an optimization level. The full root-build suite remains the
+  build/cache identity, while Psi scheduling and its pre-physical receipt retain
+  the exact Psi subset separately. `SelectedIncomingU12ExactAddImmediate` is
+  the first selected-lowering family exposed by the canonical build vocabulary;
+  it is never treated as Psi work, and native publication remains fail-closed
+  until its selected-lowering execution receipt joins the full suite identity.
+
 ## P4 — Lowering optimizer and virtual-register form
 
 - **OPT-ABSTRACT-LOWERING-CUT.** Make the clean Terminal-derived optimized plan

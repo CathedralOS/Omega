@@ -3,8 +3,8 @@
   "checkpoint": 1,
   "status": "provisional",
   "checkpoint_manifest": "source/compiler/omega/source-checkpoints/checkpoint-000001.json",
-  "checkpoint_closure_sha256": "7b14b8e0041a2ddb72c745cd943cdd1d8e6ff8119073dd50b1cfe5e343f8d721",
-  "checkpoint_content_set_sha256": "433777b5ff8ded192ded054697da166bb028faec82218c6039ce4b0b0ad52e4d",
+  "checkpoint_closure_sha256": "55de98d1aa119aeb437e97a01c23082f6135cfcc64b30b9186e353627e36c2f9",
+  "checkpoint_content_set_sha256": "33917c7121689f16710424c431e2f668e01c3541af37bac759292548589f52c2",
   "feature_catalog": "omega.omega-self-feature-catalog.v2",
   "census_schema": "omega.omega-source-feature-census.v2",
   "configuration_policy": {
@@ -340,7 +340,7 @@
       "unit": "bytes",
       "scope": "per_compilation",
       "comparison": "lte",
-      "observed_max": 178429,
+      "observed_max": 178826,
       "limit": 262144
     },
     {
@@ -524,5 +524,5 @@
       "missing_evidence": "typed census facts beyond syntax-spelled data where, domain, generic, and inline aggregate forms"
     }
   ],
-  "profile_sha256": "5cdd80815d9e038b6b3f2a9b659b9e4e9f3342d6c6ec818c7bc3c42165e1535b"
+  "profile_sha256": "596e58b35141cdcb5e7eafe2b6b993ae5475ad238e5524441ed14fc45e4380ab"
 }
