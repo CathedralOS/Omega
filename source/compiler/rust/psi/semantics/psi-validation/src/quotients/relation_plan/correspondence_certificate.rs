@@ -170,6 +170,15 @@ pub(super) fn derive_direct_lift_precondition_implication(
                         .map(|element| (element.spelling.clone(), element.landing)),
                 )),
                 DirectLiftArgumentSource::Literal(
+                    super::runtime_correspondence::ClosedLiftLiteral::NestedIntegerArray {
+                        rows,
+                        ..
+                    },
+                ) => representative_values.push(ProofValueSubstitution::nested_integer_array(
+                    position.representative_parameter,
+                    rows,
+                )),
+                DirectLiftArgumentSource::Literal(
                     super::runtime_correspondence::ClosedLiftLiteral::FloatArray {
                         elements, ..
                     },

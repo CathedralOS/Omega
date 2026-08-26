@@ -229,6 +229,21 @@ fn fixed_integer_array_type(
         })
 }
 
+fn fixed_nested_integer_array_type(
+    program: &mut TypedTrees,
+    primitive: &'static str,
+    rows: usize,
+    columns: usize,
+) -> TypeReferenceHandle {
+    let row_type = fixed_integer_array_type(program, primitive, columns);
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: row_type,
+            length: FixedArrayLength::Literal(rows),
+        })
+}
+
 fn fixed_float_array_type(
     program: &mut TypedTrees,
     primitive: &'static str,
@@ -315,6 +330,20 @@ fn integer_array_literal(
     program
         .expression_table
         .insert(ExpressionNode::ArrayLiteral(elements))
+}
+
+fn nested_integer_array_literal(
+    program: &mut TypedTrees,
+    rows: Vec<Vec<IntegerLiteral>>,
+) -> ExpressionHandle {
+    let rows = rows
+        .into_iter()
+        .map(|row| integer_array_literal(program, row))
+        .collect::<Vec<_>>();
+    let rows = program.expression_table.insert_expression_handles(rows);
+    program
+        .expression_table
+        .insert(ExpressionNode::ArrayLiteral(rows))
 }
 
 fn float_array_literal(
@@ -2224,6 +2253,92 @@ fn proof_fact_literal_substitution_retains_value_landing_and_recursive_fact_shap
         context(&no_values),
     ));
 
+    let nested_integer_array_parameter = symbol(962);
+    let nested_integer_array_name =
+        named_argument(&mut program, "offset_rows", nested_integer_array_parameter);
+    let landed_integer = |value| IntegerLiteral::from_value(value).with_landing(i16_landing);
+    let exact_nested_integer_array_literal = nested_integer_array_literal(
+        &mut program,
+        vec![
+            vec![landed_integer(-1), landed_integer(7)],
+            vec![landed_integer(8), landed_integer(9)],
+        ],
+    );
+    let row_boundary_drifted_integer_array_literal = nested_integer_array_literal(
+        &mut program,
+        vec![
+            vec![landed_integer(-1)],
+            vec![landed_integer(7), landed_integer(8), landed_integer(9)],
+        ],
+    );
+    let flattened_integer_array_literal = integer_array_literal(
+        &mut program,
+        [
+            landed_integer(-1),
+            landed_integer(7),
+            landed_integer(8),
+            landed_integer(9),
+        ],
+    );
+    let wrapping_nested_integer_array_literal = nested_integer_array_literal(
+        &mut program,
+        vec![
+            vec![
+                IntegerLiteral::from_value(-1).with_landing(IntegerLanding {
+                    landed_type: LandedIntegerType::I16,
+                    domain: ArithmeticDomain::Wrapping,
+                }),
+                landed_integer(7),
+            ],
+            vec![landed_integer(8), landed_integer(9)],
+        ],
+    );
+    let nested_integer_array_value = vec![ProofValueSubstitution::nested_integer_array(
+        nested_integer_array_parameter,
+        &[
+            Arc::from(vec![
+                super::runtime_correspondence::ClosedIntegerArrayElement {
+                    spelling: "-1".to_owned(),
+                    landing: i16_landing,
+                },
+                super::runtime_correspondence::ClosedIntegerArrayElement {
+                    spelling: "7".to_owned(),
+                    landing: i16_landing,
+                },
+            ]),
+            Arc::from(vec![
+                super::runtime_correspondence::ClosedIntegerArrayElement {
+                    spelling: "8".to_owned(),
+                    landing: i16_landing,
+                },
+                super::runtime_correspondence::ClosedIntegerArrayElement {
+                    spelling: "9".to_owned(),
+                    landing: i16_landing,
+                },
+            ]),
+        ],
+    )];
+    assert!(proof_facts_match(
+        &program,
+        &ProofFact::Expression(nested_integer_array_name),
+        &ProofFact::Expression(exact_nested_integer_array_literal),
+        context(&nested_integer_array_value),
+        context(&no_values),
+    ));
+    for drifted in [
+        row_boundary_drifted_integer_array_literal,
+        flattened_integer_array_literal,
+        wrapping_nested_integer_array_literal,
+    ] {
+        assert!(!proof_facts_match(
+            &program,
+            &ProofFact::Expression(nested_integer_array_name),
+            &ProofFact::Expression(drifted),
+            context(&nested_integer_array_value),
+            context(&no_values),
+        ));
+    }
+
     let float_array_parameter = symbol(959);
     let float_array_name = named_argument(&mut program, "scales", float_array_parameter);
     let exact_float_array_literal = float_array_literal(
@@ -3353,6 +3468,121 @@ fn direct_lift_runtime_accepts_exact_integer_array_literals() {
 }
 
 #[test]
+fn direct_lift_runtime_accepts_exact_nested_integer_array_literals() {
+    use super::runtime_correspondence::ClosedIntegerArrayElement;
+
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(
+        &mut program,
+        symbol(990),
+        "NestedIntegerArrayLiteralQ",
+        symbol(991),
+        "NestedIntegerArrayLiteralR",
+    );
+    let carrier = carrier_type(&mut program);
+    let fixed_integers = fixed_nested_integer_array_type(&mut program, "i8", 2, 2);
+    let i8_landing = IntegerLanding {
+        landed_type: LandedIntegerType::I8,
+        domain: ArithmeticDomain::Exact,
+    };
+    let literal = nested_integer_array_literal(
+        &mut program,
+        vec![
+            vec![
+                IntegerLiteral::from_value(-1),
+                IntegerLiteral::from_value(127).with_landing(i8_landing),
+            ],
+            vec![IntegerLiteral::from_value(3), IntegerLiteral::from_value(2)],
+        ],
+    );
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([literal]);
+    let call = call_with_arguments(arguments);
+    let state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    let request = push_representative(&mut program, &[(fixed_integers, false, false)], carrier);
+
+    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
+        .expect("every integer-matrix leaf follows the exact scalar landing rule");
+    assert_eq!(
+        plan.input_relations,
+        [InputRelation::ExactEquality(fixed_integers)]
+    );
+    let runtime = plan
+        .direct_lift_correspondence
+        .expect("nested integer-array literal runtime correspondence");
+    assert_eq!(
+        runtime.positions,
+        [super::DirectLiftRuntimePosition {
+            source: super::DirectLiftArgumentSource::Literal(
+                super::runtime_correspondence::ClosedLiftLiteral::NestedIntegerArray {
+                    rows: Arc::from(vec![
+                        Arc::from(vec![
+                            ClosedIntegerArrayElement {
+                                spelling: "-1".to_owned(),
+                                landing: i8_landing,
+                            },
+                            ClosedIntegerArrayElement {
+                                spelling: "127".to_owned(),
+                                landing: i8_landing,
+                            },
+                        ]),
+                        Arc::from(vec![
+                            ClosedIntegerArrayElement {
+                                spelling: "3".to_owned(),
+                                landing: i8_landing,
+                            },
+                            ClosedIntegerArrayElement {
+                                spelling: "2".to_owned(),
+                                landing: i8_landing,
+                            },
+                        ]),
+                    ]),
+                    target_type: program.normalized_type_identity(fixed_integers),
+                },
+            ),
+            representative_parameter: symbol(100),
+        }]
+    );
+    let mut evidence_drift = runtime.clone();
+    evidence_drift.positions[0].source = super::DirectLiftArgumentSource::Literal(
+        super::runtime_correspondence::ClosedLiftLiteral::NestedIntegerArray {
+            rows: Arc::from(vec![
+                Arc::from(vec![ClosedIntegerArrayElement {
+                    spelling: "-1".to_owned(),
+                    landing: i8_landing,
+                }]),
+                Arc::from(vec![
+                    ClosedIntegerArrayElement {
+                        spelling: "127".to_owned(),
+                        landing: i8_landing,
+                    },
+                    ClosedIntegerArrayElement {
+                        spelling: "3".to_owned(),
+                        landing: i8_landing,
+                    },
+                    ClosedIntegerArrayElement {
+                        spelling: "2".to_owned(),
+                        landing: IntegerLanding {
+                            landed_type: LandedIntegerType::I8,
+                            domain: ArithmeticDomain::Wrapping,
+                        },
+                    },
+                ]),
+            ]),
+            target_type: program.normalized_type_identity(fixed_integers),
+        },
+    );
+    assert_ne!(
+        runtime, evidence_drift,
+        "row boundaries and integer landing domains remain evidence identity"
+    );
+}
+
+#[test]
 fn direct_lift_runtime_accepts_exact_float_array_literals() {
     use super::runtime_correspondence::ClosedFloatArrayElement;
 
@@ -3893,12 +4123,6 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
                     name: Identifier::generated_static("N"),
                 },
             });
-    let nested_integer_type = program
-        .type_reference_table
-        .insert(TypeReferenceNode::FixedArray {
-            element_type: one_i8_array,
-            length: FixedArrayLength::Literal(1),
-        });
     let nested_integer_array = {
         let row = integer_array_literal(&mut program, [IntegerLiteral::from_value(1)]);
         let rows = program.expression_table.insert_expression_handles([row]);
@@ -3949,7 +4173,6 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
         ),
         (35, exact_nested_boolean_array, unresolved_inner_width_type),
         (36, exact_nested_boolean_array, unresolved_outer_width_type),
-        (37, nested_integer_array, nested_integer_type),
         (
             38,
             computed_nested_boolean_array,
@@ -4100,6 +4323,136 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
         (50, exact_nested_byte_array, unresolved_outer_byte_type),
         (51, deeper_nested_byte_array, deeper_nested_byte_type),
         (52, integer_array, one_by_one_nested_byte_type),
+    ] {
+        assert_eq!(
+            super::closed_lift_literal_for_representative(&program, expression, target, position),
+            Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
+        );
+    }
+
+    let one_by_one_nested_i8_type = fixed_nested_integer_array_type(&mut program, "i8", 1, 1);
+    let two_by_one_nested_i8_type = fixed_nested_integer_array_type(&mut program, "i8", 2, 1);
+    let out_of_range_nested_integer_array =
+        nested_integer_array_literal(&mut program, vec![vec![IntegerLiteral::from_value(128)]]);
+    let mismatched_nested_integer_array = nested_integer_array_literal(
+        &mut program,
+        vec![vec![IntegerLiteral::from_value(1).with_landing(
+            IntegerLanding {
+                landed_type: LandedIntegerType::U16,
+                domain: ArithmeticDomain::Exact,
+            },
+        )]],
+    );
+    let wrapping_nested_integer_array = nested_integer_array_literal(
+        &mut program,
+        vec![vec![IntegerLiteral::from_value(1).with_landing(
+            IntegerLanding {
+                landed_type: LandedIntegerType::I8,
+                domain: ArithmeticDomain::Wrapping,
+            },
+        )]],
+    );
+    let ragged_nested_integer_array = nested_integer_array_literal(
+        &mut program,
+        vec![
+            vec![IntegerLiteral::from_value(1)],
+            vec![IntegerLiteral::from_value(2), IntegerLiteral::from_value(3)],
+        ],
+    );
+    let nested_float_array = {
+        let row = float_array_literal(
+            &mut program,
+            [FloatLiteral::parse("1.0f32").expect("format-landed f32 literal")],
+        );
+        let rows = program.expression_table.insert_expression_handles([row]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(rows))
+    };
+    let constrained_i8 = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Constrained {
+            base_type: i8_type,
+            constraints: HandleSpan::empty(),
+        });
+    let constrained_i8_row = program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: constrained_i8,
+            length: FixedArrayLength::Literal(1),
+        });
+    let constrained_nested_i8_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: constrained_i8_row,
+                length: FixedArrayLength::Literal(1),
+            });
+    let unresolved_i8_row = program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: i8_type,
+            length: FixedArrayLength::ConstParameter {
+                symbol: symbol(992),
+                name: Identifier::generated_static("M"),
+            },
+        });
+    let unresolved_inner_i8_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: unresolved_i8_row,
+                length: FixedArrayLength::Literal(1),
+            });
+    let exact_i8_row = fixed_integer_array_type(&mut program, "i8", 1);
+    let unresolved_outer_i8_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: exact_i8_row,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: symbol(993),
+                    name: Identifier::generated_static("N"),
+                },
+            });
+    let deeper_nested_integer_type = {
+        let matrix = fixed_nested_integer_array_type(&mut program, "i8", 1, 1);
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: matrix,
+                length: FixedArrayLength::Literal(1),
+            })
+    };
+    let deeper_nested_integer_array = {
+        let matrix =
+            nested_integer_array_literal(&mut program, vec![vec![IntegerLiteral::from_value(1)]]);
+        let matrices = program.expression_table.insert_expression_handles([matrix]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(matrices))
+    };
+    for (position, expression, target) in [
+        (
+            53,
+            out_of_range_nested_integer_array,
+            one_by_one_nested_i8_type,
+        ),
+        (
+            54,
+            mismatched_nested_integer_array,
+            one_by_one_nested_i8_type,
+        ),
+        (55, wrapping_nested_integer_array, one_by_one_nested_i8_type),
+        (56, ragged_nested_integer_array, two_by_one_nested_i8_type),
+        (57, computed_nested_byte_array, one_by_one_nested_i8_type),
+        (58, nested_float_array, one_by_one_nested_i8_type),
+        (59, nested_boolean_array, one_by_one_nested_i8_type),
+        (60, nested_integer_array, constrained_nested_i8_type),
+        (61, nested_integer_array, unresolved_inner_i8_type),
+        (62, nested_integer_array, unresolved_outer_i8_type),
+        (63, deeper_nested_integer_array, deeper_nested_integer_type),
+        (64, integer_array, one_by_one_nested_i8_type),
     ] {
         assert_eq!(
             super::closed_lift_literal_for_representative(&program, expression, target, position),

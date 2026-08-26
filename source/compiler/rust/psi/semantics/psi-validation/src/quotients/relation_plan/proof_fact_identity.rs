@@ -147,6 +147,34 @@ impl ProofValueSubstitution {
         }
     }
 
+    pub(super) fn nested_integer_array(
+        symbol: SymbolHandle,
+        rows: &[std::sync::Arc<[super::runtime_correspondence::ClosedIntegerArrayElement]>],
+    ) -> Self {
+        Self {
+            symbol,
+            rendered: format!(
+                "[{}]",
+                rows.iter()
+                    .map(|row| format!(
+                        "[{}]",
+                        row.iter()
+                            .map(|element| element.spelling.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            trace: array_trace(rows.iter().map(|row| {
+                array_trace(
+                    row.iter()
+                        .map(|element| integer_trace(&element.spelling, element.landing)),
+                )
+            })),
+        }
+    }
+
     pub(super) fn float_array(
         symbol: SymbolHandle,
         elements: impl IntoIterator<Item = (String, psi_numerics::literals::FloatFormat)>,

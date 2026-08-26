@@ -8154,7 +8154,13 @@ Remaining N6/N8 work:
   likewise feed only its exact literal-width `[[u8; M]; N]` target. Every row
   independently uses the canonical fixed-byte rule: exactly `M` unsuffixed
   decimal `u8` leaves with no coercion or computation. Ordered bytes, row
-  boundaries, and normalized outer array identity remain evidence.
+  boundaries, and normalized outer array identity remain evidence. A direct
+  depth-two fixed integer array may likewise feed only its exact literal-width
+  `[[I; M]; N]` target for a direct primitive integer `I` other than `u8`.
+  Every leaf independently follows the scalar landing and range rule. Ordered
+  spelling/landing/domain evidence, row boundaries, and normalized outer array
+  identity remain evidence; all `u8` matrices stay exclusively in the
+  canonical fixed-byte lane.
   Exact
   structural `Q => P` substitution now permits a
   dependent representative `P` fact to mention a literal-fed position only
@@ -8166,8 +8172,9 @@ Remaining N6/N8 work:
   undersized or otherwise constrained byte-string targets, raw strings not
   already context-landed for a bare fixed array, noncanonical or heterogeneous
   byte/Boolean arrays, mismatched or out-of-range integer arrays, mismatched or
-  computed float arrays, noncanonical byte matrices, ragged or deeper arrays,
-  other numeric or data nested arrays, other aggregates, zero-value,
+  computed float arrays, noncanonical byte matrices, mismatched, out-of-range,
+  or computed integer matrices, ragged or deeper arrays, float or data nested
+  arrays, other aggregates, zero-value,
   casts, calls, computed expressions, constrained/generic targets, mutable or
   attached targets, and literal arguments to `define` remain fail-closed.
   `define` remains strictly position-preserving at exact public
