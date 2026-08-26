@@ -50,11 +50,13 @@ selected CFG, liveness, ranges, legality, or target register environment.
 
 ## Known Gaps
 
-The forwarded-value fixture intentionally rejects because its ABI entry view
-and fixed return view differ on both admitted targets. A later exact named
-copy/split transformation must materialize that transition in selected IR,
-create fresh VRegs, retain complete provenance and fuel custody, and rerun
-liveness, ranges, and legality before this stage.
+The forwarded-value fixture still rejects when passed directly because its ABI
+entry view and fixed return view differ on both admitted targets. The exact
+named `LeafLocalBeforeFixedUseV1` transformation can now materialize that case
+in selected IR, create fresh VRegs, retain complete provenance and fuel custody,
+and rerun liveness, ranges, and legality. A separate post-copy custody carrier
+then invokes this same strict home algorithm; the direct carrier is not
+weakened and cannot interpret a transition as permission to switch homes.
 
 General active-interval allocation, splitting, calls and clobber crossings,
 ties, early clobbers, spills, rematerialization, stack slots, frames, and

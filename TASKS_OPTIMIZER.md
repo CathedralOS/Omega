@@ -107,7 +107,19 @@ These facts constrain the work below.
   view across mutually exclusive leaf VRegs on both x86-64 and AArch64; the
   forwarded-value fixture fails closed on its two explicit ABI-entry-to-return
   transitions. This carrier grants no split, copy, spill, frame, emission, or
-  publication authority. A separate `StagedOptimizedAssignedOperations` carrier
+  publication authority. The exact named `LeafLocalBeforeFixedUseV1` policy now
+  provides a separate bounded path for that forwarded fixture. It inserts two
+  explicit ISA-owned `CopyI64` operations immediately before the leaf returns,
+  creates fresh result VRegs, preserves original return provenance and logical
+  fuel, assigns zero logical fuel to the native copies, and independently
+  reconstructs the complete transformed selected CFG under a hard work budget.
+  A sealed validated-analysis boundary then recomputes liveness, ranges,
+  interference, architectural state, and allocation legality, requiring zero
+  remaining transitions. A separate post-copy home carrier produces
+  deterministic `RSI -> RAX` or `X1 -> X0` homes without weakening the direct
+  transition rejection. Every new carrier remains custody-only and has no
+  emission or publication path. A separate
+  `StagedOptimizedAssignedOperations` carrier
   retains the optimizer run, ledger, projection receipt, target plan, assigned
   plan, and independently reconstructed root/function provenance custody. This
   is not allocator validation: the lane still fails closed before machine emission,
@@ -841,6 +853,15 @@ dependency.
   checks exact interference and complete write footprints, and is independently
   replayed. It rejects unresolved transitions, empty intersections, and pressure
   requiring a spill; it does not authorize physical emission.
+  The exact named `LeafLocalBeforeFixedUseV1` artifact now closes the admitted
+  forwarded-value transition: it binds the selected `copy_i64` key in the target
+  environment identity, inserts one copy and fresh VReg per leaf fixed Use,
+  preserves source IDs and semantic fuel, independently reconstructs the whole
+  transformed plan, and records exact bounded work usage. A sealed interface
+  accepts only the original opaque selection or this opaque validated
+  transformation for complete analysis replay. Fresh liveness, ranges, and
+  legality eliminate both transition rows before the unchanged strict home
+  assigner runs. The unmaterialized path still rejects.
 
   Remaining to close: live-interval construction, loop weights, calls and call
   crossings, crashes, cleanup and suspension frontiers, disconnected
@@ -865,11 +886,11 @@ dependency.
   transition. This closes only the transition-free/spill-free base case, not
   general linear scan.
 
-  Sequencing: add an exact named copy/split transformation for the forwarded
-  fixture, including the copy constraint in selected/environment identity,
-  fresh split-result VRegs, exact provenance/fuel custody, independent
-  reconstruction, and complete liveness/range/legality replay. Then extend the
-  allocator to active-interval expiration and real competing live ranges.
+  Sequencing: the exact named forwarded-value copy/split base case, copy-key
+  identity, fresh split-result VRegs, provenance/fuel custody, independent
+  reconstruction, complete reanalysis, and post-copy homes now exist. Next
+  extend the allocator to active-interval expiration and real competing live
+  ranges.
   Provider/runtime reservation requirements must either join the active profile
   or fail closed.
 
@@ -879,6 +900,10 @@ dependency.
   Acceptance: split copies have complete provenance and are visible to later
   coalescing/peephole passes. Address-stable values are not illegally split
   across changing homes.
+
+  Current boundary: `LeafLocalBeforeFixedUseV1` is only the exact scalar-u64
+  entry-to-leaf-return base case. It does not close general fixed-use, call,
+  pressure, rematerialization, or address-stability splitting.
 
 - **OPT-SPILLS-RELOADS.** Insert typed spills/reloads and rematerialize cheap
   constants/addresses.

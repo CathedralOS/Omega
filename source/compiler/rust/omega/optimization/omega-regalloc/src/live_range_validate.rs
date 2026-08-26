@@ -1,9 +1,5 @@
 use std::collections::BTreeSet;
 
-use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
-use omega_terminal_selected_instructions::TerminalSelectedBlockId;
-use omega_terminal_target_operations_to_selected_instructions::ValidatedTerminalSelectedInstructions;
-
 use crate::{
     TerminalArchitecturalUnitAction, TerminalArchitecturalUnitActionKind,
     TerminalArchitecturalUnitLiveRange, TerminalBlockPointDomain, TerminalFunctionLiveRanges,
@@ -14,24 +10,26 @@ use crate::{
     ValidatedTerminalLiveRanges, ValidatedTerminalLiveness, terminal_live_range_identity,
     validate_terminal_liveness,
 };
+use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
+use omega_terminal_selected_instructions::TerminalSelectedBlockId;
 
 pub fn validate_terminal_live_ranges(
-    selected: &ValidatedTerminalSelectedInstructions,
+    selected: &impl crate::ValidatedTerminalSelectedAnalysis,
     liveness: &ValidatedTerminalLiveness,
     plan: TerminalLiveRangePlan,
 ) -> Result<ValidatedTerminalLiveRanges, TerminalLiveRangeError> {
     revalidate_liveness_custody(selected, liveness)?;
-    if plan.selected != selected.receipt().identity()
+    if plan.selected != selected.selected_identity()
         || plan.liveness != liveness.receipt().identity()
-        || plan.optimization_unit != selected.receipt().optimization_unit()
-        || plan.fuel_schedule != selected.receipt().fuel_schedule()
-        || plan.target != selected.plan().target
-        || plan.functions.len() != selected.plan().functions.len()
+        || plan.optimization_unit != selected.optimization_unit_identity()
+        || plan.fuel_schedule != selected.fuel_schedule_identity()
+        || plan.target != selected.selected_plan().target
+        || plan.functions.len() != selected.selected_plan().functions.len()
     {
         return Err(TerminalLiveRangeError::RootMismatch);
     }
     for (function_index, ((selected_function, live_function), actual)) in selected
-        .plan()
+        .selected_plan()
         .functions
         .iter()
         .zip(&liveness.plan().functions)
@@ -163,7 +161,7 @@ pub fn validate_terminal_live_ranges(
 }
 
 pub(crate) fn revalidate_liveness_custody(
-    selected: &ValidatedTerminalSelectedInstructions,
+    selected: &impl crate::ValidatedTerminalSelectedAnalysis,
     liveness: &ValidatedTerminalLiveness,
 ) -> Result<(), TerminalLiveRangeError> {
     let replayed = validate_terminal_liveness(selected, liveness.plan().clone())

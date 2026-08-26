@@ -21,10 +21,12 @@ use psi_proof_admission::AdmissionProfile;
 
 mod allocation_legality;
 mod assignment;
+mod fixed_view_copies;
 mod live_ranges;
 mod liveness;
 mod register_environment;
 mod register_homes;
+mod selected_reanalysis;
 mod selection;
 
 pub use allocation_legality::{
@@ -37,6 +39,11 @@ pub use assignment::{
     StagedOptimizedAssignedOperations, StagedOptimizedAssignmentCustodyReceipt,
     stage_optimized_assignment, stage_optimized_assignment_with_provider_executions,
     validate_optimized_assignment_custody,
+};
+pub use fixed_view_copies::{
+    OptimizedFixedViewCopyCustodyError, StagedOptimizedFixedViewCopies,
+    StagedOptimizedFixedViewCopyCustodyReceipt, stage_optimized_fixed_view_copies,
+    validate_optimized_fixed_view_copy_custody,
 };
 pub use live_ranges::{
     OptimizedLiveRangeCustodyError, StagedOptimizedLiveRangeCustodyReceipt,
@@ -52,9 +59,17 @@ pub use register_environment::{
     validate_target_register_environment_with_reservations,
 };
 pub use register_homes::{
-    OptimizedRegisterHomeCustodyError, StagedOptimizedRegisterHomeCustodyReceipt,
-    StagedOptimizedRegisterHomes, stage_optimized_register_homes,
+    OptimizedPostCopyRegisterHomeCustodyError, OptimizedRegisterHomeCustodyError,
+    StagedOptimizedPostCopyRegisterHomeCustodyReceipt, StagedOptimizedRegisterHomeCustodyReceipt,
+    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
+    stage_optimized_register_homes, stage_optimized_register_homes_after_fixed_view_copies,
+    validate_optimized_register_home_after_fixed_view_copy_custody,
     validate_optimized_register_home_custody,
+};
+pub use selected_reanalysis::{
+    OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,
+    StagedOptimizedSelectedReanalysisCustodyReceipt, stage_optimized_selected_reanalysis,
+    validate_optimized_selected_reanalysis_custody,
 };
 pub use selection::{
     OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
@@ -169,13 +184,15 @@ mod tests {
     use omega_psi_optimizer::{OptimizationRunError, RuleRegistryError};
     use omega_regalloc::{
         TerminalAllocationLegalityError, TerminalArchitecturalUnitActionKind,
-        TerminalLiveRangeError, TerminalLiveRangeFragment, TerminalLiveRangePoint,
-        TerminalLivenessError, TerminalRegisterHomeError, TerminalVirtualFixedConstraintSite,
-        TerminalVirtualInterference, analyze_terminal_live_ranges, analyze_terminal_liveness,
-        terminal_allocation_legality_identity, terminal_live_range_identity,
-        terminal_liveness_identity, terminal_register_home_identity,
-        validate_terminal_allocation_legality, validate_terminal_live_ranges,
-        validate_terminal_liveness, validate_terminal_register_homes,
+        TerminalFixedViewCopyError, TerminalFixedViewCopyPolicy, TerminalLiveRangeError,
+        TerminalLiveRangeFragment, TerminalLiveRangePoint, TerminalLivenessError,
+        TerminalRegisterHomeError, TerminalVirtualFixedConstraintSite, TerminalVirtualInterference,
+        analyze_terminal_live_ranges, analyze_terminal_liveness,
+        terminal_allocation_legality_identity, terminal_fixed_view_copy_identity,
+        terminal_live_range_identity, terminal_liveness_identity, terminal_register_home_identity,
+        validate_terminal_allocation_legality, validate_terminal_fixed_view_copies,
+        validate_terminal_live_ranges, validate_terminal_liveness,
+        validate_terminal_register_homes,
     };
     use omega_register_model::{
         RegisterOperandAccess, RegisterReservationProfile, RegisterUnitId,
@@ -2022,6 +2039,288 @@ mod tests {
                 TerminalRegisterHomeError::UnresolvedEntryTransitions { count: 2, .. }
             ))
         ));
+    }
+
+    #[test]
+    fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
+        for (target, entry_name, result_name) in [
+            (NativeTarget::linux_x64(), "rsi", "rax"),
+            (NativeTarget::linux_arm64(), "x1", "x0"),
+        ] {
+            let source = stage_optimized_allocation_legality(
+                stage_optimized_live_ranges(
+                    stage_optimized_liveness(staged_forwarded_conditional(target)).unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let source_selected = source
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .selected()
+                .plan()
+                .clone();
+            let materialized = stage_optimized_fixed_view_copies(
+                source,
+                TerminalFixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
+                budget(),
+            )
+            .unwrap();
+            let copy_plan = materialized.copies().plan();
+            assert_eq!(copy_plan.copies.len(), 2);
+            assert_eq!(materialized.custody().copy_count(), 2);
+            assert_eq!(
+                copy_plan.usage,
+                omega_optimization_core::OptimizationWorkUsage {
+                    rule_evaluations: 1,
+                    candidates: 2,
+                    validation_steps: 2,
+                    commits: 2,
+                    iterations: 1,
+                }
+            );
+            assert_ne!(
+                materialized.custody().source_selected(),
+                materialized.custody().transformed_selected()
+            );
+            assert_eq!(
+                terminal_fixed_view_copy_identity(copy_plan),
+                materialized.custody().transformation()
+            );
+            let transformed = &copy_plan.transformed;
+            assert_eq!(transformed.functions[0].virtual_registers.len(), 4);
+            let environment = materialized
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment();
+            let entry_view = environment
+                .physical()
+                .model()
+                .view_named(entry_name)
+                .unwrap()
+                .id;
+            let result_view = environment
+                .physical()
+                .model()
+                .view_named(result_name)
+                .unwrap()
+                .id;
+            for (index, copy) in copy_plan.copies.iter().enumerate() {
+                assert_eq!(copy.source_virtual_register, TerminalVirtualRegisterId(1));
+                assert_eq!(copy.result_virtual_register.0, 2 + index as u32);
+                assert_eq!(copy.copy_instruction.0, 4 + index as u32);
+                assert_eq!(copy.from_view, entry_view);
+                assert_eq!(copy.to_view, result_view);
+                assert_eq!(copy.copy_constraint, environment.selected_keys().copy_i64);
+                let block = &transformed.functions[0].blocks[index + 1];
+                let instruction = block.instructions.last().unwrap();
+                assert_eq!(instruction.id, copy.copy_instruction);
+                assert_eq!(instruction.kind, TerminalSelectedInstructionKind::CopyI64);
+                assert_eq!(
+                    instruction.operands[0].virtual_register,
+                    copy.source_virtual_register
+                );
+                assert_eq!(
+                    instruction.operands[1].virtual_register,
+                    copy.result_virtual_register
+                );
+                assert!(instruction.provenance.operations.is_empty());
+                assert_eq!(instruction.provenance.values, vec![copy.source_value]);
+                assert!(instruction.provenance.edges.is_empty());
+                assert!(instruction.provenance.obligations.is_empty());
+                assert!(instruction.provenance.fuel.is_empty());
+                let TerminalSelectedTerminator::Return {
+                    instruction: source_return,
+                    ..
+                } = &source_selected.functions[0].blocks[index + 1].terminator
+                else {
+                    unreachable!()
+                };
+                let TerminalSelectedTerminator::Return {
+                    instruction: transformed_return,
+                    ..
+                } = &block.terminator
+                else {
+                    unreachable!()
+                };
+                assert_eq!(source_return.id, transformed_return.id);
+                assert_eq!(source_return.provenance, transformed_return.provenance);
+                assert_eq!(
+                    transformed_return.operands[0].virtual_register,
+                    copy.result_virtual_register
+                );
+            }
+
+            let mut corrupted = materialized.copies().plan().clone();
+            corrupted.copies[0].from_view = result_view;
+            assert!(matches!(
+                validate_terminal_fixed_view_copies(
+                    materialized
+                        .source_legality_stage()
+                        .live_range_stage()
+                        .liveness_stage()
+                        .selected_stage()
+                        .selected(),
+                    materialized
+                        .source_legality_stage()
+                        .live_range_stage()
+                        .ranges(),
+                    materialized.source_legality_stage().legality(),
+                    environment.identity(),
+                    environment.physical(),
+                    environment.constraints(),
+                    environment.reservations(),
+                    environment.allocation_constraint_keys(),
+                    corrupted,
+                ),
+                Err(TerminalFixedViewCopyError::CopyMismatch { index: 0 })
+            ));
+            let mut corrupted = materialized.copies().plan().clone();
+            corrupted.transformed.functions[0].blocks[1].instructions[0]
+                .provenance
+                .values
+                .clear();
+            assert!(matches!(
+                validate_terminal_fixed_view_copies(
+                    materialized
+                        .source_legality_stage()
+                        .live_range_stage()
+                        .liveness_stage()
+                        .selected_stage()
+                        .selected(),
+                    materialized
+                        .source_legality_stage()
+                        .live_range_stage()
+                        .ranges(),
+                    materialized.source_legality_stage().legality(),
+                    environment.identity(),
+                    environment.physical(),
+                    environment.constraints(),
+                    environment.reservations(),
+                    environment.allocation_constraint_keys(),
+                    corrupted,
+                ),
+                Err(TerminalFixedViewCopyError::TransformedPlanMismatch)
+            ));
+            let mut corrupted = materialized.copies().plan().clone();
+            corrupted.usage.commits += 1;
+            assert!(matches!(
+                validate_terminal_fixed_view_copies(
+                    materialized
+                        .source_legality_stage()
+                        .live_range_stage()
+                        .liveness_stage()
+                        .selected_stage()
+                        .selected(),
+                    materialized
+                        .source_legality_stage()
+                        .live_range_stage()
+                        .ranges(),
+                    materialized.source_legality_stage().legality(),
+                    environment.identity(),
+                    environment.physical(),
+                    environment.constraints(),
+                    environment.reservations(),
+                    environment.allocation_constraint_keys(),
+                    corrupted,
+                ),
+                Err(TerminalFixedViewCopyError::ReceiptMismatch)
+            ));
+            assert!(matches!(
+                validate_terminal_live_ranges(
+                    materialized.copies(),
+                    materialized
+                        .source_legality_stage()
+                        .live_range_stage()
+                        .liveness_stage()
+                        .liveness(),
+                    materialized
+                        .source_legality_stage()
+                        .live_range_stage()
+                        .ranges()
+                        .plan()
+                        .clone(),
+                ),
+                Err(TerminalLiveRangeError::LivenessRevalidation(
+                    TerminalLivenessError::RootMismatch
+                ))
+            ));
+
+            let reanalyzed = stage_optimized_selected_reanalysis(materialized).unwrap();
+            assert_eq!(reanalyzed.custody().entry_transition_count(), 0);
+            assert_eq!(reanalyzed.legality().receipt().entry_transition_count(), 0);
+            let homes = stage_optimized_register_homes_after_fixed_view_copies(reanalyzed).unwrap();
+            let assignments = &homes.homes().plan().functions[0].assignments;
+            assert_eq!(assignments.len(), 4);
+            assert_eq!(assignments[1].view, entry_view);
+            assert_eq!(assignments[2].view, result_view);
+            assert_eq!(assignments[3].view, result_view);
+            assert_eq!(homes.custody().assignment_count(), 4);
+
+            let repeated = stage_optimized_register_homes_after_fixed_view_copies(
+                stage_optimized_selected_reanalysis(
+                    stage_optimized_fixed_view_copies(
+                        stage_optimized_allocation_legality(
+                            stage_optimized_live_ranges(
+                                stage_optimized_liveness(staged_forwarded_conditional(target))
+                                    .unwrap(),
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap(),
+                        TerminalFixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
+                        budget(),
+                    )
+                    .unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(homes.homes(), repeated.homes());
+            assert_eq!(homes.custody(), repeated.custody());
+        }
+
+        let constrained = OptimizationWorkBudget::new(128, 128, 128, 1, 16).unwrap();
+        let source = stage_optimized_allocation_legality(
+            stage_optimized_live_ranges(
+                stage_optimized_liveness(staged_forwarded_conditional(NativeTarget::linux_x64()))
+                    .unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(matches!(
+            stage_optimized_fixed_view_copies(
+                source,
+                TerminalFixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
+                constrained,
+            ),
+            Err(OptimizedFixedViewCopyCustodyError::Materialization(
+                TerminalFixedViewCopyError::BudgetExceeded { .. }
+            ))
+        ));
+
+        let constant = stage_optimized_fixed_view_copies(
+            stage_optimized_allocation_legality(
+                stage_optimized_live_ranges(
+                    stage_optimized_liveness(staged_conditional(NativeTarget::linux_x64()))
+                        .unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap(),
+            TerminalFixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
+            budget(),
+        )
+        .unwrap();
+        assert!(constant.copies().plan().copies.is_empty());
+        assert_eq!(
+            constant.copies().plan().source_selected,
+            constant.copies().receipt().transformed_selected()
+        );
     }
 
     #[test]
