@@ -9,4 +9,4 @@ name = "omega_regalloc"
 path = "src/lib.rs"
 
 [dependencies]
-omega-target = { path = "../../foundation/omega-target" }
+omega-register-model = { path = "../../representations/omega-register-model" }

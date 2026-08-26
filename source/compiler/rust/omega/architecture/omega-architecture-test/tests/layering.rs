@@ -868,6 +868,25 @@ fn psi_reference_execution_ownership_and_terminal_lane_are_enforced() {
 fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
     let root = workspace_root();
     let isa_root = root.join("source/compiler/rust/omega/backend/instruction_set_architectures");
+    let model_source =
+        root.join("source/compiler/rust/omega/representations/omega-register-model/src/lib.rs");
+    assert!(
+        model_source.is_file(),
+        "the canonical register-model vocabulary must remain representation-owned"
+    );
+    let facade_source =
+        root.join("source/compiler/rust/omega/optimization/omega-regalloc/src/lib.rs");
+    let facade = std::fs::read_to_string(&facade_source)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", facade_source.display()));
+    assert!(
+        facade.contains("pub use omega_register_model::*;"),
+        "omega-regalloc must remain a compatibility facade until allocation lands"
+    );
+    assert!(
+        !facade.contains("pub struct PhysicalRegisterModel")
+            && !facade.contains("pub struct RegisterConstraintCatalog"),
+        "canonical register-model declarations must not drift back into omega-regalloc"
+    );
 
     for architecture in ["x86_64", "aarch64"] {
         assert!(
@@ -883,6 +902,17 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
                 .join(format!("omega-isa-{architecture}/src/register_model.rs"))
                 .exists(),
             "{architecture} register model must not drift back into the legacy broad ISA crate"
+        );
+        let manifest = isa_root.join(format!("omega-terminal-isa-{architecture}/Cargo.toml"));
+        let manifest_source = std::fs::read_to_string(&manifest)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest.display()));
+        assert!(
+            manifest_source.contains("omega-register-model"),
+            "clean Terminal {architecture} ISA must consume the representation-owned model"
+        );
+        assert!(
+            !manifest_source.contains("omega-regalloc"),
+            "clean Terminal {architecture} ISA must not depend upward on omega-regalloc"
         );
     }
 
@@ -903,5 +933,38 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
                 .any(|line| line.trim_start().starts_with(forbidden)),
             "optimizer orchestration must not depend directly on legacy {forbidden}"
         );
+    }
+
+    let graph = load_graph();
+    assert_eq!(
+        graph.get("omega-register-model").map(|krate| krate.layer),
+        Some("representations"),
+        "the canonical register model must stay in the representation layer"
+    );
+    assert!(
+        graph["omega-regalloc"]
+            .deps
+            .contains(&"omega-register-model".to_string()),
+        "the omega-regalloc facade must consume the canonical representation"
+    );
+
+    for root_name in graph
+        .keys()
+        .filter(|name| name.starts_with("omega-terminal-") || name.contains("selected-instruction"))
+    {
+        let mut pending = vec![root_name.clone()];
+        let mut visited = BTreeSet::new();
+        while let Some(name) = pending.pop() {
+            if !visited.insert(name.clone()) {
+                continue;
+            }
+            assert_ne!(
+                name, "omega-regalloc",
+                "selected/Terminal representation root {root_name} must not depend upward on omega-regalloc"
+            );
+            if let Some(krate) = graph.get(&name) {
+                pending.extend(krate.deps.iter().cloned());
+            }
+        }
     }
 }

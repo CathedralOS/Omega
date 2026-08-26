@@ -62,6 +62,7 @@ members = [
     "source/compiler/rust/omega/representations/omega-abstract-operations",
     "source/compiler/rust/omega/representations/omega-terminal-abstract-operations",
     "source/compiler/rust/omega/representations/omega-optimization-unit",
+    "source/compiler/rust/omega/representations/omega-register-model",
     "source/compiler/rust/omega/representations/omega-terminal-installation-evidence",
     "source/compiler/rust/omega/representations/omega-terminal-target-operations",
     "source/compiler/rust/omega/representations/omega-terminal-assigned-target-operations",

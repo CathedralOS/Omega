@@ -1,4 +1,4 @@
-use omega_regalloc::{
+use omega_register_model::{
     PhysicalRegisterModel, RegisterConstraintCatalog, RegisterConstraintKey,
     RegisterInstructionConstraint, RegisterModelValidationError, ValidatedPhysicalRegisterModel,
     ValidatedRegisterConstraintCatalog, validate_physical_register_model,
@@ -119,7 +119,7 @@ pub fn validate_target_register_environment(
 
 #[cfg(test)]
 mod tests {
-    use omega_regalloc::validate_physical_register_model;
+    use omega_register_model::validate_physical_register_model;
     use omega_terminal_isa_x86_64::{
         X86_64_COMPARE_I64_ZERO, x86_64_physical_register_model, x86_64_register_constraint_catalog,
     };
