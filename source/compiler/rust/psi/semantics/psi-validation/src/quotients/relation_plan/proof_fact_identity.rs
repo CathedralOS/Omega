@@ -83,6 +83,27 @@ impl ProofValueSubstitution {
         }
     }
 
+    pub(super) fn nested_fixed_byte_array(
+        symbol: SymbolHandle,
+        rows: &[std::sync::Arc<[u8]>],
+    ) -> Self {
+        Self {
+            symbol,
+            rendered: format!(
+                "[{}]",
+                rows.iter()
+                    .map(|row| format!("{:?}", row.as_ref()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            trace: array_trace(
+                rows.iter().map(|row| {
+                    array_trace(row.iter().map(|byte| format!("integer:{byte}:unlanded")))
+                }),
+            ),
+        }
+    }
+
     pub(super) fn nested_boolean_array(
         symbol: SymbolHandle,
         rows: &[std::sync::Arc<[bool]>],

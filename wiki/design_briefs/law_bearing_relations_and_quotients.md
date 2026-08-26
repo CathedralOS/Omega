@@ -818,7 +818,11 @@ row is a direct exact-width array literal and every leaf is a Boolean literal.
 Row boundaries, ordered values, and normalized outer array identity remain
 evidence. Proof-value array traces delimit every container, preventing a
 nested array from colliding with a flat array carrying the same ordered
-leaves. Exact
+leaves. An exact depth-two fixed-byte array may likewise feed only its exact
+literal-width `[[u8; M]; N]` target. Every row independently uses the canonical
+fixed-byte rule: exactly `M` unsuffixed decimal `u8` leaves with no coercion or
+computation. Ordered bytes, row boundaries, and normalized outer array identity
+remain evidence. Exact
 structural substitution can match a dependent representative `P` fact that
 mentions a literal-fed parameter only when public `Q` contains the identical
 post-substitution fact. Boolean value, integer spelling, landed type and
@@ -829,8 +833,8 @@ out-of-range integers, mismatched floats, mutable/non-byte, undersized, or
 otherwise constrained byte-string targets, raw strings not already
 context-landed for a bare fixed array, noncanonical or heterogeneous
 byte/Boolean arrays, mismatched or out-of-range integer arrays, mismatched or
-computed float arrays, ragged, deeper, numeric, or data nested arrays, other
-aggregates, zero-value,
+computed float arrays, noncanonical byte matrices, ragged or deeper arrays,
+other numeric or data nested arrays, other aggregates, zero-value,
 casts, calls, computations,
 constrained/generic
 targets, mutable/attached targets, and every literal supplied to `define`

@@ -177,6 +177,20 @@ fn fixed_byte_array_type(program: &mut TypedTrees, width: usize) -> TypeReferenc
         })
 }
 
+fn fixed_nested_byte_array_type(
+    program: &mut TypedTrees,
+    rows: usize,
+    columns: usize,
+) -> TypeReferenceHandle {
+    let row_type = fixed_byte_array_type(program, columns);
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: row_type,
+            length: FixedArrayLength::Literal(rows),
+        })
+}
+
 fn fixed_boolean_array_type(program: &mut TypedTrees, width: usize) -> TypeReferenceHandle {
     let element_type = primitive_type(program, "bool");
     program
@@ -243,6 +257,20 @@ fn canonical_byte_array_literal(program: &mut TypedTrees, bytes: &[u8]) -> Expre
     program
         .expression_table
         .insert(ExpressionNode::ArrayLiteral(elements))
+}
+
+fn nested_canonical_byte_array_literal(
+    program: &mut TypedTrees,
+    rows: &[&[u8]],
+) -> ExpressionHandle {
+    let rows = rows
+        .iter()
+        .map(|row| canonical_byte_array_literal(program, row))
+        .collect::<Vec<_>>();
+    let rows = program.expression_table.insert_expression_handles(rows);
+    program
+        .expression_table
+        .insert(ExpressionNode::ArrayLiteral(rows))
 }
 
 fn boolean_array_literal(program: &mut TypedTrees, values: &[bool]) -> ExpressionHandle {
@@ -2088,6 +2116,46 @@ fn proof_fact_literal_substitution_retains_value_landing_and_recursive_fact_shap
         context(&no_values),
     ));
 
+    let nested_byte_array_parameter = symbol(960);
+    let nested_byte_array_name =
+        named_argument(&mut program, "byte_rows", nested_byte_array_parameter);
+    let exact_nested_byte_array_literal =
+        nested_canonical_byte_array_literal(&mut program, &[&[1, 2], &[3, 4]]);
+    let row_boundary_drifted_byte_array_literal =
+        nested_canonical_byte_array_literal(&mut program, &[&[1], &[2, 3, 4]]);
+    let flattened_byte_array_literal = canonical_byte_array_literal(&mut program, &[1, 2, 3, 4]);
+    let nested_byte_array_value = vec![ProofValueSubstitution::nested_fixed_byte_array(
+        nested_byte_array_parameter,
+        &[Arc::from(&[1, 2][..]), Arc::from(&[3, 4][..])],
+    )];
+    assert!(proof_facts_match(
+        &program,
+        &ProofFact::Expression(nested_byte_array_name),
+        &ProofFact::Expression(exact_nested_byte_array_literal),
+        context(&nested_byte_array_value),
+        context(&no_values),
+    ));
+    assert!(
+        !proof_facts_match(
+            &program,
+            &ProofFact::Expression(nested_byte_array_name),
+            &ProofFact::Expression(row_boundary_drifted_byte_array_literal),
+            context(&nested_byte_array_value),
+            context(&no_values),
+        ),
+        "row-delimited traces retain byte-matrix boundaries"
+    );
+    assert!(
+        !proof_facts_match(
+            &program,
+            &ProofFact::Expression(nested_byte_array_name),
+            &ProofFact::Expression(flattened_byte_array_literal),
+            context(&nested_byte_array_value),
+            context(&no_values),
+        ),
+        "container-delimited traces distinguish nested and flat byte arrays"
+    );
+
     let boolean_array_parameter = symbol(957);
     let boolean_array_name = named_argument(&mut program, "flags", boolean_array_parameter);
     let exact_boolean_array_literal = boolean_array_literal(&mut program, &[true, false]);
@@ -2986,6 +3054,69 @@ fn direct_lift_runtime_accepts_exact_fixed_byte_array_literals() {
 }
 
 #[test]
+fn direct_lift_runtime_accepts_exact_nested_fixed_byte_array_literals() {
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(
+        &mut program,
+        symbol(986),
+        "NestedFixedByteArrayLiteralQ",
+        symbol(987),
+        "NestedFixedByteArrayLiteralR",
+    );
+    let carrier = carrier_type(&mut program);
+    let fixed_bytes = fixed_nested_byte_array_type(&mut program, 2, 3);
+    let literal = nested_canonical_byte_array_literal(&mut program, &[&[0, 127, 255], &[3, 2, 1]]);
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([literal]);
+    let call = call_with_arguments(arguments);
+    let state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    let request = push_representative(&mut program, &[(fixed_bytes, false, false)], carrier);
+
+    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
+        .expect("each exact byte row is already canonically context-landed");
+    assert_eq!(
+        plan.input_relations,
+        [InputRelation::ExactEquality(fixed_bytes)]
+    );
+    let runtime = plan
+        .direct_lift_correspondence
+        .expect("nested fixed-byte-array literal runtime correspondence");
+    assert_eq!(
+        runtime.positions,
+        [super::DirectLiftRuntimePosition {
+            source: super::DirectLiftArgumentSource::Literal(
+                super::runtime_correspondence::ClosedLiftLiteral::NestedFixedByteArray {
+                    rows: Arc::from(vec![
+                        Arc::from(&[0, 127, 255][..]),
+                        Arc::from(&[3, 2, 1][..]),
+                    ]),
+                    target_type: program.normalized_type_identity(fixed_bytes),
+                },
+            ),
+            representative_parameter: symbol(100),
+        }]
+    );
+    let mut row_boundary_drift = runtime.clone();
+    row_boundary_drift.positions[0].source = super::DirectLiftArgumentSource::Literal(
+        super::runtime_correspondence::ClosedLiftLiteral::NestedFixedByteArray {
+            rows: Arc::from(vec![
+                Arc::from(&[0, 127][..]),
+                Arc::from(&[255, 3, 2, 1][..]),
+            ]),
+            target_type: program.normalized_type_identity(fixed_bytes),
+        },
+    );
+    assert_ne!(
+        runtime, row_boundary_drift,
+        "byte row boundaries remain evidence identity"
+    );
+}
+
+#[test]
 fn direct_lift_runtime_accepts_exact_boolean_array_literals() {
     let mut program = TypedTrees::default();
     let quotient = quotient_type(
@@ -3827,6 +3958,148 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
         (39, deeper_nested_boolean_array, deeper_nested_boolean_type),
         (40, nested_integer_array, one_by_one_nested_boolean_type),
         (41, boolean_array, one_by_one_nested_boolean_type),
+    ] {
+        assert_eq!(
+            super::closed_lift_literal_for_representative(&program, expression, target, position),
+            Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
+        );
+    }
+
+    let exact_nested_byte_array = nested_canonical_byte_array_literal(&mut program, &[&[1], &[2]]);
+    let ragged_nested_byte_array =
+        nested_canonical_byte_array_literal(&mut program, &[&[1], &[2, 3]]);
+    let exact_nested_byte_type = fixed_nested_byte_array_type(&mut program, 2, 1);
+    let wrong_outer_width_nested_byte_type = fixed_nested_byte_array_type(&mut program, 1, 1);
+    let landed_byte_array = {
+        let row = integer_array_literal(
+            &mut program,
+            [IntegerLiteral::from_value(1).with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::U8,
+                domain: ArithmeticDomain::Exact,
+            })],
+        );
+        let rows = program.expression_table.insert_expression_handles([row]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(rows))
+    };
+    let out_of_range_nested_byte_array = {
+        let row = integer_array_literal(&mut program, [IntegerLiteral::from_value(256)]);
+        let rows = program.expression_table.insert_expression_handles([row]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(rows))
+    };
+    let computed_nested_byte_array = {
+        let left = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
+        let right = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(2)));
+        let computed =
+            program
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: BinaryOperator::Add,
+                    right,
+                }));
+        let row = program
+            .expression_table
+            .insert_expression_handles([computed]);
+        let row = program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(row));
+        let rows = program.expression_table.insert_expression_handles([row]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(rows))
+    };
+    let nested_boolean_array = nested_boolean_array_literal(&mut program, &[&[true]]);
+    let constrained_u8 = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Constrained {
+            base_type: u8_type,
+            constraints: HandleSpan::empty(),
+        });
+    let constrained_byte_row = program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: constrained_u8,
+            length: FixedArrayLength::Literal(1),
+        });
+    let constrained_nested_byte_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: constrained_byte_row,
+                length: FixedArrayLength::Literal(2),
+            });
+    let unresolved_byte_row = program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: u8_type,
+            length: FixedArrayLength::ConstParameter {
+                symbol: symbol(988),
+                name: Identifier::generated_static("M"),
+            },
+        });
+    let unresolved_inner_byte_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: unresolved_byte_row,
+                length: FixedArrayLength::Literal(2),
+            });
+    let exact_byte_row = fixed_byte_array_type(&mut program, 1);
+    let unresolved_outer_byte_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: exact_byte_row,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: symbol(989),
+                    name: Identifier::generated_static("N"),
+                },
+            });
+    let deeper_nested_byte_type = {
+        let matrix = fixed_nested_byte_array_type(&mut program, 1, 1);
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: matrix,
+                length: FixedArrayLength::Literal(1),
+            })
+    };
+    let deeper_nested_byte_array = {
+        let matrix = nested_canonical_byte_array_literal(&mut program, &[&[1]]);
+        let matrices = program.expression_table.insert_expression_handles([matrix]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(matrices))
+    };
+    let one_by_one_nested_byte_type = fixed_nested_byte_array_type(&mut program, 1, 1);
+    for (position, expression, target) in [
+        (
+            42,
+            exact_nested_byte_array,
+            wrong_outer_width_nested_byte_type,
+        ),
+        (43, ragged_nested_byte_array, exact_nested_byte_type),
+        (44, landed_byte_array, one_by_one_nested_byte_type),
+        (
+            45,
+            out_of_range_nested_byte_array,
+            one_by_one_nested_byte_type,
+        ),
+        (46, computed_nested_byte_array, one_by_one_nested_byte_type),
+        (47, nested_boolean_array, one_by_one_nested_byte_type),
+        (48, exact_nested_byte_array, constrained_nested_byte_type),
+        (49, exact_nested_byte_array, unresolved_inner_byte_type),
+        (50, exact_nested_byte_array, unresolved_outer_byte_type),
+        (51, deeper_nested_byte_array, deeper_nested_byte_type),
+        (52, integer_array, one_by_one_nested_byte_type),
     ] {
         assert_eq!(
             super::closed_lift_literal_for_representative(&program, expression, target, position),
