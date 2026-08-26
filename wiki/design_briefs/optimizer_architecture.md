@@ -334,6 +334,16 @@ is itself identity-bearing, duplicates reject, and each opted-in compilation
 owns an immutable registry value. Reversing two otherwise identical rules is a
 different schedule and therefore a different rule-set identity.
 
+The first Rust candidate vocabulary is intentionally closed rather than an
+opaque callback or byte payload. An exact-integer-evaluation candidate records
+its input revision, rule contract, bounded region, analysis contract,
+substitutions, provenance/fuel mapping, literal supports, cost estimate, and
+typed replacement. Its candidate identity covers that canonical declaration;
+the output revision chains the input and candidate identities. The independent
+validator—not the rule—reconstructs the arithmetic, produces the new unit, and
+attaches its own validator identity. This establishes the pattern future patch
+variants must follow before they become executable.
+
 ## Validation and trust
 
 Optimization remains an untrusted producer. Acceptance has layers.

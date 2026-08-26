@@ -1094,6 +1094,7 @@ dependencies = [
 name = "omega-optimization-validation"
 version = "0.1.0"
 dependencies = [
+ "omega-optimization-core",
  "omega-optimization-unit",
  "omega-terminal-abstract-operations",
  "omega-terminal-psi-to-abstract-operations",
@@ -1151,9 +1152,11 @@ version = "0.1.0"
 dependencies = [
  "omega-optimization-core",
  "omega-optimization-unit",
+ "omega-optimization-validation",
  "omega-terminal-abstract-operations",
  "psi-core",
  "psi-terminal",
+ "psi-terminal-fuel",
 ]
 
 [[package]]

@@ -9,6 +9,7 @@ name = "omega_optimization_validation"
 path = "src/lib.rs"
 
 [dependencies]
+omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
 omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
 omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }

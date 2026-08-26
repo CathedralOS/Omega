@@ -23,6 +23,13 @@ use psi_terminal::{
     StructuralParameterDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
 };
 
+mod rewrite;
+
+pub use rewrite::{
+    IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, ProvenanceRewrite,
+    PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch, ScalarSubstitution,
+};
+
 /// The exact immutable Terminal Psi semantic site realized by one unit node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PsiProvenance {
