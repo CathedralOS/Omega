@@ -386,6 +386,16 @@ For every disputed `Ωself` facility, use one decision procedure:
    keep them excluded unless the complete source demonstrates a material need
    that a simpler ordinary encoding cannot meet.
 
+The final disposition ledger records four separate facts for each disputed
+facility: whether the production compiler source uses it, whether
+`omega-bootstrap` accepts it, whether production `omega` implements it for
+users, and whether any adjacent tool using it belongs to the transitive
+compiler closure. These columns must not collapse into one "supported" bit.
+In particular, an `Ωself` exclusion requires bridge rejection and product
+acceptance evidence; it never licenses the production compiler to omit the
+feature. The authoritative ledger is published at the completed source/bridge
+join, while checkpoint tables remain provisional evidence.
+
 This procedure does not reward feature removal by itself. A small general
 facility is preferable to monomorphic duplication, hand-expanded variants, or
 hard-coded compiler-source shapes when it lowers total cost. Conversely, a
