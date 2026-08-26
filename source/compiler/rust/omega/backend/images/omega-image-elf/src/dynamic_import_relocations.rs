@@ -74,7 +74,6 @@ impl ValidatedElfProcedureLinkageRelocationPlan {
         self.linkage_identity
     }
 
-    #[allow(dead_code)]
     pub(crate) const fn contents(&self) -> &ElfProcedureLinkageRelocationContents {
         &self.contents
     }

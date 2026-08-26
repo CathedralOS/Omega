@@ -8485,17 +8485,33 @@ boundary without its corresponding checked law.
   psABI](https://gitlab.com/x86-psABIs/x86-64-ABI) and [AArch64 ELF
   ABI](https://github.com/ARM-software/abi-aa/blob/main/aaelf64/aaelf64.rst),
   but assigns no address or physical GOT/PLT/section index and emits no bytes.
+  The next sealed target-template rung consumes that semantic linkage and emits
+  only the fixed ELF64-LSB bytes for `.plt`, `.got.plt`, and `.rela.plt` plus
+  exact zero placeholders. The x86-64 small/medium lazy-binding policy records
+  the sole `_DYNAMIC` semantic fixup in GOT[0], leaves GOT[1]/GOT[2] reserved,
+  and binds each import slot to its PLT lazy tail. The AArch64 standard lazy
+  policy instead leaves all three GOT header words zero/reserved and binds each
+  import slot to PLT0; it never fabricates an AArch64 `_DYNAMIC` GOT[0]. Typed
+  fixups name every PLT/GOT/RELA and source-call target, while explicit signed-
+  displacement, page-delta, low-12 alignment, and branch-range constraints
+  retain the placement obligations. An independent replay checks the exact
+  opcodes, relocation symbol/type rows, zero mutable fields, nonoverlap,
+  semantic targets, constraints, and deterministic identity, returning the
+  original linkage plan on rejection. These target templates follow the
+  primary [x86-64 dynamic-linking
+  rules](https://gitlab.com/x86-psABIs/x86-64-ABI/-/blob/master/x86-64-ABI/dl.tex)
+  and [AArch64 procedure-linkage-table
+  rules](https://github.com/ARM-software/abi-aa/blob/main/sysvabi64/sysvabi64.rst#procedure-linkage-table).
   The exact `DT_NEEDED` roster remains typed until all `Elf64_Dyn` tags can be
   planned together; no partial `.dynamic` payload is claimed. Runnable ELF
   emission remains fail closed before image mutation: the final section roster
   and completed `.shstrtab`, numeric `sh_name`/`sh_link`/`e_shstrndx`, section-
   header serialization, placement, `PT_INTERP` program-header placement,
-  `PT_DYNAMIC`, `.dynamic` addresses/tags, optional `.gnu.hash`, the selected
-  target GOT/PLT templates and reserved entries, address-bearing `.rela.plt`
-  serialization, architecture-specific PLT fixups, complete load/program-
+  `PT_DYNAMIC`, `.dynamic` addresses/tags, optional `.gnu.hash`, final
+  descriptors and numeric indexes for `.plt`/`.got.plt`/`.rela.plt`, address-
+  resolved fixup application and `.rela.plt` payloads, complete load/program-
   header layout, image mutation, and independent final-byte replay remain
-  unimplemented. Validated semantic procedure linkage does not constitute a
-  dynamic image.
+  unimplemented. Validated target templates do not constitute a dynamic image.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes
