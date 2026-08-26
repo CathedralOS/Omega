@@ -16,4 +16,4 @@ psi-terminal-fuel = { path = "../psi-terminal-fuel" }
 psi-terminal-verifier = { path = "../psi-terminal-verifier" }
 
 [dev-dependencies]
-psi-proof-kernel = { path = "../psi-proof-kernel" }
+psi-proof-admission = { path = "../psi-proof-admission" }

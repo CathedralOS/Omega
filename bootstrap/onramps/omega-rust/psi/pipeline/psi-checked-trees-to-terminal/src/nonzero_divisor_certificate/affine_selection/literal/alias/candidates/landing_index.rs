@@ -1,7 +1,7 @@
 //! Source-ordered alias-to-literal landing index for certificate production.
 
 use psi_core::{Proposition, ScalarTerm};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::super::super::super::integer_evidence::Citation;
 use super::super::super::super::{equalities, fact_identity, value_index::ValueIndex};

@@ -4,7 +4,7 @@
 //! module exposes neither a hop-count parameter nor recursive graph search.
 
 use psi_core::{Proposition, ScalarTerm};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 mod cast;
 mod index;

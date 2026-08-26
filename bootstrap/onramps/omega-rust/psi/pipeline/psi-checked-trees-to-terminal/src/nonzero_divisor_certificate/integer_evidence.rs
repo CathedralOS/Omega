@@ -1,7 +1,7 @@
 //! Prior-fact custody and closed-order primitives for integer certificates.
 
 use psi_core::Proposition;
-use psi_proof_kernel::{PrimitiveJudgment, ProofNode, ProofRule};
+use psi_proof_admission::{PrimitiveJudgment, ProofNode, ProofRule};
 
 #[derive(Clone, Copy)]
 pub(super) enum Citation {

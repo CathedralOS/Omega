@@ -1,7 +1,7 @@
 //! Alias-landed literals for exact integer-cast completion.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 mod candidates;
 mod completion;

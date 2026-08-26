@@ -1,7 +1,7 @@
 //! Producer-local affine-to-cast completion for one oriented target.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm, ScalarType};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::super::{affine_selection, cast_custody};
 

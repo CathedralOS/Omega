@@ -1,7 +1,7 @@
 //! Source-ordered one-alias transitive candidates for certificate production.
 
 use psi_core::{Proposition, ScalarTerm};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::super::equalities;
 use super::super::TwoCitationChains;

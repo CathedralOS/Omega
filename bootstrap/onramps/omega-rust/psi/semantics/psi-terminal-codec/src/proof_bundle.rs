@@ -10,7 +10,7 @@ use psi_core::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionError, PropositionId,
     ScalarTerm, ScalarType, StructuralCaseSubject,
 };
-use psi_proof_kernel::{
+use psi_proof_admission::{
     AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute, IntegerAffineWitness,
     IntegerCastChainWitness, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
 };

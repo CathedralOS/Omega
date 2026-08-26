@@ -1,7 +1,7 @@
 //! Canonical fixed-integer proposition and bound selection.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::affine_custody::DefinitionIndex;
 

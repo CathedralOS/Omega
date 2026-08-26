@@ -9,7 +9,7 @@ use psi_core::{
     Proposition, ScalarTerm, ScalarType, StructuralDomainId, StructuralPlaceKind, StructuralTypeId,
     ValueId,
 };
-use psi_proof_kernel::{
+use psi_proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{

@@ -996,7 +996,7 @@ mod trait_operator_tests {
         psi_terminal_verifier::verify_module(
             &lowered.semantic_module,
             &lowered.proof_bundle,
-            &psi_proof_kernel::AdmissionProfile::default(),
+            &psi_proof_admission::AdmissionProfile::default(),
         )
         .expect("verify exact operator closure");
         let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
@@ -1019,7 +1019,7 @@ mod trait_operator_tests {
             psi_terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
                 &bytes,
                 &proof_bytes,
-                &psi_proof_kernel::AdmissionProfile::default(),
+                &psi_proof_admission::AdmissionProfile::default(),
                 &[],
                 &structural_values,
             )

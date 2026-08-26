@@ -1,9 +1,11 @@
-//! Small total proof and evidence checker for terminal Psi.
+//! Product-local proof and admission checker for terminal Psi.
 //!
-//! The kernel never searches. It re-decides closed primitive judgments, checks
-//! explicit proof nodes, or validates an admission against an obligation site
-//! and installation-profile decision. Executable terminal-Psi lowering will
-//! reconstruct obligations; a proof bundle cannot choose their class.
+//! The checker never searches. It re-decides closed primitive judgments,
+//! checks explicit proof nodes, or validates an admission against an obligation
+//! site and installation-profile decision. Executable terminal-Psi lowering
+//! reconstructs obligations; a proof bundle cannot choose their class. This
+//! crate is distinct from the generic derivation kernel under
+//! `bootstrap/assurance/proof-kernel/`.
 
 #![forbid(unsafe_code)]
 

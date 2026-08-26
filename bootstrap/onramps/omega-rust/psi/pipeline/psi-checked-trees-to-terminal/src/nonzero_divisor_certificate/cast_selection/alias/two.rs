@@ -1,7 +1,7 @@
 //! Fixed two-alias cast completion for production.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::super::{alias_transport, cast_custody};
 

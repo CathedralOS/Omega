@@ -14,23 +14,17 @@ service used by producers and artifact verifiers throughout the build lattice.
 Its canonical owner is `bootstrap/assurance/proof-kernel/`. Beta, Gamma, and
 executable reference implementations live under `implementations/`; untrusted automation,
 fixtures, and executable policy live under `tools/`, `corpus/`, and `gates/`.
-The currently named product crate `psi-proof-kernel` remains under Psi semantics;
-it checks Psi judgments and is not this generic bootstrap derivation checker.
-Its product-local rename is tracked in
-[`TASKS.md`](../../../TASKS.md) and does not move it into the bootstrap
-assurance owner.
+The product-local Rust crate `psi-proof-admission` remains under Psi semantics;
+it checks Psi judgments and admission policy and is not this generic bootstrap
+derivation checker. Its role name does not move it into the bootstrap assurance
+owner.
 
 ```text
-language spine:     Alpha → Beta → Gamma → Delta
-assurance service:          Beta/Gamma implementations → proof kernel
-hosted build:                                  delta compiler
-                                                      ↓
-                                               omega-bootstrap → production omega
+Alpha → Beta → Gamma → Delta                   language spine
+              ↘       ↙       ↓
+                proof kernel   omega-bootstrap → production omega
+                assurance      hosted compiler edge
 ```
-
-The rows are roles, not serial stages. In particular, programs do not pass
-through the proof kernel between Gamma and Delta; Beta and Gamma merely host
-independent implementations of the same cross-cutting checker.
 
 ## Judgment
 

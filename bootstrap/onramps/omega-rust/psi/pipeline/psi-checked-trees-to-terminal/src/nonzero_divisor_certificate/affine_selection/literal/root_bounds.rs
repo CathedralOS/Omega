@@ -1,7 +1,7 @@
 //! Fixed root-bound orientations for affine-literal certificate production.
 
 use psi_core::{Proposition, ScalarTerm};
-use psi_proof_kernel::{PrimitiveJudgment, ProofNode, ProofRule};
+use psi_proof_admission::{PrimitiveJudgment, ProofNode, ProofRule};
 
 struct OrientedBound {
     proposition: Proposition,

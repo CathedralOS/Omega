@@ -1,7 +1,7 @@
 //! Affine-root custody for one following exact partial-cast spine.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 mod candidates;
 mod completion;

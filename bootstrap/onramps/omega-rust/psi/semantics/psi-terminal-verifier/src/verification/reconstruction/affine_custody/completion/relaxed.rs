@@ -1,7 +1,7 @@
 //! Independent relaxed completion of one checked affine witness.
 
 use psi_core::Proposition;
-use psi_proof_kernel::CheckedIntegerAffineForm;
+use psi_proof_admission::CheckedIntegerAffineForm;
 
 use super::super::relaxation;
 

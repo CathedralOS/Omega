@@ -6,7 +6,7 @@
 //! fact produced by that same operation.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 mod affine_custody;
 mod affine_selection;

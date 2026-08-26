@@ -1,7 +1,7 @@
 //! Producer-local completion of one eligible two-equality endpoint candidate.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_admission::{ProofNode, ProofRule};
 
 use super::super::super::super::super::integer_evidence::Citation;
 use super::super::super::super::super::{affine_custody::DefinitionIndex, affine_selection};

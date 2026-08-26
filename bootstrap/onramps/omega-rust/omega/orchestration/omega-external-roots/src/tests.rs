@@ -42,7 +42,7 @@ use psi_layout_plans::{
     PlacementConstraints, PlacementPhase, PlacementSite, PostHandoffWriterPlan,
     PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
 };
-use psi_proof_kernel::AdmissionProfile;
+use psi_proof_admission::AdmissionProfile;
 use psi_terminal::{
     BoundaryMachineDeclaration, InstallationReachDependency, ServiceDeclaration,
     StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainRequirement,

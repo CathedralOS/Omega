@@ -1,7 +1,7 @@
 //! Source-ordered landed-literal cast candidates for production.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm, ScalarType};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::super::integer_evidence::cited_facts;
 use super::completion;

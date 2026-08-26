@@ -52,7 +52,7 @@ use psi_layout_plans::{
     ArtifactInstallationScopeId, EntryStubId, PlacementAddressRange, PlacementConstraints,
     PlacementPhase, PlacementSite,
 };
-use psi_proof_kernel::AdmissionProfile;
+use psi_proof_admission::AdmissionProfile;
 
 static TEMP_ID: AtomicU64 = AtomicU64::new(1);
 

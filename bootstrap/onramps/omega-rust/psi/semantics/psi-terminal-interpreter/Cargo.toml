@@ -14,4 +14,4 @@ psi-terminal = { path = "../../representations/psi-terminal" }
 psi-terminal-codec = { path = "../psi-terminal-codec" }
 psi-terminal-fuel = { path = "../psi-terminal-fuel" }
 psi-terminal-verifier = { path = "../psi-terminal-verifier" }
-psi-proof-kernel = { path = "../psi-proof-kernel" }
+psi-proof-admission = { path = "../psi-proof-admission" }

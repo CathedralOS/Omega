@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use psi_core::{BlockId, MachineId, Proposition, ScalarTerm, ValueId};
-use psi_proof_kernel::{Obligation, ObligationClass};
+use psi_proof_admission::{Obligation, ObligationClass};
 use psi_terminal::{Block, TerminalMachine, Terminator};
 
 use super::super::substitution::substitute_proposition_places;

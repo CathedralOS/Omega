@@ -90,7 +90,7 @@ use psi_extents::{
 use psi_layout_plans::{
     ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
 };
-use psi_proof_kernel::AdmissionProfile;
+use psi_proof_admission::AdmissionProfile;
 use psi_terminal::{
     CrashCause, CrashRouteGuard, OperationKind, TerminalModule, Terminator, VocabularyMarker,
 };

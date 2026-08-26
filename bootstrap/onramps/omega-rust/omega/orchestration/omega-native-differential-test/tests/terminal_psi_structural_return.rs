@@ -28,7 +28,7 @@ use psi_core::{
     IntegerSign, IntegerType, IntegerValue, PlaceId, ProfileDecisionId, ScalarType,
     StructuralFieldId, StructuralPlaceKind,
 };
-use psi_proof_kernel::AdmissionProfile;
+use psi_proof_admission::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
@@ -1854,7 +1854,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         evidence.obligation == cast_obligation
             && matches!(
                 evidence.route,
-                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
     let signed_parameter = terminal_entry.parameters[4].id;
@@ -1874,7 +1874,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         evidence.obligation == signed_cast_obligation
             && matches!(
                 evidence.route,
-                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
     let cross_sign_cast_obligations = [
@@ -1901,7 +1901,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -1946,7 +1946,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -1990,7 +1990,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2034,7 +2034,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2073,7 +2073,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2098,7 +2098,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2123,7 +2123,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2148,7 +2148,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2173,7 +2173,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         evidence.obligation == runtime_exact_add_obligation
             && matches!(
                 evidence.route,
-                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
     for addend in [
@@ -2197,7 +2197,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2224,7 +2224,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2251,7 +2251,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2276,7 +2276,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2293,7 +2293,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         evidence.obligation == exact_shift_obligation
             && matches!(
                 evidence.route,
-                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
     let exact_shift_left_obligation = terminal_entry
@@ -2309,7 +2309,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         evidence.obligation == exact_shift_left_obligation
             && matches!(
                 evidence.route,
-                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
     let signed_count_exact_shift_obligation = terminal_entry
@@ -2333,7 +2333,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         evidence.obligation == signed_count_exact_shift_obligation
             && matches!(
                 evidence.route,
-                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
     let count_parameter = terminal_entry.parameters[3].id;
@@ -2354,7 +2354,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2379,7 +2379,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         evidence.obligation == runtime_signed_count_shift_left_obligation
             && matches!(
                 evidence.route,
-                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
     let bitwise_not_exact_add_obligations = terminal_entry
@@ -2414,7 +2414,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2450,7 +2450,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2471,7 +2471,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2488,7 +2488,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         evidence.obligation == exact_multiply_obligation
             && matches!(
                 evidence.route,
-                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
     let runtime_exact_multiply_obligation = terminal_entry
@@ -2512,7 +2512,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         evidence.obligation == runtime_exact_multiply_obligation
             && matches!(
                 evidence.route,
-                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
     for factor in [
@@ -2536,7 +2536,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2553,7 +2553,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         evidence.obligation == exact_subtract_obligation
             && matches!(
                 evidence.route,
-                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
     let runtime_exact_subtract_obligation = terminal_entry
@@ -2577,7 +2577,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         evidence.obligation == runtime_exact_subtract_obligation
             && matches!(
                 evidence.route,
-                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
     let exact_add_obligation = terminal_entry
@@ -2593,7 +2593,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         evidence.obligation == exact_add_obligation
             && matches!(
                 evidence.route,
-                psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
     let operations = terminal_entry
@@ -2673,7 +2673,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2746,7 +2746,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -2793,7 +2793,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 evidence.obligation == obligation
                     && matches!(
                         evidence.route,
-                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                        psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                     )
             }));
         }
@@ -2915,7 +2915,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 evidence.obligation == *obligation
                     && matches!(
                         evidence.route,
-                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                        psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                     )
             }));
         }
@@ -2980,7 +2980,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 evidence.obligation == *obligation
                     && matches!(
                         evidence.route,
-                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                        psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                     )
             }));
         }
@@ -3045,7 +3045,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 evidence.obligation == *obligation
                     && matches!(
                         evidence.route,
-                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                        psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                     )
             }));
         }
@@ -3098,7 +3098,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -3245,7 +3245,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 evidence.obligation == *obligation
                     && matches!(
                         evidence.route,
-                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                        psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                     )
             }));
         }
@@ -3455,7 +3455,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 evidence.obligation == *obligation
                     && matches!(
                         evidence.route,
-                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                        psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                     )
             }));
         }
@@ -3572,7 +3572,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 evidence.obligation == *obligation
                     && matches!(
                         evidence.route,
-                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                        psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                     )
             }));
         }
@@ -3625,7 +3625,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -3767,7 +3767,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 evidence.obligation == *obligation
                     && matches!(
                         evidence.route,
-                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                        psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                     )
             }));
         }
@@ -3869,7 +3869,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 evidence.obligation == *obligation
                     && matches!(
                         evidence.route,
-                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                        psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                     )
             }));
         }
@@ -3996,7 +3996,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 evidence.obligation == *obligation
                     && matches!(
                         evidence.route,
-                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                        psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                     )
             }));
         }
@@ -4050,7 +4050,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -4151,7 +4151,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 evidence.obligation == *obligation
                     && matches!(
                         evidence.route,
-                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                        psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                     )
             }));
         }
@@ -4279,7 +4279,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 evidence.obligation == *obligation
                     && matches!(
                         evidence.route,
-                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                        psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                     )
             }));
         }
@@ -4333,7 +4333,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -4405,7 +4405,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
             evidence.obligation == *obligation
                 && matches!(
                     evidence.route,
-                    psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                    psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                 )
         }));
     }
@@ -4506,7 +4506,7 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
                 evidence.obligation == *obligation
                     && matches!(
                         evidence.route,
-                        psi_proof_kernel::EvidenceRoute::CertificateDerived(_)
+                        psi_proof_admission::EvidenceRoute::CertificateDerived(_)
                     )
             }));
         }

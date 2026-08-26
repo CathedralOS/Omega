@@ -5,7 +5,7 @@
 //! that complete one already-constructed affine root bound.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 mod boundary;
 mod candidates;

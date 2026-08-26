@@ -1,7 +1,7 @@
 //! Ordered affine-to-cast endpoint candidates for production.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::completion;
 

@@ -1,7 +1,7 @@
 //! Direct cast-root custody for one following affine word.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::super::affine_custody::DefinitionIndex;
 

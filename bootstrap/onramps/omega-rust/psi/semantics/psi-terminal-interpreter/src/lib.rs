@@ -30,7 +30,7 @@ use psi_terminal_verifier::VerifiedTerminalModule;
 pub fn interpret_terminal_artifact_measured(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
-    profile: &psi_proof_kernel::AdmissionProfile,
+    profile: &psi_proof_admission::AdmissionProfile,
     arguments: &[TerminalScalarValue],
 ) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
     let mut handler = AcceptTerminalEffects;
@@ -51,7 +51,7 @@ pub fn interpret_terminal_artifact_measured(
 pub fn interpret_terminal_artifact_with_effect_handler_measured(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
-    profile: &psi_proof_kernel::AdmissionProfile,
+    profile: &psi_proof_admission::AdmissionProfile,
     scalar_arguments: &[TerminalScalarValue],
     structural_arguments: &[TerminalStructuralValue],
     handler: &mut impl TerminalEffectHandler,
@@ -73,7 +73,7 @@ pub fn interpret_terminal_artifact_with_effect_handler_measured(
 pub fn interpret_terminal_artifact_with_structural_boolean_fields_measured(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
-    profile: &psi_proof_kernel::AdmissionProfile,
+    profile: &psi_proof_admission::AdmissionProfile,
     scalar_arguments: &[TerminalScalarValue],
     structural_arguments: &[TerminalStructuralValue],
     structural_boolean_fields: &[TerminalStructuralBooleanFieldValue],
@@ -117,7 +117,7 @@ pub fn interpret_terminal_artifact_with_structural_boolean_fields_measured(
 pub fn interpret_terminal_artifact(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
-    profile: &psi_proof_kernel::AdmissionProfile,
+    profile: &psi_proof_admission::AdmissionProfile,
     arguments: &[TerminalScalarValue],
 ) -> Result<TerminalExecutionResult, TerminalArtifactInterpretError> {
     interpret_terminal_artifact_measured(semantic_bytes, proof_bytes, profile, arguments)
@@ -229,7 +229,7 @@ impl AdmittedProviderInstallation {
 pub fn admit_provider_installation_from_artifact(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
-    profile: &psi_proof_kernel::AdmissionProfile,
+    profile: &psi_proof_admission::AdmissionProfile,
     selections: &[ProviderInstallationSelection],
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
     let module = psi_terminal_codec::decode_module(semantic_bytes)
@@ -397,7 +397,7 @@ impl TerminalExecution {
     pub fn start_artifact(
         semantic_bytes: &[u8],
         proof_bytes: &[u8],
-        profile: &psi_proof_kernel::AdmissionProfile,
+        profile: &psi_proof_admission::AdmissionProfile,
         arguments: &[TerminalScalarValue],
     ) -> Result<Self, TerminalArtifactInterpretError> {
         Self::start_artifact_with_structural_arguments(
@@ -412,7 +412,7 @@ impl TerminalExecution {
     pub fn start_artifact_with_structural_arguments(
         semantic_bytes: &[u8],
         proof_bytes: &[u8],
-        profile: &psi_proof_kernel::AdmissionProfile,
+        profile: &psi_proof_admission::AdmissionProfile,
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[TerminalStructuralValue],
     ) -> Result<Self, TerminalArtifactInterpretError> {
@@ -429,7 +429,7 @@ impl TerminalExecution {
     pub fn start_artifact_with_structural_arguments_and_boolean_fields(
         semantic_bytes: &[u8],
         proof_bytes: &[u8],
-        profile: &psi_proof_kernel::AdmissionProfile,
+        profile: &psi_proof_admission::AdmissionProfile,
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[TerminalStructuralValue],
         structural_boolean_fields: &[TerminalStructuralBooleanFieldValue],
@@ -455,7 +455,7 @@ impl TerminalExecution {
     pub fn start_artifact_with_provider_installation(
         semantic_bytes: &[u8],
         proof_bytes: &[u8],
-        profile: &psi_proof_kernel::AdmissionProfile,
+        profile: &psi_proof_admission::AdmissionProfile,
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[TerminalStructuralValue],
         installation: &AdmittedProviderInstallation,

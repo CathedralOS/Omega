@@ -1,7 +1,7 @@
 //! Canonical proof-artifact evidence and producer provenance model.
 
 use psi_core::{EvidenceIdentity, EvidenceTermId, ObligationId};
-use psi_proof_kernel::EvidenceRoute;
+use psi_proof_admission::EvidenceRoute;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObligationEvidence {

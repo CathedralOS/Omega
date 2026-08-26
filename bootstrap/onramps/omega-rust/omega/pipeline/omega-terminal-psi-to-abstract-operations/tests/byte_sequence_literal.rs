@@ -4,7 +4,7 @@ use psi_core::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, PlaceId,
     StructuralTypeId,
 };
-use psi_proof_kernel::AdmissionProfile;
+use psi_proof_admission::AdmissionProfile;
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ByteSequenceCarrier, MachineContract, Operation,
     OperationKind, OperationResult, StructuralAccess, StructuralArgument, StructuralMultiplicity,

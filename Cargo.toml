@@ -28,7 +28,7 @@ members = [
     "bootstrap/onramps/omega-rust/psi/pipeline/psi-symbol-resolved-trees-to-typed-trees",
     "bootstrap/onramps/omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees",
     "bootstrap/onramps/omega-rust/psi/pipeline/psi-checked-trees-to-terminal",
-    "bootstrap/onramps/omega-rust/psi/semantics/psi-proof-kernel",
+    "bootstrap/onramps/omega-rust/psi/semantics/psi-proof-admission",
     "bootstrap/onramps/omega-rust/psi/semantics/psi-terminal-verifier",
     "bootstrap/onramps/omega-rust/psi/semantics/psi-terminal-codec",
     "bootstrap/onramps/omega-rust/psi/semantics/psi-terminal-fuel",

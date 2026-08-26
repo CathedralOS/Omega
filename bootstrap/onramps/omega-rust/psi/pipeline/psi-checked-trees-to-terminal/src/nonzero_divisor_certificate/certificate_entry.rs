@@ -1,7 +1,7 @@
 //! Fail-closed entry from untrusted integer proof selection to the kernel.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::{ProofNode, check_certificate};
+use psi_proof_admission::{ProofNode, check_certificate};
 
 use super::integer_selection;
 

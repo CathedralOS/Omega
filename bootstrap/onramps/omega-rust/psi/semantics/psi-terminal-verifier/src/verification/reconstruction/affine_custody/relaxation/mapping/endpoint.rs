@@ -1,7 +1,7 @@
 //! Exact affine-root endpoint custody for independent reconstruction.
 
 use psi_core::{Proposition, ScalarTerm};
-use psi_proof_kernel::CheckedIntegerAffineForm;
+use psi_proof_admission::CheckedIntegerAffineForm;
 
 pub(super) struct RootEndpoint<'a> {
     pub(super) bound: &'a ScalarTerm,

@@ -359,9 +359,7 @@ fn free_machine_self_entry_segment<'segments>(
         .map(|state| state.symbol);
     if machine.attached_data.is_some()
         || machine.name.as_str() != name.as_str()
-        || symbol.is_valid()
-            && symbol != machine.symbol
-            && Some(symbol) != entry_symbol
+        || symbol.is_valid() && symbol != machine.symbol && Some(symbol) != entry_symbol
     {
         return Ok(None);
     }

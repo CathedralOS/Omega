@@ -1,7 +1,7 @@
 //! Producer-local affine/cast/affine proof composition for one resolved root.
 
 use psi_core::{IntegerType, Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::super::super::affine_custody::DefinitionIndex;
 use super::super::super::super::{affine_custody, cast_custody};

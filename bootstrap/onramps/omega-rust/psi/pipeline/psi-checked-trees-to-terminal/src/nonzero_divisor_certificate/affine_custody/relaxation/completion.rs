@@ -1,7 +1,7 @@
 //! Producer-local closed-order completion of one mapped affine bound.
 
 use psi_core::Proposition;
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_admission::{ProofNode, ProofRule};
 
 use super::super::super::integer_evidence::closed_integer_relation;
 

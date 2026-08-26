@@ -1,7 +1,7 @@
 //! Producer-local sign-directed orientation of one mapped affine bound.
 
 use psi_core::{Proposition, ScalarTerm};
-use psi_proof_kernel::CheckedIntegerAffineForm;
+use psi_proof_admission::CheckedIntegerAffineForm;
 
 pub(super) fn bound(
     form: &CheckedIntegerAffineForm,

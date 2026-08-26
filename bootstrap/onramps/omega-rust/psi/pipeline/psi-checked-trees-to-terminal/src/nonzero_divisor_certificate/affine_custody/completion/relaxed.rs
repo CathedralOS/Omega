@@ -1,7 +1,7 @@
 //! Producer-local relaxed completion of one checked affine witness.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::{
+use psi_proof_admission::{
     CheckedIntegerAffineForm, IntegerAffineWitness, ProofNode, check_certificate,
 };
 

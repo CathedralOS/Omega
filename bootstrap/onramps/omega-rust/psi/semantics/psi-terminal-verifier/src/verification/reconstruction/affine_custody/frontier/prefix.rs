@@ -1,7 +1,7 @@
 //! Independent replay of one affine-definition frontier prefix.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::{IntegerAffineWitness, check_integer_affine_witness};
+use psi_proof_admission::{IntegerAffineWitness, check_integer_affine_witness};
 
 use super::super::DefinitionIndex;
 

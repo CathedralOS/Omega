@@ -1,7 +1,7 @@
 //! Producer-local direct two-citation transitive root bound.
 
 use psi_core::{Proposition, ScalarTerm};
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_admission::{ProofNode, ProofRule};
 
 pub(super) fn prove(
     left: &ScalarTerm,

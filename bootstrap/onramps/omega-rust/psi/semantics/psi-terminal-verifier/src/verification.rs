@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use psi_core::{EvidenceIdentity, EvidenceTermId, ObligationId};
 #[cfg(test)]
 use psi_core::{IntegerSign, IntegerValue, Proposition, ScalarTerm};
-use psi_proof_kernel::{AcceptedFact, AdmissionProfile, EvidenceError, verify_obligation};
+use psi_proof_admission::{AcceptedFact, AdmissionProfile, EvidenceError, verify_obligation};
 use psi_terminal::TerminalModule;
 
 use crate::{ModuleError, ValidatedTerminalModule, validate_module};

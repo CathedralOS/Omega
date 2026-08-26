@@ -1,11 +1,11 @@
 [package]
-name = "psi-proof-kernel"
+name = "psi-proof-admission"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "psi_proof_kernel"
+name = "psi_proof_admission"
 path = "src/lib.rs"
 
 [dependencies]

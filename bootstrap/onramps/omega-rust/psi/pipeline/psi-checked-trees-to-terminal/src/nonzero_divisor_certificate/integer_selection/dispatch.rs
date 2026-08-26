@@ -1,7 +1,7 @@
 //! Canonical integer proposition-kind proof dispatch.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::{PrimitiveJudgment, ProofNode, ProofRule};
+use psi_proof_admission::{PrimitiveJudgment, ProofNode, ProofRule};
 
 use super::super::affine_custody::DefinitionIndex;
 use super::bound;

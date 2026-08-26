@@ -1,7 +1,7 @@
 //! Deterministic review projection of accepted proof and trust evidence.
 
 use super::{ProofCodecError, proof_bundle_fingerprint};
-use psi_proof_kernel::AcceptedFactRoute;
+use psi_proof_admission::AcceptedFactRoute;
 use psi_terminal_verifier::VerifiedTerminalModule;
 
 /// Render the review view from the exact bundle and trust closures retained by

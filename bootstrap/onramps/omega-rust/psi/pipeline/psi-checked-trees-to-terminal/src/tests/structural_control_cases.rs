@@ -420,7 +420,7 @@ fn structural_unit_control_lowers_exact_transfer_and_edge_cleanup() {
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
-        &psi_proof_kernel::AdmissionProfile::default(),
+        &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("structural jump scalar binding and cleanup should verify independently");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
@@ -511,7 +511,7 @@ fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
-        &psi_proof_kernel::AdmissionProfile::default(),
+        &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("structural conditional cleanup should verify independently");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
@@ -630,7 +630,7 @@ fn structural_unit_conditional_lowers_after_an_unconditional_prefix() {
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
-        &psi_proof_kernel::AdmissionProfile::default(),
+        &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("prefixed conditional maps should verify independently");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
@@ -746,7 +746,7 @@ fn structural_unit_two_conditional_tree_lowers_exact_edge_maps() {
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
-        &psi_proof_kernel::AdmissionProfile::default(),
+        &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("two-decision structural maps should verify independently");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
@@ -832,7 +832,7 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
-        &psi_proof_kernel::AdmissionProfile::default(),
+        &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("the independent verifier should reconstruct one identical join frontier");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)

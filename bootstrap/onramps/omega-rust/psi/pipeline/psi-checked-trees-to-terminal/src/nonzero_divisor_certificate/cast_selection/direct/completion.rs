@@ -1,7 +1,7 @@
 //! Direct retained root-bound completion for exact integer casts.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::super::cast_custody;
 

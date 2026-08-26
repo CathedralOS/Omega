@@ -1,7 +1,7 @@
 //! Direct and one-alias landed-literal affine evidence construction.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::affine_custody::DefinitionIndex;
 

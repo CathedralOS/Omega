@@ -1,7 +1,7 @@
 //! Exact two-citation integer transitivity for certificate production.
 
 use psi_core::Proposition;
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_admission::{ProofNode, ProofRule};
 
 use super::super::super::integer_evidence::cited_facts;
 

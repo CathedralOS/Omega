@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use psi_core::{ContractId, EdgeId, MachineId, OperationId, Proposition};
 #[cfg(test)]
 use psi_core::{PropositionContext, ScalarTerm, ValueId};
-use psi_proof_kernel::Obligation;
+use psi_proof_admission::Obligation;
 use psi_terminal::{TerminalMachine, TerminalModule};
 #[cfg(test)]
 use psi_terminal_semantics::CanonicalScalarGoal;
@@ -152,7 +152,7 @@ pub(super) fn reconstruct_validated_terminal_obligations(
                     obligation: Obligation {
                         id: clause.obligation,
                         proposition: clause.proposition.clone(),
-                        class: psi_proof_kernel::ObligationClass::Derivable,
+                        class: psi_proof_admission::ObligationClass::Derivable,
                     },
                     requirements: machine.contract.requires.clone(),
                     semantic_axioms: semantics.exit_axioms.clone(),

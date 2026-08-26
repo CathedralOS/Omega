@@ -25,7 +25,7 @@ use psi_terminal_verifier::VerifiedTerminalModule;
 pub fn lower_artifact_sections(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
-    profile: &psi_proof_kernel::AdmissionProfile,
+    profile: &psi_proof_admission::AdmissionProfile,
 ) -> Result<TerminalAbstractOperationPlan, ArtifactLoweringError> {
     let module = psi_terminal_codec::decode_module(semantic_bytes)
         .map_err(ArtifactLoweringError::SemanticDecode)?;
@@ -44,7 +44,7 @@ pub fn lower_replay_artifact_sections(
     semantic_bytes: &[u8],
     obligation_ledger_bytes: &[u8],
     proof_bytes: &[u8],
-    profile: &psi_proof_kernel::AdmissionProfile,
+    profile: &psi_proof_admission::AdmissionProfile,
 ) -> Result<TerminalAbstractOperationPlan, ArtifactLoweringError> {
     let module = psi_terminal_codec::decode_module(semantic_bytes)
         .map_err(ArtifactLoweringError::SemanticDecode)?;
@@ -80,7 +80,7 @@ pub fn admit_provider_installation(
     plan: &TerminalAbstractOperationPlan,
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
-    profile: &psi_proof_kernel::AdmissionProfile,
+    profile: &psi_proof_admission::AdmissionProfile,
     selected: &[SelectedProviderAdapter],
 ) -> Result<psi_terminal_interpreter::AdmittedProviderInstallation, ProviderInstallationError> {
     let mut selections = Vec::new();

@@ -1,7 +1,7 @@
 //! Producer-local completion of one pre-boundary affine witness.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::{
+use psi_proof_admission::{
     IntegerAffineWitness, ProofNode, ProofRule, check_certificate, check_integer_affine_witness,
 };
 

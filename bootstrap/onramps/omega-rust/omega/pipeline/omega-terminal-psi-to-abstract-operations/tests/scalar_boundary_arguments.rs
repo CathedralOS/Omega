@@ -3,7 +3,7 @@ use omega_terminal_psi_to_abstract_operations::lower_artifact_sections;
 use psi_core::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ScalarType, ValueId,
 };
-use psi_proof_kernel::AdmissionProfile;
+use psi_proof_admission::AdmissionProfile;
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, MachineContract, Operation, OperationKind, OperationResult,
     TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,

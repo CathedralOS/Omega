@@ -1,7 +1,7 @@
 //! Producer-local exact affine endpoint mapping for relaxation.
 
 use psi_core::Proposition;
-use psi_proof_kernel::CheckedIntegerAffineForm;
+use psi_proof_admission::CheckedIntegerAffineForm;
 
 mod endpoint;
 mod orientation;

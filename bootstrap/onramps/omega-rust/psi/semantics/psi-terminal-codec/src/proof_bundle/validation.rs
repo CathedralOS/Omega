@@ -5,7 +5,7 @@ use super::{
     ProofCodecError,
 };
 use psi_core::{ContentTerm, EvidenceIdentity, Proposition, ScalarTerm};
-use psi_proof_kernel::{EvidenceRoute, ProofNode, ProofRule};
+use psi_proof_admission::{EvidenceRoute, ProofNode, ProofRule};
 use psi_terminal_verifier::{EvidenceProducerRealization, ProofBundle};
 
 pub(super) fn validate_bundle(bundle: &ProofBundle) -> Result<(), ProofCodecError> {

@@ -1,7 +1,7 @@
 //! Producer-local ordered fixed two-alias candidates.
 
 use psi_core::{Proposition, ScalarTerm};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::super::integer_evidence::cited_facts;
 use super::super::index::{distinct_same_carrier_values, indexed_bounds};

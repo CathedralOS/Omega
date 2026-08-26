@@ -1,7 +1,7 @@
 //! Ordered affine/cast/affine candidates for production.
 
 use psi_core::{Proposition, PropositionContext, ScalarTerm, ScalarType};
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_admission::{ProofNode, ProofRule};
 
 use super::super::super::super::affine_custody::DefinitionIndex;
 use super::completion;

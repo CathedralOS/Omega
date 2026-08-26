@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 
 use psi_core::{AdmissionSiteId, ContractId, EdgeId, EvidenceIdentity, MachineId, OperationId};
-use psi_proof_kernel::{AdmissionKind, AuthorizedAdmission, Obligation, ObligationClass};
+use psi_proof_admission::{AdmissionKind, AuthorizedAdmission, Obligation, ObligationClass};
 use psi_terminal::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity, VocabularyMarker};
 use psi_terminal_verifier::{
     ReconstructedTerminalObligation, ReconstructedTerminalObligationOwner,

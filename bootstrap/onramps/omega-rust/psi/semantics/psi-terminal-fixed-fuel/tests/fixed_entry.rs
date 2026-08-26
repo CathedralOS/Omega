@@ -3,7 +3,7 @@ use psi_core::{
     IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition,
     ScalarTerm, ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
-use psi_proof_kernel::{
+use psi_proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
     ProofSystemMarker,
 };

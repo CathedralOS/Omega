@@ -1,7 +1,7 @@
 //! Direct retained affine-root bound proof selection.
 
 use psi_core::{Proposition, PropositionContext};
-use psi_proof_kernel::ProofNode;
+use psi_proof_admission::ProofNode;
 
 use super::super::affine_custody::{self, DefinitionIndex};
 

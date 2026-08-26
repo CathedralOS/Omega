@@ -1,7 +1,7 @@
 //! Canonical compound integer proposition proof construction.
 
 use psi_core::Proposition;
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_admission::{ProofNode, ProofRule};
 
 pub(super) fn prove_conjunction(
     goal: &Proposition,

@@ -1,7 +1,7 @@
 //! Producer-local alias-substituted transitive affine root bound.
 
 use psi_core::{Proposition, ScalarTerm};
-use psi_proof_kernel::{ProofNode, ProofRule};
+use psi_proof_admission::{ProofNode, ProofRule};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn prove(
