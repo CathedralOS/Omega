@@ -258,6 +258,13 @@ A mismatch is an undeclared-invalidation failure and leaves both cache and
 revision untouched. Independent cold analyses may run concurrently, but their
 published bundle is sorted back into canonical analysis order.
 
+Literal-derived constants and ranges name the exact supporting Psi operation
+and are valid only for their `(unit revision, machine, value)` region.
+Executable-edge facts retain that support on both the selected and rejected
+conditional edge; absence of such support remains `Unknown`. This same shape
+is the baseline for later verifier-derived range and ownership facts: a useful
+answer without an exact support and validity region is not representable.
+
 ## Rule and pass model
 
 Squalr's scan-rule architecture supplies a useful small pattern: typed rules
@@ -314,6 +321,12 @@ transformation may not be smuggled in as a prerequisite. A convenience helper
 may spell several `enable` calls, but its evaluated result and manifest are the
 expanded selections, never an opaque suite level. Source code and models cannot
 register arbitrary executable compiler extensions.
+
+The ordered registry preserves the pass manager's explicit schedule exactly;
+it does not sort cryptographic rule or pass identities. The full ordered list
+is itself identity-bearing, duplicates reject, and each opted-in compilation
+owns an immutable registry value. Reversing two otherwise identical rules is a
+different schedule and therefore a different rule-set identity.
 
 ## Validation and trust
 

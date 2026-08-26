@@ -67,7 +67,9 @@ pub struct CallGraphAnalysis {
 
 pub fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
     match kind {
-        AnalysisKind::ControlFlowGraph | AnalysisKind::CallGraph => Some(AnalysisSet::default()),
+        AnalysisKind::ControlFlowGraph | AnalysisKind::CallGraph | AnalysisKind::UseDefinition => {
+            Some(AnalysisSet::default())
+        }
         AnalysisKind::Dominators
         | AnalysisKind::PostDominators
         | AnalysisKind::StronglyConnectedComponents => {
@@ -78,6 +80,12 @@ pub fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
             AnalysisKind::Dominators,
             AnalysisKind::StronglyConnectedComponents,
         ])),
+        AnalysisKind::ScalarConstants => Some(AnalysisSet::new([AnalysisKind::UseDefinition])),
+        AnalysisKind::ExecutableEdges => Some(AnalysisSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::ScalarConstants,
+        ])),
+        AnalysisKind::ValueRanges => Some(AnalysisSet::new([AnalysisKind::ScalarConstants])),
         _ => None,
     }
 }
@@ -96,6 +104,18 @@ pub fn compute_analysis(unit: &PsiOptimizationUnit, kind: AnalysisKind) -> Optio
         ),
         AnalysisKind::LoopForest => Some(AnalysisProduct::LoopForest(loops(unit))),
         AnalysisKind::CallGraph => Some(AnalysisProduct::CallGraph(call_graph(unit))),
+        AnalysisKind::UseDefinition => Some(AnalysisProduct::UseDefinition(
+            super::semantic::use_definitions(unit),
+        )),
+        AnalysisKind::ScalarConstants => Some(AnalysisProduct::ScalarConstants(
+            super::semantic::scalar_constants(unit),
+        )),
+        AnalysisKind::ExecutableEdges => Some(AnalysisProduct::ExecutableEdges(
+            super::semantic::executable_edges(unit),
+        )),
+        AnalysisKind::ValueRanges => Some(AnalysisProduct::ValueRanges(
+            super::semantic::value_ranges(unit),
+        )),
         _ => None,
     }
 }

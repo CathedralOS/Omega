@@ -1,5 +1,6 @@
 mod control_flow;
 mod manager;
+mod semantic;
 
 pub use control_flow::{
     BlockControlFlow, CallGraphAnalysis, ControlFlowAnalysis, DominatorAnalysis, ExitKind,
@@ -7,6 +8,11 @@ pub use control_flow::{
     analysis_dependencies, compute_analysis,
 };
 pub use manager::{AnalysisManager, AnalysisManagerError, AnalysisRevisionCommit};
+pub use semantic::{
+    ExecutableEdgeAnalysis, ExecutableEdgeFact, ExecutableEdgeKnowledge, ScalarConstant,
+    ScalarConstantAnalysis, ScalarConstantFact, UseDefinitionAnalysis, ValueFactRegion,
+    ValueRangeAnalysis, ValueRangeFact,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AnalysisProduct {
@@ -16,6 +22,10 @@ pub enum AnalysisProduct {
     LoopForest(LoopAnalysis),
     StronglyConnectedComponents(StronglyConnectedComponentAnalysis),
     CallGraph(CallGraphAnalysis),
+    UseDefinition(UseDefinitionAnalysis),
+    ExecutableEdges(ExecutableEdgeAnalysis),
+    ScalarConstants(ScalarConstantAnalysis),
+    ValueRanges(ValueRangeAnalysis),
 }
 
 impl AnalysisProduct {
@@ -28,6 +38,10 @@ impl AnalysisProduct {
             Self::LoopForest(_) => AnalysisKind::LoopForest,
             Self::StronglyConnectedComponents(_) => AnalysisKind::StronglyConnectedComponents,
             Self::CallGraph(_) => AnalysisKind::CallGraph,
+            Self::UseDefinition(_) => AnalysisKind::UseDefinition,
+            Self::ExecutableEdges(_) => AnalysisKind::ExecutableEdges,
+            Self::ScalarConstants(_) => AnalysisKind::ScalarConstants,
+            Self::ValueRanges(_) => AnalysisKind::ValueRanges,
         }
     }
 }
