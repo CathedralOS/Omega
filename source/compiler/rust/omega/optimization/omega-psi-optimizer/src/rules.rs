@@ -1566,43 +1566,79 @@ pub fn built_in_psi_registries(
 fn registry_for_optimization(
     optimization: Optimization,
 ) -> Result<OrderedRuleRegistry, RuleRegistryError> {
-    let mut rules = Vec::<Arc<dyn PsiOptimizationRule>>::new();
+    assemble_built_in_registry(built_in_rule_registrations(optimization))
+}
+
+#[derive(Debug, Clone)]
+struct BuiltInRuleRegistration {
+    schedule_ordinal: u16,
+    rule: Arc<dyn PsiOptimizationRule>,
+}
+
+fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleRegistration> {
+    let mut registrations = Vec::new();
+    macro_rules! register {
+        ($ordinal:literal, $rule:expr) => {
+            registrations.push(BuiltInRuleRegistration {
+                schedule_ordinal: $ordinal,
+                rule: Arc::new($rule),
+            });
+        };
+    }
     if optimization == Optimization::SparseConditionalConstantPropagation {
-        rules.push(Arc::new(ExactIntegerAddConstantsRule));
-        rules.push(Arc::new(ExactIntegerSubtractConstantsRule));
-        rules.push(Arc::new(ExactIntegerMultiplyConstantsRule));
-        rules.push(Arc::new(WrappingIntegerAddConstantsRule));
-        rules.push(Arc::new(WrappingIntegerSubtractConstantsRule));
-        rules.push(Arc::new(WrappingIntegerMultiplyConstantsRule));
-        rules.push(Arc::new(SaturatingIntegerAddConstantsRule));
-        rules.push(Arc::new(SaturatingIntegerSubtractConstantsRule));
-        rules.push(Arc::new(SaturatingIntegerMultiplyConstantsRule));
-        rules.push(Arc::new(ExactIntegerDivideConstantsRule));
-        rules.push(Arc::new(ExactIntegerRemainderConstantsRule));
-        rules.push(Arc::new(WrappingIntegerDivideConstantsRule));
-        rules.push(Arc::new(WrappingIntegerRemainderConstantsRule));
-        rules.push(Arc::new(SaturatingIntegerDivideConstantsRule));
-        rules.push(Arc::new(SaturatingIntegerRemainderConstantsRule));
-        rules.push(Arc::new(ExactIntegerShiftLeftConstantsRule));
-        rules.push(Arc::new(ExactIntegerShiftRightConstantsRule));
-        rules.push(Arc::new(WrappingIntegerShiftLeftConstantsRule));
-        rules.push(Arc::new(WrappingIntegerShiftRightConstantsRule));
-        rules.push(Arc::new(ExactIntegerCastConstantsRule));
-        rules.push(Arc::new(IntegerWidenConstantsRule));
-        rules.push(Arc::new(IntegerBitwiseNotConstantsRule));
-        rules.push(Arc::new(IntegerBitwiseAndConstantsRule));
-        rules.push(Arc::new(IntegerBitwiseOrConstantsRule));
-        rules.push(Arc::new(IntegerBitwiseXorConstantsRule));
-        rules.push(Arc::new(BooleanNotConstantsRule));
-        rules.push(Arc::new(BooleanEqualConstantsRule));
-        rules.push(Arc::new(IntegerEqualConstantsRule));
-        rules.push(Arc::new(IntegerLessThanConstantsRule));
-        rules.push(Arc::new(IntegerLessOrEqualConstantsRule));
+        register!(0, ExactIntegerAddConstantsRule);
+        register!(1, ExactIntegerSubtractConstantsRule);
+        register!(2, ExactIntegerMultiplyConstantsRule);
+        register!(3, WrappingIntegerAddConstantsRule);
+        register!(4, WrappingIntegerSubtractConstantsRule);
+        register!(5, WrappingIntegerMultiplyConstantsRule);
+        register!(6, SaturatingIntegerAddConstantsRule);
+        register!(7, SaturatingIntegerSubtractConstantsRule);
+        register!(8, SaturatingIntegerMultiplyConstantsRule);
+        register!(9, ExactIntegerDivideConstantsRule);
+        register!(10, ExactIntegerRemainderConstantsRule);
+        register!(11, WrappingIntegerDivideConstantsRule);
+        register!(12, WrappingIntegerRemainderConstantsRule);
+        register!(13, SaturatingIntegerDivideConstantsRule);
+        register!(14, SaturatingIntegerRemainderConstantsRule);
+        register!(15, ExactIntegerShiftLeftConstantsRule);
+        register!(16, ExactIntegerShiftRightConstantsRule);
+        register!(17, WrappingIntegerShiftLeftConstantsRule);
+        register!(18, WrappingIntegerShiftRightConstantsRule);
+        register!(19, ExactIntegerCastConstantsRule);
+        register!(20, IntegerWidenConstantsRule);
+        register!(21, IntegerBitwiseNotConstantsRule);
+        register!(22, IntegerBitwiseAndConstantsRule);
+        register!(23, IntegerBitwiseOrConstantsRule);
+        register!(24, IntegerBitwiseXorConstantsRule);
+        register!(25, BooleanNotConstantsRule);
+        register!(26, BooleanEqualConstantsRule);
+        register!(27, IntegerEqualConstantsRule);
+        register!(28, IntegerLessThanConstantsRule);
+        register!(29, IntegerLessOrEqualConstantsRule);
     }
     if optimization == Optimization::CopyPropagation {
-        rules.push(Arc::new(RedundantBlockParameterRule));
+        register!(0, RedundantBlockParameterRule);
     }
-    OrderedRuleRegistry::new(rules)
+    registrations
+}
+
+fn assemble_built_in_registry(
+    mut registrations: Vec<BuiltInRuleRegistration>,
+) -> Result<OrderedRuleRegistry, RuleRegistryError> {
+    registrations.sort_by_key(|registration| registration.schedule_ordinal);
+    for (expected, registration) in registrations.iter().enumerate() {
+        let expected = u16::try_from(expected).expect("built-in rule schedule fits u16");
+        assert_eq!(
+            registration.schedule_ordinal, expected,
+            "built-in rule schedule ordinals must be unique and contiguous"
+        );
+    }
+    OrderedRuleRegistry::new(
+        registrations
+            .into_iter()
+            .map(|registration| registration.rule),
+    )
 }
 
 #[cfg(test)]
@@ -1628,6 +1664,34 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::compute_analysis;
+
+    fn shuffle_built_in_registrations(
+        registrations: &mut [BuiltInRuleRegistration],
+        mut state: u64,
+    ) {
+        for upper in (1..registrations.len()).rev() {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            let index = usize::try_from(
+                state % u64::try_from(upper + 1).expect("registration count fits u64"),
+            )
+            .expect("shuffle index fits usize");
+            registrations.swap(upper, index);
+        }
+    }
+
+    pub(crate) fn randomized_sccp_registries() -> Vec<OrderedRuleRegistry> {
+        (1..=32)
+            .map(|seed| {
+                let mut registrations =
+                    built_in_rule_registrations(Optimization::SparseConditionalConstantPropagation);
+                shuffle_built_in_registrations(&mut registrations, seed);
+                assemble_built_in_registry(registrations)
+                    .expect("shuffling cannot alter a valid built-in schedule")
+            })
+            .collect()
+    }
 
     fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
         constructor(raw).expect("nonzero test identity")
@@ -2933,6 +2997,18 @@ pub(crate) mod tests {
                 accepted.unit().functions[0].blocks[0].nodes[2].operation,
                 TerminalAbstractOperation::BooleanConstant { value, .. } if value == expected
             ));
+        }
+    }
+
+    #[test]
+    fn built_in_schedule_is_independent_of_registration_arrival_order() {
+        let expected =
+            registry_for_optimization(Optimization::SparseConditionalConstantPropagation).unwrap();
+        let expected_contracts = expected.contracts().collect::<Vec<_>>();
+
+        for registry in randomized_sccp_registries() {
+            assert_eq!(registry.identity(), expected.identity());
+            assert_eq!(registry.contracts().collect::<Vec<_>>(), expected_contracts);
         }
     }
 

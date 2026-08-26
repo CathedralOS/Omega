@@ -311,21 +311,20 @@ fn add_usage(
     })
 }
 
+type OptimizationRunOutput = (
+    PsiOptimizationUnit,
+    Vec<PsiOptimizationCommit>,
+    OptimizationRunUsage,
+    BaselineDecisionLog,
+    Option<OptimizationPassManifestRecord>,
+    PsiTransformationLedger,
+);
+
 fn run_unit(
     mut unit: PsiOptimizationUnit,
     registry: &OrderedRuleRegistry,
     budget: OptimizationWorkBudget,
-) -> Result<
-    (
-        PsiOptimizationUnit,
-        Vec<PsiOptimizationCommit>,
-        OptimizationRunUsage,
-        BaselineDecisionLog,
-        Option<OptimizationPassManifestRecord>,
-        PsiTransformationLedger,
-    ),
-    OptimizationRunError,
-> {
+) -> Result<OptimizationRunOutput, OptimizationRunError> {
     let mut analyses = AnalysisManager::new(&unit);
     let initial_identity = unit.identity;
     let terminal_psi = unit.terminal_psi;
@@ -630,10 +629,12 @@ mod tests {
 
     use super::*;
     use crate::{
-        AnalysisProduct, ExactIntegerAddConstantsRule, PsiOptimizationRule, built_in_psi_registry,
+        AnalysisProduct, ExactIntegerAddConstantsRule, PsiOptimizationRule,
+        built_in_psi_registries, built_in_psi_registry,
         rules::tests::{
             boolean_unit, dependent_exact_chain_unit, exact_add_unit,
-            propagated_block_parameter_unit, redundant_block_parameter_unit, wrapping_add_unit,
+            propagated_block_parameter_unit, randomized_sccp_registries,
+            redundant_block_parameter_unit, wrapping_add_unit,
         },
     };
 
@@ -889,6 +890,36 @@ mod tests {
         OptimizationWorkBudget::new(64, 64, 64, 64, iterations).unwrap()
     }
 
+    fn run_test_pipeline(
+        mut unit: PsiOptimizationUnit,
+        registries: &[OrderedRuleRegistry],
+    ) -> (
+        PsiOptimizationUnit,
+        Vec<OptimizationPassManifestRecord>,
+        PsiTransformationLedger,
+    ) {
+        let input = unit.identity;
+        let terminal_psi = unit.terminal_psi;
+        let fuel_schedule = unit.fuel_schedule;
+        let mut manifests = Vec::with_capacity(registries.len());
+        let mut records = Vec::new();
+        for registry in registries {
+            let (output, _, _, _, manifest, ledger) = run_unit(unit, registry, budget(8)).unwrap();
+            manifests.push(manifest.expect("a selected pass emits a manifest row"));
+            records.extend_from_slice(ledger.records());
+            unit = output;
+        }
+        let ledger = PsiTransformationLedger::new(
+            terminal_psi,
+            fuel_schedule,
+            input,
+            unit.identity,
+            records,
+        )
+        .unwrap();
+        (unit, manifests, ledger)
+    }
+
     #[test]
     fn fixed_point_dispatch_validates_then_commits_with_stable_usage() {
         let unit = exact_add_unit();
@@ -965,6 +996,75 @@ mod tests {
         assert_eq!(manifest.ordered_rules().len(), 30);
         assert_eq!(manifest.decisions().len(), 2);
         assert_eq!(ledger.records().len(), 2);
+    }
+
+    #[test]
+    fn shuffled_builtin_registration_constructs_identical_sccp_runs() {
+        let selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let expected_registry = built_in_psi_registry(&selections).unwrap();
+        let expected =
+            run_unit(dependent_exact_chain_unit(), &expected_registry, budget(8)).unwrap();
+
+        for registry in randomized_sccp_registries() {
+            let actual = run_unit(dependent_exact_chain_unit(), &registry, budget(8)).unwrap();
+            assert_eq!(actual.0, expected.0);
+            assert_eq!(actual.1, expected.1);
+            assert_eq!(actual.2, expected.2);
+            assert_eq!(actual.3, expected.3);
+            assert_eq!(actual.4, expected.4);
+            assert_eq!(actual.5, expected.5);
+        }
+    }
+
+    #[test]
+    fn full_sccp_then_copy_second_sweep_is_a_composed_ledger_fixed_point() {
+        let selections = OptimizationSelections::new([
+            Optimization::SparseConditionalConstantPropagation,
+            Optimization::CopyPropagation,
+        ])
+        .unwrap();
+        let registries = built_in_psi_registries(&selections).unwrap();
+
+        for initial in [
+            dependent_exact_chain_unit(),
+            redundant_block_parameter_unit(true),
+        ] {
+            let (first_output, first_manifests, first_ledger) =
+                run_test_pipeline(initial, &registries);
+            assert_eq!(first_manifests.len(), 2);
+            assert_eq!(first_manifests[0].input(), first_ledger.input());
+            assert_eq!(first_manifests[0].output(), first_manifests[1].input());
+            assert_eq!(first_manifests[1].output(), first_ledger.output());
+            assert!(!first_ledger.records().is_empty());
+
+            let (second_output, second_manifests, second_delta) =
+                run_test_pipeline(first_output.clone(), &registries);
+            assert_eq!(second_output, first_output);
+            assert_eq!(second_manifests.len(), 2);
+            assert!(second_delta.records().is_empty());
+            assert_eq!(second_delta.input(), second_delta.output());
+            assert!(second_manifests.iter().all(|manifest| {
+                manifest.input() == manifest.output()
+                    && manifest
+                        .decisions()
+                        .iter()
+                        .all(|decision| decision.verdict() != OptimizationCandidateVerdict::Applied)
+            }));
+
+            let mut composed_records = first_ledger.records().to_vec();
+            composed_records.extend_from_slice(second_delta.records());
+            let composed = PsiTransformationLedger::new(
+                first_ledger.terminal_psi(),
+                first_ledger.fuel_schedule(),
+                first_ledger.input(),
+                second_delta.output(),
+                composed_records,
+            )
+            .unwrap();
+            assert_eq!(composed, first_ledger);
+        }
     }
 
     #[test]
