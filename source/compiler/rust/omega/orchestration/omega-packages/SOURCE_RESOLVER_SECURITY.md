@@ -251,6 +251,11 @@ reject explicitly on expiry. On Unix each cache entry and lock must be owned by
 the resolver's effective user and not group- or other-writable;
 canonical ancestry must be root/resolver-owned and cannot be replaceable
 through a non-sticky writable directory; unsupported filesystem kinds reject.
+On macOS the same custody walk inspects native extended ACLs on every ancestor,
+cache, publication, staging, and lock node. Any allow entry rejects even when
+mode bits appear private; deny-only ACLs do not broaden custody, and an
+unreadable ACL fails closed. Symlinks are inspected as links rather than
+following their targets.
 This closes ordinary cross-user
 ownership/configuration substitution on Unix. It does not prevent the owning
 user from replacing a path after an observation, establish Windows

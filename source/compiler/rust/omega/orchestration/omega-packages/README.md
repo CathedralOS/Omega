@@ -244,7 +244,11 @@ canonical SHA-1 or SHA-256 bare-repository configuration without asking Git to
 describe it. Git and local cache trees receive a bounded parent-owned custody
 walk before and after use. Unix nodes and locks must belong to the effective
 user and reject group/other write authority, replaceable non-sticky ancestry,
-or special kinds. The same walk applies source-scaled, absolutely capped
+or special kinds. On macOS every ancestor, cache, publication, staging, and
+lock node additionally rejects any native extended ACL allow entry; deny-only
+ACLs do not broaden custody, unreadable ACLs fail closed, and symlinks are
+inspected without following them. The same walk applies source-scaled,
+absolutely capped
 logical resident-byte ceilings to accepted Git entries and local publications.
 Git lock waiting consumes its ten-minute whole-resolution budget; local
 snapshot publication lock waiting has a separate compiler-owned two-minute

@@ -313,9 +313,14 @@ complete.
   and lock must be owned by the resolver's effective user and cannot be group-
   or other-writable; canonical ancestry must be root/resolver-owned and not
   replaceable through a non-sticky writable directory; special kinds reject.
-  This closes the ordinary cross-user ownership/configuration gap independently,
-  but not hostile same-user racing, platform ACL policy, or native process
-  isolation.
+  On macOS the same walk reads native extended ACLs for every ancestry, cache,
+  publication, staging, and lock node. Any allow entry rejects even when
+  ordinary mode bits appear private; deny-only ACLs do not broaden custody, and
+  an unreadable ACL fails closed. Symlink nodes are inspected without following
+  them, while concrete nodes are checked at their targets. This closes the
+  ordinary cross-user ownership/configuration gap independently on Unix,
+  including macOS ACL authority, but not hostile same-user racing, Windows DACL
+  policy, or native process isolation.
 
   Milestone 2026-08-25: every Git and local publication lock now proves that
   its opened, locked handle still identifies the current lock pathname after
