@@ -1,0 +1,16 @@
+[package]
+name = "omega-optimization-validation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_optimization_validation"
+path = "src/lib.rs"
+
+[dependencies]
+omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
+omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }
