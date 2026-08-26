@@ -1053,10 +1053,15 @@ dependency.
   removes the victim, and globally redensifies later instruction/VReg IDs.
   Its strict recipe codec roots the complete input custody and transformed
   selected identity; replay reconstructs the full CFG before granting a sealed
-  reanalysis carrier. With a sole flexible `rax`/`x0` view, two separately
-  requested folds with complete liveness/range/legality/pressure reanalysis
-  close both leaf pressure points and reach homes. There is no implicit loop,
-  build hook, general rematerialization, spill, frame, or emission authority.
+  reanalysis carrier. Orchestration now owns an append-only chain: the first
+  and every subsequent fold are different explicit calls, each step retains
+  choice/classification/fold plus wholly fresh liveness/range/legality, and the
+  entire prefix is replayed before append. No-action requests reject. With a
+  sole flexible `rax`/`x0` view, two separately requested folds close both leaf
+  pressure points; the final home carrier derives both ordered `LiteralFold`
+  manifest entries from custody and reaches homes on both targets. There is no
+  implicit loop, build hook, general rematerialization, spill, frame, or
+  emission authority.
   Default staging retains every environment-allocatable view and preserves the
   former spill-free homes. Selected-value ownership/proof custody and target
   frame policy must still join before any victim can become a typed spill or

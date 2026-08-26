@@ -22,6 +22,8 @@ use psi_proof_admission::AdmissionProfile;
 mod allocation_legality;
 mod assignment;
 mod fixed_view_copies;
+mod literal_fold_homes;
+mod literal_folds;
 mod live_ranges;
 mod liveness;
 mod register_environment;
@@ -45,6 +47,18 @@ pub use fixed_view_copies::{
     OptimizedFixedViewCopyCustodyError, StagedOptimizedFixedViewCopies,
     StagedOptimizedFixedViewCopyCustodyReceipt, stage_optimized_fixed_view_copies,
     validate_optimized_fixed_view_copy_custody,
+};
+pub use literal_fold_homes::{
+    OptimizedPostLiteralFoldHomeCustodyError, StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
+    StagedOptimizedRegisterHomesAfterLiteralFolds,
+    stage_optimized_register_homes_after_literal_folds,
+    validate_optimized_register_home_after_literal_fold_custody,
+};
+pub use literal_folds::{
+    OptimizedLiteralFoldCustodyError, StagedOptimizedLiteralFoldCustodyReceipt,
+    StagedOptimizedLiteralFoldStep, StagedOptimizedLiteralFolds,
+    stage_first_optimized_literal_fold, stage_next_optimized_literal_fold,
+    validate_optimized_literal_fold_custody,
 };
 pub use live_ranges::{
     OptimizedLiveRangeCustodyError, StagedOptimizedLiveRangeCustodyReceipt,
@@ -1957,6 +1971,103 @@ mod tests {
                 homes.plan().functions[0].assignments.len(),
                 fold_two.transformed().functions[0].virtual_registers.len()
             );
+
+            let staged_folds = stage_first_optimized_literal_fold(
+                legality,
+                TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+                budget(),
+            )
+            .unwrap();
+            assert_eq!(staged_folds.steps().len(), 1);
+            let staged_environment = staged_folds
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment();
+            assert!(matches!(
+                omega_regalloc::assign_terminal_register_homes(
+                    staged_folds.final_step().legality(),
+                    staged_folds.final_step().ranges(),
+                    staged_environment.identity(),
+                    staged_environment.physical(),
+                    staged_environment.constraints(),
+                    staged_environment.reservations(),
+                    staged_environment.allocation_constraint_keys(),
+                ),
+                Err(TerminalRegisterHomeError::NoCompatibleHome { .. })
+            ));
+            let staged_folds = stage_next_optimized_literal_fold(
+                staged_folds,
+                TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+                budget(),
+            )
+            .unwrap();
+            assert_eq!(staged_folds.steps().len(), 2);
+            assert_eq!(staged_folds.custody().transformations().len(), 2);
+            assert_eq!(
+                validate_optimized_literal_fold_custody(&staged_folds).unwrap(),
+                *staged_folds.custody()
+            );
+            assert_eq!(
+                staged_folds.custody().final_selected(),
+                staged_folds
+                    .final_step()
+                    .fold()
+                    .receipt()
+                    .transformed_selected()
+            );
+            let expected_transformations = staged_folds
+                .custody()
+                .transformations()
+                .iter()
+                .copied()
+                .map(PostAllocationSelectedTransformation::LiteralFold)
+                .collect::<Vec<_>>();
+            let staged_homes =
+                stage_optimized_register_homes_after_literal_folds(staged_folds).unwrap();
+            assert_eq!(
+                staged_homes
+                    .post_allocation_manifest()
+                    .record()
+                    .selected_transformations,
+                expected_transformations
+            );
+            assert_eq!(
+                staged_homes.post_allocation_manifest().record().selected,
+                staged_homes.fold_stage().custody().final_selected()
+            );
+            assert_eq!(
+                validate_optimized_register_home_after_literal_fold_custody(&staged_homes).unwrap(),
+                *staged_homes.custody()
+            );
+        }
+    }
+
+    #[test]
+    fn literal_fold_staging_rejects_an_explicit_no_action_request() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let legality = stage_optimized_allocation_legality(
+                stage_optimized_live_ranges(
+                    stage_optimized_liveness(staged_exact_add_conditional(target)).unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            assert!(matches!(
+                stage_first_optimized_literal_fold(
+                    legality,
+                    TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                    TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                    TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+                    budget(),
+                ),
+                Err(OptimizedLiteralFoldCustodyError::NoAppliedFold)
+            ));
         }
     }
 
