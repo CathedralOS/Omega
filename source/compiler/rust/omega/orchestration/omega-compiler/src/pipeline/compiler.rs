@@ -28,6 +28,29 @@ use std::sync::Arc;
 
 const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
 
+/// The semantic product requested from the production compiler pipeline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequestedCompileProduct {
+    Check,
+    TerminalArtifact,
+    NativeArtifact,
+    InstalledOutput,
+}
+
+impl RequestedCompileProduct {
+    const fn from_legacy_write_output(write_output: bool) -> Self {
+        if write_output {
+            Self::InstalledOutput
+        } else {
+            Self::Check
+        }
+    }
+
+    const fn installs_output(self) -> bool {
+        matches!(self, Self::InstalledOutput)
+    }
+}
+
 /// One typed production compiler invocation.
 ///
 /// Test-only entry overrides and worker ceilings deliberately remain on the
@@ -36,6 +59,7 @@ const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileRequest {
     options: CompileOptions,
+    requested_product: RequestedCompileProduct,
     executable_tcb_policy: ExecutableTcbBuildPolicy,
     artifact_policy: ArtifactEmissionPolicy,
     package_inputs: Option<PackageCompilationInputs>,
@@ -43,8 +67,11 @@ pub struct CompileRequest {
 
 impl CompileRequest {
     pub fn new(options: CompileOptions) -> Self {
+        let requested_product =
+            RequestedCompileProduct::from_legacy_write_output(options.write_output);
         Self {
             options,
+            requested_product,
             executable_tcb_policy: ExecutableTcbBuildPolicy::default(),
             artifact_policy: ArtifactEmissionPolicy::Full,
             package_inputs: None,
@@ -56,6 +83,11 @@ impl CompileRequest {
         executable_tcb_policy: ExecutableTcbBuildPolicy,
     ) -> Self {
         self.executable_tcb_policy = executable_tcb_policy;
+        self
+    }
+
+    pub fn with_requested_product(mut self, requested_product: RequestedCompileProduct) -> Self {
+        self.requested_product = requested_product;
         self
     }
 
@@ -71,6 +103,10 @@ impl CompileRequest {
 
     pub const fn options(&self) -> &CompileOptions {
         &self.options
+    }
+
+    pub const fn requested_product(&self) -> RequestedCompileProduct {
+        self.requested_product
     }
 }
 
@@ -450,6 +486,7 @@ fn selected_source_boundary_entry_plan(
 
 pub struct Compiler {
     options: CompileOptions,
+    requested_product: RequestedCompileProduct,
     executable_tcb_policy: ExecutableTcbBuildPolicy,
     test_entry_machine_name: Option<String>,
     worker_count: Option<usize>,
@@ -461,6 +498,7 @@ impl Compiler {
     fn from_request(request: CompileRequest) -> Self {
         Self {
             options: request.options,
+            requested_product: request.requested_product,
             executable_tcb_policy: request.executable_tcb_policy,
             test_entry_machine_name: None,
             worker_count: None,
@@ -473,8 +511,11 @@ impl Compiler {
         options: CompileOptions,
         executable_tcb_policy: ExecutableTcbBuildPolicy,
     ) -> Self {
+        let requested_product =
+            RequestedCompileProduct::from_legacy_write_output(options.write_output);
         Self {
             options,
+            requested_product,
             executable_tcb_policy,
             test_entry_machine_name: None,
             worker_count: None,
@@ -499,6 +540,20 @@ impl Compiler {
     }
 
     pub fn compile(self) -> Result<CompileReport, Vec<Diagnostic>> {
+        match self.requested_product {
+            RequestedCompileProduct::Check | RequestedCompileProduct::InstalledOutput => {}
+            RequestedCompileProduct::TerminalArtifact => {
+                return Err(vec![Diagnostic::error(
+                    "terminal-artifact requests are unavailable through the legacy checked-tree compiler route",
+                )]);
+            }
+            RequestedCompileProduct::NativeArtifact => {
+                return Err(vec![Diagnostic::error(
+                    "retained native-artifact requests are unavailable through the legacy checked-tree compiler route",
+                )]);
+            }
+        }
+        let installs_output = self.requested_product.installs_output();
         let mut timings = CompileTimings::default();
         let emit_auxiliary_artifacts = self.artifact_policy.emits_auxiliary_artifacts();
 
@@ -852,7 +907,7 @@ impl Compiler {
             &checked.program,
             emit_auxiliary_artifacts,
         )?;
-        let backend_surface = (emit_auxiliary_artifacts && self.options.write_output)
+        let backend_surface = (emit_auxiliary_artifacts && installs_output)
             .then(|| build_backend_surface_report(&checked.program, entry_machine_name.as_deref()));
 
         // A check-only compilation with no selected runtime root ends at
@@ -860,7 +915,7 @@ impl Compiler {
         // frontend artifacts would turn `--check` into implicit execution
         // policy; callers that need native validation either select an exact
         // `ProgramEntry` or use the explicit legacy test-entry seam.
-        if !self.options.write_output
+        if !installs_output
             && (entry_machine_name.is_none() || !build_config.optimizations.is_empty())
         {
             if emit_auxiliary_artifacts {
@@ -881,7 +936,7 @@ impl Compiler {
             .map_err(|message| vec![Diagnostic::error(message)]);
         }
 
-        if self.options.write_output {
+        if installs_output {
             reject_undischarged_build_bound_progress(checked.component_progress.as_deref())?;
         }
 
@@ -1025,7 +1080,7 @@ impl Compiler {
         } else {
             None
         };
-        if self.options.write_output && emit_auxiliary_artifacts {
+        if installs_output && emit_auxiliary_artifacts {
             write_backend_report(
                 &self.options,
                 backend_surface
@@ -1038,10 +1093,7 @@ impl Compiler {
         let (emission_plan, emitted) =
             backend_plan_to_native_image_payload(&backend, subsystem, &mut timings)?;
 
-        let (output_kind, executable_publication, app_bundle_publication) = if self
-            .options
-            .write_output
-        {
+        let (output_kind, executable_publication, app_bundle_publication) = if installs_output {
             let written_output = write_output(
                 &self.options,
                 &executable_tcb_installation_authorization,
@@ -1105,7 +1157,7 @@ impl Compiler {
         CompileReport::checked(
             self.options.root_path,
             source_file_count,
-            self.options.write_output,
+            installs_output,
             output_kind,
             executable_publication,
             app_bundle_publication,

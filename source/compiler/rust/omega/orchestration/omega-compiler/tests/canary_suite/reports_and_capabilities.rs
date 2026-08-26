@@ -118,6 +118,55 @@ fn output_only_backend_compile_keeps_primary_image_and_certification() {
 }
 
 #[test]
+fn typed_requested_product_overrides_the_legacy_output_seed_and_rejects_unavailable_routes() {
+    let check_dir = unique_no_output_build_dir();
+    let report = omega_compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
+            build_dir: Some(check_dir.clone()),
+            target_name: Some("windows_x64".into()),
+            write_output: true,
+        })
+        .with_requested_product(omega_compiler::RequestedCompileProduct::Check)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+    )
+    .expect("the typed Check product should override the legacy output seed");
+    assert!(!report.wrote_output());
+    assert_eq!(
+        report.output_kind(),
+        omega_compiler::CompileOutputKind::CheckOnly
+    );
+    assert!(!check_dir.exists());
+
+    for (product, expected) in [
+        (
+            omega_compiler::RequestedCompileProduct::TerminalArtifact,
+            "terminal-artifact requests",
+        ),
+        (
+            omega_compiler::RequestedCompileProduct::NativeArtifact,
+            "retained native-artifact requests",
+        ),
+    ] {
+        let diagnostics = omega_compiler::compile(
+            CompileRequest::new(CompileOptions {
+                root_path: std::path::PathBuf::from("unread-unavailable-product.omg"),
+                build_dir: None,
+                target_name: None,
+                write_output: false,
+            })
+            .with_requested_product(product),
+        )
+        .expect_err("an unavailable product must fail before source acquisition");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected))
+        );
+    }
+}
+
+#[test]
 fn disposable_native_canary_helper_emits_only_the_primary_image() {
     let build_dir = unique_no_output_build_dir();
     let report = compile(CompileOptions {
