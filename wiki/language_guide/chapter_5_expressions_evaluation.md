@@ -138,6 +138,19 @@ remains canonical. Checked and terminal calls retain that declaration rather
 than a bare token, while the token binding remains public source-compatibility
 surface. Adding, removing, or changing it is a breaking source revision.
 
+The arithmetic portion of that fixed vocabulary has this precedence, from
+tightest to loosest:
+
+| Tier | Forms | Binary associativity |
+| --- | --- | --- |
+| grouping and prefix | `(expression)` and prefix unary operators | not applicable |
+| multiplicative | `*`, `/`, `%` | left |
+| additive | `+`, `-` | left |
+
+This table fixes expression grouping only. It does not establish an observable
+runtime evaluation order between operand computations; the separate evaluation-
+order boundaries in this chapter continue to apply.
+
 One declaration binds at most one fixed token. Several declarations may bind
 the same token when their normalized operand/domain shapes distinguish them;
 unary and binary `-`, or `f32` and `f64` `+`, are ordinary separate
