@@ -43,6 +43,38 @@ pub struct FixedSegmentFuelCertificate {
     ceiling_units: u64,
 }
 
+/// Complete canonical safe-point partition for one verified terminal machine.
+///
+/// This carrier is deliberately non-clonable and has no public-field
+/// constructor. It preserves the ordered segment certificates as semantic
+/// evidence only: neither the catalog nor any individual row is a whole-entry
+/// fixed-fuel theorem or authority to replace exact per-site charging.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ValidatedFixedSafePointFuelSegments {
+    terminal_psi: TerminalPsiIdentity,
+    schedule: FuelScheduleIdentity,
+    machine: MachineId,
+    certificates: Vec<FixedSegmentFuelCertificate>,
+}
+
+impl ValidatedFixedSafePointFuelSegments {
+    pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    pub const fn schedule(&self) -> FuelScheduleIdentity {
+        self.schedule
+    }
+
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
+
+    pub fn certificates(&self) -> &[FixedSegmentFuelCertificate] {
+        &self.certificates
+    }
+}
+
 impl FixedSegmentFuelCertificate {
     pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
         self.terminal_psi
@@ -297,6 +329,52 @@ pub fn validate_fixed_safe_point_segments(
         return Err(FixedFuelError::CertificateMismatch);
     }
     Ok(())
+}
+
+/// Validate and retain one complete ordered safe-point partition.
+///
+/// The supplied rows are compared against a fresh derivation as one sequence,
+/// rather than accepted independently. Missing, extra, duplicated, reordered,
+/// or semantically stale rows therefore reject before the sealed carrier is
+/// created.
+pub fn retain_validated_fixed_safe_point_segments(
+    verified: &VerifiedTerminalModule<'_>,
+    machine: MachineId,
+    certificates: Vec<FixedSegmentFuelCertificate>,
+) -> Result<ValidatedFixedSafePointFuelSegments, FixedFuelError> {
+    validate_fixed_safe_point_segments(verified, machine, &certificates)?;
+    let terminal_psi =
+        terminal_psi_identity(verified.module()).map_err(FixedFuelError::SemanticIdentity)?;
+    Ok(ValidatedFixedSafePointFuelSegments {
+        terminal_psi,
+        schedule: TerminalFuelSchedule::CURRENT.identity(),
+        machine,
+        certificates,
+    })
+}
+
+/// Derive and seal the complete canonical safe-point partition.
+pub fn derive_validated_fixed_safe_point_segments(
+    verified: &VerifiedTerminalModule<'_>,
+    machine: MachineId,
+) -> Result<ValidatedFixedSafePointFuelSegments, FixedFuelError> {
+    let certificates = derive_fixed_safe_point_segments(verified, machine)?;
+    retain_validated_fixed_safe_point_segments(verified, machine, certificates)
+}
+
+/// Independently replay a retained catalog against verified terminal Psi.
+pub fn validate_retained_fixed_safe_point_segments(
+    verified: &VerifiedTerminalModule<'_>,
+    catalog: &ValidatedFixedSafePointFuelSegments,
+) -> Result<(), FixedFuelError> {
+    let terminal_psi =
+        terminal_psi_identity(verified.module()).map_err(FixedFuelError::SemanticIdentity)?;
+    if catalog.terminal_psi != terminal_psi
+        || catalog.schedule != TerminalFuelSchedule::CURRENT.identity()
+    {
+        return Err(FixedFuelError::CertificateMismatch);
+    }
+    validate_fixed_safe_point_segments(verified, catalog.machine, &catalog.certificates)
 }
 
 fn derive_maximum_entry_bound(

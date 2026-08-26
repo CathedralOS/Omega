@@ -77,6 +77,55 @@ pub struct InstalledTerminalSegmentFuelCertificate {
     entry: EntryStubId,
 }
 
+/// Complete ordered terminal safe-point partition bound to one exact installed
+/// function occurrence.
+///
+/// The carrier is deliberately non-clonable. It grants no whole-entry,
+/// provider-composition, native-meter, execution, or publication authority;
+/// callers may only inspect the retained segment rows or replay the installed
+/// occurrence binding.
+#[derive(Debug, PartialEq, Eq)]
+pub struct InstalledTerminalSegmentFuelCatalog {
+    segments: psi_terminal_fixed_fuel::ValidatedFixedSafePointFuelSegments,
+    installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    artifact: ArtifactId,
+    entry: EntryStubId,
+}
+
+impl InstalledTerminalSegmentFuelCatalog {
+    pub const fn terminal_psi(&self) -> psi_terminal_codec::TerminalPsiIdentity {
+        self.segments.terminal_psi()
+    }
+
+    pub const fn machine(&self) -> psi_core::MachineId {
+        self.segments.machine()
+    }
+
+    pub fn segments(&self) -> &[psi_terminal_fixed_fuel::FixedSegmentFuelCertificate] {
+        self.segments.certificates()
+    }
+
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub const fn artifact(&self) -> ArtifactId {
+        self.artifact
+    }
+
+    pub const fn entry(&self) -> EntryStubId {
+        self.entry
+    }
+
+    fn matches_installed_entry(&self, installed_code: &InstalledCode, entry: EntryStubId) -> bool {
+        self.entry == entry
+            && self.installed_code == installed_code.identity()
+            && self.installed_code_context == installed_code.receipt_context()
+            && self.artifact == installed_code.artifact()
+    }
+}
+
 impl InstalledTerminalSegmentFuelCertificate {
     pub const fn certificate(&self) -> &psi_terminal_fixed_fuel::FixedSegmentFuelCertificate {
         &self.certificate
@@ -200,6 +249,64 @@ pub fn validate_installed_terminal_segment_fuel(
     if !binding.matches_installed_entry(installed_code, entry) {
         return Err(ExternalRootDiagnostic(
             "terminal fixed-fuel segment does not bind the selected installed code and function entry"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Bind one complete, Psi-validated safe-point partition to the exact installed
+/// function that contains every retained segment.
+pub fn bind_installed_terminal_segment_fuel_catalog<TerminalArtifact: TerminalObjectEvidence>(
+    segments: psi_terminal_fixed_fuel::ValidatedFixedSafePointFuelSegments,
+    terminal_artifact: &TerminalArtifact,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+) -> Result<InstalledTerminalSegmentFuelCatalog, ExternalRootDiagnostic> {
+    if segments.terminal_psi() != terminal_artifact.terminal_psi() {
+        return Err(ExternalRootDiagnostic(
+            "terminal fixed-fuel segment catalog does not name the terminal artifact's semantic identity"
+                .into(),
+        ));
+    }
+    if segments.certificates().iter().any(|certificate| {
+        certificate.terminal_psi() != segments.terminal_psi()
+            || certificate.schedule() != segments.schedule()
+            || certificate.machine() != segments.machine()
+    }) {
+        return Err(ExternalRootDiagnostic(
+            "terminal fixed-fuel segment catalog contains a row outside its exact semantic partition"
+                .into(),
+        ));
+    }
+    let function_offset = terminal_artifact
+        .function_text_offset(segments.machine())
+        .ok_or_else(|| {
+            ExternalRootDiagnostic(
+                "terminal fixed-fuel segment catalog machine is not present in the emitted artifact"
+                    .into(),
+            )
+        })?;
+    bind_terminal_function(terminal_artifact, installed_code, entry, function_offset)?;
+    Ok(InstalledTerminalSegmentFuelCatalog {
+        segments,
+        installed_code: installed_code.identity(),
+        installed_code_context: installed_code.receipt_context(),
+        artifact: installed_code.artifact(),
+        entry,
+    })
+}
+
+/// Recheck that a sealed complete segment catalog still names the exact
+/// installed function occurrence selected at binding time.
+pub fn validate_installed_terminal_segment_fuel_catalog(
+    binding: &InstalledTerminalSegmentFuelCatalog,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+) -> Result<(), ExternalRootDiagnostic> {
+    if !binding.matches_installed_entry(installed_code, entry) {
+        return Err(ExternalRootDiagnostic(
+            "terminal fixed-fuel segment catalog does not bind the selected installed code and function entry"
                 .into(),
         ));
     }

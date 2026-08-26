@@ -25,7 +25,9 @@ use psi_terminal::{
     VocabularyMarker,
 };
 use psi_terminal_codec::terminal_psi_identity;
-use psi_terminal_fixed_fuel::derive_fixed_segment_fuel;
+use psi_terminal_fixed_fuel::{
+    derive_fixed_segment_fuel, derive_validated_fixed_safe_point_segments,
+};
 use psi_terminal_verifier::{ProofBundle, verify_module};
 
 #[derive(Debug)]
@@ -184,6 +186,7 @@ fn installed_code(
 fn terminal_fixture() -> TerminalModule {
     let machine = MachineId::new(0x7200).expect("machine identity");
     let block = BlockId::new(0x7201).expect("block identity");
+    let final_block = BlockId::new(0x7202).expect("final block identity");
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -214,17 +217,30 @@ fn terminal_fixture() -> TerminalModule {
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry: block,
-            blocks: vec![Block {
-                id: block,
-                parameters: Vec::new(),
-                operations: Vec::new(),
-                terminator: Terminator::ReturnUnit {
-                    edge: EdgeId::new(0x7202).expect("edge identity"),
-                    trivial_affine_discards: Vec::new(),
+            blocks: vec![
+                Block {
+                    id: block,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Jump {
+                        edge: EdgeId::new(0x7203).expect("jump edge identity"),
+                        target: final_block,
+                        arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
                 },
-            }],
+                Block {
+                    id: final_block,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: EdgeId::new(0x7204).expect("return edge identity"),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+            ],
             contract: MachineContract {
-                id: ContractId::new(0x7203).expect("contract identity"),
+                id: ContractId::new(0x7205).expect("contract identity"),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
@@ -246,8 +262,8 @@ fn installed_segment_replay_is_exact_and_never_becomes_entry_authority() {
     let machine = module.entry;
     let block = module.machines[0].entry;
     let edge = match module.machines[0].blocks[0].terminator {
-        Terminator::ReturnUnit { edge, .. } => edge,
-        _ => unreachable!("fixture has one Unit return"),
+        Terminator::Jump { edge, .. } => edge,
+        _ => unreachable!("fixture begins with one jump"),
     };
     let certificate = derive_fixed_segment_fuel(&verified, machine, block, edge)
         .expect("one exact terminal segment");
@@ -334,4 +350,75 @@ fn installed_segment_replay_is_exact_and_never_becomes_entry_authority() {
     assert!(validate_installed_terminal_segment_fuel(&binding, &installed, entry(0x7301)).is_err());
     validate_installed_terminal_segment_fuel(&binding, &installed, selected_entry)
         .expect("failed replay leaves the exact segment binding reusable");
+}
+
+#[test]
+fn installed_segment_catalog_binds_one_complete_partition_to_one_occurrence() {
+    let module = terminal_fixture();
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("terminal fixture verifies");
+    let catalog = derive_validated_fixed_safe_point_segments(&verified, module.entry)
+        .expect("complete two-segment partition");
+    assert_eq!(catalog.certificates().len(), 2);
+    assert_eq!(
+        catalog.certificates()[0].start_block(),
+        module.machines[0].entry
+    );
+    assert_eq!(
+        catalog.certificates()[1].start_block(),
+        module.machines[0].blocks[1].id
+    );
+
+    let terminal = TestTerminalObject {
+        identity: terminal_psi_identity(&module).expect("terminal identity"),
+        machine: module.entry,
+        bytes: vec![0; 64],
+    };
+    let selected_entry = entry(0x7340);
+    let installed = installed_code(0x7350, 0x7360, selected_entry);
+    let binding = bind_installed_terminal_segment_fuel_catalog(
+        catalog,
+        &terminal,
+        &installed,
+        selected_entry,
+    )
+    .expect("complete partition binds to one installed function occurrence");
+
+    assert_eq!(binding.terminal_psi(), terminal.identity);
+    assert_eq!(binding.machine(), module.entry);
+    assert_eq!(binding.segments().len(), 2);
+    assert_eq!(binding.installed_code(), installed.identity());
+    assert_eq!(binding.artifact(), installed.artifact());
+    assert_eq!(binding.entry(), selected_entry);
+    validate_installed_terminal_segment_fuel_catalog(&binding, &installed, selected_entry)
+        .expect("exact installed occurrence replays");
+
+    let wrong_occurrence = installed_code(0x7350, 0x7361, selected_entry);
+    assert!(
+        validate_installed_terminal_segment_fuel_catalog(
+            &binding,
+            &wrong_occurrence,
+            selected_entry,
+        )
+        .is_err()
+    );
+    let wrong_artifact = installed_code(0x7352, 0x7362, selected_entry);
+    assert!(
+        validate_installed_terminal_segment_fuel_catalog(
+            &binding,
+            &wrong_artifact,
+            selected_entry,
+        )
+        .is_err()
+    );
+    assert!(
+        validate_installed_terminal_segment_fuel_catalog(&binding, &installed, entry(0x7341),)
+            .is_err()
+    );
+    validate_installed_terminal_segment_fuel_catalog(&binding, &installed, selected_entry)
+        .expect("failed borrowed replay leaves the installed catalog intact");
 }
