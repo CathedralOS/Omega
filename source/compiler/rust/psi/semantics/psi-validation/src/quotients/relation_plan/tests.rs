@@ -258,6 +258,21 @@ fn fixed_float_array_type(
         })
 }
 
+fn fixed_nested_float_array_type(
+    program: &mut TypedTrees,
+    primitive: &'static str,
+    rows: usize,
+    columns: usize,
+) -> TypeReferenceHandle {
+    let row_type = fixed_float_array_type(program, primitive, columns);
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: row_type,
+            length: FixedArrayLength::Literal(rows),
+        })
+}
+
 fn canonical_byte_array_literal(program: &mut TypedTrees, bytes: &[u8]) -> ExpressionHandle {
     let elements =
         bytes
@@ -362,6 +377,20 @@ fn float_array_literal(
     program
         .expression_table
         .insert(ExpressionNode::ArrayLiteral(elements))
+}
+
+fn nested_float_array_literal(
+    program: &mut TypedTrees,
+    rows: Vec<Vec<FloatLiteral>>,
+) -> ExpressionHandle {
+    let rows = rows
+        .into_iter()
+        .map(|row| float_array_literal(program, row))
+        .collect::<Vec<_>>();
+    let rows = program.expression_table.insert_expression_handles(rows);
+    program
+        .expression_table
+        .insert(ExpressionNode::ArrayLiteral(rows))
 }
 
 fn named_argument(
@@ -2377,6 +2406,79 @@ fn proof_fact_literal_substitution_retains_value_landing_and_recursive_fact_shap
         context(&no_values),
     ));
 
+    let nested_float_array_parameter = symbol(963);
+    let nested_float_array_name =
+        named_argument(&mut program, "scale_rows", nested_float_array_parameter);
+    let f32_literal = |text| FloatLiteral::parse(text).expect("format-landed f32 literal");
+    let exact_nested_float_array_literal = nested_float_array_literal(
+        &mut program,
+        vec![
+            vec![f32_literal("1.25f32"), f32_literal("2.5f32")],
+            vec![f32_literal("3.75f32"), f32_literal("4.5f32")],
+        ],
+    );
+    let row_drifted_float_array_literal = nested_float_array_literal(
+        &mut program,
+        vec![
+            vec![f32_literal("1.25f32")],
+            vec![
+                f32_literal("2.5f32"),
+                f32_literal("3.75f32"),
+                f32_literal("4.5f32"),
+            ],
+        ],
+    );
+    let flattened_float_array_literal = float_array_literal(
+        &mut program,
+        [
+            f32_literal("1.25f32"),
+            f32_literal("2.5f32"),
+            f32_literal("3.75f32"),
+            f32_literal("4.5f32"),
+        ],
+    );
+    let format_drifted_nested_float_array_literal = nested_float_array_literal(
+        &mut program,
+        vec![
+            vec![
+                FloatLiteral::parse("1.25f64").expect("format-landed f64 literal"),
+                f32_literal("2.5f32"),
+            ],
+            vec![f32_literal("3.75f32"), f32_literal("4.5f32")],
+        ],
+    );
+    let float_element = |spelling: &str| super::runtime_correspondence::ClosedFloatArrayElement {
+        spelling: spelling.to_owned(),
+        landing: FloatFormat::F32,
+    };
+    let nested_float_array_value = vec![ProofValueSubstitution::nested_float_array(
+        nested_float_array_parameter,
+        &[
+            Arc::from(vec![float_element("1.25"), float_element("2.5")]),
+            Arc::from(vec![float_element("3.75"), float_element("4.5")]),
+        ],
+    )];
+    assert!(proof_facts_match(
+        &program,
+        &ProofFact::Expression(nested_float_array_name),
+        &ProofFact::Expression(exact_nested_float_array_literal),
+        context(&nested_float_array_value),
+        context(&no_values),
+    ));
+    for drifted in [
+        row_drifted_float_array_literal,
+        flattened_float_array_literal,
+        format_drifted_nested_float_array_literal,
+    ] {
+        assert!(!proof_facts_match(
+            &program,
+            &ProofFact::Expression(nested_float_array_name),
+            &ProofFact::Expression(drifted),
+            context(&nested_float_array_value),
+            context(&no_values),
+        ));
+    }
+
     let nested_boolean_array_parameter = symbol(960);
     let nested_boolean_array_name =
         named_argument(&mut program, "flag_rows", nested_boolean_array_parameter);
@@ -3689,6 +3791,97 @@ fn direct_lift_runtime_accepts_exact_float_array_literals() {
 }
 
 #[test]
+fn direct_lift_runtime_accepts_exact_nested_float_array_literals() {
+    use super::runtime_correspondence::ClosedFloatArrayElement;
+
+    let mut program = TypedTrees::default();
+    let quotient = quotient_type(
+        &mut program,
+        symbol(994),
+        "NestedFloatArrayLiteralQ",
+        symbol(995),
+        "NestedFloatArrayLiteralR",
+    );
+    let carrier = carrier_type(&mut program);
+    let fixed_floats = fixed_nested_float_array_type(&mut program, "f32", 2, 2);
+    let literal = nested_float_array_literal(
+        &mut program,
+        vec![
+            vec![
+                FloatLiteral::parse("1.25").expect("anonymous exact decimal literal"),
+                FloatLiteral::parse("2.5f32").expect("format-landed f32 literal"),
+            ],
+            vec![
+                FloatLiteral::parse("3.75").expect("anonymous exact decimal literal"),
+                FloatLiteral::parse("4.5f32").expect("format-landed f32 literal"),
+            ],
+        ],
+    );
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([literal]);
+    let call = call_with_arguments(arguments);
+    let state = State {
+        return_type: quotient,
+        ..Default::default()
+    };
+    let request = push_representative(&mut program, &[(fixed_floats, false, false)], carrier);
+
+    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
+        .expect("every float-matrix leaf follows the exact scalar format rule");
+    assert_eq!(
+        plan.input_relations,
+        [InputRelation::ExactEquality(fixed_floats)]
+    );
+    let runtime = plan
+        .direct_lift_correspondence
+        .expect("nested float-array literal runtime correspondence");
+    let element = |spelling: &str, landing| ClosedFloatArrayElement {
+        spelling: spelling.to_owned(),
+        landing,
+    };
+    assert_eq!(
+        runtime.positions,
+        [super::DirectLiftRuntimePosition {
+            source: super::DirectLiftArgumentSource::Literal(
+                super::runtime_correspondence::ClosedLiftLiteral::NestedFloatArray {
+                    rows: Arc::from(vec![
+                        Arc::from(vec![
+                            element("1.25", FloatFormat::F32),
+                            element("2.5", FloatFormat::F32),
+                        ]),
+                        Arc::from(vec![
+                            element("3.75", FloatFormat::F32),
+                            element("4.5", FloatFormat::F32),
+                        ]),
+                    ]),
+                    target_type: program.normalized_type_identity(fixed_floats),
+                },
+            ),
+            representative_parameter: symbol(100),
+        }]
+    );
+    let mut evidence_drift = runtime.clone();
+    evidence_drift.positions[0].source = super::DirectLiftArgumentSource::Literal(
+        super::runtime_correspondence::ClosedLiftLiteral::NestedFloatArray {
+            rows: Arc::from(vec![
+                Arc::from(vec![element("1.25", FloatFormat::F32)]),
+                Arc::from(vec![
+                    element("2.5", FloatFormat::F32),
+                    element("3.75", FloatFormat::F64),
+                    element("4.5", FloatFormat::F32),
+                ]),
+            ]),
+            target_type: program.normalized_type_identity(fixed_floats),
+        },
+    );
+    assert_ne!(
+        runtime, evidence_drift,
+        "row boundaries and float formats remain evidence identity"
+    );
+}
+
+#[test]
 fn repeated_equal_direct_lift_literals_keep_distinct_runtime_and_theorem_positions() {
     let mut program = TypedTrees::default();
     let quotient = quotient_type(
@@ -4453,6 +4646,125 @@ fn direct_lift_literal_fences_mismatched_and_unadmitted_values() {
         (62, nested_integer_array, unresolved_outer_i8_type),
         (63, deeper_nested_integer_array, deeper_nested_integer_type),
         (64, integer_array, one_by_one_nested_i8_type),
+    ] {
+        assert_eq!(
+            super::closed_lift_literal_for_representative(&program, expression, target, position),
+            Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position)),
+        );
+    }
+
+    let one_by_one_nested_f32_type = fixed_nested_float_array_type(&mut program, "f32", 1, 1);
+    let two_by_one_nested_f32_type = fixed_nested_float_array_type(&mut program, "f32", 2, 1);
+    let exact_nested_float_array = nested_float_array_literal(
+        &mut program,
+        vec![vec![
+            FloatLiteral::parse("1.25f32").expect("format-landed f32 literal"),
+        ]],
+    );
+    let mismatched_nested_float_array = nested_float_array_literal(
+        &mut program,
+        vec![vec![
+            FloatLiteral::parse("1.25f64").expect("format-landed f64 literal"),
+        ]],
+    );
+    let ragged_nested_float_array = nested_float_array_literal(
+        &mut program,
+        vec![
+            vec![FloatLiteral::parse("1.0").expect("anonymous float literal")],
+            vec![
+                FloatLiteral::parse("2.0").expect("anonymous float literal"),
+                FloatLiteral::parse("3.0").expect("anonymous float literal"),
+            ],
+        ],
+    );
+    let computed_nested_float_array = {
+        let rows = program
+            .expression_table
+            .insert_expression_handles([computed_float_array]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(rows))
+    };
+    let constrained_float_row =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: constrained_f32,
+                length: FixedArrayLength::Literal(1),
+            });
+    let constrained_nested_float_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: constrained_float_row,
+                length: FixedArrayLength::Literal(1),
+            });
+    let unresolved_float_row = program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: f32_type,
+            length: FixedArrayLength::ConstParameter {
+                symbol: symbol(996),
+                name: Identifier::generated_static("M"),
+            },
+        });
+    let unresolved_inner_float_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: unresolved_float_row,
+                length: FixedArrayLength::Literal(1),
+            });
+    let exact_float_row = fixed_float_array_type(&mut program, "f32", 1);
+    let unresolved_outer_float_type =
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: exact_float_row,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: symbol(997),
+                    name: Identifier::generated_static("N"),
+                },
+            });
+    let deeper_nested_float_type = {
+        let matrix = fixed_nested_float_array_type(&mut program, "f32", 1, 1);
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: matrix,
+                length: FixedArrayLength::Literal(1),
+            })
+    };
+    let deeper_nested_float_array = {
+        let matrices = program
+            .expression_table
+            .insert_expression_handles([exact_nested_float_array]);
+        program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(matrices))
+    };
+    let wrong_outer_width_nested_f32_type =
+        fixed_nested_float_array_type(&mut program, "f32", 2, 1);
+    for (position, expression, target) in [
+        (
+            65,
+            exact_nested_float_array,
+            wrong_outer_width_nested_f32_type,
+        ),
+        (
+            66,
+            mismatched_nested_float_array,
+            one_by_one_nested_f32_type,
+        ),
+        (67, ragged_nested_float_array, two_by_one_nested_f32_type),
+        (68, computed_nested_float_array, one_by_one_nested_f32_type),
+        (69, nested_integer_array, one_by_one_nested_f32_type),
+        (70, nested_boolean_array, one_by_one_nested_f32_type),
+        (71, exact_nested_float_array, constrained_nested_float_type),
+        (72, exact_nested_float_array, unresolved_inner_float_type),
+        (73, exact_nested_float_array, unresolved_outer_float_type),
+        (74, deeper_nested_float_array, deeper_nested_float_type),
+        (75, short_float_array, one_by_one_nested_f32_type),
     ] {
         assert_eq!(
             super::closed_lift_literal_for_representative(&program, expression, target, position),
