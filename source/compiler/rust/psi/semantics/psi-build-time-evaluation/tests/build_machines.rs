@@ -23,6 +23,10 @@ const SOURCE: &str = r#"
         7
     }
 
+    machine raw_bytes() -> [u8; 2] {
+        "\x80A"
+    }
+
     data Stager { filesystem: FilesystemHost; result: i32; }
     machine Stager::build(&mut self, value: &mut Build)
     reaches FilesystemHost
@@ -54,6 +58,20 @@ fn admission_plan_owns_result_machine_lookup_gate_and_evaluation() {
         .evaluate_machine(&typed, "Stager::build", vec![])
         .expect_err("admission must reject reached services before interpretation");
     assert!(error.contains("service reach [FilesystemHost]"), "{error}");
+}
+
+#[test]
+fn exact_width_quoted_literal_evaluates_as_an_owned_raw_byte_array() {
+    let typed = typed(SOURCE);
+    let admission = psi_build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed);
+
+    let value = admission
+        .evaluate_machine(&typed, "raw_bytes", vec![])
+        .expect("exact-width owned bytes should evaluate");
+    assert_eq!(
+        value,
+        BuildTimeValue::Array(vec![BuildTimeValue::Int(0x80), BuildTimeValue::Int(0x41)])
+    );
 }
 
 #[test]
