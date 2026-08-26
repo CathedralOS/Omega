@@ -7330,9 +7330,14 @@ state through a raw address.
 - Use pre-reserved storage for the fixed bootstrap table; dynamic hierarchy
   allocation waits for the package allocator. Cathedral now represents one
   512-entry page candidate and validates its complete exact-zero starting
-  state with a checked bounded scan. Physical backing, address-space-profile
-  hierarchy, mappings, installation, and teardown remain. Do not restore a
-  compiler-owned page-table model.
+  state with a checked bounded scan. It also retains and independently replays
+  one exact four-level numeric walk, then validates the selected 4-KiB roles:
+  the upper three entries are present non-large-page links and the PT entry is
+  present, while the PT PAT bit and every other permission/cache field remain
+  uninterpreted. The exact descriptor returns unchanged and grants no backing,
+  mapping, placement, TLB, installation, CR3, or machine-control authority.
+  Physical backing, address-space-profile hierarchy, mappings, installation,
+  and teardown remain. Do not restore a compiler-owned page-table model.
 
 #### Exception roots and first timer
 
