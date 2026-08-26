@@ -408,8 +408,11 @@ allocation machine sidecar. The post-allocation manifest records that
 completion identity separately from its ordered literal-fold transformation
 ledger. Consequently, an already-fixed-point run records an empty change
 ledger and a nonempty suite-completion identity without pretending that a
-rewrite occurred. Native compiler publication remains closed until this phase
-receipt is joined through emission and the final realization manifest.
+rewrite occurred. The first function-relative realization manifest now joins
+that completion to the independently replayed machine, encoding, and layout
+roots. Native compiler publication remains closed until whole-function,
+emission, and final publication custody extend that truthful intermediate
+record.
 
 Allocator search availability is now a separate compiler-internal validated
 artifact. `AllEnvironmentAllocatableViewsV1` derives the complete flexible set
@@ -1295,6 +1298,22 @@ custody, bytes, displacement, and decoded effects. It still owns only separate
 function-relative fragments—not section placement, symbols, object relocations,
 executable bytes, or publication.
 
+Selected-lowering orchestration now seals those function-relative products in
+a structured v1 realization manifest. The record joins the full named build
+suite, its exact selected-lowering projection and completion identity, the pre-
+physical and post-allocation manifests, final selected CFG, pre- and post-
+allocation machine roots, pre-layout encoding, resolved layout, exact target,
+and named layout policy. It derives function, block, instruction, byte, and
+resolved-conditional-branch counts from the validated layout. A strict binary
+codec recomputes its domain-separated identity and rejects unknown vocabulary,
+identity changes, truncation, and trailing bytes; custody replay reconstructs
+every joined root and both encoded artifacts. Its scope is explicitly
+`FunctionRelativeFragmentsV1`, and frame, whole-function exit contract,
+machine emission, section placement, symbols, object relocations, executable
+image, installation, and publication are each explicitly unavailable. This is
+therefore an honest realization checkpoint, not an object or native-final
+manifest.
+
 Choosing x86 `rel8` is a separate prospective named transformation,
 `X86RelaxConditionalBranchesToRel8V1`, with monotone fixed-point layout replay
 and explicit work accounting. It is not an implicit “higher optimization
@@ -1463,18 +1482,22 @@ Human text/HTML views are projections of a structured compiler-owned record.
 They do not enter semantic identity. The report must be suppressible without
 changing optimization decisions.
 
-The current Rust slice implements one structured/text projection through the
-validated abstract-plan boundary and a second joined projection through the
-strict spill-free register-home boundary. The pre-physical manifest's versioned
-standalone codec serializes that whole earlier record and strict nested codecs;
-the post-allocation record adds truthful home statistics while marking frame,
-emission, and publication unavailable. Both records now have versioned strict
-standalone codecs, but neither is yet wired into a
-compiler-owned artifact or rebuild-metadata section. `OPT-MANIFEST-SCHEMA`
-remains open until later manifests join frame/emission/publication records,
-enter that metadata path, and the compiler exposes a suppressible report
-request without entering native optimization during ordinary check-only
-builds.
+The current Rust slice implements structured/text projections through the
+validated abstract-plan and strict spill-free register-home boundaries, plus a
+selected-lowering-only function-relative realization projection. The pre-
+physical manifest's versioned standalone codec serializes that whole earlier
+record and strict nested codecs; the post-allocation record adds truthful home
+statistics while marking frame, emission, and publication unavailable. The
+function-relative v1 record then binds suite completion to the validated final
+selected CFG, machine effects, post-allocation machine, canonical encoding,
+named layout policy, resolved fragments, and exact code-size statistics. It
+explicitly marks every whole-function, section, relocation, image,
+installation, and publication field unavailable. All three records have strict
+self-authenticating codecs, but none is yet wired into a compiler-owned artifact
+or rebuild-metadata section. `OPT-MANIFEST-SCHEMA` remains open until later
+manifests join frame/emission/publication records, enter that metadata path,
+and the compiler exposes a suppressible report request without entering native
+optimization during ordinary check-only builds.
 
 The decision-row substrate is self-authenticating rather than caller-stamped.
 Each row derives its identity from the exact input unit, candidate, rule,

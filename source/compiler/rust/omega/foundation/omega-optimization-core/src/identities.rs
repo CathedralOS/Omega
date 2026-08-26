@@ -94,6 +94,10 @@ canonical_identity!(
     b"omega.selected-lowering-optimization-completion-identity.v1\0"
 );
 canonical_identity!(
+    FunctionRelativeOptimizationRealizationManifestIdentity,
+    b"omega.function-relative-optimization-realization-manifest-identity.v1\0"
+);
+canonical_identity!(
     OptimizationDecisionIdentity,
     b"omega.optimization-decision-identity.v1\0"
 );
@@ -432,6 +436,9 @@ mod tests {
             OptimizationCandidateIdentity::from_canonical_bytes(b"same").bytes(),
             ScalarConstantFactIdentity::from_canonical_bytes(b"same").bytes(),
             PostAllocationOptimizationManifestIdentity::from_canonical_bytes(b"same").bytes(),
+            SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(b"same").bytes(),
+            FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(b"same")
+                .bytes(),
             OptimizationDecisionIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationValidatorIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationUnitIdentity::from_canonical_bytes(b"same").bytes(),
@@ -460,6 +467,8 @@ mod tests {
         round_trip!(OwnershipFrontierFactIdentity);
         round_trip!(PrePhysicalOptimizationManifestIdentity);
         round_trip!(PostAllocationOptimizationManifestIdentity);
+        round_trip!(SelectedLoweringOptimizationCompletionIdentity);
+        round_trip!(FunctionRelativeOptimizationRealizationManifestIdentity);
         round_trip!(OptimizationDecisionIdentity);
         round_trip!(OptimizationValidatorIdentity);
         round_trip!(OptimizationUnitIdentity);

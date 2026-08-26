@@ -22,6 +22,7 @@ use psi_proof_admission::AdmissionProfile;
 mod allocation_legality;
 mod assignment;
 mod fixed_view_copies;
+mod function_relative_realization;
 mod literal_fold_homes;
 mod literal_folds;
 mod live_ranges;
@@ -52,6 +53,17 @@ pub use fixed_view_copies::{
     OptimizedFixedViewCopyCustodyError, StagedOptimizedFixedViewCopies,
     StagedOptimizedFixedViewCopyCustodyReceipt, stage_optimized_fixed_view_copies,
     validate_optimized_fixed_view_copy_custody,
+};
+pub use function_relative_realization::{
+    FunctionRelativeOptimizationRealizationError, FunctionRelativeOptimizationRealizationManifest,
+    FunctionRelativeOptimizationRealizationManifestDecodeError,
+    FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
+    FunctionRelativeOptimizationRealizationStatistics, FunctionRelativeOptimizationUnavailableData,
+    StagedSelectedLoweringFunctionRelativeRealization,
+    StagedSelectedLoweringFunctionRelativeRealizationCustodyReceipt,
+    ValidatedFunctionRelativeOptimizationRealizationManifest,
+    stage_selected_lowering_function_relative_realization,
+    validate_selected_lowering_function_relative_realization_custody,
 };
 pub use literal_fold_homes::{
     OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
@@ -2863,15 +2875,39 @@ mod tests {
                 validate_optimized_register_home_after_selected_lowering_custody(&homes).unwrap(),
                 *homes.custody()
             );
-            let post = stage_optimized_post_allocation_machine_plan_after_selected_lowering(&homes)
-                .unwrap();
+            let realization = stage_selected_lowering_function_relative_realization(homes).unwrap();
+            let post = realization.machine();
             assert_eq!(post.machine().receipt().selected(), final_selected);
             assert_eq!(
                 validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody(
-                    &homes, &post,
+                    realization.homes(),
+                    post,
                 )
                 .unwrap(),
                 *post.custody()
+            );
+            assert_eq!(
+                validate_selected_lowering_function_relative_realization_custody(&realization)
+                    .unwrap(),
+                *realization.custody()
+            );
+            let manifest = realization.manifest().record();
+            assert_eq!(manifest.selections, selections.identity());
+            assert_eq!(manifest.selected_lowering_completion, completion);
+            assert_eq!(manifest.selected, final_selected);
+            assert_eq!(manifest.pre_layout, realization.encoding().identity());
+            assert_eq!(manifest.resolved_layout, realization.layout().identity());
+            assert_eq!(manifest.statistics.functions, 1);
+            assert_eq!(manifest.statistics.blocks, 3);
+            assert_eq!(manifest.statistics.resolved_conditional_branches, 1);
+            assert_eq!(
+                manifest.statistics.bytes,
+                realization
+                    .layout()
+                    .functions()
+                    .iter()
+                    .map(|function| function.byte_count)
+                    .sum()
             );
         }
     }
@@ -2923,15 +2959,208 @@ mod tests {
             assert_eq!(manifest.selected_lowering_completion, Some(completion));
             assert!(manifest.selected_transformations.is_empty());
             assert_eq!(manifest.selected, source_selected);
-            let post = stage_optimized_post_allocation_machine_plan_after_selected_lowering(&homes)
-                .unwrap();
+            let realization = stage_selected_lowering_function_relative_realization(homes).unwrap();
+            let post = realization.machine();
             assert_eq!(post.machine().receipt().selected(), source_selected);
             assert_eq!(
                 validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody(
-                    &homes, &post,
+                    realization.homes(),
+                    post,
                 )
                 .unwrap(),
                 *post.custody()
+            );
+            assert_eq!(
+                validate_selected_lowering_function_relative_realization_custody(&realization)
+                    .unwrap(),
+                *realization.custody()
+            );
+            let manifest = realization.manifest().record();
+            assert_eq!(manifest.selected_lowering_completion, completion);
+            assert_eq!(manifest.selected, source_selected);
+            assert_eq!(manifest.statistics.functions, 1);
+            assert_eq!(manifest.statistics.blocks, 3);
+            assert_eq!(manifest.statistics.resolved_conditional_branches, 1);
+            assert_eq!(
+                manifest.publication,
+                FunctionRelativeOptimizationUnavailableData::Unavailable
+            );
+            let encoded = manifest.encode();
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(&encoded),
+                Ok(manifest.clone())
+            );
+            assert!(manifest.render_text().contains("publication: unavailable"));
+            let mut identity_tamper = encoded.clone();
+            identity_tamper[12] ^= 1;
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(&identity_tamper),
+                Err(FunctionRelativeOptimizationRealizationManifestDecodeError::IdentityMismatch)
+            );
+            let mut wrong_magic = encoded.clone();
+            wrong_magic[0] ^= 1;
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(&wrong_magic),
+                Err(FunctionRelativeOptimizationRealizationManifestDecodeError::WrongMagic)
+            );
+            let mut wrong_version = encoded.clone();
+            wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(&wrong_version),
+                Err(
+                    FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(
+                        2
+                    )
+                )
+            );
+            let mut trailing = encoded.clone();
+            trailing.push(0);
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(&trailing),
+                Err(FunctionRelativeOptimizationRealizationManifestDecodeError::TrailingBytes)
+            );
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(
+                    &encoded[..encoded.len() - 1]
+                ),
+                Err(FunctionRelativeOptimizationRealizationManifestDecodeError::Truncated)
+            );
+            let content_offset = 8 + 4 + 32;
+            let mut unknown_stage = encoded.clone();
+            unknown_stage[content_offset] = 9;
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(&unknown_stage),
+                Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownStage(9))
+            );
+            let target_offset = content_offset + 1 + 10 * 32;
+            let mut unknown_architecture = encoded.clone();
+            unknown_architecture[target_offset] = 9;
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(&unknown_architecture),
+                Err(
+                    FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownArchitecture(
+                        9
+                    )
+                )
+            );
+            let mut unknown_object_format = encoded.clone();
+            unknown_object_format[target_offset + 1] = 9;
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(&unknown_object_format),
+                Err(
+                    FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownObjectFormat(
+                        9
+                    )
+                )
+            );
+            let layout_policy_offset = target_offset + 2 + 8 + 8;
+            let mut unknown_layout_policy = encoded.clone();
+            unknown_layout_policy[layout_policy_offset] = 9;
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(&unknown_layout_policy),
+                Err(
+                    FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownLayoutPolicy(
+                        9
+                    )
+                )
+            );
+            let mut unknown_scope = encoded.clone();
+            unknown_scope[layout_policy_offset + 1] = 9;
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(&unknown_scope),
+                Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownScope(9))
+            );
+            let mut unknown_unavailable = encoded.clone();
+            *unknown_unavailable.last_mut().unwrap() = 9;
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(&unknown_unavailable),
+                Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownUnavailableStatus(9))
+            );
+
+            let mut corrupted = realization;
+            macro_rules! assert_manifest_field_is_bound {
+                ($field:ident, $replacement:expr) => {{
+                    let original = corrupted.manifest().record().$field;
+                    corrupted.manifest_mut().record_mut().$field = $replacement;
+                    assert_eq!(
+                        validate_selected_lowering_function_relative_realization_custody(
+                            &corrupted
+                        ),
+                        Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
+                    );
+                    corrupted.manifest_mut().record_mut().$field = original;
+                }};
+            }
+            assert_manifest_field_is_bound!(
+                identity,
+                omega_optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity::from_bytes(
+                    [0x50; 32]
+                )
+            );
+            assert_manifest_field_is_bound!(
+                selections,
+                omega_optimization_core::OptimizationSelectionIdentity::from_bytes([0x51; 32])
+            );
+            assert_manifest_field_is_bound!(
+                selected_lowering_selections,
+                omega_optimization_core::OptimizationSelectionIdentity::from_bytes([0x52; 32])
+            );
+            assert_manifest_field_is_bound!(
+                selected_lowering_completion,
+                omega_optimization_core::SelectedLoweringOptimizationCompletionIdentity::from_bytes(
+                    [0x53; 32]
+                )
+            );
+            assert_manifest_field_is_bound!(
+                pre_physical_manifest,
+                omega_optimization_core::PrePhysicalOptimizationManifestIdentity::from_bytes(
+                    [0x54; 32]
+                )
+            );
+            assert_manifest_field_is_bound!(
+                post_allocation_manifest,
+                omega_optimization_core::PostAllocationOptimizationManifestIdentity::from_bytes(
+                    [0x55; 32]
+                )
+            );
+            assert_manifest_field_is_bound!(
+                selected,
+                omega_terminal_selected_instructions::TerminalSelectedInstructionPlanIdentity::from_bytes(
+                    [0x56; 32]
+                )
+            );
+            assert_manifest_field_is_bound!(
+                pre_allocation_machine_effects,
+                omega_machine_optimizer::TerminalPreAllocationMachineEffectIdentity::from_bytes(
+                    [0x57; 32]
+                )
+            );
+            assert_manifest_field_is_bound!(
+                post_allocation_machine,
+                omega_machine_optimizer::TerminalPostAllocationMachineIdentity::from_bytes(
+                    [0x58; 32]
+                )
+            );
+            assert_manifest_field_is_bound!(
+                pre_layout,
+                TerminalSelectedFormEncodingIdentity::from_bytes([0x59; 32])
+            );
+            assert_manifest_field_is_bound!(
+                resolved_layout,
+                TerminalResolvedSelectedFormLayoutIdentity::from_bytes([0x5a; 32])
+            );
+            assert_manifest_field_is_bound!(target, NativeTarget::windows_x64());
+            let original_bytes = corrupted.manifest().record().statistics.bytes;
+            corrupted.manifest_mut().record_mut().statistics.bytes = original_bytes + 1;
+            assert_eq!(
+                validate_selected_lowering_function_relative_realization_custody(&corrupted),
+                Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
+            );
+            corrupted.manifest_mut().record_mut().statistics.bytes = original_bytes;
+            assert_eq!(
+                validate_selected_lowering_function_relative_realization_custody(&corrupted)
+                    .unwrap(),
+                *corrupted.custody()
             );
         }
     }
@@ -2965,6 +3194,7 @@ mod tests {
             ));
             assert_eq!(staged.selections(), psi_only_selections.identity());
             assert_eq!(staged.selected_lowering_completion(), None);
+            assert!(staged.function_relative_realization().is_none());
 
             for selections in [
                 OptimizationSelections::new([
@@ -2992,20 +3222,34 @@ mod tests {
                     &[],
                 )
                 .unwrap();
-                let StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { homes, machine } =
+                let StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization } =
                     &staged
                 else {
                     panic!("selected-lowering phase must run when its exact family is selected")
                 };
+                let homes = realization.homes();
+                let machine = realization.machine();
                 assert_eq!(staged.selections(), selections.identity());
                 assert_eq!(
                     staged.selected_lowering_completion(),
                     Some(homes.selected_lowering_run().custody().identity())
                 );
+                assert_eq!(
+                    staged.function_relative_realization().unwrap().custody(),
+                    realization.custody()
+                );
                 assert!(homes.selected_lowering_run().steps().is_empty());
                 assert_eq!(
                     machine.machine().receipt().post_allocation_manifest(),
                     homes.post_allocation_manifest().record().identity
+                );
+                assert_eq!(
+                    realization.manifest().record().selections,
+                    selections.identity()
+                );
+                assert_eq!(
+                    realization.manifest().record().publication,
+                    FunctionRelativeOptimizationUnavailableData::Unavailable
                 );
             }
         }

@@ -41,6 +41,10 @@ pub enum TerminalSelectedFunctionLayoutPolicy {
 pub struct TerminalResolvedSelectedFormLayoutIdentity([u8; 32]);
 
 impl TerminalResolvedSelectedFormLayoutIdentity {
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
     pub const fn bytes(self) -> [u8; 32] {
         self.0
     }

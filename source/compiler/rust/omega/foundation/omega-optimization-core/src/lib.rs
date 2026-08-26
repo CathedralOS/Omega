@@ -19,7 +19,8 @@ pub use contracts::{
     OptimizationWorkBudget,
 };
 pub use identities::{
-    AcceptedObligationFactIdentity, DuplicateOptimizationRuleIdentity, IdentityBundleDecodeError,
+    AcceptedObligationFactIdentity, DuplicateOptimizationRuleIdentity,
+    FunctionRelativeOptimizationRealizationManifestIdentity, IdentityBundleDecodeError,
     IdentityDecodeError, OptimizationCandidateIdentity, OptimizationDecisionIdentity,
     OptimizationDecisionLogIdentity, OptimizationIdentityBundle,
     OptimizationIdentityBundleIdentity, OptimizationPassIdentity, OptimizationRuleIdentity,
