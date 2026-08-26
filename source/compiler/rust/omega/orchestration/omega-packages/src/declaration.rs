@@ -690,7 +690,7 @@ mod tests {
             r#"
             machine build(builder: &mut Build) {
                 builder.member("omega/language/std");
-                builder.member("apps/omega-compiler");
+                builder.member("source/compiler/omega");
             }
             "#,
         );
@@ -699,7 +699,7 @@ mod tests {
             BuildDeclaration::Workspace(WorkspaceDeclaration {
                 members: vec![
                     WorkspaceMemberPath::parse("omega/language/std").unwrap(),
-                    WorkspaceMemberPath::parse("apps/omega-compiler").unwrap(),
+                    WorkspaceMemberPath::parse("source/compiler/omega").unwrap(),
                 ],
             })
         );

@@ -23,8 +23,8 @@ real package fixture demonstrates an irreducible external contract.
   `builder: &mut Build` parameter and runs before dependency resolution or
   package-controlled build execution.
 - This repository's root workspace currently names `omega/language/std`,
-  `compiler/psi`, and `apps/omega-compiler`. Each member owns its declaration;
-  paths locate members but do not name them.
+  `source/compiler/omega/psi`, and `source/compiler/omega`. Each member owns
+  its declaration; paths locate members but do not name them.
 - `PackageName` is presentation. `PackageKey` joins the name to canonical
   source lineage. `PackageInstance` adds exact source, toolchain, and checked
   package-evidence identity.
