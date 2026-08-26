@@ -21,7 +21,9 @@ artifact views distinct:
 
 ```text
 language capability: Alpha → Beta → Gamma → Delta → Omega
-build artifacts:     Alpha → Beta → Gamma → Delta → omega-bootstrap → omega [→ omega]
+build artifacts:     Alpha → Beta → Gamma → Delta → omega-bootstrap
+                     → omega (full Ω; conservative binary)
+                     [→ omega (same compiler; optimized binary)]
 ```
 
 `omega-bootstrap` is a Delta-written compiler artifact, not a language between
@@ -295,7 +297,7 @@ Alpha → Beta → Gamma → Delta
 Delta compiler source ──[Delta→Gamma elaboration + Gamma execution]──▶ delta compiler
 Delta bridge source ──[delta compiler]───────────────────▶ omega-bootstrap
 Ωself product source ──[omega-bootstrap]──────────────▶ omega (full Ω; conservative binary)
-Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
+same Ωself product source ──[optional omega rebuild]──▶ omega (same compiler; optimized binary)
 ```
 
 The added compiler-publication line is the concrete `Gamma → Delta` edge. A
