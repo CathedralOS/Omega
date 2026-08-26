@@ -1154,6 +1154,13 @@ selected-provider row may mix authored coordinates and compiler-derived reasons
 without reconstructing provenance from reduced names, schemas, or fingerprints.
 Nested use sites remain incremental provenance carriers in existing Psi stages
 or compiler-internal sidecars, not a reason to create nominal Chi.
+Public-trait composition is the first such carrier: canonical sorting keeps
+each typed parent identifier's exact authored span with its trait row under a
+closed `trait_parent` role. The coordinate remains outside semantic row bytes,
+while recovery envelope v2 and conflict fingerprint/rendering bind what review
+shows. Callable contract/body sites and `reaches`/`invokes` occurrences remain
+incremental; absent late-stage spans must be retained by their earlier owner,
+not reconstructed from source text.
 
 Proposition and named-evidence projection is the concrete model for this
 cross-representation rule. Typed proposition applications own structural

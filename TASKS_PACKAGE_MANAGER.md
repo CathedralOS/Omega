@@ -2471,7 +2471,18 @@ complete.
   provider review row can therefore combine authored coordinates with compiler-
   derived reasons without reconstructing either from names, schemas, or
   fingerprints. Free external providers and an empty selected set also carry
-  closed reasons. Exact nested clause/use-site anchors remain engineering work.
+  closed reasons.
+  Milestone 2026-08-26: public-trait rows now retain every exact authored
+  parent-identifier span beside the trait declaration under the closed
+  `trait_parent` role. The typed trait edge already owned this span; projection
+  carries it through canonical row sorting rather than reconstructing it from a
+  parent name. Coordinates remain explanatory and outside semantic row bytes,
+  while conflict fingerprint v5 and renderer V4 bind and display them.
+  Canonical-row recovery envelope v2 admits the appended role and rejects stale
+  envelopes rather than interpreting them under the new source schema. Callable
+  contract facts/body calls and authored `reaches`/`invokes` clause occurrences
+  remain incremental engineering work; the latter require deliberate span
+  retention before typed lowering, not later source-text reconstruction.
   Canonical recovery and root-project file custody are recorded below; none of
   these concerns requires nominal Chi or a new owner decision.
 

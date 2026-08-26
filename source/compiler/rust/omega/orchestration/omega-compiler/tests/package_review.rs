@@ -8648,16 +8648,14 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 fn public_trait_shape_retains_boundary_parent_and_alpha_normalized_requirements() {
     let first = TempPackage::new();
     let second = TempPackage::new();
-    first.write(
-        "main.omg",
-        r#"pub trait Parent<Element> {
+    let first_source = r#"pub trait Parent<Element> {
     operator < compare(left: Element, right: Element) -> bool;
 }
 pub boundary trait Service<Element>: Parent<Element> {
     machine Self::exchange(&mut self, item: Element) -> Element;
 }
-"#,
-    );
+"#;
+    first.write("main.omg", first_source);
     second.write(
         "main.omg",
         r#"pub trait Parent<Value> {
@@ -8712,6 +8710,48 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     );
     assert_eq!(parent.identity().path(), "Parent");
     assert_eq!(parent.arguments().len(), 1);
+    let canonical_rows = first_review
+        .canonical_rows()
+        .expect("public-trait canonical rows");
+    let service_row = canonical_rows
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::PublicTrait)
+        .find(|row| {
+            row.source().authored_locations().is_some_and(|locations| {
+                locations.iter().any(|location| {
+                    let start = usize::try_from(location.start_byte()).unwrap();
+                    let end = usize::try_from(location.end_byte()).unwrap();
+                    location.role() == PackageReviewSourceLocationRole::Declaration
+                        && &first_source[start..end] == "Service"
+                })
+            })
+        })
+        .expect("service canonical row");
+    let locations = service_row
+        .source()
+        .authored_locations()
+        .expect("service declaration and parent source");
+    assert!(locations.iter().any(|location| {
+        let start = usize::try_from(location.start_byte()).unwrap();
+        let end = usize::try_from(location.end_byte()).unwrap();
+        location.role() == PackageReviewSourceLocationRole::TraitParent
+            && &first_source[start..end] == "Parent"
+    }));
+    let recovered_service_row = decode_package_review_canonical_row(
+        &encode_package_review_canonical_row(service_row).expect("encode service review row"),
+    )
+    .expect("recover service review row");
+    assert!(
+        recovered_service_row
+            .source()
+            .authored_locations()
+            .is_some_and(|locations| locations.iter().any(|location| {
+                let start = usize::try_from(location.start_byte()).unwrap();
+                let end = usize::try_from(location.end_byte()).unwrap();
+                location.role() == PackageReviewSourceLocationRole::TraitParent
+                    && &first_source[start..end] == "Parent"
+            }))
+    );
     let [exchange] = service.requirements() else {
         panic!("one exact requirement row")
     };

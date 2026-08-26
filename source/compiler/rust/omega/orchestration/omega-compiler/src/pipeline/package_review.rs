@@ -2304,6 +2304,13 @@ struct PackageReviewCanonicalRowSources {
 struct ProjectedReviewRow<Row> {
     row: Row,
     declaration: SymbolHandle,
+    nested_source_locations: Vec<ProjectedNestedSourceLocation>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ProjectedNestedSourceLocation {
+    source_span: psi_source::SourceSpan,
+    role: PackageReviewSourceLocationRole,
 }
 
 #[derive(Debug, Clone)]
@@ -2379,6 +2386,7 @@ pub enum PackageReviewSourceLocationRole {
     ProviderRealization,
     SemanticDependencyConsumer,
     SemanticDependencyDeclaration,
+    TraitParent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2699,11 +2707,13 @@ pub fn project_checked_package_review(
             ProjectedReviewRow {
                 row,
                 declaration: machine.symbol,
+                nested_source_locations: Vec::new(),
             }
         }));
         callables.push(ProjectedReviewRow {
             row: callable,
             declaration: machine.symbol,
+            nested_source_locations: Vec::new(),
         });
         projected_build_machine |= role == PackageReviewCallableRole::Build;
     }
@@ -2739,6 +2749,7 @@ pub fn project_checked_package_review(
                 .map(|row| ProjectedReviewRow {
                     row,
                     declaration: machine.symbol,
+                    nested_source_locations: Vec::new(),
                 }),
         );
     }
@@ -3095,6 +3106,7 @@ fn project_representation_tcb(
                 mechanism: PackageReviewRepresentationMechanism::Unbound,
             },
             declaration: definition.symbol,
+            nested_source_locations: Vec::new(),
         });
     }
     rows.sort_by(|left, right| left.row.cmp(&right.row));
@@ -3227,9 +3239,21 @@ fn finalize_projected_rows<Row>(
     let mut rows = Vec::with_capacity(projected.len());
     let mut sources = Vec::with_capacity(projected.len());
     for projected in projected {
-        sources.push(PackageReviewCanonicalRowSource::authored(vec![
-            canonical_source_location(compilation, projected.declaration, role)?,
-        ]));
+        let mut locations = vec![canonical_source_location(
+            compilation,
+            projected.declaration,
+            role,
+        )?];
+        for nested in projected.nested_source_locations {
+            locations.push(canonical_source_span_location(
+                compilation,
+                nested.source_span,
+                nested.role,
+            )?);
+        }
+        locations.sort();
+        locations.dedup();
+        sources.push(PackageReviewCanonicalRowSource::authored(locations));
         rows.push(projected.row);
     }
     Ok((rows, sources))
@@ -3760,6 +3784,14 @@ fn project_public_traits(
                 requirements,
             },
             declaration: definition.symbol,
+            nested_source_locations: compilation
+                .trait_requirements(definition)
+                .iter()
+                .map(|parent| ProjectedNestedSourceLocation {
+                    source_span: parent.source_span,
+                    role: PackageReviewSourceLocationRole::TraitParent,
+                })
+                .collect(),
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
@@ -3970,6 +4002,7 @@ fn project_public_conformances(
                 interface,
             },
             declaration: conformance.symbol,
+            nested_source_locations: Vec::new(),
         });
     }
     projected.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
@@ -4264,6 +4297,7 @@ fn project_public_propositions(
                 body,
             },
             declaration: declaration.symbol,
+            nested_source_locations: Vec::new(),
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
@@ -4301,6 +4335,7 @@ fn project_public_consts(
                 canonical_value_encoding,
             },
             declaration: declaration.symbol,
+            nested_source_locations: Vec::new(),
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
@@ -4434,6 +4469,7 @@ fn project_public_operators(
                 published_crash,
             },
             declaration: declaration.symbol,
+            nested_source_locations: Vec::new(),
         });
     }
     rows.sort_by(|left, right| left.row.coordinate.cmp(&right.row.coordinate));
@@ -4572,6 +4608,7 @@ fn project_public_domains(
                 establishment_routes,
             },
             declaration: definition.symbol,
+            nested_source_locations: Vec::new(),
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
@@ -5449,6 +5486,7 @@ fn project_public_data(
                 members,
             },
             declaration: definition.symbol,
+            nested_source_locations: Vec::new(),
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));

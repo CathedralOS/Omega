@@ -111,6 +111,11 @@ real package fixture demonstrates an irreducible external contract.
   Current compiler review emits this lane for public and private opaque data
   with ABI and mechanism explicitly `Unbound`; sealed realization provenance
   remains future admission work.
+- Canonical review rows carry explanatory source coordinates outside semantic
+  identity. Public-trait rows now pair the outer declaration with every exact
+  typed parent-identifier span under `trait_parent`; recovery envelope v2 and
+  conflict renderer V4 retain what review displays. Later nested carriers must
+  come from existing compiler owners rather than package-layer source parsing.
 - Missing old source escalates code review but does not prevent comparison
   against the lock baseline. Missing lock evidence causes fresh graph
   admission.

@@ -424,9 +424,15 @@ Selection and sorting preserve the pair and add exact
 authored build/target-default call sites or a closed implicit-selection reason.
 The selected-provider row may therefore mix authored coordinates and compiler-
 derived reasons without reconstructing them from reduced names, schemas, or
-fingerprints. Exact nested
-use sites may be added through their existing typed/checked owners and compiler
-sidecars without creating a report-only stage.
+fingerprints. Exact nested use sites may be added through their existing
+typed/checked owners and compiler sidecars without creating a report-only
+stage. Public-trait parent requirements are the first implemented carrier.
+Their typed owner already retains the exact authored identifier span, which now travels
+with the trait row under `trait_parent` through sorting, recovery envelope v2,
+and conflict renderer V4. It remains explanatory rather than semantic identity.
+Callable contract/body sites and authored `reaches`/`invokes` members remain
+later rungs; missing spans must be retained before they are erased, never
+recovered by parsing source text in package orchestration.
 
 Proposition and named-evidence rows apply that rule as an explicit join. The
 typed application owns the structural proposition declaration, binder
