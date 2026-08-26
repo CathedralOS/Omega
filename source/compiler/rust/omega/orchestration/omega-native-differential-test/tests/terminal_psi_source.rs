@@ -152,6 +152,14 @@ fn progress_free_selected_source_canary() -> PathBuf {
     terminal_source_canary("selected_empty_component")
 }
 
+fn selected_optimizer_source_canary() -> PathBuf {
+    terminal_source_canary("selected_optimizer_component")
+}
+
+fn unsupported_optimizer_source_canary() -> PathBuf {
+    terminal_source_canary("unsupported_optimizer_component")
+}
+
 fn artifact_sections(verified: &VerifiedTerminalModule<'_>) -> (Vec<u8>, Vec<u8>) {
     (
         encode_module(verified.module()).expect("verified terminal semantics encode"),
@@ -665,6 +673,54 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
         .expect("progress-free production deployment finalizes");
     assert!(runnable.progress().is_none());
     assert!(runnable.roots().live_external_roots_are_empty());
+}
+
+#[test]
+fn selected_optimizer_source_reaches_clean_target_lowering_but_not_publication() {
+    let checked = compile_to_checked(&selected_optimizer_source_canary(), Some("linux_x64"))
+        .expect("selected optimizer source should reach checked compilation");
+    let diagnostics = stage_terminal_component(
+        &checked,
+        NativeTarget::linux_x64(),
+        3,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .expect_err("optimized staging must stop before component publication");
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("`SparseConditionalConstantPropagation`, `CopyPropagation`")
+    );
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("completed verified Terminal-Psi optimization and clean target lowering")
+    );
+    assert!(diagnostics[0].message.contains("no output was installed"));
+}
+
+#[test]
+fn unsupported_optimizer_source_fails_before_target_lowering() {
+    let checked = compile_to_checked(&unsupported_optimizer_source_canary(), Some("linux_x64"))
+        .expect("unsupported optimizer selection is retained through checking");
+    let diagnostics = stage_terminal_component(
+        &checked,
+        NativeTarget::linux_x64(),
+        3,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .expect_err("unsupported named optimization must fail closed");
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("verified optimization failed")
+    );
+    assert!(diagnostics[0].message.contains("ControlFlowCleanup"));
+    assert!(!diagnostics[0].message.contains("clean target lowering"));
 }
 
 #[test]

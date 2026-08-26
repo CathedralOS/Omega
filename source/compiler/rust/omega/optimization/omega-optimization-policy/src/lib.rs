@@ -57,6 +57,21 @@ impl std::fmt::Display for BaselineDecisionLogDecodeError {
 impl std::error::Error for BaselineDecisionLogDecodeError {}
 
 impl BaselineDecisionLog {
+    /// Concatenate independently replayable pass-local logs in exact execution
+    /// order and derive one pipeline-level identity over their decision rows.
+    pub fn concatenate<'log>(
+        logs: impl IntoIterator<Item = &'log Self>,
+    ) -> Result<Self, BaselineDecisionLogDecodeError> {
+        let mut records = Vec::new();
+        for log in logs {
+            if Self::decode(&log.encode())? != *log {
+                return Err(BaselineDecisionLogDecodeError::DecisionIdentityMismatch);
+            }
+            records.extend(log.records.iter().cloned());
+        }
+        Ok(finish_log(records))
+    }
+
     pub fn encode(&self) -> Vec<u8> {
         let mut encoded = Vec::new();
         encoded.extend_from_slice(b"OMGBDL\0\0");
@@ -207,20 +222,24 @@ impl BaselinePolicy {
     }
 
     pub fn finish(self) -> BaselineDecisionLog {
-        let mut canonical = Vec::new();
-        canonical.extend_from_slice(b"omega.baseline-decision-log.v1\0");
-        canonical.extend_from_slice(
-            &u64::try_from(self.records.len())
-                .expect("decision record count fits u64")
-                .to_le_bytes(),
-        );
-        for record in &self.records {
-            canonical.extend_from_slice(&record.identity.bytes());
-        }
-        BaselineDecisionLog {
-            identity: OptimizationDecisionLogIdentity::from_canonical_bytes(&canonical),
-            records: self.records,
-        }
+        finish_log(self.records)
+    }
+}
+
+fn finish_log(records: Vec<BaselineDecisionRecord>) -> BaselineDecisionLog {
+    let mut canonical = Vec::new();
+    canonical.extend_from_slice(b"omega.baseline-decision-log.v1\0");
+    canonical.extend_from_slice(
+        &u64::try_from(records.len())
+            .expect("decision record count fits u64")
+            .to_le_bytes(),
+    );
+    for record in &records {
+        canonical.extend_from_slice(&record.identity.bytes());
+    }
+    BaselineDecisionLog {
+        identity: OptimizationDecisionLogIdentity::from_canonical_bytes(&canonical),
+        records,
     }
 }
 
@@ -313,5 +332,29 @@ mod tests {
             BaselineDecisionLog::decode(&trailing),
             Err(BaselineDecisionLogDecodeError::TrailingBytes)
         );
+    }
+
+    #[test]
+    fn concatenation_replays_pass_order_across_empty_logs() {
+        let input = OptimizationUnitIdentity::from_canonical_bytes(b"input");
+        let mut first = BaselinePolicy::default();
+        first.choose(input, [candidate(b"first", -2)]);
+        let first = first.finish();
+        let empty = BaselinePolicy::default().finish();
+        let mut second = BaselinePolicy::default();
+        second.choose(input, [candidate(b"second", -1)]);
+        let second = second.finish();
+
+        let combined = BaselineDecisionLog::concatenate([&first, &empty, &second]).unwrap();
+        assert_eq!(combined.records.len(), 2);
+        assert_eq!(combined.records[0], first.records[0]);
+        assert_eq!(combined.records[1], second.records[0]);
+        assert_eq!(
+            BaselineDecisionLog::decode(&combined.encode()),
+            Ok(combined.clone())
+        );
+
+        let reversed = BaselineDecisionLog::concatenate([&second, &empty, &first]).unwrap();
+        assert_ne!(reversed.identity, combined.identity);
     }
 }

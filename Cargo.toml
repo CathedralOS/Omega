@@ -98,6 +98,7 @@ members = [
     "source/compiler/rust/omega/optimization/omega-psi-optimizer",
     "source/compiler/rust/omega/optimization/omega-lowering-optimizer",
     "source/compiler/rust/omega/optimization/omega-regalloc",
+    "source/compiler/rust/omega/orchestration/omega-optimization-pipeline",
     "source/compiler/rust/omega/pipeline/omega-terminal-target-operations-to-assigned-target-operations",
     "source/compiler/rust/omega/pipeline/omega-abstract-operations-to-target-operations",
     "source/compiler/rust/omega/pipeline/omega-target-operations-to-assigned-target-operations",

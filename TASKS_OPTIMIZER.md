@@ -57,14 +57,17 @@ These facts constrain the work below.
   feature variants, and joins to every backend/provider reservation.
 - `CompileOptions` contains root, build directory, target, and output policy.
   `BuildConfig` now retains the exact canonical optimization selection set from
-  the toolchain build vocabulary. A nonempty set is centrally rejected before
-  either the legacy or clean target backend can emit output until the verified
-  optimizer pipeline exists. Package-aware admission permits the exact root
-  build selection and proves that dependency build companions cannot
-  contribute one. Checked compilation retains the domain-separated selection
-  identity, and the core crate defines a canonical replay/cache identity bundle
-  over selections, ordered rules, target cost model, optional decision and
-  workload inputs, and the transformation ledger.
+  the toolchain build vocabulary. Package-aware admission permits the exact
+  root build selection and proves that dependency build companions cannot
+  contribute one. The legacy compiler still rejects every nonempty set before
+  emission. The clean selected staging lane now enters verified optimization
+  and target-operation lowering, then fails closed before register assignment,
+  machine emission, object/image construction, or installation because those
+  physical records do not yet retain optimizer custody. Checked compilation
+  retains the domain-separated selection identity, and the core crate defines
+  a canonical replay/cache identity bundle over selections, ordered rules,
+  target cost model, optional decision and workload inputs, and the
+  transformation ledger.
 - Terminal Psi semantics, proof evidence, fuel schedules, installation choices,
   and debug maps have separate identities. Optimization must preserve that
   separation and retain source fuel/provenance mappings.
@@ -223,9 +226,10 @@ These facts constrain the work below.
   witnesses, proof-obligation retention, semantic-accounting retention, the
   empty consumed-fact manifest projection, and a block-parameter-count fixed
   point. `OPT-COPY-PROPAGATION` remains open for explicit scalar-copy forms and
-  wider call-result/debug-materialization coverage. Until orchestration owns a
-  multi-pass manifest, selecting SCCP and copy propagation together rejects
-  rather than blurring their two named pass identities.
+  wider call-result/debug-materialization coverage. SCCP and copy propagation
+  can now be selected together: orchestration derives the canonical SCCP then
+  copy-propagation schedule and retains one chained manifest per named pass,
+  including a manifest for a pass that commits no rewrite.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds input and
   output revision identities, rule contract, decision point, affected region,
@@ -290,10 +294,15 @@ These facts constrain the work below.
   group (mixed pass identities reject), and successful runs emit a canonical
   pass-manifest row binding input/output revisions, ordered rules, work usage,
   validator-backed applied decisions, and validator-backed deterministic
-  skips. Duplicate
-  candidate identities fail closed. The compiler build firewall remains
-  unchanged; the top-level manifest/report remains open for selection,
-  provenance/fuel, realization, code-size, and later allocator records.
+  skips. The public pipeline executor now runs the canonical ordered pass
+  groups for the exact selected set, applies the explicit work ceiling to each
+  group, retains every pass-local manifest, and derives aggregate decision-log,
+  ledger, usage, and identity-bundle evidence over the full initial-to-final
+  chain. Independent projection rejects reordered or omitted manifests, even
+  when the omitted pass committed nothing. Duplicate candidate identities fail
+  closed. The top-level publication manifest/report remains open for
+  selection, provenance/fuel, realization, code-size, and later allocator
+  records.
 - `omega-lowering-optimizer` now owns a custody-preserving bridge from a
   completed `OptimizationRun` to a clean `TerminalAbstractOperationPlan`.
   Projection replays every retained candidate declaration through the
@@ -304,10 +313,18 @@ These facts constrain the work below.
   ledger, and validation receipt; it exposes the plan only by borrow and does
   not claim native publication authority. Focused tests cover empty-selection
   identity, proof-certified constant folding, block-parameter copy propagation,
-  deterministic replay, projection corruption, commit corruption, and clean
-  target lowering. The compiler build firewall remains closed until
-  orchestration makes this carrier the only opt-in route to downstream
-  lowering.
+  deterministic replay, projection corruption, commit corruption, ordered
+  multi-pass evidence corruption, and clean target lowering. The new
+  `omega-optimization-pipeline` orchestration crate accepts only an explicit
+  nonempty named selection and per-pass budget; it performs artifact admission,
+  unit construction, canonical pass execution, and independent projection.
+  Clean compiler staging uses this as its only selected route and consumes the
+  opaque optimized carrier through a dedicated target-lowering API. The
+  empty-selection compatibility route does not call it. All currently
+  representable Terminal abstract operations cross this cut by exhaustive
+  behavioral observation and lowering; unavailable named families reject at
+  registry construction. Optimized staging deliberately stops before physical
+  assignment and publication.
 - Omega float semantics forbid ambient fast math. Exact versus wrapping,
   saturating, trapping, fused, and unfused behavior is operation identity, not
   an optimizer preference.
@@ -595,6 +612,13 @@ dependency.
   neither unit nor ledger, and randomized rule-registration order cannot change
   output because registry order is canonical.
 
+  Current slice: the supported two-family subset has the canonical
+  `SparseConditionalConstantPropagation -> CopyPropagation` schedule, distinct
+  ordered pass manifests, aggregate replay evidence, per-pass budgets, and
+  deterministic artifact tests. Remaining to close: add schedules for each
+  newly implemented initial family and direct whole-pipeline idempotence plus
+  randomized registry-construction coverage.
+
 ## P4 — Lowering optimizer and virtual-register form
 
 - **OPT-ABSTRACT-LOWERING-CUT.** Make the clean Terminal-derived optimized plan
@@ -605,12 +629,16 @@ dependency.
   Unsupported shapes fail at a named boundary.
 
   Current slice: the independently validated `omega-lowering-optimizer`
-  projection and opaque custody carrier are landed, and SCCP/copy-propagation
-  outputs lower through the clean target-operation path without legacy state.
-  Remaining to close: add the opt-in orchestration entry point, make this
-  carrier its only optimized lowering input, and publish an explicit supported-
-  vocabulary boundary while leaving the empty-selection compatibility route
-  untouched.
+  projection and opaque custody carriers are landed. The opt-in-only
+  `omega-optimization-pipeline` is the clean compiler lane's sole selected
+  entry, and SCCP/copy-propagation outputs lower through a dedicated optimized
+  target-operation API without legacy state. Unsupported named families fail
+  at registry construction; the current operation vocabulary is admitted by
+  exhaustive behavioral observation, projection, and target lowering. The
+  empty-selection compatibility route remains untouched. Remaining to close:
+  retain optimizer custody through target legalization, physical assignment,
+  emission, and component construction, then bind it into an explicit final
+  realization/publication manifest before optimized output can be installed.
 
 - **OPT-VIRTUAL-REGISTERS.** Change instruction selection to produce typed
   virtual registers/classes and explicit register/machine-state uses and defs.

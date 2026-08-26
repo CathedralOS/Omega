@@ -1526,6 +1526,23 @@ fn block_dominates(
 pub fn built_in_psi_registry(
     selections: &OptimizationSelections,
 ) -> Result<OrderedRuleRegistry, RuleRegistryError> {
+    let mut registries = built_in_psi_registries(selections)?;
+    if registries.len() > 1 {
+        return Err(RuleRegistryError::UnsupportedOptimizationCombination);
+    }
+    Ok(registries
+        .pop()
+        .unwrap_or_else(|| OrderedRuleRegistry::new(Vec::new()).expect("empty registry is valid")))
+}
+
+/// Build the canonical pass-group schedule for an exact named selection set.
+///
+/// Selection declaration order is not pass order. The explicit schedule below
+/// runs semantic constant propagation before structural copy cleanup, and each
+/// returned registry continues to own exactly one pass identity.
+pub fn built_in_psi_registries(
+    selections: &OptimizationSelections,
+) -> Result<Vec<OrderedRuleRegistry>, RuleRegistryError> {
     if let Some(unsupported) = selections.as_slice().iter().find(|optimization| {
         !matches!(
             optimization,
@@ -1534,13 +1551,23 @@ pub fn built_in_psi_registry(
     }) {
         return Err(RuleRegistryError::UnsupportedOptimization(*unsupported));
     }
-    if selections.contains(Optimization::SparseConditionalConstantPropagation)
-        && selections.contains(Optimization::CopyPropagation)
-    {
-        return Err(RuleRegistryError::UnsupportedOptimizationCombination);
-    }
-    let mut rules = Vec::<Arc<dyn PsiOptimizationRule>>::new();
+    let mut registries = Vec::new();
     if selections.contains(Optimization::SparseConditionalConstantPropagation) {
+        registries.push(registry_for_optimization(
+            Optimization::SparseConditionalConstantPropagation,
+        )?);
+    }
+    if selections.contains(Optimization::CopyPropagation) {
+        registries.push(registry_for_optimization(Optimization::CopyPropagation)?);
+    }
+    Ok(registries)
+}
+
+fn registry_for_optimization(
+    optimization: Optimization,
+) -> Result<OrderedRuleRegistry, RuleRegistryError> {
+    let mut rules = Vec::<Arc<dyn PsiOptimizationRule>>::new();
+    if optimization == Optimization::SparseConditionalConstantPropagation {
         rules.push(Arc::new(ExactIntegerAddConstantsRule));
         rules.push(Arc::new(ExactIntegerSubtractConstantsRule));
         rules.push(Arc::new(ExactIntegerMultiplyConstantsRule));
@@ -1572,7 +1599,7 @@ pub fn built_in_psi_registry(
         rules.push(Arc::new(IntegerLessThanConstantsRule));
         rules.push(Arc::new(IntegerLessOrEqualConstantsRule));
     }
-    if selections.contains(Optimization::CopyPropagation) {
+    if optimization == Optimization::CopyPropagation {
         rules.push(Arc::new(RedundantBlockParameterRule));
     }
     OrderedRuleRegistry::new(rules)
