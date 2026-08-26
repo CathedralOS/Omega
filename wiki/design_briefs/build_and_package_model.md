@@ -1729,9 +1729,32 @@ claims that an audit occurred. The complete result now has a bounded fixed-
 vocabulary canonical text record. Recovery maps each encoded fingerprint to
 the exact current compiler-derived conflict and owning package, reruns complete
 resolution, checks its reconstructed commitment, and requires byte-identical
-canonical re-encoding. Policy-origin/file custody, governance metadata,
-accepted-lock reference, and revalidation while sealing accepted lock state
-remain downstream work.
+canonical re-encoding. At that layer, policy-origin/file custody, governance
+metadata, accepted-lock reference, and revalidation while sealing accepted lock
+state remained downstream work.
+
+The first file-custody layer is now concrete. Trusted command orchestration
+supplies an already-open root-owned policy-directory capability and one bounded
+lowercase portable canonical filename; nested paths are unrepresentable and
+dependency traversal performs no policy-file discovery. Every operation is a
+direct-child operation relative to that handle. Symlink and non-regular leaves,
+case-alias spellings, and existing destinations reject. A read retains its file
+handle while the current compiler-derived conflict set reconstructs the complete
+resolution, then rereads and compares the bytes and rechecks that the live name
+still denotes that file. A new file is written, synchronized, reread, and
+identity-checked under a private same-directory stage before one atomic
+no-overwrite hard-link publication. Required directory synchronization follows.
+A later failure reports `published but unconfirmed`, because the complete
+canonical file may remain recoverable. The library cannot independently prove
+that the caller supplied a root-owned command directory. This is filesystem
+custody, not
+audit proof, governance, accepted-lock reference, or transaction authorization;
+the command UX may choose its eventual directory and filename later.
+The reread and name-identity checks detect ordinary concurrent change. They do
+not claim one linearizable observation against a hostile process already holding
+the root author's filesystem credentials and deliberately alternating valid
+states; final install/update transaction locking and immediate revalidation own
+that boundary.
 
 Every source update also receives provenance and source-diff triage because an
 implementation can misuse already-admitted power without changing capability
