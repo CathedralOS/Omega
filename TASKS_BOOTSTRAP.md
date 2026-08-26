@@ -282,12 +282,31 @@ evidence stay in
 | compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, remaining concrete Trapping arithmetic/casts, and the observed ranking clause | exact widening, canonical leaf-plus-literal addition, and one recursive pure full-width `u32 in Trapping` `+`/`-`/`*` tree are closed through persisted lower-rooted OMGRFN16. Call and CaseDispatch argument vectors are exact when they contain at most one potentially trapping argument and pure/nontrapping siblings; multiple observable trap sites still require the unresolved order ruling. Broader receivers, recursion, and packages remain separate |
 | source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; the product build now uses normative explicit provider selection, but the one-requirement OMGCOMP2 fixture is still only cost evidence for the six-requirement product `Console` closure; do not infer target-default semantics or import general boundary traits into Delta |
 
+The next bounded increments are selected, but their version numbers are not.
+Assign a new OMGRSW/OMGLOW/CKIR/OMGRFN family only when one lane is taken so
+parallel design notes cannot claim the same successor number. The intended
+cuts are:
+
+| Lane | Next general relation | Deliberate exclusions of that cut |
+| --- | --- | --- |
+| data/views | guarded shared-byte head/tail lowering with an ordered vector of pure, total pass-through arguments and more than one occurrence/synthetic block | effectful or independently trapping siblings, mutable-view operations, dynamic indexing, and full `u64` collection arithmetic |
+| scalar/control | direct pure same-carrier `u64 < u64`, including full-width literals/fields/parameters and true-edge range custody into state parameters | nested arithmetic operands, mixed carriers, calls, indexing, mutation, and the other comparison operators |
+| provider plan | one complete six-requirement `Console` candidate selected by the authoritative `Build::select_provider<Console, ConsoleNativeProvider>()`, retained through checked calls and conservative execution | provider admission, defaults-as-selection, general installation/runtime authority, Q7 package authority, and Q8 multi-target build migration |
+
+These cuts are chosen from product evidence because they establish reusable
+vector, 64-bit scalar/control, and complete-plan machinery. They must not be
+implemented as file-name checks, exact declaration-count recognition, or a
+Cartesian test matrix inside one verifier.
+
 - [ ] Close the compiler-data/view lane through general parsing, resolution,
   checking, diagnostics, conservative lowering, and artifact reconstruction.
   OMGRSW4/CKIR12/OMGRFN14 now close the bounded program-static shared-byte-view
   window used by `console_write_bytes`: exact literal bytes, immutable
   `{ptr,len}` transport, a nonempty fact, head access, and one-element tail
-  subslicing. Continue from that cost evidence toward the general lane; the
+  subslicing. The next cut generalizes the true-edge argument vector to retain
+  pure/total pass-through values before, between, and after head/tail and proves
+  at least two independent or recurrent guarded occurrences. Continue from
+  that cost evidence toward the general lane; the
   closed slice does not claim general indexing, mutable slices, allocation,
   UTF-8 meaning, or same-carrier `u64` collection operations.
 - [ ] Close the remaining unblocked compiler-control/scalar forms one general
@@ -297,8 +316,12 @@ evidence stay in
   representative contexts, inherited CKIR12 views, native/self production,
   independent meaning, conservative artifacts, and persisted-Beta OMGRFN16
   R1–R5 reconstruction. Continue from this closed lower-rooted cost slice to
-  the remaining scalar and control forms rather than adding expression/context
-  permutations to the closed implementation.
+  a direct pure full-width `u64 < u64` relation with true-edge range custody,
+  rather than adding expression/context permutations to the closed `u32`
+  implementation. This first `u64` cut carries both 32-bit halves through
+  types, constants, storage, calls/edges where exercised, unsigned comparison,
+  meaning, and artifact reconstruction; it does not smuggle in `u64`
+  arithmetic or dynamic indexing.
   Preserve the rule that a call or transition argument list may contain at
   most one potentially trapping expression while every sibling is
   pure/total/nontrapping; do not describe the still-unruled observable-order
@@ -481,6 +504,11 @@ work.
   reconstruction, and orchestration separate modules/checkers. Compose them by
   versioned artifacts and cross-pair tests; do not grow one verifier through a
   Cartesian product of source and artifact permutations.
+- Keep immutable R1–R5 responsibility owners thin. Shared parsing, fixture,
+  semantic-word, and mutation machinery belongs in focused libraries; adding a
+  new context must not append another permutation branch to a monolithic
+  all-versions verifier. Split a responsibility owner before it becomes the
+  dominant compile/evaluation cost.
 - Put shared fixture generation and corpus registration in small harnesses.
   Keep positive, negative, resource, and target families in responsibility-
   specific files so adding a case does not recompile an unrelated monolith.
