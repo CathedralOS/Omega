@@ -279,7 +279,7 @@ evidence stay in
 | Open implementation lane | Checkpoint forms to carry generally | Known boundary |
 | --- | --- | --- |
 | compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; the bounded program-static shared-byte-view window (`&[u8]`, nonempty guard, `[0]`, `[1..]`) is closed through OMGRSW4/CKIR12/OMGRFN14 and composes unchanged into CKIR14, while general views and the product source's same-carrier `u64` collection operations remain open |
-| compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, remaining concrete Trapping arithmetic/casts, and the observed ranking clause | exact widening, canonical leaf-plus-literal addition, and one recursive pure full-width `u32 in Trapping` `+`/`-`/`*` tree are closed through OMGRSW7/OMGLOWF/CKIR14; persisted lower-rooted OMGRFN16 remains open. Calls and transition edges admit at most one potentially trapping argument with pure/nontrapping siblings; multiple observable trap sites still require the unresolved order ruling. Broader receivers, recursion, and packages remain separate |
+| compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, remaining concrete Trapping arithmetic/casts, and the observed ranking clause | exact widening, canonical leaf-plus-literal addition, and one recursive pure full-width `u32 in Trapping` `+`/`-`/`*` tree are closed through persisted lower-rooted OMGRFN16. Call and CaseDispatch argument vectors are exact when they contain at most one potentially trapping argument and pure/nontrapping siblings; multiple observable trap sites still require the unresolved order ruling. Broader receivers, recursion, and packages remain separate |
 | source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; the product build now uses normative explicit provider selection, but the one-requirement OMGCOMP2 fixture is still only cost evidence for the six-requirement product `Console` closure; do not infer target-default semantics or import general boundary traits into Delta |
 
 - [ ] Close the compiler-data/view lane through general parsing, resolution,
@@ -295,25 +295,28 @@ evidence stay in
   recursive pure full-width trapping-`u32` `+`/`-`/`*` tranche with ordinary
   precedence, exact high-word literals and widening, first-trap behavior,
   representative contexts, inherited CKIR12 views, native/self production,
-  independent meaning, and conservative artifacts. Finish its persisted-Beta
-  OMGRFN16 R1–R5 carrier before calling the lower-rooted milestone closed.
+  independent meaning, conservative artifacts, and persisted-Beta OMGRFN16
+  R1–R5 reconstruction. Continue from this closed lower-rooted cost slice to
+  the remaining scalar and control forms rather than adding expression/context
+  permutations to the closed implementation.
   Preserve the rule that a call or transition argument list may contain at
   most one potentially trapping expression while every sibling is
   pure/total/nontrapping; do not describe the still-unruled observable-order
   combinations as generally supported.
-- [ ] Close the unblocked source-graph/provider forms without waiting on private
-  cross-module visibility. OMGCOMP2 now closes structural custody for an exact
-  Linux-x86-64/native-provider fixture while keeping provider spellings opaque.
-  Next close exact trait-requirement, `satisfies`, target applicability,
-  payload-free compiler-intrinsic, and receiver-call resolution for its bounded
-  one-requirement `Console::exit_process` profile. Treat that result as cost
-  evidence only: real product `Console` has six requirements and provider
-  selection requires one complete provider plan, so the fixture cannot claim
-  product-plan closure. The refreshed product build supplies the normative
-  explicit selection; extend the bridge relation to that complete plan without
-  inferring semantics from compatibility target-default spellings. This remains
-  product binding support, not admission of general boundary traits to Delta,
-  provider admission, or compilation authority.
+- [ ] Extend the closed source-graph/provider cost evidence without waiting on
+  private cross-module visibility. OMGCOMP2 closes structural custody for an
+  exact Linux-x86-64/native-provider fixture, and OMGRSW6 already closes its
+  exact one-requirement trait, `satisfies`, target-applicability,
+  payload-free-compiler-intrinsic, and receiver-call resolution relation. That
+  result deliberately stops before candidate selection, checked IR, or an
+  executable call. Next consume the refreshed product build's normative
+  explicit selection and complete six-requirement `Console` closure, then carry
+  one complete `ProviderPlan` through checking, conservative lowering,
+  executable meaning, and lower-rooted reconstruction. This item is
+  product-checkpoint/engineering gated rather than language-design blocked;
+  do not infer target-default semantics from compatibility spellings or claim
+  provider admission, general boundary traits in Delta, or compilation
+  authority from the bounded relation.
 - [ ] Consume each later provisional product checkpoint and add only its newly
   observed, directionally clear capability lanes under the same rules. A later
   source need may reopen a provisional exclusion; it does not create another

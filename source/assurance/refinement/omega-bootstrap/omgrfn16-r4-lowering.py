@@ -3,23 +3,13 @@
 
 from __future__ import annotations
 
-import collections
 import sys
 
-from omgrfn16_ckir import ARITHMETIC, V5, check_arithmetic_closure, decode
+from omgrfn16_ckir import (
+    V5, check_context_join, check_expression_join, check_view_join, decode,
+)
 from omgrfn16_frame import RefinementError, RefinementResourceError, require, split
-from omgrfn16_source import Expr, selected_run, source_contents
-
-
-def walk(expression: Expr, literals: list[int], leaves: list[bytes]) -> None:
-    if expression.left is not None:
-        walk(expression.left, literals, leaves)
-    if expression.right is not None:
-        walk(expression.right, literals, leaves)
-    if expression.kind == "literal":
-        literals.append(int(expression.value))
-    elif expression.kind == "leaf":
-        leaves.append(bytes(expression.value))
+from omgrfn16_source import selected_run, source_contents, witness_leaf_names
 
 
 def main() -> None:
@@ -29,23 +19,10 @@ def main() -> None:
     require(len(candidates) == 1, "unique selected source unit")
     program = selected_run(candidates[0])
     module = decode(frame.ckir)
-    check_arithmetic_closure(module)
-
-    operations = module.tables["operations"]
-    actual = tuple(row[3] for row in operations if row[3] in ARITHMETIC)
-    require(actual == program.postorder(), "exact authored postorder operation join")
-    require(sum(row[3] == 21 for row in operations) == program.widen_count(),
-            "exact authored widening join")
-
-    literals: list[int] = []
-    leaves: list[bytes] = []
-    for expression in program.expressions:
-        walk(expression, literals, leaves)
-    constants = collections.Counter(row[10] for row in operations if row[3] == 1)
-    require(not (collections.Counter(literals) - constants), "literal-to-value custody")
-    direct_leaves = [leaf for leaf in leaves if leaf.startswith(b"self.")]
-    require(sum(row[3] == 5 for row in operations) >= len(direct_leaves),
-            "direct-load leaf custody")
+    names = witness_leaf_names(frame.omgcomp, frame.witness)
+    check_expression_join(module, program, names)
+    check_context_join(module, program, names)
+    check_view_join(module, program)
 
 
 if __name__ == "__main__":

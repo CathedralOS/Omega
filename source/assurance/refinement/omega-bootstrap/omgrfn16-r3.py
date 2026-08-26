@@ -5,14 +5,13 @@ from __future__ import annotations
 
 import sys
 
-from omgrfn16_ckir import V5, check_arithmetic_closure, decode
+from omgrfn16_ckir import V5, producer_decode
 from omgrfn16_frame import RefinementError, RefinementResourceError, split
 
 
 def main() -> None:
     frame = split(sys.stdin.buffer.read())
-    module = decode(frame.ckir)
-    check_arithmetic_closure(module)
+    producer_decode(frame.ckir)
 
 
 if __name__ == "__main__":

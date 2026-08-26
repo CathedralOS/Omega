@@ -29,6 +29,7 @@ class Reconstructor(elf4.Reconstructor):
     def __init__(self, module) -> None:
         super().__init__(module)
         self.object_offsets: dict[int, int] = {}
+        self.case_binding_offsets: dict[int, int] = {}
         self.constant_targets: dict[int, int] | None = None
 
     def assign_frame(self) -> None:
@@ -69,11 +70,29 @@ class Reconstructor(elf4.Reconstructor):
                 self.object_offsets[value_id] = cursor
                 if operation[3] == 13:
                     self.constructor_offsets[value_id] = cursor
+            for argument in self.tables["case_arm_args"]:
+                argument_id, kind, reference = argument
+                if kind != 2:
+                    continue
+                arm = next(row for row in self.tables["case_arms"]
+                           if row[4] <= argument_id < row[4] + row[5])
+                if self.terminators[arm[1]][1] != machine_id:
+                    continue
+                type_id = self.tables["case_payloads"][reference][3]
+                if self.types[type_id][1] <= 3:
+                    continue
+                size, alignment = self.module.layouts[type_id]
+                cursor = elf3.align(cursor, alignment)
+                cursor += max(size, 1)
+                require(cursor <= 262_144, "case binding frame exhaustion")
+                self.case_binding_offsets[argument_id] = cursor
             scratch_count = max(
                 [max(self.terminators[block_id][9], self.terminators[block_id][12])
                  for block_id in self._machine_blocks(machine_id)]
                 + [operation[9] - 1 for operation in self.operations
                    if operation[1] == machine_id and operation[3] == 10]
+                + [arm[5] for arm in self.tables["case_arms"]
+                   if self.terminators[arm[1]][1] == machine_id]
                 + [0]
             )
             cursor = elf3.align(cursor, 8)
@@ -108,11 +127,141 @@ class Reconstructor(elf4.Reconstructor):
         self.frame_size = self.frame_sizes[self.module.entry]
         self.scratch_base = self.scratch_bases[self.module.entry]
 
+    def _emit_type_copy(self, emitter: elf2.TextEmitter, type_id: int,
+                        source_base: int, destination_base: int) -> None:
+        kind, payload0, payload1 = self.types[type_id][1], self.types[type_id][4], self.types[type_id][5]
+        if kind <= 3:
+            self._emit_leaf_copy(emitter, type_id, source_base, destination_base)
+        elif kind == 4:
+            record = self.records[payload0]
+            for field_id in range(record[2], record[2] + record[3]):
+                offset = self.module.field_offsets[field_id]
+                self._emit_type_copy(
+                    emitter, self.fields[field_id][3],
+                    source_base + offset, destination_base + offset,
+                )
+        elif kind == 5:
+            stride = self.module.layouts[payload0][0]
+            for index in range(payload1):
+                self._emit_type_copy(
+                    emitter, payload0, source_base + index * stride,
+                    destination_base + index * stride,
+                )
+        elif kind == 7:
+            for offset in (0, 8):
+                emitter.raw(b"\x49\x8b\x83"); emitter.u32(source_base + offset)
+                emitter.raw(b"\x49\x89\x82"); emitter.u32(destination_base + offset)
+        else:
+            if source_base:
+                emitter.raw(b"\x49\x81\xc3"); emitter.u32(source_base)
+            self._emit_sum_copy(emitter, type_id, destination_base)
+            if source_base:
+                emitter.raw(b"\x49\x81\xeb"); emitter.u32(source_base)
+
+    def _emit_case_payload_copy(self, emitter: elf2.TextEmitter, case_id: int,
+                                destination_base: int) -> None:
+        case = self.tables["cases"][case_id]
+        sum_id = case[1]
+        payload_base = self.module.sum_payload_offsets[sum_id]
+        payloads = self.tables["case_payloads"]
+        for payload_id in range(case[3], case[3] + case[4]):
+            offset = payload_base + self.module.payload_offsets[payload_id]
+            self._emit_type_copy(
+                emitter, payloads[payload_id][3], offset,
+                destination_base + offset,
+            )
+
+    def _case_payload_copy_size(self, emitter: elf2.TextEmitter, case_id: int,
+                                destination_base: int) -> int:
+        probe = elf2.TextEmitter(emitter.block_offsets)
+        self._emit_case_payload_copy(probe, case_id, destination_base)
+        return probe.cursor
+
+    def _emit_sum_copy(self, emitter: elf2.TextEmitter, type_id: int,
+                       destination_base: int) -> None:
+        sum_id = self.types[type_id][4]
+        sum_row = self.tables["sums"][sum_id]
+        emitter.raw(b"\x41\x8b\x0b\x89\xca\x89\xc8\x3d")
+        emitter.u32(sum_row[3]); self.trap_jump(emitter, 0x83)
+        for case_id in range(sum_row[2], sum_row[2] + sum_row[3]):
+            size = self._case_payload_copy_size(emitter, case_id, destination_base)
+            emitter.raw(b"\x81\xf9"); emitter.u32(self.tables["cases"][case_id][2])
+            emitter.raw(b"\x0f\x85"); emitter.rel32(emitter.cursor + 4 + size + 5)
+            self._emit_case_payload_copy(emitter, case_id, destination_base)
+            emitter.byte(0xB9); emitter.u32(sum_row[3])
+        emitter.raw(b"\x41\x89\x92"); emitter.u32(destination_base)
+
+    def _emit_case_edge(self, emitter: elf2.TextEmitter, arm_id: int) -> None:
+        arm = self.tables["case_arms"][arm_id]
+        arm_args = self.tables["case_arm_args"]
+        payloads = self.tables["case_payloads"]
+        case = self.tables["cases"][arm[2]]
+        payload_base = self.module.sum_payload_offsets[case[1]]
+        for ordinal, argument_id in enumerate(range(arm[4], arm[4] + arm[5])):
+            kind, reference = arm_args[argument_id][1:]
+            scratch = self.scratch_base + (ordinal + 1) * 8
+            if kind == 1:
+                type_id = self.module.value_types[reference]
+                if self.types[type_id][1] <= 3:
+                    self.load_value(emitter, reference)
+                    emitter.raw(b"\x89\x85"); emitter.s32(-scratch)
+                else:
+                    emitter.raw(b"\x48\x8b\x85"); emitter.s32(-self.value_slot(reference))
+                    emitter.raw(b"\x48\x89\x85"); emitter.s32(-scratch)
+                continue
+            type_id = payloads[reference][3]
+            offset = payload_base + self.module.payload_offsets[reference]
+            if self.types[type_id][1] <= 3:
+                emitter.raw(b"\x41\x8b\x83" if self.types[type_id][1] == 2
+                            else b"\x41\x0f\xb6\x83")
+                emitter.u32(offset)
+                emitter.raw(b"\x89\x85"); emitter.s32(-scratch)
+            else:
+                binding = self.case_binding_offsets[argument_id]
+                emitter.raw(b"\x49\x81\xc3"); emitter.u32(offset)
+                emitter.raw(b"\x4c\x8d\x95"); emitter.s32(-binding)
+                self._emit_type_copy(emitter, type_id, 0, 0)
+                emitter.raw(b"\x49\x81\xeb"); emitter.u32(offset)
+                emitter.raw(b"\x48\x8d\x85"); emitter.s32(-binding)
+                emitter.raw(b"\x48\x89\x85"); emitter.s32(-scratch)
+
+        parameter_start = self.blocks[arm[3]][5]
+        for ordinal in range(arm[5]):
+            value_id = self.tables["block_params"][parameter_start + ordinal][4]
+            type_id = self.module.value_types[value_id]
+            scratch = self.scratch_base + (ordinal + 1) * 8
+            if self.types[type_id][1] <= 3:
+                emitter.raw(b"\x8b\x85"); emitter.s32(-scratch)
+                self.range_check(emitter, type_id); self.store_value(emitter, value_id)
+            else:
+                emitter.raw(b"\x48\x8b\x85"); emitter.s32(-scratch)
+                emitter.raw(b"\x48\x89\x85"); emitter.s32(-self.value_slot(value_id))
+        emitter.byte(0xE9)
+        target = None if emitter.block_offsets is None else emitter.block_offsets[arm[3]]
+        emitter.rel32(target)
+
+    def _case_edge_size(self, emitter: elf2.TextEmitter, arm_id: int) -> int:
+        probe = elf2.TextEmitter(emitter.block_offsets)
+        self._emit_case_edge(probe, arm_id)
+        return probe.cursor
+
     def emit_operation(self, emitter: elf2.TextEmitter, operation: tuple[int, ...]) -> None:
         opcode = operation[3]
         args = self.operands[operation[8]:operation[8] + operation[9]]
         result = operation[6]
-        if opcode == 15:
+        if opcode == 7:
+            source_type = (self.module.value_types[args[1]] if operation[10] == 1
+                           else self.module.place_types[args[1]])
+            if self.types[source_type][1] <= 3:
+                super().emit_operation(emitter, operation)
+                return
+            self.load_place(emitter, args[0]); emitter.raw(b"\x49\x89\xc2")
+            if operation[10] == 1:
+                emitter.raw(b"\x4c\x8b\x9d"); emitter.s32(-self.value_slot(args[1]))
+            else:
+                emitter.raw(b"\x4c\x8b\x9d"); emitter.s32(-self.place_slot(args[1]))
+            self._emit_type_copy(emitter, source_type, 0, 0)
+        elif opcode == 15:
             self.load_value(emitter, args[0]); emitter.raw(b"\x83\xf0\x01")
             self.store_value(emitter, result)
         elif opcode in (16, 17):
@@ -160,8 +309,52 @@ class Reconstructor(elf4.Reconstructor):
             emitter.raw(b"\x49\x8b\x03\x48\x83\xc0\x01\x49\x89\x02")
             emitter.raw(b"\x49\x8b\x43\x08\x48\x83\xe8\x01\x49\x89\x42\x08")
             emitter.raw(b"\x4c\x89\x95"); emitter.s32(-self.value_slot(result))
+        elif opcode == 14:
+            case = self.tables["cases"][operation[10]]
+            payloads = self.tables["case_payloads"]
+            payload_base = self.module.sum_payload_offsets[case[1]]
+            emitter.raw(b"\x4c\x8d\x95"); emitter.s32(-self.object_offsets[result])
+            emitter.raw(b"\x41\xc7\x02"); emitter.u32(case[2])
+            for argument, payload_id in zip(
+                args, range(case[3], case[3] + case[4])
+            ):
+                type_id = payloads[payload_id][3]
+                offset = payload_base + self.module.payload_offsets[payload_id]
+                if self.types[type_id][1] <= 3:
+                    self.load_value(emitter, argument); self.range_check(emitter, type_id)
+                    emitter.raw(b"\x41\x89\x82" if self.types[type_id][1] == 2
+                                else b"\x41\x88\x82")
+                    emitter.u32(offset)
+                else:
+                    emitter.raw(b"\x4c\x8b\x9d"); emitter.s32(-self.value_slot(argument))
+                    self._emit_type_copy(emitter, type_id, 0, offset)
+            emitter.raw(b"\x4c\x89\x95"); emitter.s32(-self.value_slot(result))
         else:
             super().emit_operation(emitter, operation)
+
+    def emit_terminator(self, emitter: elf2.TextEmitter, block_id: int) -> None:
+        term = self.terminators[block_id]
+        if term[3] != 5:
+            super().emit_terminator(emitter, block_id)
+            return
+        subject = term[6]
+        if term[4] == 1:
+            emitter.raw(b"\x4c\x8b\x9d"); emitter.s32(-self.value_slot(subject))
+            type_id = self.module.value_types[subject]
+        else:
+            emitter.raw(b"\x4c\x8b\x9d"); emitter.s32(-self.place_slot(subject))
+            type_id = self.module.place_types[subject]
+        sum_row = self.tables["sums"][self.types[type_id][4]]
+        emitter.raw(b"\x41\x8b\x03\x3d"); emitter.u32(sum_row[3])
+        self.trap_jump(emitter, 0x83)
+        for ordinal, arm_id in enumerate(range(term[13], term[13] + term[14])):
+            if ordinal + 1 == term[14]:
+                self._emit_case_edge(emitter, arm_id)
+                break
+            size = self._case_edge_size(emitter, arm_id)
+            emitter.byte(0x3D); emitter.u32(ordinal)
+            emitter.raw(b"\x0f\x85"); emitter.rel32(emitter.cursor + 4 + size)
+            self._emit_case_edge(emitter, arm_id)
 
     def emit_text(self, bss_offset, block_offsets, constant_targets):
         self.constant_targets = constant_targets

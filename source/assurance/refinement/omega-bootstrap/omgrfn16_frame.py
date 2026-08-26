@@ -5,10 +5,18 @@ from __future__ import annotations
 
 import dataclasses
 import struct
+import sys
+from pathlib import Path
 
 from omgrfn6_bundle import (
     HEADER, MAX_CKIR, MAX_ELF, MAX_FRAME, MAX_OMGCOMP, MAX_WITNESS, NO_RESULT,
 )
+
+
+HERE = Path(__file__).resolve().parent
+COMPILER = HERE.parents[3] / "bootstrap/omega-bootstrap/compiler"
+sys.path.insert(0, str(COMPILER))
+import omega_bootstrap_compilation as compilation  # noqa: E402
 
 
 MAGIC = b"OMGRFNG\0"
@@ -93,3 +101,10 @@ def check_r1(frame: Frame) -> None:
     else:
         require(frame.result == NO_RESULT and frame.exit_code == NO_RESULT,
                 "trapping no-result sentinels")
+    try:
+        envelope = compilation.decode(frame.omgcomp)
+    except Exception as error:
+        raise RefinementError(f"complete OMGCOMP1 custody: {error}") from error
+    require(getattr(envelope, "version", 1) == 1, "OMGCOMP1 identity")
+    require(bool(envelope.sources) and bool(envelope.bundle_entries),
+            "nonempty OMGCOMP1 source closure")

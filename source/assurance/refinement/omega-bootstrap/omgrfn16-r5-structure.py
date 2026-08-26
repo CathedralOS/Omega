@@ -5,13 +5,15 @@ from __future__ import annotations
 
 import sys
 
-from omgrfn16_ckir import V5, check_arithmetic_closure, decode
+from omgrfn16_ckir import V5, decode
 from omgrfn16_frame import RefinementError, RefinementResourceError, split
 
 
 def main() -> None:
     frame = split(sys.stdin.buffer.read())
-    check_arithmetic_closure(decode(frame.ckir))
+    # R5 owns the frozen independent CKIR14 reference acceptance directly. It
+    # deliberately does not import R3's producer-contract conclusion.
+    decode(frame.ckir)
 
 
 if __name__ == "__main__":
