@@ -242,6 +242,18 @@ Current ownership is:
   establish suspension containment, authority return/reactivation, cascade
   through retired parent carriers, completed restoration, or Terminal
   authority.
+  A separate checked-only lifecycle arena now consumes the same exact handles
+  in semantic phase batches. Its replay state is `Available`, `SuspendedBy`
+  one exact child, or `RetiredWhileSuspended`; an ending suspended carrier
+  remains pending and emits no premature restoration event. An available child
+  end instead records exactly one non-authorizing disposition: direct parent
+  reactivation, an ordered cascade through retired resource handles to a live
+  parent or direct-root lifetime, or combined retire/discard when the parent
+  retires in the same phase. Replay retains every traversed weakening and
+  validates the whole event arena before either resource arena is rebuilt.
+  These names describe the required lexical resource route only. They do not
+  prove completed return, interval containment, post-return use legality,
+  cleanup, or Terminal authority, and retire versus discard remains unresolved.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
   owns call-site borrow-check coordination,
   `checks/borrows/calls/conflicts.rs` owns call-site access/access and

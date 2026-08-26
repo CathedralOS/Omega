@@ -454,6 +454,43 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
         parent_end < child_end,
         "the suspension boundary must not invent lexical interval containment"
     );
+    let disposition = checked
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .iter()
+        .map(|(_, event)| event)
+        .find(|event| event.child_loan == loans[3])
+        .expect("the available leaf closes the retired parent chain");
+    assert_eq!(
+        disposition.disposition,
+        psi_checked_trees::CheckedReborrowResourceDisposition::RetireOrDiscard
+    );
+    assert_eq!(disposition.retired_parent_path.len(), 2);
+    assert_eq!(
+        disposition.retired_parent_path[0].resource,
+        psi_checked_trees::CheckedParentBorrowResource::Reborrow {
+            resource: before[0].0,
+        }
+    );
+    assert_eq!(
+        disposition.retired_parent_path[1].resource,
+        before[0].1.parent_resource
+    );
+    let psi_checked_trees::CheckedBorrowResourceDispositionTarget::DirectRootLifetime(target) =
+        &disposition.final_target
+    else {
+        panic!("retired chain must end at its exact direct-root lifetime")
+    };
+    assert_eq!(
+        target,
+        &checked
+            .facts
+            .borrow
+            .direct_loan_resources
+            .get(parent)
+            .parent_lifetime
+    );
 
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
         .expect("topological replay remaps every parent handle transactionally");
@@ -555,6 +592,23 @@ fn retains_projected_direct_reborrow_parent() {
         resource.captured_place.segments,
         checked.facts.borrow.loan_segments(loans[1].1)
     );
+    let (_, disposition) = checked
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .iter()
+        .next()
+        .expect("projected leaf disposition");
+    assert_eq!(disposition.child_loan, loans[1].0);
+    assert_eq!(
+        disposition.disposition,
+        psi_checked_trees::CheckedReborrowResourceDisposition::RetireOrDiscard
+    );
+    assert_eq!(disposition.retired_parent_path.len(), 1);
+    assert_eq!(
+        disposition.retired_parent_path[0].resource,
+        resource.parent_resource
+    );
 }
 
 #[test]
@@ -625,6 +679,24 @@ fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_chil
         child_end < parent_end,
         "later source use may keep the parent lexically live without changing the formation boundary"
     );
+    let (_, disposition) = checked
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .iter()
+        .next()
+        .expect("child-end reactivation classification");
+    assert_eq!(
+        disposition.disposition,
+        psi_checked_trees::CheckedReborrowResourceDisposition::Reactivate
+    );
+    assert!(disposition.retired_parent_path.is_empty());
+    assert_eq!(
+        disposition.final_target,
+        psi_checked_trees::CheckedBorrowResourceDispositionTarget::ParentResource(
+            child.parent_resource.clone()
+        )
+    );
 }
 
 #[test]
@@ -668,6 +740,22 @@ fn retains_parent_and_child_retirement_at_the_same_state_exit_boundary() {
         psi_checked_trees::FlowBorrowWeakeningReason::StateExit
     );
     assert_eq!(parent.reason, child_end.reason);
+    let (_, disposition) = checked
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .iter()
+        .next()
+        .expect("same-exit retirement disposition");
+    assert_eq!(
+        disposition.boundary_phase,
+        psi_checked_trees::CheckedBorrowResourceLifecyclePhase::StateExit
+    );
+    assert_eq!(
+        disposition.disposition,
+        psi_checked_trees::CheckedReborrowResourceDisposition::RetireOrDiscard
+    );
+    assert_eq!(disposition.retired_parent_path.len(), 1);
 }
 
 #[test]
@@ -717,6 +805,309 @@ fn orders_same_statement_expiry_before_reassignment_semantically() {
         child.parent_end_status.status,
         psi_checked_trees::ParentLexicalStatusAtChildEnd::RetiredBeforeChild
     );
+    let (_, disposition) = checked
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .iter()
+        .next()
+        .expect("same-statement phase disposition");
+    assert_eq!(
+        disposition.boundary_phase,
+        psi_checked_trees::CheckedBorrowResourceLifecyclePhase::LocalReassigned
+    );
+    assert_eq!(
+        disposition.disposition,
+        psi_checked_trees::CheckedReborrowResourceDisposition::CascadeThroughRetiredParent
+    );
+    assert_eq!(
+        checked
+            .facts
+            .flow
+            .borrow_lifetimes
+            .weakenings
+            .get(disposition.retired_parent_path[0].weakening)
+            .reason,
+        psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+    );
+}
+
+#[test]
+fn same_last_use_batch_retires_without_cascading() {
+    let checked = lower(
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.cell;
+            let child: &mut Cell = &mut parent;
+            let marker: i32 = 0;
+        }
+        "#,
+    );
+    let (_, event) = checked
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .iter()
+        .next()
+        .expect("same-last-use disposition");
+    assert_eq!(
+        event.boundary_phase,
+        psi_checked_trees::CheckedBorrowResourceLifecyclePhase::LastUseExpired
+    );
+    assert_eq!(
+        event.disposition,
+        psi_checked_trees::CheckedReborrowResourceDisposition::RetireOrDiscard
+    );
+    assert_eq!(event.retired_parent_path.len(), 1);
+    let parent_end = checked
+        .facts
+        .flow
+        .borrow_lifetimes
+        .weakenings
+        .get(event.retired_parent_path[0].weakening);
+    let child_end = checked
+        .facts
+        .flow
+        .borrow_lifetimes
+        .weakenings
+        .get(event.child_weakening);
+    assert_eq!(parent_end.source, child_end.source);
+    assert_eq!(parent_end.reason, child_end.reason);
+}
+
+#[test]
+fn same_reassignment_batch_retires_without_arena_order_inference() {
+    let mut checked = lower(
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.cell;
+            let child: &mut Cell = &mut parent;
+            let marker: i32 = 0;
+        }
+        "#,
+    );
+    let (_, child) = checked
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .iter()
+        .next()
+        .map(|(handle, resource)| (handle, resource.clone()))
+        .expect("direct child resource");
+    let source = psi_checked_trees::FlowInvalidationSource::Statement { statement_index: 2 };
+    for weakening in [
+        child.parent_end_status.parent_weakening,
+        child.parent_end_status.child_weakening,
+    ] {
+        let fact = checked
+            .facts
+            .flow
+            .borrow_lifetimes
+            .weakenings
+            .get_mut(weakening);
+        fact.source = source;
+        fact.reason = psi_checked_trees::FlowBorrowWeakeningReason::LocalReassigned;
+    }
+    crate::checks::initialize_checked_direct_borrow_resources(&checked.typed, &mut checked.facts)
+        .expect("synthetic same-reassignment phase fixture");
+    let (_, event) = checked
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .iter()
+        .next()
+        .expect("same-reassignment disposition");
+    assert_eq!(
+        event.boundary_phase,
+        psi_checked_trees::CheckedBorrowResourceLifecyclePhase::LocalReassigned
+    );
+    assert_eq!(
+        event.disposition,
+        psi_checked_trees::CheckedReborrowResourceDisposition::RetireOrDiscard
+    );
+    assert_eq!(event.retired_parent_path.len(), 1);
+}
+
+fn sequential_reborrows() -> psi_checked_trees::CheckedTrees {
+    lower(
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine write(value: &mut Cell) { value.value = 1; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.cell;
+            let first: &mut Cell = &mut parent;
+            write(first);
+            let second: &mut Cell = &mut parent;
+            write(second);
+            write(parent);
+        }
+        "#,
+    )
+}
+
+#[test]
+fn sequential_children_reactivate_then_resuspend_the_exact_parent() {
+    let checked = sequential_reborrows();
+    let events = checked
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .iter()
+        .map(|(_, event)| event)
+        .collect::<Vec<_>>();
+    assert_eq!(events.len(), 2);
+    assert!(events.iter().all(|event| {
+        event.disposition == psi_checked_trees::CheckedReborrowResourceDisposition::Reactivate
+            && event.retired_parent_path.is_empty()
+            && event.boundary_phase
+                == psi_checked_trees::CheckedBorrowResourceLifecyclePhase::LastUseExpired
+    }));
+    assert_eq!(events[0].parent_resource, events[1].parent_resource);
+    assert_ne!(events[0].child_resource, events[1].child_resource);
+}
+
+#[test]
+fn rejects_each_disposition_axis_transactionally() {
+    for axis in 0..13 {
+        let mut checked = direct_reborrow_chain();
+        let direct_before = checked.facts.borrow.direct_loan_resources.clone();
+        let reborrows_before = checked.facts.borrow.reborrow_loan_resources.clone();
+        let handle = checked
+            .facts
+            .borrow
+            .reborrow_disposition_events
+            .iter()
+            .next()
+            .expect("cascade disposition")
+            .0;
+        let event = checked
+            .facts
+            .borrow
+            .reborrow_disposition_events
+            .get_mut(handle);
+        match axis {
+            0 => event.machine_symbol = psi_symbols::SymbolHandle::invalid(),
+            1 => event.state_symbol = psi_symbols::SymbolHandle::invalid(),
+            2 => event.child_loan = psi_arena::Handle::invalid(),
+            3 => event.child_resource = psi_arena::Handle::invalid(),
+            4 => event.child_activation = psi_arena::Handle::invalid(),
+            5 => event.child_weakening = psi_arena::Handle::invalid(),
+            6 => event.parent_loan = psi_arena::Handle::invalid(),
+            7 => {
+                event.parent_resource = psi_checked_trees::CheckedParentBorrowResource::DirectRoot {
+                    resource: psi_arena::Handle::invalid(),
+                }
+            }
+            8 => {
+                event.boundary_source = psi_checked_trees::FlowInvalidationSource::Statement {
+                    statement_index: usize::MAX,
+                }
+            }
+            9 => {
+                event.boundary_phase =
+                    psi_checked_trees::CheckedBorrowResourceLifecyclePhase::Activation
+            }
+            10 => event.retired_parent_path.swap(0, 1),
+            11 => {
+                event.final_target =
+                    psi_checked_trees::CheckedBorrowResourceDispositionTarget::ParentResource(
+                        event.parent_resource.clone(),
+                    )
+            }
+            12 => {
+                event.disposition =
+                    psi_checked_trees::CheckedReborrowResourceDisposition::Reactivate
+            }
+            _ => unreachable!(),
+        }
+        let events_tampered = checked.facts.borrow.reborrow_disposition_events.clone();
+        let Err(diagnostics) =
+            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        else {
+            panic!("disposition drift axis {axis} was accepted")
+        };
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("resource-lifecycle disposition drifted")
+        }));
+        assert_eq!(checked.facts.borrow.direct_loan_resources, direct_before);
+        assert_eq!(
+            checked.facts.borrow.reborrow_loan_resources,
+            reborrows_before
+        );
+        assert_eq!(
+            checked.facts.borrow.reborrow_disposition_events, events_tampered,
+            "failed replay must preserve the caller's tampered rows"
+        );
+    }
+}
+
+#[test]
+fn rejects_missing_duplicate_and_reordered_disposition_events() {
+    for axis in 0..3 {
+        let mut checked = sequential_reborrows();
+        let direct_before = checked.facts.borrow.direct_loan_resources.clone();
+        let reborrows_before = checked.facts.borrow.reborrow_loan_resources.clone();
+        let rows = checked
+            .facts
+            .borrow
+            .reborrow_disposition_events
+            .iter()
+            .map(|(_, event)| event.clone())
+            .collect::<Vec<_>>();
+        checked
+            .facts
+            .borrow
+            .reborrow_disposition_events
+            .reset_retain_capacity();
+        match axis {
+            0 => {
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_disposition_events
+                    .insert(rows[0].clone());
+            }
+            1 => {
+                for row in [&rows[0], &rows[1], &rows[0]] {
+                    checked
+                        .facts
+                        .borrow
+                        .reborrow_disposition_events
+                        .insert(row.clone());
+                }
+            }
+            2 => {
+                for row in [&rows[1], &rows[0]] {
+                    checked
+                        .facts
+                        .borrow
+                        .reborrow_disposition_events
+                        .insert(row.clone());
+                }
+            }
+            _ => unreachable!(),
+        }
+        let diagnostics =
+            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+                .expect_err("disposition cardinality and order are exact");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("resource-lifecycle disposition drifted")
+        }));
+        assert_eq!(checked.facts.borrow.direct_loan_resources, direct_before);
+        assert_eq!(
+            checked.facts.borrow.reborrow_loan_resources,
+            reborrows_before
+        );
+    }
 }
 
 #[test]
@@ -1322,6 +1713,13 @@ fn keeps_distinct_prior_alias_origins_and_derived_transfers_unretained() {
     );
     assert_ne!(child_loans[0].root_symbol, child_loans[1].root_symbol);
     assert!(ambiguous.facts.borrow.reborrow_loan_resources.is_empty());
+    assert!(
+        ambiguous
+            .facts
+            .borrow
+            .reborrow_disposition_events
+            .is_empty()
+    );
 
     let derived = lower(
         r#"
@@ -1354,6 +1752,7 @@ fn keeps_distinct_prior_alias_origins_and_derived_transfers_unretained() {
         })
     );
     assert!(derived.facts.borrow.reborrow_loan_resources.is_empty());
+    assert!(derived.facts.borrow.reborrow_disposition_events.is_empty());
 }
 
 #[test]
@@ -1387,6 +1786,7 @@ fn keeps_explicit_reborrow_of_an_unretained_helper_parent_outside_the_resource_a
         })
     );
     assert!(checked.facts.borrow.reborrow_loan_resources.is_empty());
+    assert!(checked.facts.borrow.reborrow_disposition_events.is_empty());
 }
 
 #[test]

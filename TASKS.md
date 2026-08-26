@@ -5554,8 +5554,22 @@ Owners:
   phase drift transactionally. This classification remains purely lexical; it
   does not prove suspension containment, authority return, reactivation,
   cascade through retired parents, completed restoration, or Terminal
-  authority. A later path-aware resource-status carrier must settle those
-  outcomes.
+  authority. A checked-only resource-lifecycle arena now independently merges
+  those activation and weakening events in the same semantic phase order. Its
+  ephemeral state distinguishes an available carrier, a carrier suspended by
+  one exact child, and a carrier retired while that child still owns the
+  pending route. Only an available child that ends publishes a disposition:
+  reactivate its still-live exact parent, cascade through an ordered path of
+  earlier-retired parents to an exact resource/root-lifetime target, or
+  retire/discard when parent and child retire in the same phase. Each row keeps
+  exact child, parent, resource, activation, weakening, path, phase, and target
+  identity; missing, reordered, substituted, or drifted rows reject before
+  resource arenas rebuild. The classification is still non-authorizing. It
+  proves no completed authority return, suspension containment, post-return
+  use legality, cleanup, Terminal resource row, or distinction between final
+  retirement and discard. Promoting this classification to usable or Terminal
+  authority is design-blocked on
+  [OWNER_QUESTIONS.md Q14](OWNER_QUESTIONS.md#q14--reborrow-restoration-disposition).
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the
