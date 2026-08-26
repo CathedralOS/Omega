@@ -277,7 +277,7 @@ Alpha → Beta → Gamma → Delta
 Delta compiler source ──[Delta→Gamma elaboration + Gamma execution]──▶ delta compiler
 Delta bridge source ──[delta compiler]───────────────────▶ omega-bootstrap
 Ωself product source ──[omega-bootstrap]──────────────▶ omega (full Ω; conservative binary)
-Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
+same Ωself product source ──[optional omega rebuild]──▶ omega (same compiler; optimized binary)
 ```
 
 The first native Delta compiler is not an unexplained extra seed. The canonical
