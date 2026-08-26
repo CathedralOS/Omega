@@ -71,6 +71,10 @@ pub struct AbstractBoundarySummary {
     /// footprint. This lives in the semantic boundary root so every later
     /// representation carries the same canonical evidence through emission.
     pub footprints: crate::BoundaryFootprintPlan,
+    /// Exact callback-root evidence in canonical placement order. These rows
+    /// remain separate because callback contracts may differ from the process
+    /// entry and from one another.
+    pub callback_footprints: Vec<crate::CallbackBoundaryFootprintPlan>,
 }
 
 impl AbstractBoundarySummary {
@@ -88,6 +92,7 @@ impl AbstractBoundarySummary {
             links: Arena::new(),
             policy_checks: Arena::new(),
             footprints: crate::BoundaryFootprintPlan::default(),
+            callback_footprints: Vec::new(),
         }
     }
 }

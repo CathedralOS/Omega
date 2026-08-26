@@ -3,7 +3,8 @@ use omega_abstract_operations::{
     AbstractBoundaryEdge, AbstractBoundaryLink, AbstractBoundaryPolicyVerdict,
     AbstractFunctionPlan, AbstractOperationPlan, AbstractPermissionEvent,
     AbstractSourceBoundaryEdge, AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
-    BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin,
+    BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin, BoundaryFootprintPlan,
+    CallbackBoundaryFootprintPlan,
 };
 use omega_calling_conventions::{
     HostCapability, HostOperation, HostOperationKey, MachineRegister, MachineStateSet, RegisterSet,
@@ -272,6 +273,27 @@ fn copies_abstract_source_boundary_edges_to_target_plan() {
                 MachineStateSet::empty(),
             ),
         });
+    let callback_identity = MachineFunctionIdentity::callback_thunk(
+        StateKey {
+            machine: SymbolHandle::from_arena_index(8),
+            state: SymbolHandle::from_arena_index(9),
+            segment_index: 0,
+        },
+        0,
+    )
+    .expect("callback identity");
+    abstract_operations
+        .semantics
+        .boundaries
+        .callback_footprints
+        .push(CallbackBoundaryFootprintPlan {
+            placement_index: 0,
+            function_identity: callback_identity,
+            footprints: BoundaryFootprintPlan {
+                boundary_contract_fingerprint: Some(0x5678),
+                ..Default::default()
+            },
+        });
 
     let target_operations = build_target_operation_plan(
         NativeTarget::host(),
@@ -304,6 +326,20 @@ fn copies_abstract_source_boundary_edges_to_target_plan() {
     assert_eq!(
         target_operations.semantics.boundaries.footprints.fragments[0].origin,
         BoundaryFootprintFragmentOrigin::EntryStorage
+    );
+    let [callback] = target_operations
+        .semantics
+        .boundaries
+        .callback_footprints
+        .as_slice()
+    else {
+        panic!("one target callback footprint")
+    };
+    assert_eq!(callback.placement_index, 0);
+    assert_eq!(callback.function_identity, callback_identity);
+    assert_eq!(
+        callback.footprints.boundary_contract_fingerprint,
+        Some(0x5678)
     );
 }
 

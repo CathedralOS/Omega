@@ -105,6 +105,8 @@ pub struct InstructionSelectionInput<'plan> {
     pub entry_key: StateKey,
     pub entry_boundary_plan: Option<&'plan omega_calling_conventions::BoundaryEntryPlan>,
     pub entry_symbol: Arc<str>,
+    pub callback_placements: &'plan [omega_backend_plan::BoundNominalCallbackPlacement],
+    pub callback_thunks: &'plan [omega_backend_plan::CallbackThunkPlan],
     pub program: &'plan CheckedTrees,
     pub selected_provider_plans: &'plan omega_effects::SelectedProviderPlanFacts,
     pub control_flow: &'plan ControlFlowPlan,

@@ -62,6 +62,7 @@ use psi_arena::Arena;
 use psi_checked_trees::expression::ExpressionTable;
 
 mod bindings;
+mod callback_functions;
 mod dynamic_calls;
 mod host_operations;
 mod instruction_sink;
@@ -120,6 +121,7 @@ pub fn build_instruction_plan(
         &mut boundary_footprints,
         entry_boundary.as_ref(),
     )?;
+    callback_functions::select_payloadless_callback_functions(input, &mut instruction_plan)?;
     instruction_plan.permission_realization_candidates = permission_realization_candidates;
     instruction_plan.semantics.boundaries.footprints = boundary_footprints;
 

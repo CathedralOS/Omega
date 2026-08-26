@@ -78,6 +78,19 @@ pub struct BoundaryFootprintFragment {
     pub evidence: StateFootprintEvidence,
 }
 
+/// One callback function's independently validated boundary footprint.
+///
+/// Callback roots need not share the process entry's boundary contract, so
+/// their evidence cannot be merged into `AbstractBoundarySummary::footprints`.
+/// Canonical placement order and exact function identity keep these rows from
+/// substituting for one another merely because two contracts are equal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallbackBoundaryFootprintPlan {
+    pub placement_index: usize,
+    pub function_identity: omega_control_flow::MachineFunctionIdentity,
+    pub footprints: BoundaryFootprintPlan,
+}
+
 /// Retained implementation evidence for compiler-owned boundary code. A plan
 /// remains explicitly incomplete until body, exit, veneer, thunk, and admitted
 /// leaf enumeration are all represented after final placement.

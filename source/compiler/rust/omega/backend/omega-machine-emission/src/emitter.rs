@@ -39,8 +39,9 @@ mod tests {
     use omega_control_flow::{MachineFunctionIdentity, StateKey};
     use omega_machine_instructions::{
         AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, BoundaryFootprintFragment,
-        BoundaryFootprintFragmentOrigin, MachineInstruction, MachineInstructionFunction,
-        MachineInstructionKind, MachineInstructionPlan,
+        BoundaryFootprintFragmentOrigin, BoundaryFootprintPlan, CallbackBoundaryFootprintPlan,
+        MachineInstruction, MachineInstructionFunction, MachineInstructionKind,
+        MachineInstructionPlan,
     };
     use omega_target::{
         ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator,
@@ -641,6 +642,18 @@ mod tests {
             });
         machine_instructions
             .semantics
+            .boundaries
+            .callback_footprints
+            .push(CallbackBoundaryFootprintPlan {
+                placement_index: 7,
+                function_identity: callback_identity,
+                footprints: BoundaryFootprintPlan {
+                    boundary_contract_fingerprint: Some(0x6789),
+                    ..Default::default()
+                },
+            });
+        machine_instructions
+            .semantics
             .ownership
             .permissions
             .insert(Default::default());
@@ -753,6 +766,13 @@ mod tests {
         assert_eq!(
             encoded.semantics.boundaries.footprints,
             machine_instructions.semantics.boundaries.footprints
+        );
+        assert_eq!(
+            encoded.semantics.boundaries.callback_footprints,
+            machine_instructions
+                .semantics
+                .boundaries
+                .callback_footprints
         );
         assert_eq!(encoded.code.instructions.len(), 2);
         assert!(encoded.code.byte_count > 0);
