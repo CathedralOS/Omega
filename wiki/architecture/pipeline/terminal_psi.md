@@ -1890,9 +1890,15 @@ grant the compiler installation/provider/progress/profile authority. The driver
 now invokes a `TerminalComponentDeploymentInputOwner` against the exact staged
 candidate; acquisition rejection preserves that owner, the candidate, and all
 report metadata, while success enters the typed transaction immediately. A
-concrete non-test installation/deployment owner and its connection to ordinary
-candidate staging remain prerequisites to replacing the legacy publication
-path; the compiler has no authority to stand in for that missing provider.
+strictly compositional terminal driver now connects ordinary candidate staging
+to that call: its staging carrier owns the target/subsystem choice and borrows
+the admission profile and exact provider settlements; failure returns that
+carrier, the deployment owner, and report metadata, while success proceeds
+through acquisition, deployment, publication, and report custody. A concrete
+non-test installation/deployment owner and routing the Psi-owned checked result
+into this connected driver remain prerequisites to replacing the legacy
+publication path; the compiler has no authority to stand in for that missing
+provider.
 Compact record identities remain report keys and grant no authority.
 
 ### Placed-occurrence and resident-custody slice

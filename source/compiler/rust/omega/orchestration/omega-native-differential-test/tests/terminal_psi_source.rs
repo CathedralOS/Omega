@@ -13,10 +13,11 @@ use omega_compiler::{
     SuppliedTerminalComponentDeploymentError, TerminalComponentDeploymentInputOwner,
     TerminalComponentDeploymentInputRejection, TerminalComponentDeploymentInputs,
     TerminalComponentDeploymentOutputError, TerminalComponentDeploymentOutputStage,
-    TerminalComponentDeploymentSupply, TerminalComponentProviderSettlement,
+    TerminalComponentDeploymentSupply, TerminalComponentDriverError,
+    TerminalComponentProviderSettlement, TerminalComponentStagingInputs,
     acquire_and_deploy_terminal_component_output, compile_to_checked,
-    deploy_and_write_terminal_component_output, stage_terminal_component,
-    write_finalized_terminal_component_output,
+    deploy_and_write_terminal_component_output, stage_acquire_and_deploy_terminal_component_output,
+    stage_terminal_component, write_finalized_terminal_component_output,
 };
 use omega_component_deployment::{
     ComponentProgressAttestationBinding, begin_terminal_component_deployment,
@@ -165,6 +166,45 @@ impl TerminalComponentDeploymentInputOwner for SourceDeploymentInputOwner {
             ));
         }
         Ok(self.supply)
+    }
+}
+
+#[derive(Debug)]
+struct InstallingSourceDeploymentInputOwner {
+    profile_decision: ProfileDecisionId,
+}
+
+impl TerminalComponentDeploymentInputOwner for InstallingSourceDeploymentInputOwner {
+    type Error = SourceDeploymentInputAcquisitionError;
+
+    fn acquire(
+        self,
+        candidate: &omega_compiler::TerminalComponentCandidate,
+    ) -> Result<
+        TerminalComponentDeploymentSupply,
+        TerminalComponentDeploymentInputRejection<Self, Self::Error>,
+    > {
+        if candidate.target() != NativeTarget::linux_x64() {
+            return Err(TerminalComponentDeploymentInputRejection::new(
+                self,
+                SourceDeploymentInputAcquisitionError(
+                    "source installation owner supports only the Linux x64 canary target",
+                ),
+            ));
+        }
+        let entry_offset = u64::try_from(candidate.object().entry_function().text_offset)
+            .expect("terminal entry offset fits installation geometry");
+        let (installed, _) = install_terminal_object(
+            candidate.object(),
+            candidate.object().text_bytes().to_vec(),
+            entry_offset,
+        );
+        Ok(TerminalComponentDeploymentSupply::new(
+            installed,
+            Vec::new(),
+            Vec::new(),
+            self.profile_decision,
+        ))
     }
 }
 
@@ -995,6 +1035,81 @@ fn compiler_deployment_transaction_requires_real_installation_and_retains_failur
     retained
         .validate()
         .expect("deployment recovered from compiler report should replay");
+}
+
+#[cfg(unix)]
+#[test]
+fn complete_terminal_driver_retains_staging_rejection_and_reaches_report_custody() {
+    let source = progress_free_selected_source_canary();
+    let checked = compile_to_checked(&source, Some("linux_x64"))
+        .expect("selected progress-free source entry should compile");
+    let staging_profile = AdmissionProfile::default();
+    let scratch = ScratchDirectory(fresh_scratch_directory(
+        "omega-compiler-complete-terminal-driver",
+    ));
+    let options = CompileOptions {
+        root_path: source,
+        build_dir: Some(scratch.0.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    };
+    let staging_error = stage_acquire_and_deploy_terminal_component_output(
+        &options,
+        1,
+        &checked,
+        TerminalComponentStagingInputs::new(
+            NativeTarget::windows_x64(),
+            3,
+            &staging_profile,
+            Vec::new(),
+        ),
+        InstallingSourceDeploymentInputOwner {
+            profile_decision: ProfileDecisionId::new(0x55f4)
+                .expect("complete driver profile decision"),
+        },
+        None,
+        None,
+    )
+    .expect_err("complete driver must retain staging inputs on target substitution");
+    let (staging_inputs, deployment_owner) = match *staging_error {
+        TerminalComponentDriverError::Staging {
+            diagnostics,
+            staging_inputs,
+            deployment_owner,
+            source_file_count,
+            build_evaluation_usage,
+            build_observation_summary,
+        } => {
+            assert_eq!(diagnostics.len(), 1);
+            assert!(
+                diagnostics[0]
+                    .message
+                    .contains("does not match checked target")
+            );
+            assert_eq!(source_file_count, 1);
+            assert!(build_evaluation_usage.is_none());
+            assert!(build_observation_summary.is_none());
+            (staging_inputs, deployment_owner)
+        }
+        other => panic!("expected staging-stage driver recovery, got {other:?}"),
+    };
+    let staged_report = stage_acquire_and_deploy_terminal_component_output(
+        &options,
+        1,
+        &checked,
+        staging_inputs.with_target(NativeTarget::linux_x64()),
+        deployment_owner,
+        None,
+        None,
+    )
+    .expect("corrected complete driver should stage, install, deploy, and report");
+    assert!(staged_report.executable_publication().is_none());
+    assert!(staged_report.terminal_component_deployment().is_some());
+    staged_report
+        .terminal_component_deployment()
+        .expect("complete driver report retains deployment")
+        .validate()
+        .expect("complete driver deployment should replay");
 }
 
 #[test]
