@@ -149,6 +149,14 @@ These facts constrain the work below.
   valid identity-preserving ledger. `OPT-FUEL-MAP` remains open for one-to-many
   rewrites and physical/runtime metering joins, and the publication gate must
   later consume this ledger rather than trusting its producer.
+- The public Psi run now requires the exact named `OptimizationSelections`,
+  reconstructs the built-in registry for that set, and rejects detached rule
+  schedules or any named optimization whose implementation is unavailable. A
+  successful run emits the canonical composite replay/cache identity over the
+  exact selections, ordered rules, explicit baseline structural cost model,
+  decision log, and transformation ledger. This is not an `O1`/`O2`/`O3` or
+  debug/release mode: the identity names the actual selected suite and every
+  constituent rule.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds input and
   output revision identities, rule contract, decision point, affected region,

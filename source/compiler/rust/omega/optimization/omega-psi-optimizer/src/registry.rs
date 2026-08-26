@@ -1,8 +1,8 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use omega_optimization_core::{
-    AnalysisKind, OptimizationPassIdentity, OptimizationRuleContract, OptimizationRuleIdentity,
-    OptimizationRuleSetIdentity,
+    AnalysisKind, Optimization, OptimizationPassIdentity, OptimizationRuleContract,
+    OptimizationRuleIdentity, OptimizationRuleSetIdentity,
 };
 use omega_optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewriteCandidateError};
 
@@ -67,6 +67,7 @@ impl RuleScheduleKey {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuleRegistryError {
+    UnsupportedOptimization(Optimization),
     DuplicateRule(OptimizationRuleIdentity),
     MixedPasses {
         expected: OptimizationPassIdentity,
