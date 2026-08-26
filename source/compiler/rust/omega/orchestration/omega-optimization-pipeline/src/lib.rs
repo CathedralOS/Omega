@@ -20,12 +20,17 @@ use omega_terminal_psi_to_abstract_operations::{
 use psi_proof_admission::AdmissionProfile;
 
 mod assignment;
+mod register_environment;
 
 pub use assignment::{
     OptimizedAssignmentCustodyError, OptimizedAssignmentPipelineError,
     StagedOptimizedAssignedOperations, StagedOptimizedAssignmentCustodyReceipt,
     stage_optimized_assignment, stage_optimized_assignment_with_provider_executions,
     validate_optimized_assignment_custody,
+};
+pub use register_environment::{
+    TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnvironment,
+    baseline_target_register_environment, validate_target_register_environment,
 };
 
 /// Exact optimizer inputs chosen by compiler orchestration.
@@ -324,6 +329,18 @@ mod tests {
         .unwrap();
         let staged = stage_optimized_assignment(target).unwrap();
         assert_eq!(staged.assigned().functions.len(), 1);
+        assert_eq!(
+            staged.register_environment().target(),
+            NativeTarget::linux_x64()
+        );
+        assert_eq!(
+            staged
+                .register_environment()
+                .physical()
+                .model()
+                .architecture,
+            omega_target::Architecture::X86_64
+        );
         assert_eq!(staged.custody().function_count(), 1);
         assert_eq!(
             staged.custody().optimization(),
@@ -331,6 +348,14 @@ mod tests {
                 .optimized_target()
                 .optimized()
                 .identity_bundle()
+                .identity()
+        );
+        assert_eq!(
+            staged.custody().projection(),
+            staged
+                .optimized_target()
+                .optimized()
+                .validation()
                 .identity()
         );
     }
@@ -469,32 +494,59 @@ mod tests {
         .unwrap();
         let staged = stage_optimized_assignment(target).unwrap();
 
+        let wrong_environment =
+            baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
+        assert_eq!(
+            validate_optimized_assignment_custody(
+                staged.optimized_target(),
+                &wrong_environment,
+                staged.assigned(),
+            ),
+            Err(OptimizedAssignmentCustodyError::RegisterEnvironmentTargetMismatch)
+        );
+
         let mut corrupted = staged.assigned().clone();
         corrupted.terminal_psi.program_fingerprint =
             psi_terminal::SemanticFingerprint::from_bytes([0x44; 32]);
         assert_eq!(
-            validate_optimized_assignment_custody(staged.optimized_target(), &corrupted),
+            validate_optimized_assignment_custody(
+                staged.optimized_target(),
+                staged.register_environment(),
+                &corrupted,
+            ),
             Err(OptimizedAssignmentCustodyError::TerminalPsiMismatch)
         );
 
         let mut corrupted = staged.assigned().clone();
         corrupted.target = NativeTarget::windows_x64();
         assert_eq!(
-            validate_optimized_assignment_custody(staged.optimized_target(), &corrupted),
+            validate_optimized_assignment_custody(
+                staged.optimized_target(),
+                staged.register_environment(),
+                &corrupted,
+            ),
             Err(OptimizedAssignmentCustodyError::NativeTargetMismatch)
         );
 
         let mut corrupted = staged.assigned().clone();
         corrupted.entry = MachineId::new(9_001).unwrap();
         assert_eq!(
-            validate_optimized_assignment_custody(staged.optimized_target(), &corrupted),
+            validate_optimized_assignment_custody(
+                staged.optimized_target(),
+                staged.register_environment(),
+                &corrupted,
+            ),
             Err(OptimizedAssignmentCustodyError::EntryMismatch)
         );
 
         let mut corrupted = staged.assigned().clone();
         corrupted.functions.push(corrupted.functions[0].clone());
         assert_eq!(
-            validate_optimized_assignment_custody(staged.optimized_target(), &corrupted),
+            validate_optimized_assignment_custody(
+                staged.optimized_target(),
+                staged.register_environment(),
+                &corrupted,
+            ),
             Err(OptimizedAssignmentCustodyError::FunctionCountMismatch {
                 expected: 1,
                 actual: 2,
@@ -504,14 +556,22 @@ mod tests {
         let mut corrupted = staged.assigned().clone();
         corrupted.functions[0].machine = MachineId::new(9_002).unwrap();
         assert_eq!(
-            validate_optimized_assignment_custody(staged.optimized_target(), &corrupted),
+            validate_optimized_assignment_custody(
+                staged.optimized_target(),
+                staged.register_environment(),
+                &corrupted,
+            ),
             Err(OptimizedAssignmentCustodyError::FunctionMachineMismatch { position: 0 })
         );
 
         let mut corrupted = staged.assigned().clone();
         corrupted.functions[0].attachment = Some(psi_core::StructuralTypeId::new(9_003).unwrap());
         assert_eq!(
-            validate_optimized_assignment_custody(staged.optimized_target(), &corrupted),
+            validate_optimized_assignment_custody(
+                staged.optimized_target(),
+                staged.register_environment(),
+                &corrupted,
+            ),
             Err(OptimizedAssignmentCustodyError::FunctionAttachmentMismatch { position: 0 })
         );
 
@@ -521,7 +581,11 @@ mod tests {
             .operations
             .push(OperationId::new(9_004).unwrap());
         assert_eq!(
-            validate_optimized_assignment_custody(staged.optimized_target(), &corrupted),
+            validate_optimized_assignment_custody(
+                staged.optimized_target(),
+                staged.register_environment(),
+                &corrupted,
+            ),
             Err(OptimizedAssignmentCustodyError::FunctionProvenanceMismatch { position: 0 })
         );
     }

@@ -863,3 +863,45 @@ fn psi_reference_execution_ownership_and_terminal_lane_are_enforced() {
         violations.join("\n")
     );
 }
+
+#[test]
+fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
+    let root = workspace_root();
+    let isa_root = root.join("source/compiler/rust/omega/backend/instruction_set_architectures");
+
+    for architecture in ["x86_64", "aarch64"] {
+        assert!(
+            isa_root
+                .join(format!(
+                    "omega-terminal-isa-{architecture}/src/register_model.rs"
+                ))
+                .is_file(),
+            "{architecture} register model must remain owned by its clean Terminal ISA crate"
+        );
+        assert!(
+            !isa_root
+                .join(format!("omega-isa-{architecture}/src/register_model.rs"))
+                .exists(),
+            "{architecture} register model must not drift back into the legacy broad ISA crate"
+        );
+    }
+
+    let pipeline_manifest = root
+        .join("source/compiler/rust/omega/orchestration/omega-optimization-pipeline/Cargo.toml");
+    let manifest_source = std::fs::read_to_string(&pipeline_manifest)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", pipeline_manifest.display()));
+    for dependency in ["omega-terminal-isa-x86_64", "omega-terminal-isa-aarch64"] {
+        assert!(
+            manifest_source.contains(dependency),
+            "optimizer orchestration must retain its clean {dependency} dependency"
+        );
+    }
+    for forbidden in ["omega-isa-x86_64", "omega-isa-aarch64"] {
+        assert!(
+            !manifest_source
+                .lines()
+                .any(|line| line.trim_start().starts_with(forbidden)),
+            "optimizer orchestration must not depend directly on legacy {forbidden}"
+        );
+    }
+}

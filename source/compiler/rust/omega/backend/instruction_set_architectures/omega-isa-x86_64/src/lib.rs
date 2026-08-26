@@ -10,7 +10,6 @@ mod host_calls;
 mod native_fuel;
 mod place_copy;
 mod privileged_effects;
-mod register_model;
 mod runtime_storage;
 mod runtime_text;
 mod syscalls;
@@ -26,6 +25,14 @@ pub use function_frame::*;
 pub use generated_writer::*;
 pub use host_calls::*;
 pub use native_fuel::*;
+pub use omega_terminal_isa_x86_64::{
+    X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64,
+    X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_LINUX_SYSTEM_CALL, X86_64_MATERIALIZE_I64,
+    X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_RETURN, X86_64_REQUIRED_REGISTER_CONSTRAINTS,
+    X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_RETURN, X86_64RegisterConstraintCatalogValidationError,
+    validate_x86_64_register_constraint_catalog, x86_64_physical_register_model,
+    x86_64_register_constraint_catalog,
+};
 pub use place_copy::{
     PLACE_COPY_MAX_SITES, PlaceCopySide, PlaceCopySites, copy_places_clobbers,
     copy_places_direct_clobbers, copy_places_from_frame_base_double_indexed_clobbers,
@@ -57,13 +64,6 @@ pub use place_copy::{
     place_value_compare_register_writes,
 };
 pub use privileged_effects::*;
-pub use register_model::{
-    X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_LINUX_SYSTEM_CALL, X86_64_MICROSOFT_CALL,
-    X86_64_MICROSOFT_RETURN, X86_64_REQUIRED_REGISTER_CONSTRAINTS, X86_64_SYSTEM_V_CALL,
-    X86_64_SYSTEM_V_RETURN, X86_64RegisterConstraintCatalogValidationError,
-    validate_x86_64_register_constraint_catalog, x86_64_physical_register_model,
-    x86_64_register_constraint_catalog,
-};
 pub use runtime_storage::*;
 pub(crate) use runtime_storage::{
     append_runtime_binary_operation, append_runtime_convert_operation,

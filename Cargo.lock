@@ -898,7 +898,6 @@ name = "omega-isa-aarch64"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
- "omega-regalloc",
  "omega-target",
  "omega-target-operations",
  "omega-terminal-installation-evidence",
@@ -917,7 +916,6 @@ name = "omega-isa-x86_64"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
- "omega-regalloc",
  "omega-target",
  "omega-target-operations",
  "omega-terminal-installation-evidence",
@@ -1126,10 +1124,13 @@ dependencies = [
  "omega-lowering-optimizer",
  "omega-optimization-core",
  "omega-psi-optimizer",
+ "omega-regalloc",
  "omega-target",
  "omega-terminal-abstract-operations",
  "omega-terminal-abstract-operations-to-target-operations",
  "omega-terminal-assigned-target-operations",
+ "omega-terminal-isa-aarch64",
+ "omega-terminal-isa-x86_64",
  "omega-terminal-psi-to-abstract-operations",
  "omega-terminal-target-operations-to-assigned-target-operations",
  "psi-core",
@@ -1611,6 +1612,7 @@ name = "omega-terminal-isa-aarch64"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-regalloc",
  "omega-target",
  "omega-terminal-installation-evidence",
  "psi-core",
@@ -1622,6 +1624,7 @@ name = "omega-terminal-isa-x86_64"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-regalloc",
  "omega-target",
  "omega-terminal-installation-evidence",
  "psi-core",

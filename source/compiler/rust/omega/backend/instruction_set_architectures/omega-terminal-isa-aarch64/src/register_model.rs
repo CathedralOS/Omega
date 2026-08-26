@@ -47,17 +47,38 @@ pub const AARCH64_INLINE_ASSEMBLY_DEFAULT: RegisterConstraintKey = RegisterConst
     family: RegisterConstraintFamily::InlineAssembly,
     variant: 0,
 };
+pub const AARCH64_MATERIALIZE_I64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 0,
+};
+pub const AARCH64_COPY_I64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 1,
+};
+pub const AARCH64_COMPARE_I64_ZERO: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 2,
+};
+pub const AARCH64_CONDITIONAL_BRANCH: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 3,
+};
 
 /// Closed baseline constraint inventory currently owned by the AArch64 target.
-/// Ordinary instruction and feature-specific rows remain intentionally absent
-/// until symbolic instruction selection supplies their exact identities.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 6] = [
+/// The ordinary rows are limited to the baseline operations required by a
+/// register-passed scalar conditional-return CFG. Other ordinary and
+/// feature-specific instruction rows remain intentionally absent.
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 10] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_RETURN,
     AARCH64_DARWIN_RETURN,
     AARCH64_LINUX_SYSTEM_CALL,
     AARCH64_INLINE_ASSEMBLY_DEFAULT,
+    AARCH64_MATERIALIZE_I64,
+    AARCH64_COPY_I64,
+    AARCH64_COMPARE_I64_ZERO,
+    AARCH64_CONDITIONAL_BRANCH,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -413,6 +434,16 @@ pub fn aarch64_register_constraint_catalog(
             early_clobber: false,
         }
     };
+    let allocatable = |operand: u16, access: RegisterOperandAccess, class: RegisterClassId| {
+        RegisterOperandConstraint {
+            operand,
+            access,
+            class,
+            fixed_view: None,
+            tied_to: None,
+            early_clobber: false,
+        }
+    };
     let convention = |name: &str| {
         physical
             .conventions
@@ -530,6 +561,47 @@ pub fn aarch64_register_constraint_catalog(
             implicit_defs: Vec::new(),
             clobbers: complement(&all_units, &common_fixed, &[]),
         },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(6),
+            key: AARCH64_MATERIALIZE_I64,
+            operands: vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(7),
+            key: AARCH64_COPY_I64,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Def, GPR64),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(8),
+            key: AARCH64_COMPARE_I64_ZERO,
+            operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
+            implicit_uses: Vec::new(),
+            implicit_defs: view("nzcv").units.clone(),
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(9),
+            key: AARCH64_CONDITIONAL_BRANCH,
+            operands: Vec::new(),
+            implicit_uses: sorted_units(
+                view("nzcv")
+                    .units
+                    .iter()
+                    .copied()
+                    .chain(view("pc").units.iter().copied()),
+            ),
+            implicit_defs: view("pc").units.clone(),
+            clobbers: Vec::new(),
+        },
     ];
 
     RegisterConstraintCatalog {
@@ -545,20 +617,35 @@ pub fn validate_aarch64_register_constraint_catalog(
     catalog: RegisterConstraintCatalog,
     model: &ValidatedPhysicalRegisterModel,
 ) -> Result<ValidatedRegisterConstraintCatalog, Aarch64RegisterConstraintCatalogValidationError> {
-    let expected = aarch64_register_constraint_catalog(model);
     let validated = validate_register_constraint_catalog(catalog, model)
         .map_err(Aarch64RegisterConstraintCatalogValidationError::Structural)?;
-    for (actual, expected) in validated
-        .catalog()
-        .constraints
-        .iter()
-        .zip(&expected.constraints)
-    {
+    let canonical = aarch64_register_constraint_catalog(model);
+    for key in AARCH64_REQUIRED_REGISTER_CONSTRAINTS {
+        let Some(actual) = validated
+            .catalog()
+            .constraints
+            .iter()
+            .find(|constraint| constraint.key == key)
+        else {
+            return Err(Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(key));
+        };
+        let expected = canonical
+            .constraints
+            .iter()
+            .find(|constraint| constraint.key == key)
+            .expect("target-owned inventory and rows are closed together");
         if actual != expected {
-            return Err(
-                Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(expected.key),
-            );
+            return Err(Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(key));
         }
+    }
+    if let Some(unexpected) = validated.catalog().constraints.iter().find(|constraint| {
+        AARCH64_REQUIRED_REGISTER_CONSTRAINTS
+            .binary_search(&constraint.key)
+            .is_err()
+    }) {
+        return Err(
+            Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(unexpected.key),
+        );
     }
     Ok(validated)
 }
@@ -695,6 +782,43 @@ mod tests {
                 .iter()
                 .all(|unit| syscall.clobbers.contains(unit))
         );
+
+        let materialize = &catalog.constraints[6];
+        assert_eq!(materialize.key, AARCH64_MATERIALIZE_I64);
+        assert_eq!(materialize.operands.len(), 1);
+        assert_eq!(materialize.operands[0].access, RegisterOperandAccess::Def);
+        assert_eq!(materialize.operands[0].class, GPR64);
+
+        let copy = &catalog.constraints[7];
+        assert_eq!(copy.key, AARCH64_COPY_I64);
+        assert_eq!(copy.operands[0].access, RegisterOperandAccess::Use);
+        assert_eq!(copy.operands[1].access, RegisterOperandAccess::Def);
+
+        let compare = &catalog.constraints[8];
+        assert_eq!(compare.key, AARCH64_COMPARE_I64_ZERO);
+        assert_eq!(compare.operands[0].class, GPR64);
+        assert_eq!(
+            compare.implicit_defs,
+            model.model().view_named("nzcv").unwrap().units
+        );
+
+        let branch = &catalog.constraints[9];
+        assert_eq!(branch.key, AARCH64_CONDITIONAL_BRANCH);
+        for state in ["nzcv", "pc"] {
+            assert!(
+                model
+                    .model()
+                    .view_named(state)
+                    .unwrap()
+                    .units
+                    .iter()
+                    .all(|unit| branch.implicit_uses.contains(unit))
+            );
+        }
+        assert_eq!(
+            branch.implicit_defs,
+            model.model().view_named("pc").unwrap().units
+        );
     }
 
     #[test]
@@ -755,6 +879,21 @@ mod tests {
             Err(
                 Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(
                     AARCH64_AAPCS64_CALL
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn aarch64_compare_rejects_one_field_missing_flags_definition() {
+        let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let mut catalog = aarch64_register_constraint_catalog(&model);
+        catalog.constraints[8].implicit_defs.clear();
+        assert_eq!(
+            validate_aarch64_register_constraint_catalog(catalog, &model),
+            Err(
+                Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(
+                    AARCH64_COMPARE_I64_ZERO,
                 )
             )
         );

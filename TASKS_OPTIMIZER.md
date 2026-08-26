@@ -42,9 +42,10 @@ These facts constrain the work below.
 - `omega-regalloc` now owns separate target-neutral declarative physical-
   register and instruction-constraint vocabularies with total structural
   validators, but performs no allocation.
-  ISA-owned x86-64 declarations split every GPR into exact byte/word/dword/qword
-  storage lanes, retain non-allocatable high-byte views, model 32-bit
-  zero-extension, and cover XMM, RFLAGS, and RIP state. AArch64 declarations
+  Clean Terminal-ISA-owned x86-64 declarations split every GPR into exact
+  byte/word/dword/qword storage lanes, retain non-allocatable high-byte views,
+  model 32-bit zero-extension, and cover XMM, RFLAGS, and RIP state. AArch64
+  declarations
   keep `SP`/`WSP` distinct from `XZR`/`WZR`, alias `Wn` with `Xn`, split vector
   low/high halves so AAPCS64 can preserve only the required low half of
   `v8`-`v15`, and cover NZCV, FPCR, FPSR, and PC. Both models publish ABI
@@ -54,15 +55,19 @@ These facts constrain the work below.
   use/def roles and classes, optional fixed views, canonical ties, early
   clobbers, implicit uses/defs/clobbers, and an exact required-key inventory.
   Target-owned v1 catalogs cover scalar System V/Microsoft and AAPCS64/Darwin
-  call/return banks plus Linux syscall and conservative inline-assembly state.
+  call/return banks plus Linux syscall and conservative inline-assembly state,
+  then add the first ordinary materialize-i64, copy-i64, compare-zero, and
+  conditional-branch rows with explicit flags and instruction-pointer state.
   Generic validation rejects malformed IDs, keys, operands, ties, classes,
   units, and missing/extra inventory; a second ISA-owned comparison rejects
   class-compatible register substitution or missing architectural state. The
   former name-only constraint rows have been removed, so there is one
-  constraint authority. Nothing consumes these declarations in assignment or
-  emission yet; `OPT-REGISTER-MODEL` remains open for ordinary instruction and
-  feature-variant inventories, parallel ABI banks/aggregate forms, and joins
-  to every backend/provider reservation.
+  constraint authority. Optimized staging now constructs and retains an opaque
+  target-register environment from both validated artifacts; the transitional
+  scratch assignment and emission paths still do not consume it as allocator
+  evidence. `OPT-REGISTER-MODEL` remains open for the complete ordinary
+  instruction and feature-variant inventories, parallel ABI banks/aggregate
+  forms, and joins to every backend/provider reservation.
 - `CompileOptions` contains root, build directory, target, and output policy.
   `BuildConfig` now retains the exact canonical optimization selection set from
   the toolchain build vocabulary. Package-aware admission permits the exact
@@ -654,8 +659,11 @@ dependency.
   target-operation API without legacy state. The opaque staged-assignment
   carrier now also retains that complete custody through the existing bounded
   scratch-register assignment and independently checks Terminal-Psi identity,
-  native target, entry, exact function order, attachments, and operation
-  provenance. Its `Staged` name is load-bearing: it proves cross-stage custody,
+  the domain-separated independent projection-receipt identity, native target,
+  entry, exact function order, attachments, and operation provenance. It also
+  retains the clean ISA-owned independently validated physical-register model
+  and target-semantic constraint catalog and rejects a target/environment
+  mismatch. Its `Staged` name is load-bearing: it proves cross-stage custody,
   not physical-home legality, liveness, interference, or publication fitness.
   Unsupported named families fail at registry construction; the current
   operation vocabulary is admitted by exhaustive behavioral observation,
@@ -672,6 +680,15 @@ dependency.
   Acceptance: fixed ABI operands are constraints, not wholesale preassignment;
   temporary scratch needs are visible to liveness; instruction encoders receive
   only assigned physical operands later.
+
+  Current prerequisite slice: clean Terminal ISA crates now own the physical
+  models and catalogs, avoiding a dependency from optimized orchestration into
+  legacy target operations. The retained target-register environment includes
+  ordinary materialize-i64, copy-i64, compare-zero, and conditional-branch
+  rows; compare/branch explicitly cross RFLAGS/RIP or NZCV/PC state. Remaining
+  to begin the actual item: add the production selected-instruction/VReg
+  representation and independently validated CFG projection before invoking
+  liveness. A detached use/def toy graph is not acceptable evidence.
 
 - **OPT-TARGET-LEGALIZATION.** Separate target legalization from physical home
   assignment.
@@ -713,10 +730,13 @@ dependency.
 
   Current slice: independently validated physical models and the closed
   Register Constraint Catalog v1 substrate are landed. Required target-owned
-  keys currently cover scalar call/return, Linux syscall, and conservative
-  inline assembly for the existing System V, Microsoft, AAPCS64, and Darwin
-  conventions. Both generic structural and ISA-semantic corruption suites are
-  required. Remaining to close: ordinary instruction keys and fixed/tied
+  keys currently cover scalar call/return, Linux syscall, conservative inline
+  assembly, and the first ordinary materialize/copy/compare/branch forms for
+  the existing System V, Microsoft, AAPCS64, and Darwin conventions. The
+  declarations live in clean Terminal ISA crates and are joined into a
+  validated target-register environment retained by optimized staging. Both
+  generic structural and ISA-semantic corruption suites are required.
+  Remaining to close: the rest of the ordinary instruction keys and fixed/tied
   constraints, complete integer/vector/aggregate ABI banks, feature-profile
   variants (including extended vector/floating control state), and dynamic
   backend/provider reservation closure.

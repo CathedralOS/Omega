@@ -108,8 +108,10 @@ fn canonical_transfer_and_resume_bytes_are_exact() {
     let encoded = encode_native_fuel_transfer_runtime(&plan()).expect("Linux AArch64 runtime");
     let words = |bytes: &[u8]| {
         bytes
-            .chunks_exact(4)
-            .map(|word| u32::from_le_bytes(word.try_into().unwrap()))
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|word| u32::from_le_bytes(*word))
             .collect::<Vec<_>>()
     };
     assert_eq!(

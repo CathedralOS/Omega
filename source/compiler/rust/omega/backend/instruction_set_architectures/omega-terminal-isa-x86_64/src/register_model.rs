@@ -44,19 +44,39 @@ pub const X86_64_INLINE_ASSEMBLY_DEFAULT: RegisterConstraintKey = RegisterConstr
     family: RegisterConstraintFamily::InlineAssembly,
     variant: 0,
 };
+pub const X86_64_MATERIALIZE_I64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 0,
+};
+pub const X86_64_COPY_I64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 1,
+};
+pub const X86_64_COMPARE_I64_ZERO: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 2,
+};
+pub const X86_64_CONDITIONAL_BRANCH: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 3,
+};
 
 /// Closed v1 inventory owned by the x86-64 target.
 ///
-/// This is deliberately limited to the two scalar calling conventions and the
-/// syscall/inline-assembly rows already represented by the physical model. It
-/// is not a claim that the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 6] = [
+/// The ordinary rows are deliberately limited to the baseline operations
+/// required by a register-passed scalar conditional-return CFG. This is not a
+/// claim that the target's ordinary instruction inventory is complete.
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 10] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_RETURN,
     X86_64_MICROSOFT_RETURN,
     X86_64_LINUX_SYSTEM_CALL,
     X86_64_INLINE_ASSEMBLY_DEFAULT,
+    X86_64_MATERIALIZE_I64,
+    X86_64_COPY_I64,
+    X86_64_COMPARE_I64_ZERO,
+    X86_64_CONDITIONAL_BRANCH,
 ];
 
 struct ModelBuilder {
@@ -364,6 +384,16 @@ pub fn x86_64_register_constraint_catalog(
             early_clobber: false,
         }
     };
+    let allocatable = |operand: u16, access: RegisterOperandAccess, class: RegisterClassId| {
+        RegisterOperandConstraint {
+            operand,
+            access,
+            class,
+            fixed_view: None,
+            tied_to: None,
+            early_clobber: false,
+        }
+    };
     let convention = |name: &str| {
         physical
             .conventions
@@ -487,6 +517,47 @@ pub fn x86_64_register_constraint_catalog(
             implicit_uses: Vec::new(),
             implicit_defs: Vec::new(),
             clobbers: complement(&all_units, &fixed_machine_state, &[]),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(6),
+            key: X86_64_MATERIALIZE_I64,
+            operands: vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(7),
+            key: X86_64_COPY_I64,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Def, GPR64),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(8),
+            key: X86_64_COMPARE_I64_ZERO,
+            operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
+            implicit_uses: Vec::new(),
+            implicit_defs: view("rflags").units.clone(),
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(9),
+            key: X86_64_CONDITIONAL_BRANCH,
+            operands: Vec::new(),
+            implicit_uses: sorted_units(
+                view("rflags")
+                    .units
+                    .iter()
+                    .copied()
+                    .chain(view("rip").units.iter().copied()),
+            ),
+            implicit_defs: view("rip").units.clone(),
+            clobbers: Vec::new(),
         },
     ];
 
@@ -681,6 +752,43 @@ mod tests {
                     .all(|unit| syscall.clobbers.contains(unit))
             );
         }
+
+        let materialize = &catalog.constraints[6];
+        assert_eq!(materialize.key, X86_64_MATERIALIZE_I64);
+        assert_eq!(materialize.operands.len(), 1);
+        assert_eq!(materialize.operands[0].access, RegisterOperandAccess::Def);
+        assert_eq!(materialize.operands[0].class, GPR64);
+
+        let copy = &catalog.constraints[7];
+        assert_eq!(copy.key, X86_64_COPY_I64);
+        assert_eq!(copy.operands[0].access, RegisterOperandAccess::Use);
+        assert_eq!(copy.operands[1].access, RegisterOperandAccess::Def);
+
+        let compare = &catalog.constraints[8];
+        assert_eq!(compare.key, X86_64_COMPARE_I64_ZERO);
+        assert_eq!(compare.operands[0].class, GPR64);
+        assert_eq!(
+            compare.implicit_defs,
+            model.model().view_named("rflags").unwrap().units
+        );
+
+        let branch = &catalog.constraints[9];
+        assert_eq!(branch.key, X86_64_CONDITIONAL_BRANCH);
+        for state in ["rflags", "rip"] {
+            assert!(
+                model
+                    .model()
+                    .view_named(state)
+                    .unwrap()
+                    .units
+                    .iter()
+                    .all(|unit| branch.implicit_uses.contains(unit))
+            );
+        }
+        assert_eq!(
+            branch.implicit_defs,
+            model.model().view_named("rip").unwrap().units
+        );
     }
 
     #[test]
@@ -783,6 +891,24 @@ mod tests {
                 "omitting {clobber} state must reject",
             );
         }
+    }
+
+    #[test]
+    fn x86_64_branch_rejects_one_field_missing_flags_use() {
+        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let mut catalog = x86_64_register_constraint_catalog(&model);
+        let flags = model.model().view_named("rflags").unwrap().units[0];
+        catalog.constraints[9]
+            .implicit_uses
+            .retain(|unit| *unit != flags);
+        assert_eq!(
+            validate_x86_64_register_constraint_catalog(catalog, &model),
+            Err(
+                X86_64RegisterConstraintCatalogValidationError::TargetSemanticMismatch(
+                    X86_64_CONDITIONAL_BRANCH,
+                )
+            )
+        );
     }
 
     #[test]
