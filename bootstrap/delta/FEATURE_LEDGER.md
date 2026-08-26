@@ -85,9 +85,9 @@ negative matrices belong in the linked bridge contracts and beside their gates.
 
 Evidence for these rows stays with the bridge contracts rather than being
 duplicated here. Start at the
-[`omega-bootstrap` status](../../omega-bootstrap/README.md), the base
-[`checked-IR contract`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md),
-the current [`CKIR12`](../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V12.md)
+[`omega-bootstrap` status](../omega-bootstrap/README.md), the base
+[`checked-IR contract`](../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md),
+the current [`CKIR12`](../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V12.md)
 successor, and the
 [`OMGRFN14`](../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V14.md)
 lower-rooted contract. Git and those versioned contract directories retain the

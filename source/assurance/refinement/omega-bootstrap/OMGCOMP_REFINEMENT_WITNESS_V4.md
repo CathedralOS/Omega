@@ -9,7 +9,7 @@ change. The outer frame changes because the claimed checked IR, constant-image,
 cyclic-result, and artifact relations change.
 
 The normative source, checked-IR, status, and artifact meaning is defined by
-[`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md).
+[`OMEGA_BOOTSTRAP_CHECKED_IR_V3.md`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V3.md).
 This document only fixes its lower-rooted evidence transport and assigns those
 already-defined propositions to independent evidence owners.
 

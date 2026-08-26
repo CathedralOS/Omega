@@ -11,7 +11,7 @@ Delta is an independent compiler-host language, not an Omega subset. Its v1
 contract is being discovered from the complete canonical Delta-compiler and
 `omega-bootstrap` source closures plus explicit coherence, safety, robustness,
 and maintainability arguments, and is tracked in
-[`../../../TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).
+[`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 
 The corpus and disposable Rust producer are discovery inputs, not a feature
 vote. A construct belongs to Delta v1 when the canonical compiler or bridge
@@ -57,7 +57,7 @@ source- and cost-driven in the feature ledger.
 - [`rust/`](rust/) is the disposable
   Rust producer and executable reference. It is not Delta's semantic authority.
 
-The lower-rung Delta-to-Gamma route under [`../../omega-bootstrap/meaning/`](../../omega-bootstrap/meaning/)
+The lower-rung Delta-to-Gamma route under [`../omega-bootstrap/meaning/`](../omega-bootstrap/meaning/)
 defines the meaning profile being widened across the canonical Delta compiler
 and `omega-bootstrap`.
 The former `compiler/delta` and `compiler/delta-rs` entries are retired; gates

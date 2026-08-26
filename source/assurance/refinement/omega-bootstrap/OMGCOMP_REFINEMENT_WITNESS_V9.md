@@ -1,11 +1,11 @@
 # OMGCOMP lower-rooted refinement witness, version 9
 
 [`OMGRFN8`](OMGCOMP_REFINEMENT_WITNESS_V8.md) |
-[`OMGRSW1`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
-[`OMGRSW2`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md) |
-[`OMGRSW3`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
-[`CKIR7`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V7.md) |
-[`CKIR7 backend`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V7_BACKEND.md)
+[`OMGRSW1`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
+[`OMGRSW2`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md) |
+[`OMGRSW3`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
+[`CKIR7`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V7.md) |
+[`CKIR7 backend`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V7_BACKEND.md)
 
 `OMGRFN9` is the private lower-rooted carrier for pure, total, nontrapping
 Boolean `&&` and `||`. It freezes all earlier identities and responsibility

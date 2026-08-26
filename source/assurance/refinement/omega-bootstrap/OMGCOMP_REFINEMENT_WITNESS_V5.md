@@ -7,7 +7,7 @@ from
 [`OMGCOMP_REFINEMENT_WITNESS.md`](OMGCOMP_REFINEMENT_WITNESS.md). Neither
 component changes. The normative source, checked-IR, status, and artifact
 meaning is
-[`OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md);
+[`OMEGA_BOOTSTRAP_CHECKED_IR_V4.md`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V4.md);
 this document only fixes the lower-rooted evidence transport and assigns its
 already-defined propositions to independent owners.
 

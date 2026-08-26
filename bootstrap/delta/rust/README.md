@@ -1,8 +1,8 @@
 # Delta Rust on-ramp
 
-The `-rust` suffix marks this as the external-language on-ramp for the Delta rung;
-the former `-rs` compatibility spelling has been retired:
-it compiles the current experimental `.alp` surface (state **machines**, **data**
+The explicit `rust/` child marks this as the external-language on-ramp for the
+Delta rung; the former `-rs` compatibility spelling has been retired. It
+compiles the current experimental `.alp` surface (state **machines**, **data**
 structs, **transition** dispatch, and payload **enums**) to a native binary to
 discover what the bridge language needs. It is an interim producer and
 differential oracle, not Delta's semantic or feature authority; canonical

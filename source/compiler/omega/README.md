@@ -1,4 +1,4 @@
-# `compiler/` — product compiler source
+# `source/compiler/omega/` — Omega-written product compiler source
 
 Omega is rebuilt from a small audited seed through increasingly capable
 languages, then through one deliberately profile-limited hosted edge. The
@@ -80,8 +80,8 @@ Psi-aware artifact verifier or canonical semantic-ledger generator reconstructs
 the exact obligations from canonical artifact bytes; the proof kernel checks the
 attached derivations. Proof search and optimization remain untrusted producers.
 
-See [`source/assurance/proof-kernel/README.md`](../source/assurance/proof-kernel/README.md) and
-[`wiki/architecture/bootstrap_lattice/proof_kernel.md`](../wiki/architecture/bootstrap_lattice/proof_kernel.md).
+See [`source/assurance/proof-kernel/README.md`](../../assurance/proof-kernel/README.md) and
+[`wiki/architecture/bootstrap_lattice/proof_kernel.md`](../../../wiki/architecture/bootstrap_lattice/proof_kernel.md).
 
 ## Psi, omega-bootstrap, and production Omega
 
@@ -99,7 +99,7 @@ The hosted build has two source surfaces:
 
 `Ωself` has no private semantics and is not another language rung. The feature
 budget and enforcement contract live in
-[`compiler_source_profile.md`](../wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
+[`compiler_source_profile.md`](../../../wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
 
 The current Rust implementation remains a migration/reference producer under
 `source/compiler/rust/{psi,omega}/` while that hosted path matures.
@@ -143,12 +143,12 @@ sh source/assurance/proof-kernel/gates/test.sh
 ```
 
 Architecture and standing decisions live in
-[`wiki/architecture/bootstrap_lattice/`](../wiki/architecture/bootstrap_lattice/).
-The product roots have role-based names; external-language producers are
-explicitly suffixed on-ramps. The retired flat bootstrap facade and canonical
+[`wiki/architecture/bootstrap_lattice/`](../../../wiki/architecture/bootstrap_lattice/).
+The product roots have role-based names; external-language producers live under
+explicit Rust owners or role-local Rust children. The retired flat bootstrap facade and canonical
 ownership map are documented in
-[`repository_structure.md`](../wiki/architecture/bootstrap_lattice/repository_structure.md).
-Live bootstrap work belongs in [`TASKS_BOOTSTRAP.md`](../TASKS_BOOTSTRAP.md),
-while broader product work belongs in [`TASKS.md`](../TASKS.md). Exact corpus and
+[`repository_structure.md`](../../../wiki/architecture/bootstrap_lattice/repository_structure.md).
+Live bootstrap work belongs in [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md),
+while broader product work belongs in [`TASKS.md`](../../../TASKS.md). Exact corpus and
 gate counts belong beside the scripts that produce them rather than in this
 overview.

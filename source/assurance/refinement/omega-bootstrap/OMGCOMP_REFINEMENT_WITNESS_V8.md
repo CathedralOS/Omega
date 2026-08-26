@@ -1,11 +1,11 @@
 # OMGCOMP lower-rooted refinement witness, version 8
 
 [`OMGRFN7`](OMGCOMP_REFINEMENT_WITNESS_V7.md) |
-[`OMGRSW1`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
-[`OMGRSW2`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md) |
-[`OMGRSW3`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
-[`CKIR6`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V6.md) |
-[`CKIR6 backend`](../../../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V6_BACKEND.md)
+[`OMGRSW1`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION.md) |
+[`OMGRSW2`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V2.md) |
+[`OMGRSW3`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V3.md) |
+[`CKIR6`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V6.md) |
+[`CKIR6 backend`](../../../../bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V6_BACKEND.md)
 
 `OMGRFN8` is the private lower-rooted carrier for bool-only prefix logical
 negation. It preserves the five independent responsibility owners and adds

@@ -297,16 +297,12 @@ independent tasks that can be permanently checked off:
   `OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md), verify its exact
   deterministic closure and derive or update the distinct compositional
   candidate feature/resource profile. Checkpoint 000001 supplied the first
-  published closure and normalized-syntax/resource profile, but its fast gate
-  currently rejects compiled-source drift in `source/compiler/omega/psi/lex/lexer.omg`,
-  `source/compiler/omega/psi/tokens/tokens.omg`, and `omega/language/std/console.omg`, plus
-  provenance drift in `Cargo.lock` and
-  `source/compiler/rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs`.
-  The latter also provides the pinned build-prelude snapshot and currently
-  differs from `source/compiler/omega/source-checkpoints/inputs/build-prelude.omg`. Treat its
-  pinned snapshot as bounded historical evidence until the product-owned
-  refresh passes; later compiler phases publish later checkpoints from their
-  product owner.
+  published closure and normalized-syntax/resource profile. Its compiled
+  sources and extracted build prelude still match the refreshed snapshot, but
+  the fast gate currently rejects provenance drift in `Cargo.lock` and
+  `Cargo.toml`. Treat checkpoint acceptance as stale until the product owner
+  refreshes the complete manifest/profile evidence together; later compiler
+  phases publish later checkpoints from that owner.
 - Measure every used feature's source benefit against the cost of its
   general Delta-written bridge implementation. Record one provisional outcome:
   retain, refactor from product source and preserve a negative canary, or leave
@@ -386,7 +382,7 @@ evidence stay in
 | compiler data and views | fixed arrays, checked runtime indexing, borrowed shared/mutable slices, byte/string literals, and remaining general named-record/payload-sum composition | growable allocation is separate; the bounded program-static shared-byte-view window (`&[u8]`, nonempty guard, `[0]`, `[1..]`) is closed through OMGRSW4/CKIR12/OMGRFN14, while general views remain open and authored `u32` indexes/cursors versus the `u64` `Array`/`Slice` contracts remain language-blocked |
 | compiler control and remaining scalar operations | state parameters, mutation, calls, explicit result fields, ranges, concrete Trapping arithmetic, the remaining proof-gated narrowing/other casts, and the observed ranking clause | exact widening and canonical `u32 in Trapping` leaf-plus-literal addition are closed; only argument combinations with multiple potentially observable/trapping computations need the unresolved call-order ruling; broader receivers, recursion, and packages remain separate |
 | source graph and selected product bindings | modules/import aliases over resolver-owned logical placements; target-qualified and bodyless machines; `satisfies`; sealed compiler-intrinsic realizations; the boundary trait and static provider paths actually used | private cross-module visibility and final logical placements remain owner-gated; the one-requirement OMGCOMP2 fixture is cost evidence rather than the six-requirement product `Console` closure, and general target-default selection waits on the product-source spelling ruling; do not import general boundary traits into Delta |
-| generated closure and resource behavior | bridge-side custody is closed for the exact Unicode tuple: generic manifest roles, a sealed locked/offline recipe, two-run reproduction, bounded/no-publication teeth, exact OMGCOMP1 extent, and CKIR3/OMGRFN4 preflight composition | the enclosing checkpoint remains stale and must be refreshed by the product owner over the same tuple; generated files are ordinary source, not hard-coded bridge exceptions |
+| generated closure and resource behavior | bridge-side custody is closed for the exact Unicode tuple: generic manifest roles, a sealed locked/offline recipe, two-run reproduction, bounded/no-publication teeth, exact OMGCOMP1 extent, and CKIR3/OMGRFN4 preflight composition | the enclosing checkpoint's source/prelude still match, but Cargo lock/workspace provenance has drifted and must be refreshed by the product owner over the same tuple; generated files are ordinary source, not hard-coded bridge exceptions |
 
 - [ ] Close the compiler-data/view lane through general parsing, resolution,
   checking, diagnostics, conservative lowering, and artifact reconstruction.
@@ -421,7 +417,8 @@ evidence stay in
   resource and failure teeth publish nothing; and the exact output extent is
   composed with the existing OMGCOMP1→CKIR3→ELF and OMGRFN4 same-frame paths.
   This item remains open only until the product owner refreshes checkpoint
-  000001 and its profile over that same generator/input/output tuple. Do not
+  000001 and its profile over that same generator/input/output tuple, including
+  the currently drifted Cargo lock/workspace provenance. Do not
   weaken the checkpoint, duplicate the recipe into a new manifest dialect, or
   treat bridge-local reproduction as product-owned checkpoint authority.
 - [ ] Consume each later provisional product checkpoint and add only its newly
