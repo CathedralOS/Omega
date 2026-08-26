@@ -21,6 +21,7 @@ mod headers;
 mod imports;
 mod layout;
 mod section_name_table;
+mod section_roster;
 mod sections;
 #[cfg(test)]
 mod tests;
@@ -64,6 +65,10 @@ pub use dynamic_tags::{
 };
 pub use section_name_table::{
     ElfSectionNameTablePlanningError, ValidatedElfSectionNameTablePlan, plan_elf_section_name_table,
+};
+pub use section_roster::{
+    ElfDynamicSectionRosterPlanningError, ValidatedElfDynamicSectionRoster,
+    plan_elf_dynamic_section_roster,
 };
 
 use entry::elf_entry_address;

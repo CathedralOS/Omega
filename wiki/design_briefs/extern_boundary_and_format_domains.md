@@ -276,10 +276,17 @@ at byte 102, and the semantic descriptor records `SHT_STRTAB`, no flags, size
 102, alignment one, zero entry size, and no link/info relationship. Independent
 bounded replay walks every contiguous NUL-framed name and checks every byte,
 field, identity, and exact `.dynamic`-descriptor custody. It assigns no numeric
-section index, `e_shstrndx`, address, or placement.
+section index, `e_shstrndx`, address, or placement. A numeric-roster carrier
+then consumes that owner into twelve closed rows: null index zero; the retained
+six base rows at 1–6; `.plt`/`.got.plt`/`.rela.plt` at 7–9; `.dynamic` at 10;
+and `.shstrtab` at 11, which is also the exact `e_shstrndx`. Existing `sh_name`
+offsets and literal `sh_info` values survive unchanged; semantic links and the
+relocated-section info relationship resolve to exact in-roster indexes.
+Independent replay checks order, unique coverage, every metadata
+field/reference, identity, and name-table custody. The roster assigns no
+address, file offset, payload placement, or header bytes.
 
-The final section roster, numeric `sh_name`/`sh_link`/`e_shstrndx`, section-
-header serialization, placement,
+Section-header serialization, placement,
 `PT_INTERP` program-header placement, `PT_DYNAMIC`, `.dynamic` address
 resolution, optional `.gnu.hash`, numeric indexes for
 `.plt`/`.got.plt`/`.rela.plt`, address-resolved fixup

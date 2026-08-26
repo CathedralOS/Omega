@@ -62,7 +62,6 @@ impl ValidatedElfSectionNameTablePlan {
         self.table_identity
     }
 
-    #[allow(dead_code)]
     pub(crate) const fn contents(&self) -> &ElfSectionNameTableContents {
         &self.contents
     }
