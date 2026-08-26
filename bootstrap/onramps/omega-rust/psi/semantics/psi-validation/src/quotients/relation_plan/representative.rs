@@ -110,22 +110,11 @@ pub(super) fn unconditional_representative_termination(
     program: &TypedTrees,
     representative: &RepresentativeTelescope,
 ) -> Option<RepresentativeTermination> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == representative.machine_symbol)?;
-    match &machine.termination_plan.checked_summary {
-        psi_language_semantics::TerminationGuarantee::Terminates { premises }
-            if premises.is_empty() =>
-        {
-            Some(RepresentativeTermination {
-                machine_symbol: representative.machine_symbol,
-                state_symbol: representative.state_symbol,
-            })
-        }
-        psi_language_semantics::TerminationGuarantee::NoGuarantee
-        | psi_language_semantics::TerminationGuarantee::Terminates { .. } => None,
-    }
+    crate::denotational_calls::unconditionally_terminates(program, representative.machine_symbol)
+        .then_some(RepresentativeTermination {
+            machine_symbol: representative.machine_symbol,
+            state_symbol: representative.state_symbol,
+        })
 }
 
 /// Consume the shared whole-program operational and service-reach fixed points
@@ -139,74 +128,17 @@ pub(in crate::quotients) fn pure_representative_effect(
     operational: &psi_effects::OperationalPlan,
     service_reaches: &psi_effects::ServiceReachInferencePlan,
 ) -> Option<RepresentativePurity> {
-    if representative
-        .parameters
-        .iter()
-        .any(|parameter| parameter.is_mutable)
-    {
-        return None;
-    }
-    let machine_summaries = operational
-        .machines()
-        .iter()
-        .filter(|summary| summary.symbol == representative.machine_symbol)
-        .collect::<Vec<_>>();
-    let [machine_summary] = machine_summaries.as_slice() else {
-        return None;
-    };
-    if machine_summary.transitive_may_suspend || machine_summary.transitive_may_block {
-        return None;
-    }
-    let entry_summaries = operational
-        .states
-        .span_or_empty(machine_summary.states)
-        .iter()
-        .filter(|summary| summary.symbol == representative.state_symbol)
-        .collect::<Vec<_>>();
-    if entry_summaries.len() != 1 {
-        return None;
-    }
-    let reach_summaries = service_reaches
-        .machines()
-        .iter()
-        .filter(|summary| summary.machine == representative.machine_symbol)
-        .collect::<Vec<_>>();
-    let [reach_summary] = reach_summaries.as_slice() else {
-        return None;
-    };
-    if !service_reaches
-        .services(reach_summary.inferred_transitive)
-        .is_empty()
-    {
-        return None;
-    }
-
-    let mut pending = vec![representative.machine_symbol];
-    let mut visited = Vec::new();
-    while let Some(machine_symbol) = pending.pop() {
-        if visited.contains(&machine_symbol) {
-            continue;
-        }
-        visited.push(machine_symbol);
-        let summaries = operational
-            .machines()
+    crate::denotational_calls::has_pure_effect_closure(
+        representative.machine_symbol,
+        representative.state_symbol,
+        representative
+            .parameters
             .iter()
-            .filter(|summary| summary.symbol == machine_symbol)
-            .collect::<Vec<_>>();
-        let [summary] = summaries.as_slice() else {
-            return None;
-        };
-        for state in operational.states.span_or_empty(summary.states) {
-            for call in operational.calls.span_or_empty(state.calls) {
-                if !call.target_machine_symbol.is_valid() {
-                    return None;
-                }
-                pending.push(call.target_machine_symbol);
-            }
-        }
-    }
-
-    Some(RepresentativePurity {
+            .any(|parameter| parameter.is_mutable),
+        operational,
+        service_reaches,
+    )
+    .then_some(RepresentativePurity {
         machine_symbol: representative.machine_symbol,
         state_symbol: representative.state_symbol,
     })

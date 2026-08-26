@@ -954,6 +954,26 @@ fn rewrite_slot_applications(
                 })
                 .collect(),
         },
+        StructuralTerm::CallProjection {
+            target,
+            machine,
+            result_type,
+            field,
+            field_name,
+            arguments,
+        } => StructuralTerm::CallProjection {
+            target: *target,
+            machine: machine.clone(),
+            result_type: *result_type,
+            field: *field,
+            field_name: field_name.clone(),
+            arguments: arguments
+                .iter()
+                .map(|argument| {
+                    rewrite_slot_applications(argument, slot_names, slot_bindings, missing)
+                })
+                .collect(),
+        },
         other => other.clone(),
     }
 }
@@ -965,6 +985,9 @@ pub(super) fn term_mentions_variable(term: &StructuralTerm, variable: &String) -
             .iter()
             .any(|(_, value)| term_mentions_variable(value, variable)),
         StructuralTerm::Application { arguments, .. } => arguments
+            .iter()
+            .any(|argument| term_mentions_variable(argument, variable)),
+        StructuralTerm::CallProjection { arguments, .. } => arguments
             .iter()
             .any(|argument| term_mentions_variable(argument, variable)),
         StructuralTerm::Opaque(_) => false,
@@ -1027,6 +1050,36 @@ pub(super) fn diagnostic_shape_match(
                     })
         }
         (StructuralTerm::Opaque(left), StructuralTerm::Opaque(right)) => left == right,
+        (
+            StructuralTerm::CallProjection {
+                target,
+                machine,
+                result_type,
+                field,
+                arguments,
+                ..
+            },
+            StructuralTerm::CallProjection {
+                target: target_t,
+                machine: machine_t,
+                result_type: result_type_t,
+                field: field_t,
+                arguments: arguments_t,
+                ..
+            },
+        ) => {
+            target == target_t
+                && machine == machine_t
+                && result_type == result_type_t
+                && field == field_t
+                && arguments.len() == arguments_t.len()
+                && arguments
+                    .iter()
+                    .zip(arguments_t)
+                    .all(|(argument, argument_t)| {
+                        diagnostic_shape_match(argument, argument_t, variables, bindings)
+                    })
+        }
         _ => false,
     }
 }
@@ -1049,6 +1102,15 @@ pub(super) fn display_structural_term(term: &StructuralTerm) -> String {
         StructuralTerm::Application { machine, arguments } => {
             let rendered: Vec<String> = arguments.iter().map(display_structural_term).collect();
             format!("{machine}({})", rendered.join(", "))
+        }
+        StructuralTerm::CallProjection {
+            machine,
+            field_name,
+            arguments,
+            ..
+        } => {
+            let rendered: Vec<String> = arguments.iter().map(display_structural_term).collect();
+            format!("{machine}({}).{field_name}", rendered.join(", "))
         }
         StructuralTerm::Opaque(display) => display.clone(),
     }

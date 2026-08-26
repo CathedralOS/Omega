@@ -102,6 +102,17 @@ pub(crate) fn finalize_checked_authored_selections(
                     member.receiver,
                     member,
                 ))
+                .or_else(|| {
+                    let matching = facts
+                        .fact_call_projections
+                        .iter()
+                        .filter(|projection| projection.projection_expression == expression)
+                        .collect::<Vec<_>>();
+                    let [projection] = matching.as_slice() else {
+                        return None;
+                    };
+                    declaration_target(projection.field)
+                })
                 .or_else(|| contextual_domain_member_target(program, expression, member)),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticPathSegment,

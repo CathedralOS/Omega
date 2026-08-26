@@ -33,19 +33,41 @@ pub(crate) fn contract_fact_dependency_places(
     facts: &mut FactPlan,
     contract: &ContractProofFact,
 ) -> Vec<PlaceHandle> {
-    let psi_typed_trees::domain::ProofFact::Expression(expression) =
-        program.proof_facts.get(contract.fact)
-    else {
-        return Vec::new();
-    };
     let mut places = Vec::new();
-    append_contract_expression_dependency_places(
-        program,
-        facts,
-        contract,
-        *expression,
-        &mut places,
-    );
+    match program.proof_facts.get(contract.fact) {
+        psi_typed_trees::domain::ProofFact::Expression(expression) => {
+            append_contract_expression_dependency_places(
+                program,
+                facts,
+                contract,
+                *expression,
+                &mut places,
+            );
+        }
+        psi_typed_trees::domain::ProofFact::Membership(membership) => {
+            append_contract_expression_dependency_places(
+                program,
+                facts,
+                contract,
+                membership.value,
+                &mut places,
+            );
+        }
+        psi_typed_trees::domain::ProofFact::Proposition(application) => {
+            for argument in program
+                .expression_table
+                .expression_handles(application.arguments)
+            {
+                append_contract_expression_dependency_places(
+                    program,
+                    facts,
+                    contract,
+                    *argument,
+                    &mut places,
+                );
+            }
+        }
+    }
     places
 }
 
@@ -60,6 +82,23 @@ fn append_contract_expression_dependency_places(
         return;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::Member(member)
+            if matches!(
+                program.expression_table.expression(member.receiver),
+                ExpressionNode::Call(_)
+            ) =>
+        {
+            // Denotational call results have no place of their own. Retain
+            // every argument occurrence root so any intersecting write or
+            // revision transition invalidates the fact.
+            append_contract_expression_dependency_places(
+                program,
+                facts,
+                contract,
+                member.receiver,
+                places,
+            );
+        }
         ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             if let Some(place) = contract_expression_place(program, facts, contract, expression) {
                 places.push(place);

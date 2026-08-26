@@ -138,6 +138,38 @@ pub(crate) fn build_check_facts(
     // CRY1: materialize the effective structural policy once in the checked
     // fact layer; authored clauses remain minimum promises on typed data.
     let carry = carry::build_carry_facts(program);
+    let mut fact_call_projections = Vec::new();
+    let mut fact_call_projection_diagnostics = Vec::new();
+    for projection in &validation_facts.fact_call_projections {
+        let total = termination
+            .for_machine(projection.target_machine)
+            .is_some_and(|plan| {
+                matches!(
+                    &plan.checked_summary,
+                    psi_language_semantics::TerminationGuarantee::Terminates { premises }
+                        if premises.is_empty()
+                )
+            });
+        if !total {
+            let target = program.symbols.name(projection.target_state);
+            fact_call_projection_diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "fact-position projection from call `{target}` is not denotational: the selected machine is not unconditionally terminating"
+            )));
+            continue;
+        }
+        fact_call_projections.push(psi_checked_trees::CheckedFactCallProjection {
+            projection_expression: projection.projection_expression,
+            call_expression: projection.call_expression,
+            target_machine: projection.target_machine,
+            target_state: projection.target_state,
+            machine_arguments: projection.machine_arguments.clone(),
+            result_type: projection.result_type,
+            field: projection.field,
+        });
+    }
+    if !fact_call_projection_diagnostics.is_empty() {
+        return Err(fact_call_projection_diagnostics);
+    }
 
     Ok(CheckFacts::with_roots(
         semantic,
@@ -160,6 +192,7 @@ pub(crate) fn build_check_facts(
         qualifications,
         contract_plans,
         carry,
+        fact_call_projections,
     ))
 }
 

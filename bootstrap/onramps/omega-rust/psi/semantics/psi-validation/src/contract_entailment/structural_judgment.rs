@@ -1,4 +1,5 @@
 use super::*;
+use psi_typed_trees::types::TypeReferenceHandle;
 use std::cell::Cell;
 
 pub(super) enum StructuralJudgment {
@@ -29,6 +30,18 @@ pub(super) enum StructuralTerm {
     /// a constructor -- the compute-mode of N3's operator routing.
     Application {
         machine: String,
+        arguments: Vec<StructuralTerm>,
+    },
+    /// One validated direct plain-record projection from an exact checked
+    /// call. Symbol identities prevent overloaded textual names from
+    /// collapsing; `machine` retains the complete static application for
+    /// diagnostics and canonical display.
+    CallProjection {
+        target: SymbolHandle,
+        machine: String,
+        result_type: TypeReferenceHandle,
+        field: SymbolHandle,
+        field_name: String,
         arguments: Vec<StructuralTerm>,
     },
     /// Anything else, compared by canonical display name only.
@@ -362,10 +375,153 @@ impl<'program> StructuralJudge<'program> {
                     }
                     return resolved;
                 }
+                StructuralTerm::CallProjection {
+                    target,
+                    machine,
+                    result_type,
+                    field,
+                    field_name,
+                    arguments,
+                } => {
+                    let arguments = arguments
+                        .into_iter()
+                        .map(|argument| self.resolve_at(argument, depth + 1))
+                        .collect::<Vec<_>>();
+                    let resolved = StructuralTerm::CallProjection {
+                        target,
+                        machine,
+                        result_type,
+                        field,
+                        field_name,
+                        arguments,
+                    };
+                    let StructuralTerm::CallProjection {
+                        target,
+                        machine,
+                        result_type,
+                        field,
+                        arguments,
+                        ..
+                    } = &resolved
+                    else {
+                        unreachable!()
+                    };
+                    if let Some(unfolded) = self.unfold_exact_call_projection(
+                        *target,
+                        machine,
+                        *result_type,
+                        *field,
+                        arguments,
+                        depth + 1,
+                    ) {
+                        term = unfolded;
+                        continue;
+                    }
+                    return resolved;
+                }
                 StructuralTerm::Opaque(_) => return term,
             }
         }
         term
+    }
+
+    /// Unfold one exact checked record-returning call far enough to interpret
+    /// a direct result field. This is proof checking, not public-contract
+    /// derivation: the statement remains coupled to the callee interface,
+    /// while the callee body is the evidence that establishes it. The first
+    /// rung deliberately accepts only one unconditional value transition;
+    /// broader control-flow joins remain opaque.
+    fn unfold_exact_call_projection(
+        &self,
+        target: SymbolHandle,
+        machine_application: &str,
+        result_type: TypeReferenceHandle,
+        field: SymbolHandle,
+        arguments: &[StructuralTerm],
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        if depth >= 32 {
+            return None;
+        }
+        let program = self.program;
+        let matches = program
+            .machines()
+            .iter()
+            .flat_map(|machine| {
+                program
+                    .machine_states(machine)
+                    .iter()
+                    .filter(move |state| state.symbol == target)
+                    .map(move |state| (machine, state))
+            })
+            .collect::<Vec<_>>();
+        let [(machine, state)] = matches.as_slice() else {
+            return None;
+        };
+        if state.return_type != result_type {
+            return None;
+        }
+        let (selected_name, selected_machines) = split_structural_machine_name(machine_application);
+        if machine.name.as_str() != selected_name {
+            return None;
+        }
+        let machine_parameters = program
+            .machine_type_parameters(machine)
+            .iter()
+            .filter(|parameter| {
+                matches!(
+                    parameter.kind,
+                    psi_typed_trees::data::TypeParameterKind::Machine { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        if machine_parameters.len() != selected_machines.len() {
+            return None;
+        }
+        let machine_environment = machine_parameters
+            .iter()
+            .zip(selected_machines)
+            .map(|(parameter, selected)| (parameter.name.as_str().to_owned(), selected.to_owned()))
+            .collect::<Vec<_>>();
+        let parameters = program.state_parameters(state);
+        if parameters.len() != arguments.len() {
+            return None;
+        }
+        let environment = parameters
+            .iter()
+            .zip(arguments)
+            .map(|(parameter, argument)| (parameter.name.as_str().to_owned(), argument.clone()))
+            .collect::<Vec<_>>();
+        let [StatementNode::Transition(transition)] =
+            program.statement_table.statements(state.statement_nodes)
+        else {
+            return None;
+        };
+        if !matches!(transition.guard, TransitionGuardNode::Always)
+            || transition.continuation.is_valid()
+        {
+            return None;
+        }
+        let TransitionTargetNode::Value(value) =
+            program.statement_table.transition_target(transition.target)
+        else {
+            return None;
+        };
+        let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(*value)
+        else {
+            return None;
+        };
+        let projected = program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .find(|candidate| candidate.field_symbol == field)?;
+        self.callee_term_with_machines(
+            projected.value,
+            &environment,
+            &machine_environment,
+            depth + 1,
+        )
     }
 
     /// COMPUTE-MODE unfolding (N3): apply a single-state proof machine of
@@ -646,6 +802,65 @@ impl<'program> StructuralJudge<'program> {
                 }
             }
             ExpressionNode::Member(member) => {
+                if let ExpressionNode::Call(call) =
+                    program.expression_table.expression(member.receiver)
+                    && !call.receiver.is_valid()
+                {
+                    let arguments = program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .map(|argument| {
+                            self.callee_term_with_machines(
+                                *argument,
+                                environment,
+                                machine_environment,
+                                depth + 1,
+                            )
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    let matches = program
+                        .machines()
+                        .iter()
+                        .flat_map(|machine| program.machine_states(machine))
+                        .filter(|state| state.symbol == call.target_symbol)
+                        .collect::<Vec<_>>();
+                    let [state] = matches.as_slice() else {
+                        return None;
+                    };
+                    let data_symbol = match program
+                        .type_reference_table
+                        .type_reference(state.return_type)
+                    {
+                        psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+                        psi_typed_trees::types::TypeReferenceNode::Generic {
+                            base_symbol, ..
+                        } => *base_symbol,
+                        _ => return None,
+                    };
+                    let data = program
+                        .data_definitions()
+                        .iter()
+                        .find(|data| data.symbol == data_symbol)?;
+                    let field = program.data_members(data).iter().find_map(|candidate| {
+                        let psi_typed_trees::data::DataMember::Field(field) = candidate else {
+                            return None;
+                        };
+                        (field.name.as_str() == member.member.as_str()).then_some(field.symbol)
+                    })?;
+                    return Some(StructuralTerm::CallProjection {
+                        target: call.target_symbol,
+                        machine: structural_call_machine_name(
+                            call.target.as_str(),
+                            &call.machine_arguments,
+                            machine_environment,
+                        ),
+                        result_type: state.return_type,
+                        field,
+                        field_name: member.member.as_str().to_owned(),
+                        arguments,
+                    });
+                }
                 let receiver_term = self.callee_term_with_machines(
                     member.receiver,
                     environment,
@@ -669,7 +884,9 @@ impl<'program> StructuralJudge<'program> {
                         "{inner}.{}",
                         member.member.as_str()
                     ))),
-                    StructuralTerm::Application { .. } => None,
+                    StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. } => {
+                        None
+                    }
                 }
             }
             ExpressionNode::StructLiteral(literal) => {
@@ -767,6 +984,24 @@ impl<'program> StructuralJudge<'program> {
                     .map(|argument| Self::substitute_term(argument, map))
                     .collect(),
             },
+            StructuralTerm::CallProjection {
+                target,
+                machine,
+                result_type,
+                field,
+                field_name,
+                arguments,
+            } => StructuralTerm::CallProjection {
+                target: *target,
+                machine: machine.clone(),
+                result_type: *result_type,
+                field: *field,
+                field_name: field_name.clone(),
+                arguments: arguments
+                    .iter()
+                    .map(|argument| Self::substitute_term(argument, map))
+                    .collect(),
+            },
             StructuralTerm::Opaque(display) => {
                 // Symbolic record member places currently share the Opaque
                 // vocabulary (`p.den`). Citation instantiation must still
@@ -787,7 +1022,8 @@ impl<'program> StructuralJudge<'program> {
                         StructuralTerm::Variable(root) | StructuralTerm::Opaque(root) => {
                             StructuralTerm::Opaque(format!("{root}.{suffix}"))
                         }
-                        StructuralTerm::Application { .. } => StructuralTerm::Opaque(format!(
+                        StructuralTerm::Application { .. }
+                        | StructuralTerm::CallProjection { .. } => StructuralTerm::Opaque(format!(
                             "{}.{suffix}",
                             display_structural_term(replacement)
                         )),
@@ -814,6 +1050,11 @@ impl<'program> StructuralJudge<'program> {
                 if machine == machine_name {
                     found.push(term);
                 }
+                for argument in arguments {
+                    Self::self_applications(argument, machine_name, found);
+                }
+            }
+            StructuralTerm::CallProjection { arguments, .. } => {
                 for argument in arguments {
                     Self::self_applications(argument, machine_name, found);
                 }

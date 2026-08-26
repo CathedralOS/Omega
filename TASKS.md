@@ -7543,18 +7543,6 @@ Remaining N6/N8 work:
   selected theorem, precondition correspondence, or result-flow edge
   rejects independently; no quotient operation observes representative
   structure or acquires effects/custody beyond the initial integration fence.
-- **FACT-CALL-PROJECTION — admit projections from eligible fact-position call
-  terms.** A total pure call in `requires`, `ensures`, domain, or proof-stratum
-  position denotes a value without constructing a runtime temporary. Permit
-  ordinary member projection such as `add_int(a, b).pos`, retain the exact call
-  and projection in fact identity, and propagate the intersection of every
-  referenced occurrence's validity/revision scope through the term. An
-  intersecting write or revision transition invalidates the fact. The rule
-  creates no runtime move or loan and transfers no custody into `Prop`.
-  Acceptance: rewrite the implementation-coupled expanded equations in
-  `omega/language/core/int.omg` as named relation applications over operation
-  results; changing `add_int`'s implementation no longer requires restating its
-  public congruence theorem.
 - **RESULTLESS-LAWS — remove dummy runtime results from theorem-only slots.**
   A theorem-only machine publishes parameters, `requires`, and `ensures` but no
   `Type` result. Migrate the law requirements in `CommutativeSemiring` and their

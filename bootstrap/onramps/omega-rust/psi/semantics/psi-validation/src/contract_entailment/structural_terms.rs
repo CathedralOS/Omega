@@ -25,6 +25,9 @@ pub(super) fn term_contains(haystack: &StructuralTerm, needle: &StructuralTerm) 
         StructuralTerm::Application { arguments, .. } => arguments
             .iter()
             .any(|argument| term_contains(argument, needle)),
+        StructuralTerm::CallProjection { arguments, .. } => arguments
+            .iter()
+            .any(|argument| term_contains(argument, needle)),
         _ => false,
     }
 }
@@ -44,6 +47,24 @@ pub(super) fn unfold_constant_applications(
         }
         StructuralTerm::Application { machine, arguments } => StructuralTerm::Application {
             machine,
+            arguments: arguments
+                .into_iter()
+                .map(|argument| unfold_constant_applications(program, argument))
+                .collect(),
+        },
+        StructuralTerm::CallProjection {
+            target,
+            machine,
+            result_type,
+            field,
+            field_name,
+            arguments,
+        } => StructuralTerm::CallProjection {
+            target,
+            machine,
+            result_type,
+            field,
+            field_name,
             arguments: arguments
                 .into_iter()
                 .map(|argument| unfold_constant_applications(program, argument))
@@ -241,14 +262,61 @@ pub(super) fn structural_term(
             case: value.to_string(),
             fields: Vec::new(),
         }),
-        ExpressionNode::Member(_) => Some(StructuralTerm::Opaque(
-            program.expression_table.display_name(expression),
-        )),
+        ExpressionNode::Member(member) => {
+            if let ExpressionNode::Call(call) = program.expression_table.expression(member.receiver)
+                && !call.receiver.is_valid()
+            {
+                let handles = program.expression_table.expression_handles(call.arguments);
+                let arguments = handles
+                    .iter()
+                    .filter_map(|argument| structural_term(program, *argument))
+                    .collect::<Vec<_>>();
+                if arguments.len() == handles.len() {
+                    let result_type = program
+                        .machines()
+                        .iter()
+                        .flat_map(|machine| program.machine_states(machine))
+                        .find(|state| state.symbol == call.target_symbol)
+                        .map(|state| state.return_type)?;
+                    let field =
+                        call_projection_field_symbol(program, result_type, member.member.as_str())?;
+                    return Some(StructuralTerm::CallProjection {
+                        target: call.target_symbol,
+                        machine: structural_call_machine_name(
+                            call.target.as_str(),
+                            &call.machine_arguments,
+                            &[],
+                        ),
+                        result_type,
+                        field,
+                        field_name: member.member.as_str().to_owned(),
+                        arguments,
+                    });
+                }
+            }
+            Some(StructuralTerm::Opaque(
+                program.expression_table.display_name(expression),
+            ))
+        }
         ExpressionNode::ZeroValue(type_reference) => {
             zero_value_structural_term(program, *type_reference)
         }
         _ => None,
     }
+}
+
+fn call_projection_field_symbol(
+    program: &TypedTrees,
+    result_type: psi_typed_trees::types::TypeReferenceHandle,
+    field_name: &str,
+) -> Option<psi_symbols::SymbolHandle> {
+    let data = crate::places::data_definition_for_type(program, result_type)?;
+    program.data_members(data).iter().find_map(|member| {
+        let psi_typed_trees::data::DataMember::Field(field) = member else {
+            return None;
+        };
+        (field.name.as_str() == field_name).then_some(field.symbol)
+    })
 }
 
 /// Normalize proof-only `zero_value<T>()` through the same home-

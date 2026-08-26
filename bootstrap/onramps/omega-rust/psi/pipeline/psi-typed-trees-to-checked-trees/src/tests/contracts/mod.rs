@@ -1,6 +1,7 @@
 use super::*;
 
 mod assembly;
+mod fact_call_projections;
 mod indexing;
 mod instantiation;
 mod proof_obligations;

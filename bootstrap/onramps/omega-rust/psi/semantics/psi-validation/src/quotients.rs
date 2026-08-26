@@ -25,6 +25,15 @@ mod relation_plan;
 
 use carrier_fence::{CarrierFenceViolation, first_forbidden_carrier_content};
 
+pub(crate) fn type_has_forbidden_denotational_content(
+    program: &TypedTrees,
+    proof_only: &ProofOnlyClassification,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    first_forbidden_carrier_content(program, proof_only, type_reference, &mut HashSet::new())
+        .is_some()
+}
+
 const CORE_EQUIVALENCE_SOURCE: &str = "relation.omg";
 
 pub(crate) fn validate_quotients(
