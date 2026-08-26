@@ -71,6 +71,7 @@ pub fn canonicalize_declared_const_definition(
 
 struct GenericData {
     name: String,
+    origin_name: Identifier,
     is_public: bool,
     lifetime_parameters: Vec<Identifier>,
     parameter_names: Vec<String>,
@@ -255,6 +256,7 @@ fn desugar_generic_data_instances(syntax: &mut SyntaxTrees) -> Result<(), Vec<Di
             definition.name.as_str().to_string(),
             GenericData {
                 name: definition.name.as_str().to_owned(),
+                origin_name: definition.name.clone(),
                 is_public: definition.is_public,
                 lifetime_parameters: definition.lifetime_parameters.clone(),
                 parameter_names,
@@ -496,7 +498,14 @@ fn desugar_generic_data_instances(syntax: &mut SyntaxTrees) -> Result<(), Vec<Di
                 count += 1;
             }
             syntax.push_root_item(Item::Data(DataDefinition {
-                name: Identifier::generated(instance.synthetic_name.as_str()),
+                // The closed instance is compiler-generated, but its mandatory
+                // derivation origin is the exact authored generic declaration.
+                // Retain that span under the synthetic semantic spelling so
+                // package ownership never falls back to an unresolved name.
+                name: Identifier::new(
+                    instance.synthetic_name.as_str(),
+                    base_info.origin_name.source_span(),
+                ),
                 is_public: base_info.is_public,
                 supply_mode: base_info.supply_mode,
                 lifetime_parameters: base_info.lifetime_parameters.clone(),
@@ -544,8 +553,10 @@ fn desugar_generic_data_instances(syntax: &mut SyntaxTrees) -> Result<(), Vec<Di
                     .next()
                     .unwrap_or(machine.name.as_str())
                     .to_string();
-                clone.name =
-                    Identifier::generated(format!("{}::{}", instance.synthetic_name, method_tail));
+                clone.name = Identifier::new(
+                    format!("{}::{}", instance.synthetic_name, method_tail),
+                    machine.name.source_span(),
+                );
                 clone.attached_data = Some(Identifier::generated(instance.synthetic_name.as_str()));
                 clone.type_parameters = HandleSpan::default();
                 for (handle, name) in syntax

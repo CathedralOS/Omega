@@ -48,7 +48,8 @@ its **`build.omg`**, a capability-checked build-entry machine that augments a
 `Build` (see
 [`../design_briefs/build_and_package_model.md`](../design_briefs/build_and_package_model.md)).
 Each dependency row requests a source and update selector. After fetching it,
-Omega reads the dependency's own `PACKAGE` and derives the default local alias
+Omega reads the dependency's own `builder.package("name")` declaration and
+derives the default local alias
 by mapping kebab-case to snake_case. Explicit aliases are exceptional local
 renames and never package identity.
 

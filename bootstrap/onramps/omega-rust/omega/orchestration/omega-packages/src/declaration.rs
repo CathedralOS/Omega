@@ -1,8 +1,9 @@
 use crate::identity::PackageName;
 use psi_source_files_to_tokens::Lexer;
 use psi_syntax_trees::SyntaxTrees;
-use psi_syntax_trees::expression::ExpressionNode;
+use psi_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_syntax_trees::item::Item;
+use psi_syntax_trees::statement::{StatementHandle, StatementNode};
 use psi_syntax_trees::types::TypeReferenceNode;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use std::fmt;
@@ -10,9 +11,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const BUILD_FILE_NAME: &str = "build.omg";
-const PACKAGE_CONST_NAME: &str = "PACKAGE";
-const PACKAGE_TYPE_NAME: &str = "Package";
-const PACKAGE_NAME_FIELD: &str = "name";
+const BUILD_MACHINE_NAME: &str = "build";
+const BUILD_TYPE_NAME: &str = "Build";
+const BUILDER_PARAMETER_NAME: &str = "builder";
+const PACKAGE_MACHINE_NAME: &str = "package";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageDeclaration {
@@ -26,15 +28,17 @@ pub enum PackageDeclarationError {
     InvalidBuildFileEncoding { path: PathBuf },
     Lex { message: String },
     Parse { message: String },
-    AuthoredPackageType,
+    AuthoredToolchainVocabulary { name: String },
+    ScopedBuildMachine { scope: String },
+    DuplicateBuildMachines { count: usize },
+    InvalidBuildMachine,
+    MissingBuildEntry,
+    InvalidBuildParameter,
+    UnsupportedPackageShape,
+    WrongPackageReceiver,
+    WrongPackageArguments,
     MissingPackageDeclaration,
     DuplicatePackageDeclarations { count: usize },
-    ScopedPackageDeclaration { scope: String },
-    WrongDeclarationType,
-    InitializerNotLiteral,
-    WrongLiteralType,
-    CaseLiteral,
-    WrongLiteralFields,
     NameNotStringLiteral,
     NameNotUtf8,
     InvalidPackageName { message: String },
@@ -44,11 +48,7 @@ impl fmt::Display for PackageDeclarationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingBuildFile { path } => {
-                write!(
-                    formatter,
-                    "package build file is missing: {}",
-                    path.display()
-                )
+                write!(formatter, "package build file is missing: {}", path.display())
             }
             Self::ReadBuildFile { path, message } => {
                 write!(formatter, "cannot read {}: {message}", path.display())
@@ -58,38 +58,44 @@ impl fmt::Display for PackageDeclarationError {
             }
             Self::Lex { message } => write!(formatter, "cannot lex package build: {message}"),
             Self::Parse { message } => write!(formatter, "cannot parse package build: {message}"),
-            Self::AuthoredPackageType => {
-                formatter.write_str("package build must not declare toolchain type `Package`")
+            Self::AuthoredToolchainVocabulary { name } => write!(
+                formatter,
+                "package build must not declare toolchain package vocabulary `{name}`"
+            ),
+            Self::ScopedBuildMachine { scope } => {
+                write!(formatter, "package build machine must be free, not `{scope}::build`")
             }
+            Self::DuplicateBuildMachines { count } => {
+                write!(formatter, "package build declares `build` {count} times")
+            }
+            Self::InvalidBuildMachine => formatter.write_str(
+                "package build must be a bodyful, unscoped, nontarget, nongeneric ordinary machine",
+            ),
+            Self::MissingBuildEntry => {
+                formatter.write_str("package build machine has no callable entry")
+            }
+            Self::InvalidBuildParameter => formatter.write_str(
+                "package build machine's first parameter must be `builder: &mut Build`",
+            ),
+            Self::UnsupportedPackageShape => formatter.write_str(
+                "package declaration must be one direct canonical `builder.package(\"kebab-name\")` statement in the root build entry",
+            ),
+            Self::WrongPackageReceiver => formatter.write_str(
+                "package declaration receiver must be the root build machine's first parameter",
+            ),
+            Self::WrongPackageArguments => formatter.write_str(
+                "`builder.package` must have one direct name literal and accepts no static, evidence, operational, or discard modifiers",
+            ),
             Self::MissingPackageDeclaration => formatter.write_str(
-                "package build must declare `const PACKAGE: Package = Package { name: \"...\" };`",
+                "package build must contain one direct `builder.package(\"kebab-name\")` declaration",
             ),
             Self::DuplicatePackageDeclarations { count } => {
-                write!(formatter, "package build declares `PACKAGE` {count} times")
-            }
-            Self::ScopedPackageDeclaration { scope } => {
-                write!(
-                    formatter,
-                    "package declaration must be free, not `{scope}::PACKAGE`"
-                )
-            }
-            Self::WrongDeclarationType => formatter.write_str("`PACKAGE` must have type `Package`"),
-            Self::InitializerNotLiteral => {
-                formatter.write_str("`PACKAGE` must use a direct `Package` literal")
-            }
-            Self::WrongLiteralType => {
-                formatter.write_str("`PACKAGE` initializer must construct `Package`")
-            }
-            Self::CaseLiteral => {
-                formatter.write_str("`PACKAGE` initializer must be a record literal, not a case")
-            }
-            Self::WrongLiteralFields => {
-                formatter.write_str("`PACKAGE` literal must contain exactly the field `name`")
+                write!(formatter, "package build declares its package name {count} times")
             }
             Self::NameNotStringLiteral => {
-                formatter.write_str("`PACKAGE.name` must be a direct string literal")
+                formatter.write_str("package name must be a direct string literal")
             }
-            Self::NameNotUtf8 => formatter.write_str("`PACKAGE.name` must contain UTF-8 bytes"),
+            Self::NameNotUtf8 => formatter.write_str("package name must contain UTF-8 bytes"),
             Self::InvalidPackageName { message } => formatter.write_str(message),
         }
     }
@@ -97,10 +103,11 @@ impl fmt::Display for PackageDeclarationError {
 
 impl std::error::Error for PackageDeclarationError {}
 
-/// Extract the package-authored human name from the one root `build.omg`.
+/// Project the package-authored human name from the immutable package root.
 ///
-/// This is intentionally syntax-tree validation, not build evaluation. It
-/// reads no imports, dependencies, generated files, or build-host services.
+/// This parses only the root `build.omg`; it does not evaluate build code,
+/// imports, constants, helpers, control flow, dependencies, generated files,
+/// or build-host services.
 pub fn extract_package_declaration(
     package_root: impl AsRef<Path>,
 ) -> Result<PackageDeclaration, PackageDeclarationError> {
@@ -141,82 +148,164 @@ fn extract_from_source(source: &str) -> Result<PackageDeclaration, PackageDeclar
 fn extract_from_syntax_trees(
     syntax_trees: &SyntaxTrees,
 ) -> Result<PackageDeclaration, PackageDeclarationError> {
-    if syntax_trees
-        .root_items()
-        .filter_map(package_authored_type_name)
-        .any(|name| item_leaf_name(name) == PACKAGE_TYPE_NAME)
-    {
-        return Err(PackageDeclarationError::AuthoredPackageType);
-    }
+    reject_authored_toolchain_vocabulary(syntax_trees)?;
 
-    let declarations = syntax_trees
+    let named_builds = syntax_trees
         .root_items()
         .filter_map(|item| match item {
-            Item::Const(declaration) if declaration.name.as_str() == PACKAGE_CONST_NAME => {
-                Some(declaration)
+            Item::Machine(machine)
+                if machine_leaf_name(machine.name.as_str()) == BUILD_MACHINE_NAME =>
+            {
+                Some(machine)
             }
             _ => None,
         })
         .collect::<Vec<_>>();
 
-    let [declaration] = declarations.as_slice() else {
-        return if declarations.is_empty() {
-            Err(PackageDeclarationError::MissingPackageDeclaration)
-        } else {
-            Err(PackageDeclarationError::DuplicatePackageDeclarations {
-                count: declarations.len(),
-            })
-        };
-    };
-
-    if !declaration.scope.as_str().is_empty() {
-        return Err(PackageDeclarationError::ScopedPackageDeclaration {
-            scope: declaration.scope.as_str().to_owned(),
+    if let Some(scoped) = named_builds
+        .iter()
+        .find(|machine| machine.attached_data.is_some())
+    {
+        return Err(PackageDeclarationError::ScopedBuildMachine {
+            scope: scoped
+                .attached_data
+                .as_ref()
+                .expect("scoped build has an owner")
+                .as_str()
+                .to_owned(),
+        });
+    }
+    if named_builds.len() > 1 {
+        return Err(PackageDeclarationError::DuplicateBuildMachines {
+            count: named_builds.len(),
         });
     }
 
+    let Some(build) = named_builds.first() else {
+        reject_unprojected_package_syntax(syntax_trees, &[], &[])?;
+        return Err(PackageDeclarationError::MissingPackageDeclaration);
+    };
+    if build.bodyless
+        || build.boundary
+        || build.target.is_some()
+        || !build.lifetime_parameters.is_empty()
+        || !build.type_parameters.is_empty()
+    {
+        return Err(PackageDeclarationError::InvalidBuildMachine);
+    }
+
+    let entry_handle = *syntax_trees
+        .items
+        .state_handles(build.states)
+        .first()
+        .ok_or(PackageDeclarationError::MissingBuildEntry)?;
+    let entry = syntax_trees.items.state(entry_handle);
+    let builder_parameter = syntax_trees
+        .items
+        .state_parameters(entry.parameters)
+        .first()
+        .map(|handle| syntax_trees.items.state_parameter(*handle))
+        .ok_or(PackageDeclarationError::InvalidBuildParameter)?;
+    if builder_parameter.name.as_str() != BUILDER_PARAMETER_NAME
+        || builder_parameter.is_const
+        || builder_parameter.is_self
+    {
+        return Err(PackageDeclarationError::InvalidBuildParameter);
+    }
+    let TypeReferenceNode::Reference {
+        referee,
+        access,
+        lifetime,
+    } = syntax_trees
+        .type_references
+        .type_reference(builder_parameter.type_reference)
+    else {
+        return Err(PackageDeclarationError::InvalidBuildParameter);
+    };
+    if lifetime.is_some() || !access.is_exclusive() || !access.is_readable() {
+        return Err(PackageDeclarationError::InvalidBuildParameter);
+    }
     if !matches!(
-        syntax_trees
-            .type_references
-            .type_reference(declaration.type_reference),
-        TypeReferenceNode::Named(name) if name.as_str() == PACKAGE_TYPE_NAME
+        syntax_trees.type_references.type_reference(*referee),
+        TypeReferenceNode::Named(name) if name.as_str() == BUILD_TYPE_NAME
     ) {
-        return Err(PackageDeclarationError::WrongDeclarationType);
+        return Err(PackageDeclarationError::InvalidBuildParameter);
     }
 
-    let ExpressionNode::StructLiteral(literal) =
-        syntax_trees.expressions.expression(declaration.value)
-    else {
-        return Err(PackageDeclarationError::InitializerNotLiteral);
-    };
-    if literal.type_name.as_str() != PACKAGE_TYPE_NAME {
-        return Err(PackageDeclarationError::WrongLiteralType);
-    }
-    if literal.case_name.is_some() {
-        return Err(PackageDeclarationError::CaseLiteral);
+    let builder_name = builder_parameter.name.as_str();
+    let mut declarations = Vec::new();
+    let mut accepted_statements = Vec::new();
+    let mut accepted_names = Vec::new();
+    for statement_handle in syntax_trees.items.statements(entry.statements) {
+        let StatementNode::Call(call) = syntax_trees.statements.statement(*statement_handle) else {
+            continue;
+        };
+        if call.target.as_str() != PACKAGE_MACHINE_NAME {
+            continue;
+        }
+        if call.receiver_starts_at_self
+            || !matches!(
+                syntax_trees.statements.identifier_path_members(call.receiver),
+                [receiver] if receiver.as_str() == builder_name
+            )
+        {
+            return Err(PackageDeclarationError::WrongPackageReceiver);
+        }
+        if !call.machine_arguments.is_empty()
+            || !call.evidence_arguments.is_empty()
+            || call.operational_acknowledgement != Default::default()
+            || call.discards_result
+        {
+            return Err(PackageDeclarationError::WrongPackageArguments);
+        }
+        let [name_handle] = syntax_trees.statements.expression_handles(call.arguments) else {
+            return Err(PackageDeclarationError::WrongPackageArguments);
+        };
+        let name = project_name_literal(syntax_trees, *name_handle)?;
+        declarations.push(PackageDeclaration { name });
+        accepted_statements.push(*statement_handle);
+        accepted_names.push(*name_handle);
     }
 
-    let fields = syntax_trees.expressions.struct_fields(literal.fields);
-    let [name_field] = fields else {
-        return Err(PackageDeclarationError::WrongLiteralFields);
-    };
-    if name_field.name.as_str() != PACKAGE_NAME_FIELD {
-        return Err(PackageDeclarationError::WrongLiteralFields);
+    if declarations.len() > 1 {
+        return Err(PackageDeclarationError::DuplicatePackageDeclarations {
+            count: declarations.len(),
+        });
     }
-
-    let ExpressionNode::String(name_bytes) = syntax_trees.expressions.expression(name_field.value)
-    else {
-        return Err(PackageDeclarationError::NameNotStringLiteral);
-    };
-    let name = std::str::from_utf8(name_bytes).map_err(|_| PackageDeclarationError::NameNotUtf8)?;
-    let name = PackageName::parse(name)
-        .map_err(|message| PackageDeclarationError::InvalidPackageName { message })?;
-
-    Ok(PackageDeclaration { name })
+    reject_unprojected_package_syntax(syntax_trees, &accepted_statements, &accepted_names)?;
+    declarations
+        .pop()
+        .ok_or(PackageDeclarationError::MissingPackageDeclaration)
 }
 
-fn item_leaf_name(name: &str) -> &str {
-    name.rsplit("::").next().unwrap_or(name)
+fn reject_authored_toolchain_vocabulary(
+    syntax_trees: &SyntaxTrees,
+) -> Result<(), PackageDeclarationError> {
+    for item in syntax_trees.root_items() {
+        match package_authored_type_name(item) {
+            Some(name) if machine_leaf_name(name) == BUILD_TYPE_NAME => {
+                return Err(PackageDeclarationError::AuthoredToolchainVocabulary {
+                    name: BUILD_TYPE_NAME.to_owned(),
+                });
+            }
+            _ => {}
+        }
+        match item {
+            Item::Machine(machine)
+                if machine
+                    .attached_data
+                    .as_ref()
+                    .is_some_and(|owner| owner.as_str() == BUILD_TYPE_NAME)
+                    && machine_leaf_name(machine.name.as_str()) == PACKAGE_MACHINE_NAME =>
+            {
+                return Err(PackageDeclarationError::AuthoredToolchainVocabulary {
+                    name: machine.name.as_str().to_owned(),
+                });
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 fn package_authored_type_name(item: &Item) -> Option<&str> {
@@ -227,6 +316,62 @@ fn package_authored_type_name(item: &Item) -> Option<&str> {
         Item::WireData(wire) => Some(wire.name.as_str()),
         _ => None,
     }
+}
+
+fn machine_leaf_name(name: &str) -> &str {
+    name.rsplit("::").next().unwrap_or(name)
+}
+
+fn project_name_literal(
+    syntax_trees: &SyntaxTrees,
+    name_handle: ExpressionHandle,
+) -> Result<PackageName, PackageDeclarationError> {
+    let ExpressionNode::String(name_bytes) = syntax_trees.expressions.expression(name_handle)
+    else {
+        return Err(PackageDeclarationError::NameNotStringLiteral);
+    };
+    let name = std::str::from_utf8(name_bytes).map_err(|_| PackageDeclarationError::NameNotUtf8)?;
+    PackageName::parse(name)
+        .map_err(|message| PackageDeclarationError::InvalidPackageName { message })
+}
+
+fn reject_unprojected_package_syntax(
+    syntax_trees: &SyntaxTrees,
+    accepted_statements: &[StatementHandle],
+    accepted_names: &[ExpressionHandle],
+) -> Result<(), PackageDeclarationError> {
+    for item in syntax_trees.root_items() {
+        let Item::Machine(machine) = item else {
+            continue;
+        };
+        for state_handle in syntax_trees.items.state_handles(machine.states) {
+            let state = syntax_trees.items.state(*state_handle);
+            for statement_handle in syntax_trees.items.statements(state.statements) {
+                let StatementNode::Call(call) =
+                    syntax_trees.statements.statement(*statement_handle)
+                else {
+                    continue;
+                };
+                if call.target.as_str() == PACKAGE_MACHINE_NAME
+                    && !accepted_statements.contains(statement_handle)
+                {
+                    return Err(PackageDeclarationError::UnsupportedPackageShape);
+                }
+            }
+        }
+    }
+
+    for (_, expression) in syntax_trees.expressions.iter_expressions() {
+        if let ExpressionNode::Call(call) = expression
+            && call.target.as_str() == PACKAGE_MACHINE_NAME
+        {
+            let arguments = syntax_trees.expressions.expression_handles(call.arguments);
+            if !matches!(arguments, [name] if accepted_names.contains(name)) {
+                return Err(PackageDeclarationError::UnsupportedPackageShape);
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -271,15 +416,15 @@ mod tests {
     fn declaration(name: &str) -> String {
         format!(
             r#"
-            const PACKAGE: Package = Package {{ name: "{name}" }};
             machine build(builder: &mut Build) {{
+                builder.package("{name}");
             }}
             "#
         )
     }
 
     #[test]
-    fn extracts_canonical_package_declaration_from_root_build() {
+    fn projects_one_direct_canonical_package_declaration() {
         let fixture = PackageFixture::with_source(&declaration("arithmetic-kernels"));
         assert_eq!(
             fixture.extract().unwrap(),
@@ -290,7 +435,23 @@ mod tests {
     }
 
     #[test]
-    fn rejects_missing_unreadable_and_non_utf8_build_files() {
+    fn permits_other_build_parameters_and_direct_build_operations() {
+        let fixture = PackageFixture::with_source(
+            r#"
+            machine build(builder: &mut Build, filesystem: &mut Filesystem) {
+                builder.package("arithmetic-kernels");
+                builder.depend(Source::Path { location: "../exact" });
+            }
+            "#,
+        );
+        assert_eq!(
+            fixture.extract().unwrap().name,
+            PackageName::parse("arithmetic-kernels").unwrap()
+        );
+    }
+
+    #[test]
+    fn rejects_missing_unreadable_non_utf8_unlexable_and_unparsable_files() {
         let missing = PackageFixture::empty();
         assert!(matches!(
             missing.extract(),
@@ -298,30 +459,25 @@ mod tests {
         ));
 
         let unreadable = PackageFixture::empty();
-        fs::create_dir(unreadable.root.join(BUILD_FILE_NAME)).expect("create directory build.omg");
+        fs::create_dir(unreadable.root.join(BUILD_FILE_NAME)).expect("create build directory");
         assert!(matches!(
             unreadable.extract(),
             Err(PackageDeclarationError::ReadBuildFile { .. })
         ));
 
         let invalid_encoding = PackageFixture::empty();
-        fs::write(invalid_encoding.root.join(BUILD_FILE_NAME), [0xff])
-            .expect("write invalid source bytes");
+        fs::write(invalid_encoding.root.join(BUILD_FILE_NAME), [0xff]).expect("write bad UTF-8");
         assert!(matches!(
             invalid_encoding.extract(),
             Err(PackageDeclarationError::InvalidBuildFileEncoding { .. })
         ));
-    }
 
-    #[test]
-    fn rejects_unlexable_and_unparsable_build_files() {
-        let unlexable = PackageFixture::with_source("const PACKAGE: Package = `;");
+        let unlexable = PackageFixture::with_source("machine build(builder: &mut Build) { ` }");
         assert!(matches!(
             unlexable.extract(),
             Err(PackageDeclarationError::Lex { .. })
         ));
-
-        let unparsable = PackageFixture::with_source("const PACKAGE: Package = Package {");
+        let unparsable = PackageFixture::with_source("machine build(builder: &mut Build) {");
         assert!(matches!(
             unparsable.extract(),
             Err(PackageDeclarationError::Parse { .. })
@@ -329,123 +485,203 @@ mod tests {
     }
 
     #[test]
-    fn rejects_missing_duplicate_and_scoped_package_declarations() {
-        let missing = PackageFixture::with_source("machine build(builder: &mut Build) {}");
-        assert!(matches!(
-            missing.extract(),
-            Err(PackageDeclarationError::MissingPackageDeclaration)
-        ));
+    fn rejects_missing_and_duplicate_package_calls() {
+        for source in [
+            "machine build(builder: &mut Build) {}",
+            r#"const PACKAGE: Package = Package { name: "retired-shape" }; machine build(builder: &mut Build) {}"#,
+            r#"machine helper(builder: &mut Build) {}"#,
+        ] {
+            let fixture = PackageFixture::with_source(source);
+            assert!(matches!(
+                fixture.extract(),
+                Err(PackageDeclarationError::MissingPackageDeclaration)
+            ));
+        }
 
         let duplicate = PackageFixture::with_source(
             r#"
-            const PACKAGE: Package = Package { name: "first-package" };
-            const PACKAGE: Package = Package { name: "second-package" };
+            machine build(builder: &mut Build) {
+                builder.package("first-package");
+                builder.package("second-package");
+            }
             "#,
         );
-        assert!(matches!(
-            duplicate.extract(),
-            Err(PackageDeclarationError::DuplicatePackageDeclarations { count: 2 })
-        ));
+        assert_eq!(
+            duplicate.extract().unwrap_err(),
+            PackageDeclarationError::DuplicatePackageDeclarations { count: 2 }
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_and_scoped_build_machines() {
+        let duplicate = PackageFixture::with_source(
+            r#"
+            machine build(builder: &mut Build) { builder.package("first-package"); }
+            machine build(builder: &mut Build) { builder.package("second-package"); }
+            "#,
+        );
+        assert_eq!(
+            duplicate.extract().unwrap_err(),
+            PackageDeclarationError::DuplicateBuildMachines { count: 2 }
+        );
 
         let scoped = PackageFixture::with_source(
-            r#"const Build::PACKAGE: Package = Package { name: "scoped-package" };"#,
+            r#"machine Owner::build(builder: &mut Build) { builder.package("scoped-package"); }"#,
         );
         assert!(matches!(
             scoped.extract(),
-            Err(PackageDeclarationError::ScopedPackageDeclaration { .. })
+            Err(PackageDeclarationError::ScopedBuildMachine { .. })
         ));
     }
 
     #[test]
-    fn rejects_package_authored_toolchain_vocabulary() {
-        for declaration in [
-            "data Package { name: &[u8]; }",
-            "domain u64::Package;",
-            "trait Package {}",
+    fn rejects_nonordinary_build_machine_forms() {
+        for source in [
+            "boundary machine build(builder: &mut Build);",
+            "machine build<T>(builder: &mut Build) {}",
         ] {
-            let fixture = PackageFixture::with_source(&format!(
-                "{declaration}\nconst PACKAGE: Package = Package {{ name: \"spoofed-package\" }};"
+            let fixture = PackageFixture::with_source(source);
+            assert!(matches!(
+                fixture.extract(),
+                Err(PackageDeclarationError::InvalidBuildMachine)
             ));
+        }
+    }
+
+    #[test]
+    fn rejects_noncanonical_first_build_parameter() {
+        for source in [
+            "machine build() {}",
+            "machine build(builder: Build) {}",
+            "machine build(builder: &Build) {}",
+            "machine build(builder: &write Build) {}",
+            "machine build(builder: &mut Builder) {}",
+            "machine build(build: &mut Build) {}",
+        ] {
+            let fixture = PackageFixture::with_source(source);
+            assert!(matches!(
+                fixture.extract(),
+                Err(PackageDeclarationError::InvalidBuildParameter)
+            ));
+        }
+    }
+
+    #[test]
+    fn rejects_authored_build_and_package_vocabulary() {
+        for source in [
+            r#"data Build {} machine build(builder: &mut Build) { builder.package("spoofed-package"); }"#,
+            r#"domain u64::Build; machine build(builder: &mut Build) { builder.package("spoofed-package"); }"#,
+            r#"trait Build {} machine build(builder: &mut Build) { builder.package("spoofed-package"); }"#,
+            r#"machine Build::package(name: &[u8]) {} machine build(builder: &mut Build) { builder.package("spoofed-package"); }"#,
+        ] {
+            let fixture = PackageFixture::with_source(source);
             let result = fixture.extract();
             assert!(
-                matches!(result, Err(PackageDeclarationError::AuthoredPackageType)),
-                "unexpected result for {declaration:?}: {result:?}"
+                matches!(
+                    result,
+                    Err(PackageDeclarationError::AuthoredToolchainVocabulary { .. })
+                ),
+                "unexpected result for {source:?}: {result:?}"
             );
         }
     }
 
     #[test]
-    fn rejects_wrong_declaration_type_and_literal_shape() {
-        let wrong_type = PackageFixture::with_source(
-            r#"const PACKAGE: package = Package { name: "wrong-type" };"#,
+    fn rejects_wrong_package_receiver_and_arguments() {
+        let wrong_receiver = PackageFixture::with_source(
+            r#"machine build(builder: &mut Build) { other.package("wrong-receiver"); }"#,
         );
-        assert!(matches!(
-            wrong_type.extract(),
-            Err(PackageDeclarationError::WrongDeclarationType)
-        ));
-
-        let nonliteral = PackageFixture::with_source("const PACKAGE: Package = load_package();");
-        assert!(matches!(
-            nonliteral.extract(),
-            Err(PackageDeclarationError::InitializerNotLiteral)
-        ));
-
-        let wrong_literal_type = PackageFixture::with_source(
-            r#"const PACKAGE: Package = package { name: "wrong-literal" };"#,
+        assert_eq!(
+            wrong_receiver.extract().unwrap_err(),
+            PackageDeclarationError::WrongPackageReceiver
         );
-        assert!(matches!(
-            wrong_literal_type.extract(),
-            Err(PackageDeclarationError::WrongLiteralType)
-        ));
 
-        let case_literal = PackageFixture::with_source(
-            r#"const PACKAGE: Package = Package::Named { name: "case-literal" };"#,
-        );
-        assert!(matches!(
-            case_literal.extract(),
-            Err(PackageDeclarationError::CaseLiteral)
-        ));
-    }
-
-    #[test]
-    fn rejects_missing_extra_duplicate_and_misspelled_fields() {
         for source in [
-            "const PACKAGE: Package = Package {};",
-            r#"const PACKAGE: Package = Package { name: "one", extra: "two" };"#,
-            r#"const PACKAGE: Package = Package { name: "one", name: "two" };"#,
-            r#"const PACKAGE: Package = Package { Name: "wrong-case" };"#,
+            r#"machine build(builder: &mut Build) { builder.package(); }"#,
+            r#"machine build(builder: &mut Build) { builder.package("one", "two"); }"#,
         ] {
             let fixture = PackageFixture::with_source(source);
-            assert!(matches!(
-                fixture.extract(),
-                Err(PackageDeclarationError::WrongLiteralFields)
-            ));
+            assert_eq!(
+                fixture.extract().unwrap_err(),
+                PackageDeclarationError::WrongPackageArguments
+            );
         }
     }
 
     #[test]
-    fn rejects_nonliteral_effectful_and_dependency_based_names() {
-        for source in [
-            "const PACKAGE: Package = Package { name: dependency_name };",
-            "const PACKAGE: Package = Package { name: read_name() };",
-        ] {
-            let fixture = PackageFixture::with_source(source);
-            assert!(matches!(
-                fixture.extract(),
-                Err(PackageDeclarationError::NameNotStringLiteral)
-            ));
-        }
+    fn rejects_helper_nested_and_expression_package_calls() {
+        let helper = PackageFixture::with_source(
+            r#"
+            machine declare(builder: &mut Build) {
+                builder.package("hidden-package");
+            }
+            machine build(builder: &mut Build) { declare(builder); }
+            "#,
+        );
+        assert_eq!(
+            helper.extract().unwrap_err(),
+            PackageDeclarationError::UnsupportedPackageShape
+        );
+
+        let nested_state = PackageFixture::with_source(
+            r#"
+            machine build(builder: &mut Build) {
+                state later(builder: &mut Build) {
+                    builder.package("conditional-package");
+                }
+            }
+            "#,
+        );
+        assert_eq!(
+            nested_state.extract().unwrap_err(),
+            PackageDeclarationError::UnsupportedPackageShape
+        );
+
+        let expression = PackageFixture::with_source(
+            r#"
+            machine build(builder: &mut Build) {
+                consume(builder.package("expression-package"));
+            }
+            "#,
+        );
+        assert_eq!(
+            expression.extract().unwrap_err(),
+            PackageDeclarationError::UnsupportedPackageShape
+        );
     }
 
     #[test]
-    fn rejects_non_utf8_literal_bytes_and_noncanonical_names() {
+    fn rejects_package_syntax_without_an_authoritative_build_machine() {
+        let fixture = PackageFixture::with_source(
+            r#"
+            machine helper(builder: &mut Build) {
+                builder.package("hidden-package");
+            }
+            "#,
+        );
+        assert_eq!(
+            fixture.extract().unwrap_err(),
+            PackageDeclarationError::UnsupportedPackageShape
+        );
+    }
+
+    #[test]
+    fn rejects_nonliteral_non_utf8_and_noncanonical_names() {
+        let nonliteral = PackageFixture::with_source(
+            "machine build(builder: &mut Build) { builder.package(package_name); }",
+        );
+        assert_eq!(
+            nonliteral.extract().unwrap_err(),
+            PackageDeclarationError::NameNotStringLiteral
+        );
+
         let non_utf8 = PackageFixture::with_source(
-            r#"const PACKAGE: Package = Package { name: "\x80package" };"#,
+            r#"machine build(builder: &mut Build) { builder.package("\x80package"); }"#,
         );
-        assert!(matches!(
-            non_utf8.extract(),
-            Err(PackageDeclarationError::NameNotUtf8)
-        ));
+        assert_eq!(
+            non_utf8.extract().unwrap_err(),
+            PackageDeclarationError::NameNotUtf8
+        );
 
         for name in [
             "Arithmetic-Kernels",
@@ -462,13 +698,13 @@ mod tests {
     }
 
     #[test]
-    fn declaration_name_is_case_sensitive() {
+    fn package_operation_name_is_case_sensitive() {
         let fixture = PackageFixture::with_source(
-            r#"const package: Package = Package { name: "wrong-constant-case" };"#,
+            r#"machine build(builder: &mut Build) { builder.Package("wrong-case"); }"#,
         );
-        assert!(matches!(
-            fixture.extract(),
-            Err(PackageDeclarationError::MissingPackageDeclaration)
-        ));
+        assert_eq!(
+            fixture.extract().unwrap_err(),
+            PackageDeclarationError::MissingPackageDeclaration
+        );
     }
 }

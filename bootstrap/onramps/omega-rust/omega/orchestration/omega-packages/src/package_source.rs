@@ -312,7 +312,7 @@ mod tests {
         std::fs::write(
             root.join("build.omg"),
             format!(
-                "const PACKAGE: Package = Package {{\n    name: \"{name}\"\n}};\n\nmachine build(builder: &mut Build) {{\n}}\n"
+                "machine build(builder: &mut Build) {{\n    builder.package(\"{name}\");\n}}\n"
             ),
         )
         .expect("write package declaration");
@@ -399,8 +399,8 @@ mod tests {
         std::fs::write(
             member.join("build.omg"),
             r#"
-            const PACKAGE: Package = Package { name: "arithmetic-kernels" };
             machine build(builder: &mut Build) {
+                builder.package("arithmetic-kernels");
                 builder.depend(Source::Git {
                     repository: "https://github.com/CathedralOS/exact-math.git",
                     revision: "main"
@@ -599,8 +599,8 @@ mod tests {
         std::fs::write(
             root.join("build.omg"),
             r#"
-            const PACKAGE: Package = Package { name: "application" };
             machine build(builder: &mut Build) {
+                builder.package("application");
                 builder.depend(Source::Path { location: "../local-library" });
                 builder.depend(Source::Git {
                     repository: "https://github.com/CathedralOS/arithmetic-kernels.git",
@@ -647,11 +647,11 @@ mod tests {
         std::fs::write(
             root.join("build.omg"),
             r#"
-            const PACKAGE: Package = Package { name: "application" };
             machine helper(builder: &mut Build) {
                 builder.depend(Source::Path { location: "../hidden" });
             }
             machine build(builder: &mut Build) {
+                builder.package("application");
                 helper(builder);
             }
             "#,
@@ -776,9 +776,8 @@ mod tests {
         std::fs::write(
             root.join("build.omg"),
             format!(
-                r#"const PACKAGE: Package = Package {{ name: "reconciliation-root" }};
-
-machine build(builder: &mut Build) {{
+                r#"machine build(builder: &mut Build) {{
+    builder.package("reconciliation-root");
     builder.depend_as("first_revision", Source::Git {{
         repository: "{canonical_repository}",
         revision: "{first_revision}"

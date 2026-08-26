@@ -2,10 +2,6 @@
 // Omega source only through its scoped output root.
 use omega::language::std::filesystem_host;
 
-const PACKAGE: Package = Package {
-    name: "generated-table"
-};
-
 target windows_x64 { }
 target linux_x64 { }
 target linux_arm64 { }
@@ -15,6 +11,7 @@ machine build(builder: &mut Build)
 reaches FilesystemHost
 invokes FilesystemHost;
 {
+    builder.package("generated-table");
     let input_bytes: [u8; 64];
     let input: &[u8] in Path = builder.source.resolve("inputs/table.txt");
     let input_descriptor: i32 = builder.filesystem.open(input, 0);

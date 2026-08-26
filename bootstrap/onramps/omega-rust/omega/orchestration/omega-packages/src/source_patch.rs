@@ -1057,8 +1057,9 @@ mod tests {
         std::fs::create_dir_all(root).unwrap();
         std::fs::write(
             root.join("build.omg"),
-            b"const PACKAGE: Package = Package { name: \"source-review\" };\n\n\
-              machine build(builder: &mut Build) {\n}\n",
+            b"machine build(builder: &mut Build) {\n\
+                  builder.package(\"source-review\");\n\
+              }\n",
         )
         .unwrap();
         std::fs::write(root.join("main.omg"), main).unwrap();

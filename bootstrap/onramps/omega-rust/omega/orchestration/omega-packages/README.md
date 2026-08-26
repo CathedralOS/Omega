@@ -15,7 +15,7 @@ real package fixture demonstrates an irreducible external contract.
 ## Governing model
 
 - Every fetched package declares its own human name through the hermetically
-  evaluated `PACKAGE` constant in its `build.omg`.
+  projected ordinary `builder.package("name")` call in its `build.omg`.
 - `PackageName` is presentation. `PackageKey` joins the name to canonical
   source lineage. `PackageInstance` adds exact source, toolchain, and checked
   package-evidence identity.
@@ -948,7 +948,7 @@ omega-packages/
 |   |-- source.rs          # Source requests and immutable snapshots.
 |   |-- package_source.rs  # Snapshot-to-declared-PackageKey custody.
 |   |-- resolver.rs        # Fetch/cache boundary and transport receipts.
-|   |-- declaration.rs     # Hermetic PACKAGE extraction.
+|   |-- declaration.rs     # Hermetic builder.package projection.
 |   |-- dependency_projection.rs # Hermetic literal source requests.
 |   |-- dependency_edit.rs # Digest-bound conservative build.omg edit plans.
 |   |-- graph.rs           # Typed pre-admission source reconciliation.
@@ -992,8 +992,8 @@ state, not sealed lock evidence.
 ## Fixtures
 
 The local fixture corpus is under `fixtures/packages/`; exact remote Git pins
-are recorded in `fixtures/packages/REMOTE_PINS.md`. Every fixture declares
-`PACKAGE`. The package-evidence integration canary resolves real immutable
+are recorded in `fixtures/packages/REMOTE_PINS.md`. Every fixture declares its
+name through `builder.package`. The package-evidence integration canary resolves real immutable
 source custody, performs the package-aware compile, and checks the compiler's
 canonical review projection. It deliberately stops before sealed admission and
 lock mutation; tests that fabricate manifests from fixture intent have been

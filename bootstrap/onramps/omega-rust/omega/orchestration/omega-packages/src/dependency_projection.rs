@@ -654,9 +654,7 @@ mod tests {
 
     #[test]
     fn absent_build_machine_is_an_empty_projection() {
-        let fixture = PackageFixture::with_source(
-            r#"const PACKAGE: Package = Package { name: "leaf-package" };"#,
-        );
+        let fixture = PackageFixture::with_source("target windows_x64 { }");
         assert_eq!(fixture.extract().unwrap(), Vec::new());
     }
 
