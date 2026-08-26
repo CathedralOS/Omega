@@ -686,9 +686,14 @@ backend dispatch match that symbol only. A bare dynamic parameter such as
 `&dyn Ranked` accepts an already-selected dynamic value; the concrete call site
 must first coerce through an exact target such as `&dyn PowerOrder`. No
 candidate set or unique-visible search survives into checking. Physical
-descriptor materialization, private table emission, and the remaining
-pass-through/rebinding/escaping adapters remain subsequent implementation
-rungs. Those consumers use the same complete normalized maps. Each row retains
+descriptor materialization and private table emission remain subsequent
+implementation rungs. The first pass-through adapter preserves each row's
+complete normalized requirement-overload and selected realization-callable
+identities through checked facts, state graph, control flow, and state-call
+argument planning. Checked-to-state validation independently reconstructs both
+identities and rejects drift rather than trusting copied handles or short
+spellings. Rebinding, storage, joins, escaping, and component crossing remain
+open. Those consumers use the same complete normalized maps. Each row retains
 the declaring trait, requirement, exact satisfier machine, default instantiation
 when applicable, normalized contracts, and selected conformance identity.
 

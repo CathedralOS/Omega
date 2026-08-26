@@ -1459,31 +1459,38 @@ fn checked_evidence_producer(
     let ConformanceImplementation::Closed { rows } = &conformance.implementation else {
         unreachable!("selected evidence producers are closed")
     };
+    let rows = rows
+        .iter()
+        .map(|row| {
+            let (requirement_identity, realization_identity) =
+                crate::facts::normalized_dynamic_row_identities(program, row).ok()?;
+            Some(psi_checked_trees::DynamicConformanceRowFact {
+                declaring_trait: row.declaring_trait,
+                requirement: row.requirement,
+                requirement_identity,
+                realization_machine: row.realization_machine,
+                realization_state: row.realization_state,
+                realization_identity,
+                source: match row.source {
+                    ConformanceRowSource::Inline => {
+                        psi_checked_trees::DynamicConformanceRowSource::Inline
+                    }
+                    ConformanceRowSource::Reference => {
+                        psi_checked_trees::DynamicConformanceRowSource::Reference
+                    }
+                    ConformanceRowSource::TraitDefault => {
+                        psi_checked_trees::DynamicConformanceRowSource::TraitDefault
+                    }
+                },
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
 
     Some(
         psi_checked_trees::EvidenceAssignmentSource::ProducerConformance {
             conformance: conformance.symbol,
             evidence_trait: evidence_trait.symbol,
-            rows: rows
-                .iter()
-                .map(|row| psi_checked_trees::DynamicConformanceRowFact {
-                    declaring_trait: row.declaring_trait,
-                    requirement: row.requirement,
-                    realization_machine: row.realization_machine,
-                    realization_state: row.realization_state,
-                    source: match row.source {
-                        ConformanceRowSource::Inline => {
-                            psi_checked_trees::DynamicConformanceRowSource::Inline
-                        }
-                        ConformanceRowSource::Reference => {
-                            psi_checked_trees::DynamicConformanceRowSource::Reference
-                        }
-                        ConformanceRowSource::TraitDefault => {
-                            psi_checked_trees::DynamicConformanceRowSource::TraitDefault
-                        }
-                    },
-                })
-                .collect(),
+            rows,
         },
     )
 }
