@@ -26,7 +26,10 @@ use omega_optimization_unit::{
     reconstruct_psi_closed_region_observation, reconstruct_psi_observation_model,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
-use psi_core::{BlockId, ClaimId, EdgeId, MachineId, PlaceId, ScalarType, ValueId};
+use psi_core::{
+    BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerCarrier, IntegerType, MachineId, PlaceId,
+    ScalarType, ValueId,
+};
 use psi_terminal_fuel::TerminalFuelSchedule;
 
 mod prephysical_manifest;
@@ -54,6 +57,12 @@ pub enum OptimizationUnitValidationError {
     FunctionResultMismatch(MachineId),
     MissingEntryMachine(MachineId),
     DuplicateMachine(MachineId),
+    DuplicateBoundaryMachine(BoundaryMachineId),
+    ScalarOperationContractMismatch {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+    },
     MissingEntryBlock {
         machine: MachineId,
         block: BlockId,
@@ -348,14 +357,24 @@ pub fn validate_psi_optimization_unit(
     {
         return Err(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch);
     }
-    let mut machines = BTreeSet::new();
+    let mut machines = BTreeMap::new();
     for function in &unit.functions {
-        if !machines.insert(function.machine) {
+        if machines.insert(function.machine, function).is_some() {
             return Err(OptimizationUnitValidationError::DuplicateMachine(
                 function.machine,
             ));
         }
-        validate_function(function)?;
+    }
+    let mut boundary_machines = BTreeMap::new();
+    for boundary in &unit.boundary_machines {
+        if boundary_machines.insert(boundary.id, boundary).is_some() {
+            return Err(OptimizationUnitValidationError::DuplicateBoundaryMachine(
+                boundary.id,
+            ));
+        }
+    }
+    for function in &unit.functions {
+        validate_function(function, &machines, &boundary_machines)?;
     }
     for fact in &unit.ownership_frontier_facts {
         if unit
@@ -367,7 +386,7 @@ pub fn validate_psi_optimization_unit(
             return Err(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch);
         }
     }
-    if !machines.contains(&unit.entry) {
+    if !machines.contains_key(&unit.entry) {
         return Err(OptimizationUnitValidationError::MissingEntryMachine(
             unit.entry,
         ));
@@ -2783,6 +2802,8 @@ fn same_immutable_signature_custody(
 
 fn validate_function(
     function: &PsiOptimizationFunction,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    boundary_machines: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let indexed_entry_claims = function
         .entry_claim_declarations
@@ -2940,7 +2961,13 @@ fn validate_function(
 
     validate_provenance_fuel_effects(function)?;
     validate_fact_index(function)?;
-    validate_values_and_bindings(function, &blocks, &predecessor)?;
+    validate_values_and_bindings(
+        function,
+        &blocks,
+        &predecessor,
+        functions,
+        boundary_machines,
+    )?;
     validate_places_and_claims(function)?;
     Ok(())
 }
@@ -3221,6 +3248,8 @@ fn validate_values_and_bindings(
     function: &PsiOptimizationFunction,
     blocks: &BTreeMap<BlockId, &omega_optimization_unit::OptimizationBlock>,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    boundary_machines: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let mut definitions = BTreeMap::new();
     for definition in function
@@ -3295,6 +3324,21 @@ fn validate_values_and_bindings(
                     }
                 }
             }
+            if !operation_scalar_types_match(
+                function,
+                &node.operation,
+                &definitions,
+                functions,
+                boundary_machines,
+            ) {
+                return Err(
+                    OptimizationUnitValidationError::ScalarOperationContractMismatch {
+                        machine: function.machine,
+                        block: block.id,
+                        node: u32::try_from(node_index).expect("unit node index fits u32"),
+                    },
+                );
+            }
             for edge in &node.successors {
                 let target = blocks.get(&edge.target).expect("successor validated");
                 if edge.bindings.len() != target.parameters.len() {
@@ -3322,6 +3366,285 @@ fn validate_values_and_bindings(
         }
     }
     Ok(())
+}
+
+fn operation_scalar_types_match(
+    function: &PsiOptimizationFunction,
+    operation: &O,
+    definitions: &BTreeMap<ValueId, ValueDefinition>,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    boundary_machines: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
+) -> bool {
+    let scalar = |value: ValueId| definitions.get(&value).map(|row| row.scalar_type);
+    let integer = |value: ValueId, expected: IntegerType| {
+        scalar(value) == Some(ScalarType::Integer(expected))
+    };
+    let fixed = |integer: IntegerType| integer.carrier() == IntegerCarrier::Fixed;
+    let binary = |left: ValueId, right: ValueId, expected: IntegerType| {
+        integer(left, expected) && integer(right, expected)
+    };
+    match operation {
+        O::EstablishByteSequenceLiteral { .. }
+        | O::EstablishTrivialAffineLocal { .. }
+        | O::PortWrite { .. }
+        | O::BooleanStructuralField { .. }
+        | O::ReturnUnit { .. }
+        | O::ReturnStructural { .. }
+        | O::Crash { .. } => true,
+        O::IntegerConstant {
+            scalar_type, value, ..
+        } => match scalar_type {
+            ScalarType::Integer(integer) => integer.admits(*value),
+            ScalarType::Boolean => false,
+        },
+        O::BooleanConstant { .. } => true,
+        O::BooleanNot { operand, .. } => scalar(*operand) == Some(ScalarType::Boolean),
+        O::BooleanEqual { left, right, .. } => {
+            scalar(*left) == Some(ScalarType::Boolean)
+                && scalar(*right) == Some(ScalarType::Boolean)
+        }
+        O::IntegerEqual { left, right, .. }
+        | O::IntegerLessThan { left, right, .. }
+        | O::IntegerLessOrEqual { left, right, .. } => {
+            matches!(scalar(*left), Some(ScalarType::Integer(_)))
+                && scalar(*left) == scalar(*right)
+        }
+        O::IntegerBitwiseNot {
+            scalar_type,
+            operand,
+            ..
+        } => integer(*operand, *scalar_type),
+        O::IntegerWiden {
+            source_type,
+            target_type,
+            operand,
+            ..
+        } => integer(*operand, *source_type) && source_type.can_widen_to(*target_type),
+        O::IntegerExactCast {
+            source_type,
+            target_type,
+            operand,
+            ..
+        } => {
+            integer(*operand, *source_type)
+                && source_type.can_exact_cast_to(*target_type)
+                && !source_type.can_widen_to(*target_type)
+                && source_type != target_type
+        }
+        O::IntegerBitwiseAnd {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::IntegerBitwiseOr {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::IntegerBitwiseXor {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::WrappingIntegerAdd {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::SaturatingIntegerAdd {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::WrappingIntegerSubtract {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::SaturatingIntegerSubtract {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::WrappingIntegerMultiply {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::SaturatingIntegerMultiply {
+            scalar_type,
+            left,
+            right,
+            ..
+        } => binary(*left, *right, *scalar_type),
+        O::ExactIntegerAdd {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::ExactIntegerSubtract {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::ExactIntegerMultiply {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::ExactIntegerDivide {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::ExactIntegerRemainder {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::WrappingIntegerDivide {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::WrappingIntegerRemainder {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::SaturatingIntegerDivide {
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | O::SaturatingIntegerRemainder {
+            scalar_type,
+            left,
+            right,
+            ..
+        } => fixed(*scalar_type) && binary(*left, *right, *scalar_type),
+        O::WrappingIntegerShiftLeft {
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        }
+        | O::WrappingIntegerShiftRight {
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        } => integer(*value, *value_type) && integer(*count, *count_type),
+        O::ExactIntegerShiftLeft {
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        }
+        | O::ExactIntegerShiftRight {
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        } => {
+            fixed(*value_type)
+                && fixed(*count_type)
+                && integer(*value, *value_type)
+                && integer(*count, *count_type)
+        }
+        O::Jump { .. } => true,
+        O::Conditional { condition, .. } => scalar(*condition) == Some(ScalarType::Boolean),
+        O::Return {
+            result,
+            value,
+            scalar_type,
+            ..
+        } => {
+            scalar(*value) == Some(*scalar_type)
+                && matches!(
+                    function.result,
+                    omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Scalar(signature)
+                        if signature.value == *result && signature.scalar_type == *scalar_type
+                )
+        }
+        O::Call {
+            result: _,
+            scalar_type,
+            callee,
+            arguments,
+            ..
+        } => functions.get(callee).is_some_and(|callee| {
+            callee.structural_parameters.is_empty()
+                && callee.declared_places.is_empty()
+                && callee.entry_claim_declarations.is_empty()
+                && matches!(
+                    callee.result,
+                    omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Scalar(signature)
+                        if signature.scalar_type == *scalar_type
+                )
+                && arguments.len() == callee.parameters.len()
+                && arguments.iter().zip(&callee.parameters).all(|(argument, parameter)| {
+                    scalar(*argument) == Some(parameter.scalar_type)
+                })
+        }),
+        O::CallUnit { callee, .. } => functions.get(callee).is_some_and(|callee| {
+            callee.parameters.is_empty()
+                && matches!(
+                    callee.result,
+                    omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Unit
+                )
+        }),
+        O::CallStructuralScalar { result, callee, .. } => {
+            functions.get(callee).is_some_and(|callee| {
+                callee.parameters.is_empty()
+                    && matches!(
+                        callee.result,
+                        omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Scalar(signature)
+                            if signature.scalar_type == result.scalar_type
+                    )
+            })
+        }
+        O::CallStructural { callee, .. } => functions.get(callee).is_some_and(|callee| {
+            callee.parameters.is_empty()
+                && matches!(
+                    callee.result,
+                    omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Structural(_)
+                )
+        }),
+        O::BoundaryCall {
+            result,
+            boundary,
+            arguments,
+            ..
+        } => boundary_machines.get(boundary).is_some_and(|boundary| {
+            result.as_ref().map(|result| result.scalar_type) == boundary.result
+                && arguments.len() == boundary.scalar_parameters.len()
+                && arguments
+                    .iter()
+                    .zip(&boundary.scalar_parameters)
+                    .all(|(argument, parameter)| scalar(*argument) == Some(*parameter))
+        }),
+    }
 }
 
 fn dominators(
@@ -3886,6 +4209,30 @@ mod tests {
         unit.identity = recompute_psi_optimization_unit_identity(unit);
     }
 
+    fn refresh_node_derivatives(
+        unit: &mut PsiOptimizationUnit,
+        function_index: usize,
+        block_index: usize,
+        node_index: usize,
+    ) {
+        let block = unit.functions[function_index].blocks[block_index].id;
+        let node_index = u32::try_from(node_index).expect("test node index fits u32");
+        let operation = unit.functions[function_index].blocks[block_index].nodes
+            [node_index as usize]
+            .operation
+            .clone();
+        let node =
+            &mut unit.functions[function_index].blocks[block_index].nodes[node_index as usize];
+        node.definitions = expected_definitions(&operation, block, node_index);
+        node.uses = expected_uses(&operation, block, node_index);
+        node.provenance = expected_provenance(&operation);
+        node.successors = expected_edges(&operation);
+        node.ownership = expected_ownership(&operation);
+        unit.functions[function_index].facts =
+            reconstruct_fact_index(&unit.functions[function_index]);
+        refresh_identity(unit);
+    }
+
     fn verified_unit() -> omega_terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
         use psi_terminal::{
             Block, MachineContract, TerminalMachine, TerminalMachineResult, TerminalModule,
@@ -4095,6 +4442,179 @@ mod tests {
             )],
         )
         .unwrap()
+    }
+
+    fn scalar_call_unit() -> PsiOptimizationUnit {
+        let caller = id(301, MachineId::new);
+        let callee = id(302, MachineId::new);
+        let caller_block = id(303, BlockId::new);
+        let callee_block = id(304, BlockId::new);
+        let argument = id(305, ValueId::new);
+        let caller_result = id(306, ValueId::new);
+        let parameter = id(307, ValueId::new);
+        let callee_result = id(308, ValueId::new);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let scalar_type = ScalarType::Integer(integer);
+        let plan = TerminalAbstractOperationPlan {
+            terminal_psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([13; 32]),
+            },
+            entry: caller,
+            structural_types: Vec::new(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            functions: vec![
+                TerminalAbstractFunction {
+                    machine: caller,
+                    attachment: None,
+                    entry: caller_block,
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: caller_result,
+                        scalar_type,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block: caller_block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        TerminalAbstractOperation::IntegerConstant {
+                            psi_operation: id(309, OperationId::new),
+                            result: argument,
+                            scalar_type,
+                            value: IntegerValue::Unsigned(7),
+                        },
+                        TerminalAbstractOperation::Call {
+                            psi_operation: id(310, OperationId::new),
+                            result: caller_result,
+                            scalar_type,
+                            callee,
+                            arguments: vec![argument],
+                        },
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(311, EdgeId::new),
+                            result: caller_result,
+                            value: caller_result,
+                            scalar_type,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                },
+                TerminalAbstractFunction {
+                    machine: callee,
+                    attachment: None,
+                    entry: callee_block,
+                    parameters: vec![TerminalAbstractParameter {
+                        value: parameter,
+                        scalar_type,
+                    }],
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: callee_result,
+                        scalar_type,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block: callee_block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![TerminalAbstractOperation::Return {
+                        psi_edge: id(312, EdgeId::new),
+                        result: callee_result,
+                        value: parameter,
+                        scalar_type,
+                        cleanup_actions: Vec::new(),
+                    }],
+                },
+            ],
+        };
+        reconstruct_psi_optimization_unit_seed(&plan, FuelScheduleIdentity::new(1).unwrap())
+            .unwrap()
+    }
+
+    fn scalar_boundary_call_unit() -> PsiOptimizationUnit {
+        let machine = id(321, MachineId::new);
+        let boundary = id(322, BoundaryMachineId::new);
+        let block = id(323, BlockId::new);
+        let argument = id(324, ValueId::new);
+        let result = id(325, ValueId::new);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let scalar_type = ScalarType::Integer(integer);
+        let plan = TerminalAbstractOperationPlan {
+            terminal_psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([14; 32]),
+            },
+            entry: machine,
+            structural_types: Vec::new(),
+            boundary_machines: vec![psi_terminal::BoundaryMachineDeclaration {
+                id: boundary,
+                identity: "validation::scalar-boundary".into(),
+                attachment: None,
+                scalar_parameters: vec![scalar_type],
+                structural_parameters: Vec::new(),
+                result: Some(scalar_type),
+                requires: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                published_service_ceiling: Vec::new(),
+            }],
+            provider_candidates: Vec::new(),
+            functions: vec![TerminalAbstractFunction {
+                machine,
+                attachment: None,
+                entry: block,
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                    value: result,
+                    scalar_type,
+                }),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![TerminalAbstractBlockEntry {
+                    block,
+                    parameters: Vec::new(),
+                    operation_offset: 0,
+                }],
+                operations: vec![
+                    TerminalAbstractOperation::IntegerConstant {
+                        psi_operation: id(326, OperationId::new),
+                        result: argument,
+                        scalar_type,
+                        value: IntegerValue::Unsigned(7),
+                    },
+                    TerminalAbstractOperation::BoundaryCall {
+                        psi_operation: id(327, OperationId::new),
+                        result: Some(TerminalAbstractResult {
+                            value: result,
+                            scalar_type,
+                        }),
+                        boundary,
+                        arguments: vec![argument],
+                        structural_arguments: Vec::new(),
+                        completion_claim_sources: Vec::new(),
+                        completion_receipts: Vec::new(),
+                    },
+                    TerminalAbstractOperation::Return {
+                        psi_edge: id(328, EdgeId::new),
+                        result,
+                        value: result,
+                        scalar_type,
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            }],
+        };
+        reconstruct_psi_optimization_unit_seed(&plan, FuelScheduleIdentity::new(1).unwrap())
+            .unwrap()
     }
 
     fn redundant_parameter_region_fixture() -> (
@@ -4323,6 +4843,140 @@ mod tests {
     #[test]
     fn independently_accepts_builder_output() {
         validate_psi_optimization_unit(&unit()).unwrap();
+        validate_psi_optimization_unit(&scalar_call_unit()).unwrap();
+        validate_psi_optimization_unit(&scalar_boundary_call_unit()).unwrap();
+    }
+
+    #[test]
+    fn rejects_self_consistent_scalar_operation_contract_corruption() {
+        let mut arithmetic = exact_add_unit();
+        let (psi_operation, result) = match &arithmetic.functions[0].blocks[0].nodes[1].operation {
+            TerminalAbstractOperation::IntegerConstant {
+                psi_operation,
+                result,
+                ..
+            } => (*psi_operation, *result),
+            _ => panic!("fixture right operand is an integer constant"),
+        };
+        arithmetic.functions[0].blocks[0].nodes[1].operation =
+            TerminalAbstractOperation::BooleanConstant {
+                psi_operation,
+                result,
+                value: true,
+            };
+        refresh_node_derivatives(&mut arithmetic, 0, 0, 1);
+        assert_eq!(
+            validate_psi_optimization_unit(&arithmetic),
+            Err(
+                OptimizationUnitValidationError::ScalarOperationContractMismatch {
+                    machine: id(201, MachineId::new),
+                    block: id(202, BlockId::new),
+                    node: 2,
+                }
+            )
+        );
+
+        let mut out_of_range = unit();
+        let TerminalAbstractOperation::IntegerConstant { value, .. } =
+            &mut out_of_range.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture begins with an integer constant")
+        };
+        *value = IntegerValue::Unsigned(256);
+        refresh_node_derivatives(&mut out_of_range, 0, 0, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&out_of_range),
+            Err(OptimizationUnitValidationError::ScalarOperationContractMismatch { node: 0, .. })
+        ));
+    }
+
+    #[test]
+    fn rejects_self_consistent_control_and_return_type_corruption() {
+        let mut conditional = redundant_parameter_region_fixture().0;
+        conditional.functions[0].parameters[0].scalar_type =
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("valid integer"));
+        refresh_identity(&mut conditional);
+        assert!(matches!(
+            validate_psi_optimization_unit(&conditional),
+            Err(OptimizationUnitValidationError::ScalarOperationContractMismatch { node: 0, .. })
+        ));
+
+        let mut scalar_return = unit();
+        let (psi_operation, result) = match &scalar_return.functions[0].blocks[0].nodes[0].operation
+        {
+            TerminalAbstractOperation::IntegerConstant {
+                psi_operation,
+                result,
+                ..
+            } => (*psi_operation, *result),
+            _ => panic!("fixture begins with an integer constant"),
+        };
+        scalar_return.functions[0].blocks[0].nodes[0].operation =
+            TerminalAbstractOperation::BooleanConstant {
+                psi_operation,
+                result,
+                value: true,
+            };
+        refresh_node_derivatives(&mut scalar_return, 0, 0, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&scalar_return),
+            Err(OptimizationUnitValidationError::ScalarOperationContractMismatch { node: 1, .. })
+        ));
+    }
+
+    #[test]
+    fn rejects_self_consistent_call_signature_corruption() {
+        let mut call = scalar_call_unit();
+        let (psi_operation, result) = match &call.functions[0].blocks[0].nodes[0].operation {
+            TerminalAbstractOperation::IntegerConstant {
+                psi_operation,
+                result,
+                ..
+            } => (*psi_operation, *result),
+            _ => panic!("caller begins with an integer constant"),
+        };
+        call.functions[0].blocks[0].nodes[0].operation =
+            TerminalAbstractOperation::BooleanConstant {
+                psi_operation,
+                result,
+                value: true,
+            };
+        refresh_node_derivatives(&mut call, 0, 0, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&call),
+            Err(OptimizationUnitValidationError::ScalarOperationContractMismatch { node: 1, .. })
+        ));
+
+        let mut boundary = scalar_boundary_call_unit();
+        let (psi_operation, result) = match &boundary.functions[0].blocks[0].nodes[0].operation {
+            TerminalAbstractOperation::IntegerConstant {
+                psi_operation,
+                result,
+                ..
+            } => (*psi_operation, *result),
+            _ => panic!("boundary caller begins with an integer constant"),
+        };
+        boundary.functions[0].blocks[0].nodes[0].operation =
+            TerminalAbstractOperation::BooleanConstant {
+                psi_operation,
+                result,
+                value: true,
+            };
+        refresh_node_derivatives(&mut boundary, 0, 0, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&boundary),
+            Err(OptimizationUnitValidationError::ScalarOperationContractMismatch { node: 1, .. })
+        ));
+
+        let mut duplicate_boundary = scalar_boundary_call_unit();
+        duplicate_boundary
+            .boundary_machines
+            .push(duplicate_boundary.boundary_machines[0].clone());
+        refresh_identity(&mut duplicate_boundary);
+        assert!(matches!(
+            validate_psi_optimization_unit(&duplicate_boundary),
+            Err(OptimizationUnitValidationError::DuplicateBoundaryMachine(_))
+        ));
     }
 
     #[test]
