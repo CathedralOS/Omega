@@ -88,7 +88,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 29;
+const FORMAT_MARKER: u16 = 30;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -866,6 +866,7 @@ fn validate_operation_foundation(
             returned_claim_transfers,
             requirement_obligations,
             crash_continuations,
+            selected_evidence,
         } => {
             let Some(callee) = module
                 .machines
@@ -904,6 +905,7 @@ fn validate_operation_foundation(
                 && actual_result.claims.is_empty()
                 && callee_exact_payloadless_return(callee);
             if !callee.parameters.is_empty()
+                || (selected_evidence.is_some() && !exact_payloadless)
                 || (!exact_payloadless
                     && (structural_arguments.len() != 1 || callee.structural_parameters.len() != 1))
                 || actual_result.structural_type != expected_result.structural_type

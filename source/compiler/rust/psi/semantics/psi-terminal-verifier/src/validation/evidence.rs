@@ -365,6 +365,95 @@ pub(super) fn validate_evidence_contract_lanes(
             }
         }
     }
+    let mut guarded_call_outputs = BTreeSet::new();
+    for caller in machines.values().copied() {
+        for operation in caller.blocks.iter().flat_map(|block| &block.operations) {
+            let psi_terminal::OperationKind::CallStructural {
+                callee,
+                selected_evidence: Some(binding),
+                ..
+            } = &operation.kind
+            else {
+                continue;
+            };
+            let invalid = || ModuleError::InvalidOutcomeSpecificCallEvidence {
+                caller: caller.id,
+                operation: operation.id,
+            };
+            let Some(callee) = machines.get(callee).copied() else {
+                return Err(invalid());
+            };
+            let Some(result) = operation.result.structural() else {
+                return Err(invalid());
+            };
+            let mut matching_rows = callee
+                .contract
+                .outcome_specific_ensures
+                .iter()
+                .filter(|row| row.guard == binding.guard && row.position == binding.position);
+            let Some(row) = matching_rows.next() else {
+                return Err(invalid());
+            };
+            if matching_rows.next().is_some() {
+                return Err(invalid());
+            }
+            let Some(row_evidence) = row.evidence.as_ref() else {
+                return Err(invalid());
+            };
+            let Some(callee_term) = terms.get(&binding.callee_term).copied() else {
+                return Err(invalid());
+            };
+            let Some(output) = terms.get(&binding.output).copied() else {
+                return Err(invalid());
+            };
+            let dependencies_are_exact_result = |dependencies: &[PlaceId]| {
+                dependencies
+                    .iter()
+                    .all(|dependency| *dependency == result.place)
+                    && dependencies.windows(2).all(|pair| pair[0] < pair[1])
+            };
+            let output_is_projected_elsewhere =
+                module.proposition_applications.iter().any(|application| {
+                    application.binder_arguments.iter().any(|argument| {
+                        argument
+                            .evidence_projection
+                            .as_ref()
+                            .is_some_and(|projection| projection.term == binding.output)
+                    })
+                });
+            if binding.guard.result_type != result.structural_type
+                || binding.callee_obligation != row.obligation
+                || binding.callee_term != row_evidence.term
+                || binding.output_field != row_evidence.output_field
+                || row.proposition != Proposition::Atom(binding.proposition)
+                || binding.proposition != callee_term.proposition
+                || binding.proposition != output.proposition
+                || binding.output == binding.callee_term
+                || used_terms.contains(&binding.output)
+                || output_is_projected_elsewhere
+                || output.interface != callee_term.interface
+                || binding.validity.result != result.place
+                || binding.validity.evidence_interface != callee_term.interface
+                || !dependencies_are_exact_result(&binding.validity.proposition_dependencies)
+                || !dependencies_are_exact_result(&binding.validity.interface_dependencies)
+                || !guarded_call_outputs.insert(binding.output)
+            {
+                return Err(invalid());
+            }
+            let Some(application) = module
+                .proposition_applications
+                .iter()
+                .find(|application| application.id == binding.proposition)
+            else {
+                return Err(invalid());
+            };
+            if application.evidence_interface.as_ref() != Some(&callee_term.interface) {
+                return Err(invalid());
+            }
+            used_terms.insert(binding.callee_term);
+            used_terms.insert(binding.output);
+        }
+    }
     if let Some(term) = terms
         .keys()
         .find(|term| !used_terms.contains(term))

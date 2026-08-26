@@ -158,6 +158,10 @@ pub enum ModuleError {
         caller: MachineId,
         ordinal: u32,
     },
+    InvalidOutcomeSpecificCallEvidence {
+        caller: MachineId,
+        operation: OperationId,
+    },
     OrphanEvidenceTerm(EvidenceTermId),
     EmptyPropositionIdentity,
     DuplicateMachine(MachineId),

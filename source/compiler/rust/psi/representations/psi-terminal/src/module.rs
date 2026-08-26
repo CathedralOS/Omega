@@ -27,7 +27,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        31
+        32
     }
 }
 
@@ -921,6 +921,38 @@ pub struct OutcomeSpecificEvidence {
     pub output_field: String,
 }
 
+/// One caller-local evidence term selected from an exact guarded callee row.
+///
+/// This carrier is proof-only. The guard remains conditional on the runtime
+/// structural result; the binding neither asserts case membership nor adds an
+/// operation. The initial executable slice permits exactly one such selection
+/// on the bounded payloadless structural call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutcomeSpecificCallEvidence {
+    pub guard: OutcomeSpecificGuard,
+    pub position: u32,
+    pub callee_obligation: ObligationId,
+    pub callee_term: EvidenceTermId,
+    pub output_field: String,
+    pub proposition: PropositionId,
+    pub output: EvidenceTermId,
+    pub validity: OutcomeSpecificCallEvidenceValidity,
+}
+
+/// Source-handle-free roots of the checked guarded-term validity intersection.
+///
+/// The bounded payloadless call has no arguments or payload projections, so
+/// every retained occurrence can name only its exact structural result root.
+/// Interface identity is repeated deliberately so codec and verifier replay
+/// cannot silently detach validity from the selected witness carrier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutcomeSpecificCallEvidenceValidity {
+    pub result: PlaceId,
+    pub proposition_dependencies: Vec<PlaceId>,
+    pub evidence_interface: EvidenceInterfaceIdentity,
+    pub interface_dependencies: Vec<PlaceId>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CrashRouteBucket {
     pub cause: CrashCause,
@@ -1220,6 +1252,10 @@ pub enum OperationKind {
         returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
+        /// Optional proof-only selection from one exact outcome-specific
+        /// callee row. It is valid only beneath the matching result-case
+        /// refinement and has no runtime representation or fuel cost.
+        selected_evidence: Option<OutcomeSpecificCallEvidence>,
     },
     /// Invoke one exact bodyless boundary machine. Completion receipts
     /// name every live caller claim consumed by the successful invocation at

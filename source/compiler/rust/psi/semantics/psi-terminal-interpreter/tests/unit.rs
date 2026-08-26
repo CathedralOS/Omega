@@ -2449,6 +2449,7 @@ fn payloadless_call_module() -> TerminalModule {
                     returned_claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
+                    selected_evidence: None,
                 },
             }],
             terminator: Terminator::ReturnStructural {
@@ -3600,6 +3601,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
                     crash_continuations: crashes
                         .then(|| vec![crash_route.clone()])
                         .unwrap_or_default(),
+                    selected_evidence: None,
                 },
             }],
             terminator: Terminator::ReturnStructural {

@@ -318,14 +318,21 @@ The first caller-side executable carrier remains deliberately fact-only. A
 zero-input `CallStructural` over a direct unrestricted, unqualified,
 claim-free payloadless producer imports each guarded row as a case-membership
 implication after exact result-place substitution. It imports neither a raw
-conclusion nor a case-membership fact and mints no caller evidence term;
-structural return rebases the complete implication to the caller result. The
-bounded call rejects ordinary contract lanes, crash rows, custody transfers,
-and callee evidence contract lanes. Terminal interpretation transports the
-exact payloadless case, fixed fuel composes to four units, and Omega target
-lowering explicitly rejects the call until tagged-sum materialization exists.
-Selected proof outputs, source-arm validity replay, and payload substitution
-remain outside this rung.
+conclusion nor a case-membership fact; structural return rebases the complete
+implication to the caller result. One optional Terminal-only selected-evidence
+binding may now retain the exact guarded case, row position, obligation, public
+selector, atomic proposition, callee term/interface, distinct caller-local term,
+and result-root validity intersection. Format 30 / vocabulary 32 encode those
+coordinates. Validation requires the exact named callee row and producer
+provenance and rejects identity/interface/dependency drift, duplicate output,
+or unconditional/projection reuse. Omission remains fact-only, and the selected
+binding still imports no raw conclusion or case fact. The bounded call rejects
+ordinary contract lanes, crash rows, custody transfers, and callee evidence
+contract lanes. Terminal interpretation transports the exact payloadless case,
+fixed fuel composes to four units, and the binding adds no operation or charge.
+Checked/source structural case-arm planning and guarded-term use, source-arm
+validity replay, payload substitution, and tagged-sum target lowering remain
+outside this custody rung.
 The current producer serializes forwarded terms as dense module-local
 identities over the exact proposition application and a structured canonical
 carrierless interface; the verifier requires each witness application to carry

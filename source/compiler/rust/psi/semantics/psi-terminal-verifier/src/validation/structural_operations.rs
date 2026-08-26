@@ -93,6 +93,7 @@ fn is_exact_payloadless_structural_call(
         returned_claim_transfers,
         requirement_obligations,
         crash_continuations,
+        selected_evidence: _,
     } = &operation.kind
     else {
         return false;
@@ -407,6 +408,7 @@ pub(super) fn validate_unit_operation_static(
             returned_claim_transfers,
             requirement_obligations,
             crash_continuations,
+            selected_evidence,
         } => {
             let callee = machines
                 .get(callee)
@@ -443,6 +445,14 @@ pub(super) fn validate_unit_operation_static(
                     &machine.published_service_ceiling,
                     &callee.published_service_ceiling,
                 )?;
+                if selected_evidence.is_some()
+                    && callee.contract.outcome_specific_ensures.is_empty()
+                {
+                    return Err(ModuleError::InvalidOutcomeSpecificCallEvidence {
+                        caller: machine.id,
+                        operation: operation.id,
+                    });
+                }
                 return Ok(());
             }
             if !callee.parameters.is_empty()
