@@ -1200,13 +1200,38 @@ dependency.
   orchestration covers ordinary homes, fixed-view-copy homes, and literal-fold
   homes without transferring emission authority.
 
-  x86 flag-transparent three-address addition now declares its real LEA form
-  restriction: at least one commutative input must not alias R12, which cannot
-  occupy the SIB index role. Two R12 inputs therefore fail before encoding
-  instead of falling back to an undeclared flag-writing ADD. Remaining to
-  close: complete memory/trap/call/cleanup vocabularies as selected IR admits
-  them, target-owned selected-form encoders, resolved branch/layout evidence,
-  actual encoded-form footprint verification, and encoder enforcement.
+  x86 flag-transparent three-address addition uses one always-applicable LEA
+  alternative for allocator-produced GPR64 homes. R12 is a valid SIB index
+  when `REX.X=1`; only reserved RSP has the no-index encoding, so R12+R12 must
+  remain legal rather than falling back to an undeclared flag-writing ADD.
+
+  Each clean Terminal ISA owner now also has a `selected_form_encoding` module
+  for layout-independent scalar forms. The modules resolve canonical physical
+  views through target-owned architectural-name tables, reject foreign,
+  reserved, or non-GPR64 views, emit only one versioned canonical byte form,
+  and decode those bytes independently before returning a validated fragment.
+  AArch64 variant 0 materialization remains the explicit zero-seeded `MOVZ`
+  plus ascending nonzero `MOVK` sequence; a shortest-`MOVN` policy must receive
+  a new named/versioned rule rather than silently changing this alternative.
+  x86 retains exact 10-byte materialization, deterministic LEA base/index
+  orientation, all four subtraction alias forms, and the admitted U12-only
+  immediate boundary.
+
+  Opt-in orchestration joins those fragments to the exact selected plan and
+  post-allocation sidecar. Its immutable v1 identity binds both roots, every
+  instruction ID and chosen alternative, the canonical bytes, and decoded
+  register/flag footprints. It compares byte counts with each target size
+  declaration and physical reads/writes/implicit effects with the sidecar.
+  Conditional branches and returns are retained as explicit deferred rows:
+  branches require resolved layout, while returns require truthful control,
+  stack, memory, and trap effects before byte verification. This artifact
+  grants no layout, executable emission, or publication authority.
+
+  Remaining to close: complete memory/trap/call/cleanup vocabularies as
+  selected IR admits them, encoded-vs-semantic effect refinements such as x86
+  XOR zero idioms, resolved branch/layout evidence, truthful return encoding,
+  whole-program span/relocation validation, and publication-side enforcement
+  of the independent encoding receipt.
 
 - **OPT-PRE-RA-MACHINE.** Add machine copy propagation, cheap rematerialization
   hints, and instruction-alternative selection before allocation.

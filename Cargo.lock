@@ -1178,6 +1178,7 @@ dependencies = [
  "psi-terminal-codec",
  "psi-terminal-fuel",
  "psi-terminal-verifier",
+ "sha2",
 ]
 
 [[package]]
@@ -1679,6 +1680,7 @@ name = "omega-terminal-isa-aarch64"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-optimization-core",
  "omega-register-model",
  "omega-target",
  "omega-terminal-installation-evidence",
@@ -1692,6 +1694,7 @@ name = "omega-terminal-isa-x86_64"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-optimization-core",
  "omega-register-model",
  "omega-target",
  "omega-terminal-installation-evidence",

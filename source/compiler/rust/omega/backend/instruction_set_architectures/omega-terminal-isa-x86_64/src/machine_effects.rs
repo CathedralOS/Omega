@@ -106,11 +106,7 @@ fn declaration(
         TerminalMachineSemanticKind::ExactAddI64 => vec![alternative(
             semantic,
             0,
-            TerminalMachineAlternativeApplicability::AtLeastOneOperandDoesNotAliasView {
-                left: 0,
-                right: 1,
-                excluded_view: x86_64_r12_view(),
-            },
+            TerminalMachineAlternativeApplicability::Always,
             size(semantic),
         )],
         TerminalMachineSemanticKind::ExactSubtractI64 => vec![
@@ -180,13 +176,6 @@ fn declaration(
         cleanup: TerminalMachineCleanupEffect::NoneV1,
         alternatives,
     }
-}
-
-fn x86_64_r12_view() -> omega_register_model::RegisterViewId {
-    crate::x86_64_physical_register_model()
-        .view_named("r12")
-        .expect("canonical x86-64 model declares r12")
-        .id
 }
 
 fn alternative(
@@ -272,11 +261,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 add.alternatives[0].applicability,
-                TerminalMachineAlternativeApplicability::AtLeastOneOperandDoesNotAliasView {
-                    left: 0,
-                    right: 1,
-                    excluded_view: x86_64_r12_view(),
-                }
+                TerminalMachineAlternativeApplicability::Always
             );
             assert_eq!(subtract.constraint, X86_64_SUBTRACT_I64);
             let register_effects = constraints

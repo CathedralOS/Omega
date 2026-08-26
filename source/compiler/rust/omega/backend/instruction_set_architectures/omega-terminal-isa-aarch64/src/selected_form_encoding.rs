@@ -1,0 +1,558 @@
+use omega_register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+use omega_terminal_selected_instructions::{
+    TerminalMachineAlternativeFamily, TerminalMachineAlternativeKey,
+    TerminalSelectedInstructionKind,
+};
+use psi_core::IntegerValue;
+
+use crate::aarch64_physical_register_model;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Aarch64SelectedFormFootprint {
+    pub register_reads: Vec<RegisterViewId>,
+    pub register_writes: Vec<RegisterViewId>,
+    pub writes_nzcv: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedAarch64SelectedFormEncoding {
+    bytes: Vec<u8>,
+    footprint: Aarch64SelectedFormFootprint,
+}
+
+impl ValidatedAarch64SelectedFormEncoding {
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub const fn footprint(&self) -> &Aarch64SelectedFormFootprint {
+        &self.footprint
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Aarch64SelectedFormEncodingError {
+    NonCanonicalPhysicalModel,
+    LayoutDependentOrControlForm,
+    AlternativeMismatch,
+    OperandCountMismatch,
+    UnknownOrNonGpr64View(RegisterViewId),
+    IntegerOutsideI64Bits,
+    ImmediateOutsideU12,
+    MalformedEncoding,
+    EncodedFormMismatch,
+}
+
+impl std::fmt::Display for Aarch64SelectedFormEncodingError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "invalid AArch64 selected-form encoding: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for Aarch64SelectedFormEncodingError {}
+
+pub fn encode_aarch64_terminal_selected_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: TerminalSelectedInstructionKind,
+    alternative: TerminalMachineAlternativeKey,
+    operands: &[RegisterViewId],
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    validate_request(physical, kind, alternative, operands)?;
+    let registers = resolve_registers(physical, operands)?;
+    let bytes = encode_unchecked(kind, &registers)?;
+    validate_aarch64_terminal_selected_form_encoding(physical, kind, alternative, operands, &bytes)
+}
+
+pub fn validate_aarch64_terminal_selected_form_encoding(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: TerminalSelectedInstructionKind,
+    alternative: TerminalMachineAlternativeKey,
+    operands: &[RegisterViewId],
+    bytes: &[u8],
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    validate_request(physical, kind, alternative, operands)?;
+    let registers = resolve_registers(physical, operands)?;
+    let decoded = decode_words(bytes)?;
+    validate_decoded(kind, &registers, &decoded)?;
+    let canonical = encode_unchecked(kind, &registers)?;
+    if bytes != canonical {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    Ok(ValidatedAarch64SelectedFormEncoding {
+        bytes: bytes.to_vec(),
+        footprint: footprint(kind, operands),
+    })
+}
+
+fn validate_request(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: TerminalSelectedInstructionKind,
+    alternative: TerminalMachineAlternativeKey,
+    operands: &[RegisterViewId],
+) -> Result<(), Aarch64SelectedFormEncodingError> {
+    if physical.model() != &aarch64_physical_register_model() {
+        return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
+    }
+    let (family, count) = family_and_operand_count(kind)?;
+    if alternative != (TerminalMachineAlternativeKey { family, variant: 0 }) {
+        return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
+    }
+    if operands.len() != count {
+        return Err(Aarch64SelectedFormEncodingError::OperandCountMismatch);
+    }
+    Ok(())
+}
+
+fn family_and_operand_count(
+    kind: TerminalSelectedInstructionKind,
+) -> Result<(TerminalMachineAlternativeFamily, usize), Aarch64SelectedFormEncodingError> {
+    Ok(match kind {
+        TerminalSelectedInstructionKind::CompareI64Zero => {
+            (TerminalMachineAlternativeFamily::CompareI64Zero, 1)
+        }
+        TerminalSelectedInstructionKind::MaterializeI64 { .. } => {
+            (TerminalMachineAlternativeFamily::MaterializeI64, 1)
+        }
+        TerminalSelectedInstructionKind::CopyI64 => (TerminalMachineAlternativeFamily::CopyI64, 2),
+        TerminalSelectedInstructionKind::ExactAddI64 { .. } => {
+            (TerminalMachineAlternativeFamily::ExactAddI64, 3)
+        }
+        TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => {
+            (TerminalMachineAlternativeFamily::ExactSubtractI64, 3)
+        }
+        TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => {
+            (TerminalMachineAlternativeFamily::ExactAddI64Immediate, 2)
+        }
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero
+        | TerminalSelectedInstructionKind::ReturnI64 => {
+            return Err(Aarch64SelectedFormEncodingError::LayoutDependentOrControlForm);
+        }
+    })
+}
+
+fn resolve_registers(
+    physical: &ValidatedPhysicalRegisterModel,
+    operands: &[RegisterViewId],
+) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
+    operands
+        .iter()
+        .map(|id| {
+            let view = physical
+                .model()
+                .views
+                .iter()
+                .find(|view| view.id == *id)
+                .ok_or(Aarch64SelectedFormEncodingError::UnknownOrNonGpr64View(*id))?;
+            let Some(index) = view.name.strip_prefix('x') else {
+                return Err(Aarch64SelectedFormEncodingError::UnknownOrNonGpr64View(*id));
+            };
+            let index = index
+                .parse::<u8>()
+                .ok()
+                .filter(|index| *index <= 30)
+                .ok_or(Aarch64SelectedFormEncodingError::UnknownOrNonGpr64View(*id))?;
+            if view.bits != 64 || !view.allocatable {
+                return Err(Aarch64SelectedFormEncodingError::UnknownOrNonGpr64View(*id));
+            }
+            Ok(index)
+        })
+        .collect()
+}
+
+fn integer_bits(value: IntegerValue) -> Result<u64, Aarch64SelectedFormEncodingError> {
+    match value {
+        IntegerValue::Signed(value) => i64::try_from(value)
+            .map(|value| value as u64)
+            .map_err(|_| Aarch64SelectedFormEncodingError::IntegerOutsideI64Bits),
+        IntegerValue::Unsigned(value) => u64::try_from(value)
+            .map_err(|_| Aarch64SelectedFormEncodingError::IntegerOutsideI64Bits),
+    }
+}
+
+fn u12(value: IntegerValue) -> Result<u16, Aarch64SelectedFormEncodingError> {
+    match value {
+        IntegerValue::Unsigned(value) if value <= 4095 => Ok(value as u16),
+        _ => Err(Aarch64SelectedFormEncodingError::ImmediateOutsideU12),
+    }
+}
+
+fn encode_unchecked(
+    kind: TerminalSelectedInstructionKind,
+    registers: &[u8],
+) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
+    let mut words = Vec::new();
+    match kind {
+        TerminalSelectedInstructionKind::MaterializeI64 { value } => {
+            append_canonical_materialization(&mut words, registers[0], integer_bits(value)?);
+        }
+        TerminalSelectedInstructionKind::CopyI64 => {
+            words.push(0xaa00_03e0 | (u32::from(registers[0]) << 16) | u32::from(registers[1]));
+        }
+        TerminalSelectedInstructionKind::CompareI64Zero => {
+            words.push(0xf100_001f | (u32::from(registers[0]) << 5));
+        }
+        TerminalSelectedInstructionKind::ExactAddI64 { .. } => {
+            words.push(
+                0x8b00_0000
+                    | (u32::from(registers[1]) << 16)
+                    | (u32::from(registers[0]) << 5)
+                    | u32::from(registers[2]),
+            );
+        }
+        TerminalSelectedInstructionKind::ExactAddI64Immediate { immediate, .. } => {
+            words.push(
+                0x9100_0000
+                    | (u32::from(u12(immediate)?) << 10)
+                    | (u32::from(registers[0]) << 5)
+                    | u32::from(registers[1]),
+            );
+        }
+        TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => {
+            words.push(
+                0xcb00_0000
+                    | (u32::from(registers[1]) << 16)
+                    | (u32::from(registers[0]) << 5)
+                    | u32::from(registers[2]),
+            );
+        }
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero
+        | TerminalSelectedInstructionKind::ReturnI64 => {
+            return Err(Aarch64SelectedFormEncodingError::LayoutDependentOrControlForm);
+        }
+    }
+    Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
+}
+
+fn append_canonical_materialization(words: &mut Vec<u32>, register: u8, value: u64) {
+    let chunks = std::array::from_fn::<_, 4, _>(|index| ((value >> (index * 16)) & 0xffff) as u16);
+    words.push(0xd280_0000 | (u32::from(chunks[0]) << 5) | u32::from(register));
+    for (index, chunk) in chunks.into_iter().enumerate().skip(1) {
+        if chunk != 0 {
+            words.push(
+                0xf280_0000
+                    | (u32::try_from(index).expect("halfword index fits u32") << 21)
+                    | (u32::from(chunk) << 5)
+                    | u32::from(register),
+            );
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DecodedWord {
+    MovZ {
+        register: u8,
+        shift: u8,
+        immediate: u16,
+    },
+    MovK {
+        register: u8,
+        shift: u8,
+        immediate: u16,
+    },
+    Copy {
+        source: u8,
+        destination: u8,
+    },
+    CompareZero {
+        source: u8,
+    },
+    Add {
+        left: u8,
+        right: u8,
+        destination: u8,
+    },
+    AddImmediate {
+        source: u8,
+        immediate: u16,
+        destination: u8,
+    },
+    Subtract {
+        left: u8,
+        right: u8,
+        destination: u8,
+    },
+}
+
+fn decode_words(bytes: &[u8]) -> Result<Vec<DecodedWord>, Aarch64SelectedFormEncodingError> {
+    if bytes.is_empty() || !bytes.len().is_multiple_of(4) {
+        return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
+    }
+    bytes
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|bytes| decode_word(u32::from_le_bytes(*bytes)))
+        .collect()
+}
+
+fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
+    let register = (word & 0x1f) as u8;
+    let shift = ((word >> 21) & 0x3) as u8;
+    let immediate = ((word >> 5) & 0xffff) as u16;
+    if word & 0xffe0_0000 == 0xd280_0000 {
+        return Ok(DecodedWord::MovZ {
+            register,
+            shift,
+            immediate,
+        });
+    }
+    if word & 0xff80_0000 == 0xf280_0000 {
+        return Ok(DecodedWord::MovK {
+            register,
+            shift,
+            immediate,
+        });
+    }
+    if word & 0xffe0_ffe0 == 0xaa00_03e0 {
+        return Ok(DecodedWord::Copy {
+            source: ((word >> 16) & 0x1f) as u8,
+            destination: register,
+        });
+    }
+    if word & 0xffff_fc1f == 0xf100_001f {
+        return Ok(DecodedWord::CompareZero {
+            source: ((word >> 5) & 0x1f) as u8,
+        });
+    }
+    if word & 0xffe0_fc00 == 0x8b00_0000 {
+        return Ok(DecodedWord::Add {
+            left: ((word >> 5) & 0x1f) as u8,
+            right: ((word >> 16) & 0x1f) as u8,
+            destination: register,
+        });
+    }
+    if word & 0xffc0_0000 == 0x9100_0000 {
+        return Ok(DecodedWord::AddImmediate {
+            source: ((word >> 5) & 0x1f) as u8,
+            immediate: ((word >> 10) & 0xfff) as u16,
+            destination: register,
+        });
+    }
+    if word & 0xffe0_fc00 == 0xcb00_0000 {
+        return Ok(DecodedWord::Subtract {
+            left: ((word >> 5) & 0x1f) as u8,
+            right: ((word >> 16) & 0x1f) as u8,
+            destination: register,
+        });
+    }
+    Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
+}
+
+fn validate_decoded(
+    kind: TerminalSelectedInstructionKind,
+    registers: &[u8],
+    decoded: &[DecodedWord],
+) -> Result<(), Aarch64SelectedFormEncodingError> {
+    let valid = match kind {
+        TerminalSelectedInstructionKind::MaterializeI64 { value } => {
+            decode_materialization(decoded, registers[0]) == integer_bits(value).ok()
+        }
+        TerminalSelectedInstructionKind::CopyI64 => {
+            decoded
+                == [DecodedWord::Copy {
+                    source: registers[0],
+                    destination: registers[1],
+                }]
+        }
+        TerminalSelectedInstructionKind::CompareI64Zero => {
+            decoded
+                == [DecodedWord::CompareZero {
+                    source: registers[0],
+                }]
+        }
+        TerminalSelectedInstructionKind::ExactAddI64 { .. } => {
+            decoded
+                == [DecodedWord::Add {
+                    left: registers[0],
+                    right: registers[1],
+                    destination: registers[2],
+                }]
+        }
+        TerminalSelectedInstructionKind::ExactAddI64Immediate { immediate, .. } => {
+            decoded
+                == [DecodedWord::AddImmediate {
+                    source: registers[0],
+                    immediate: u12(immediate)?,
+                    destination: registers[1],
+                }]
+        }
+        TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => {
+            decoded
+                == [DecodedWord::Subtract {
+                    left: registers[0],
+                    right: registers[1],
+                    destination: registers[2],
+                }]
+        }
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero
+        | TerminalSelectedInstructionKind::ReturnI64 => false,
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
+    }
+}
+
+fn decode_materialization(decoded: &[DecodedWord], register: u8) -> Option<u64> {
+    let (mut value, start) = match decoded.first()? {
+        DecodedWord::MovZ {
+            register: actual,
+            shift: 0,
+            immediate,
+        } if *actual == register => (u64::from(*immediate), 1),
+        _ => return None,
+    };
+    let mut previous_shift = 0;
+    for word in &decoded[start..] {
+        let DecodedWord::MovK {
+            register: actual,
+            shift,
+            immediate,
+        } = word
+        else {
+            return None;
+        };
+        if *actual != register || *shift <= previous_shift || *shift > 3 || *immediate == 0 {
+            return None;
+        }
+        previous_shift = *shift;
+        let shift = u64::from(*shift) * 16;
+        value = (value & !(0xffff_u64 << shift)) | (u64::from(*immediate) << shift);
+    }
+    Some(value)
+}
+
+fn footprint(
+    kind: TerminalSelectedInstructionKind,
+    operands: &[RegisterViewId],
+) -> Aarch64SelectedFormFootprint {
+    let (reads, writes, writes_nzcv) = match kind {
+        TerminalSelectedInstructionKind::MaterializeI64 { .. } => {
+            (vec![], vec![operands[0]], false)
+        }
+        TerminalSelectedInstructionKind::CopyI64 => (vec![operands[0]], vec![operands[1]], false),
+        TerminalSelectedInstructionKind::CompareI64Zero => (vec![operands[0]], vec![], true),
+        TerminalSelectedInstructionKind::ExactAddI64 { .. }
+        | TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => {
+            (vec![operands[0], operands[1]], vec![operands[2]], false)
+        }
+        TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => {
+            (vec![operands[0]], vec![operands[1]], false)
+        }
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero
+        | TerminalSelectedInstructionKind::ReturnI64 => {
+            unreachable!("control forms reject before footprint")
+        }
+    };
+    Aarch64SelectedFormFootprint {
+        register_reads: reads,
+        register_writes: writes,
+        writes_nzcv,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use omega_register_model::validate_physical_register_model;
+    use omega_terminal_selected_instructions::TerminalMachineAlternativeFamily;
+    use psi_core::{IntegerValue, ObligationId};
+
+    use super::*;
+
+    fn alternative(family: TerminalMachineAlternativeFamily) -> TerminalMachineAlternativeKey {
+        TerminalMachineAlternativeKey { family, variant: 0 }
+    }
+
+    #[test]
+    fn zero_seeded_materialization_is_canonical_and_decoded_independently() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let x9 = physical.model().view_named("x9").unwrap().id;
+        for (value, byte_count) in [
+            (IntegerValue::Unsigned(0), 4),
+            (IntegerValue::Unsigned(u64::MAX as u128), 16),
+            (IntegerValue::Unsigned(0x1234_0000_5678_0000), 12),
+            (IntegerValue::Unsigned(0x1234_5678_9abc_def0), 16),
+        ] {
+            let kind = TerminalSelectedInstructionKind::MaterializeI64 { value };
+            let encoded = encode_aarch64_terminal_selected_form(
+                &physical,
+                kind,
+                alternative(TerminalMachineAlternativeFamily::MaterializeI64),
+                &[x9],
+            )
+            .unwrap();
+            assert_eq!(encoded.bytes().len(), byte_count);
+            let mut corrupted = encoded.bytes().to_vec();
+            corrupted[0] ^= 0x20;
+            assert!(
+                validate_aarch64_terminal_selected_form_encoding(
+                    &physical,
+                    kind,
+                    alternative(TerminalMachineAlternativeFamily::MaterializeI64),
+                    &[x9],
+                    &corrupted,
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn scalar_forms_report_exact_decoded_footprints() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let views = ["x3", "x4", "x5"].map(|name| physical.model().view_named(name).unwrap().id);
+        let fact = omega_optimization_core::AcceptedObligationFactIdentity::from_bytes([7; 32]);
+        let cases = [
+            (
+                TerminalSelectedInstructionKind::CopyI64,
+                TerminalMachineAlternativeFamily::CopyI64,
+                2,
+            ),
+            (
+                TerminalSelectedInstructionKind::CompareI64Zero,
+                TerminalMachineAlternativeFamily::CompareI64Zero,
+                1,
+            ),
+            (
+                TerminalSelectedInstructionKind::ExactAddI64 {
+                    obligation: ObligationId::new(1).unwrap(),
+                    accepted_fact: fact,
+                },
+                TerminalMachineAlternativeFamily::ExactAddI64,
+                3,
+            ),
+            (
+                TerminalSelectedInstructionKind::ExactAddI64Immediate {
+                    immediate: IntegerValue::Unsigned(4095),
+                    obligation: ObligationId::new(2).unwrap(),
+                    accepted_fact: fact,
+                },
+                TerminalMachineAlternativeFamily::ExactAddI64Immediate,
+                2,
+            ),
+            (
+                TerminalSelectedInstructionKind::ExactSubtractI64 {
+                    obligation: ObligationId::new(3).unwrap(),
+                    accepted_fact: fact,
+                },
+                TerminalMachineAlternativeFamily::ExactSubtractI64,
+                3,
+            ),
+        ];
+        for (kind, family, count) in cases {
+            let encoded = encode_aarch64_terminal_selected_form(
+                &physical,
+                kind,
+                alternative(family),
+                &views[..count],
+            )
+            .unwrap();
+            assert_eq!(encoded.bytes().len(), 4);
+        }
+    }
+}

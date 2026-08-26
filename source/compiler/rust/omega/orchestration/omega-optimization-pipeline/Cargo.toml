@@ -29,6 +29,7 @@ psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }
+sha2 = "0.10.9"
 
 [dev-dependencies]
 omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
