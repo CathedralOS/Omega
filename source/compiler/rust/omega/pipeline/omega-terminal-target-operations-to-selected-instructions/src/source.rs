@@ -1,5 +1,6 @@
 use omega_optimization_unit::{
-    FuelSettlement, PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
+    AcceptedObligationFact, FuelSettlement, OptimizationFact, PsiOptimizationUnit, PsiProvenance,
+    ValueDefinitionSite,
 };
 use omega_terminal_abstract_operations::{
     TerminalAbstractOperation, TerminalAbstractOperationPlan, TerminalValueBinding,
@@ -9,7 +10,9 @@ use omega_terminal_target_operations::{
     TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
     TerminalTargetOperationPlan,
 };
-use psi_core::{BlockId, EdgeId, IntegerSign, IntegerValue, OperationId, ScalarType, ValueId};
+use psi_core::{
+    BlockId, EdgeId, IntegerSign, IntegerValue, ObligationId, OperationId, ScalarType, ValueId,
+};
 
 use crate::{SelectedInstructionError, SelectedInstructionError as Error};
 
@@ -53,6 +56,24 @@ pub(crate) enum SourceLeafValue {
         register: MachineRegister,
         definition_site: ValueDefinitionSite,
     },
+    ExactAdd {
+        obligation: ObligationId,
+        accepted_fact: omega_optimization_core::AcceptedObligationFactIdentity,
+        add_operation: OperationId,
+        definition_site: ValueDefinitionSite,
+        add_fuel: Vec<FuelSettlement>,
+        left: SourceImmediate,
+        right: SourceImmediate,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct SourceImmediate {
+    pub source_value: ValueId,
+    pub value: IntegerValue,
+    pub constant_operation: OperationId,
+    pub definition_site: ValueDefinitionSite,
+    pub fuel: Vec<FuelSettlement>,
 }
 
 pub(crate) fn derive_source_functions(
@@ -79,7 +100,13 @@ pub(crate) fn derive_source_functions(
         .zip(&unit.functions)
         .enumerate()
         .map(|(index, ((target, abstracted), optimized))| {
-            derive_source_function(index, target, abstracted, optimized)
+            derive_source_function(
+                index,
+                target,
+                abstracted,
+                optimized,
+                &unit.accepted_obligation_facts,
+            )
         })
         .collect()
 }
@@ -89,6 +116,7 @@ fn derive_source_function(
     target: &omega_terminal_target_operations::TerminalTargetFunction,
     abstracted: &omega_terminal_abstract_operations::TerminalAbstractFunction,
     optimized: &omega_optimization_unit::PsiOptimizationFunction,
+    accepted_obligation_facts: &[AcceptedObligationFact],
 ) -> Result<SourceFunction, SelectedInstructionError> {
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
@@ -155,15 +183,51 @@ fn derive_source_function(
             }
         )
     );
+    let exact_add_leaves = matches!(
+        (when_true.control.as_ref(), when_false.control.as_ref()),
+        (
+            TerminalTargetIntegerControl::Return {
+                expression: TerminalTargetIntegerExpression::ExactAdd {
+                    left,
+                    right,
+                    ..
+                },
+                ..
+            },
+            TerminalTargetIntegerControl::Return {
+                expression: TerminalTargetIntegerExpression::ExactAdd {
+                    left: false_left,
+                    right: false_right,
+                    ..
+                },
+                ..
+            }
+        ) if matches!(
+            (left.as_ref(), right.as_ref(), false_left.as_ref(), false_right.as_ref()),
+            (
+                TerminalTargetIntegerExpression::Immediate { .. },
+                TerminalTargetIntegerExpression::Immediate { .. },
+                TerminalTargetIntegerExpression::Immediate { .. },
+                TerminalTargetIntegerExpression::Immediate { .. },
+            )
+        )
+    );
     let expected_offsets = if constant_leaves {
         [0, 1, 3]
     } else if parameter_leaves {
         [0, 1, 2]
+    } else if exact_add_leaves {
+        [0, 1, 5]
     } else {
         return Err(Error::UnsupportedSourceShape { function });
     };
-    let expected_operation_count = if constant_leaves { 5 } else { 3 };
-    let expected_leaf_node_count = if constant_leaves { 2 } else { 1 };
+    let (expected_operation_count, expected_leaf_node_count) = if constant_leaves {
+        (5, 2)
+    } else if parameter_leaves {
+        (3, 1)
+    } else {
+        (9, 4)
+    };
     if abstracted.operations.len() != expected_operation_count
         || abstracted
             .block_entries
@@ -237,6 +301,7 @@ fn derive_source_function(
         &optimized.blocks[1].nodes,
         abstracted,
         optimized,
+        accepted_obligation_facts,
     )?;
     let when_false = derive_leaf(
         function,
@@ -246,6 +311,7 @@ fn derive_source_function(
         &optimized.blocks[2].nodes,
         abstracted,
         optimized,
+        accepted_obligation_facts,
     )?;
     if let (
         SourceLeafValue::EntryParameter {
@@ -267,9 +333,11 @@ fn derive_source_function(
         return Err(Error::UnsupportedSourceShape { function });
     }
     let expected_provenance = TerminalPsiProvenance {
-        operations: [when_true.value.operation(), when_false.value.operation()]
+        operations: when_true
+            .value
+            .operations()
             .into_iter()
-            .flatten()
+            .chain(when_false.value.operations())
             .collect(),
         edges: vec![
             abstract_true.psi_edge,
@@ -301,6 +369,7 @@ fn derive_source_function(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn derive_leaf(
     function: usize,
     arm_edge: EdgeId,
@@ -309,6 +378,7 @@ fn derive_leaf(
     nodes: &[omega_optimization_unit::OptimizationNode],
     abstracted: &omega_terminal_abstract_operations::TerminalAbstractFunction,
     optimized: &omega_optimization_unit::PsiOptimizationFunction,
+    accepted_obligation_facts: &[AcceptedObligationFact],
 ) -> Result<SourceLeaf, SelectedInstructionError> {
     if nodes.len() != abstract_operations.len()
         || nodes
@@ -326,8 +396,8 @@ fn derive_leaf(
     else {
         return Err(Error::UnsupportedSourceShape { function });
     };
-    let u64_type =
-        ScalarType::Integer(psi_core::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"));
+    let u64_integer_type = psi_core::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let u64_type = ScalarType::Integer(u64_integer_type);
     let (return_node, value) = match expression {
         TerminalTargetIntegerExpression::Immediate {
             source_value: expression_source,
@@ -395,6 +465,72 @@ fn derive_leaf(
                 },
             )
         }
+        TerminalTargetIntegerExpression::ExactAdd {
+            psi_operation,
+            obligation,
+            left,
+            right,
+        } => {
+            if nodes.len() != 4 {
+                return Err(Error::UnsupportedSourceShape { function });
+            }
+            let left = derive_immediate(function, arm_edge, left, &nodes[0], u64_type)?;
+            let right = derive_immediate(function, arm_edge, right, &nodes[1], u64_type)?;
+            let TerminalAbstractOperation::ExactIntegerAdd {
+                psi_operation: abstract_operation,
+                obligation: abstract_obligation,
+                result,
+                scalar_type,
+                left: abstract_left,
+                right: abstract_right,
+            } = &nodes[2].operation
+            else {
+                return Err(Error::UnsupportedSourceShape { function });
+            };
+            if abstract_operation != psi_operation
+                || abstract_obligation != obligation
+                || *result != *source_value
+                || *scalar_type != u64_integer_type
+                || *abstract_left != left.source_value
+                || *abstract_right != right.source_value
+                || nodes[2].definitions.len() != 1
+                || nodes[2].definitions[0].value != *source_value
+                || nodes[2].provenance != vec![PsiProvenance::Operation(*psi_operation)]
+            {
+                return Err(Error::UnsupportedSourceShape { function });
+            }
+            let add_fuel = exact_operation_fuel(&nodes[2], *psi_operation, function)?;
+            let Some(accepted_fact) = accepted_obligation_facts.iter().find(|fact| {
+                fact.machine == optimized.machine
+                    && fact.operation == *psi_operation
+                    && fact.obligation == *obligation
+            }) else {
+                return Err(Error::SourceCustodyMismatch);
+            };
+            if !optimized.facts.iter().any(|fact| {
+                matches!(
+                    fact,
+                    OptimizationFact::OperationObligationReference {
+                        obligation: referenced_obligation,
+                        support,
+                    } if *referenced_obligation == *obligation && *support == *psi_operation
+                )
+            }) {
+                return Err(Error::SourceCustodyMismatch);
+            }
+            (
+                &nodes[3],
+                SourceLeafValue::ExactAdd {
+                    obligation: *obligation,
+                    accepted_fact: accepted_fact.identity,
+                    add_operation: *psi_operation,
+                    definition_site: nodes[2].definitions[0].site,
+                    add_fuel,
+                    left,
+                    right,
+                },
+            )
+        }
         _ => return Err(Error::UnsupportedSourceShape { function }),
     };
     let TerminalAbstractOperation::Return {
@@ -428,14 +564,65 @@ fn derive_leaf(
 }
 
 impl SourceLeafValue {
-    fn operation(&self) -> Option<OperationId> {
+    fn operations(&self) -> Vec<OperationId> {
         match self {
             Self::Immediate {
                 constant_operation, ..
-            } => Some(*constant_operation),
-            Self::EntryParameter { .. } => None,
+            } => vec![*constant_operation],
+            Self::EntryParameter { .. } => Vec::new(),
+            Self::ExactAdd {
+                add_operation,
+                left,
+                right,
+                ..
+            } => vec![
+                left.constant_operation,
+                right.constant_operation,
+                *add_operation,
+            ],
         }
     }
+}
+
+fn derive_immediate(
+    function: usize,
+    arm_edge: EdgeId,
+    target: &TerminalTargetIntegerExpression,
+    node: &omega_optimization_unit::OptimizationNode,
+    expected_type: ScalarType,
+) -> Result<SourceImmediate, SelectedInstructionError> {
+    let TerminalTargetIntegerExpression::Immediate {
+        source_value,
+        value: target_value,
+    } = target
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let TerminalAbstractOperation::IntegerConstant {
+        psi_operation,
+        result,
+        scalar_type,
+        value,
+    } = &node.operation
+    else {
+        return Err(Error::MissingConstantDefinition { function, arm_edge });
+    };
+    if result != source_value
+        || value != target_value
+        || *scalar_type != expected_type
+        || node.definitions.len() != 1
+        || node.definitions[0].value != *source_value
+        || node.provenance != vec![PsiProvenance::Operation(*psi_operation)]
+    {
+        return Err(Error::MissingConstantDefinition { function, arm_edge });
+    }
+    Ok(SourceImmediate {
+        source_value: *source_value,
+        value: *value,
+        constant_operation: *psi_operation,
+        definition_site: node.definitions[0].site,
+        fuel: exact_operation_fuel(node, *psi_operation, function)?,
+    })
 }
 
 fn exact_edge_fuel(

@@ -1731,6 +1731,7 @@ dependencies = [
 name = "omega-terminal-selected-instructions"
 version = "0.1.0"
 dependencies = [
+ "omega-optimization-core",
  "omega-optimization-unit",
  "omega-register-model",
  "omega-target",
