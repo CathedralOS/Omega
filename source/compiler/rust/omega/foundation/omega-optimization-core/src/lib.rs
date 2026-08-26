@@ -1,4 +1,4 @@
-//! Stable, target-independent identities for Omega optimization selection.
+//! Stable, target-independent identities for Omega optimization inputs.
 //!
 //! This crate deliberately owns no optimizer registry, analysis manager, cost
 //! model, or executable rewrite. An empty [`OptimizationSelections`] value is
@@ -7,6 +7,15 @@
 
 use sha2::{Digest, Sha256};
 use std::fmt;
+
+mod identities;
+
+pub use identities::{
+    DuplicateOptimizationRuleIdentity, IdentityBundleDecodeError, IdentityDecodeError,
+    OptimizationDecisionLogIdentity, OptimizationIdentityBundle,
+    OptimizationIdentityBundleIdentity, OptimizationRuleIdentity, OptimizationRuleSetIdentity,
+    OptimizationWorkloadProfileIdentity, TargetCostModelIdentity, TransformationLedgerIdentity,
+};
 
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
 const SELECTION_ENCODING_VERSION: u32 = 1;
@@ -167,10 +176,14 @@ impl OptimizationSelections {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OptimizationSelectionIdentity([u8; 32]);
 
 impl OptimizationSelectionIdentity {
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
     pub const fn bytes(self) -> [u8; 32] {
         self.0
     }

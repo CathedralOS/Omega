@@ -5,7 +5,11 @@ pub(crate) use psi_source_files_to_tokens as lexer;
 pub(crate) use psi_tokens_to_syntax_trees as parser;
 
 pub use omega_optimization_core::{
-    Optimization, OptimizationSelectionIdentity, OptimizationSelections,
+    DuplicateOptimizationRuleIdentity, IdentityBundleDecodeError, IdentityDecodeError,
+    Optimization, OptimizationDecisionLogIdentity, OptimizationIdentityBundle,
+    OptimizationIdentityBundleIdentity, OptimizationRuleIdentity, OptimizationRuleSetIdentity,
+    OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkloadProfileIdentity,
+    TargetCostModelIdentity, TransformationLedgerIdentity,
 };
 
 pub use psi_checked_interpreter::{

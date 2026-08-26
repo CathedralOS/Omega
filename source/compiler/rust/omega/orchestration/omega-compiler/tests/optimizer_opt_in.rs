@@ -72,6 +72,10 @@ fn enable_calls_project_the_exact_canonical_named_set() {
             Optimization::ProofCheckElision,
         ]
     );
+    assert_eq!(
+        checked.optimization_selection_identity(),
+        checked.optimization_selections().identity()
+    );
 }
 
 #[test]
