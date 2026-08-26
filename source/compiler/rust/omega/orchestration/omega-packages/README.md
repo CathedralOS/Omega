@@ -1371,4 +1371,10 @@ rows. A second exact-revision Git canary upgrades `process-exit` from an inert
 reports one changed blocking callable and one added blocking process-authority
 row, triage retains the independent process-audit recommendation, and source
 review receives the exact ordinary update patch. Remote CathedralOS fixture
-verification remains credential-gated and fail-closed.
+verification remains credential-gated and fail-closed. The ordinary pin test
+still proves every SSH/HTTPS pair normalizes to one lineage. With credentials,
+each standalone private mirror is resolved into full custody and compiled
+through package-aware review; the resulting package key, projection identity,
+immutable resolution, and source-consumption commitment must remain bound to
+that lineage. The local `generated-table` fixture also round-trips its verified
+v24/v6 filesystem replay record through canonical review-baseline recovery.

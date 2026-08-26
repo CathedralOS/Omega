@@ -717,7 +717,10 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             .find(|patch| patch.candidate_key() == closure.graph().root())
             .expect("missing old root source receives a standalone source packet");
         assert!(unavailable_patch.baseline_key().is_none());
-        if matches!(*package, "arithmetic-kernels" | "graph-workbench") {
+        if matches!(
+            *package,
+            "arithmetic-kernels" | "generated-table" | "graph-workbench"
+        ) {
             let baseline = ReviewOnlyBaselineCapsule::capture(
                 &closure,
                 &reviews,
@@ -731,6 +734,18 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 ReviewOnlyBaselineLimits::default(),
             )
             .expect("recover fixture review baseline");
+            if *package == "generated-table" {
+                let generated = baseline
+                    .packages()
+                    .iter()
+                    .find(|recovered| recovered.key() == closure.graph().root())
+                    .expect("recovered generated-table baseline package");
+                let replay = generated
+                    .source_input_replay_record()
+                    .expect("generated-table baseline retains its verified replay receipt");
+                assert!(!replay.canonical_bytes().is_empty());
+                assert_ne!(replay.commitment(), [0; 32]);
+            }
             let recovered_unchanged = assemble_update_source_review_from_baseline(
                 &baseline,
                 &reviews,
