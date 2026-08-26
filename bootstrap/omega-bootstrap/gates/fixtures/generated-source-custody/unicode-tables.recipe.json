@@ -1,0 +1,91 @@
+{
+  "schema": "omega.bootstrap.generated-source-recipe.v1",
+  "recipe_id": "checkpoint-000001-unicode-tables",
+  "status": "bounded_cost_evidence",
+  "resource_profile": "omega.bootstrap.generated-source-custody.v1",
+  "runner": {
+    "kind": "cargo-stdout-v1",
+    "working_directory": ".",
+    "workspace_manifest": "Cargo.toml",
+    "package": "psi-source-files-to-tokens",
+    "binary": "generate_omega_unicode",
+    "locked": true,
+    "offline": true,
+    "arguments": [],
+    "environment": [
+      {
+        "name": "LC_ALL",
+        "value": "C"
+      },
+      {
+        "name": "TZ",
+        "value": "UTC"
+      }
+    ]
+  },
+  "generator": {
+    "role": "generated_source_provider",
+    "path": "bootstrap/onramps/omega-rust/psi/pipeline/psi-source-files-to-tokens/src/bin/generate_omega_unicode.rs",
+    "byte_length": 6112,
+    "sha256": "6db15698819b33b436daef8419fb889ba7da427dcf605015ca8fb509909aac78"
+  },
+  "repository_inputs": [
+    {
+      "role": "generator_dependency_lock",
+      "path": "Cargo.lock",
+      "byte_length": 43300,
+      "sha256": "126d3192b1eede47b3beb1e8cd2fb13d3aa2cc2b4aec0e0abceccb70438c765a"
+    },
+    {
+      "role": "generator_workspace_manifest",
+      "path": "Cargo.toml",
+      "byte_length": 9765,
+      "sha256": "ac0829311eed5d3fabeac559c197910c46db0b1593cc949831fa39ebef3a95e8"
+    },
+    {
+      "role": "generator_package_manifest",
+      "path": "bootstrap/onramps/omega-rust/psi/pipeline/psi-source-files-to-tokens/Cargo.toml",
+      "byte_length": 333,
+      "sha256": "1d7eefdf864a036c9be999a0605ad6f30e57fc9d326e261c59a320d2c266fa94"
+    }
+  ],
+  "external_inputs": [
+    {
+      "identity": "unicode-ident@1.0.24",
+      "kind": "cargo_registry_package",
+      "name": "unicode-ident",
+      "version": "1.0.24",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "content_sha256": "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+    }
+  ],
+  "output": {
+    "path": "compiler/psi/generated/unicode_tables.omg",
+    "byte_length": 78952,
+    "sha256": "e279fd658ad5adaf72e7a79b9af1fd4c94c12d9e165d18ea3f90d5d502d7979d",
+    "media_type": "text/x-omega"
+  },
+  "omgcomp1_join": {
+    "package_key": "3333333333333333333333333333333333333333333333333333333333333333",
+    "owner": "UnicodeTables",
+    "machine": "bootstrap_constant_aggregate_probe",
+    "root_label": "source-1.omg",
+    "generated_source_id": 0,
+    "sources": [
+      {
+        "kind": "generated_output",
+        "label": "source-0.omg",
+        "module": ""
+      },
+      {
+        "kind": "repository",
+        "label": "source-1.omg",
+        "module": "",
+        "path": "bootstrap/omega-bootstrap/gates/fixtures/ckir3-constant-aggregates/unicode-harness.omg",
+        "byte_length": 4921,
+        "sha256": "c57c85f31ea4432739e3ccda069527cbffa92ff424a47670f512dfb11b428597"
+      }
+    ]
+  },
+  "closure_sha256": "fdbcc65c969c17f65955d661503722eb88d6651f2625447eade3daf17ba5ada4"
+}

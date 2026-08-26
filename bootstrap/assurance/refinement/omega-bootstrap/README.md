@@ -109,6 +109,11 @@ CKIR-only evaluators also close their owned `16/17` and `64/65` active-frame
 pairs and the shared `65,536/65,537` dynamic-block-entry boundary. This closes
 the selected constant-aggregate source-to-artifact relation below Delta; it
 does not widen an earlier OMGRFN frame or admit the family to final `Ωself`.
+The composite now first runs the bridge-owned sealed generated-source recipe
+and requires two exact reproductions of the committed Unicode bytes. OMGRFN4
+still receives the same immutable carrier and is not widened: the preflight
+joins generator custody to its existing source extent without making recipe
+validity, checkpoint freshness, or package acceptance an OMGRFN4 claim.
 
 The CKIR4 runtime-record successor is separately specified as
 [`OMGRFN5`](OMGCOMP_REFINEMENT_WITNESS_V5.md). It retains the same component
