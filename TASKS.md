@@ -7485,8 +7485,19 @@ Owners:
   rejects same-coordinate call collisions, cardinality/order/identity drift,
   stale handles, and operand-shape substitution. Generic host operations
   remain outside this opt-in path. The carrier owns no object symbol,
-  relocation, bytes, runtime address, registration authority, or lease; exact
-  object-relative relocation selection remains the next engineering rung.
+  relocation, bytes, runtime address, registration authority, or lease. The
+  first object-relative request rung is complete for the production one-slot
+  `Field` form whose exact assigned operand is `RuntimeStorageAddress`.
+  Backend planning binds the target-closed slot geometry to one canonical BSS
+  storage-region symbol and the exact private callback text symbol, preserving
+  region/base/slot/destination offsets, pointer extent, alignment, and both
+  complete symbol snapshots. Independent replay rejects missing, duplicate,
+  reordered, substituted, out-of-bounds, misaligned, `DataAddress`, direct-
+  parameter, or object-symbol-drifted rows. This remains a request only: it
+  owns no selected/assigned address-store operation, `RelocationRecord`,
+  relocation kind, encoded byte site, runtime address, registration authority,
+  or lease. An explicit callback-address store operation is the next
+  engineering prerequisite before relocation emission.
 
   The first source canary cohort is live: the exact target-selected registrar
   closes two explicitly named, nonoverlapping nested private slots for two

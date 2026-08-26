@@ -5,12 +5,19 @@ use omega_machine_bytes::{
 use omega_machine_instructions::MachineInstructionPlan;
 use omega_object_file::{ObjectPlan, RelocationPlan};
 use omega_target::NativeTarget;
+use std::sync::Arc;
+
+use crate::CallbackPrivateObjectStoreRequest;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BackendArtifactRoots {
     pub machine_instructions: MachineInstructionPlan,
     pub encoded_machine: EncodedMachinePlan,
     pub object: ObjectPlan,
+    /// Exact object-symbol pairs and runtime-storage geometry that require a
+    /// later explicit callback-address store operation. These rows are not
+    /// relocation records and own no encoded byte site.
+    pub callback_private_object_stores: Arc<[CallbackPrivateObjectStoreRequest]>,
     pub relocations: RelocationPlan,
 }
 
@@ -25,6 +32,7 @@ impl BackendArtifactRoots {
             machine_instructions,
             encoded_machine,
             object,
+            callback_private_object_stores: Arc::from([]),
             relocations,
         }
     }

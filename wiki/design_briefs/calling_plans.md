@@ -781,7 +781,21 @@ rejects same-coordinate call collisions, missing or duplicated edges and
 operations, formal/cardinality drift, stale handles, and operand-shape drift.
 Generic host operations remain outside this opt-in carrier. The row still owns
 no object symbol, relocation, bytes, runtime address, registration authority,
-or callback lifetime; object-relative relocation selection remains later.
+or callback lifetime.
+
+The first object-relative request now closes only the production one-slot
+`Field` plus exact `RuntimeStorageAddress` shape. One
+`CallbackPrivateObjectStoreRequest` preserves the complete assigned binding,
+runtime-storage region and base, target-closed slot/destination geometry, the
+canonical BSS owner symbol snapshot, and the exact private callback text-symbol
+snapshot. Construction and replay rejoin every preceding catalog and reject
+missing/duplicate symbols, wrong section or kind, bounds/alignment drift,
+`DataAddress`, and the Q13-gated direct-parameter form. These symbols are
+identity evidence, not address authority: the row has no selected/assigned
+store operation, relocation record or kind, encoded byte site, runtime address,
+registration authority, or callback lifetime. A later exact callback-address
+store operation must first identify the instruction and patch site before
+object relocation emission can begin.
 
 The checked identity spine is live. Admission records the exact statement or
 expression handle, argument ordinal, registration operation, selected machine

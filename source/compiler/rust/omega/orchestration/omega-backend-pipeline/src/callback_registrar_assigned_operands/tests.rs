@@ -17,26 +17,28 @@ use omega_abstract_operations::{
     AbstractOperationPlan, InstructionOperand, InstructionOperandKind,
 };
 use omega_backend_plan::replay_callback_registrar_assigned_operand_bindings;
-use omega_calling_conventions::{HostOperationKey, build_host_abi_plan};
+use omega_calling_conventions::{
+    HostOperationKey, NativePlace, build_host_abi_plan, callback_native_parameter_id,
+};
 use omega_platform_interface::LoweredHostOperation;
 use omega_target::NativeTarget;
 use psi_arena::{Arena, Handle, HandleSpan};
 use std::sync::Arc;
 
-struct Fixture {
-    placements: Vec<BoundNominalCallbackPlacement>,
-    thunks: Arc<[CallbackThunkPlan]>,
-    demands: Arc<[CallbackPrivateRelocationDemand]>,
-    host_calls: omega_platform_interface::HostCallPlan,
-    argument_bindings: Arc<[CallbackRegistrarArgumentBinding]>,
-    layouts: omega_layout::LayoutPlan,
-    destinations: Arc<[CallbackRegistrarPhysicalDestination]>,
-    abstract_operations: AbstractOperationPlan,
-    target_operations: omega_target_operations::TargetOperationPlan,
-    assigned_operations: omega_assigned_target_operations::AssignedTargetOperationPlan,
+pub(crate) struct Fixture {
+    pub(crate) placements: Vec<BoundNominalCallbackPlacement>,
+    pub(crate) thunks: Arc<[CallbackThunkPlan]>,
+    pub(crate) demands: Arc<[CallbackPrivateRelocationDemand]>,
+    pub(crate) host_calls: omega_platform_interface::HostCallPlan,
+    pub(crate) argument_bindings: Arc<[CallbackRegistrarArgumentBinding]>,
+    pub(crate) layouts: omega_layout::LayoutPlan,
+    pub(crate) destinations: Arc<[CallbackRegistrarPhysicalDestination]>,
+    pub(crate) abstract_operations: AbstractOperationPlan,
+    pub(crate) target_operations: omega_target_operations::TargetOperationPlan,
+    pub(crate) assigned_operations: omega_assigned_target_operations::AssignedTargetOperationPlan,
 }
 
-fn fixture(formal_ordinal: u32) -> Fixture {
+pub(crate) fn fixture(formal_ordinal: u32) -> Fixture {
     let (placements, thunks, demands, host_calls, boundaries, argument_bindings) =
         exact_catalog(field_destination(formal_ordinal, &[43]));
     build_fixture(
@@ -180,7 +182,7 @@ fn build_fixture(
     }
 }
 
-fn shared_root_fixture() -> Fixture {
+pub(crate) fn shared_root_fixture() -> Fixture {
     let (control_flow, first) = fixture_with_destination(field_destination(1, &[43]));
     let (_, mut second) = fixture_with_destination(field_destination(1, &[47]));
     second.static_machine_ordinal = 1;
@@ -202,7 +204,24 @@ fn shared_root_fixture() -> Fixture {
     )
 }
 
-fn plan(fixture: &Fixture) -> Arc<[CallbackRegistrarAssignedOperandBinding]> {
+pub(crate) fn parameter_fixture() -> Fixture {
+    let (placements, thunks, demands, host_calls, boundaries, argument_bindings) =
+        exact_catalog(NativePlace::Parameter(callback_native_parameter_id(
+            "package::Registrar::register#exact",
+            1,
+        )));
+    build_fixture(
+        placements,
+        thunks,
+        demands,
+        host_calls,
+        boundaries,
+        argument_bindings,
+        layouts(Vec::new()),
+    )
+}
+
+pub(crate) fn plan(fixture: &Fixture) -> Arc<[CallbackRegistrarAssignedOperandBinding]> {
     plan_callback_registrar_assigned_operand_bindings(
         NativeTarget::windows_x64(),
         &fixture.placements,
@@ -218,6 +237,35 @@ fn plan(fixture: &Fixture) -> Arc<[CallbackRegistrarAssignedOperandBinding]> {
         &fixture.assigned_operations,
     )
     .unwrap()
+}
+
+pub(crate) fn with_formal_operand_kind(
+    mut fixture: Fixture,
+    kind: InstructionOperandKind,
+) -> (Fixture, Arc<[CallbackRegistrarAssignedOperandBinding]>) {
+    let binding = plan(&fixture)[0].clone();
+    let abstract_operand = Handle::from_parts(
+        binding.formal_operand.operand.arena_index(),
+        binding.formal_operand.operand.generation(),
+    );
+    fixture
+        .abstract_operations
+        .code
+        .operands
+        .get_mut(abstract_operand)
+        .kind = kind;
+    fixture.target_operations = build_target(
+        &fixture,
+        NativeTarget::windows_x64(),
+        &fixture.abstract_operations,
+    )
+    .unwrap();
+    fixture.assigned_operations =
+        omega_target_operations_to_assigned_target_operations::build_assigned_target_operations(
+            &fixture.target_operations,
+        );
+    let bindings = plan(&fixture);
+    (fixture, bindings)
 }
 
 fn replay(

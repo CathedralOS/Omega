@@ -1,3 +1,4 @@
+use super::callback_private_object_stores::plan_callback_private_object_store_requests;
 use super::callback_private_relocations::plan_callback_private_relocations;
 use super::callback_registrar_arguments::plan_callback_registrar_arguments;
 use super::callback_registrar_assigned_operands::plan_callback_registrar_assigned_operand_bindings;
@@ -546,6 +547,26 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             runtime_frame_alignment: runtime_frame_storage_alignment(&backend_plan.runtime_storage),
         })
     })?;
+    backend_plan.callback_private_object_stores =
+        record_backend_phase(&mut phase_timings, "callback private object stores", || {
+            plan_callback_private_object_store_requests(
+                backend_plan.target,
+                &backend_plan.callback_placements,
+                &backend_plan.callback_thunks,
+                &backend_plan.callback_private_relocations,
+                &backend_plan.host_calls,
+                &backend_plan.abstract_operations.semantics.boundaries,
+                &backend_plan.callback_registrar_arguments,
+                &backend_plan.layouts,
+                &backend_plan.callback_registrar_destinations,
+                &backend_plan.abstract_operations,
+                &backend_plan.target_operations,
+                &backend_plan.assigned_target_operations,
+                &backend_plan.callback_registrar_assigned_operands,
+                &backend_plan.object,
+                backend_plan.entry_machine_name(),
+            )
+        })?;
     backend_plan.relocations = record_backend_phase(&mut phase_timings, "relocations", || {
         build_relocation_plan(RelocationPlanningInput {
             target: backend_plan.target,

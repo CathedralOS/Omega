@@ -1,5 +1,6 @@
 //! Exact second-pass insertion of the compiler-generated program-storage entry.
 
+use crate::callback_private_object_stores::plan_callback_private_object_store_requests;
 use omega_abstract_operations::{
     AbstractFunctionPlan, AbstractOperation, AbstractOperationKind, BoundaryFootprintFragmentOrigin,
 };
@@ -110,6 +111,23 @@ pub fn insert_program_storage_entry_wrapper(
         runtime_frame_size: runtime_frame_storage_size(&plan.runtime_storage),
         runtime_frame_alignment: runtime_frame_storage_alignment(&plan.runtime_storage),
     })?;
+    let callback_private_object_stores = plan_callback_private_object_store_requests(
+        plan.target,
+        &plan.callback_placements,
+        &plan.callback_thunks,
+        &plan.callback_private_relocations,
+        &plan.host_calls,
+        &abstract_operations.semantics.boundaries,
+        &plan.callback_registrar_arguments,
+        &plan.layouts,
+        &plan.callback_registrar_destinations,
+        &abstract_operations,
+        &target_operations,
+        &assigned_target_operations,
+        &plan.callback_registrar_assigned_operands,
+        &object,
+        plan.entry_machine_name(),
+    )?;
     let relocations = build_relocation_plan(RelocationPlanningInput {
         target: plan.target,
         instructions: &target_operations,
@@ -127,6 +145,7 @@ pub fn insert_program_storage_entry_wrapper(
     plan.machine_instructions = machine_instructions;
     plan.encoded_machine = encoded_machine;
     plan.object = object;
+    plan.callback_private_object_stores = callback_private_object_stores;
     plan.relocations = relocations;
     Ok(())
 }
