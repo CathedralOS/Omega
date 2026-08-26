@@ -104,12 +104,19 @@ boundary trait WindowProcedure {
     machine call(message: u64) -> u64;
 }
 
+boundary trait UnusedProcedure {
+    machine call(message: u64) -> u64;
+}
+
 data Spread {
     entries: [FieldEntry; 64];
 }
 
 WndClassWindowProcedureSlot:
     Spread satisfies PrivateCallbackSlot<WindowProcedure::call>;
+
+UnusedWindowProcedureSlot:
+    Spread satisfies PrivateCallbackSlot<UnusedProcedure::call>;
 
 machine Spread::plan(&mut self, schema: Schema) -> Plan {
     self.entries[0] = FieldEntry {
@@ -233,6 +240,75 @@ fn target_selected_callback_policy_consumes_closed_layout_demand_catalog() {
     );
     compile_to_checked(&main_path, Some("windows_x64"))
         .expect("target-selected registrar should consume its exact closed demand catalog");
+}
+
+#[test]
+fn callback_private_materialization_requires_an_explicit_cited_demand() {
+    let source = CALLBACK_MATERIALIZATION_POLICY.replace(
+        "    Plan::place_private<WndClassWindowProcedureSlot>(plan, 8)",
+        "    plan",
+    );
+    let main_path = write_program("callback-uncited-demand", &source);
+    let diagnostics = compile_to_checked(&main_path, Some("windows_x64"))
+        .expect_err("a nominal callback binder cannot assume an uncited private demand");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        rendered.contains("omits a nominal callback binder"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
+fn callback_private_materialization_rejects_a_foreign_layout_subject() {
+    let source = CALLBACK_MATERIALIZATION_POLICY
+        .replace(
+            "data Spread {\n    entries: [FieldEntry; 64];\n}",
+            "data Spread {\n    entries: [FieldEntry; 64];\n}\n\ndata OtherSpread {\n    entries: [FieldEntry; 64];\n}",
+        )
+        .replace(
+            "Spread satisfies PrivateCallbackSlot<WindowProcedure::call>;",
+            "OtherSpread satisfies PrivateCallbackSlot<WindowProcedure::call>;",
+        );
+    let main_path = write_program("callback-wrong-layout", &source);
+    let diagnostics = compile_to_checked(&main_path, Some("windows_x64"))
+        .expect_err("a private slot cannot be cited by a foreign layout policy");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        rendered.contains("active layout producer") && rendered.contains("OtherSpread"),
+        "unexpected diagnostics:\n{rendered}"
+    );
+}
+
+#[test]
+fn callback_private_materialization_rejects_an_ambiguous_requirement_path() {
+    let source = CALLBACK_MATERIALIZATION_POLICY.replace(
+        "boundary trait WindowProcedure {\n    machine call(message: u64) -> u64;\n}",
+        "boundary trait WindowProcedure {\n    machine call(message: u64) -> u64;\n    machine call(message: i64) -> u64;\n}",
+    );
+    let main_path = write_program("callback-ambiguous-requirement", &source);
+    let diagnostics = compile_to_checked(&main_path, Some("windows_x64"))
+        .expect_err("a signature-free callback requirement must resolve uniquely");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        rendered.contains("overloads requirement `call`")
+            && rendered.contains("WindowProcedure::call"),
+        "unexpected diagnostics:\n{rendered}"
+    );
 }
 
 const INTERRUPT_POLICY: &str = r#"
