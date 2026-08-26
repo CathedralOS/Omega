@@ -72,7 +72,7 @@ The language spine and hosted build are:
 Alpha → Beta → Gamma → Delta
 Delta bridge source ──[lattice-built Delta compiler]──▶ omega-bootstrap
 Ωself product source ──[omega-bootstrap]──────────────▶ omega (full Ω; conservative binary)
-Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
+same Ωself product source ──[optional omega rebuild]──▶ omega (same compiler; optimized binary)
 ```
 
 The native Alpha executor and Alpha-written assembler are implementation

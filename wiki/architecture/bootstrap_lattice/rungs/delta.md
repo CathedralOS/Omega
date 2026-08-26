@@ -125,7 +125,7 @@ product optimizer and advanced lowering; it need not duplicate those passes:
 Delta compiler source ──[Delta→Gamma + Gamma execution]──▶ delta compiler
 Delta bridge source ──[delta compiler]───────────────────▶ omega-bootstrap
 Ωself product source ──[omega-bootstrap]──────────────▶ omega (implements full Ω)
-Ωself product source ──[optional omega rebuild]───────▶ omega (same compiler; optimized binary)
+same Ωself product source ──[optional omega rebuild]──▶ omega (same compiler; optimized binary)
 ```
 
 See [`../compiler_source_profile.md`](../compiler_source_profile.md) for the separate

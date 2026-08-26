@@ -23,7 +23,9 @@ existing decision procedure cannot settle it.
 
 ```text
 language capability: Alpha → Beta → Gamma → Delta → Omega
-build artifacts:     Alpha → Beta → Gamma → Delta → omega-bootstrap → omega [→ omega]
+build artifacts:     Alpha → Beta → Gamma → Delta → omega-bootstrap
+                     → omega (full Ω; conservative binary)
+                     [→ omega (same compiler; optimized binary)]
 ```
 
 `omega-bootstrap` is a Delta-written compiler artifact, not a language rung.
@@ -31,7 +33,8 @@ It accepts the ordinary-Omega product-source profile `Ωself` and builds the
 first production `omega`. That compiler already accepts full Omega and contains
 the optimizer and advanced lowering even if its own executable was lowered
 conservatively. The bracketed `omega` rebuild is optional executable
-optimization, not bootstrap closure.
+optimization of the same source closure, not bootstrap closure or another
+compiler generation.
 
 The bootstrap has only two remaining source-surface selections. Full Omega is
 already specified and is not a third bootstrap feature vote:
@@ -98,16 +101,6 @@ Current state, without extrapolating from bounded canaries:
 This table is the stopping-point summary. A row is not promoted by a nearby
 fixture or format version: only its stated whole-source and acceptance join
 closes it.
-
-Five coupled workstreams co-evolve until their join:
-
-| Workstream | Current evidence | Required closure |
-| --- | --- | --- |
-| Delta | corpus, native path, self-host, growing Delta→Gamma route | one frozen v1 contract over both complete required Delta source closures |
-| canonical Delta compiler | Delta-written self-host and bounded lower-rung runs | exact complete-source publication through Gamma joined to refinement |
-| `omega-bootstrap` | deterministic custody and selected vertical compiler slices | general `Ωself` frontend/backend, complete Delta source closure, frozen acceptance |
-| production `omega` source | checkpoint 000001 through the Psi lexer | remaining compiler phases, entrypoint closure, and final `Ωself` census |
-| hosted build | bounded bridge canaries | one validated bridge-built full-Omega compiler |
 
 Product source and source refactors belong to `OMEGA-PRODUCT-COMPILER-SOURCE` in
 [`TASKS.md`](TASKS.md). This queue owns checkpoint census, bridge acceptance,
@@ -279,16 +272,19 @@ fixture matrices, byte ceilings, and completed milestones remain with their
 contracts, gates, and Git history rather than as checked-off tasks here.
 
 - [ ] Carry checkpoint 000001's next directionally clear fixed-buffer slice:
-  guarded full-width `u64` indexing and mutation plus the direct trapping
-  `u64` leaf-plus-literal increment used by `SourceUnit::append` and
-  `byte_or_nul`. Preserve exact bounds, carry, destination-range, load/store,
-  and exhaustion behavior through source resolution, checked IR, Rust-free
-  meaning, conservative artifacts, and lower-rooted reconstruction. Keep
-  computed/effectful indexes, multiple observable traps, mutable slices,
-  unrelated `u64` arithmetic/relations, and broader allocation outside this
-  milestone. Implement it in focused successor modules rather than adding more
-  version branches to the historical resolver, backend, or all-versions
-  verifier.
+  guarded full-width `u64` indexing and mutation plus the authored Exact
+  `u64` leaf-plus-literal increment used by `SourceUnit::append`. The true-edge
+  `length < N` fact must justify `length + 1`; private checked lowering may
+  retain defensive carrier-overflow and destination-range traps, but those
+  traps are unreachable for admitted source and do not change the authored
+  arithmetic policy. Preserve the explicitly Trapping index policy used by
+  `byte_or_nul`, exact bounds, load/store, and exhaustion behavior through
+  source resolution, checked IR, Rust-free meaning, conservative artifacts,
+  and lower-rooted reconstruction. Keep computed/effectful indexes, multiple
+  observable traps, mutable slices, unrelated `u64` arithmetic/relations, and
+  broader allocation outside this milestone. Implement it in focused successor
+  modules rather than adding more version branches to the historical resolver,
+  backend, or all-versions verifier.
 - [ ] After one exact `Console::write_byte` provider occurrence has an admitted
   installation and evaluated target calling-plan identity, join OMGRSW9's
   selected row to the installed leaf, final bytes/certificate/entry, effects,
