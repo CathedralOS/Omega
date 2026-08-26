@@ -4993,17 +4993,20 @@ Remaining:
   both resolved targets in final text, and publishes distinct unrelocated/final
   byte evidence plus the physical state footprint and 24-byte sponsor-stack
   peak. Byte, symbol, span, relocation, target-policy, and encoder drift reject.
-  This evidence grants no installation custody and does not yet join the fixed/
+  A dependency-light full-image view now lets external-root installation bind
+  that exact plan, both complete unrelocated/final text coordinates, both
+  replayed runtime intervals, terminal identity, `InstalledCodeContext`, and
+  artifact into sealed `InstalledNativeFuelTransferCode` custody. Wrong profile,
+  interval bytes, complete image bytes, or installed occurrence reject. This is
+  deliberately byte custody only and does not yet join the fixed/
   `FuelSuspensionFree` sponsor policy or unlock the sealed installed-transfer
   constructor; other target runtimes also remain necessary for a complete
-  deployed path. The next engineering rung must keep two authorities distinct:
-  exact installed runtime-byte custody needs the complete unrelocated/final
-  image binding, while an installed sponsor-route receipt must join the resolved
-  sponsor call target to the exact root/provider entry, `InstalledCodeContext`,
-  artifact, and fixed suspension-free provision. The current arena-local sponsor
-  symbol and opaque provider validation identifiers establish neither join, so
-  adjacency in `DynamicNativeFuelMeterPlan` must not mint installed-transfer
-  authority.
+  deployed path. The next engineering rung must retain that distinction: an
+  installed sponsor-route receipt must join the resolved sponsor call target to
+  the exact root/provider entry, `InstalledCodeContext`, artifact, and fixed
+  suspension-free provision. The current arena-local sponsor symbol and opaque
+  provider validation identifiers establish no such join, so adjacency in
+  `DynamicNativeFuelMeterPlan` must not mint installed-transfer authority.
   Root admission now retains the selected native realization against the exact
   logical-fuel demand, provision, grant, installed-code context, and artifact.
   Existing fixed roots automatically produce the exact fixed realization;
@@ -5043,9 +5046,10 @@ Remaining:
   relocation fields, exact state footprint, and 24-byte realized sponsor-stack
   peak; profile, transport, reserved-register, displacement, alignment, and
   ceiling drift reject. These remain unrelocated target bytes, not executable
-  custody. The remaining native slice is to add AArch64, make image replay
-  produce the evidence, carry it through the installation format, and
-  construct the sealed installed-transfer custody.
+  custody. The remaining native slice is to add AArch64, carry transfer
+  evidence through the installation format, bind the exact installed sponsor
+  route, and only then construct the sealed executable installed-transfer
+  custody.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof

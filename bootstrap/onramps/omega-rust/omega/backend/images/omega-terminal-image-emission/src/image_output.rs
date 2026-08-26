@@ -370,6 +370,32 @@ impl TerminalNativeFuelTransferRuntimeExecutableImage {
     }
 }
 
+impl omega_terminal_installation_evidence::TerminalNativeFuelTransferRuntimeImageEvidence
+    for TerminalNativeFuelTransferRuntimeExecutableImage
+{
+    fn terminal_psi(&self) -> TerminalPsiIdentity {
+        self.terminal_psi()
+    }
+
+    fn target(&self) -> NativeTarget {
+        self.target()
+    }
+
+    fn unrelocated_text_bytes(&self) -> &[u8] {
+        self.artifact.text_bytes()
+    }
+
+    fn final_text_bytes(&self) -> &[u8] {
+        &self.output.final_text_bytes
+    }
+
+    fn transfer_runtime_evidence(
+        &self,
+    ) -> &omega_terminal_installation_evidence::TerminalNativeFuelTransferRuntimeEvidence {
+        &self.transfer_runtime_evidence
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeFuelExecutableImage {
     artifact: ValidatedTerminalNativeFuelArtifact,

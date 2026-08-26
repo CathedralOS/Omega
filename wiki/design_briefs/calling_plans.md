@@ -1183,6 +1183,15 @@ the validated installed site map and preserves the complete opaque native
 activation. Restoring that state at the same pre-charge check is the only fuel
 resume operation; no source-visible continuation or raw code address exists.
 
+Installed transfer-code custody and installed sponsor-route authority are
+separate joins. The former binds the complete compiler-authored and
+relocation-materialized image, the replayed transfer/resume intervals, and the
+exact installed-code context. The latter must bind the resolved sponsor call
+target to the selected root/provider entry and its fixed,
+`FuelSuspensionFree` provision. Possessing the bytes, an arena-local sponsor
+symbol, or compact provider receipt identities alone grants no executable
+transfer authority.
+
 The exhaustion-transfer plan must be executable without scheduling machinery,
 stack, locks, or authority held by the suspended activation. Its minimal
 compiler/target stub is outside logical-fuel charging and has separately
