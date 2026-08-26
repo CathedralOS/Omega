@@ -34,6 +34,10 @@ impl PlannedElfDynamicLinkInputs {
         self.imports.len()
     }
 
+    pub(crate) fn imports(&self) -> &[ElfImportRequest] {
+        &self.imports
+    }
+
     #[allow(dead_code)]
     pub(crate) fn into_parts(
         self,
