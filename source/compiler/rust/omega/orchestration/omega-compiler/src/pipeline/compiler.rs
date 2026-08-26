@@ -28,8 +28,59 @@ use std::sync::Arc;
 
 const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
 
+/// One typed production compiler invocation.
+///
+/// Test-only entry overrides and worker ceilings deliberately remain on the
+/// separate harness functions below. This request owns the production policy
+/// inputs that used to select distinct public orchestration paths.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompileRequest {
+    options: CompileOptions,
+    executable_tcb_policy: ExecutableTcbBuildPolicy,
+    artifact_policy: ArtifactEmissionPolicy,
+    package_inputs: Option<PackageCompilationInputs>,
+}
+
+impl CompileRequest {
+    pub fn new(options: CompileOptions) -> Self {
+        Self {
+            options,
+            executable_tcb_policy: ExecutableTcbBuildPolicy::default(),
+            artifact_policy: ArtifactEmissionPolicy::Full,
+            package_inputs: None,
+        }
+    }
+
+    pub fn with_executable_tcb_policy(
+        mut self,
+        executable_tcb_policy: ExecutableTcbBuildPolicy,
+    ) -> Self {
+        self.executable_tcb_policy = executable_tcb_policy;
+        self
+    }
+
+    pub fn with_artifact_policy(mut self, artifact_policy: ArtifactEmissionPolicy) -> Self {
+        self.artifact_policy = artifact_policy;
+        self
+    }
+
+    pub fn with_package_inputs(mut self, package_inputs: PackageCompilationInputs) -> Self {
+        self.package_inputs = Some(package_inputs);
+        self
+    }
+
+    pub const fn options(&self) -> &CompileOptions {
+        &self.options
+    }
+}
+
+/// Execute the single typed production compiler request.
+pub fn compile_request(request: CompileRequest) -> Result<CompileReport, Vec<Diagnostic>> {
+    run_on_compile_thread(move || Compiler::from_request(request).compile())
+}
+
 pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_with_policy(options, ExecutableTcbBuildPolicy::default())
+    compile_request(CompileRequest::new(options))
 }
 
 /// Compile using a complete reconciled package graph. Dependency imports are
@@ -39,7 +90,7 @@ pub fn compile_with_packages(
     options: CompileOptions,
     package_inputs: PackageCompilationInputs,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_with_policy_and_packages(options, ExecutableTcbBuildPolicy::default(), package_inputs)
+    compile_request(CompileRequest::new(options).with_package_inputs(package_inputs))
 }
 
 /// Compile with an explicit auxiliary-artifact policy. Executable/object
@@ -49,11 +100,7 @@ pub fn compile_with_artifact_policy(
     options: CompileOptions,
     artifact_policy: ArtifactEmissionPolicy,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    run_on_compile_thread(move || {
-        Compiler::with_executable_tcb_policy(options, ExecutableTcbBuildPolicy::default())
-            .with_artifact_policy(artifact_policy)
-            .compile()
-    })
+    compile_request(CompileRequest::new(options).with_artifact_policy(artifact_policy))
 }
 
 /// Test-harness seam for outer schedulers that run independent compilations
@@ -158,9 +205,7 @@ pub fn compile_with_policy(
     // lazily, so ordinary inputs pay nothing. A genuine panic (a compiler bug)
     // is re-raised on the calling thread, preserving today's crash-on-bug
     // behavior.
-    run_on_compile_thread(move || {
-        Compiler::with_executable_tcb_policy(options, executable_tcb_policy).compile()
-    })
+    compile_request(CompileRequest::new(options).with_executable_tcb_policy(executable_tcb_policy))
 }
 
 /// Package-aware compilation with an explicit executable-TCB policy.
@@ -169,11 +214,11 @@ pub fn compile_with_policy_and_packages(
     executable_tcb_policy: ExecutableTcbBuildPolicy,
     package_inputs: PackageCompilationInputs,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    run_on_compile_thread(move || {
-        Compiler::with_executable_tcb_policy(options, executable_tcb_policy)
-            .with_package_inputs(package_inputs)
-            .compile()
-    })
+    compile_request(
+        CompileRequest::new(options)
+            .with_executable_tcb_policy(executable_tcb_policy)
+            .with_package_inputs(package_inputs),
+    )
 }
 
 pub(super) fn run_on_compile_thread<T>(work: impl FnOnce() -> T + Send + 'static) -> T
@@ -493,6 +538,17 @@ pub struct Compiler {
 }
 
 impl Compiler {
+    fn from_request(request: CompileRequest) -> Self {
+        Self {
+            options: request.options,
+            executable_tcb_policy: request.executable_tcb_policy,
+            test_entry_machine_name: None,
+            worker_count: None,
+            artifact_policy: request.artifact_policy,
+            package_inputs: request.package_inputs,
+        }
+    }
+
     pub fn with_executable_tcb_policy(
         options: CompileOptions,
         executable_tcb_policy: ExecutableTcbBuildPolicy,
@@ -519,11 +575,6 @@ impl Compiler {
 
     fn with_artifact_policy(mut self, artifact_policy: ArtifactEmissionPolicy) -> Self {
         self.artifact_policy = artifact_policy;
-        self
-    }
-
-    fn with_package_inputs(mut self, package_inputs: PackageCompilationInputs) -> Self {
-        self.package_inputs = Some(package_inputs);
         self
     }
 

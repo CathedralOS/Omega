@@ -1919,6 +1919,16 @@ Remaining:
   arbitrary child modules without changing their ownership does not complete
   this task.
 
+  The first request-normalization rung is live. One typed `CompileRequest`
+  now owns the production compile options, executable-TCB policy, auxiliary
+  observation policy, and optional reconciled package graph, and one
+  `compile_request` operation constructs the production coordinator. The
+  existing public compatibility wrappers delegate to that operation; test
+  entry overrides and worker ceilings remain on explicitly separate harness
+  paths and cannot enter the production request. Requested-product stopping,
+  the checked/terminal route, output destination custody, and removal of the
+  compatibility wrappers remain open.
+
   Restore the driver contract:
 
   1. Replace the public `compile_with_*` Cartesian product with one

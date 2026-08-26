@@ -150,6 +150,14 @@ tree consumers. It does not serialize `StateGraph`, purify
 `AbstractOperations`, or place a second similar block IR beside
 `ControlFlowPlan`.
 
+The production driver now has one typed request boundary for its existing
+native route. That request carries compile options, executable-TCB policy,
+observation policy, and the optional reconciled package graph; compatibility
+entry points delegate to the same operation. Test entry overrides and worker
+ceilings remain outside it. This is request normalization only: it does not
+make the legacy checked-tree backend a terminal-Psi consumer, and it does not
+complete the mandatory cutover described in `TASKS.md`.
+
 ## Terminal requirements
 
 Terminal Psi is immutable and self-contained. It contains no arena handle that
