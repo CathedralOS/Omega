@@ -2,7 +2,7 @@ use std::fmt::Write;
 use std::path::PathBuf;
 
 use omega_compiler::{
-    ArtifactEmissionPolicy, CompileOptions, compile, compile_to_checked,
+    ArtifactEmissionPolicy, CompileOptions, compile_to_checked, compile_with_artifact_policy,
     compile_with_worker_count_and_artifact_policy,
 };
 use omega_core::allocations::CountingAllocator;
@@ -56,7 +56,7 @@ fn main() {
 
     let Some(arguments) = parse_arguments() else {
         eprintln!(
-            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit source-cache-policy --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]\n       omega refresh-samples [samples-dir]"
+            "usage: omega [--check] [--output-only] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit source-cache-policy --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]\n       omega refresh-samples [samples-dir]"
         );
         std::process::exit(2);
     };
@@ -68,7 +68,12 @@ fn main() {
         write_output: !arguments.check_only,
     };
 
-    match compile(options) {
+    let artifact_policy = if arguments.output_only {
+        ArtifactEmissionPolicy::OutputOnly
+    } else {
+        ArtifactEmissionPolicy::Full
+    };
+    match compile_with_artifact_policy(options, artifact_policy) {
         Ok(report) => {
             println!("{}", report.summary());
         }
@@ -847,6 +852,7 @@ fn collect_sample_mains(
 struct CliArguments {
     build_dir: Option<PathBuf>,
     check_only: bool,
+    output_only: bool,
     root_path: PathBuf,
     target_name: Option<String>,
 }
@@ -854,6 +860,7 @@ struct CliArguments {
 fn parse_arguments() -> Option<CliArguments> {
     let mut build_dir = None;
     let mut check_only = false;
+    let mut output_only = false;
     let mut root_path = None;
     let mut target_name = None;
     let mut arguments = std::env::args_os().skip(1);
@@ -861,6 +868,11 @@ fn parse_arguments() -> Option<CliArguments> {
     while let Some(argument) = arguments.next() {
         if argument == "--check" {
             check_only = true;
+            continue;
+        }
+
+        if argument == "--output-only" {
+            output_only = true;
             continue;
         }
 
@@ -888,6 +900,7 @@ fn parse_arguments() -> Option<CliArguments> {
     Some(CliArguments {
         build_dir,
         check_only,
+        output_only,
         root_path: root_path?,
         target_name,
     })
