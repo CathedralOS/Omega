@@ -4992,7 +4992,14 @@ Remaining:
   This evidence grants no installation custody and does not yet join the fixed/
   `FuelSuspensionFree` sponsor policy or unlock the sealed installed-transfer
   constructor; other target runtimes also remain necessary for a complete
-  deployed path.
+  deployed path. The next engineering rung must keep two authorities distinct:
+  exact installed runtime-byte custody needs the complete unrelocated/final
+  image binding, while an installed sponsor-route receipt must join the resolved
+  sponsor call target to the exact root/provider entry, `InstalledCodeContext`,
+  artifact, and fixed suspension-free provision. The current arena-local sponsor
+  symbol and opaque provider validation identifiers establish neither join, so
+  adjacency in `DynamicNativeFuelMeterPlan` must not mint installed-transfer
+  authority.
   Root admission now retains the selected native realization against the exact
   logical-fuel demand, provision, grant, installed-code context, and artifact.
   Existing fixed roots automatically produce the exact fixed realization;
