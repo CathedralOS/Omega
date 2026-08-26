@@ -7,7 +7,7 @@
   "build_source": "source/compiler/omega/build.omg",
   "source_file_count": 12,
   "content_set_sha256": "17a52ec4ff9c9699b3fb3d6d47d0de193f86fca6661c70467086200162df15cd",
-  "closure_sha256": "0e18097b9ef5d7cc1ba67d04c0814d71d856c6246bfd6b7f50f15d3f67d64bb8",
+  "closure_sha256": "722e04a62c75d805409ca08108d17af5e6266d9bf03b0132eb958f0848556b93",
   "configurations": [
     {
       "native_provider_substitution": true,
@@ -179,17 +179,17 @@
     {
       "path": "Cargo.lock",
       "role": "generator_dependency_lock",
-      "sha256": "dafccaf678e64127a086f44ce03b6735e9cf0af633b26acd68e26b1efb05ca03"
+      "sha256": "6a73fd8db42de03ed98ef0e6e95c55b877c5c850fd0ebd46ba475e3aee45606c"
     },
     {
       "path": "Cargo.toml",
       "role": "generator_workspace_manifest",
-      "sha256": "f62238dba922e8945d2c99a62cffc2939df369e950e1d1096f6110194dd197cc"
+      "sha256": "13bc8085f4addc51478c0b6bb0563eae817a40f83222032e5c2162ffa5db96ef"
     },
     {
       "path": "source/compiler/rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs",
       "role": "virtual_source_provider",
-      "sha256": "1bf33ef72fb021ca6292243930e3161445f4780f2d28cd4838e8f8daf933855f"
+      "sha256": "fb1839b08da99c9c78a55600e6712507e87a584eda229d5f7e2b4971d8774aba"
     },
     {
       "path": "source/compiler/rust/psi/pipeline/psi-source-files-to-tokens/Cargo.toml",
