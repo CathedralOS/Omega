@@ -373,9 +373,26 @@ pub data Subsystem {
     case EfiApplication;
     case Unspecified(value: u16);
 }
+pub data Optimization {
+    case ControlFlowCleanup;
+    case SparseConditionalConstantPropagation;
+    case CopyPropagation;
+    case GlobalValueNumbering;
+    case DeadPureScalarElimination;
+    case ProofCheckElision;
+}
+pub data Optimizations {
+    control_flow_cleanup: u8 in Trapping;
+    sparse_conditional_constant_propagation: u8 in Trapping;
+    copy_propagation: u8 in Trapping;
+    global_value_numbering: u8 in Trapping;
+    dead_pure_scalar_elimination: u8 in Trapping;
+    proof_check_elision: u8 in Trapping;
+}
 pub data Build {
     subsystem: Subsystem;
     freestanding: bool;
+    optimizations: Optimizations;
 }
 pub data Source {
     case Path(location: &[u8]);
@@ -391,6 +408,40 @@ pub machine Build::application(&mut self, name: &[u8]) {
 }
 pub machine Build::member(&mut self, path: &[u8]) {
 }
+pub machine Optimizations::enable(&mut self, optimization: Optimization) {
+    transition optimization {
+        Optimization::ControlFlowCleanup -> control_flow_cleanup()
+        Optimization::SparseConditionalConstantPropagation -> sparse_conditional_constant_propagation()
+        Optimization::CopyPropagation -> copy_propagation()
+        Optimization::GlobalValueNumbering -> global_value_numbering()
+        Optimization::DeadPureScalarElimination -> dead_pure_scalar_elimination()
+        Optimization::ProofCheckElision -> proof_check_elision()
+    }
+
+    state control_flow_cleanup(&mut self) {
+        self.control_flow_cleanup = self.control_flow_cleanup + 1;
+    }
+
+    state sparse_conditional_constant_propagation(&mut self) {
+        self.sparse_conditional_constant_propagation = self.sparse_conditional_constant_propagation + 1;
+    }
+
+    state copy_propagation(&mut self) {
+        self.copy_propagation = self.copy_propagation + 1;
+    }
+
+    state global_value_numbering(&mut self) {
+        self.global_value_numbering = self.global_value_numbering + 1;
+    }
+
+    state dead_pure_scalar_elimination(&mut self) {
+        self.dead_pure_scalar_elimination = self.dead_pure_scalar_elimination + 1;
+    }
+
+    state proof_check_elision(&mut self) {
+        self.proof_check_elision = self.proof_check_elision + 1;
+    }
+}
 "#;
 
 const FILESYSTEM_BUILD_PRELUDE: &str = r#"
@@ -401,6 +452,22 @@ pub data Subsystem {
     case EfiApplication;
     case Unspecified(value: u16);
 }
+pub data Optimization {
+    case ControlFlowCleanup;
+    case SparseConditionalConstantPropagation;
+    case CopyPropagation;
+    case GlobalValueNumbering;
+    case DeadPureScalarElimination;
+    case ProofCheckElision;
+}
+pub data Optimizations {
+    control_flow_cleanup: u8 in Trapping;
+    sparse_conditional_constant_propagation: u8 in Trapping;
+    copy_propagation: u8 in Trapping;
+    global_value_numbering: u8 in Trapping;
+    dead_pure_scalar_elimination: u8 in Trapping;
+    proof_check_elision: u8 in Trapping;
+}
 pub data BuildSource {
 }
 pub data BuildOutput {
@@ -408,6 +475,7 @@ pub data BuildOutput {
 pub data Build {
     subsystem: Subsystem;
     freestanding: bool;
+    optimizations: Optimizations;
     source: BuildSource;
     output: BuildOutput;
     filesystem: FilesystemHost;
@@ -425,6 +493,40 @@ pub machine Build::package(&mut self, name: &[u8]) {
 pub machine Build::application(&mut self, name: &[u8]) {
 }
 pub machine Build::member(&mut self, path: &[u8]) {
+}
+pub machine Optimizations::enable(&mut self, optimization: Optimization) {
+    transition optimization {
+        Optimization::ControlFlowCleanup -> control_flow_cleanup()
+        Optimization::SparseConditionalConstantPropagation -> sparse_conditional_constant_propagation()
+        Optimization::CopyPropagation -> copy_propagation()
+        Optimization::GlobalValueNumbering -> global_value_numbering()
+        Optimization::DeadPureScalarElimination -> dead_pure_scalar_elimination()
+        Optimization::ProofCheckElision -> proof_check_elision()
+    }
+
+    state control_flow_cleanup(&mut self) {
+        self.control_flow_cleanup = self.control_flow_cleanup + 1;
+    }
+
+    state sparse_conditional_constant_propagation(&mut self) {
+        self.sparse_conditional_constant_propagation = self.sparse_conditional_constant_propagation + 1;
+    }
+
+    state copy_propagation(&mut self) {
+        self.copy_propagation = self.copy_propagation + 1;
+    }
+
+    state global_value_numbering(&mut self) {
+        self.global_value_numbering = self.global_value_numbering + 1;
+    }
+
+    state dead_pure_scalar_elimination(&mut self) {
+        self.dead_pure_scalar_elimination = self.dead_pure_scalar_elimination + 1;
+    }
+
+    state proof_check_elision(&mut self) {
+        self.proof_check_elision = self.proof_check_elision + 1;
+    }
 }
 pub machine BuildSource::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
     relative
@@ -1227,6 +1329,74 @@ mod tests {
             psi_syntax_trees::item::Item::Machine(machine)
                 if machine.attached_data.is_none() && machine.name.as_str() == "path"
         )));
+    }
+
+    #[test]
+    fn both_build_preludes_own_the_exact_optimization_vocabulary() {
+        for prelude in [BUILD_PRELUDE, FILESYSTEM_BUILD_PRELUDE] {
+            let tokens = psi_source_files_to_tokens::Lexer::new(prelude)
+                .tokenize()
+                .expect("toolchain build prelude must lex");
+            let syntax_trees = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+                .expect("toolchain build prelude must parse as ordinary Omega");
+            let optimization = syntax_trees
+                .root_items()
+                .find_map(|item| match item {
+                    psi_syntax_trees::item::Item::Data(data)
+                        if data.name.as_str() == "Optimization" =>
+                    {
+                        Some(data)
+                    }
+                    _ => None,
+                })
+                .expect("build prelude must define Optimization");
+            assert_eq!(
+                syntax_trees
+                    .items
+                    .data_members(optimization.members)
+                    .iter()
+                    .filter_map(|member| match member {
+                        psi_syntax_trees::item::DataMember::Variant(variant) => {
+                            Some(variant.name.as_str())
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+                [
+                    "ControlFlowCleanup",
+                    "SparseConditionalConstantPropagation",
+                    "CopyPropagation",
+                    "GlobalValueNumbering",
+                    "DeadPureScalarElimination",
+                    "ProofCheckElision",
+                ]
+            );
+            let build = syntax_trees
+                .root_items()
+                .find_map(|item| match item {
+                    psi_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => {
+                        Some(data)
+                    }
+                    _ => None,
+                })
+                .expect("build prelude must define Build");
+            assert!(
+                syntax_trees
+                    .items
+                    .data_members(build.members)
+                    .iter()
+                    .any(|member| matches!(
+                        member,
+                        psi_syntax_trees::item::DataMember::Field(field)
+                            if field.name.as_str() == "optimizations"
+                    ))
+            );
+            assert!(syntax_trees.root_items().any(|item| matches!(
+                item,
+                psi_syntax_trees::item::Item::Machine(machine)
+                    if machine.name.as_str() == "Optimizations::enable"
+            )));
+        }
     }
 
     fn empty_emission(target: NativeTarget) -> omega_artifacts::EmissionPlan {

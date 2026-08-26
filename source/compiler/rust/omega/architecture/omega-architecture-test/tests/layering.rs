@@ -804,6 +804,7 @@ fn psi_reference_execution_ownership_and_terminal_lane_are_enforced() {
 
     let graph = load_graph();
     let roots = [
+        "omega-optimization-core",
         "omega-terminal-abstract-operations",
         "omega-terminal-psi-to-abstract-operations",
         "omega-terminal-abstract-operations-to-target-operations",

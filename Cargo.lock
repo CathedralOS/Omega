@@ -417,6 +417,7 @@ dependencies = [
  "omega-layout",
  "omega-machine-bytes",
  "omega-object-file",
+ "omega-optimization-core",
  "omega-platform-interface",
  "omega-runtime-bodies",
  "omega-runtime-branching",
@@ -960,6 +961,13 @@ dependencies = [
  "psi-arena",
  "psi-diagnostics",
  "psi-symbols",
+]
+
+[[package]]
+name = "omega-optimization-core"
+version = "0.1.0"
+dependencies = [
+ "sha2",
 ]
 
 [[package]]

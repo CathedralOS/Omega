@@ -26,6 +26,7 @@ pub struct CheckedCompilation {
     selected_native_target: Option<omega_target::NativeTarget>,
     selected_program_entry_machine: Option<String>,
     selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
+    optimization_selections: omega_optimization_core::OptimizationSelections,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     selected_provider_provenance: Vec<super::provider_plans::SelectedProviderReviewProvenance>,
     component_progress: Option<omega_effects::ComponentProgressManifest>,
@@ -95,6 +96,14 @@ impl CheckedCompilation {
     /// is represented by `None`; callers must not rediscover one by name.
     pub const fn selected_build_machine_symbol(&self) -> Option<psi_symbols::SymbolHandle> {
         self.selected_build_machine_symbol
+    }
+
+    /// Exact named optimizations selected by the authoritative root build.
+    /// Empty retains the ordinary, optimizer-free compilation path.
+    pub const fn optimization_selections(
+        &self,
+    ) -> &omega_optimization_core::OptimizationSelections {
+        &self.optimization_selections
     }
 
     pub const fn selected_provider_plans(&self) -> &omega_effects::SelectedProviderPlanFacts {
@@ -534,6 +543,7 @@ fn compile_to_checked_inner_with_replay(
     let build_evaluation_usage = computed_build_config.evaluation_usage;
     let build_observation_summary = computed_build_config.observation_summary;
     let build_config = computed_build_config.config;
+    let optimization_selections = build_config.optimizations.clone();
     // A semantic-only checked compilation has no selected target and therefore
     // no storage root. Authored bindings remain available in the evaluated
     // build configuration, but only an exact target selection may activate one
@@ -690,6 +700,7 @@ fn compile_to_checked_inner_with_replay(
         selected_native_target,
         selected_program_entry_machine,
         selected_build_machine_symbol,
+        optimization_selections,
         selected_provider_plans: selected_provider_plan_facts,
         selected_provider_provenance,
         component_progress,

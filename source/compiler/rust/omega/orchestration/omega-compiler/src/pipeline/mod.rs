@@ -15,6 +15,7 @@ mod component_progress;
 mod float_intrinsic_dispatch;
 pub mod frontend;
 mod operator_adapter_dispatch;
+mod optimization_gate;
 mod output;
 mod package_compilation;
 mod package_declaration_admission;

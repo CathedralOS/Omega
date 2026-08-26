@@ -4,6 +4,10 @@ pub(crate) use psi_source as source;
 pub(crate) use psi_source_files_to_tokens as lexer;
 pub(crate) use psi_tokens_to_syntax_trees as parser;
 
+pub use omega_optimization_core::{
+    Optimization, OptimizationSelectionIdentity, OptimizationSelections,
+};
+
 pub use psi_checked_interpreter::{
     FilesystemSponsor, FilesystemSponsorError, FilesystemSponsorLimits,
 };

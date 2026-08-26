@@ -41,6 +41,7 @@ members = [
     "source/compiler/rust/psi/semantics/psi-proof",
     "source/compiler/rust/psi/semantics/psi-types",
     "source/compiler/rust/omega/foundation/omega-core",
+    "source/compiler/rust/omega/foundation/omega-optimization-core",
     "source/compiler/rust/omega/foundation/omega-target",
     "source/compiler/rust/omega/foundation/omega-calling-conventions",
     "source/compiler/rust/omega/foundation/omega-executable-installation",
