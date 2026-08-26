@@ -8605,12 +8605,23 @@ boundary without its corresponding checked law.
   virtual-address fields. An independent bounded decoder requires the exact
   table length with no trailing bytes and replays every field, row, fixup
   coordinate, zero placeholder, bound, non-overlap relationship, identity,
-  and roster custody. It assigns no placement or `e_shoff`. Runnable ELF
+  and roster custody. It assigns no placement or `e_shoff`. The indexed-payload
+  rung now consumes those templates and joins every numeric
+  row to its exact already-owned bytes: null, the six base dynamic payloads,
+  PLT/GOT.PLT/RELA.PLT, `.dynamic`, and `.shstrtab`. Each row is byte-identical
+  to its upstream serializer and size-identical to its numeric descriptor.
+  Separate typed fixup families retain every procedure-linkage/source-text
+  obligation and all seven dynamic-table obligations while mapping section
+  storage and semantic targets to their exact numeric rows; source text remains
+  an explicit non-section storage domain, and the twenty-one section-header
+  placement fixups remain in their original owner. Independent replay checks
+  exact row coverage, bytes, sizes, fixups, masks, zero placeholders,
+  constraints, storage bounds and targets, deterministic identity, and complete
+  header-template custody. It resolves no address or placement. Runnable ELF
   emission remains fail closed before image mutation: section-header
   placement and fixup resolution, `PT_INTERP` program-header placement,
   `PT_DYNAMIC`, `.dynamic` address resolution, optional
-  `.gnu.hash`, numeric indexes for `.plt`/`.got.plt`/`.rela.plt`, address-
-  resolved fixup application, complete
+  `.gnu.hash`, address-resolved fixup application, complete
   load/program-header layout, image mutation, and independent final-byte
   replay remain unimplemented. Validated semantic tags do not constitute a dynamic image.
   The generic contextual byte-literal rung is also live for owned direct

@@ -22,6 +22,7 @@ mod imports;
 mod layout;
 mod section_header_bytes;
 mod section_name_table;
+mod section_payload_roster;
 mod section_roster;
 mod sections;
 #[cfg(test)]
@@ -70,6 +71,10 @@ pub use section_header_bytes::{
 };
 pub use section_name_table::{
     ElfSectionNameTablePlanningError, ValidatedElfSectionNameTablePlan, plan_elf_section_name_table,
+};
+pub use section_payload_roster::{
+    ElfIndexedSectionPayloadPlanningError, ValidatedElfIndexedSectionPayloadPlan,
+    plan_elf_indexed_section_payloads,
 };
 pub use section_roster::{
     ElfDynamicSectionRosterPlanningError, ValidatedElfDynamicSectionRoster,
