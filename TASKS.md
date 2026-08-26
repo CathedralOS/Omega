@@ -4971,10 +4971,18 @@ Remaining:
   exact installed-code receipt. This is the sole constructor for installed
   dynamic attribution; missing/reordered rows, source drift, overlapping or
   out-of-range charge intervals, target/profile drift, and either side of an
-  installed byte mismatch reject. The admitted context transfer entry remains
-  responsible for the separately validated opaque-state save, sponsor-stack
-  switch, and fixed/`FuelSuspensionFree` policy path; those target/runtime bytes
-  remain necessary for a complete deployed path.
+  installed byte mismatch reject. Linux x86-64 now also has a separately
+  replayed transfer-runtime artifact: the target encoder emits the exact
+  opaque-state save/restore, sponsor-stack switch/call, and `.text`-relative
+  retry jump; the image owner appends exactly two compiler-function symbols and
+  two typed `rel32` relocations, replays the complete object extension, verifies
+  both resolved targets in final text, and publishes distinct unrelocated/final
+  byte evidence plus the physical state footprint and 24-byte sponsor-stack
+  peak. Byte, symbol, span, relocation, target-policy, and encoder drift reject.
+  This evidence grants no installation custody and does not yet join the fixed/
+  `FuelSuspensionFree` sponsor policy or unlock the sealed installed-transfer
+  constructor; other target runtimes also remain necessary for a complete
+  deployed path.
   Root admission now retains the selected native realization against the exact
   logical-fuel demand, provision, grant, installed-code context, and artifact.
   Existing fixed roots automatically produce the exact fixed realization;

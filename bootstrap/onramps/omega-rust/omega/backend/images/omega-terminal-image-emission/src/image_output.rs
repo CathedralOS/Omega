@@ -10,12 +10,16 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use psi_diagnostics::Diagnostic;
 use psi_terminal::TerminalPsiIdentity;
 
-use super::final_image_validation::{validate_terminal_image, validate_terminal_native_fuel_image};
+use super::final_image_validation::{
+    validate_terminal_image, validate_terminal_native_fuel_image,
+    validate_terminal_native_fuel_transfer_runtime_image,
+};
 use super::{
     LINUX_X86_SCALAR_EXIT_SHIM_BYTES, SCALAR_CALL_REFERENCE_FINGERPRINT,
     TerminalLinuxX86ScalarExitShim, TerminalObjectArtifact, TerminalObjectBoundarySettlement,
     TerminalObjectFuelAttribution, TerminalObjectFunction, TerminalObjectPortEffect,
     ValidatedTerminalNativeFuelArtifact, ValidatedTerminalNativeFuelFunction,
+    ValidatedTerminalNativeFuelTransferRuntimeArtifact,
 };
 use omega_terminal_installation_evidence::NativeFuelTargetPlanProjection;
 
@@ -279,6 +283,91 @@ pub fn emit_terminal_native_fuel_executable_image(
         subsystem: matches!(target.object_format, ObjectFormat::Coff).then_some(subsystem),
         output,
     })
+}
+
+/// Emit and replay-validate an image containing the exact compiler-owned
+/// transfer and resume entries. The returned runtime evidence is read-only;
+/// this operation does not grant installation or executable custody.
+pub fn emit_terminal_native_fuel_transfer_runtime_executable_image(
+    artifact: &ValidatedTerminalNativeFuelTransferRuntimeArtifact,
+    subsystem: u16,
+) -> Result<TerminalNativeFuelTransferRuntimeExecutableImage, Diagnostic> {
+    let target = artifact.metered_artifact().semantic_artifact().target();
+    if !can_emit_terminal_executable_image(target) {
+        return Err(Diagnostic::error(format!(
+            "cannot emit native fuel transfer image for {target:?}"
+        )));
+    }
+    let image = omega_image::build_final_image(FinalImageInput {
+        target,
+        object: artifact.object(),
+        relocations: artifact.relocations(),
+        text_bytes: artifact.text_bytes(),
+        data_bytes: &[],
+    });
+    let output = match (target.object_format, target.architecture) {
+        (ObjectFormat::Elf, Architecture::X86_64) => {
+            omega_image_elf::emit_elf_x86_64_executable(image)
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "native fuel transfer runtime has no terminal image emitter for {target:?}"
+            )));
+        }
+    }?;
+    let mut output = emitted_direct_executable_output(output);
+    let (compiler_text_validation, transfer_runtime_evidence) =
+        validate_terminal_native_fuel_transfer_runtime_image(artifact, &output)?;
+    output.compiler_text_validation = Some(compiler_text_validation);
+    Ok(TerminalNativeFuelTransferRuntimeExecutableImage {
+        artifact: artifact.clone(),
+        subsystem: matches!(target.object_format, ObjectFormat::Coff).then_some(subsystem),
+        output,
+        transfer_runtime_evidence,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalNativeFuelTransferRuntimeExecutableImage {
+    artifact: ValidatedTerminalNativeFuelTransferRuntimeArtifact,
+    subsystem: Option<u16>,
+    output: EmittedImageOutput,
+    transfer_runtime_evidence:
+        omega_terminal_installation_evidence::TerminalNativeFuelTransferRuntimeEvidence,
+}
+
+impl TerminalNativeFuelTransferRuntimeExecutableImage {
+    pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
+        self.artifact
+            .metered_artifact()
+            .semantic_artifact()
+            .terminal_psi()
+    }
+
+    pub const fn target(&self) -> NativeTarget {
+        self.artifact
+            .metered_artifact()
+            .semantic_artifact()
+            .target()
+    }
+
+    pub const fn subsystem(&self) -> Option<u16> {
+        self.subsystem
+    }
+
+    pub const fn artifact(&self) -> &ValidatedTerminalNativeFuelTransferRuntimeArtifact {
+        &self.artifact
+    }
+
+    pub const fn output(&self) -> &EmittedImageOutput {
+        &self.output
+    }
+
+    pub const fn transfer_runtime_evidence(
+        &self,
+    ) -> &omega_terminal_installation_evidence::TerminalNativeFuelTransferRuntimeEvidence {
+        &self.transfer_runtime_evidence
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

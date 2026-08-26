@@ -22,6 +22,7 @@ mod installation;
 mod installed_artifact;
 mod instruction_loads;
 mod native_fuel;
+mod native_fuel_runtime;
 mod partial_cleanup_partition;
 mod scalar_call_stack;
 mod scalar_cleanup_preservation;
@@ -42,10 +43,12 @@ mod unit_call_custody;
 mod unit_stack;
 
 pub use image_output::{
-    TerminalExecutableImage, TerminalNativeFuelExecutableImage, TerminalObjectContainer,
+    TerminalExecutableImage, TerminalNativeFuelExecutableImage,
+    TerminalNativeFuelTransferRuntimeExecutableImage, TerminalObjectContainer,
     TerminalScalarCallReferenceImage, can_emit_terminal_executable_image,
     emit_terminal_executable_image, emit_terminal_native_fuel_executable_image,
-    emit_terminal_native_fuel_object_container, emit_terminal_object_container,
+    emit_terminal_native_fuel_object_container,
+    emit_terminal_native_fuel_transfer_runtime_executable_image, emit_terminal_object_container,
     emit_terminal_scalar_call_reference_linux_x86_64_image,
 };
 pub use installation::*;
@@ -56,6 +59,10 @@ pub use installed_artifact::{
 pub use native_fuel::{
     TerminalNativeFuelValidationError, ValidatedTerminalNativeFuelArtifact,
     ValidatedTerminalNativeFuelFunction, validate_terminal_native_fuel_plan,
+};
+pub use native_fuel_runtime::{
+    TerminalNativeFuelRuntimeEntryBinding, TerminalNativeFuelTransferRuntimeError,
+    ValidatedTerminalNativeFuelTransferRuntimeArtifact, bind_terminal_native_fuel_transfer_runtime,
 };
 pub(crate) use partial_cleanup_partition::exact_partial_cleanup_partition;
 pub use stack_demand::{derive_terminal_stack_demand, derive_terminal_unit_stack_demand};
