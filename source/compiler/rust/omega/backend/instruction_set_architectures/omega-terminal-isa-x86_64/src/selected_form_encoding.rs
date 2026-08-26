@@ -42,6 +42,7 @@ pub enum X86_64SelectedFormEncodingError {
     UnknownOrNonGpr64View(RegisterViewId),
     IntegerOutsideI64Bits,
     ImmediateOutsideU12,
+    BranchDisplacementOutsideI32,
     MalformedEncoding,
     EncodedFormMismatch,
 }
@@ -53,6 +54,73 @@ impl std::fmt::Display for X86_64SelectedFormEncodingError {
 }
 
 impl std::error::Error for X86_64SelectedFormEncodingError {}
+
+/// Encode the canonical layout-resolved realization of
+/// `ConditionalBranchNonZero`. The displacement is measured from the end of
+/// this six-byte near branch, as required by x86-64.
+pub fn encode_x86_64_terminal_selected_nonzero_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: TerminalMachineAlternativeKey,
+    byte_displacement_from_instruction_end: i64,
+) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    validate_branch_request(physical, alternative)?;
+    let displacement = i32::try_from(byte_displacement_from_instruction_end)
+        .map_err(|_| X86_64SelectedFormEncodingError::BranchDisplacementOutsideI32)?;
+    let mut bytes = vec![0x0f, 0x85];
+    bytes.extend(displacement.to_le_bytes());
+    validate_x86_64_terminal_selected_nonzero_branch_form(
+        physical,
+        alternative,
+        byte_displacement_from_instruction_end,
+        &bytes,
+    )
+}
+
+pub fn validate_x86_64_terminal_selected_nonzero_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: TerminalMachineAlternativeKey,
+    byte_displacement_from_instruction_end: i64,
+    bytes: &[u8],
+) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    validate_branch_request(physical, alternative)?;
+    let expected = i32::try_from(byte_displacement_from_instruction_end)
+        .map_err(|_| X86_64SelectedFormEncodingError::BranchDisplacementOutsideI32)?;
+    let actual = bytes
+        .get(2..6)
+        .filter(|_| bytes.len() == 6 && bytes[..2] == [0x0f, 0x85])
+        .and_then(|bytes| bytes.try_into().ok())
+        .map(i32::from_le_bytes)
+        .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?;
+    if actual != expected {
+        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    Ok(ValidatedX86_64SelectedFormEncoding {
+        bytes: bytes.to_vec(),
+        footprint: footprint(
+            TerminalSelectedInstructionKind::ConditionalBranchNonZero,
+            alternative,
+            &[],
+        ),
+    })
+}
+
+fn validate_branch_request(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: TerminalMachineAlternativeKey,
+) -> Result<(), X86_64SelectedFormEncodingError> {
+    if physical.model() != &x86_64_physical_register_model() {
+        return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
+    }
+    if alternative
+        != (TerminalMachineAlternativeKey {
+            family: TerminalMachineAlternativeFamily::ConditionalBranchNonZero,
+            variant: 0,
+        })
+    {
+        return Err(X86_64SelectedFormEncodingError::AlternativeMismatch);
+    }
+    Ok(())
+}
 
 pub fn encode_x86_64_terminal_selected_form(
     physical: &ValidatedPhysicalRegisterModel,
@@ -633,9 +701,7 @@ fn footprint(
             (vec![operands[0], operands[1]], vec![operands[2]], true)
         }
         TerminalSelectedInstructionKind::ReturnI64 => (vec![], vec![], false),
-        TerminalSelectedInstructionKind::ConditionalBranchNonZero => {
-            unreachable!("control forms reject before footprint")
-        }
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero => (vec![], vec![], false),
     };
     let physical = x86_64_physical_register_model();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
@@ -661,6 +727,25 @@ fn footprint(
             },
             trap: TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1,
             control: TerminalMachineEncodedControlEffect::ReturnFromActivationStackV1,
+        }
+    } else if matches!(
+        kind,
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero
+    ) {
+        let mut uses = units("rflags");
+        uses.extend(units("rip"));
+        uses.sort_unstable();
+        uses.dedup();
+        TerminalMachineEncodedEffects {
+            external_operand_reads: vec![],
+            external_operand_writes: vec![],
+            implicit_unit_uses: uses,
+            implicit_unit_defs: units("rip"),
+            implicit_unit_clobbers: vec![],
+            memory: TerminalMachineEncodedMemoryEffect::NoneV1,
+            stack: TerminalMachineEncodedStackEffect::UnchangedV1,
+            trap: TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            control: TerminalMachineEncodedControlEffect::ConditionalRelativeBranchV1,
         }
     } else {
         let mut effects = TerminalMachineEncodedEffects::fallthrough_v1(
@@ -882,6 +967,60 @@ mod tests {
                 alternative,
                 &[rax],
                 &[0xc3, 0xc3]
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn near_nonzero_branch_has_exact_end_relative_displacement_and_effects() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let alternative = alternative(
+            TerminalMachineAlternativeFamily::ConditionalBranchNonZero,
+            0,
+        );
+        for displacement in [i64::from(i32::MIN), -6, 0, 6, i64::from(i32::MAX)] {
+            let encoded = encode_x86_64_terminal_selected_nonzero_branch_form(
+                &physical,
+                alternative,
+                displacement,
+            )
+            .unwrap();
+            assert_eq!(&encoded.bytes()[..2], [0x0f, 0x85]);
+            assert_eq!(
+                i32::from_le_bytes(encoded.bytes()[2..].try_into().unwrap()),
+                displacement as i32
+            );
+            assert!(encoded.footprint().register_reads.is_empty());
+            assert!(encoded.footprint().register_writes.is_empty());
+            assert_eq!(
+                encoded.footprint().encoded.control,
+                TerminalMachineEncodedControlEffect::ConditionalRelativeBranchV1
+            );
+        }
+        assert!(
+            encode_x86_64_terminal_selected_nonzero_branch_form(
+                &physical,
+                alternative,
+                i64::from(i32::MAX) + 1
+            )
+            .is_err()
+        );
+        assert!(
+            validate_x86_64_terminal_selected_nonzero_branch_form(
+                &physical,
+                alternative,
+                0,
+                &[0x0f, 0x84, 0, 0, 0, 0]
+            )
+            .is_err()
+        );
+        assert!(
+            validate_x86_64_terminal_selected_nonzero_branch_form(
+                &physical,
+                alternative,
+                0,
+                &[0x0f, 0x85, 0, 0, 0, 0, 0]
             )
             .is_err()
         );
