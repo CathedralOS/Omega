@@ -805,7 +805,17 @@ impl DirectTerminalRelationPlan {
                     .filter(|row| row.application == theorem_schema::TheoremApplicationSide::Left)
                     .count();
                 let right = implication.rows.len() - left;
-                format!("Q=>P=[left:{left}, right:{right}]")
+                let arithmetic = implication
+                    .rows
+                    .iter()
+                    .filter(|row| {
+                        matches!(
+                            row.proof,
+                            correspondence_certificate::DirectLiftPreconditionProof::ArithmeticEntailment { .. }
+                        )
+                    })
+                    .count();
+                format!("Q=>P=[left:{left}, right:{right}, arithmetic:{arithmetic}]")
             })
     }
 

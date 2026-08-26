@@ -353,3 +353,51 @@ enters the durable artifact implicitly.
   development host's concrete profile.
 - Tempting but wrong: add a magical `Target::Host` case whose meaning changes
   after source evaluation or is omitted from normalized build identity.
+
+## Q9 — Explicit transport authority for quotient preconditions
+
+### Context
+
+Quotient representative checking now admits exact substituted public `Q` facts
+and strict integer `ProofFact::Expression` entailment. The arithmetic rung uses
+the complete ordered public-`Q` premise roster, exact side-specific symbol,
+static, and literal substitution, and a deterministic `Proven` judgment with
+canonical replay evidence. Quotient-domain membership facts and opaque
+proposition families are intentionally outside that engine language.
+
+### Problem statement
+
+A carrier-facing representative precondition `P` may follow from a
+quotient-facing public condition `Q` through a transport or weakening theorem,
+but the language does not say which declaration owns that theorem or how one is
+selected for each left and right representative application. Inferring the
+authority from ambient domain links, visibility search, same-spelled
+propositions, or an opaque solver verdict would make acceptance depend on
+context rather than authored relation identity. It would also leave no stable
+identity or premise/application record for Terminal replay.
+
+### Proposed direction
+
+Require one explicit authored selection at a settled declaration locus in the
+quotient or law-bearing relation surface. Resolve the selected transport or
+weakening theorem to canonical identity and apply it independently to each
+representative side with exact `Q` premises and `P` goal coordinates. Retain
+the theorem identity, ordered premises, side, substitutions, and resulting
+application evidence so validation and Terminal replay consume the same proof
+object. Omission, ambiguity, inapplicability, or identity drift must fail
+closed.
+
+### Alternates
+
+- Acceptable if proposition families themselves own transport: require an
+  explicit canonical transport declaration on each family and have the
+  quotient select that declaration by identity rather than visibility.
+- Acceptable if relations own transport: add explicit left/right theorem
+  selections to the relation declaration, even when both sides select the same
+  theorem.
+- Tempting but wrong: treat a quotient-to-carrier domain link as proof of every
+  membership or proposition implication between those domains.
+- Tempting but wrong: search visible theorems and choose the unique theorem
+  that happens to type-check at the use site.
+- Tempting but wrong: retain only a solver `Proven` verdict without the selected
+  theorem identity, ordered premises, per-side application, and replay data.

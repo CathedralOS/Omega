@@ -846,7 +846,18 @@ structural substitution can match a dependent representative `P` fact that
 mentions a literal-fed parameter only when public `Q` contains the identical
 post-substitution fact. Boolean value, integer spelling, landed type and
 arithmetic domain, and float spelling and format remain proof-value identity
-even where rendering is equal; there is no evaluation or inferred implication.
+even where rendering is equal. When no exact fact match exists, one strict
+authored-implication rung admits integer `ProofFact::Expression` goals that the
+existing arithmetic contract engine proves from the complete ordered dependent
+public-`Q` expression roster after exact left/right symbol,
+representative-static `const`, and integer-literal substitution. Resolved
+symbols, not display names, select atoms; only exact integer carriers/domains
+participate, every hypothesis and goal must be inside the engine language, and
+only `Proven` succeeds. Exact matches retain priority. Each arithmetic row
+retains the full ordered public premise coordinates plus its representative
+and distinct theorem-side legality coordinates for later replay. Unknown,
+refuted, mixed membership/proposition, float, member-path, proof-view,
+operator/domain, or identity-drifted judgments remain fail-closed.
 Literal-only facts stay fixed ordinary call obligations. Mismatched or
 out-of-range integers, mismatched floats, mutable/non-byte, undersized, or
 otherwise constrained byte-string targets, raw strings not already
@@ -862,8 +873,14 @@ targets, mutable/attached targets, and every literal supplied to `define`
 remain fail-closed. `define` remains strictly
 position-preserving at exact public arity and continues to use its exact `Q <=>
 P` bijection. Fixed representative facts remain ordinary call obligations,
-while generic owner substitution, general adapted arguments, general logical
-implication, and canonical Terminal replay remain fail closed.
+while generic owner substitution, general adapted arguments, non-arithmetic
+logical implication, and canonical Terminal replay remain fail closed.
+Arithmetic `Expression` entailment is implemented; transport of quotient-domain
+membership and opaque proposition families is language-design blocked on
+**OWNER_QUESTIONS Q9**. Q9 must settle the explicit selection locus, per-side
+transport/weakening application, and canonical theorem identity and replay
+evidence. Ambient domain linking, visibility search, or an opaque solver
+verdict cannot supply that authority.
 
 The representation-observer fence is explicit at resolved-to-typed lowering.
 A quotient cannot declare `Equatable`, participate as a field in synthesized
