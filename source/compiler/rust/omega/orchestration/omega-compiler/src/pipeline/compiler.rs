@@ -93,16 +93,6 @@ pub fn compile_with_packages(
     compile_request(CompileRequest::new(options).with_package_inputs(package_inputs))
 }
 
-/// Compile with an explicit auxiliary-artifact policy. Executable/object
-/// installation still follows `CompileOptions::write_output`.
-#[doc(hidden)]
-pub fn compile_with_artifact_policy(
-    options: CompileOptions,
-    artifact_policy: ArtifactEmissionPolicy,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_request(CompileRequest::new(options).with_artifact_policy(artifact_policy))
-}
-
 /// Test-harness seam for outer schedulers that run independent compilations
 /// concurrently. Production compilation keeps using host parallelism; a
 /// bounded corpus runner can select one worker here and avoid multiplying its
