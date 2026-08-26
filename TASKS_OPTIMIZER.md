@@ -1236,15 +1236,38 @@ dependency.
   AArch64 `RET X30` is verified as canonical `C0 03 5F D6`, with X30 use, PC
   def, possible architectural fault, unchanged stack, and no encoded X0 read.
   The selected return value remains separate ABI custody in RAX/X0. Only
-  conditional branches remain explicit deferred rows because they require
-  resolved layout. This artifact grants no layout, executable emission, or
+  conditional branches remain explicit deferred rows in this pre-layout
+  artifact because they require resolved layout.
+
+  A sibling immutable v1 function-relative layout artifact now resolves that
+  deferral under the exact named required-stage policy
+  `EntryThenZeroFallthroughThenNonzeroV1`. It independently reorders the
+  admitted three-block diamond as entry, zero successor, nonzero successor;
+  proves the zero edge is the immediate fallthrough; retains both exact Psi
+  edge/block identities and offsets; and emits a direct nonzero branch to the
+  remaining successor. x86-64 uses a deterministic six-byte `JNE rel32` whose
+  signed displacement is measured from instruction end. AArch64 uses fixed
+  four-byte `B.NE imm19` whose aligned signed displacement is measured from the
+  branch word. Both ISA owners independently decode opcode, predicate, and
+  displacement before returning effects, and orchestration requires those
+  effects and sizes to match the chosen machine alternative. The layout
+  identity binds selected, post-allocation, and pre-layout roots plus the target,
+  named policy, complete function/block/instruction spans, exact bytes,
+  successor custody, displacement, and decoded effects. It retains fragments;
+  it creates no code section, symbol, object relocation, executable span, or
   publication authority.
 
+  x86 short-branch selection is deliberately not hidden inside the baseline.
+  A future `X86RelaxConditionalBranchesToRel8V1` suite may monotonically shrink
+  validated near branches to `rel8` under its own fixed-point work accounting
+  and replay receipt.
+
   Remaining to close: complete memory/trap/call/cleanup vocabularies as
-  selected IR admits them, resolved branch/layout evidence, a whole-function
-  exit contract covering frame balance, callee preservation, link/return state,
-  and enabled hardening features, whole-program span/relocation validation, and
-  publication-side enforcement of the independent encoding receipt.
+  selected IR admits them, general CFG layout and non-fallthrough terminator
+  bundles, a whole-function exit contract covering frame balance, callee
+  preservation, link/return state, and enabled hardening features, whole-program
+  span/relocation validation, and publication-side enforcement of the
+  independent encoding receipt.
 
 - **OPT-PRE-RA-MACHINE.** Add machine copy propagation, cheap rematerialization
   hints, and instruction-alternative selection before allocation.

@@ -31,6 +31,7 @@ mod post_allocation_machine_effects;
 mod post_allocation_selected_form_encoding;
 mod register_environment;
 mod register_homes;
+mod resolved_selected_form_layout;
 mod selected_reanalysis;
 mod selection;
 
@@ -109,6 +110,14 @@ pub use register_homes::{
     stage_optimized_register_homes, stage_optimized_register_homes_after_fixed_view_copies,
     validate_optimized_register_home_after_fixed_view_copy_custody,
     validate_optimized_register_home_custody,
+};
+pub use resolved_selected_form_layout::{
+    OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,
+    TerminalResolvedConditionalBranchEvidence, TerminalResolvedSelectedBlockLayout,
+    TerminalResolvedSelectedFormLayoutIdentity, TerminalResolvedSelectedFormRow,
+    TerminalResolvedSelectedFunctionLayout, TerminalSelectedFunctionLayoutPolicy,
+    stage_optimized_resolved_selected_form_layout,
+    validate_optimized_resolved_selected_form_layout,
 };
 pub use selected_reanalysis::{
     OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,
@@ -1654,6 +1663,106 @@ mod tests {
                 &encodings,
             )
             .unwrap();
+            let layout = stage_optimized_resolved_selected_form_layout(
+                selected_stage.selected(),
+                &post,
+                selected_stage.register_environment().physical(),
+                &encodings,
+            )
+            .unwrap();
+            assert_eq!(
+                layout.policy(),
+                TerminalSelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1
+            );
+            assert_eq!(layout.pre_layout(), encodings.identity());
+            assert_eq!(layout.functions().len(), 1);
+            let selected_function = &selected_stage.selected().plan().functions[0];
+            let TerminalSelectedTerminator::ConditionalBranch {
+                when_nonzero,
+                when_zero,
+                ..
+            } = &selected_function
+                .blocks
+                .iter()
+                .find(|block| block.id == selected_function.entry_block)
+                .unwrap()
+                .terminator
+            else {
+                panic!("fixture entry is conditional")
+            };
+            let function_layout = &layout.functions()[0];
+            assert_eq!(
+                function_layout
+                    .blocks
+                    .iter()
+                    .map(|block| block.block)
+                    .collect::<Vec<_>>(),
+                [
+                    selected_function.entry_block,
+                    when_zero.block,
+                    when_nonzero.block
+                ]
+            );
+            assert!(
+                function_layout
+                    .blocks
+                    .windows(2)
+                    .all(|pair| pair[0].offset + pair[0].byte_count == pair[1].offset)
+            );
+            let branch = function_layout
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .find_map(|row| row.branch.as_deref().map(|branch| (row, branch)))
+                .expect("one resolved branch");
+            assert_eq!(branch.1.when_zero_block, when_zero.block);
+            assert_eq!(branch.1.when_nonzero_block, when_nonzero.block);
+            assert_eq!(
+                branch.0.offset + u64::try_from(branch.0.bytes.len()).unwrap(),
+                branch.1.when_zero_offset
+            );
+            match target.architecture {
+                omega_target::Architecture::X86_64 => {
+                    assert_eq!(&branch.0.bytes[..2], [0x0f, 0x85]);
+                    assert_eq!(
+                        branch.1.byte_displacement,
+                        i64::try_from(branch.1.when_nonzero_offset).unwrap()
+                            - i64::try_from(branch.0.offset + 6).unwrap()
+                    );
+                }
+                omega_target::Architecture::Aarch64 => {
+                    assert_eq!(branch.0.bytes[0] & 0x1f, 1);
+                    assert_eq!(
+                        branch.1.byte_displacement,
+                        i64::try_from(branch.1.when_nonzero_offset).unwrap()
+                            - i64::try_from(branch.0.offset).unwrap()
+                    );
+                }
+            }
+            validate_optimized_resolved_selected_form_layout(
+                selected_stage.selected(),
+                &post,
+                selected_stage.register_environment().physical(),
+                &encodings,
+                &layout,
+            )
+            .unwrap();
+            let mut corrupted_layout = layout.clone();
+            corrupted_layout.functions_mut()[0].blocks[0]
+                .instructions
+                .last_mut()
+                .unwrap()
+                .bytes[0] ^= 1;
+            assert_eq!(
+                validate_optimized_resolved_selected_form_layout(
+                    selected_stage.selected(),
+                    &post,
+                    selected_stage.register_environment().physical(),
+                    &encodings,
+                    &corrupted_layout,
+                ),
+                Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
+            );
             let subtracts = post
                 .machine()
                 .plan()

@@ -28,7 +28,9 @@ pub use register_model::{
 pub use selected_form_encoding::{
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
     X86_64SelectedFormFootprint, encode_x86_64_terminal_selected_form,
+    encode_x86_64_terminal_selected_nonzero_branch_form,
     validate_x86_64_terminal_selected_form_encoding,
+    validate_x86_64_terminal_selected_nonzero_branch_form,
 };
 
 use omega_calling_conventions::{MachineRegister, RegisterSet};

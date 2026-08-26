@@ -1243,11 +1243,33 @@ result operand as an encoded read. Conditional branches alone remain explicit
 layout-deferred rows. Consequently this artifact is neither a concatenated code
 section nor emission/publication authority.
 
+A separate immutable v1 artifact resolves those branch rows only after choosing
+the explicit required-stage layout policy
+`EntryThenZeroFallthroughThenNonzeroV1`. For the admitted three-block diamond it
+orders entry, zero successor, then nonzero successor; independently proves that
+the zero edge begins at branch end; and retains the exact selected edge/block
+identity and offset for both paths. The branch remains a direct realization of
+the selected nonzero predicate rather than silently inverting it. x86-64 emits
+one canonical six-byte `JNE rel32`, using a signed displacement from instruction
+end. AArch64 emits one canonical four-byte `B.NE imm19`, using a four-byte-scaled
+signed displacement from the branch word. Target-owned validators independently
+decode predicate and displacement and reproduce the catalog's flags/PC/control
+effects. The new identity binds the selected, post-allocation, and pre-layout
+roots, target, named policy, all function/block/instruction spans, successor
+custody, bytes, displacement, and decoded effects. It still owns only separate
+function-relative fragments—not section placement, symbols, object relocations,
+executable bytes, or publication.
+
+Choosing x86 `rel8` is a separate prospective named transformation,
+`X86RelaxConditionalBranchesToRel8V1`, with monotone fixed-point layout replay
+and explicit work accounting. It is not an implicit “higher optimization
+level” behavior of the baseline encoder.
+
 Before the legacy assigned-operation emitter can be bypassed, the clean lane
-still needs layout-resolved branches, a whole-function exit contract covering
-frame balance, callee preservation, link/return state and enabled hardening
-features, whole-program spans and relocations, and publication enforcement of
-the independent verifier receipt.
+still needs general CFG layout/non-fallthrough terminator bundles, a
+whole-function exit contract covering frame balance, callee preservation,
+link/return state and enabled hardening features, whole-program spans and
+relocations, and publication enforcement of the independent verifier receipt.
 
 ## Decision policy, search, and ML
 

@@ -42,6 +42,8 @@ pub enum Aarch64SelectedFormEncodingError {
     UnknownOrNonGpr64View(RegisterViewId),
     IntegerOutsideI64Bits,
     ImmediateOutsideU12,
+    BranchDisplacementMisaligned,
+    BranchDisplacementOutsideImm19,
     MalformedEncoding,
     EncodedFormMismatch,
 }
@@ -56,6 +58,86 @@ impl std::fmt::Display for Aarch64SelectedFormEncodingError {
 }
 
 impl std::error::Error for Aarch64SelectedFormEncodingError {}
+
+/// Encode the canonical layout-resolved realization of
+/// `ConditionalBranchNonZero`. AArch64 conditional-branch displacement is
+/// measured from the branch instruction address and scaled by four bytes.
+pub fn encode_aarch64_terminal_selected_nonzero_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: TerminalMachineAlternativeKey,
+    byte_displacement_from_instruction: i64,
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    validate_branch_request(physical, alternative)?;
+    let word_displacement = branch_word_displacement(byte_displacement_from_instruction)?;
+    let word = 0x5400_0001 | (((word_displacement as u32) & 0x7ffff) << 5);
+    let bytes = word.to_le_bytes();
+    validate_aarch64_terminal_selected_nonzero_branch_form(
+        physical,
+        alternative,
+        byte_displacement_from_instruction,
+        &bytes,
+    )
+}
+
+pub fn validate_aarch64_terminal_selected_nonzero_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: TerminalMachineAlternativeKey,
+    byte_displacement_from_instruction: i64,
+    bytes: &[u8],
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    validate_branch_request(physical, alternative)?;
+    branch_word_displacement(byte_displacement_from_instruction)?;
+    let word = bytes
+        .try_into()
+        .ok()
+        .map(u32::from_le_bytes)
+        .filter(|word| word & 0xff00_001f == 0x5400_0001)
+        .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
+    let encoded_imm19 = ((word >> 5) & 0x7ffff) as i32;
+    let decoded_words = (encoded_imm19 << 13) >> 13;
+    let decoded_bytes = i64::from(decoded_words) * 4;
+    if decoded_bytes != byte_displacement_from_instruction {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    Ok(ValidatedAarch64SelectedFormEncoding {
+        bytes: bytes.to_vec(),
+        footprint: footprint(
+            TerminalSelectedInstructionKind::ConditionalBranchNonZero,
+            &[],
+        ),
+    })
+}
+
+fn validate_branch_request(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: TerminalMachineAlternativeKey,
+) -> Result<(), Aarch64SelectedFormEncodingError> {
+    if physical.model() != &aarch64_physical_register_model() {
+        return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
+    }
+    if alternative
+        != (TerminalMachineAlternativeKey {
+            family: TerminalMachineAlternativeFamily::ConditionalBranchNonZero,
+            variant: 0,
+        })
+    {
+        return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
+    }
+    Ok(())
+}
+
+fn branch_word_displacement(
+    byte_displacement: i64,
+) -> Result<i32, Aarch64SelectedFormEncodingError> {
+    if byte_displacement % 4 != 0 {
+        return Err(Aarch64SelectedFormEncodingError::BranchDisplacementMisaligned);
+    }
+    let words = byte_displacement / 4;
+    if !(-(1_i64 << 18)..(1_i64 << 18)).contains(&words) {
+        return Err(Aarch64SelectedFormEncodingError::BranchDisplacementOutsideImm19);
+    }
+    Ok(words as i32)
+}
 
 pub fn encode_aarch64_terminal_selected_form(
     physical: &ValidatedPhysicalRegisterModel,
@@ -466,9 +548,7 @@ fn footprint(
             (vec![operands[0]], vec![operands[1]], false)
         }
         TerminalSelectedInstructionKind::ReturnI64 => (vec![], vec![], false),
-        TerminalSelectedInstructionKind::ConditionalBranchNonZero => {
-            unreachable!("control forms reject before footprint")
-        }
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero => (vec![], vec![], false),
     };
     let physical = aarch64_physical_register_model();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
@@ -485,6 +565,25 @@ fn footprint(
             control: TerminalMachineEncodedControlEffect::ReturnIndirectRegisterV1 {
                 target: physical.view_named("x30").unwrap().id,
             },
+        }
+    } else if matches!(
+        kind,
+        TerminalSelectedInstructionKind::ConditionalBranchNonZero
+    ) {
+        let mut uses = units("nzcv");
+        uses.extend(units("pc"));
+        uses.sort_unstable();
+        uses.dedup();
+        TerminalMachineEncodedEffects {
+            external_operand_reads: vec![],
+            external_operand_writes: vec![],
+            implicit_unit_uses: uses,
+            implicit_unit_defs: units("pc"),
+            implicit_unit_clobbers: vec![],
+            memory: TerminalMachineEncodedMemoryEffect::NoneV1,
+            stack: TerminalMachineEncodedStackEffect::UnchangedV1,
+            trap: TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            control: TerminalMachineEncodedControlEffect::ConditionalRelativeBranchV1,
         }
     } else {
         let mut effects = TerminalMachineEncodedEffects::fallthrough_v1(
@@ -675,6 +774,56 @@ mod tests {
                 alternative,
                 &[x0],
                 &[0xc0, 0x03, 0x5f, 0xd6, 0xc0, 0x03, 0x5f, 0xd6]
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn nonzero_branch_has_exact_instruction_relative_imm19_and_effects() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let alternative = alternative(TerminalMachineAlternativeFamily::ConditionalBranchNonZero);
+        for displacement in [-1_048_576, -4, 0, 4, 1_048_572] {
+            let encoded = encode_aarch64_terminal_selected_nonzero_branch_form(
+                &physical,
+                alternative,
+                displacement,
+            )
+            .unwrap();
+            assert_eq!(encoded.bytes().len(), 4);
+            assert_eq!(encoded.bytes()[0] & 0x1f, 1);
+            assert!(encoded.footprint().register_reads.is_empty());
+            assert!(encoded.footprint().register_writes.is_empty());
+            assert_eq!(
+                encoded.footprint().encoded.control,
+                TerminalMachineEncodedControlEffect::ConditionalRelativeBranchV1
+            );
+        }
+        for displacement in [-1_048_580, 1_048_576, 2] {
+            assert!(
+                encode_aarch64_terminal_selected_nonzero_branch_form(
+                    &physical,
+                    alternative,
+                    displacement
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            validate_aarch64_terminal_selected_nonzero_branch_form(
+                &physical,
+                alternative,
+                0,
+                &0x5400_0000_u32.to_le_bytes()
+            )
+            .is_err()
+        );
+        assert!(
+            validate_aarch64_terminal_selected_nonzero_branch_form(
+                &physical,
+                alternative,
+                0,
+                &[1, 0, 0, 0, 0]
             )
             .is_err()
         );
