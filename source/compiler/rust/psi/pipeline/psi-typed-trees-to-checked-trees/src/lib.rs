@@ -5,6 +5,7 @@ mod checks;
 mod conformance_application_lifetimes;
 mod conformance_applications;
 mod context;
+mod contract_occurrences;
 mod facts;
 mod field_domain;
 mod labels;

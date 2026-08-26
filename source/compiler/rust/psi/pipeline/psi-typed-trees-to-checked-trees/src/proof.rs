@@ -908,6 +908,21 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                 for (guarantee, row) in matching_rows {
                     let (instantiated_proposition, instantiated_identity) =
                         instantiate_outcome_arm_fact(program, row.fact, &substitutions);
+                    let referenced_occurrences =
+                        crate::contract_occurrences::fact_referenced_occurrences(program, row.fact);
+                    let validity = psi_checked_trees::OutcomeSpecificValidityFact {
+                        result_occurrence: result_expression,
+                        evidence_interface_scope: instantiated_proposition.as_ref().and_then(
+                            |proposition| {
+                                outcome_evidence_interface_scope(
+                                    program,
+                                    proposition,
+                                    &referenced_occurrences,
+                                )
+                            },
+                        ),
+                        referenced_occurrences,
+                    };
                     let selected = row.public_selector.as_deref().and_then(|public| {
                         selectors
                             .iter()
@@ -930,6 +945,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                         guarantee,
                         instantiated_proposition,
                         instantiated_identity,
+                        validity,
                         selected_term,
                     });
                 }
@@ -952,6 +968,70 @@ pub(crate) fn bind_outcome_specific_arm_facts(
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn outcome_evidence_interface_scope(
+    program: &psi_typed_trees::TypedTrees,
+    proposition: &psi_checked_trees::CheckedPropositionApplication,
+    retained_occurrences: &[psi_typed_trees::expression::ExpressionHandle],
+) -> Option<psi_checked_trees::OutcomeSpecificEvidenceInterfaceScopeFact> {
+    let interface = proposition.evidence_interface.clone()?;
+    let definition = program
+        .propositions()
+        .iter()
+        .find(|definition| definition.symbol == proposition.declaration)?;
+    let psi_typed_trees::proposition::PropositionBody::Witness { evidence } = definition.body
+    else {
+        return None;
+    };
+    let mut reference_regions = Vec::new();
+    append_evidence_interface_reference_regions(program, evidence, &mut reference_regions);
+    reference_regions.sort_by_key(|reference| reference.arena_index());
+    reference_regions.dedup();
+    Some(
+        psi_checked_trees::OutcomeSpecificEvidenceInterfaceScopeFact {
+            interface,
+            evidence_type: evidence,
+            reference_regions,
+            retained_occurrences: retained_occurrences.to_vec(),
+        },
+    )
+}
+
+fn append_evidence_interface_reference_regions(
+    program: &psi_typed_trees::TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    regions: &mut Vec<psi_typed_trees::types::TypeReferenceHandle>,
+) {
+    if !type_reference.is_valid() {
+        return;
+    }
+    use psi_typed_trees::types::TypeReferenceNode;
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            regions.push(type_reference);
+            append_evidence_interface_reference_regions(program, *referee, regions);
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            append_evidence_interface_reference_regions(program, *base_type, regions);
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            append_evidence_interface_reference_regions(program, *element_type, regions);
+        }
+        TypeReferenceNode::Generic { arguments, .. } => {
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            {
+                append_evidence_interface_reference_regions(program, *argument, regions);
+            }
+        }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::Unit => {}
     }
 }
 

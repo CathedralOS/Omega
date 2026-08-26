@@ -7,20 +7,52 @@ pub(crate) fn instantiate_call_contract_expression_place(
     call: &ContractCallFact,
     expression: ExpressionHandle,
 ) -> Option<psi_facts::PlaceHandle> {
+    instantiate_contract_expression_place(program, facts, call, None, expression)
+}
+
+pub(crate) fn instantiate_outcome_contract_expression_place(
+    program: &psi_typed_trees::TypedTrees,
+    facts: &mut FactPlan,
+    call: &ContractCallFact,
+    result_statement_index: usize,
+    result_expression: ExpressionHandle,
+    expression: ExpressionHandle,
+) -> Option<psi_facts::PlaceHandle> {
+    instantiate_contract_expression_place(
+        program,
+        facts,
+        call,
+        Some((result_statement_index, result_expression)),
+        expression,
+    )
+}
+
+fn instantiate_contract_expression_place(
+    program: &psi_typed_trees::TypedTrees,
+    facts: &mut FactPlan,
+    call: &ContractCallFact,
+    result: Option<(usize, ExpressionHandle)>,
+    expression: ExpressionHandle,
+) -> Option<psi_facts::PlaceHandle> {
     if !expression.is_valid() {
         return None;
     }
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => {
-            instantiate_call_contract_expression_place(program, facts, call, inner.target)
+            instantiate_contract_expression_place(program, facts, call, result, inner.target)
         }
         ExpressionNode::Name(path) => {
-            instantiate_call_contract_name_path_place(program, facts, call, path)
+            instantiate_call_contract_name_path_place(program, facts, call, result, path)
         }
         ExpressionNode::Member(member) => {
-            let receiver =
-                instantiate_call_contract_expression_place(program, facts, call, member.receiver)?;
+            let receiver = instantiate_contract_expression_place(
+                program,
+                facts,
+                call,
+                result,
+                member.receiver,
+            )?;
             let symbol = {
                 let symbol = effective_member_symbol(program, member.receiver, member);
                 if symbol.is_valid() {
@@ -52,10 +84,11 @@ pub(crate) fn instantiate_call_contract_expression_place(
             ))
         }
         ExpressionNode::Indexed(indexed) => {
-            let receiver = instantiate_call_contract_expression_place(
+            let receiver = instantiate_contract_expression_place(
                 program,
                 facts,
                 call,
+                result,
                 indexed.collection,
             )?;
             let segment = crate::flow::index_place_segment(program, indexed.index);
@@ -69,6 +102,7 @@ fn instantiate_call_contract_name_path_place(
     program: &psi_typed_trees::TypedTrees,
     facts: &mut FactPlan,
     call: &ContractCallFact,
+    result: Option<(usize, ExpressionHandle)>,
     path: &psi_typed_trees::expression::TableNamePath,
 ) -> Option<psi_facts::PlaceHandle> {
     let members = program.expression_table.name_path_members(path.members);
@@ -83,10 +117,20 @@ fn instantiate_call_contract_name_path_place(
     let first_member = members.first().map(|member| member.as_str());
 
     let mut place = if first_member == Some("result") {
-        let super::CallSite::Expression { expression, .. } = call_site else {
-            return None;
-        };
-        facts.append_place_from_expression(program, expression)
+        if let Some((statement_index, expression)) = result {
+            super::canonical_place_to_fact_place_in_state(
+                program,
+                facts,
+                call.caller_state_symbol,
+                statement_index,
+                expression,
+            )?
+        } else {
+            let super::CallSite::Expression { expression, .. } = call_site else {
+                return None;
+            };
+            facts.append_place_from_expression(program, expression)
+        }
     } else if first_member == Some("self")
         || target_parameters
             .iter()
