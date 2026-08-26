@@ -1298,21 +1298,42 @@ custody, bytes, displacement, and decoded effects. It still owns only separate
 function-relative fragments—not section placement, symbols, object relocations,
 executable bytes, or publication.
 
-Selected-lowering orchestration now seals those function-relative products in
-a structured v1 realization manifest. The record joins the full named build
-suite, its exact selected-lowering projection and completion identity, the pre-
-physical and post-allocation manifests, final selected CFG, pre- and post-
-allocation machine roots, pre-layout encoding, resolved layout, exact target,
-and named layout policy. It derives function, block, instruction, byte, and
-resolved-conditional-branch counts from the validated layout. A strict binary
-codec recomputes its domain-separated identity and rejects unknown vocabulary,
-identity changes, truncation, and trailing bytes; custody replay reconstructs
-every joined root and both encoded artifacts. Its scope is explicitly
-`FunctionRelativeFragmentsV1`, and frame, whole-function exit contract,
-machine emission, section placement, symbols, object relocations, executable
-image, installation, and publication are each explicitly unavailable. This is
-therefore an honest realization checkpoint, not an object or native-final
-manifest.
+Selected-lowering orchestration seals those products in a structured v2
+realization manifest. The record joins the full named build suite, its exact
+selected-lowering projection and completion identity, the pre-physical and
+post-allocation manifests, final selected CFG, pre- and post-allocation machine
+roots, pre-layout encoding, resolved layout, exact target, named layout policy,
+and a validated whole-function exit-contract identity. It derives function,
+block, instruction, byte, and resolved-conditional-branch counts from the
+validated layout. A strict binary codec recomputes its domain-separated
+identity and rejects old versions, unknown vocabulary, identity changes,
+truncation, and trailing bytes; custody replay reconstructs every joined root
+and both encoded artifacts.
+
+The current exit contract is an exact named frameless-leaf policy, not a broad
+backend mode. Target-owned resolution selects System V AMD64, Microsoft x64,
+AAPCS64, or Darwin AAPCS64 from the exact target. For this policy,
+unconstrained allocation is deterministically restricted to views whose full
+read/write storage lies in the selected convention's caller-saved set; fixed
+ABI operands still bypass that search restriction. Independent replay then
+requires every non-return instruction to leave the stack unchanged and avoid
+activation-stack memory, rejects any callee-saved definition/clobber, and joins
+each exact Psi return edge to its final encoded row. x86 returns must be
+canonical `C3`, retain the result in RAX separately from encoded reads, read and
+pop exactly eight bytes at RSP, and return through the activation stack.
+AArch64 returns must be canonical `RET X30`, retain the result in X0 separately,
+leave SP unchanged, preserve X30, and transfer through that exact link register.
+Both retain possible architectural return faults. The contract records the
+caller's aligned-stack/return-state precondition; it does not pretend to prove
+the external entry bridge supplied it or that an absolute SP value was
+observed. A deliberately unrestricted x86 allocation that writes RBX now fails
+at this boundary rather than acquiring imaginary save/restore evidence.
+
+The manifest scope is therefore function-relative fragments with a validated
+whole-function exit discipline. Frame construction, machine emission, section
+placement, symbols, object relocations, executable image, installation, and
+publication remain explicitly unavailable. This is an honest realization
+checkpoint, not an object or native-final manifest.
 
 Choosing x86 `rel8` is a separate prospective named transformation,
 `X86RelaxConditionalBranchesToRel8V1`, with monotone fixed-point layout replay
@@ -1320,10 +1341,11 @@ and explicit work accounting. It is not an implicit “higher optimization
 level” behavior of the baseline encoder.
 
 Before the legacy assigned-operation emitter can be bypassed, the clean lane
-still needs general CFG layout/non-fallthrough terminator bundles, a
-whole-function exit contract covering frame balance, callee preservation,
-link/return state and enabled hardening features, whole-program spans and
-relocations, and publication enforcement of the independent verifier receipt.
+still needs general CFG layout/non-fallthrough terminator bundles, framed and
+calling exit policies with proved save/restore and unwind behavior,
+authoritative entry-bridge and enabled-hardening identities, whole-program
+spans and relocations, and publication enforcement of the independent verifier
+receipt.
 
 ## Decision policy, search, and ML
 
@@ -1484,20 +1506,21 @@ changing optimization decisions.
 
 The current Rust slice implements structured/text projections through the
 validated abstract-plan and strict spill-free register-home boundaries, plus a
-selected-lowering-only function-relative realization projection. The pre-
-physical manifest's versioned standalone codec serializes that whole earlier
-record and strict nested codecs; the post-allocation record adds truthful home
-statistics while marking frame, emission, and publication unavailable. The
-function-relative v1 record then binds suite completion to the validated final
-selected CFG, machine effects, post-allocation machine, canonical encoding,
-named layout policy, resolved fragments, and exact code-size statistics. It
-explicitly marks every whole-function, section, relocation, image,
-installation, and publication field unavailable. All three records have strict
-self-authenticating codecs, but none is yet wired into a compiler-owned artifact
-or rebuild-metadata section. `OPT-MANIFEST-SCHEMA` remains open until later
-manifests join frame/emission/publication records, enter that metadata path,
-and the compiler exposes a suppressible report request without entering native
-optimization during ordinary check-only builds.
+selected-lowering-only function-relative/whole-exit realization projection.
+The pre-physical manifest's versioned standalone codec serializes that whole
+earlier record and strict nested codecs; the post-allocation record adds
+truthful home statistics while marking frame, emission, and publication
+unavailable. The function-relative v2 record then binds suite completion to the
+validated final selected CFG, machine effects, post-allocation machine,
+canonical encoding, named layout policy, resolved fragments, exact code-size
+statistics, and the frameless whole-function exit contract. It explicitly
+marks frame, section, relocation, image, installation, and publication fields
+unavailable. All three records have strict self-authenticating codecs, but none
+is yet wired into a compiler-owned artifact or rebuild-metadata section.
+`OPT-MANIFEST-SCHEMA` remains open until later manifests join frame/emission/
+publication records, enter that metadata path, and the compiler exposes a
+suppressible report request without entering native optimization during
+ordinary check-only builds.
 
 The decision-row substrate is self-authenticating rather than caller-stamped.
 Each row derives its identity from the exact input unit, candidate, rule,

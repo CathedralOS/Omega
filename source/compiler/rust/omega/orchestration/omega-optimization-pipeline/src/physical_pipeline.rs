@@ -15,7 +15,8 @@ use crate::{
     OptimizedSelectionPipelineError, StagedOptimizedPostAllocationMachinePlan,
     StagedOptimizedRegisterHomes, StagedSelectedLoweringFunctionRelativeRealization,
     run_selected_lowering_optimizations, stage_optimized_allocation_legality,
-    stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_allocation_legality_for_frameless_leaf, stage_optimized_instruction_selection,
+    stage_optimized_live_ranges, stage_optimized_liveness,
     stage_optimized_post_allocation_machine_plan, stage_optimized_register_homes,
     stage_optimized_register_homes_after_selected_lowering,
     stage_selected_lowering_function_relative_realization,
@@ -133,10 +134,7 @@ pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
         .map_err(OptimizedVerifiedPhysicalPipelineError::Liveness)?;
     let ranges = stage_optimized_live_ranges(liveness)
         .map_err(OptimizedVerifiedPhysicalPipelineError::LiveRanges)?;
-    let legality = stage_optimized_allocation_legality(ranges)
-        .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
-    let selected_lowering = legality
-        .live_range_stage()
+    let selected_lowering = ranges
         .liveness_stage()
         .selected_stage()
         .optimized_target()
@@ -145,12 +143,16 @@ pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
         .for_phase(OptimizationExecutionPhase::SelectedLowering);
 
     if selected_lowering.is_empty() {
+        let legality = stage_optimized_allocation_legality(ranges)
+            .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
         let homes = stage_optimized_register_homes(legality)
             .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterHomes)?;
         let machine = stage_optimized_post_allocation_machine_plan(&homes)
             .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
         Ok(StagedOptimizedVerifiedPhysicalPipeline::PsiOnly { homes, machine })
     } else {
+        let legality = stage_optimized_allocation_legality_for_frameless_leaf(ranges)
+            .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
         let run = run_selected_lowering_optimizations(legality)
             .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedLowering)?;
         let homes = stage_optimized_register_homes_after_selected_lowering(run)

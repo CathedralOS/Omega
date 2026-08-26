@@ -464,9 +464,17 @@ These facts constrain the work below.
   resolved layout, target, named layout policy, and derived function/block/
   instruction/byte/branch statistics. Its strict v1 codec recomputes identity,
   closed-vocabulary corruption fails, and custody replay reconstructs every
-  joined artifact. It explicitly marks frame, whole-function exit, emission,
-  sections, symbols, relocations, image, installation, and publication
-  unavailable. Final physical/publication and artifact metadata remain open.
+  joined artifact. Its v2 schema now also binds an independently replayed
+  frameless whole-function exit contract. The contract selects the exact
+  System V AMD64, Microsoft x64, AAPCS64, or Darwin AAPCS64 convention; proves
+  canonical RSP-pop or X30 return behavior for every Psi exit; retains RAX/X0
+  result custody separately from encoded return reads; and rejects stack/frame
+  effects, X30 damage, or any unpreserved callee-saved write. Compiler-selected
+  lowering derives a caller-saved-only unconstrained availability set for this
+  policy, while an unrestricted x86 plan that chooses RBX fails closed. Frame,
+  emission, sections, symbols, relocations, image, installation, and publication
+  remain unavailable. Final physical/publication and artifact metadata remain
+  open.
 - `omega-lowering-optimizer` now owns a custody-preserving bridge from a
   completed `OptimizationRun` to a clean `TerminalAbstractOperationPlan`.
   Projection replays every retained candidate declaration through the
@@ -614,10 +622,11 @@ dependency.
   Current closure boundary: pre-physical, post-allocation, and selected-
   lowering function-relative records are structured, content-identified, and
   independently replayable. The function-relative record supplies truthful
-  code-size statistics while declaring every later authority unavailable. This
-  task remains open for whole-function frame/exit data, emission and relocation
-  custody, final artifact/rebuild metadata, and the suppressible compiler report
-  switch.
+  code-size statistics and the v2 record binds a validated frameless leaf exit
+  contract while declaring every later authority unavailable. This task
+  remains open for general frame/call/save-restore data, emission and relocation
+  custody, final artifact/rebuild metadata, and the suppressible compiler
+  report switch.
 
 ## P1 — Optimization representation and rule engine
 
@@ -828,9 +837,12 @@ dependency.
   binding the machine, encoding, and layout roots plus exact code-size
   statistics for both changed and verified no-change suites. The legacy native
   compiler firewall remains closed rather than feeding selected builds into its
-  old backend. Remaining to close: add whole-function exit/frame custody,
-  broaden selected instruction shapes, and complete section/relocation,
-  emission, final-manifest, and publication custody.
+  old backend. A validated frameless whole-function exit contract now joins
+  every selected-lowering realization and the v2 manifest; compiler staging
+  derives caller-saved-only unconstrained homes for that exact policy.
+  Remaining to close: add general frame/call/save-restore and entry-bridge/
+  hardening custody, broaden selected instruction shapes, and complete section/
+  relocation, emission, final-manifest, and publication custody.
 
 ## P4 — Lowering optimizer and virtual-register form
 
@@ -1325,16 +1337,23 @@ dependency.
 
   A selected-lowering-only function-relative realization carrier now owns that
   validated layout together with its strict homes, post-allocation machine, and
-  pre-layout encoding. Its immutable v1 manifest binds the complete named suite,
+  pre-layout encoding. Its immutable v2 manifest binds the complete named suite,
   exact selected-lowering subset and completion, pre-physical and post-
   allocation manifests, final selected CFG, pre-/post-allocation machine roots,
   both encoding/layout roots, target, and named layout policy. Statistics are
   derived from the retained layout rather than supplied by callers. Its strict
   self-authenticating codec and independent custody replay reject detached or
-  corrupted roots. The declared scope is only function-relative fragments;
-  frame, whole-function exit contract, emission, sections, symbols,
-  relocations, executable image, installation, and publication are explicitly
-  unavailable.
+  corrupted roots. A target-neutral whole-function exit artifact now joins the
+  same roots and the target owner's exact System V AMD64, Microsoft x64,
+  AAPCS64, or Darwin AAPCS64 preservation convention. Its named frameless-leaf
+  policy requires caller-saved unconstrained homes, no non-return stack/memory
+  effects, no callee-saved definitions or clobbers, preserved X30 on AArch64,
+  exact RAX/X0 ABI result custody, and exact canonical return bytes/effects for
+  every Psi return edge. It retains the external aligned-stack/return-state
+  assumption and possible architectural return faults rather than inventing
+  stronger facts. The v2 manifest binds this contract identity. Frame,
+  emission, sections, symbols, relocations, executable image, installation, and
+  publication remain explicitly unavailable.
 
   x86 short-branch selection is deliberately not hidden inside the baseline.
   A future `X86RelaxConditionalBranchesToRel8V1` suite may monotonically shrink
@@ -1343,10 +1362,10 @@ dependency.
 
   Remaining to close: complete memory/trap/call/cleanup vocabularies as
   selected IR admits them, general CFG layout and non-fallthrough terminator
-  bundles, a whole-function exit contract covering frame balance, callee
-  preservation, link/return state, and enabled hardening features, whole-program
-  span/relocation validation, and publication-side enforcement of the
-  independent encoding receipt.
+  bundles, general framed/calling exit policies with save/restore and unwind
+  evidence, authoritative entry-bridge and enabled-hardening identities,
+  whole-program span/relocation validation, and publication-side enforcement of
+  the independent encoding receipt.
 
 - **OPT-PRE-RA-MACHINE.** Add machine copy propagation, cheap rematerialization
   hints, and instruction-alternative selection before allocation.

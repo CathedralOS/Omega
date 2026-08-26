@@ -10,7 +10,7 @@ use omega_register_model::{
     ReservationReason, ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     validate_register_constraint_catalog,
 };
-use omega_target::Architecture;
+use omega_target::{Architecture, NativeTarget, ObjectFormat};
 
 const GPR64: RegisterClassId = RegisterClassId(0);
 const GPR32: RegisterClassId = RegisterClassId(1);
@@ -40,6 +40,28 @@ pub fn aarch64_fixed_register_view(
         .model()
         .view_named(&format!("x{index}"))
         .map(|view| view.id)
+}
+
+/// Resolve the exact preservation convention selected by the clean terminal
+/// lane for one supported AArch64 target. The ISA owner, rather than generic
+/// orchestration, owns this target/object-format to ABI-policy mapping.
+pub fn aarch64_preservation_convention_for_target<'model>(
+    model: &'model ValidatedPhysicalRegisterModel,
+    target: NativeTarget,
+) -> Option<&'model PreservationConvention> {
+    if target.architecture != Architecture::Aarch64 {
+        return None;
+    }
+    let name = match target.object_format {
+        ObjectFormat::Elf => "aapcs64",
+        ObjectFormat::MachO => "darwin-aapcs64",
+        ObjectFormat::Coff => return None,
+    };
+    model
+        .model()
+        .conventions
+        .iter()
+        .find(|convention| convention.name == name)
 }
 
 pub const AARCH64_AAPCS64_CALL: RegisterConstraintKey = RegisterConstraintKey {
@@ -790,6 +812,27 @@ mod tests {
         assert_eq!(
             aarch64_fixed_register_view(&model, MachineRegister::X86Rdi),
             None
+        );
+    }
+
+    #[test]
+    fn preservation_convention_is_selected_by_exact_target_policy() {
+        let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        assert_eq!(
+            aarch64_preservation_convention_for_target(&model, NativeTarget::linux_arm64())
+                .unwrap()
+                .name,
+            "aapcs64"
+        );
+        assert_eq!(
+            aarch64_preservation_convention_for_target(&model, NativeTarget::macos_arm64())
+                .unwrap()
+                .name,
+            "darwin-aapcs64"
+        );
+        assert!(
+            aarch64_preservation_convention_for_target(&model, NativeTarget::windows_x64())
+                .is_none()
         );
     }
 

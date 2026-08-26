@@ -10,7 +10,7 @@ use omega_register_model::{
     ReservationReason, ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     validate_register_constraint_catalog,
 };
-use omega_target::Architecture;
+use omega_target::{Architecture, NativeTarget, ObjectFormat};
 
 const GPR64: RegisterClassId = RegisterClassId(0);
 const GPR32: RegisterClassId = RegisterClassId(1);
@@ -55,6 +55,29 @@ pub fn x86_64_fixed_register_view(
         }
     };
     model.model().view_named(name).map(|view| view.id)
+}
+
+/// Resolve the exact preservation convention selected by the clean terminal
+/// lane for one supported x86-64 target. Keeping this mapping in the ISA owner
+/// prevents target-neutral orchestration from inferring ABI policy from vector
+/// positions or authored names.
+pub fn x86_64_preservation_convention_for_target<'model>(
+    model: &'model ValidatedPhysicalRegisterModel,
+    target: NativeTarget,
+) -> Option<&'model PreservationConvention> {
+    if target.architecture != Architecture::X86_64 {
+        return None;
+    }
+    let name = match target.object_format {
+        ObjectFormat::Elf => "system-v-amd64",
+        ObjectFormat::Coff => "microsoft-x64",
+        ObjectFormat::MachO => return None,
+    };
+    model
+        .model()
+        .conventions
+        .iter()
+        .find(|convention| convention.name == name)
 }
 
 pub const X86_64_SYSTEM_V_CALL: RegisterConstraintKey = RegisterConstraintKey {
@@ -795,6 +818,24 @@ mod tests {
         assert_eq!(
             x86_64_fixed_register_view(&model, MachineRegister::Aarch64X(0)),
             None
+        );
+    }
+
+    #[test]
+    fn preservation_convention_is_selected_by_exact_target_policy() {
+        let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let system_v =
+            x86_64_preservation_convention_for_target(&model, NativeTarget::linux_x64()).unwrap();
+        let microsoft =
+            x86_64_preservation_convention_for_target(&model, NativeTarget::windows_x64()).unwrap();
+        assert_eq!(system_v.name, "system-v-amd64");
+        assert_eq!(microsoft.name, "microsoft-x64");
+        let rsi = model.model().view_named("rsi").unwrap().units[0];
+        assert!(!system_v.callee_saved.contains(&rsi));
+        assert!(microsoft.callee_saved.contains(&rsi));
+        assert!(
+            x86_64_preservation_convention_for_target(&model, NativeTarget::macos_arm64())
+                .is_none()
         );
     }
 
