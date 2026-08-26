@@ -687,6 +687,15 @@ mod tests {
                 .validation()
                 .identity()
         );
+        assert_eq!(
+            staged.custody().manifest(),
+            staged
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest()
+                .record()
+                .identity
+        );
     }
 
     #[test]
@@ -1432,6 +1441,27 @@ mod tests {
         );
     }
 
+    #[test]
+    fn physical_stage_receipts_retain_the_pre_physical_manifest_identity() {
+        let selected = staged_conditional(NativeTarget::linux_x64());
+        let manifest = selected
+            .optimized_target()
+            .optimized()
+            .pre_physical_manifest()
+            .record()
+            .identity;
+        assert_eq!(selected.custody().manifest(), manifest);
+
+        let liveness = stage_optimized_liveness(selected).unwrap();
+        assert_eq!(liveness.custody().manifest(), manifest);
+        let ranges = stage_optimized_live_ranges(liveness).unwrap();
+        assert_eq!(ranges.custody().manifest(), manifest);
+        let legality = stage_optimized_allocation_legality(ranges).unwrap();
+        assert_eq!(legality.custody().manifest(), manifest);
+        let homes = stage_optimized_register_homes(legality).unwrap();
+        assert_eq!(homes.custody().manifest(), manifest);
+    }
+
     fn named_units(staged: &StagedOptimizedLiveness, names: &[&str]) -> Vec<RegisterUnitId> {
         names
             .iter()
@@ -2061,6 +2091,7 @@ mod tests {
                 .selected()
                 .plan()
                 .clone();
+            let source_manifest = source.custody().manifest();
             let materialized = stage_optimized_fixed_view_copies(
                 source,
                 TerminalFixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
@@ -2070,6 +2101,7 @@ mod tests {
             let copy_plan = materialized.copies().plan();
             assert_eq!(copy_plan.copies.len(), 2);
             assert_eq!(materialized.custody().copy_count(), 2);
+            assert_eq!(materialized.custody().manifest(), source_manifest);
             assert_eq!(
                 copy_plan.usage,
                 omega_optimization_core::OptimizationWorkUsage {

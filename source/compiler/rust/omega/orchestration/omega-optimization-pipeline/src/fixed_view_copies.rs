@@ -1,6 +1,7 @@
 use omega_optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationUnitIdentity, OptimizationWorkBudget,
     OptimizationWorkUsage, OptimizedAbstractPlanProjectionIdentity,
+    PrePhysicalOptimizationManifestIdentity,
 };
 use omega_regalloc::{
     TerminalFixedViewCopyError, TerminalFixedViewCopyIdentity, TerminalFixedViewCopyPolicy,
@@ -45,6 +46,7 @@ pub struct StagedOptimizedFixedViewCopyCustodyReceipt {
     entry: MachineId,
     optimization: OptimizationIdentityBundleIdentity,
     projection: OptimizedAbstractPlanProjectionIdentity,
+    manifest: PrePhysicalOptimizationManifestIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
     register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
@@ -75,6 +77,9 @@ impl StagedOptimizedFixedViewCopyCustodyReceipt {
     }
     pub const fn projection(self) -> OptimizedAbstractPlanProjectionIdentity {
         self.projection
+    }
+    pub const fn manifest(self) -> PrePhysicalOptimizationManifestIdentity {
+        self.manifest
     }
     pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
         self.optimization_unit
@@ -222,6 +227,7 @@ fn custody_receipt(
         entry: upstream.entry(),
         optimization: upstream.optimization(),
         projection: upstream.projection(),
+        manifest: upstream.manifest(),
         optimization_unit: upstream.optimization_unit(),
         fuel_schedule: upstream.fuel_schedule(),
         register_environment: upstream.register_environment(),

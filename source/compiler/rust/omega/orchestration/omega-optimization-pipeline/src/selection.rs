@@ -1,7 +1,7 @@
 use omega_lowering_optimizer::ValidatedOptimizedTargetOperations;
 use omega_optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationUnitIdentity,
-    OptimizedAbstractPlanProjectionIdentity,
+    OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
 };
 use omega_terminal_selected_instructions::{
     TerminalSelectedFixedInputConstraint, TerminalSelectedInstructionPlanIdentity,
@@ -59,6 +59,7 @@ pub struct StagedOptimizedSelectionCustodyReceipt {
     entry: MachineId,
     optimization: OptimizationIdentityBundleIdentity,
     projection: OptimizedAbstractPlanProjectionIdentity,
+    manifest: PrePhysicalOptimizationManifestIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
     register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
@@ -85,6 +86,10 @@ impl StagedOptimizedSelectionCustodyReceipt {
 
     pub const fn projection(self) -> OptimizedAbstractPlanProjectionIdentity {
         self.projection
+    }
+
+    pub const fn manifest(self) -> PrePhysicalOptimizationManifestIdentity {
+        self.manifest
     }
 
     pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
@@ -224,6 +229,11 @@ pub fn validate_optimized_selection_custody(
         entry: target.entry,
         optimization: optimized_target.optimized().identity_bundle().identity(),
         projection: optimized_target.optimized().validation().identity(),
+        manifest: optimized_target
+            .optimized()
+            .pre_physical_manifest()
+            .record()
+            .identity,
         optimization_unit: unit.identity,
         fuel_schedule: unit.fuel_schedule,
         register_environment: register_environment.identity(),

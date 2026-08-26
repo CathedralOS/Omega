@@ -232,6 +232,14 @@ zero code size, zero spills, a zero frame, or allocator success. A later
 physical/publication manifest must join this identity to independently
 validated target, allocation, emission, and artifact records.
 
+The first selected-instruction custody receipt binds that pre-physical manifest
+identity alongside the optimizer bundle and abstract-projection receipt. Every
+implemented liveness, live-range, allocation-legality, fixed-view-copy, and
+register-home receipt propagates the same identity, while the parallel staged
+assignment receipt joins it directly. Downstream physical work therefore
+cannot retain the older roots while silently dropping the structured manifest
+it is expected to extend.
+
 The first register-allocation slice follows the same custody discipline. It
 derives exact physical-view candidates from the selected CFG, target register
 environment, reservations, architectural state, and fixed operand sites. Its
@@ -783,7 +791,9 @@ of reservation overlays and the independently recomputed effective unit union;
 declaration alone never activates an overlay. Finally, the environment identity
 binds the exact native target, the three component identities, and the selected
 materialize/compare/branch/return keys. Selection, liveness, live-range, and
-transitional-assignment custody all retain this joined identity.
+transitional-assignment custody all retain this joined identity. Those receipts
+also retain the validated pre-physical optimization-manifest identity required
+by a later physical/publication manifest join.
 
 The first active policy is explicitly named
 `omega.conservative-baseline-v1`. It reserves all declared overlays except a
