@@ -85,6 +85,14 @@ a report continue to use full emission. This keeps observability selectable at
 the orchestration boundary without turning report generation into language
 semantics or duplicating policy through every representation stage.
 
+`RequestedCompileProduct::NativeArtifact` is a distinct stopping boundary. It
+runs native backend and blocker validation, then returns exactly one non-clonable
+payload owning the emission plan and complete image-writer inputs. Its report
+has no executable path, publication, installation, terminal deployment, or
+runtime authority and records that no primary output was written. Auxiliary
+observations remain controlled independently by `ArtifactEmissionPolicy`; with
+`OutputOnly`, retained-artifact compilation creates no build directory.
+
 ## Representation Root Shape
 
 Durable representations should make their semantic spine visible at the root.

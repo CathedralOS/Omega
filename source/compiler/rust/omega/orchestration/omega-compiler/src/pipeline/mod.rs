@@ -95,7 +95,7 @@ pub use compile_options::{ArtifactEmissionPolicy, CompileOptions};
 pub use compile_policy::ExecutableTcbBuildPolicy;
 pub use compile_report::{
     CompileOutputKind, CompileReport, ExecutablePublicationDestination,
-    ExecutablePublicationReceipt, TerminalComponentDeploymentReportError,
+    ExecutablePublicationReceipt, RetainedNativeArtifact, TerminalComponentDeploymentReportError,
 };
 pub use compiler::{
     CompileHarnessRequest, CompileRequest, RequestedCompileProduct, compile, compile_harness,

@@ -1,6 +1,6 @@
 use crate::pipeline::compile_options::CompileOptions;
 use crate::pipeline::compile_policy::ExecutableTcbInstallationAuthorization;
-use crate::pipeline::stages::EmittedProgram;
+use crate::pipeline::compile_report::EmittedProgram;
 use omega_artifacts::ArtifactWriter;
 use omega_image_emission::{
     ExecutableImageInput, can_emit_executable_image, emit_checked_executable_image,
@@ -760,7 +760,8 @@ impl WrittenOutput {
             super::CompileOutputKind::ObjectContainer => {
                 executable_publication.is_none() && app_bundle_publication.is_none()
             }
-            super::CompileOutputKind::CheckOnly => false,
+            super::CompileOutputKind::CheckOnly
+            | super::CompileOutputKind::RetainedNativeArtifact => false,
         };
         if !path_matches_kind {
             return Err(Diagnostic::error(
