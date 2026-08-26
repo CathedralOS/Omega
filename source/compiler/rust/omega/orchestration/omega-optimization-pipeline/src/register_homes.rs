@@ -1,10 +1,14 @@
 use omega_optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationUnitIdentity,
-    OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
+    OptimizedAbstractPlanProjectionIdentity, PostAllocationOptimizationManifestIdentity,
+    PrePhysicalOptimizationManifestIdentity,
 };
 use omega_regalloc::{
-    TerminalRegisterHomeError, TerminalRegisterHomeIdentity, ValidatedTerminalRegisterHomes,
-    assign_terminal_register_homes, validate_terminal_register_homes,
+    PostAllocationOptimizationManifestError, TerminalRegisterHomeError,
+    TerminalRegisterHomeIdentity, ValidatedPostAllocationOptimizationManifest,
+    ValidatedTerminalRegisterHomes, assign_terminal_register_homes,
+    project_post_allocation_optimization_manifest, validate_post_allocation_optimization_manifest,
+    validate_terminal_register_homes,
 };
 use omega_terminal_selected_instructions::TerminalSelectedInstructionPlanIdentity;
 use psi_core::{FuelScheduleIdentity, MachineId};
@@ -25,6 +29,7 @@ use crate::{
 pub struct StagedOptimizedRegisterHomes {
     legality: StagedOptimizedAllocationLegality,
     homes: ValidatedTerminalRegisterHomes,
+    manifest: ValidatedPostAllocationOptimizationManifest,
     custody: StagedOptimizedRegisterHomeCustodyReceipt,
 }
 
@@ -34,6 +39,9 @@ impl StagedOptimizedRegisterHomes {
     }
     pub const fn homes(&self) -> &ValidatedTerminalRegisterHomes {
         &self.homes
+    }
+    pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
+        &self.manifest
     }
     pub const fn custody(&self) -> StagedOptimizedRegisterHomeCustodyReceipt {
         self.custody
@@ -56,6 +64,7 @@ pub struct StagedOptimizedRegisterHomeCustodyReceipt {
     ranges: omega_regalloc::TerminalLiveRangeIdentity,
     legality: omega_regalloc::TerminalAllocationLegalityIdentity,
     homes: TerminalRegisterHomeIdentity,
+    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
     function_count: usize,
     assignment_count: usize,
 }
@@ -105,6 +114,9 @@ impl StagedOptimizedRegisterHomeCustodyReceipt {
     pub const fn homes(self) -> TerminalRegisterHomeIdentity {
         self.homes
     }
+    pub const fn post_allocation_manifest(self) -> PostAllocationOptimizationManifestIdentity {
+        self.post_allocation_manifest
+    }
     pub const fn function_count(self) -> usize {
         self.function_count
     }
@@ -118,6 +130,7 @@ pub enum OptimizedRegisterHomeCustodyError {
     UpstreamLegality(OptimizedAllocationLegalityCustodyError),
     Assignment(TerminalRegisterHomeError),
     Revalidation(TerminalRegisterHomeError),
+    Manifest(PostAllocationOptimizationManifestError),
     ReceiptMismatch,
 }
 
@@ -169,10 +182,19 @@ pub fn stage_optimized_register_homes(
     if replayed.receipt() != homes.receipt() {
         return Err(OptimizedRegisterHomeCustodyError::ReceiptMismatch);
     }
-    let custody = custody_receipt(upstream, homes.receipt());
+    let manifest = project_post_allocation_optimization_manifest(
+        upstream.manifest(),
+        None,
+        ranges.ranges(),
+        legality.legality(),
+        &homes,
+    )
+    .map_err(OptimizedRegisterHomeCustodyError::Manifest)?;
+    let custody = custody_receipt(upstream, homes.receipt(), manifest.record().identity);
     Ok(StagedOptimizedRegisterHomes {
         legality,
         homes,
+        manifest,
         custody,
     })
 }
@@ -180,6 +202,7 @@ pub fn stage_optimized_register_homes(
 pub fn validate_optimized_register_home_custody(
     legality: &StagedOptimizedAllocationLegality,
     homes: &ValidatedTerminalRegisterHomes,
+    manifest: &ValidatedPostAllocationOptimizationManifest,
 ) -> Result<StagedOptimizedRegisterHomeCustodyReceipt, OptimizedRegisterHomeCustodyError> {
     let upstream = validate_optimized_allocation_legality_custody(
         legality.live_range_stage(),
@@ -205,12 +228,26 @@ pub fn validate_optimized_register_home_custody(
     if replayed.receipt() != homes.receipt() {
         return Err(OptimizedRegisterHomeCustodyError::ReceiptMismatch);
     }
-    Ok(custody_receipt(upstream, replayed.receipt()))
+    let manifest = validate_post_allocation_optimization_manifest(
+        manifest.record(),
+        upstream.manifest(),
+        None,
+        ranges.ranges(),
+        legality.legality(),
+        &replayed,
+    )
+    .map_err(OptimizedRegisterHomeCustodyError::Manifest)?;
+    Ok(custody_receipt(
+        upstream,
+        replayed.receipt(),
+        manifest.record().identity,
+    ))
 }
 
 fn custody_receipt(
     upstream: crate::StagedOptimizedAllocationLegalityCustodyReceipt,
     homes: omega_regalloc::TerminalRegisterHomeValidationReceipt,
+    manifest: PostAllocationOptimizationManifestIdentity,
 ) -> StagedOptimizedRegisterHomeCustodyReceipt {
     StagedOptimizedRegisterHomeCustodyReceipt {
         terminal_psi: upstream.terminal_psi(),
@@ -227,6 +264,7 @@ fn custody_receipt(
         ranges: upstream.ranges(),
         legality: upstream.legality(),
         homes: homes.identity(),
+        post_allocation_manifest: manifest,
         function_count: homes.function_count(),
         assignment_count: homes.assignment_count(),
     }
@@ -238,6 +276,7 @@ fn custody_receipt(
 pub struct StagedOptimizedRegisterHomesAfterFixedViewCopies {
     reanalysis: StagedOptimizedSelectedReanalysis,
     homes: ValidatedTerminalRegisterHomes,
+    manifest: ValidatedPostAllocationOptimizationManifest,
     custody: StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
 }
 
@@ -248,6 +287,9 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
     pub const fn homes(&self) -> &ValidatedTerminalRegisterHomes {
         &self.homes
     }
+    pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
+        &self.manifest
+    }
     pub const fn custody(&self) -> StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
         self.custody
     }
@@ -257,6 +299,7 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
 pub struct StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
     source: StagedOptimizedSelectedReanalysisCustodyReceipt,
     homes: TerminalRegisterHomeIdentity,
+    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
     function_count: usize,
     assignment_count: usize,
 }
@@ -267,6 +310,9 @@ impl StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
     }
     pub const fn homes(self) -> TerminalRegisterHomeIdentity {
         self.homes
+    }
+    pub const fn post_allocation_manifest(self) -> PostAllocationOptimizationManifestIdentity {
+        self.post_allocation_manifest
     }
     pub const fn function_count(self) -> usize {
         self.function_count
@@ -281,6 +327,7 @@ pub enum OptimizedPostCopyRegisterHomeCustodyError {
     UpstreamReanalysis(OptimizedSelectedReanalysisError),
     Assignment(TerminalRegisterHomeError),
     Revalidation(TerminalRegisterHomeError),
+    Manifest(PostAllocationOptimizationManifestError),
     ReceiptMismatch,
 }
 
@@ -339,10 +386,19 @@ pub fn stage_optimized_register_homes_after_fixed_view_copies(
     if replayed.receipt() != homes.receipt() {
         return Err(OptimizedPostCopyRegisterHomeCustodyError::ReceiptMismatch);
     }
-    let custody = post_copy_custody_receipt(source, homes.receipt());
+    let manifest = project_post_allocation_optimization_manifest(
+        source.source().manifest(),
+        Some(source.source().transformation()),
+        reanalysis.ranges(),
+        reanalysis.legality(),
+        &homes,
+    )
+    .map_err(OptimizedPostCopyRegisterHomeCustodyError::Manifest)?;
+    let custody = post_copy_custody_receipt(source, homes.receipt(), manifest.record().identity);
     Ok(StagedOptimizedRegisterHomesAfterFixedViewCopies {
         reanalysis,
         homes,
+        manifest,
         custody,
     })
 }
@@ -350,6 +406,7 @@ pub fn stage_optimized_register_homes_after_fixed_view_copies(
 pub fn validate_optimized_register_home_after_fixed_view_copy_custody(
     reanalysis: &StagedOptimizedSelectedReanalysis,
     homes: &ValidatedTerminalRegisterHomes,
+    manifest: &ValidatedPostAllocationOptimizationManifest,
 ) -> Result<
     StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
     OptimizedPostCopyRegisterHomeCustodyError,
@@ -382,16 +439,31 @@ pub fn validate_optimized_register_home_after_fixed_view_copy_custody(
     if replayed.receipt() != homes.receipt() {
         return Err(OptimizedPostCopyRegisterHomeCustodyError::ReceiptMismatch);
     }
-    Ok(post_copy_custody_receipt(source, replayed.receipt()))
+    let manifest = validate_post_allocation_optimization_manifest(
+        manifest.record(),
+        source.source().manifest(),
+        Some(source.source().transformation()),
+        reanalysis.ranges(),
+        reanalysis.legality(),
+        &replayed,
+    )
+    .map_err(OptimizedPostCopyRegisterHomeCustodyError::Manifest)?;
+    Ok(post_copy_custody_receipt(
+        source,
+        replayed.receipt(),
+        manifest.record().identity,
+    ))
 }
 
 fn post_copy_custody_receipt(
     source: StagedOptimizedSelectedReanalysisCustodyReceipt,
     homes: omega_regalloc::TerminalRegisterHomeValidationReceipt,
+    manifest: PostAllocationOptimizationManifestIdentity,
 ) -> StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
     StagedOptimizedPostCopyRegisterHomeCustodyReceipt {
         source,
         homes: homes.identity(),
+        post_allocation_manifest: manifest,
         function_count: homes.function_count(),
         assignment_count: homes.assignment_count(),
     }

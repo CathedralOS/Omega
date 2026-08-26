@@ -86,6 +86,10 @@ canonical_identity!(
     b"omega.pre-physical-optimization-manifest-identity.v1\0"
 );
 canonical_identity!(
+    PostAllocationOptimizationManifestIdentity,
+    b"omega.post-allocation-optimization-manifest-identity.v1\0"
+);
+canonical_identity!(
     OptimizationDecisionIdentity,
     b"omega.optimization-decision-identity.v1\0"
 );
@@ -423,6 +427,7 @@ mod tests {
             OptimizationPassIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationCandidateIdentity::from_canonical_bytes(b"same").bytes(),
             ScalarConstantFactIdentity::from_canonical_bytes(b"same").bytes(),
+            PostAllocationOptimizationManifestIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationDecisionIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationValidatorIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationUnitIdentity::from_canonical_bytes(b"same").bytes(),
@@ -450,6 +455,7 @@ mod tests {
         round_trip!(AcceptedObligationFactIdentity);
         round_trip!(OwnershipFrontierFactIdentity);
         round_trip!(PrePhysicalOptimizationManifestIdentity);
+        round_trip!(PostAllocationOptimizationManifestIdentity);
         round_trip!(OptimizationDecisionIdentity);
         round_trip!(OptimizationValidatorIdentity);
         round_trip!(OptimizationUnitIdentity);
