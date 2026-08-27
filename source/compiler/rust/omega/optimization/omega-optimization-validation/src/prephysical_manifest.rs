@@ -722,7 +722,7 @@ fn pre_physical_manifest_identity(
     manifest: &PrePhysicalOptimizationManifest,
 ) -> PrePhysicalOptimizationManifestIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.pre-physical-optimization-manifest.v9\0");
+    canonical.extend_from_slice(b"omega.pre-physical-optimization-manifest.v10\0");
     canonical.extend_from_slice(&encode_manifest_content(manifest));
     PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(&canonical)
 }

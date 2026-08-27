@@ -964,6 +964,22 @@ dependency.
   charge a distinct semantic site, produce proof/runtime evidence, or carry an
   effect/cleanup/boundary event.
 
+  Current slice: the exact named `DeadPureScalarElimination` selection owns
+  `dead-unused-scalar-literal-elimination.v1`. It removes only unused
+  `BooleanConstant` and `IntegerConstant` nodes: the closed operations with no
+  operands, obligations, ownership, successors, crash/suspension, or
+  observation effects. The independent validator reconstructs liveness,
+  effect shape, exact definition/type, every use, and relocation accounting.
+  Removed work is never called unreachable: its operation provenance and fuel
+  move to the next co-executed node, and every shifted later node is ledgered.
+  Dense effects, definition/use sites, literal facts, places, and identity are
+  rebuilt. A verified artifact removes two adjacent literals over two
+  iterations and replays every source/fuel site into the return. Candidate
+  v16, optimization-unit identity v10, the v1 pass, prephysical manifest v10,
+  and projection v11 bind this meaning; ledger v4 already represents the
+  many-to-one moves. Other scalar operations remain open until their exact
+  totality contracts are admitted individually.
+
 - **OPT-PROOF-CHECK-ELISION.** Omit redundant physical checks whose exact
   obligations were already verified and whose operation semantics permit
   no-code realization.
