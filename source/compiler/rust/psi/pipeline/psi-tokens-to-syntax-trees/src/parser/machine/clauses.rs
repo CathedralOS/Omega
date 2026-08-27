@@ -26,6 +26,8 @@ type MachineClauses = (
     bool,
     HandleSpan<Identifier>,
     HandleSpan<Identifier>,
+    Vec<psi_source::SourceSpan>,
+    Vec<psi_source::SourceSpan>,
     bool,
     bool,
     HandleSpan<CapabilityContract>,
@@ -56,6 +58,8 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     let mut service_count = 0u32;
     let mut invokes_start = Handle::invalid();
     let mut invokes_count = 0u32;
+    let mut suspends_keyword_source_spans = Vec::new();
+    let mut blocks_keyword_source_spans = Vec::new();
     let mut suspends = false;
     let mut blocks = false;
     let mut contract_start = Handle::invalid();
@@ -194,6 +198,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("suspends") {
+            suspends_keyword_source_spans.push(input.current_source_span());
             if suspends {
                 return Err(input.error_here("duplicate `suspends;` operational clause"));
             }
@@ -203,6 +208,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("blocks") {
+            blocks_keyword_source_spans.push(input.current_source_span());
             if blocks {
                 return Err(input.error_here("duplicate `blocks;` operational clause"));
             }
@@ -466,6 +472,8 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             service_reach_is_installation_bound,
             service_reaches,
             invokes,
+            suspends_keyword_source_spans,
+            blocks_keyword_source_spans,
             suspends,
             blocks,
             contracts,

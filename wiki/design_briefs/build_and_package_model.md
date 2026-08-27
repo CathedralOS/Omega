@@ -1192,7 +1192,7 @@ their exact parameter-symbol/ordinal or boundary-trait symbol to the target-name
 span. Invocation inference consumes that target rather than reselecting by
 spelling. Callable, public-trait requirement, and recursively structural
 machine-parameter review rows carry the span under `synchronous_invocation`,
-with top-level rows joined exactly to checked invocation facts. Recovery
+with top-level rows joined exactly to checked invocation facts.
 Authored `reaches` clauses retain every keyword and target occurrence through
 syntax, resolution, typed lowering, copying, and specialization. Resolution
 binds targets once to exact boundary-trait symbols. Projection rederives the
@@ -1202,9 +1202,19 @@ authored clause is a published empty ceiling, not omitted private inference.
 Review carries authored member spans—or the keyword span for an empty row—under
 `service_reach`, without inventing locations for inferred, invocation-only, or
 parent-closure entries. Recovery envelope v6 and conflict fingerprint
-v9/rendering V8 bind what review shows. Remaining per-fact spans are
-incremental; absent late-stage spans must be retained by their earlier owner,
-not reconstructed from source text.
+v9/rendering V8 bind that reach-source schema. Authored `suspends` and `blocks`
+keyword occurrences now survive syntax, resolution, typed lowering, trait-
+default synthesis, copying, and specialization. Callable, public-trait
+requirement, and recursively structural machine-parameter rows carry distinct
+`suspension` and `blocking` roles. Projection requires retained keywords,
+authored booleans, and checked published/internal interfaces to agree exactly;
+omission and inference receive no invented location. A public or otherwise
+contract-supplied machine's checked operational fact remains its published may-
+ceiling, not an observation that the current body exercised that permission.
+Review v73/row v31, recovery v7, conflict fingerprint v10, and renderer V9 bind
+the current source schema. Remaining per-fact spans are incremental; absent
+late-stage spans must be retained by their earlier owner, not reconstructed
+from source text.
 
 Proposition and named-evidence projection is the concrete model for this
 cross-representation rule. Typed proposition applications own structural

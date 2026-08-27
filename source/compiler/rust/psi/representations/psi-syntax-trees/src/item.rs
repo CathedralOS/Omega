@@ -782,6 +782,8 @@ pub struct Machine {
     pub invokes: HandleSpan<Identifier>,
     /// Independent authored operational may-clauses (decision 22). These are
     /// never members of `service_reaches`.
+    pub suspends_keyword_source_spans: Vec<psi_source::SourceSpan>,
+    pub blocks_keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,
@@ -844,6 +846,9 @@ pub struct StateSignature {
     /// Bodyless direct synchronous invocation ceiling. Members name callable
     /// parameters (or a boundary-trait identity when no parameter path exists).
     pub invokes: HandleSpan<Identifier>,
+    /// Exact authored operational-clause keyword occurrences.
+    pub suspends_keyword_source_spans: Vec<psi_source::SourceSpan>,
+    pub blocks_keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,
@@ -1198,6 +1203,8 @@ impl ItemTable {
                 .clone(),
             service_reaches: signature.service_reaches,
             invokes: signature.invokes,
+            suspends_keyword_source_spans: signature.suspends_keyword_source_spans.clone(),
+            blocks_keyword_source_spans: signature.blocks_keyword_source_spans.clone(),
             suspends: signature.suspends,
             blocks: signature.blocks,
             contracts: signature.contracts,
@@ -1223,6 +1230,8 @@ impl ItemTable {
             service_reach_keyword_source_spans: machine.service_reach_keyword_source_spans.clone(),
             service_reaches: machine.service_reaches,
             invokes: machine.invokes,
+            suspends_keyword_source_spans: machine.suspends_keyword_source_spans.clone(),
+            blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
             suspends: machine.suspends,
             blocks: machine.blocks,
             contracts: machine.contracts,
@@ -1306,6 +1315,8 @@ pub struct StateSignatureNode {
     pub service_reach_keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub service_reaches: HandleSpan<Identifier>,
     pub invokes: HandleSpan<Identifier>,
+    pub suspends_keyword_source_spans: Vec<psi_source::SourceSpan>,
+    pub blocks_keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,
@@ -1330,6 +1341,8 @@ pub struct MachineNode {
     pub service_reach_keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub service_reaches: HandleSpan<Identifier>,
     pub invokes: HandleSpan<Identifier>,
+    pub suspends_keyword_source_spans: Vec<psi_source::SourceSpan>,
+    pub blocks_keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,

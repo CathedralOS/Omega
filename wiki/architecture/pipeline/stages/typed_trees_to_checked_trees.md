@@ -183,6 +183,15 @@ infers it. Package projection rederives and joins both facts; an authored empty
 ceiling cannot collapse into omission, and inferred or closure-only members do
 not acquire invented source coordinates.
 
+Authored suspension and blocking clauses retain their exact keyword spans on
+the typed machine or structural signature. Checked facts settle the published
+or internal interface and its effective may-ceiling; package projection
+requires that interface, the authored boolean, and source custody to agree.
+Public and otherwise contract-supplied machines deliberately expose the
+published may-ceiling as their checked operational summary, so this stage does
+not manufacture a separate claim that the current body exercised—or did not
+exercise—the permission.
+
 Must not own:
 
 - Machine instruction shape, ABI placement, final storage layout, relocation

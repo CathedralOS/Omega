@@ -63,7 +63,10 @@ The Psi product role owns this stage; its eventual hosted source belongs under
   `blocks`, `crashes`, `requires`, and `ensures`
   clauses. Every authored `reaches` keyword is retained independently from its
   member span, including a memberless clause, so later stages can distinguish
-  explicit empty publication from omission without reparsing source text. A
+  explicit empty publication from omission without reparsing source text.
+  Every authored `suspends` and `blocks` keyword is likewise retained on
+  ordinary machines, trait requirements, and structural machine signatures;
+  generated or omitted clauses do not acquire a synthetic authored span. A
   machine `requires` or `ensures` clause may retain one explicit
   evidence-term binding (`name: proposition`); a named clause contains exactly
   one proposition. An `ensures` section also admits one

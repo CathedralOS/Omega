@@ -97,6 +97,8 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
                 service_reach_keyword_source_spans,
                 service_reach_is_installation_bound,
                 invokes,
+                suspends_keyword_source_spans,
+                blocks_keyword_source_spans,
                 suspends,
                 blocks,
                 contracts,
@@ -116,6 +118,8 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         signature.service_reach_keyword_source_spans = service_reach_keyword_source_spans;
         signature.service_reaches = service_reaches;
         signature.invokes = invokes;
+        signature.suspends_keyword_source_spans = suspends_keyword_source_spans;
+        signature.blocks_keyword_source_spans = blocks_keyword_source_spans;
         signature.suspends = suspends;
         signature.blocks = blocks;
         signature.contracts = contracts;
@@ -296,6 +300,8 @@ fn parse_trait_machine_signature<'tokens, 'source>(
             service_reach_keyword_source_spans: Vec::new(),
             service_reaches: HandleSpan::empty(),
             invokes: HandleSpan::empty(),
+            suspends_keyword_source_spans: Vec::new(),
+            blocks_keyword_source_spans: Vec::new(),
             suspends: false,
             blocks: false,
             contracts: HandleSpan::empty(),
@@ -387,6 +393,8 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
             Vec<psi_source::SourceSpan>,
             bool,
             HandleSpan<psi_syntax_trees::identifier::Identifier>,
+            Vec<psi_source::SourceSpan>,
+            Vec<psi_source::SourceSpan>,
             bool,
             bool,
             HandleSpan<CapabilityContract>,
@@ -404,6 +412,8 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     let mut service_reach_is_installation_bound = false;
     let mut invokes_start = Handle::invalid();
     let mut invokes_count = 0u32;
+    let mut suspends_keyword_source_spans = Vec::new();
+    let mut blocks_keyword_source_spans = Vec::new();
     let mut suspends = false;
     let mut blocks = false;
     let mut contract_start = Handle::invalid();
@@ -502,6 +512,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("suspends") {
+            suspends_keyword_source_spans.push(input.current_source_span());
             if suspends {
                 return Err(input.error_here("duplicate `suspends;` operational clause"));
             }
@@ -515,6 +526,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("blocks") {
+            blocks_keyword_source_spans.push(input.current_source_span());
             if blocks {
                 return Err(input.error_here("duplicate `blocks;` operational clause"));
             }
@@ -683,6 +695,8 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
             service_reach_keyword_source_spans,
             service_reach_is_installation_bound,
             invokes,
+            suspends_keyword_source_spans,
+            blocks_keyword_source_spans,
             suspends,
             blocks,
             contracts,
