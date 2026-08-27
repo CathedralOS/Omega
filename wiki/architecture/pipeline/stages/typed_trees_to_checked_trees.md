@@ -156,6 +156,12 @@ a nominal `Chi` stage. Add a stage only for a genuine reusable semantic boundary
 and prefer an existing coherent representation such as `Exact` when it preserves
 the required meaning with less machinery.
 
+Authored synchronous-invocation declarations are one concrete use of this
+rule. Typed lowering binds each target-name span directly to its exact
+parameter-symbol/ordinal or boundary-trait symbol. Effect inference consumes
+that exact target, and package projection joins it to checked machine facts;
+neither stage reselects a target from diagnostic spelling.
+
 Must not own:
 
 - Machine instruction shape, ABI placement, final storage layout, relocation
