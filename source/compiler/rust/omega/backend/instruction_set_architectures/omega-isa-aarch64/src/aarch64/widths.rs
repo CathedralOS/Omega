@@ -716,6 +716,7 @@ pub fn runtime_storage_binary_write_width(
         );
 
     let saturating_signed_divide_modulo = domain == ArithmeticDomain::Saturating
+        && target_signed
         && matches!(
             operator,
             StateGuardOperator::Divide | StateGuardOperator::Modulo
@@ -868,18 +869,27 @@ fn saturating_trapping_arithmetic_width(
 }
 
 /// Byte count of [`super::runtime_storage::append_saturating_signed_divide_modulo`]
-/// — sign-extends (8) + `x9 = -1` (16) + CMP (4) + b.ne (4) + the special block + the
-/// unconditional branch (4) + the normal block. MUST stay in lockstep.
+/// — optionally sign-extends narrow inputs, then emits `x9 = -1` (16) + CMP
+/// (4) + b.ne (4) + the special block + the unconditional branch (4) + the
+/// normal block. MUST stay in lockstep.
 fn saturating_signed_divide_modulo_width(byte_size: usize, want_remainder: bool) -> usize {
-    if !matches!(byte_size, 1 | 2 | 4) {
-        // 8-byte errors during emission; a placeholder for the pre-error capacity.
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
         return 4;
     }
-    // Prologue: two sign-extends (8) + MOVZ+MOVK*3 for -1 (16) + CMP (4) + b.ne (4).
-    let prologue = 8 + 16 + 4 + 4;
+    // Prologue: narrow operands have two sign-extends (8); i64 operands are
+    // already full-width. Then MOVZ+MOVK*3 for -1 (16) + CMP (4) + b.ne (4).
+    let prologue = if byte_size == 8 { 0 } else { 8 } + 16 + 4 + 4;
     // Special block (divisor == -1): modulo = MOVZ 0 (4); divide = MUL (4) + MOVZ+
-    // MOVK*3 MAX (16) + CMP (4) + b.le (4) + MOV clamp (4) = 32.
-    let special = if want_remainder { 4 } else { 32 };
+    // MOVK*3 MAX (16) + CMP (4) + b.le (4) + MOV clamp (4) = 32 for narrow
+    // values. i64 divide instead uses NEG (4) + the two-instruction MIN
+    // materialization (8) + CMP (4) + CSINV (4) = 20.
+    let special = if want_remainder {
+        4
+    } else if byte_size == 8 {
+        20
+    } else {
+        32
+    };
     // Unconditional branch past the normal block.
     let branch_over = 4;
     // Normal block: divide = SDIV (4); modulo = SDIV (4) + MSUB (4) = 8.

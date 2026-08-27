@@ -120,7 +120,12 @@ Must not own:
   exact operator-to-failure-branch mapping.
   `runtime_storage/scalar_writes.rs` owns recursive-operand register and
   machine-state contracts plus immediate integer, bit-field, direct binary,
-  pointee binary, saturation, and trapping writes.
+  pointee binary, saturation, and trapping writes. Its AArch64 signed 64-bit
+  Saturating divide/remainder sequence keeps a fixed-width guarded `-1` split:
+  `MIN / -1` selects `MAX`, the paired remainder selects zero, and other
+  nonzero divisors retain `SDIV`/`MSUB`; unsigned division retains `UDIV`.
+  Production and the width twin agree for direct writes and recursive operands,
+  while target-neutral formation remains responsible for excluding zero.
   `runtime_storage/bounded_buffers.rs` owns direct, pointee, indexed, and
   double-indexed bounded-buffer writes plus literal and source appends behind
   the unchanged public re-exports. `runtime_storage/string_writes.rs` owns

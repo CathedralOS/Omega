@@ -935,11 +935,19 @@ fn checked_source_signed_saturating_divide_clamps_minimum_by_negative_one() {
         TerminalExecutionResult::Scalar(argument(i64::MAX as i128))
     );
 
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("signed saturating division should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("signed saturating-divide should select for both Linux targets");
+        let assigned =
+            assign_registers(&target_operations).expect("signed saturating-divide homes");
+        emit_machine_code(&assigned).expect("signed saturating-divide should emit");
+    }
+
     #[cfg(unix)]
     {
-        let abstract_operations =
-            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-                .expect("signed saturating division should cross the Omega boundary");
         let target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
                 .expect("signed saturating-divide host selection");
@@ -955,6 +963,12 @@ fn checked_source_signed_saturating_divide_clamps_minimum_by_negative_one() {
             i64::MIN as u64,
             0,
             i64::MAX as u64,
+        ));
+        assert!(host_machine_code_with_two_u64_matches(
+            entry,
+            (-101_i64) as u64,
+            0,
+            101,
         ));
     }
 }
@@ -1152,11 +1166,19 @@ fn checked_source_signed_saturating_remainder_returns_zero_for_minimum_by_negati
         TerminalExecutionResult::Scalar(argument(0))
     );
 
+    let abstract_operations =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+            .expect("signed saturating remainder should cross the Omega boundary");
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_operations = lower_to_target_operations(&abstract_operations, target)
+            .expect("signed saturating-remainder should select for both Linux targets");
+        let assigned =
+            assign_registers(&target_operations).expect("signed saturating-remainder homes");
+        emit_machine_code(&assigned).expect("signed saturating-remainder should emit");
+    }
+
     #[cfg(unix)]
     {
-        let abstract_operations =
-            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
-                .expect("signed saturating remainder should cross the Omega boundary");
         let target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
                 .expect("signed saturating-remainder host selection");
@@ -1173,7 +1195,120 @@ fn checked_source_signed_saturating_remainder_returns_zero_for_minimum_by_negati
             0,
             0,
         ));
+        assert!(host_machine_code_with_two_u64_matches(
+            entry,
+            (-101_i64) as u64,
+            0,
+            0,
+        ));
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn checked_source_signed_saturating_i64_ordinary_divisors_execute_on_the_host() {
+    let scratch = ScratchDirectory(fresh_scratch_directory(
+        "omega-terminal-saturating-i64-ordinary-divisor",
+    ));
+    let mut source = std::fs::read_to_string(source_canary())
+        .expect("read the canonical integer-control source canary");
+    replace_machine_expression(
+        &mut source,
+        "terminal_signed_saturating_divide_min",
+        "value / -1i64",
+        "value / 5i64",
+    );
+    replace_machine_expression(
+        &mut source,
+        "terminal_signed_saturating_remainder_min",
+        "value % -1i64",
+        "value % 5i64",
+    );
+    let source_path = scratch.0.join("main.omg");
+    std::fs::write(&source_path, source).expect("write ordinary-divisor source variant");
+    let checked = compile_to_checked(&source_path, None)
+        .expect("ordinary-divisor signed Saturating i64 source should compile");
+    let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let argument = |value| TerminalScalarValue::Integer {
+        scalar_type: i64_type,
+        value: IntegerValue::Signed(value),
+    };
+
+    for (machine, expected) in [
+        ("terminal_signed_saturating_divide_min", -20_i128),
+        ("terminal_signed_saturating_remainder_min", -1_i128),
+    ] {
+        let lowered = lower_machine(&checked, machine)
+            .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
+        let semantic = encode_module(&lowered.semantic_module)
+            .unwrap_or_else(|error| panic!("encode {machine} semantics: {error:?}"));
+        let proof = encode_proof_bundle(&lowered.proof_bundle)
+            .unwrap_or_else(|error| panic!("encode {machine} proof: {error:?}"));
+        let execution = interpret_terminal_artifact_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[argument(-101), argument(0)],
+        )
+        .unwrap_or_else(|error| panic!("interpret {machine}: {error:?}"));
+        assert_eq!(
+            execution.value(),
+            TerminalExecutionResult::Scalar(argument(expected)),
+            "{machine} interpreter result"
+        );
+
+        let abstract_operations =
+            lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+                .unwrap_or_else(|error| panic!("lower {machine}: {error:?}"));
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let target_operations = lower_to_target_operations(&abstract_operations, target)
+                .unwrap_or_else(|error| panic!("select {machine} for {target:?}: {error:?}"));
+            let assigned = assign_registers(&target_operations)
+                .unwrap_or_else(|error| panic!("assign {machine} for {target:?}: {error:?}"));
+            emit_machine_code(&assigned)
+                .unwrap_or_else(|error| panic!("emit {machine} for {target:?}: {error:?}"));
+        }
+
+        let target_operations =
+            lower_to_target_operations(&abstract_operations, NativeTarget::host())
+                .unwrap_or_else(|error| panic!("select host {machine}: {error:?}"));
+        let assigned = assign_registers(&target_operations)
+            .unwrap_or_else(|error| panic!("assign host {machine}: {error:?}"));
+        let machine_code = emit_machine_code(&assigned)
+            .unwrap_or_else(|error| panic!("emit host {machine}: {error:?}"));
+        let object = build_terminal_object_artifact(&machine_code)
+            .unwrap_or_else(|error| panic!("build host {machine} object: {error:?}"));
+        assert!(host_machine_code_with_two_u64_matches(
+            object.entry_function().bytes(&object),
+            (-101_i64) as u64,
+            0,
+            expected as i64 as u64,
+        ));
+    }
+}
+
+#[cfg(unix)]
+fn replace_machine_expression(
+    source: &mut String,
+    machine: &str,
+    original: &str,
+    replacement: &str,
+) {
+    let marker = format!("machine {machine}(");
+    let start = source
+        .find(&marker)
+        .unwrap_or_else(|| panic!("source canary has no `{machine}` machine"));
+    let end = source[start..]
+        .find("\nmachine ")
+        .map_or(source.len(), |relative| start + relative);
+    let body = &source[start..end];
+    assert_eq!(
+        body.matches(original).count(),
+        1,
+        "`{machine}` must contain one exact `{original}` expression"
+    );
+    let replacement_body = body.replacen(original, replacement, 1);
+    source.replace_range(start..end, &replacement_body);
 }
 
 #[test]
