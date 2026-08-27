@@ -734,6 +734,8 @@ impl ValidatedDynamicFuelAttributionBasis {
 pub struct InstalledDynamicFuelAttributionPlan {
     plan: DynamicNativeFuelMeterPlan,
     terminal_psi: psi_terminal::TerminalPsiIdentity,
+    source_text_fingerprint: u64,
+    basis_fingerprint: u64,
     installed_code: InstalledCodeId,
     installed_code_context: InstalledCodeContext,
     artifact: ArtifactId,
@@ -750,6 +752,14 @@ impl InstalledDynamicFuelAttributionPlan {
 
     pub const fn installed_code(&self) -> InstalledCodeId {
         self.installed_code
+    }
+
+    pub const fn source_text_fingerprint(&self) -> u64 {
+        self.source_text_fingerprint
+    }
+
+    pub const fn basis_fingerprint(&self) -> u64 {
+        self.basis_fingerprint
     }
 
     pub fn attributions(&self) -> &[TerminalFuelAttributionEvidence] {
@@ -784,9 +794,101 @@ pub fn bind_installed_dynamic_fuel_attribution<Image: TerminalNativeFuelImageEvi
     image: &Image,
     installed_code: &InstalledCode,
 ) -> Result<InstalledDynamicFuelAttributionPlan, ExternalRootDiagnostic> {
-    if image.terminal_psi() != basis.terminal_psi
-        || image.target() != basis.plan.target()
-        || image.target_policy() != *basis.plan.target_policy().projection()
+    let (charges, final_text_fingerprint) = validate_dynamic_fuel_image(
+        &basis.plan,
+        basis.terminal_psi,
+        basis.source_text_fingerprint,
+        &basis.attributions,
+        image,
+        installed_code,
+    )?;
+    let fingerprint = fingerprint_installed_dynamic_fuel(
+        basis.fingerprint,
+        installed_code,
+        final_text_fingerprint,
+        &charges,
+    );
+    Ok(InstalledDynamicFuelAttributionPlan {
+        plan: basis.plan,
+        terminal_psi: basis.terminal_psi,
+        source_text_fingerprint: basis.source_text_fingerprint,
+        basis_fingerprint: basis.fingerprint,
+        installed_code: installed_code.identity(),
+        installed_code_context: installed_code.receipt_context(),
+        artifact: installed_code.artifact(),
+        attributions: basis.attributions,
+        charges,
+        final_text_fingerprint,
+        fingerprint,
+    })
+}
+
+/// Independently replay a sealed installed dynamic-meter plan against the
+/// exact source/metered/final image and installed-code occurrence.
+///
+/// This check grants no meter insertion, transfer, root, or publication
+/// authority. It only proves that the retained attribution catalog and charge
+/// intervals are still the values admitted when the carrier was constructed.
+pub fn validate_installed_dynamic_fuel_attribution<Image: TerminalNativeFuelImageEvidence>(
+    binding: &InstalledDynamicFuelAttributionPlan,
+    image: &Image,
+    installed_code: &InstalledCode,
+) -> Result<(), ExternalRootDiagnostic> {
+    if !binding.matches_installed_code(installed_code) {
+        return Err(ExternalRootDiagnostic(
+            "installed dynamic fuel attribution does not bind the exact installed-code occurrence"
+                .into(),
+        ));
+    }
+    let expected_basis_fingerprint = fingerprint_dynamic_fuel_attribution_basis(
+        &binding.plan,
+        binding.terminal_psi,
+        binding.source_text_fingerprint,
+        &binding.attributions,
+    );
+    if binding.basis_fingerprint != expected_basis_fingerprint {
+        return Err(ExternalRootDiagnostic(
+            "installed dynamic fuel attribution basis fingerprint drifted".into(),
+        ));
+    }
+    let (charges, final_text_fingerprint) = validate_dynamic_fuel_image(
+        &binding.plan,
+        binding.terminal_psi,
+        binding.source_text_fingerprint,
+        &binding.attributions,
+        image,
+        installed_code,
+    )?;
+    if binding.charges != charges || binding.final_text_fingerprint != final_text_fingerprint {
+        return Err(ExternalRootDiagnostic(
+            "installed dynamic fuel charge or final-text evidence drifted".into(),
+        ));
+    }
+    let expected_fingerprint = fingerprint_installed_dynamic_fuel(
+        binding.basis_fingerprint,
+        installed_code,
+        final_text_fingerprint,
+        &charges,
+    );
+    if binding.fingerprint != expected_fingerprint {
+        return Err(ExternalRootDiagnostic(
+            "installed dynamic fuel attribution fingerprint drifted".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_dynamic_fuel_image<Image: TerminalNativeFuelImageEvidence>(
+    plan: &DynamicNativeFuelMeterPlan,
+    terminal_psi: psi_terminal::TerminalPsiIdentity,
+    source_text_fingerprint: u64,
+    attributions: &[TerminalFuelAttributionEvidence],
+    image: &Image,
+    installed_code: &InstalledCode,
+) -> Result<(Vec<TerminalNativeFuelChargeEvidence>, u64), ExternalRootDiagnostic> {
+    if image.terminal_psi() != terminal_psi
+        || image.target() != plan.target()
+        || image.target_policy() != *plan.target_policy().projection()
         || installed_code.architecture() != image.target().architecture
     {
         return Err(ExternalRootDiagnostic(
@@ -797,7 +899,7 @@ pub fn bind_installed_dynamic_fuel_attribution<Image: TerminalNativeFuelImageEvi
     let mut source_hash = Fnv1a::new();
     source_hash.bytes(b"omega.dynamic-fuel-source-text.v1");
     source_hash.bytes(image.source_text_bytes());
-    if source_hash.finish() != basis.source_text_fingerprint {
+    if source_hash.finish() != source_text_fingerprint {
         return Err(ExternalRootDiagnostic(
             "installed dynamic fuel image does not retain the validated source text".into(),
         ));
@@ -813,10 +915,10 @@ pub fn bind_installed_dynamic_fuel_attribution<Image: TerminalNativeFuelImageEvi
     }
 
     let charges = image.charges();
-    if charges.len() != basis.attributions.len()
+    if charges.len() != attributions.len()
         || charges
             .iter()
-            .zip(&basis.attributions)
+            .zip(attributions)
             .any(|(charge, attribution)| charge.attribution != *attribution)
     {
         return Err(ExternalRootDiagnostic(
@@ -874,34 +976,18 @@ pub fn bind_installed_dynamic_fuel_attribution<Image: TerminalNativeFuelImageEvi
     final_text_hash.bytes(b"omega.dynamic-fuel-final-text.v1");
     final_text_hash.bytes(image.final_text_bytes());
     let final_text_fingerprint = final_text_hash.finish();
-    let fingerprint = fingerprint_installed_dynamic_fuel(
-        &basis,
-        installed_code,
-        final_text_fingerprint,
-        &charges,
-    );
-    Ok(InstalledDynamicFuelAttributionPlan {
-        plan: basis.plan,
-        terminal_psi: basis.terminal_psi,
-        installed_code: installed_code.identity(),
-        installed_code_context: installed_code.receipt_context(),
-        artifact: installed_code.artifact(),
-        attributions: basis.attributions,
-        charges,
-        final_text_fingerprint,
-        fingerprint,
-    })
+    Ok((charges, final_text_fingerprint))
 }
 
 fn fingerprint_installed_dynamic_fuel(
-    basis: &ValidatedDynamicFuelAttributionBasis,
+    basis_fingerprint: u64,
     installed_code: &InstalledCode,
     final_text_fingerprint: u64,
     charges: &[TerminalNativeFuelChargeEvidence],
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.installed-dynamic-fuel.v1");
-    hash.u64(basis.fingerprint);
+    hash.u64(basis_fingerprint);
     hash.u64(installed_code.identity().normalized_identity());
     hash.u64(installed_code.artifact().normalized_identity());
     hash.u64(final_text_fingerprint);
@@ -2354,7 +2440,7 @@ mod tests {
             .expect("different valid source bytes remain a distinct instrumentation input");
         assert_ne!(basis.fingerprint(), changed_basis.fingerprint());
 
-        let image = TestNativeFuelImage {
+        let mut image = TestNativeFuelImage {
             target,
             policy: x86_target_projection(profile),
             source: vec![0; 4],
@@ -2389,6 +2475,8 @@ mod tests {
                 .expect("replayed final bytes bind dynamic attribution to installation");
         assert_eq!(installed_attribution.charges(), image.charges());
         assert_eq!(installed_attribution.installed_code(), installed.identity());
+        validate_installed_dynamic_fuel_attribution(&installed_attribution, &image, &installed)
+            .expect("installed attribution independently replays");
 
         let mismatched_installation = crate::tests::installed_code_with_fill(
             92,
@@ -2400,6 +2488,90 @@ mod tests {
                 image.metered_text_bytes(),
                 image.final_text_bytes()
             )
+        );
+        assert!(
+            validate_installed_dynamic_fuel_attribution(
+                &installed_attribution,
+                &image,
+                &mismatched_installation,
+            )
+            .expect_err("compact installed identities cannot substitute exact occurrence custody")
+            .0
+            .contains("exact installed-code occurrence")
+        );
+
+        image.source[0] ^= 1;
+        assert!(
+            validate_installed_dynamic_fuel_attribution(
+                &installed_attribution,
+                &image,
+                &installed,
+            )
+            .expect_err("source text drift must reject replay")
+            .0
+            .contains("validated source text")
+        );
+        image.source[0] ^= 1;
+        image.policy = x86_target_projection(TargetProfile::UefiX64);
+        assert!(
+            validate_installed_dynamic_fuel_attribution(
+                &installed_attribution,
+                &image,
+                &installed,
+            )
+            .expect_err("target-profile policy cannot be substituted by equal native tuple")
+            .0
+            .contains("admitted target recipe")
+        );
+        image.policy = x86_target_projection(profile);
+        image.charges[0].attribution.operation_ordinal += 1;
+        assert!(
+            validate_installed_dynamic_fuel_attribution(
+                &installed_attribution,
+                &image,
+                &installed,
+            )
+            .expect_err("charge attribution drift must reject replay")
+            .0
+            .contains("one-for-one")
+        );
+        image.charges[0].attribution.operation_ordinal -= 1;
+        image.final_text[0] ^= 1;
+        assert!(
+            validate_installed_dynamic_fuel_attribution(
+                &installed_attribution,
+                &image,
+                &installed,
+            )
+            .expect_err("materialized final-text drift must reject replay")
+            .0
+            .contains("exact unrelocated and materialized")
+        );
+        image.final_text[0] ^= 1;
+
+        let mut drifted = installed_attribution.clone();
+        drifted.basis_fingerprint ^= 1;
+        assert!(
+            validate_installed_dynamic_fuel_attribution(&drifted, &image, &installed)
+                .expect_err("retained basis fingerprint drift must reject replay")
+                .0
+                .contains("basis fingerprint")
+        );
+        let mut drifted = installed_attribution.clone();
+        drifted.charges.swap(0, 1);
+        assert!(
+            validate_installed_dynamic_fuel_attribution(&drifted, &image, &installed)
+                .expect_err("retained charge order drift must reject replay")
+                .0
+                .contains("charge or final-text")
+        );
+        let mut drifted = installed_attribution.clone();
+        drifted.fingerprint ^= 1;
+        assert!(
+            validate_installed_dynamic_fuel_attribution(&drifted, &image, &installed)
+                .expect_err("aggregate installed attribution identity drift must reject replay")
+                .0
+                .contains("attribution fingerprint")
         );
         let mut duplicate = rows.clone();
         duplicate[1].site = duplicate[0].site;

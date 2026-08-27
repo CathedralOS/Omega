@@ -5248,7 +5248,15 @@ Remaining:
   exact installed-code receipt. This is the sole constructor for installed
   dynamic attribution; missing/reordered rows, source drift, overlapping or
   out-of-range charge intervals, target/profile drift, and either side of an
-  installed byte mismatch reject. Linux x86-64 now also has a separately
+  installed byte mismatch reject. Installed dynamic-meter attribution now
+  retains the exact source-basis fingerprint beside its source-text identity
+  and exposes an independent replay boundary. Replay rederives the admitted
+  target-profile plan and ordered semantic site rows, checks source, metered,
+  and final bytes plus hot/cold intervals against the exact installed-code
+  occurrence, and reconstructs both basis and installed fingerprints. Source,
+  policy, site/order, charge, final-text, or occurrence drift rejects. This
+  remains attribution equality only and grants no meter insertion, transfer,
+  root, lease, or publication authority. Linux x86-64 now also has a separately
   replayed transfer-runtime artifact: the target encoder emits the exact
   opaque-state save/restore, sponsor-stack switch/call, and `.text`-relative
   retry jump; the image owner appends exactly two compiler-function symbols and
