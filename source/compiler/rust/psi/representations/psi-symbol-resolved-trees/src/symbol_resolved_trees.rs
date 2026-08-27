@@ -20,6 +20,9 @@ pub struct SymbolResolvedTrees {
     /// symbol assignment. This is the source of truth for service reach.
     pub service_reaches: psi_language_semantics::ServiceReachTable,
     pub service_reach_rows: psi_language_semantics::ServiceReachRowTable,
+    /// Exact source-backed `reaches` occurrences, retained separately from
+    /// normalized semantic rows so explicit empty ceilings survive.
+    pub authored_service_reach_rows: Vec<signature::AuthoredServiceReachRow>,
     /// STR4 checked plans, slice 1: the deterministic semantic-domain
     /// interner (declared-name identity, declaration order).
     pub semantic_domains: psi_language_semantics::SemanticDomainTable,
@@ -113,6 +116,15 @@ pub struct SymbolResolvedBodyStorage {
 }
 
 impl SymbolResolvedTrees {
+    pub fn authored_service_reach_rows_for(
+        &self,
+        owner: psi_symbols::SymbolHandle,
+    ) -> impl Iterator<Item = &signature::AuthoredServiceReachRow> {
+        self.authored_service_reach_rows
+            .iter()
+            .filter(move |row| row.owner == owner)
+    }
+
     pub fn with_roots(
         roots: SymbolResolvedRoots,
         tables: SymbolResolvedTableStorage,
@@ -124,6 +136,7 @@ impl SymbolResolvedTrees {
             symbols,
             service_reaches: psi_language_semantics::ServiceReachTable::default(),
             service_reach_rows: psi_language_semantics::ServiceReachRowTable::default(),
+            authored_service_reach_rows: Vec::new(),
             semantic_domains: psi_language_semantics::SemanticDomainTable::default(),
             external_bindings: psi_language_semantics::ExternalBindingTable::default(),
             evidence_forwardings: Vec::new(),
