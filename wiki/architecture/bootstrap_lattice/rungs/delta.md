@@ -1,6 +1,7 @@
 # Rung: Delta — compiler-host systems language
 
-[Lattice overview](../bootstrap_lattice.md) | Prev: [Gamma](gamma.md) | Next: —
+[Lattice overview](../bootstrap_lattice.md) | Prev: [Gamma](gamma.md) | Next:
+[Omega product toolchain](../omega_toolchain.md)
 
 > **Status: WORKING RUNG.** `bootstrap/delta/` owns the language corpus,
 > Delta-written compiler, and lattice-built artifacts. The disposable Rust

@@ -656,6 +656,7 @@ pub fn validate_scalar_evaluation_candidate(
         | PsiRewritePatch::FuseSharedTerminalJump(_)
         | PsiRewritePatch::RemoveDeadScalarNode(_)
         | PsiRewritePatch::EliminateLocalScalarCommonSubexpression(_)
+        | PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(_)
         | PsiRewritePatch::PruneUnreachablePrivateMachines(_) => {
             Err(OptimizationUnitValidationError::CandidatePatchMismatch)
         }
@@ -696,6 +697,9 @@ pub fn validate_psi_rewrite_candidate(
         }
         PsiRewritePatch::EliminateLocalScalarCommonSubexpression(_) => {
             validate_local_scalar_common_subexpression_candidate(input, candidate)
+        }
+        PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(_) => {
+            validate_dominating_scalar_common_subexpression_candidate(input, candidate)
         }
         PsiRewritePatch::PruneUnreachablePrivateMachines(_) => {
             validate_unreachable_private_machines_candidate(input, candidate)
@@ -2785,15 +2789,42 @@ pub fn validate_local_scalar_common_subexpression_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_scalar_common_subexpression_candidate(input, candidate, ScalarCseScope::SameBlock)
+}
+
+/// Independently validate and apply one cross-block dominating
+/// common-subexpression elimination.
+pub fn validate_dominating_scalar_common_subexpression_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_scalar_common_subexpression_candidate(input, candidate, ScalarCseScope::Dominating)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScalarCseScope {
+    SameBlock,
+    Dominating,
+}
+
+fn validate_scalar_common_subexpression_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+    scope: ScalarCseScope,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
     validate_psi_optimization_unit(input)?;
     if candidate.input() != input.identity {
         return Err(OptimizationUnitValidationError::CandidateInputMismatch);
     }
-    if candidate.rule()
-        != OptimizationRuleIdentity::from_canonical_bytes(
-            b"omega.psi-rule.same-block-obligation-free-total-scalar-cse.v1",
-        )
-    {
+    let expected_rule = OptimizationRuleIdentity::from_canonical_bytes(match scope {
+        ScalarCseScope::SameBlock => {
+            b"omega.psi-rule.same-block-obligation-free-total-scalar-cse.v1"
+        }
+        ScalarCseScope::Dominating => {
+            b"omega.psi-rule.dominator-obligation-free-total-scalar-gvn.v1"
+        }
+    });
+    if candidate.rule() != expected_rule {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     if !candidate
@@ -2809,11 +2840,34 @@ pub fn validate_local_scalar_common_subexpression_candidate(
             .invalidated_analyses()
             .contains(AnalysisKind::EffectSummaries)
         || candidate.safety_class() != OptimizationSafetyClass::ExactOperationSemantics
+        || (scope == ScalarCseScope::Dominating
+            && (!candidate
+                .required_analyses()
+                .contains(AnalysisKind::ControlFlowGraph)
+                || !candidate
+                    .required_analyses()
+                    .contains(AnalysisKind::Dominators)))
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
-    let PsiRewritePatch::EliminateLocalScalarCommonSubexpression(patch) = candidate.patch() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    let patch = match (scope, candidate.patch()) {
+        (
+            ScalarCseScope::SameBlock,
+            PsiRewritePatch::EliminateLocalScalarCommonSubexpression(patch),
+        ) => patch,
+        (
+            ScalarCseScope::Dominating,
+            PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(patch),
+        ) => LocalScalarCommonSubexpressionRewrite {
+            leader: patch.leader,
+            redundant: patch.redundant,
+            leader_operation: patch.leader_operation,
+            redundant_operation: patch.redundant_operation,
+            leader_result: patch.leader_result,
+            redundant_result: patch.redundant_result,
+            scalar_type: patch.scalar_type,
+        },
+        _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     };
     if candidate.node_decision_point() != Some(patch.redundant) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
@@ -2826,10 +2880,7 @@ pub fn validate_local_scalar_common_subexpression_candidate(
     if candidate.substitutions() != expected_substitution {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    if patch.leader.machine != patch.redundant.machine
-        || patch.leader.block != patch.redundant.block
-        || patch.leader.node >= patch.redundant.node
-    {
+    if patch.leader.machine != patch.redundant.machine {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let function = input
@@ -2837,12 +2888,17 @@ pub fn validate_local_scalar_common_subexpression_candidate(
         .iter()
         .find(|row| row.machine == patch.leader.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let block = function
+    let leader_block = function
         .blocks
         .iter()
         .find(|row| row.id == patch.leader.block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let leader = block
+    let redundant_block = function
+        .blocks
+        .iter()
+        .find(|row| row.id == patch.redundant.block)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let leader = leader_block
         .nodes
         .get(
             usize::try_from(patch.leader.node)
@@ -2851,12 +2907,24 @@ pub fn validate_local_scalar_common_subexpression_candidate(
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let redundant_index = usize::try_from(patch.redundant.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let redundant = block
+    let redundant = redundant_block
         .nodes
         .get(redundant_index)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    if block.nodes.get(redundant_index + 1).is_none() {
+    if redundant_block.nodes.get(redundant_index + 1).is_none() {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
+    match scope {
+        ScalarCseScope::SameBlock
+            if patch.leader.block != patch.redundant.block
+                || patch.leader.node >= patch.redundant.node =>
+        {
+            return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+        }
+        ScalarCseScope::Dominating if patch.leader.block == patch.redundant.block => {
+            return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+        }
+        _ => {}
     }
     let value_types = function
         .parameters
@@ -2894,8 +2962,72 @@ pub fn validate_local_scalar_common_subexpression_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    if leader.definitions != [ValueDefinition { value: leader_result, scalar_type: leader_type, site: ValueDefinitionSite::Node { block: block.id, node: patch.leader.node } }]
-        || redundant.definitions != [ValueDefinition { value: redundant_result, scalar_type: redundant_type, site: ValueDefinitionSite::Node { block: block.id, node: patch.redundant.node } }]
+    if scope == ScalarCseScope::Dominating {
+        let dominators = independent_reachable_dominators(function);
+        if !dominators
+            .get(&patch.redundant.block)
+            .is_some_and(|rows| rows.contains(&patch.leader.block))
+        {
+            return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+        }
+        let canonical_leader = function
+            .blocks
+            .iter()
+            .filter(|block| block.id != patch.redundant.block)
+            .filter(|block| {
+                dominators
+                    .get(&patch.redundant.block)
+                    .is_some_and(|rows| rows.contains(&block.id))
+            })
+            .flat_map(|block| {
+                block
+                    .nodes
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(node, candidate)| {
+                        let (key, _, _, scalar_type) = independent_total_scalar_expression(
+                            &candidate.operation,
+                            &value_types,
+                        )?;
+                        (key == redundant_key && scalar_type == patch.scalar_type).then_some(
+                            NodeLocation {
+                                machine: function.machine,
+                                block: block.id,
+                                node: u32::try_from(node).ok()?,
+                            },
+                        )
+                    })
+            })
+            .min_by_key(|location| {
+                (
+                    dominators
+                        .get(&location.block)
+                        .map_or(usize::MAX, BTreeSet::len),
+                    *location,
+                )
+            });
+        if canonical_leader != Some(patch.leader)
+            || function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .flat_map(|node| &node.uses)
+                .filter(|use_site| use_site.value == redundant_result)
+                .any(|use_site| {
+                    if use_site.block == patch.leader.block {
+                        patch.leader.node >= use_site.node
+                    } else {
+                        !dominators
+                            .get(&use_site.block)
+                            .is_some_and(|rows| rows.contains(&patch.leader.block))
+                    }
+                })
+        {
+            return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+        }
+    }
+    if leader.definitions != [ValueDefinition { value: leader_result, scalar_type: leader_type, site: ValueDefinitionSite::Node { block: leader_block.id, node: patch.leader.node } }]
+        || redundant.definitions != [ValueDefinition { value: redundant_result, scalar_type: redundant_type, site: ValueDefinitionSite::Node { block: redundant_block.id, node: patch.redundant.node } }]
         || !leader.successors.is_empty() || !redundant.successors.is_empty() || !leader.ownership.is_empty() || !redundant.ownership.is_empty()
         || !function.blocks.iter().flat_map(|row| &row.nodes).flat_map(|row| &row.uses).any(|row| row.value == redundant_result)
         || function.facts.iter().any(|fact| matches!(fact, OptimizationFact::OperationObligationReference { support, .. } if *support == leader_operation || *support == redundant_operation))
@@ -2916,7 +3048,7 @@ pub fn validate_local_scalar_common_subexpression_candidate(
     let output_block = output_function
         .blocks
         .iter_mut()
-        .find(|row| row.id == patch.leader.block)
+        .find(|row| row.id == patch.redundant.block)
         .expect("candidate block exists");
     let removed = output_block.nodes.remove(redundant_index);
     let receiver = output_block
@@ -2969,11 +3101,94 @@ pub fn validate_local_scalar_common_subexpression_candidate(
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.same-block-obligation-free-total-scalar-cse.v1",
-        ),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(match scope {
+            ScalarCseScope::SameBlock => {
+                b"omega.validator.same-block-obligation-free-total-scalar-cse.v1"
+            }
+            ScalarCseScope::Dominating => b"omega.validator.dominator-total-scalar-cse.v1",
+        }),
         provenance: accepted_provenance,
     })
+}
+
+fn independent_reachable_dominators(
+    function: &PsiOptimizationFunction,
+) -> BTreeMap<BlockId, BTreeSet<BlockId>> {
+    let successors = function
+        .blocks
+        .iter()
+        .map(|block| {
+            (
+                block.id,
+                block
+                    .nodes
+                    .last()
+                    .map(|node| node.successors.iter().map(|edge| edge.target).collect())
+                    .unwrap_or_default(),
+            )
+        })
+        .collect::<BTreeMap<BlockId, Vec<BlockId>>>();
+    let mut reachable = BTreeSet::from([function.entry]);
+    let mut frontier = vec![function.entry];
+    while let Some(block) = frontier.pop() {
+        for successor in successors.get(&block).into_iter().flatten() {
+            if reachable.insert(*successor) {
+                frontier.push(*successor);
+            }
+        }
+    }
+    let mut predecessors = reachable
+        .iter()
+        .copied()
+        .map(|block| (block, BTreeSet::new()))
+        .collect::<BTreeMap<_, _>>();
+    for (source, targets) in &successors {
+        if !reachable.contains(source) {
+            continue;
+        }
+        for target in targets.iter().filter(|target| reachable.contains(target)) {
+            predecessors.get_mut(target).unwrap().insert(*source);
+        }
+    }
+    let mut result = reachable
+        .iter()
+        .copied()
+        .map(|block| {
+            (
+                block,
+                if block == function.entry {
+                    BTreeSet::from([block])
+                } else {
+                    reachable.clone()
+                },
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    loop {
+        let mut changed = false;
+        for block in reachable
+            .iter()
+            .copied()
+            .filter(|block| *block != function.entry)
+        {
+            let mut incoming = predecessors[&block].iter();
+            let mut next = incoming
+                .next()
+                .map(|predecessor| result[predecessor].clone())
+                .unwrap_or_default();
+            for predecessor in incoming {
+                next = next.intersection(&result[predecessor]).copied().collect();
+            }
+            next.insert(block);
+            if result[&block] != next {
+                result.insert(block, next);
+                changed = true;
+            }
+        }
+        if !changed {
+            return result;
+        }
+    }
 }
 
 fn independently_validated_dead_scalar_shape(

@@ -1,17 +1,24 @@
 # Bridge refinement reconstruction
 
 The active entry-bearing artifact successor is
+[`OMGRFN23`](OMGCOMP_REFINEMENT_WITNESS_V23.md): `OMGRFNN\0` / version 23
+binds exact OMGCOMP1 and OMGRSWC12 to CKIR20's actual TokenStream owner,
+derived nested record and pure-sum layouts, semantic active-payload Copy,
+fifteen selected data writes, Exact count increment, a ten-argument push,
+nested `source.value`, exhaustive indexed Float dispatch, and the corrected
+conservative Linux-x86-64 artifact. Responsibility-local Python owners and 73
+persisted/self-Beta projections close R1–R5 below the tape ceiling. A separate
+same-frame composite checks actual native/self resolver, lowerer, and backend
+bytes across renamed, reordered, inert, malformed, cross-pair, resource,
+semantic, and artifact-mutation cases. Computed/effectful indexes or arguments,
+generic/mixed/numbered sums, allocation, and the complete lexer `push_token`
+roster remain outside this focused relation.
+
+The preceding record-array carrier remains
 [`OMGRFN22`](OMGCOMP_REFINEMENT_WITNESS_V22.md): `OMGRFNM\0` / version 22
-binds exact OMGCOMP1 and OMGRSWB11 to CKIR19's actual-capacity guarded
-full-`u64` array of copyable records, derived record stride and field layout,
-nine typed nested stores, scalar readback, Exact count increment, two real
-receiver calls, and exact conservative Linux-x86-64 artifact. Modular Python
-owners and 21 persisted-Beta projections close R1–R5 below the tape ceiling.
-A separate same-frame composite checks actual native/self resolver, lowerer,
-and backend bytes across renamed, reordered, inert-field, cross-pair, resource,
-and artifact-mutation cases. Payload-sum copying, structural-value projection,
-computed/effectful indexes, allocation, and the complete `TokenStream` remain
-outside this capability-shaped relation.
+binds exact OMGCOMP1 and OMGRSWB11 to CKIR19's guarded array of copyable
+records, nested scalar stores/readback, Exact count increment, and two real
+receiver calls. It remains a required regression.
 
 The preceding scalar fixed-buffer carrier remains
 [`OMGRFN21`](OMGCOMP_REFINEMENT_WITNESS_V21.md): `OMGRFNL\0` / version 21

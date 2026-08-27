@@ -517,6 +517,12 @@ precise_step "omega-bootstrap OMGRSWB11/OMGLOWK20 meaning (RUST-FREE) — exact 
 precise_step "omega-bootstrap CKIR19 backend — exact record stride/fields, full-u64 bounds/Add, calls, and native/self ELF identity" omega-bootstrap-gates delta-checked-ir-v19-backend.sh omega-bootstrap-ckir19
 precise_step "omega-bootstrap OMGRFN22 refinement — modular record-array owners and representative persisted-Beta projections" omega-bootstrap-refinement omgrfn22-reference.sh omega-bootstrap-omgrfn22-reference
 precise_step "omega-bootstrap OMGRFN22 producer refinement — actual native/self OMGRSWB11 to CKIR19 to ELF bytes satisfy R1-R5" omega-bootstrap-refinement omgrfn22-same-frame-composite.sh omega-bootstrap-omgrfn22
+precise_step "omega-bootstrap CKIR20 independent reference — TokenStream records, active-payload Copy, ten-argument calls, and indexed dispatch" omega-bootstrap-gates delta-checked-ir-v20-reference.sh omega-bootstrap-ckir20-reference
+precise_step "omega-bootstrap OMGRSWC12/OMGLOWL21 producer — actual TokenStream source to CKIR20" omega-bootstrap-gates delta-token-stream-to-ckir20.sh omega-bootstrap-omglowl21
+precise_step "omega-bootstrap OMGRSWC12 meaning (RUST-FREE) — inherited record-array relation plus compact structural/sum facility join" omega-bootstrap-gates delta-token-stream-to-ckir20-meaning.sh omega-bootstrap-omglowl21
+precise_step "omega-bootstrap CKIR20 backend — exact TokenStream layout, semantic sum Copy, indexed dispatch, and native/self ELF identity" omega-bootstrap-gates delta-checked-ir-v20-backend.sh omega-bootstrap-ckir20
+precise_step "omega-bootstrap OMGRFN23 refinement — responsibility-local TokenStream owners and persisted-Beta projections" omega-bootstrap-refinement omgrfn23-reference.sh omega-bootstrap-omgrfn23-reference
+precise_step "omega-bootstrap OMGRFN23 producer refinement — actual native/self OMGRSWC12 to CKIR20 to corrected ELF bytes satisfy R1-R5" omega-bootstrap-refinement omgrfn23-same-frame-composite.sh omega-bootstrap-omgrfn23
 precise_step "delta source closure — path-independent canonical compiler root and provisional fixed-u64 bridge action DAG" delta source-closure-snapshot-v1.sh delta-source-closure-v1
 step "product compiler checkpoint — exact resolver closure plus provisional Ωself admission" source-checkpoints verify.sh omega-rust psi
 step "omega-bootstrap source-custody frontend probe — exhaustive native plus representative Delta-self-built checking" omega-bootstrap-gates delta-source-custody-frontend.sh delta-rust psi source-checkpoints
