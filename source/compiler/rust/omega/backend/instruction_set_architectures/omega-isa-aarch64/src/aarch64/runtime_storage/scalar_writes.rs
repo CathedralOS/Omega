@@ -402,6 +402,7 @@ pub fn encode_runtime_storage_binary_write(
     // Trapping div/mod ride aarch64 `sdiv` (which does not fault), so both fall
     // through to the normal path below.
     let saturating_signed_divide_modulo = domain == ArithmeticDomain::Saturating
+        && target_signed
         && matches!(
             operator,
             StateGuardOperator::Divide | StateGuardOperator::Modulo
@@ -909,9 +910,10 @@ pub(super) fn append_saturating_trapping_arithmetic(
 /// zero (returns 0). So Saturating only needs to fix the single `divisor == -1` corner:
 /// `a % -1 == 0`, and `a / -1 == -a` clamped so TYPE_MIN saturates to TYPE_MAX instead of
 /// wrapping to TYPE_MIN. Every other divisor (including 0) goes through the normal
-/// `sdiv`/`sdiv`+`msub`. Operands are sign-extended to 64 bits first so the exact result
-/// of a <=32-bit op lives in the low word and truncates correctly on store. Unsigned
-/// saturating div/mod never overflow and never reach here (the normal path handles them).
+/// `sdiv`/`sdiv`+`msub`. Operands narrower than 64 bits are sign-extended first. At 64
+/// bits the fixup recognizes the wrapped negation of `i64::MIN` directly and selects
+/// `i64::MAX`. Unsigned saturating div/mod never overflow and never reach here (the
+/// normal path handles them).
 pub(super) fn append_saturating_signed_divide_modulo(
     bytes: &mut Vec<u8>,
     byte_size: usize,
@@ -924,24 +926,29 @@ pub(super) fn append_saturating_signed_divide_modulo(
     // binary WRITE path passes dest=17, rhs=26, scratch=9 (byte-identical to
     // the pre-parameterization hardcoded registers); the OPERAND-position
     // lowering passes the operand evaluator's assigned registers.
-    if !matches!(byte_size, 1 | 2 | 4) {
-        // 64-bit saturating div would need TYPE_MIN detection that `neg`/`mul -1`
-        // cannot signal at the full width (it wraps); not needed by any live sample.
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
         return Err(Diagnostic::error(
-            "saturating divide/modulo on 64-bit integers is not implemented yet on aarch64"
-                .to_owned(),
+            "AArch64 saturating divide/modulo requires a 1, 2, 4, or 8-byte integer".to_owned(),
         ));
     }
-    let signed_max = ((1i128 << (8 * byte_size - 1)) - 1) as u64;
 
     // The `divisor == -1` fixup block.
     let mut special: Vec<u8> = Vec::new();
     if want_remainder {
         // a % -1 == 0.
         special.extend(encode_movz(dest, 0));
+    } else if byte_size == 8 {
+        // NEG wraps only for i64::MIN. Compare that wrapped result with MIN,
+        // then CSINV keeps every ordinary negation (NE) or produces
+        // ~MIN == MAX for the single overflowing input (EQ).
+        special.extend(encode_sub_x_register(dest, 31, dest));
+        append_unsigned_immediate(&mut special, scratch, i64::MIN as u64);
+        special.extend(encode_compare_x_register(dest, scratch));
+        special.extend(encode_csinv_x(dest, dest, scratch, 0b0001)); // NE
     } else {
         // a / -1 == -a: multiply by the -1 still sitting in x9, then clamp a
         // TYPE_MIN result (-a == TYPE_MAX+1) down to TYPE_MAX.
+        let signed_max = ((1i128 << (8 * byte_size - 1)) - 1) as u64;
         special.extend(encode_mul_x_register(dest, dest, scratch));
         append_unsigned_immediate_padded(&mut special, scratch, signed_max);
         special.extend(encode_compare_x_register(dest, scratch));
@@ -968,10 +975,12 @@ pub(super) fn append_saturating_signed_divide_modulo(
             bytes.extend(encode_sign_extend_halfword_to_x(dest, dest));
             bytes.extend(encode_sign_extend_halfword_to_x(rhs, rhs));
         }
-        _ => {
+        4 => {
             bytes.extend(encode_sign_extend_word_to_x(dest, dest));
             bytes.extend(encode_sign_extend_word_to_x(rhs, rhs));
         }
+        8 => {}
+        _ => unreachable!("validated integer byte width"),
     }
     // x9 = -1; branch to `normal` unless the divisor is exactly -1.
     append_unsigned_immediate_padded(bytes, scratch, u64::MAX);

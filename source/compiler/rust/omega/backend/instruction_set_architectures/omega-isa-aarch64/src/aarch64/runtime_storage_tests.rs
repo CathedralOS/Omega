@@ -1,4 +1,7 @@
-use super::super::primitives::encode_movk;
+use super::super::primitives::{
+    encode_csinv_x, encode_movk, encode_msub_x_register, encode_sdiv_x_register,
+    encode_sub_x_register, encode_udiv_x_register,
+};
 use super::super::widths;
 use super::*;
 
@@ -3027,6 +3030,143 @@ fn saturating_eight_byte_arithmetic_width_matches_emission() {
                 );
             }
         }
+    }
+}
+
+/// Signed Saturating i64 division/remainder must retain both the exact
+/// `MIN / -1` fixup and the ordinary SDIV/MSUB path. The encoder and its width
+/// twin must agree for both operations, while unsigned Saturating division
+/// remains on the ordinary non-overflowing path.
+#[test]
+fn saturating_eight_byte_divide_remainder_encode_exact_fixups() {
+    use psi_numerics::arithmetic::ArithmeticDomain;
+
+    let words = |bytes: &[u8]| {
+        bytes
+            .chunks_exact(4)
+            .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+            .collect::<Vec<_>>()
+    };
+    let (mut arena, left, right) = immediate_pair(i64::MIN, -1);
+    for operator in [StateGuardOperator::Divide, StateGuardOperator::Modulo] {
+        let bytes = encode_runtime_storage_binary_write(
+            &arena,
+            0x10,
+            8,
+            left,
+            operator,
+            right,
+            false,
+            ArithmeticDomain::Saturating,
+            true,
+        )
+        .expect("signed Saturating i64 divide/remainder should encode");
+        assert_eq!(
+            bytes.len(),
+            widths::runtime_storage_binary_write_width(
+                &arena,
+                0x10,
+                8,
+                left,
+                operator,
+                right,
+                false,
+                ArithmeticDomain::Saturating,
+                true,
+            ),
+            "{operator:?} width drift"
+        );
+        let mut helper = Vec::new();
+        append_saturating_signed_divide_modulo(
+            &mut helper,
+            8,
+            operator == StateGuardOperator::Modulo,
+            17,
+            26,
+            9,
+        )
+        .expect("encode the isolated i64 fixup and ordinary path");
+        assert_eq!(
+            helper.len(),
+            if operator == StateGuardOperator::Divide {
+                52
+            } else {
+                40
+            }
+        );
+        let words = words(&helper);
+        let sdiv_destination = if operator == StateGuardOperator::Divide {
+            17
+        } else {
+            9
+        };
+        let sdiv = u32::from_le_bytes(encode_sdiv_x_register(sdiv_destination, 17, 26));
+        assert!(
+            words.contains(&sdiv),
+            "{operator:?} lost its ordinary SDIV path"
+        );
+        if operator == StateGuardOperator::Divide {
+            let negate = u32::from_le_bytes(encode_sub_x_register(17, 31, 17));
+            let select_max = u32::from_le_bytes(encode_csinv_x(17, 17, 9, 0b0001));
+            assert!(
+                words.contains(&negate),
+                "i64 divide has no guarded negation"
+            );
+            assert!(
+                words.contains(&select_max),
+                "i64 divide has no wrapped-MIN to MAX selection"
+            );
+        } else {
+            let zero = u32::from_le_bytes(encode_movz(17, 0));
+            let msub = u32::from_le_bytes(encode_msub_x_register(17, 9, 26, 17));
+            assert!(words.contains(&zero), "i64 remainder has no -1 zero result");
+            assert!(
+                words.contains(&msub),
+                "i64 remainder lost its ordinary MSUB path"
+            );
+        }
+    }
+
+    let unsigned = encode_runtime_storage_binary_write(
+        &arena,
+        0x10,
+        8,
+        left,
+        StateGuardOperator::DivideUnsigned,
+        right,
+        false,
+        ArithmeticDomain::Saturating,
+        false,
+    )
+    .expect("unsigned Saturating division is an ordinary non-overflowing divide");
+    let unsigned_words = words(&unsigned);
+    assert!(
+        unsigned_words.contains(&u32::from_le_bytes(encode_udiv_x_register(17, 17, 26))),
+        "unsigned Saturating division must retain UDIV"
+    );
+    assert!(
+        !unsigned_words.contains(&u32::from_le_bytes(encode_sub_x_register(17, 31, 17))),
+        "unsigned Saturating division must not enter the signed MIN/-1 fixup"
+    );
+
+    for operator in [StateGuardOperator::Divide, StateGuardOperator::Modulo] {
+        let operand = arena.insert(omega_target_operations::RuntimeValueOperand::Binary {
+            left,
+            operator,
+            right,
+            is_float: false,
+            byte_width: 8,
+            arithmetic_domain: ArithmeticDomain::Saturating,
+            operands_signed: true,
+        });
+        let mut operand_bytes = Vec::new();
+        append_runtime_value_operand(&arena, &mut operand_bytes, 17, &[26, 9], operand)
+            .expect("encode the nested signed Saturating i64 operand");
+        assert_eq!(
+            operand_bytes.len(),
+            widths::runtime_value_operand_width(&arena, operand),
+            "nested {operator:?} operand width drift"
+        );
     }
 }
 

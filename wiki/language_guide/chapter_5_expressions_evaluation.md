@@ -430,6 +430,13 @@ while `Saturating` defines `MIN / -1 == MAX`; the corresponding remainder is
 zero in both policies. Division or remainder by zero is not overflow and is
 never licensed by either policy.
 
+The AArch64 runtime backend realizes the 64-bit Saturating case explicitly:
+architectural `SDIV` wraps the quotient at `MIN / -1`, so the emitted guarded
+`-1` path detects that one wrapped negation and selects `MAX`; remainder selects
+zero. Every other nonzero divisor continues through `SDIV`/`MSUB`, and unsigned
+division remains `UDIV`. This target fixup consumes the already-checked policy;
+it does not weaken the independent nonzero-divisor formation rule.
+
 These three domains occupy one closed **arithmetic-policy semantic role**.
 Exactly one policy may govern an operation. The role composes with independent
 domain roles: `Km & Wrapping` combines dimensional meaning with modular

@@ -9358,6 +9358,17 @@ checked-result arithmetic decision listed below.
   quotient representative without demanding canonicalization. Retain target-
   dependent const application identity through target-neutral intermediates.
 
+  AArch64 runtime equivalence now covers signed 64-bit Saturating division and
+  remainder without narrowing. The retained nonzero formation certificate
+  remains target-neutral; ISA lowering independently splits on divisor `-1`,
+  maps `i64::MIN / -1` to `i64::MAX` with `NEG`/comparison/conditional select,
+  maps the corresponding remainder to zero, and leaves every other divisor on
+  the ordinary `SDIV`/`MSUB` path. Unsigned Saturating division remains `UDIV`.
+  Direct-write and recursively evaluated operand byte widths replay the exact
+  emitted sequences, both Linux targets emit hermetically, and native AArch64
+  coverage executes both the overflow corner and an ordinary `-101 / 5` /
+  `-101 % 5` branch. Division by zero remains forbidden before target lowering.
+
   The first opt-in `ConstEvaluable(T, value)` result boundary is live.
   Explicit admission APIs preserve operational/common-floor checking and
   interpreter execution, then structurally validate the exact declared result
