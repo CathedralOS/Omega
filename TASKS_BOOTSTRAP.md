@@ -79,7 +79,7 @@ Standing invariants:
 | --- | --- | --- |
 | Delta | executable corpus, Delta-written self-hosting compiler experiment, checked-in provisional artifacts, and a growing Delta→Gamma meaning route | a canonical lower-rooted compiler publication, complete required-source coverage, and frozen v1 semantics/resources |
 | `omega-bootstrap` | multi-unit custody plus bounded compositional source→checked-IR→artifact→refinement slices | general `Ωself` frontend, complete conservative backend, complete source closure, and frozen acceptance/resources |
-| production Omega source | coherent checkpoint 000001 for Psi source-to-token processing | parser, checker, compiler-linked Terminal-Psi path, optimizer, backend, entrypoint closure, and final `Ωself` census |
+| production Omega source | Psi source-to-token processing | parser, checker, compiler-linked Terminal-Psi path, optimizer, backend, entrypoint closure, and final `Ωself` census |
 | hosted build | bounded bridge canaries | one validated `omega-bootstrap` build of full production `omega` |
 
 Bounded canaries establish implementation cost only. They do not define Delta
@@ -119,7 +119,7 @@ Track the owner work under `RECHECKABLE-PACKAGE-EVIDENCE` and
 
 The order is:
 
-1. consume product checkpoints while growing general bridge capabilities;
+1. grow general bridge capabilities against the live resolved product source;
 2. settle Delta v1 and `Ωself` at the completed required-source join;
 3. publish the exact Delta compiler through Gamma and use it to build the
    bridge;
@@ -155,29 +155,20 @@ Delta implementation; repository path checks contain no live Alpha/Beta/Delta
 Rust producer role; and the default lattice reports exactly the closure it has
 actually verified.
 
-### 1. Keep product checkpoints and provisional `Ωself` coherent
+### 1. Numbered product-source checkpoints are abandoned
 
-This is a rolling obligation for each checkpoint published by
-`OMEGA-PRODUCT-COMPILER-SOURCE` in [`TASKS.md`](TASKS.md):
+The `source/omega/source-checkpoints/` subsystem was removed on 2026-08-26.
+It duplicated source identity already owned by Git, package resolution, and the
+accepted source closure, while encouraging the bootstrap to target frozen
+partial snapshots instead of testing the actual compiler chain. Do not
+reintroduce authored checkpoint manifests, numbered source freezes, duplicated
+hash ledgers, or checkpoint-specific feature profiles.
 
-- [ ] Reproduce the checkpoint's exact deterministic transitive closure and
-  derive its compositional feature/resource census.
-- [ ] For every newly used facility, record retain, concrete source refactor, or
-  the exact evidence still missing. Proof/dependent forms begin excluded;
-  ordinary compiler data/control, basic generics, and concrete domains begin
-  retained when used.
-- [ ] Gate general syntax and semantics rather than filenames, declaration
-  counts, or the checkpoint's AST permutations. Preserve one valid full-Omega
-  canary and one phase-appropriate bridge rejection for every provisional
-  exclusion.
-- [ ] Update the single disposition inventory in
-  [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
-  Do not duplicate that inventory here.
-
-Checkpoint 000001's manifest, normalized census, resource profile, provenance,
-build prelude, canaries, and mutation teeth are coherent. Its current
-repository-path import replay is evidence only: the final source must use
-resolver-owned logical placements and normative visibility.
+Bootstrap work consumes the live resolver-derived product source closure. The
+default proof is the end-to-end bootstrap run. If the chain cannot yet build
+that closure, record the missing compiler capability here and implement it
+generally. Feature and resource censuses, when useful, are generated reports
+from the selected closure rather than committed identity authorities.
 
 ### 2. Complete `omega-bootstrap` in Delta
 
@@ -193,7 +184,7 @@ Current milestone-level evidence:
 
 Open work:
 
-- [ ] Consume each later product checkpoint and implement only its newly used,
+- [ ] Consume the live resolved product closure and implement its newly used,
   directionally clear facilities as complete vertical slices: compositional
   rules, negative boundary, resource teeth, lower-rung meaning, conservative
   artifact path, and direct reconstruction.
@@ -322,9 +313,8 @@ conservatively generated. This closes the required lattice. A later
 - A gate approaching tens of minutes must report compiler, evaluator, and
   harness timings before feature growth. Keep human-only HTML, viewers, dumps,
   and debug artifacts opt-in.
-- The checkpoint 000001 native compiler phase measured about seven minutes on
-  one macOS-arm64 core on 2026-08-26. Profile that compiler phase before arena
-  or compiler-concurrency redesign. Focused native/self bridge gates should
+- Profile the native compiler phase before arena or compiler-concurrency
+  redesign. Focused native/self bridge gates should
   remain in the seconds range; lower-rung reference execution must report its
   separate stage timings and remain precisely cached.
 - Do not put OMGRSW9's monolithic Gamma replay in the default lattice. Its
