@@ -70,18 +70,20 @@ Must own:
   of every loan. Write-only checking admits only content-independent
   projection and non-observing writes, composes the restriction through calls,
   and retains exact outcome write footprints for dependent-fact invalidation.
-  Literal fixed arrays whose elements are unrestricted primitive scalars or
-  eligible material nongeneric, invariant-free `[copy]` records or sums admit
-  whole replacement, static length metadata, and literal or ordinarily proven
-  dynamic element stores through direct roots and eligible plain-record paths.
+  Recursively literal fixed arrays whose ultimate elements are unrestricted
+  primitive scalars or eligible material nongeneric, invariant-free `[copy]`
+  records or sums admit whole replacement, static length metadata, and literal
+  or ordinarily proven dynamic element stores through direct roots and eligible
+  plain-record paths.
   Aggregate elements remain atomic array positions: mutation and caller-visible
   frames retain exact `FixedIndex` or conservative runtime `Index` identity
   without child fields, cases, or payloads. Statically normalized closed ranges
   over the same arrays admit exact-width array-literal replacement and retain
   the normalized half-open element-ordinal `FixedRange`. Atomic, qualified,
-  constrained, generic, noncopy, erased, nested-array, symbolic/open range,
-  slice-range, and nonliteral forms remain fenced, as do matching and sum
-  projection; this creates no executable Terminal write authority.
+  constrained, generic, noncopy, erased, symbolic/open range, slice-range, and
+  nonliteral forms remain fenced, as do matching, sum projection, and indexing
+  inside an already selected nested-array element. Each nested array is one
+  atomic outer element; this creates no executable Terminal write authority.
   An eligible plain-record path may also replace one whole nongeneric,
   invariant-free `[copy]` record leaf as a single freely discardable value. Its
   mutation/frame place ends in exactly one `Field` segment and never decomposes
