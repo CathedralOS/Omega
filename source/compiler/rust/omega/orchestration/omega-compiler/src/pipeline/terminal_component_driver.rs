@@ -23,6 +23,10 @@ use super::terminal_component_candidate::{
 pub struct TerminalComponentStagingInputs<'evidence> {
     target: omega_target::NativeTarget,
     subsystem: u16,
+    entry_machine: String,
+    optimization_selections: omega_optimization_core::OptimizationSelections,
+    selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
+    component_progress: Option<omega_effects::ComponentProgressManifest>,
     profile: &'evidence psi_proof_admission::AdmissionProfile,
     settlements: Vec<TerminalComponentProviderSettlement<'evidence>>,
 }
@@ -50,9 +54,23 @@ impl<'evidence> TerminalComponentStagingInputs<'evidence> {
                 ),
             }));
         };
+        let Some(entry_machine) = checked.selected_program_entry_machine() else {
+            return Err(Box::new(TerminalComponentStagingInputBindingError {
+                subsystem,
+                profile,
+                settlements,
+                diagnostic: Diagnostic::error(
+                    "terminal component staging requires one exact selected program entry",
+                ),
+            }));
+        };
         Ok(Self {
             target,
             subsystem,
+            entry_machine: entry_machine.to_owned(),
+            optimization_selections: checked.optimization_selections().clone(),
+            selected_provider_plans: checked.selected_provider_plans().clone(),
+            component_progress: checked.component_progress().cloned(),
             profile,
             settlements,
         })
@@ -64,6 +82,24 @@ impl<'evidence> TerminalComponentStagingInputs<'evidence> {
 
     pub const fn subsystem(&self) -> u16 {
         self.subsystem
+    }
+
+    pub fn entry_machine(&self) -> &str {
+        &self.entry_machine
+    }
+
+    pub const fn optimization_selections(
+        &self,
+    ) -> &omega_optimization_core::OptimizationSelections {
+        &self.optimization_selections
+    }
+
+    pub const fn selected_provider_plans(&self) -> &omega_effects::SelectedProviderPlanFacts {
+        &self.selected_provider_plans
+    }
+
+    pub const fn component_progress(&self) -> Option<&omega_effects::ComponentProgressManifest> {
+        self.component_progress.as_ref()
     }
 
     pub const fn profile(&self) -> &psi_proof_admission::AdmissionProfile {
@@ -171,11 +207,33 @@ where
 {
     let build_evaluation_usage = checked.build_evaluation_usage();
     let build_observation_summary = checked.build_observation_summary().cloned();
-    let candidate = match stage_terminal_component(
+    let terminal_artifact = match psi_checked_trees_to_terminal::produce_terminal_artifact(
         checked,
+        staging_inputs.entry_machine(),
+    ) {
+        Ok(artifact) => artifact,
+        Err(error) => {
+            return Err(Box::new(TerminalComponentDriverError::Staging {
+                diagnostics: vec![Diagnostic::error(format!(
+                    "terminal component artifact production failed: {error}"
+                ))],
+                staging_inputs,
+                deployment_owner,
+                source_file_count,
+                build_evaluation_usage,
+                build_observation_summary,
+            }));
+        }
+    };
+    let candidate = match stage_terminal_component(
+        terminal_artifact,
+        staging_inputs.entry_machine(),
         staging_inputs.target,
         staging_inputs.subsystem,
         staging_inputs.profile,
+        staging_inputs.optimization_selections(),
+        staging_inputs.selected_provider_plans(),
+        staging_inputs.component_progress(),
         &staging_inputs.settlements,
     ) {
         Ok(candidate) => candidate,

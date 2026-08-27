@@ -692,6 +692,126 @@ fn first_terminal_psi_source_slice_stays_fail_closed() {
 }
 
 #[test]
+fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
+    let root = workspace_root();
+    let producer_path =
+        root.join("source/compiler/rust/psi/pipeline/psi-checked-trees-to-terminal/src/lib.rs");
+    let producer = std::fs::read_to_string(&producer_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", producer_path.display()));
+    assert!(
+        producer.contains("pub fn produce_terminal_artifact(")
+            && producer.contains("CanonicalTerminalArtifact::from_parts("),
+        "Psi must own the exact checked-to-canonical-Terminal-artifact handoff"
+    );
+
+    let realization_path = root.join(
+        "source/compiler/rust/omega/orchestration/omega-compiler/src/pipeline/terminal_native_artifact.rs",
+    );
+    let realization = std::fs::read_to_string(&realization_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", realization_path.display()));
+    assert!(
+        realization.contains("pub fn realize_terminal_native_artifact(")
+            && realization
+                .contains("terminal_artifact: psi_terminal_codec::CanonicalTerminalArtifact"),
+        "Omega native realization must receive the complete Psi-owned artifact by value"
+    );
+    for forbidden in [
+        "CheckedCompilation",
+        "CheckedTrees",
+        "lower_machine(",
+        "encode_module(",
+        "encode_proof_bundle(",
+    ] {
+        assert!(
+            !realization.contains(forbidden),
+            "Omega native realization reopened pre-Terminal state through `{forbidden}`"
+        );
+    }
+
+    let component_path = root.join(
+        "source/compiler/rust/omega/orchestration/omega-compiler/src/pipeline/terminal_component_candidate.rs",
+    );
+    let component = std::fs::read_to_string(&component_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", component_path.display()));
+    assert!(component.contains("realize_terminal_native_artifact("));
+    for forbidden in [
+        "lower_artifact_sections(",
+        "lower_to_target_operations",
+        "assign_registers(",
+        "emit_machine_code(",
+    ] {
+        assert!(
+            !component.contains(forbidden),
+            "component policy duplicated native realization through `{forbidden}`"
+        );
+    }
+}
+
+#[test]
+fn retained_native_product_enters_only_terminal_realization() {
+    let root = workspace_root();
+    let compiler_path = root
+        .join("source/compiler/rust/omega/orchestration/omega-compiler/src/pipeline/compiler.rs");
+    let compiler = std::fs::read_to_string(&compiler_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", compiler_path.display()));
+    let dispatch = compiler
+        .split_once("pub fn compile(self)")
+        .and_then(|(_, tail)| tail.split_once("fn compile_legacy"))
+        .map(|(dispatch, _)| dispatch)
+        .expect("compiler must retain a distinct product dispatcher");
+    assert!(
+        dispatch
+            .contains("RequestedCompileProduct::NativeArtifact => self.compile_native_artifact()"),
+        "NativeArtifact must leave dispatch through its canonical Terminal route"
+    );
+    let legacy = compiler
+        .split_once("fn compile_legacy")
+        .and_then(|(_, tail)| tail.split_once("fn compile_native_artifact"))
+        .map(|(legacy, _)| legacy)
+        .expect("compiler must keep the compatibility route structurally separate");
+    assert!(!legacy.contains("RequestedCompileProduct::NativeArtifact"));
+    assert!(!legacy.contains("retains_native_artifact"));
+    let native = compiler
+        .split_once("fn compile_native_artifact")
+        .and_then(|(_, tail)| tail.split_once("fn compile_terminal_artifact"))
+        .map(|(native, _)| native)
+        .expect("compiler must retain one dedicated Terminal-native product method");
+    for required in [
+        "compile_to_checked_for_terminal(",
+        "produce_terminal_artifact(",
+        "realize_terminal_native_artifact(",
+        "from_retained_native_artifact(",
+    ] {
+        assert!(
+            native.contains(required),
+            "NativeArtifact route lost required canonical step `{required}`"
+        );
+    }
+    for forbidden in [
+        "checked_trees_to_state_graph(",
+        "state_graph_to_control_flow(",
+        "backend_plan_to_native_image_payload(",
+        "RetainedNativeArtifact::checked(",
+    ] {
+        assert!(
+            !native.contains(forbidden),
+            "NativeArtifact route recovered legacy lowering through `{forbidden}`"
+        );
+    }
+
+    let report_path = root.join(
+        "source/compiler/rust/omega/orchestration/omega-compiler/src/pipeline/compile_report.rs",
+    );
+    let report = std::fs::read_to_string(&report_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", report_path.display()));
+    let production = report
+        .split_once("#[cfg(test)]")
+        .map_or(report.as_str(), |(production, _)| production);
+    assert!(production.contains("TerminalNativeArtifact as RetainedNativeArtifact"));
+    assert!(!production.contains("pub struct RetainedNativeArtifact"));
+}
+
+#[test]
 fn admitted_external_root_entry_fact_cannot_detach_before_body_dispatch() {
     let root = workspace_root();
     let path = root.join(
@@ -815,6 +935,7 @@ fn psi_reference_execution_ownership_and_terminal_lane_are_enforced() {
         "omega-terminal-machine-emission",
         "omega-terminal-machine-code",
         "omega-terminal-image-emission",
+        "omega-terminal-native-artifact",
         "psi-terminal-interpreter",
     ];
     let forbidden = BTreeSet::from([

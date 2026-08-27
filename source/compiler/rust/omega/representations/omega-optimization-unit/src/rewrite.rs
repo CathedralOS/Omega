@@ -426,6 +426,26 @@ pub struct AdjacentBlockMergeRewrite {
     pub target: BlockId,
 }
 
+/// Fuse one unconditional jump into a shared, terminal-only target without
+/// removing that target. The terminal occurrence is cloned onto the selected
+/// incoming path and remains at the target for every other incoming path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SharedTerminalJumpFusionRewrite {
+    pub predecessor: NodeLocation,
+    pub incoming_edge: EdgeId,
+    pub target: BlockId,
+}
+
+/// Remove one unused, independently total scalar-producing node. Its source
+/// occurrence and fuel are fused into the immediately following direct node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DeadScalarNodeRewrite {
+    pub location: NodeLocation,
+    pub source_operation: OperationId,
+    pub result: ValueId,
+    pub scalar_type: ScalarType,
+}
+
 /// Remove the exact canonical complement of the independently reconstructed
 /// executable-machine root closure.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -448,6 +468,8 @@ pub enum PsiRewritePatch {
     ThreadLinearEmptyBlock(LinearEmptyBlockRewrite),
     ThreadPathQualifiedEmptyBlock(PathQualifiedEmptyBlockRewrite),
     MergeAdjacentBlock(AdjacentBlockMergeRewrite),
+    FuseSharedTerminalJump(SharedTerminalJumpFusionRewrite),
+    RemoveDeadScalarNode(DeadScalarNodeRewrite),
     PruneUnreachablePrivateMachines(UnreachablePrivateMachinesRewrite),
 }
 
@@ -678,6 +700,48 @@ impl PsiRewriteCandidate {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_shared_terminal_jump_fusion(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        substitutions: Vec<ScalarSubstitution>,
+        provenance: Vec<ProvenanceRewrite>,
+        predicted_cost_delta: i64,
+        patch: SharedTerminalJumpFusionRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            substitutions,
+            provenance,
+            PsiRewriteWitness::StructuralIdentity,
+            predicted_cost_delta,
+            PsiRewritePatch::FuseSharedTerminalJump(patch),
+        )
+    }
+
+    pub fn new_dead_scalar_node(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        provenance: Vec<ProvenanceRewrite>,
+        predicted_cost_delta: i64,
+        patch: DeadScalarNodeRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            Vec::new(),
+            provenance,
+            PsiRewriteWitness::StructuralIdentity,
+            predicted_cost_delta,
+            PsiRewritePatch::RemoveDeadScalarNode(patch),
+        )
+    }
+
     pub fn new_unreachable_private_machines(
         input: OptimizationUnitIdentity,
         contract: OptimizationRuleContract,
@@ -733,6 +797,12 @@ impl PsiRewriteCandidate {
             }
             PsiRewritePatch::MergeAdjacentBlock(patch) => {
                 PsiRewriteDecisionPoint::Node(patch.predecessor)
+            }
+            PsiRewritePatch::FuseSharedTerminalJump(patch) => {
+                PsiRewriteDecisionPoint::Node(patch.predecessor)
+            }
+            PsiRewritePatch::RemoveDeadScalarNode(patch) => {
+                PsiRewriteDecisionPoint::Node(patch.location)
             }
             PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
                 if patch.machines.is_empty()
@@ -984,6 +1054,45 @@ impl PsiRewriteCandidate {
                     return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
                 }
             }
+            PsiRewritePatch::FuseSharedTerminalJump(patch) => {
+                let incoming = PsiRealizationSite::Edge {
+                    machine: patch.predecessor.machine,
+                    edge: patch.incoming_edge,
+                };
+                if !affected_blocks.contains(&patch.target)
+                    || !provenance.iter().any(|row| row.input == incoming)
+                    || provenance.iter().any(|row| {
+                        let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
+                            return true;
+                        };
+                        site.machine() != patch.predecessor.machine
+                            || site
+                                .node()
+                                .is_some_and(|location| !affected_blocks.contains(&location.block))
+                    })
+                    || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
+                {
+                    return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
+                }
+            }
+            PsiRewritePatch::RemoveDeadScalarNode(patch) => {
+                let input = PsiRealizationSite::Node(patch.location);
+                if !substitutions.is_empty()
+                    || !provenance.iter().any(|row| row.input == input)
+                    || provenance.iter().any(|row| {
+                        let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
+                            return true;
+                        };
+                        site.machine() != patch.location.machine
+                            || site
+                                .node()
+                                .is_some_and(|location| !affected_blocks.contains(&location.block))
+                    })
+                    || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
+                {
+                    return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
+                }
+            }
             PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
                 let pruned = patch
                     .machines
@@ -1167,7 +1276,7 @@ fn encode_candidate(
     patch: &PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v14\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v16\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     match decision_point {
@@ -1337,6 +1446,19 @@ fn encode_candidate(
                 bytes.extend_from_slice(&custody.machine.get().to_le_bytes());
                 bytes.extend_from_slice(&custody.source_ordinal.to_le_bytes());
             }
+        }
+        PsiRewritePatch::FuseSharedTerminalJump(patch) => {
+            bytes.push(9);
+            encode_location(&mut bytes, patch.predecessor);
+            bytes.extend_from_slice(&patch.incoming_edge.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.target.get().to_le_bytes());
+        }
+        PsiRewritePatch::RemoveDeadScalarNode(patch) => {
+            bytes.push(10);
+            encode_location(&mut bytes, patch.location);
+            bytes.extend_from_slice(&patch.source_operation.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.result.get().to_le_bytes());
+            encode_scalar_type(&mut bytes, patch.scalar_type);
         }
     }
     bytes

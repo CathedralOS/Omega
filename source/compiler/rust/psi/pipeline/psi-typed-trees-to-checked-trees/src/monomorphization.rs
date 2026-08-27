@@ -2338,6 +2338,25 @@ fn clone_specialized_machine(
     );
     resolve_specialized_receiver_calls(program, &cloned);
     let instance_symbol = cloned.symbol;
+    program.authored_service_reach_rows.extend(
+        source
+            .authored_service_reach_rows_for(source_machine.symbol)
+            .map(|row| psi_typed_trees::signature::AuthoredServiceReachRow {
+                owner: instance_symbol,
+                keyword_source_spans: row.keyword_source_spans.clone(),
+                targets: row
+                    .targets
+                    .iter()
+                    .map(
+                        |target| psi_typed_trees::signature::AuthoredServiceReachTarget {
+                            service: remapped_symbol(target.service, &symbol_map),
+                            source_span: target.source_span,
+                        },
+                    )
+                    .collect(),
+                installation_bound: row.installation_bound,
+            }),
+    );
     program.push_machine(cloned);
     program
         .machine_specializations
@@ -4203,6 +4222,19 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
         bytes.extend(service.as_bytes());
         bytes.push(0);
     }
+    bytes.push(u8::from(
+        machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+            || machine.is_public
+            || program
+                .authored_service_reach_rows_for(machine.symbol)
+                .next()
+                .is_some()
+            || !program
+                .service_reach_rows
+                .services(machine.service_reach_row)
+                .is_empty(),
+    ));
+    bytes.push(u8::from(machine.service_reach_is_installation_bound));
     bytes.push(u8::from(machine.suspends));
     bytes.push(u8::from(machine.blocks));
     let mut contract_binders = binders.clone();
@@ -4482,6 +4514,7 @@ fn encode_state_signature(
         output.extend(service.name.as_bytes());
         output.push(0);
     }
+    output.push(u8::from(signature.service_reach_is_installation_bound));
     output.push(u8::from(signature.suspends));
     output.push(u8::from(signature.blocks));
     let mut contract_binders = binders.to_vec();
