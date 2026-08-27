@@ -223,6 +223,93 @@ fn retains_explicit_mutable_to_write_only_attenuation() {
 }
 
 #[test]
+fn retains_exact_write_only_common_field_subloan() {
+    let checked = checked(
+        r#"
+        data Leaf [copy] { value: u16; }
+        data Inner [copy] { leaf: Leaf; sibling: u16; }
+        data Outer [copy] { inner: Inner; other: Inner; }
+
+        data Sink {}
+        machine Sink::fill(destination: &write Leaf) {}
+
+        data Root {}
+        machine Root::forward(outer: &write Outer) {
+            Sink::fill(&write outer.inner.leaf);
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let forward = plans
+        .for_machine(machine_named(&checked, "Root::forward"))
+        .expect("write-only projected caller plan");
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    } = &forward.operations[0]
+    else {
+        panic!("projected attenuation should retain its checked call")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("one projected write-only argument")
+    };
+    assert_eq!(argument.source_parameter_index, 0);
+    assert_eq!(
+        argument.access,
+        psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+    );
+    assert_eq!(argument.path.len(), 2);
+    assert!(argument.path.iter().all(|segment| matches!(
+        segment,
+        psi_checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+    )));
+}
+
+#[test]
+fn write_only_common_field_subloan_does_not_bypass_ordinary_call_shape() {
+    for (name, source) in [
+        (
+            "multiple structural parameters",
+            r#"
+                data Leaf [copy] { value: u16; }
+                data Outer [copy] { leaf: Leaf; sibling: Leaf; }
+                data Sink {}
+                machine Sink::fill(destination: &write Leaf, other: &write Leaf) {}
+                data Root {}
+                machine Root::forward(left: &write Outer, right: &write Outer) {
+                    Sink::fill(&write left.leaf, &write right.leaf);
+                }
+            "#,
+        ),
+        (
+            "caller local",
+            r#"
+                data Leaf [copy] { value: u16; }
+                data Outer [copy] { leaf: Leaf; }
+                data Sink {}
+                machine Sink::fill(destination: &write Leaf) {}
+                data Root {}
+                machine Root::forward(outer: &write Outer) {
+                    let local: Leaf = Leaf { value: 1 };
+                    Sink::fill(&write local);
+                }
+            "#,
+        ),
+    ] {
+        let checked = checked(source);
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(machine_named(&checked, "Root::forward"))
+                .is_none(),
+            "{name} unexpectedly bypassed the exact one-parameter projected-call referee"
+        );
+    }
+}
+
+#[test]
 fn retains_static_boundary_scalar_parameter_and_literal_argument() {
     let checked = checked(
         r#"

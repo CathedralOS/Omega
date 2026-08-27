@@ -141,6 +141,94 @@ fn mutable_to_write_only_access_crosses_source_codec_and_verification() {
 }
 
 #[test]
+fn write_only_common_field_subloan_crosses_source_codec_and_verification() {
+    let source = r#"
+        data Leaf [copy] { value: u16; }
+        data Inner [copy] { leaf: Leaf; sibling: u16; }
+        data Outer [copy] { inner: Inner; other: Inner; }
+
+        data Sink {}
+        machine Sink::fill(destination: &write Leaf) {}
+
+        data Root {}
+        machine Root::forward(outer: &write Outer) {
+            Sink::fill(&write outer.inner.leaf);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = lower_machine(&checked, "Root::forward").expect("lower projected forwarding");
+    let module = &lowered.semantic_module;
+
+    assert_eq!(
+        module.machines[0].structural_parameters[0].access,
+        StructuralAccess::WriteOnlyBorrow
+    );
+    assert_eq!(
+        module.machines[1].structural_parameters[0].access,
+        StructuralAccess::WriteOnlyBorrow
+    );
+    let [call] = module.machines[0].blocks[0].operations.as_slice() else {
+        panic!("projected caller emits one forwarding call")
+    };
+    assert!(matches!(
+        &call.kind,
+        OperationKind::CallUnit { structural_arguments, .. }
+            if matches!(structural_arguments.as_slice(), [argument]
+                if argument.access == StructuralAccess::WriteOnlyBorrow
+                    && argument.path.len() == 2
+                    && argument.path.iter().all(|segment| matches!(
+                        segment,
+                        StructuralPathSegment::Field(_)
+                    )))
+    ));
+
+    let encoded = psi_terminal_codec::encode_module(module).expect("encode projected module");
+    let decoded = psi_terminal_codec::decode_module(&encoded).expect("decode projected module");
+    assert_eq!(&decoded, module);
+    psi_terminal_verifier::validate_module(&decoded).expect("verify projected write-only subloan");
+
+    let mut path_drifted = decoded.clone();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut path_drifted.machines[0].blocks[0].operations[0].kind
+    else {
+        panic!("projected caller call")
+    };
+    structural_arguments[0].path[1] = structural_arguments[0].path[0].clone();
+    psi_terminal_verifier::validate_module(&path_drifted)
+        .expect_err("a redirected common-field identity must reject");
+
+    let mut target_type_drifted = decoded.clone();
+    target_type_drifted.machines[1].structural_parameters[0].structural_type =
+        target_type_drifted.machines[0].structural_parameters[0].structural_type;
+    psi_terminal_verifier::validate_module(&target_type_drifted)
+        .expect_err("the projected leaf must match the callee's exact structural type");
+
+    let mut target_access_drifted = decoded.clone();
+    target_access_drifted.machines[1].structural_parameters[0].access =
+        StructuralAccess::MutableBorrow;
+    psi_terminal_verifier::validate_module(&target_access_drifted)
+        .expect_err("the projected leaf must match the callee's exact access");
+
+    let mut access_drifted = decoded;
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut access_drifted.machines[0].blocks[0].operations[0].kind
+    else {
+        panic!("projected caller call")
+    };
+    structural_arguments[0].access = StructuralAccess::SharedBorrow;
+    psi_terminal_verifier::validate_module(&access_drifted)
+        .expect_err("a projected write-only argument cannot widen to shared access");
+}
+
+#[test]
 fn rejects_tampered_owned_carrier_for_source_literal() {
     let mut checked = checked_write_line_literal();
     let literal_type = checked

@@ -557,7 +557,10 @@ pub(super) fn ordinary_projected_call_is_supported(
             .path
             .iter()
             .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)));
-    if field_path && !allow_field_path_projection {
+    let write_only_field_path = field_path
+        && caller_parameters[0].access == CheckedStructuralAccess::WriteOnlyBorrow
+        && arguments[0].access == CheckedStructuralAccess::WriteOnlyBorrow;
+    if field_path && !allow_field_path_projection && !write_only_field_path {
         return false;
     }
     if !field_path
@@ -632,6 +635,19 @@ pub(super) fn ordinary_projected_call_is_supported(
     } else {
         false
     };
+    if write_only_field_path {
+        let [target_parameter] = target_parameters.as_slice() else {
+            return false;
+        };
+        return target_machine.supply_mode == MachineSupplyMode::CheckedBody
+            && !target_parameter.is_self
+            && structural_access_for_type_reference(program, target_parameter.type_reference)
+                == Some(CheckedStructuralAccess::WriteOnlyBorrow)
+            && program.machine_states(caller_machine).len() == 1
+            && program.machine_states(target_machine).len() == 1
+            && caller_parameters[0].qualifications.is_empty();
+    }
+
     if field_path || affine_pair_index_path {
         let [caller_parameter] = caller_parameters else {
             return false;
@@ -984,7 +1000,14 @@ pub(super) fn structural_call_arguments(
                 )]
             }
             segments @ [psi_facts::PlaceSegment::Field { .. }, ..]
-                if allow_field_path_projection
+                if (allow_field_path_projection
+                    || (target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                        && caller_parameters.get(source_index)?.access
+                            == CheckedStructuralAccess::WriteOnlyBorrow
+                        && structural_access_for_type_reference(
+                            program,
+                            target.type_reference,
+                        )? == CheckedStructuralAccess::WriteOnlyBorrow))
                     && caller_parameters
                         .get(source_index)?
                         .qualifications
