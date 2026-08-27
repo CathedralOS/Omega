@@ -306,6 +306,16 @@ replay checks all rows, bytes, sizes, fixups, mutable masks, zero placeholders,
 constraints, storage bounds and targets, identity, and exact header-template
 custody. The carrier grants no address or placement authority.
 
+A relative payload-layout carrier now consumes that indexed roster and derives
+one exact read-only, read-execute, read-write, or file-only domain for every
+non-null row from its retained `sh_flags`. Within each domain, numeric roster
+order and `sh_addralign` determine checked relative offsets and a complete span;
+independent replay rejects row, domain, order, geometry, span, identity, or
+overflow drift while preserving indexed-payload custody. Every domain begins at
+relative offset zero. These are neither `sh_offset` nor `sh_addr`, and the
+carrier grants no absolute base, segment, header-fixup, byte-mutation, loader,
+publication, or runnable-image authority.
+
 Section-header placement and fixup resolution,
 `PT_INTERP` program-header placement, `PT_DYNAMIC`, `.dynamic` address
 resolution, optional `.gnu.hash`, address-resolved fixup

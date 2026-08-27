@@ -20,6 +20,7 @@ mod entry;
 mod headers;
 mod imports;
 mod layout;
+mod relative_section_layout;
 mod section_header_bytes;
 mod section_name_table;
 mod section_payload_roster;
@@ -64,6 +65,10 @@ pub use dynamic_tag_bytes::{
 };
 pub use dynamic_tags::{
     ElfDynamicTagPlanningError, ValidatedElfDynamicTagPlan, plan_elf_dynamic_tags,
+};
+pub use relative_section_layout::{
+    ElfRelativeSectionPayloadLayoutError, ElfRelativeSectionPayloadRegion,
+    ValidatedElfRelativeSectionPayloadLayout, plan_elf_relative_section_payload_layout,
 };
 pub use section_header_bytes::{
     ElfSectionHeaderTableSerializationError, ValidatedElfSectionHeaderTableTemplate,
