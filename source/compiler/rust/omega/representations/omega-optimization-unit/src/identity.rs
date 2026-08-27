@@ -29,7 +29,7 @@ use crate::{
     ValueDefinition, ValueDefinitionSite, ValueUse,
 };
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v5\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v6\0";
 
 pub fn recompute_psi_optimization_unit_identity(
     unit: &PsiOptimizationUnit,
@@ -291,6 +291,10 @@ fn encode_edge(bytes: &mut CanonicalBytes, edge: &OptimizationEdge) {
     bytes.id(edge.psi_edge);
     bytes.id(edge.target);
     bytes.slice(&edge.bindings, encode_binding);
+    bytes.slice(&edge.provenance, |bytes, provenance| {
+        encode_provenance(bytes, *provenance)
+    });
+    bytes.slice(&edge.fuel, encode_fuel);
 }
 
 fn encode_ownership(bytes: &mut CanonicalBytes, event: &OwnershipEvent) {

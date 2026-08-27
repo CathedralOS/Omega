@@ -387,11 +387,11 @@ These facts constrain the work below.
   can now be selected together: orchestration derives the canonical SCCP then
   copy-propagation schedule and retains one chained manifest per named pass,
   including a manifest for a pass that commits no rewrite.
-- The separately named `ControlFlowCleanup` selection now registers the first
-  exact CFG rule: a Boolean-proven `Conditional` and every block made
+- The separately named `ControlFlowCleanup` selection now registers an exact
+  CFG rule: a Boolean-proven `Conditional` and every block made
   structurally unreachable by selecting its exact edge are rewritten in one
-  atomic candidate. The v3 rule/pass/validator independently derive the fresh
-  reachability complement, retain shared/reconverged blocks, densely rebase
+  atomic candidate. The v5 rule/pass and v4 validator independently derive the
+  fresh reachability complement, retain shared/reconverged blocks, densely rebase
   later surviving effect links, and rebuild the operation fact and declared-
   place indexes before total validation. Candidate accounting binds the
   decision block, every removed block, and every surviving block whose effects
@@ -403,20 +403,29 @@ These facts constrain the work below.
   shared-merge preservation, block/effect/fact reconstruction, incomplete
   region and tombstone corruption, projection/report custody, and a second
   fixed-point sweep.
-- `ControlFlowCleanup` now also registers `linear-empty-block-thread.v1` as
-  its second exact rule. This intentionally handles only a non-entry block
+- `ControlFlowCleanup` also registers `linear-empty-block-thread.v2`. This
+  intentionally handles only a non-entry block
   containing one unconditional jump, with exactly one incoming edge owned by
   another unconditional jump. The rule composes typed block bindings, proves
   verifier-frontier identity across the bypass, and realizes both co-executed
-  edge/fuel sources at the retained predecessor rather than falsely declaring
+  edge/fuel sources at the retained successor edge rather than falsely declaring
   the removed jump unreachable. The independent validator reconstructs the
   one-predecessor shape, bindings, frontier snapshots, exact affected roster,
   fused provenance/fuel, dense effects, facts, places, and output identity.
-  Candidate v9, optimization-unit identity v5, the v4 pass, and the v4
-  optimized-plan projection identity bind the broadened but still flat fused-
-  jump custody. General multi-predecessor or conditional-predecessor threading
-  remains unavailable: it needs edge-qualified source occurrences so the
-  removed edge is charged only on the path that actually executes it.
+  The third exact rule, `path-qualified-empty-block-thread.v1`, atomically
+  bypasses every incoming edge of the same empty jump block, including
+  conditional and multiple predecessors. Successor edges now own their exact
+  provenance/fuel, and every ledger row names both its input occurrence and
+  realized output occurrence. The removed outgoing occurrence may fan out only
+  over the independently checked incoming-edge antichain; the total unit
+  validator rejects duplicate sources on co-executable edges. Projection replay
+  applies the occurrence relation record by record, so later threading cannot
+  resurrect, lose, or double-charge a source. A verified artifact test carries
+  one source through fanout and two later rewrites to the final pre-physical
+  projection. Candidate v11, optimization-unit identity v6, ledger v3,
+  prephysical manifest v4, the v5 pass, and optimized-plan projection v5 bind
+  this admission meaning. General native publication of these broader CFG
+  shapes remains unavailable until their physical lowering vocabulary exists.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds its input
   revision, rule contract, decision point, affected region, required analyses
@@ -852,22 +861,22 @@ dependency.
   empty.
 
   Current slice: exact constant-conditional folding is available under only
-  the explicit `ControlFlowCleanup` selection. Its v3 rule/pass/validator
+  the explicit `ControlFlowCleanup` selection. Its v5 rule/pass and v4 validator
   atomically replaces the conditional and removes exactly the blocks made
   unreachable by that selected edge, while retaining shared successors. It
   rebuilds dense effects, current operation facts, and declared places;
   invalidates the call graph; realizes all surviving source sites whose output
   location changes; and durably records the rejected edge plus every deleted
   node and its original scheduled fuel as independently proven unreachable and
-  uncharged. Candidate v8, ledger v2, prephysical manifest v3, and the
-  projection-wide source-custody partition bind that distinction and the
-  changed block roster. The v4 pass also includes exact linear empty-jump
-  threading for one unconditional predecessor: typed bindings are composed,
-  both co-executed edge charges remain realized at the retained jump, ownership
-  frontiers must be identical across the bypass, and effects/facts/places are
-  independently rebuilt. General path-dependent empty-block threading,
-  redundant jumps, unreachable cleanup not caused by the conditional fold,
-  and private-machine pruning remain open.
+  uncharged. Successor-edge custody and ledger v3 now distinguish the two
+  conditional arms directly. The v5 pass also includes exact linear empty-jump
+  threading plus `path-qualified-empty-block-thread.v1`: typed bindings are
+  composed, ownership frontiers must be identical across each bypass, and the
+  removed outgoing source is realized on every and only mutually exclusive
+  incoming edge. Candidate v11, optimization-unit identity v6, prephysical
+  manifest v4, and projection v5 bind record-by-record one-to-one, many-to-one,
+  and one-to-many occurrence replay. Redundant jumps, unreachable cleanup not
+  caused by the conditional fold, and private-machine pruning remain open.
 
 - **OPT-SCCP.** Implement sparse conditional constant propagation over the
   closed integer and Boolean Terminal Psi operations.

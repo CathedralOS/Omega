@@ -224,11 +224,21 @@ mod tests {
                 psi_edge: true_edge,
                 target: id(2, BlockId::new),
                 bindings: Vec::new(),
+                provenance: vec![PsiProvenance::Edge(true_edge)],
+                fuel: vec![omega_optimization_unit::FuelSettlement {
+                    site: PsiProvenance::Edge(true_edge),
+                    units: 1,
+                }],
             },
             OptimizationEdge {
                 psi_edge: false_edge,
                 target: id(3, BlockId::new),
                 bindings: Vec::new(),
+                provenance: vec![PsiProvenance::Edge(false_edge)],
+                fuel: vec![omega_optimization_unit::FuelSettlement {
+                    site: PsiProvenance::Edge(false_edge),
+                    units: 1,
+                }],
             },
         ];
         let left_edge = id(21, EdgeId::new);
@@ -248,6 +258,11 @@ mod tests {
                 psi_edge: edge,
                 target: id(4, BlockId::new),
                 bindings: vec![binding],
+                provenance: vec![PsiProvenance::Edge(edge)],
+                fuel: vec![omega_optimization_unit::FuelSettlement {
+                    site: PsiProvenance::Edge(edge),
+                    units: 1,
+                }],
             }];
         }
         let condition_support = id(600, OperationId::new);
