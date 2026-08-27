@@ -4,10 +4,11 @@ use omega_optimization_core::{
     OptimizationUnitIdentity, OwnershipFrontierFactIdentity, ScalarConstantFactIdentity,
 };
 use omega_optimization_unit::{
-    OptimizationEdge, OptimizationFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ScalarConstantValue, SccpBlockRow,
-    SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState, ValueDefinition,
-    ValueUse, derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
+    FuelSettlement, OptimizationEdge, OptimizationFact, OwnershipFrontierSite,
+    OwnershipFrontierSnapshot, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+    ScalarConstantValue, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
+    SccpValueRow, SccpValueState, ValueDefinition, ValueUse,
+    derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{
@@ -730,6 +731,11 @@ fn scalar_operation_successors(operation: &O) -> Vec<OptimizationEdge> {
             psi_edge: *psi_edge,
             target: *target,
             bindings: bindings.clone(),
+            provenance: vec![PsiProvenance::Edge(*psi_edge)],
+            fuel: vec![FuelSettlement {
+                site: PsiProvenance::Edge(*psi_edge),
+                units: 1,
+            }],
         }],
         O::Conditional {
             when_true,
@@ -741,6 +747,11 @@ fn scalar_operation_successors(operation: &O) -> Vec<OptimizationEdge> {
                 psi_edge: successor.psi_edge,
                 target: successor.target,
                 bindings: successor.bindings.clone(),
+                provenance: vec![PsiProvenance::Edge(successor.psi_edge)],
+                fuel: vec![FuelSettlement {
+                    site: PsiProvenance::Edge(successor.psi_edge),
+                    units: 1,
+                }],
             })
             .collect(),
         _ => Vec::new(),
@@ -783,7 +794,12 @@ pub(super) fn effect_summaries(unit: &PsiOptimizationUnit) -> EffectSummaryAnaly
                     structural_state,
                     crash,
                     suspension,
-                    support: node.provenance.clone(),
+                    support: node
+                        .provenance
+                        .iter()
+                        .chain(node.successors.iter().flat_map(|edge| &edge.provenance))
+                        .copied()
+                        .collect(),
                     revision: unit.identity,
                 });
             }
@@ -842,6 +858,11 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
             .flat_map(|block| &block.nodes)
         {
             summary.support.extend(node.provenance.iter().copied());
+            summary.support.extend(
+                node.successors
+                    .iter()
+                    .flat_map(|edge| edge.provenance.iter().copied()),
+            );
             match &node.operation {
                 O::CallUnit { callee, .. }
                 | O::CallStructuralScalar { callee, .. }

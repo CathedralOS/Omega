@@ -874,15 +874,16 @@ made unreachable by that choice in one atomic candidate. A fresh CFG walk
 independently derives that complement, so shared or reconverged blocks remain.
 The candidate identity binds the condition, Boolean value, both edge IDs, the
 decision and removed blocks, and every surviving block whose dense effect links
-must shift. The selected edge is `RealizedAt` the output jump and retains its
-runtime logical charge. Every shifted surviving node is likewise realized at
-its original input location. The rejected edge and every node in every deleted
-block are separately `ProvenUnreachableAt` their original input locations:
+must shift. The selected edge is `RealizedAt` its output successor edge and
+retains its runtime logical charge. Every shifted surviving node is likewise
+realized at its original input location. The rejected edge and every node or
+successor edge in every deleted block are separately `ProvenUnreachableAt`
+their exact original input occurrences:
 their scheduled units remain durable audit custody but carry no runtime charge.
-The v3 rule/pass/validator independently reconstruct the Boolean fact,
-successors and bindings, reachability, exact affected roster, all disposition/
-fuel rows, dense effects, node metadata, current operation facts, declared
-places, and output identity before total validation. `CallGraph` is explicitly
+The v5 rule and pass plus v4 validator independently reconstruct the Boolean
+fact, successors and bindings, reachability, exact affected roster, all
+disposition/fuel rows, dense effects, node metadata, current operation facts,
+declared places, and output identity before total validation. `CallGraph` is explicitly
 invalidated, while verifier-accepted obligation and ownership-frontier catalogs
 remain immutable source custody. The pass manager records only that validator-
 accepted accounting. Ledger replay rejects unknown disposition tags, duplicate
@@ -895,15 +896,15 @@ distinguish source-scheduled fuel from runtime charge.
 The convergence measure counts functions, blocks, nodes, and successor edges,
 so every accepted atomic fold/prune strictly decreases it. This authority is
 specific to the reachability complement created by the proven conditional
-choice; it is not a general dead-region eraser. Empty-block threading and
-redundant jumps still need path-qualified one-to-many edge/fuel semantics, and
-private-machine pruning still needs function-roster custody. Crash, cleanup,
+choice; it is not a general dead-region eraser. Redundant jumps can now use the
+path-qualified occurrence vocabulary but still need their own exact rewrite
+contract, and private-machine pruning still needs function-roster custody. Crash, cleanup,
 suspension, call, and boundary-only blocks are never classified as empty: they
 may disappear only when the fresh structural traversal proves them unreachable,
 with every removed source site tombstoned and independently validated.
 
 The second `ControlFlowCleanup` rule is the deliberately narrower
-`linear-empty-block-thread.v1`. A non-entry block may be bypassed only when it
+`linear-empty-block-thread.v2`. A non-entry block may be bypassed only when it
 contains exactly one unconditional jump, has exactly one incoming edge, and
 that incoming edge belongs to another unconditional jump. The validator
 independently composes the removed block's typed parameters and outgoing
@@ -913,26 +914,37 @@ identical. Synthetic units without frontier facts are eligible only when the
 function has no structural parameters, entry claims, or declared places.
 
 The two jumps always execute together, so this linear case is an exact
-many-to-one realization: the retained jump keeps its own edge identity and
-stores its existing provenance/fuel followed by the removed jump's complete
+many-to-one realization: the retained successor edge keeps its own identity and
+stores its existing provenance/fuel followed by the removed edge's complete
 provenance/fuel. No source is called unreachable. Candidate accounting realizes
 that fused row at the predecessor and realizes every later surviving node whose
 dense effect link shifts. The independent validator deletes the block, rebuilds
 effects, facts, and declared places, recomputes identity, and totally validates
-the result. Candidate v9, optimization-unit content identity v5,
-`ControlFlowCleanup` v4, and optimized-plan projection validation v4 bind this
-new admission meaning; ledger v2 remains sufficient because each source still
-has exactly one final occurrence.
+the result.
 
-This does not authorize general empty-block threading. If several edges enter
-the removed block, its outgoing source must fan out into mutually exclusive
-output paths; if a conditional owns an incoming edge, charging that source at
-the whole node would also charge the untaken arm. The general rule therefore
-waits for an edge-qualified occurrence relation that can represent many-to-one
-and one-to-many realization, replay those occurrences through later rewrites,
-and feed the same path guards into selected/native fuel custody. Marking the
-reachable outgoing source `ProvenUnreachableAt` is never an acceptable
-shortcut.
+The optimization unit now places CFG-arm custody on `OptimizationEdge`, while
+non-successor terminal exits remain node occurrences. Each transformation row
+names an exact `PsiRealizationSite` in the input revision and its realized or
+proven-unreachable output site. Ledger replay removes each input occurrence and
+adds every declared output occurrence before advancing to the next record.
+This represents one-to-one moves, many-to-one fusion, and one-to-many fanout
+without confusing a reachable source with an unreachable tombstone.
+
+The third rule, `path-qualified-empty-block-thread.v1`, uses that vocabulary to
+bypass all incoming edges of a non-entry single-jump block atomically. It
+independently composes typed bindings and checks the ownership-frontier chain
+for every incoming edge. The outgoing occurrence is copied onto every incoming
+output edge. Because Omega's validated Psi CFG is acyclic, those incoming edges
+form an antichain; the total validator additionally rejects any duplicated
+source whose edge occurrences can execute sequentially. A verified artifact
+test fans one source out and then threads both resulting occurrences through
+later rewrites, with projection replay reaching the exact final occurrence
+map. Candidate v11, optimization-unit content identity v6, ledger v3,
+`ControlFlowCleanup` v5, prephysical manifest v4, and optimized-plan projection
+validation v5 bind this admission meaning. Marking a reachable outgoing source
+`ProvenUnreachableAt` remains invalid. Physical publication for newly admitted
+CFG shapes still fails closed until target/selected/native custody supports the
+shape.
 
 Baseline choice lives in `omega-optimization-policy`, outside rule and
 validator crates. The pass manager first obtains independently constructed

@@ -9,7 +9,7 @@ use omega_optimization_core::{
 use omega_optimization_policy::{BaselineDecisionLog, BaselineDecisionLogDecodeError};
 use omega_optimization_unit::{
     InvalidPsiTransformationLedger, ProvenanceDisposition, PsiOptimizationUnit, PsiProvenance,
-    PsiTransformationLedger,
+    PsiRealizationSite, PsiTransformationLedger,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperationPlan;
 use omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput;
@@ -229,27 +229,49 @@ pub fn validate_optimized_abstract_plan_projection(
         ledger: ledger.identity(),
         bundle: bundle.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.optimized-abstract-plan-projection.v4",
+            b"omega.validator.optimized-abstract-plan-projection.v5",
         ),
     })
 }
 
-fn source_fuel_map(
+fn source_occurrence_map(
     unit: &PsiOptimizationUnit,
-) -> Option<BTreeMap<(psi_core::MachineId, PsiProvenance), u64>> {
-    let mut result = BTreeMap::new();
+) -> Option<BTreeMap<(psi_core::MachineId, PsiProvenance), BTreeMap<PsiRealizationSite, u64>>> {
+    let mut result = BTreeMap::<_, BTreeMap<_, _>>::new();
     for function in &unit.functions {
-        for settlement in function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .flat_map(|node| &node.fuel)
-        {
-            if result
-                .insert((function.machine, settlement.site), settlement.units)
-                .is_some()
-            {
-                return None;
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let node_site = PsiRealizationSite::Node(omega_optimization_unit::NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: u32::try_from(node_index).ok()?,
+                });
+                for settlement in &node.fuel {
+                    if result
+                        .entry((function.machine, settlement.site))
+                        .or_default()
+                        .insert(node_site, settlement.units)
+                        .is_some()
+                    {
+                        return None;
+                    }
+                }
+                for edge in &node.successors {
+                    let edge_site = PsiRealizationSite::Edge {
+                        machine: function.machine,
+                        edge: edge.psi_edge,
+                    };
+                    for settlement in &edge.fuel {
+                        if result
+                            .entry((function.machine, settlement.site))
+                            .or_default()
+                            .insert(edge_site, settlement.units)
+                            .is_some()
+                        {
+                            return None;
+                        }
+                    }
+                }
             }
         }
     }
@@ -261,49 +283,68 @@ fn validate_source_custody(
     final_unit: &PsiOptimizationUnit,
     ledger: &PsiTransformationLedger,
 ) -> Result<(), OptimizedAbstractPlanProjectionError> {
-    let initial = source_fuel_map(initial)
+    let mut current = source_occurrence_map(initial)
         .ok_or(OptimizedAbstractPlanProjectionError::SourceCustodyMismatch)?;
-    let final_sources = source_fuel_map(final_unit)
+    let final_sources = source_occurrence_map(final_unit)
         .ok_or(OptimizedAbstractPlanProjectionError::SourceCustodyMismatch)?;
-    let mut removed = BTreeMap::new();
-    let mut unavailable = BTreeSet::new();
     for record in ledger.records() {
+        let mut by_input = BTreeMap::<PsiRealizationSite, Vec<_>>::new();
         for row in &record.provenance {
-            let machine = row.disposition.location().machine;
-            match row.disposition {
-                ProvenanceDisposition::RealizedAt(_) => {
-                    if row
-                        .sources
+            by_input.entry(row.input).or_default().push(row);
+        }
+        for (input_site, rows) in &by_input {
+            let machine = input_site.machine();
+            let expected = rows[0]
+                .fuel
+                .iter()
+                .map(|settlement| (settlement.site, settlement.units))
+                .collect::<BTreeMap<_, _>>();
+            if rows.iter().any(|row| {
+                row.input != *input_site
+                    || row.sources.iter().copied().collect::<BTreeSet<_>>()
+                        != expected.keys().copied().collect()
+                    || row
+                        .fuel
                         .iter()
-                        .any(|source| unavailable.contains(&(machine, *source)))
-                    {
-                        return Err(OptimizedAbstractPlanProjectionError::SourceCustodyMismatch);
-                    }
+                        .map(|settlement| (settlement.site, settlement.units))
+                        .collect::<BTreeMap<_, _>>()
+                        != expected
+            }) || expected.iter().any(|(source, units)| {
+                current
+                    .get(&(machine, *source))
+                    .and_then(|occurrences| occurrences.get(input_site))
+                    != Some(units)
+            }) {
+                return Err(OptimizedAbstractPlanProjectionError::SourceCustodyMismatch);
+            }
+            for source in expected.keys() {
+                let occurrences = current
+                    .get_mut(&(machine, *source))
+                    .expect("input occurrence was checked");
+                occurrences.remove(input_site);
+                if occurrences.is_empty() {
+                    current.remove(&(machine, *source));
                 }
-                ProvenanceDisposition::ProvenUnreachableAt(_) => {
-                    for settlement in &row.fuel {
-                        let key = (machine, settlement.site);
-                        if initial.get(&key) != Some(&settlement.units)
-                            || !unavailable.insert(key)
-                            || removed.insert(key, settlement.units).is_some()
-                        {
-                            return Err(
-                                OptimizedAbstractPlanProjectionError::SourceCustodyMismatch,
-                            );
-                        }
-                    }
+            }
+        }
+        for row in &record.provenance {
+            let ProvenanceDisposition::RealizedAt(output_site) = row.disposition else {
+                continue;
+            };
+            let machine = output_site.machine();
+            for settlement in &row.fuel {
+                if current
+                    .entry((machine, settlement.site))
+                    .or_default()
+                    .insert(output_site, settlement.units)
+                    .is_some()
+                {
+                    return Err(OptimizedAbstractPlanProjectionError::SourceCustodyMismatch);
                 }
             }
         }
     }
-    if final_sources
-        .iter()
-        .any(|(key, units)| initial.get(key) != Some(units) || removed.contains_key(key))
-        || initial.len() != final_sources.len() + removed.len()
-        || initial
-            .iter()
-            .any(|(key, units)| final_sources.get(key).or_else(|| removed.get(key)) != Some(units))
-    {
+    if current != final_sources {
         return Err(OptimizedAbstractPlanProjectionError::SourceCustodyMismatch);
     }
     Ok(())
@@ -493,7 +534,14 @@ fn same_reconstructible_projection(
                                     && left.effect == right.effect
                                     && left.definitions == right.definitions
                                     && left.uses == right.uses
-                                    && left.successors == right.successors
+                                    && left.successors.len() == right.successors.len()
+                                    && left.successors.iter().zip(&right.successors).all(
+                                        |(left, right)| {
+                                            left.psi_edge == right.psi_edge
+                                                && left.target == right.target
+                                                && left.bindings == right.bindings
+                                        },
+                                    )
                                     && left.ownership == right.ownership
                             })
                     })
@@ -589,6 +637,7 @@ mod tests {
             input,
             output,
             provenance: vec![ProvenanceRewrite {
+                input: disposition.site(),
                 disposition,
                 sources: vec![source],
                 fuel: vec![FuelSettlement {
@@ -668,7 +717,7 @@ mod tests {
         let record = custody_record(
             initial.identity,
             final_unit.identity,
-            ProvenanceDisposition::ProvenUnreachableAt(location),
+            ProvenanceDisposition::ProvenUnreachableAt(PsiRealizationSite::Node(location)),
             source,
         );
         let ledger = PsiTransformationLedger::new(
@@ -719,13 +768,13 @@ mod tests {
         let removed = custody_record(
             initial.identity,
             middle,
-            ProvenanceDisposition::ProvenUnreachableAt(location),
+            ProvenanceDisposition::ProvenUnreachableAt(PsiRealizationSite::Node(location)),
             source,
         );
         let resurrected = custody_record(
             middle,
             final_unit.identity,
-            ProvenanceDisposition::RealizedAt(location),
+            ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(location)),
             source,
         );
         let ledger = PsiTransformationLedger::new(

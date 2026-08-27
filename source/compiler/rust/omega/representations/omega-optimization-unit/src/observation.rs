@@ -243,6 +243,19 @@ pub fn reconstruct_psi_closed_region_observation(
                 }
             }
             for edge in &node.successors {
+                for provenance in &edge.provenance {
+                    match provenance {
+                        PsiProvenance::Operation(operation) => {
+                            frontier_sites
+                                .insert(OwnershipFrontierSite::OperationEntry(*operation));
+                            frontier_sites.insert(OwnershipFrontierSite::OperationExit(*operation));
+                        }
+                        PsiProvenance::Edge(edge) => {
+                            frontier_sites.insert(OwnershipFrontierSite::EdgeEntry(*edge));
+                            frontier_sites.insert(OwnershipFrontierSite::EdgeExit(*edge));
+                        }
+                    }
+                }
                 if !requested.contains(&edge.target) {
                     for binding in &edge.bindings {
                         if internal_definitions.contains_key(&binding.argument) {

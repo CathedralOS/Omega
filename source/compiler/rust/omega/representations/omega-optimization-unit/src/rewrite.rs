@@ -20,6 +20,31 @@ pub struct NodeLocation {
     pub node: u32,
 }
 
+/// An exact occurrence of source semantic work in an optimization revision.
+/// Successor edges are separate from their owner node because only the taken
+/// arm executes. This distinction is required for path-dependent rewrites.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PsiRealizationSite {
+    Node(NodeLocation),
+    Edge { machine: MachineId, edge: EdgeId },
+}
+
+impl PsiRealizationSite {
+    pub const fn machine(self) -> MachineId {
+        match self {
+            Self::Node(location) => location.machine,
+            Self::Edge { machine, .. } => machine,
+        }
+    }
+
+    pub const fn node(self) -> Option<NodeLocation> {
+        match self {
+            Self::Node(location) => Some(location),
+            Self::Edge { .. } => None,
+        }
+    }
+}
+
 /// The exact disposition of source semantic work after one accepted rewrite.
 ///
 /// A realized row names a node in the output revision. A proven-unreachable
@@ -30,8 +55,8 @@ pub struct NodeLocation {
 /// amount in both cases; only a realized disposition is a logical charge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ProvenanceDisposition {
-    RealizedAt(NodeLocation),
-    ProvenUnreachableAt(NodeLocation),
+    RealizedAt(PsiRealizationSite),
+    ProvenUnreachableAt(PsiRealizationSite),
 }
 
 impl ProvenanceDisposition {
@@ -42,9 +67,9 @@ impl ProvenanceDisposition {
         }
     }
 
-    pub const fn location(self) -> NodeLocation {
+    pub const fn site(self) -> PsiRealizationSite {
         match self {
-            Self::RealizedAt(location) | Self::ProvenUnreachableAt(location) => location,
+            Self::RealizedAt(site) | Self::ProvenUnreachableAt(site) => site,
         }
     }
 
@@ -62,6 +87,8 @@ pub struct ScalarSubstitution {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProvenanceRewrite {
+    /// Exact occurrence in the input revision whose custody is transformed.
+    pub input: PsiRealizationSite,
     pub disposition: ProvenanceDisposition,
     pub sources: Vec<PsiProvenance>,
     pub fuel: Vec<FuelSettlement>,
@@ -378,6 +405,15 @@ pub struct LinearEmptyBlockRewrite {
     pub target: BlockId,
 }
 
+/// Thread one non-entry empty jump block through every exact incoming edge.
+/// The outgoing source occurrence fans out to those mutually exclusive edges.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PathQualifiedEmptyBlockRewrite {
+    pub empty: NodeLocation,
+    pub outgoing_edge: EdgeId,
+    pub target: BlockId,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PsiRewritePatch {
     ReplaceIntegerOperationWithConstant(IntegerConstantRewrite),
@@ -385,6 +421,7 @@ pub enum PsiRewritePatch {
     RemoveRedundantBlockParameter(RedundantBlockParameterRewrite),
     FoldConstantConditional(ConstantConditionalRewrite),
     ThreadLinearEmptyBlock(LinearEmptyBlockRewrite),
+    ThreadPathQualifiedEmptyBlock(PathQualifiedEmptyBlockRewrite),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -563,6 +600,26 @@ impl PsiRewriteCandidate {
         )
     }
 
+    pub fn new_path_qualified_empty_block(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        provenance: Vec<ProvenanceRewrite>,
+        predicted_cost_delta: i64,
+        patch: PathQualifiedEmptyBlockRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            Vec::new(),
+            provenance,
+            PsiRewriteWitness::StructuralIdentity,
+            predicted_cost_delta,
+            PsiRewritePatch::ThreadPathQualifiedEmptyBlock(patch),
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn new(
         input: OptimizationUnitIdentity,
@@ -584,6 +641,7 @@ impl PsiRewriteCandidate {
             },
             PsiRewritePatch::FoldConstantConditional(patch) => patch.location,
             PsiRewritePatch::ThreadLinearEmptyBlock(patch) => patch.predecessor,
+            PsiRewritePatch::ThreadPathQualifiedEmptyBlock(patch) => patch.empty,
         };
         if affected_blocks.is_empty() {
             return Err(PsiRewriteCandidateError::EmptyAffectedRegion);
@@ -602,12 +660,14 @@ impl PsiRewriteCandidate {
         }
         if provenance.windows(2).any(|pair| {
             let left = (
+                pair[0].input,
                 pair[0].disposition.canonical_tag(),
-                pair[0].disposition.location(),
+                pair[0].disposition.site(),
             );
             let right = (
+                pair[1].input,
                 pair[1].disposition.canonical_tag(),
-                pair[1].disposition.location(),
+                pair[1].disposition.site(),
             );
             left >= right
         }) || provenance.iter().any(|row| {
@@ -615,14 +675,20 @@ impl PsiRewriteCandidate {
         }) {
             return Err(PsiRewriteCandidateError::NonCanonicalProvenance);
         }
-        let mut all_sources = BTreeSet::new();
+        for group in provenance.chunk_by(|left, right| left.input == right.input) {
+            if group.len() > 1
+                && (group.iter().any(|row| !row.disposition.is_realized())
+                    || group
+                        .iter()
+                        .skip(1)
+                        .any(|row| row.sources != group[0].sources || row.fuel != group[0].fuel))
+            {
+                return Err(PsiRewriteCandidateError::NonCanonicalProvenance);
+            }
+        }
         for row in &provenance {
             let sources = row.sources.iter().copied().collect::<BTreeSet<_>>();
-            let machine = row.disposition.location().machine;
-            if !sources
-                .iter()
-                .all(|source| all_sources.insert((machine, *source)))
-            {
+            if row.input.machine() != row.disposition.site().machine() {
                 return Err(PsiRewriteCandidateError::NonCanonicalProvenance);
             }
             let fuel = row
@@ -652,21 +718,24 @@ impl PsiRewriteCandidate {
         match patch {
             PsiRewritePatch::ReplaceIntegerOperationWithConstant(_)
             | PsiRewritePatch::ReplaceBooleanOperationWithConstant(_) => {
-                if provenance
-                    .iter()
-                    .any(|row| row.disposition != ProvenanceDisposition::RealizedAt(location))
-                {
+                if provenance.iter().any(|row| {
+                    row.disposition
+                        != ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(location))
+                        || row.input != PsiRealizationSite::Node(location)
+                }) {
                     return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
                 }
             }
             PsiRewritePatch::RemoveRedundantBlockParameter(patch) => {
                 if provenance.is_empty()
                     || provenance.iter().any(|row| {
-                        let ProvenanceDisposition::RealizedAt(location) = row.disposition else {
+                        let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
                             return true;
                         };
-                        location.machine != patch.machine
-                            || !affected_blocks.contains(&location.block)
+                        site.machine() != patch.machine
+                            || site
+                                .node()
+                                .is_some_and(|location| !affected_blocks.contains(&location.block))
                     })
                 {
                     return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
@@ -681,15 +750,32 @@ impl PsiRewriteCandidate {
                     return Err(PsiRewriteCandidateError::BlockParameterSubstitutionMismatch);
                 }
             }
-            PsiRewritePatch::FoldConstantConditional(_) => {
-                let realized_at_decision = provenance
+            PsiRewritePatch::FoldConstantConditional(patch) => {
+                let selected = PsiRealizationSite::Edge {
+                    machine: location.machine,
+                    edge: patch.selected_edge,
+                };
+                let rejected = PsiRealizationSite::Edge {
+                    machine: location.machine,
+                    edge: patch.rejected_edge,
+                };
+                if provenance
                     .iter()
-                    .filter(|row| row.disposition == ProvenanceDisposition::RealizedAt(location));
-                let unreachable_at_decision = provenance.iter().filter(|row| {
-                    row.disposition == ProvenanceDisposition::ProvenUnreachableAt(location)
-                });
-                if realized_at_decision.count() != 1
-                    || unreachable_at_decision.count() != 1
+                    .filter(|row| {
+                        row.input == selected
+                            && row.disposition == ProvenanceDisposition::RealizedAt(selected)
+                    })
+                    .count()
+                    != 1
+                    || provenance
+                        .iter()
+                        .filter(|row| {
+                            row.input == rejected
+                                && row.disposition
+                                    == ProvenanceDisposition::ProvenUnreachableAt(rejected)
+                        })
+                        .count()
+                        != 1
                     || !provenance.iter().any(|row| {
                         matches!(
                             row.disposition,
@@ -702,15 +788,60 @@ impl PsiRewriteCandidate {
                 }
             }
             PsiRewritePatch::ThreadLinearEmptyBlock(patch) => {
+                let incoming = PsiRealizationSite::Edge {
+                    machine: patch.predecessor.machine,
+                    edge: patch.incoming_edge,
+                };
+                let outgoing = PsiRealizationSite::Edge {
+                    machine: patch.predecessor.machine,
+                    edge: patch.outgoing_edge,
+                };
                 if patch.empty.node != 0
                     || patch.empty.machine != patch.predecessor.machine
                     || !affected_blocks.contains(&patch.empty.block)
                     || provenance.iter().any(|row| {
-                        let ProvenanceDisposition::RealizedAt(location) = row.disposition else {
+                        let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
                             return true;
                         };
-                        location.machine != patch.predecessor.machine
-                            || !affected_blocks.contains(&location.block)
+                        site.machine() != patch.predecessor.machine
+                            || site
+                                .node()
+                                .is_some_and(|location| !affected_blocks.contains(&location.block))
+                    })
+                    || !provenance.iter().any(|row| {
+                        row.input == incoming
+                            && row.disposition == ProvenanceDisposition::RealizedAt(incoming)
+                    })
+                    || !provenance.iter().any(|row| {
+                        row.input == outgoing
+                            && row.disposition == ProvenanceDisposition::RealizedAt(incoming)
+                    })
+                    || !substitutions.is_empty()
+                    || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
+                {
+                    return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
+                }
+            }
+            PsiRewritePatch::ThreadPathQualifiedEmptyBlock(patch) => {
+                let outgoing = PsiRealizationSite::Edge {
+                    machine: patch.empty.machine,
+                    edge: patch.outgoing_edge,
+                };
+                let fanout = provenance
+                    .iter()
+                    .filter(|row| row.input == outgoing && row.disposition.is_realized())
+                    .count();
+                if patch.empty.node != 0
+                    || !affected_blocks.contains(&patch.empty.block)
+                    || fanout == 0
+                    || provenance.iter().any(|row| {
+                        let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
+                            return true;
+                        };
+                        site.machine() != patch.empty.machine
+                            || site
+                                .node()
+                                .is_some_and(|location| !affected_blocks.contains(&location.block))
                     })
                     || !substitutions.is_empty()
                     || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
@@ -867,7 +998,7 @@ fn encode_candidate(
     patch: PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v9\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v11\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     encode_location(&mut bytes, decision_point);
@@ -883,14 +1014,15 @@ fn encode_candidate(
     }
     encode_len(&mut bytes, provenance.len());
     for row in provenance {
+        encode_realization_site(&mut bytes, row.input);
         match row.disposition {
-            ProvenanceDisposition::RealizedAt(location) => {
+            ProvenanceDisposition::RealizedAt(site) => {
                 bytes.push(row.disposition.canonical_tag());
-                encode_location(&mut bytes, location);
+                encode_realization_site(&mut bytes, site);
             }
-            ProvenanceDisposition::ProvenUnreachableAt(location) => {
+            ProvenanceDisposition::ProvenUnreachableAt(site) => {
                 bytes.push(row.disposition.canonical_tag());
-                encode_location(&mut bytes, location);
+                encode_realization_site(&mut bytes, site);
             }
         }
         encode_len(&mut bytes, row.sources.len());
@@ -1005,6 +1137,12 @@ fn encode_candidate(
             bytes.extend_from_slice(&patch.outgoing_edge.get().to_le_bytes());
             bytes.extend_from_slice(&patch.target.get().to_le_bytes());
         }
+        PsiRewritePatch::ThreadPathQualifiedEmptyBlock(patch) => {
+            bytes.push(6);
+            encode_location(&mut bytes, patch.empty);
+            bytes.extend_from_slice(&patch.outgoing_edge.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.target.get().to_le_bytes());
+        }
     }
     bytes
 }
@@ -1013,6 +1151,20 @@ fn encode_location(bytes: &mut Vec<u8>, location: NodeLocation) {
     bytes.extend_from_slice(&location.machine.get().to_le_bytes());
     bytes.extend_from_slice(&location.block.get().to_le_bytes());
     bytes.extend_from_slice(&location.node.to_le_bytes());
+}
+
+fn encode_realization_site(bytes: &mut Vec<u8>, site: PsiRealizationSite) {
+    match site {
+        PsiRealizationSite::Node(location) => {
+            bytes.push(1);
+            encode_location(bytes, location);
+        }
+        PsiRealizationSite::Edge { machine, edge } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&machine.get().to_le_bytes());
+            bytes.extend_from_slice(&edge.get().to_le_bytes());
+        }
+    }
 }
 
 fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {

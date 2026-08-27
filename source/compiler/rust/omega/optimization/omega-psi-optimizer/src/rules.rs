@@ -11,9 +11,9 @@ use omega_optimization_core::{
 use omega_optimization_unit::{
     BlockParameterIncomingBinding, BooleanConstantRewrite, ConstantConditionalRewrite,
     IntegerConstantRewrite, IntegerEvaluationWitness, LinearEmptyBlockRewrite, NodeLocation,
-    OptimizationFact, OwnershipFrontierSite, ProvenanceDisposition, ProvenanceRewrite,
-    PsiOptimizationUnit, PsiRewriteCandidate, RedundantBlockParameterRewrite,
-    RedundantBlockParameterWitness,
+    OptimizationFact, OwnershipFrontierSite, PathQualifiedEmptyBlockRewrite, ProvenanceDisposition,
+    ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{BlockId, IntegerValue, MachineId, OperationId, ValueId};
@@ -24,7 +24,7 @@ use crate::{
 };
 
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v1";
-const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v4";
+const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v5";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -34,10 +34,10 @@ impl ConstantConditionalFoldRule {
     pub fn contract() -> OptimizationRuleContract {
         OptimizationRuleContract::new(
             OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.constant-conditional-fold.v4",
+                b"omega.psi-rule.constant-conditional-fold.v5",
             ),
             OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-            4,
+            5,
             AnalysisSet::new([
                 AnalysisKind::ControlFlowGraph,
                 AnalysisKind::ScalarConstants,
@@ -61,10 +61,10 @@ impl LinearEmptyBlockThreadRule {
     pub fn contract() -> OptimizationRuleContract {
         OptimizationRuleContract::new(
             OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.linear-empty-block-thread.v1",
+                b"omega.psi-rule.linear-empty-block-thread.v2",
             ),
             OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-            1,
+            2,
             AnalysisSet::new([
                 AnalysisKind::ControlFlowGraph,
                 AnalysisKind::UseDefinition,
@@ -221,6 +221,158 @@ impl PsiOptimizationRule for LinearEmptyBlockThreadRule {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PathQualifiedEmptyBlockThreadRule;
+
+impl PathQualifiedEmptyBlockThreadRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.path-qualified-empty-block-thread.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
+            1,
+            AnalysisSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::OwnershipFrontiers,
+            ]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::StructuralIdentity,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for PathQualifiedEmptyBlockThreadRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        if analyses.get(AnalysisKind::ControlFlowGraph).is_none() {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::ControlFlowGraph,
+            ));
+        }
+        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
+            analyses.get(AnalysisKind::UseDefinition)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::UseDefinition,
+            ));
+        };
+        let Some(AnalysisProduct::OwnershipFrontiers(frontiers)) =
+            analyses.get(AnalysisKind::OwnershipFrontiers)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::OwnershipFrontiers,
+            ));
+        };
+        let mut candidates = Vec::new();
+        for function in &unit.functions {
+            for empty in &function.blocks {
+                if empty.id == function.entry || empty.nodes.len() != 1 {
+                    continue;
+                }
+                let O::Jump {
+                    psi_edge: outgoing_edge,
+                    target,
+                    bindings: outgoing_bindings,
+                } = &empty.nodes[0].operation
+                else {
+                    continue;
+                };
+                let incoming = function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| {
+                        block
+                            .nodes
+                            .iter()
+                            .enumerate()
+                            .flat_map(move |(node_index, node)| {
+                                node.successors
+                                    .iter()
+                                    .filter(move |edge| edge.target == empty.id)
+                                    .map(move |edge| (block, node_index, node, edge))
+                            })
+                    })
+                    .collect::<Vec<_>>();
+                if incoming.is_empty()
+                    || (incoming.len() == 1 && matches!(incoming[0].2.operation, O::Jump { .. }))
+                    || empty.parameters.iter().any(|parameter| {
+                        use_definitions.uses.iter().any(|(machine, use_site)| {
+                            *machine == function.machine
+                                && use_site.value == parameter.value
+                                && (use_site.block != empty.id || use_site.node != 0)
+                        })
+                    })
+                {
+                    continue;
+                }
+                if incoming.iter().any(|(_, _, _, edge)| {
+                    compose_linear_thread_bindings(
+                        &empty.parameters,
+                        &edge.bindings,
+                        outgoing_bindings,
+                    )
+                    .is_none()
+                        || !linear_thread_ownership_is_identity(
+                            unit,
+                            function,
+                            frontiers,
+                            edge.psi_edge,
+                            empty.id,
+                            *outgoing_edge,
+                            *target,
+                        )
+                }) {
+                    continue;
+                }
+                let empty_location = NodeLocation {
+                    machine: function.machine,
+                    block: empty.id,
+                    node: 0,
+                };
+                let incoming_edges = incoming
+                    .iter()
+                    .map(|(_, _, _, edge)| edge.psi_edge)
+                    .collect::<Vec<_>>();
+                let Some((affected_blocks, provenance)) =
+                    path_thread_accounting(function, empty_location, &incoming_edges)
+                else {
+                    continue;
+                };
+                candidates.push(
+                    PsiRewriteCandidate::new_path_qualified_empty_block(
+                        unit.identity,
+                        Self::contract(),
+                        affected_blocks,
+                        provenance,
+                        -3,
+                        PathQualifiedEmptyBlockRewrite {
+                            empty: empty_location,
+                            outgoing_edge: *outgoing_edge,
+                            target: *target,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+        Ok(candidates)
+    }
+}
+
 impl PsiOptimizationRule for ConstantConditionalFoldRule {
     fn contract(&self) -> OptimizationRuleContract {
         Self::contract()
@@ -345,21 +497,22 @@ fn conditional_fold_accounting(
         .find(|block| block.id == decision.block)?
         .nodes
         .get(usize::try_from(decision.node).ok()?)?;
-    let source_fuel = |edge| {
-        decision_node
-            .fuel
-            .iter()
-            .copied()
-            .filter(|settlement| {
-                settlement.site == omega_optimization_unit::PsiProvenance::Edge(edge)
-            })
-            .collect::<Vec<_>>()
+    let selected = decision_node
+        .successors
+        .iter()
+        .find(|edge| edge.psi_edge == selected_edge)?;
+    let rejected = decision_node
+        .successors
+        .iter()
+        .find(|edge| edge.psi_edge == rejected_edge)?;
+    let selected_site = PsiRealizationSite::Edge {
+        machine: function.machine,
+        edge: selected_edge,
     };
-    let selected_fuel = source_fuel(selected_edge);
-    let rejected_fuel = source_fuel(rejected_edge);
-    if selected_fuel.is_empty() || rejected_fuel.is_empty() {
-        return None;
-    }
+    let rejected_site = PsiRealizationSite::Edge {
+        machine: function.machine,
+        edge: rejected_edge,
+    };
     let removed = function
         .blocks
         .iter()
@@ -369,28 +522,47 @@ fn conditional_fold_accounting(
     let mut affected = BTreeSet::from([decision.block]);
     affected.extend(removed.iter().copied());
     let mut realized = vec![ProvenanceRewrite {
-        disposition: ProvenanceDisposition::RealizedAt(decision),
-        sources: vec![omega_optimization_unit::PsiProvenance::Edge(selected_edge)],
-        fuel: selected_fuel,
+        input: selected_site,
+        disposition: ProvenanceDisposition::RealizedAt(selected_site),
+        sources: selected.provenance.clone(),
+        fuel: selected.fuel.clone(),
     }];
     let mut unreachable = vec![ProvenanceRewrite {
-        disposition: ProvenanceDisposition::ProvenUnreachableAt(decision),
-        sources: vec![omega_optimization_unit::PsiProvenance::Edge(rejected_edge)],
-        fuel: rejected_fuel,
+        input: rejected_site,
+        disposition: ProvenanceDisposition::ProvenUnreachableAt(rejected_site),
+        sources: rejected.provenance.clone(),
+        fuel: rejected.fuel.clone(),
     }];
     let mut expected_effect = 0u64;
     for block in &function.blocks {
         if removed.contains(&block.id) {
             for (node_index, node) in block.nodes.iter().enumerate() {
-                unreachable.push(ProvenanceRewrite {
-                    disposition: ProvenanceDisposition::ProvenUnreachableAt(NodeLocation {
+                let location = NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: u32::try_from(node_index).ok()?,
+                };
+                if !node.provenance.is_empty() {
+                    let site = PsiRealizationSite::Node(location);
+                    unreachable.push(ProvenanceRewrite {
+                        input: site,
+                        disposition: ProvenanceDisposition::ProvenUnreachableAt(site),
+                        sources: node.provenance.clone(),
+                        fuel: node.fuel.clone(),
+                    });
+                }
+                for edge in &node.successors {
+                    let site = PsiRealizationSite::Edge {
                         machine: function.machine,
-                        block: block.id,
-                        node: u32::try_from(node_index).ok()?,
-                    }),
-                    sources: node.provenance.clone(),
-                    fuel: node.fuel.clone(),
-                });
+                        edge: edge.psi_edge,
+                    };
+                    unreachable.push(ProvenanceRewrite {
+                        input: site,
+                        disposition: ProvenanceDisposition::ProvenUnreachableAt(site),
+                        sources: edge.provenance.clone(),
+                        fuel: edge.fuel.clone(),
+                    });
+                }
             }
             continue;
         }
@@ -404,18 +576,27 @@ fn conditional_fold_accounting(
                 || node.effect.output != expected_effect.checked_add(1)?;
             if effect_changes && location != decision {
                 affected.insert(block.id);
-                realized.push(ProvenanceRewrite {
-                    disposition: ProvenanceDisposition::RealizedAt(location),
-                    sources: node.provenance.clone(),
-                    fuel: node.fuel.clone(),
-                });
+                if !node.provenance.is_empty() {
+                    let site = PsiRealizationSite::Node(location);
+                    realized.push(ProvenanceRewrite {
+                        input: site,
+                        disposition: ProvenanceDisposition::RealizedAt(site),
+                        sources: node.provenance.clone(),
+                        fuel: node.fuel.clone(),
+                    });
+                }
             }
             expected_effect = expected_effect.checked_add(1)?;
         }
     }
-    realized.sort_by_key(|row| row.disposition.location());
-    unreachable.sort_by_key(|row| row.disposition.location());
     realized.extend(unreachable);
+    realized.sort_by_key(|row| {
+        (
+            row.input,
+            row.disposition.canonical_tag(),
+            row.disposition.site(),
+        )
+    });
     Some((affected.into_iter().collect(), realized))
 }
 
@@ -500,20 +681,33 @@ fn linear_thread_accounting(
         .find(|block| block.id == empty.block)?
         .nodes
         .get(usize::try_from(empty.node).ok()?)?;
-    let mut sources = predecessor_node.provenance.clone();
-    sources.extend_from_slice(&empty_node.provenance);
-    let mut fuel = predecessor_node.fuel.clone();
-    fuel.extend_from_slice(&empty_node.fuel);
-    if sources.iter().copied().collect::<BTreeSet<_>>().len() != sources.len() {
-        return None;
-    }
+    let predecessor_edge = predecessor_node.successors.first()?;
+    let empty_edge = empty_node.successors.first()?;
+    let output_site = PsiRealizationSite::Edge {
+        machine: function.machine,
+        edge: predecessor_edge.psi_edge,
+    };
+    let predecessor_site = output_site;
+    let empty_site = PsiRealizationSite::Edge {
+        machine: function.machine,
+        edge: empty_edge.psi_edge,
+    };
 
     let mut affected = BTreeSet::from([predecessor.block, empty.block]);
-    let mut realized = vec![ProvenanceRewrite {
-        disposition: ProvenanceDisposition::RealizedAt(predecessor),
-        sources,
-        fuel,
-    }];
+    let mut realized = vec![
+        ProvenanceRewrite {
+            input: predecessor_site,
+            disposition: ProvenanceDisposition::RealizedAt(output_site),
+            sources: predecessor_edge.provenance.clone(),
+            fuel: predecessor_edge.fuel.clone(),
+        },
+        ProvenanceRewrite {
+            input: empty_site,
+            disposition: ProvenanceDisposition::RealizedAt(output_site),
+            sources: empty_edge.provenance.clone(),
+            fuel: empty_edge.fuel.clone(),
+        },
+    ];
     let mut expected_effect = 0u64;
     for block in &function.blocks {
         if block.id == empty.block {
@@ -529,16 +723,115 @@ fn linear_thread_accounting(
                 || node.effect.output != expected_effect.checked_add(1)?;
             if effect_changes && location != predecessor {
                 affected.insert(block.id);
-                realized.push(ProvenanceRewrite {
-                    disposition: ProvenanceDisposition::RealizedAt(location),
-                    sources: node.provenance.clone(),
-                    fuel: node.fuel.clone(),
-                });
+                if !node.provenance.is_empty() {
+                    let site = PsiRealizationSite::Node(location);
+                    realized.push(ProvenanceRewrite {
+                        input: site,
+                        disposition: ProvenanceDisposition::RealizedAt(site),
+                        sources: node.provenance.clone(),
+                        fuel: node.fuel.clone(),
+                    });
+                }
             }
             expected_effect = expected_effect.checked_add(1)?;
         }
     }
-    realized.sort_by_key(|row| row.disposition.location());
+    realized.sort_by_key(|row| {
+        (
+            row.input,
+            row.disposition.canonical_tag(),
+            row.disposition.site(),
+        )
+    });
+    Some((affected.into_iter().collect(), realized))
+}
+
+fn path_thread_accounting(
+    function: &omega_optimization_unit::PsiOptimizationFunction,
+    empty: NodeLocation,
+    incoming_edges: &[psi_core::EdgeId],
+) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
+    let empty_node = function
+        .blocks
+        .iter()
+        .find(|block| block.id == empty.block)?
+        .nodes
+        .get(usize::try_from(empty.node).ok()?)?;
+    let outgoing = empty_node.successors.first()?;
+    let outgoing_site = PsiRealizationSite::Edge {
+        machine: function.machine,
+        edge: outgoing.psi_edge,
+    };
+    let incoming_set = incoming_edges.iter().copied().collect::<BTreeSet<_>>();
+    if incoming_set.len() != incoming_edges.len() || incoming_set.is_empty() {
+        return None;
+    }
+    let mut affected = BTreeSet::from([empty.block]);
+    let mut realized = Vec::new();
+    for block in &function.blocks {
+        for node in &block.nodes {
+            for edge in &node.successors {
+                if !incoming_set.contains(&edge.psi_edge) || edge.target != empty.block {
+                    continue;
+                }
+                affected.insert(block.id);
+                let site = PsiRealizationSite::Edge {
+                    machine: function.machine,
+                    edge: edge.psi_edge,
+                };
+                realized.push(ProvenanceRewrite {
+                    input: site,
+                    disposition: ProvenanceDisposition::RealizedAt(site),
+                    sources: edge.provenance.clone(),
+                    fuel: edge.fuel.clone(),
+                });
+                realized.push(ProvenanceRewrite {
+                    input: outgoing_site,
+                    disposition: ProvenanceDisposition::RealizedAt(site),
+                    sources: outgoing.provenance.clone(),
+                    fuel: outgoing.fuel.clone(),
+                });
+            }
+        }
+    }
+    if realized.len() != incoming_edges.len().checked_mul(2)? {
+        return None;
+    }
+    let mut expected_effect = 0u64;
+    for block in &function.blocks {
+        if block.id == empty.block {
+            continue;
+        }
+        for (node_index, node) in block.nodes.iter().enumerate() {
+            let location = NodeLocation {
+                machine: function.machine,
+                block: block.id,
+                node: u32::try_from(node_index).ok()?,
+            };
+            let effect_changes = node.effect.input != expected_effect
+                || node.effect.output != expected_effect.checked_add(1)?;
+            if effect_changes {
+                affected.insert(block.id);
+                if !node.provenance.is_empty() {
+                    let site = PsiRealizationSite::Node(location);
+                    realized.push(ProvenanceRewrite {
+                        input: site,
+                        disposition: ProvenanceDisposition::RealizedAt(site),
+                        sources: node.provenance.clone(),
+                        fuel: node.fuel.clone(),
+                    });
+                }
+            }
+            expected_effect = expected_effect.checked_add(1)?;
+        }
+    }
+    realized.sort_by_key(|row| {
+        (
+            row.input,
+            row.disposition.canonical_tag(),
+            row.disposition.site(),
+        )
+    });
     Some((affected.into_iter().collect(), realized))
 }
 
@@ -965,7 +1258,10 @@ fn propose_boolean_constants(
                         vec![block.id],
                         Vec::new(),
                         vec![ProvenanceRewrite {
-                            disposition: ProvenanceDisposition::RealizedAt(location),
+                            input: PsiRealizationSite::Node(location),
+                            disposition: ProvenanceDisposition::RealizedAt(
+                                PsiRealizationSite::Node(location),
+                            ),
                             sources: node.provenance.clone(),
                             fuel: node.fuel.clone(),
                         }],
@@ -1139,7 +1435,10 @@ fn propose_integer_unary_constants(
                         vec![block.id],
                         Vec::new(),
                         vec![ProvenanceRewrite {
-                            disposition: ProvenanceDisposition::RealizedAt(location),
+                            input: PsiRealizationSite::Node(location),
+                            disposition: ProvenanceDisposition::RealizedAt(
+                                PsiRealizationSite::Node(location),
+                            ),
                             sources: node.provenance.clone(),
                             fuel: node.fuel.clone(),
                         }],
@@ -1209,7 +1508,10 @@ fn propose_exact_integer_cast_constants(
                         vec![block.id],
                         Vec::new(),
                         vec![ProvenanceRewrite {
-                            disposition: ProvenanceDisposition::RealizedAt(location),
+                            input: PsiRealizationSite::Node(location),
+                            disposition: ProvenanceDisposition::RealizedAt(
+                                PsiRealizationSite::Node(location),
+                            ),
                             sources: node.provenance.clone(),
                             fuel: node.fuel.clone(),
                         }],
@@ -1284,7 +1586,10 @@ fn propose_integer_binary_constants(
                         vec![block.id],
                         Vec::new(),
                         vec![ProvenanceRewrite {
-                            disposition: ProvenanceDisposition::RealizedAt(location),
+                            input: PsiRealizationSite::Node(location),
+                            disposition: ProvenanceDisposition::RealizedAt(
+                                PsiRealizationSite::Node(location),
+                            ),
                             sources: node.provenance.clone(),
                             fuel: node.fuel.clone(),
                         }],
@@ -1957,23 +2262,49 @@ fn propose_redundant_block_parameters(
                             .uses
                             .iter()
                             .any(|use_site| use_site.value == parameter.value);
-                        let changes_binding =
-                            node.successors.iter().any(|edge| edge.target == block.id);
-                        if changes_use || changes_binding {
+                        for edge in node
+                            .successors
+                            .iter()
+                            .filter(|edge| edge.target == block.id)
+                        {
                             affected_blocks.insert(source.id);
+                            let site = PsiRealizationSite::Edge {
+                                machine: function.machine,
+                                edge: edge.psi_edge,
+                            };
                             provenance.push(ProvenanceRewrite {
-                                disposition: ProvenanceDisposition::RealizedAt(NodeLocation {
+                                input: site,
+                                disposition: ProvenanceDisposition::RealizedAt(site),
+                                sources: edge.provenance.clone(),
+                                fuel: edge.fuel.clone(),
+                            });
+                        }
+                        if changes_use {
+                            affected_blocks.insert(source.id);
+                            if !node.provenance.is_empty() {
+                                let site = PsiRealizationSite::Node(NodeLocation {
                                     machine: function.machine,
                                     block: source.id,
                                     node: u32::try_from(node_index)
                                         .expect("unit node index fits u32"),
-                                }),
-                                sources: node.provenance.clone(),
-                                fuel: node.fuel.clone(),
-                            });
+                                });
+                                provenance.push(ProvenanceRewrite {
+                                    input: site,
+                                    disposition: ProvenanceDisposition::RealizedAt(site),
+                                    sources: node.provenance.clone(),
+                                    fuel: node.fuel.clone(),
+                                });
+                            }
                         }
                     }
                 }
+                provenance.sort_by_key(|row| {
+                    (
+                        row.input,
+                        row.disposition.canonical_tag(),
+                        row.disposition.site(),
+                    )
+                });
                 candidates.push(
                     PsiRewriteCandidate::new_redundant_block_parameter(
                         unit.identity,
@@ -2148,6 +2479,7 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
     if optimization == Optimization::ControlFlowCleanup {
         register!(0, ConstantConditionalFoldRule);
         register!(1, LinearEmptyBlockThreadRule);
+        register!(2, PathQualifiedEmptyBlockThreadRule);
     }
     if optimization == Optimization::CopyPropagation {
         register!(0, RedundantBlockParameterRule);
@@ -2175,14 +2507,17 @@ fn assemble_built_in_registry(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use omega_optimization_core::OptimizationValidatorIdentity;
     use omega_optimization_unit::{
-        AcceptedObligationFact, OptimizationFact, attach_accepted_obligation_facts,
-        recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
+        AcceptedObligationFact, OptimizationFact, PsiProvenance, PsiRewritePatch,
+        attach_accepted_obligation_facts, recompute_psi_optimization_unit_identity,
+        reconstruct_psi_optimization_unit_seed,
     };
     use omega_optimization_validation::{
         OptimizationUnitValidationError, validate_boolean_evaluation_candidate,
         validate_constant_conditional_candidate, validate_integer_evaluation_candidate,
-        validate_linear_empty_block_candidate, validate_redundant_block_parameter_candidate,
+        validate_linear_empty_block_candidate, validate_path_qualified_empty_block_candidate,
+        validate_redundant_block_parameter_candidate,
     };
     use omega_terminal_abstract_operations::{
         TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
@@ -2554,6 +2889,104 @@ pub(crate) mod tests {
                         },
                         TerminalAbstractOperation::ReturnUnit {
                             psi_edge: id(913, EdgeId::new),
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    pub(crate) fn path_qualified_empty_block_unit() -> PsiOptimizationUnit {
+        let machine = id(921, MachineId::new);
+        let entry = id(922, BlockId::new);
+        let left_block = id(923, BlockId::new);
+        let right_block = id(924, BlockId::new);
+        let empty = id(925, BlockId::new);
+        let target = id(926, BlockId::new);
+        let condition = id(927, ValueId::new);
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([32; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry,
+                    parameters: vec![TerminalAbstractParameter {
+                        value: condition,
+                        scalar_type: ScalarType::Boolean,
+                    }],
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![
+                        TerminalAbstractBlockEntry {
+                            block: entry,
+                            parameters: Vec::new(),
+                            operation_offset: 0,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: left_block,
+                            parameters: Vec::new(),
+                            operation_offset: 1,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: right_block,
+                            parameters: Vec::new(),
+                            operation_offset: 2,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: empty,
+                            parameters: Vec::new(),
+                            operation_offset: 3,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: target,
+                            parameters: Vec::new(),
+                            operation_offset: 4,
+                        },
+                    ],
+                    operations: vec![
+                        TerminalAbstractOperation::Conditional {
+                            condition,
+                            when_true: TerminalAbstractSuccessor {
+                                psi_edge: id(931, EdgeId::new),
+                                target: left_block,
+                                bindings: Vec::new(),
+                            },
+                            when_false: TerminalAbstractSuccessor {
+                                psi_edge: id(932, EdgeId::new),
+                                target: right_block,
+                                bindings: Vec::new(),
+                            },
+                        },
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(933, EdgeId::new),
+                            target: empty,
+                            bindings: Vec::new(),
+                        },
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(934, EdgeId::new),
+                            target: empty,
+                            bindings: Vec::new(),
+                        },
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(935, EdgeId::new),
+                            target,
+                            bindings: Vec::new(),
+                        },
+                        TerminalAbstractOperation::ReturnUnit {
+                            psi_edge: id(936, EdgeId::new),
                             cleanup_actions: Vec::new(),
                         },
                     ],
@@ -3695,7 +4128,7 @@ pub(crate) mod tests {
             ))
         );
         let cleanup = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
-        assert_eq!(built_in_psi_registry(&cleanup).unwrap().len(), 2);
+        assert_eq!(built_in_psi_registry(&cleanup).unwrap().len(), 3);
         let copy = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
         assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
         let unsupported_combination = OptimizationSelections::new([
@@ -3758,12 +4191,27 @@ pub(crate) mod tests {
                 unreachable!()
             };
             assert_eq!(patch.constant, constant);
-            let [realized, proven_unreachable] = candidates[0].provenance() else {
-                panic!("conditional fold carries both source dispositions")
+            let realized = candidates[0]
+                .provenance()
+                .iter()
+                .find(|row| row.disposition.is_realized())
+                .expect("conditional fold carries selected-edge custody");
+            let proven_unreachable = candidates[0]
+                .provenance()
+                .iter()
+                .find(|row| !row.disposition.is_realized())
+                .expect("conditional fold carries rejected-edge custody");
+            let realized_site = PsiRealizationSite::Edge {
+                machine: patch.location.machine,
+                edge: patch.selected_edge,
+            };
+            let unreachable_site = PsiRealizationSite::Edge {
+                machine: patch.location.machine,
+                edge: patch.rejected_edge,
             };
             assert_eq!(
                 realized.disposition,
-                ProvenanceDisposition::RealizedAt(patch.location)
+                ProvenanceDisposition::RealizedAt(realized_site)
             );
             assert_eq!(
                 realized.sources,
@@ -3773,7 +4221,7 @@ pub(crate) mod tests {
             );
             assert_eq!(
                 proven_unreachable.disposition,
-                ProvenanceDisposition::ProvenUnreachableAt(patch.location)
+                ProvenanceDisposition::ProvenUnreachableAt(unreachable_site)
             );
             assert_eq!(
                 proven_unreachable.sources,
@@ -3786,7 +4234,7 @@ pub(crate) mod tests {
             assert_eq!(
                 accepted.validator(),
                 omega_optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
-                    b"omega.validator.constant-conditional-fold.v3"
+                    b"omega.validator.constant-conditional-fold.v4"
                 )
             );
             let node = &accepted.unit().functions[0].blocks[0].nodes[1];
@@ -3795,14 +4243,16 @@ pub(crate) mod tests {
                 TerminalAbstractOperation::Jump { psi_edge, .. } if psi_edge == patch.selected_edge
             ));
             assert_eq!(
-                node.provenance,
+                node.successors[0].provenance,
                 [omega_optimization_unit::PsiProvenance::Edge(
                     patch.selected_edge
                 )]
             );
-            assert_eq!(node.fuel.len(), 1);
+            assert!(node.provenance.is_empty());
+            assert!(node.fuel.is_empty());
+            assert_eq!(node.successors[0].fuel.len(), 1);
             assert_eq!(
-                node.fuel[0].site,
+                node.successors[0].fuel[0].site,
                 omega_optimization_unit::PsiProvenance::Edge(patch.selected_edge)
             );
         }
@@ -3900,7 +4350,7 @@ pub(crate) mod tests {
                 .iter()
                 .filter(|row| row.disposition.is_realized())
                 .count(),
-            5
+            4
         );
         assert_eq!(
             candidate
@@ -3953,20 +4403,34 @@ pub(crate) mod tests {
                 id(904, BlockId::new),
             ]
         );
-        assert_eq!(candidate.provenance().len(), 2);
+        assert_eq!(candidate.provenance().len(), 3);
         assert!(
             candidate
                 .provenance()
                 .iter()
                 .all(|row| row.disposition.is_realized())
         );
-        assert_eq!(candidate.provenance()[0].sources.len(), 2);
+        assert_eq!(
+            candidate
+                .provenance()
+                .iter()
+                .filter(|row| {
+                    matches!(row.input, PsiRealizationSite::Edge { .. })
+                        && row.disposition.site()
+                            == PsiRealizationSite::Edge {
+                                machine: id(901, MachineId::new),
+                                edge: id(911, psi_core::EdgeId::new),
+                            }
+                })
+                .count(),
+            2
+        );
 
         let accepted = validate_linear_empty_block_candidate(&unit, &candidate).unwrap();
         assert_eq!(
             accepted.validator(),
             omega_optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
-                b"omega.validator.linear-empty-block-thread.v1"
+                b"omega.validator.linear-empty-block-thread.v2"
             )
         );
         let output = accepted.unit();
@@ -3990,8 +4454,20 @@ pub(crate) mod tests {
         assert_eq!(*target, id(904, BlockId::new));
         assert_eq!(bindings[0].argument, id(906, ValueId::new));
         assert_eq!(bindings[1].argument, id(905, ValueId::new));
-        assert_eq!(output.functions[0].blocks[0].nodes[0].provenance.len(), 2);
-        assert_eq!(output.functions[0].blocks[0].nodes[0].fuel.len(), 2);
+        assert!(output.functions[0].blocks[0].nodes[0].provenance.is_empty());
+        assert!(output.functions[0].blocks[0].nodes[0].fuel.is_empty());
+        assert_eq!(
+            output.functions[0].blocks[0].nodes[0].successors[0]
+                .provenance
+                .len(),
+            2
+        );
+        assert_eq!(
+            output.functions[0].blocks[0].nodes[0].successors[0]
+                .fuel
+                .len(),
+            2
+        );
         assert_eq!(output.functions[0].blocks[1].nodes[0].effect.input, 1);
         assert_eq!(output.functions[0].blocks[1].nodes[0].effect.output, 2);
     }
@@ -4018,8 +4494,29 @@ pub(crate) mod tests {
             unreachable!()
         };
         let mut provenance = candidate.provenance().to_vec();
-        provenance[0].sources.pop();
-        provenance[0].fuel.pop();
+        let incoming = provenance
+            .iter()
+            .find(|row| {
+                row.input
+                    == PsiRealizationSite::Edge {
+                        machine: patch.predecessor.machine,
+                        edge: patch.incoming_edge,
+                    }
+            })
+            .expect("incoming occurrence is present")
+            .clone();
+        let outgoing = provenance
+            .iter_mut()
+            .find(|row| {
+                row.input
+                    == PsiRealizationSite::Edge {
+                        machine: patch.predecessor.machine,
+                        edge: patch.outgoing_edge,
+                    }
+            })
+            .expect("outgoing occurrence is present");
+        outgoing.sources = incoming.sources;
+        outgoing.fuel = incoming.fuel;
         let incomplete = PsiRewriteCandidate::new_linear_empty_block(
             unit.identity,
             contract,
@@ -4033,6 +4530,89 @@ pub(crate) mod tests {
             validate_linear_empty_block_candidate(&unit, &incomplete),
             Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
         ));
+    }
+
+    #[test]
+    fn path_qualified_empty_block_thread_fans_out_only_on_incoming_edge_antichain() {
+        let unit = path_qualified_empty_block_unit();
+        let contract = PathQualifiedEmptyBlockThreadRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let candidate = PathQualifiedEmptyBlockThreadRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .pop()
+            .expect("two mutually exclusive incoming edges are threadable");
+        let PsiRewritePatch::ThreadPathQualifiedEmptyBlock(patch) = candidate.patch() else {
+            unreachable!()
+        };
+        let outgoing_site = PsiRealizationSite::Edge {
+            machine: patch.empty.machine,
+            edge: patch.outgoing_edge,
+        };
+        let fanout = candidate
+            .provenance()
+            .iter()
+            .filter(|row| row.input == outgoing_site)
+            .collect::<Vec<_>>();
+        assert_eq!(fanout.len(), 2);
+        assert_ne!(fanout[0].disposition.site(), fanout[1].disposition.site());
+        assert!(fanout.iter().all(|row| row.disposition.is_realized()));
+
+        let accepted = validate_path_qualified_empty_block_candidate(&unit, &candidate).unwrap();
+        assert_eq!(
+            accepted.validator(),
+            OptimizationValidatorIdentity::from_canonical_bytes(
+                b"omega.validator.path-qualified-empty-block-thread.v1"
+            )
+        );
+        let function = &accepted.unit().functions[0];
+        assert_eq!(function.blocks.len(), 4);
+        assert!(
+            !function
+                .blocks
+                .iter()
+                .any(|block| block.id == patch.empty.block)
+        );
+        for edge_id in [id(933, EdgeId::new), id(934, EdgeId::new)] {
+            let edge = function
+                .blocks
+                .iter()
+                .flat_map(|block| block.nodes.iter())
+                .flat_map(|node| node.successors.iter())
+                .find(|edge| edge.psi_edge == edge_id)
+                .expect("incoming edge survives");
+            assert_eq!(edge.target, patch.target);
+            assert_eq!(
+                edge.provenance,
+                [
+                    PsiProvenance::Edge(edge_id),
+                    PsiProvenance::Edge(patch.outgoing_edge),
+                ]
+            );
+        }
+
+        let mut coexecuted = accepted.unit().clone();
+        let source = PsiProvenance::Edge(patch.outgoing_edge);
+        coexecuted.functions[0].blocks[0].nodes[0].successors[0]
+            .provenance
+            .push(source);
+        coexecuted.functions[0].blocks[0].nodes[0].successors[0]
+            .fuel
+            .push(omega_optimization_unit::FuelSettlement {
+                site: source,
+                units: 1,
+            });
+        coexecuted.identity = recompute_psi_optimization_unit_identity(&coexecuted);
+        assert_eq!(
+            omega_optimization_validation::validate_psi_optimization_unit(&coexecuted),
+            Err(OptimizationUnitValidationError::CoExecutableProvenanceOccurrences(source))
+        );
     }
 
     #[test]
@@ -4074,8 +4654,10 @@ pub(crate) mod tests {
         ));
 
         let mut duplicate_source = candidate.provenance().to_vec();
-        duplicate_source[1].sources = duplicate_source[0].sources.clone();
-        duplicate_source[1].fuel = duplicate_source[0].fuel.clone();
+        let source = duplicate_source[0].sources[0];
+        let fuel = duplicate_source[0].fuel[0];
+        duplicate_source[0].sources.push(source);
+        duplicate_source[0].fuel.push(fuel);
         assert!(matches!(
             PsiRewriteCandidate::new_constant_conditional(
                 unit.identity,
@@ -4104,11 +4686,27 @@ pub(crate) mod tests {
             Err(omega_optimization_unit::PsiRewriteCandidateError::FuelProvenanceMismatch)
         ));
 
+        let selected_site = PsiRealizationSite::Edge {
+            machine: patch.location.machine,
+            edge: patch.selected_edge,
+        };
+        let rejected_site = PsiRealizationSite::Edge {
+            machine: patch.location.machine,
+            edge: patch.rejected_edge,
+        };
+        let mut swapped_provenance = candidate.provenance().to_vec();
+        for row in &mut swapped_provenance {
+            if row.input == selected_site {
+                row.disposition = ProvenanceDisposition::ProvenUnreachableAt(selected_site);
+            } else if row.input == rejected_site {
+                row.disposition = ProvenanceDisposition::RealizedAt(rejected_site);
+            }
+        }
         let swapped = PsiRewriteCandidate::new_constant_conditional(
             unit.identity,
             contract,
             candidate.affected_blocks().to_vec(),
-            candidate.provenance().to_vec(),
+            swapped_provenance,
             condition_fact,
             -1,
             ConstantConditionalRewrite {
@@ -4190,7 +4788,11 @@ pub(crate) mod tests {
         let removed = incomplete_provenance
             .iter()
             .position(|row| {
-                !row.disposition.is_realized() && row.disposition.location().block == dead_block
+                !row.disposition.is_realized()
+                    && matches!(
+                        row.disposition.site(),
+                        PsiRealizationSite::Node(location) if location.block == dead_block
+                    )
             })
             .expect("dead nodes carry unreachable custody");
         incomplete_provenance.remove(removed);

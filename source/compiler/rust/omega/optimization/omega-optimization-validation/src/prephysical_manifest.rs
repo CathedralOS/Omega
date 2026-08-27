@@ -9,7 +9,7 @@ use omega_optimization_core::{
 use omega_optimization_policy::BaselineDecisionLog;
 use omega_optimization_unit::{
     ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit, PsiProvenance,
-    PsiTransformationLedger,
+    PsiRealizationSite, PsiTransformationLedger,
 };
 use omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput;
 use psi_core::FuelScheduleIdentity;
@@ -18,7 +18,7 @@ use psi_terminal::TerminalPsiIdentity;
 use crate::ValidatedOptimizedAbstractPlanProjection;
 
 const PRE_PHYSICAL_MANIFEST_MAGIC: &[u8; 8] = b"OMGPPM\0\0";
-const PRE_PHYSICAL_MANIFEST_VERSION: u32 = 3;
+const PRE_PHYSICAL_MANIFEST_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizationManifestStage {
@@ -722,7 +722,7 @@ fn pre_physical_manifest_identity(
     manifest: &PrePhysicalOptimizationManifest,
 ) -> PrePhysicalOptimizationManifestIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.pre-physical-optimization-manifest.v3\0");
+    canonical.extend_from_slice(b"omega.pre-physical-optimization-manifest.v4\0");
     canonical.extend_from_slice(&encode_manifest_content(manifest));
     PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(&canonical)
 }
@@ -931,18 +931,17 @@ fn render_provenance(provenance: PsiProvenance) -> String {
 }
 
 fn render_provenance_rewrite(output: &mut String, rewrite: &ProvenanceRewrite) {
-    let (label, location) = match rewrite.disposition {
-        ProvenanceDisposition::RealizedAt(location) => ("realized-at", location),
-        ProvenanceDisposition::ProvenUnreachableAt(location) => ("proven-unreachable-at", location),
+    let (label, site) = match rewrite.disposition {
+        ProvenanceDisposition::RealizedAt(site) => ("realized-at", site),
+        ProvenanceDisposition::ProvenUnreachableAt(site) => ("proven-unreachable-at", site),
     };
     writeln!(
         output,
-        "  {label}: machine={}, block={}, node={}",
-        location.machine.get(),
-        location.block.get(),
-        location.node,
+        "  input: {}",
+        render_realization_site(rewrite.input)
     )
     .unwrap();
+    writeln!(output, "  {label}: {}", render_realization_site(site)).unwrap();
     for source in &rewrite.sources {
         writeln!(output, "    source: {}", render_provenance(*source)).unwrap();
     }
@@ -963,6 +962,20 @@ fn render_provenance_rewrite(output: &mut String, rewrite: &ProvenanceRewrite) {
             ),
         }
         .unwrap();
+    }
+}
+
+fn render_realization_site(site: PsiRealizationSite) -> String {
+    match site {
+        PsiRealizationSite::Node(location) => format!(
+            "node:machine={},block={},node={}",
+            location.machine.get(),
+            location.block.get(),
+            location.node
+        ),
+        PsiRealizationSite::Edge { machine, edge } => {
+            format!("edge:machine={},edge={}", machine.get(), edge.get())
+        }
     }
 }
 
@@ -991,12 +1004,14 @@ mod tests {
             block: BlockId::new(2).unwrap(),
             node: 3,
         };
+        let site = PsiRealizationSite::Node(location);
         let source = PsiProvenance::Edge(EdgeId::new(4).unwrap());
         let render = |disposition| {
             let mut text = String::new();
             render_provenance_rewrite(
                 &mut text,
                 &ProvenanceRewrite {
+                    input: site,
                     disposition,
                     sources: vec![source],
                     fuel: vec![FuelSettlement {
@@ -1007,11 +1022,11 @@ mod tests {
             );
             text
         };
-        let realized = render(ProvenanceDisposition::RealizedAt(location));
-        assert!(realized.contains("realized-at: machine=1, block=2, node=3"));
+        let realized = render(ProvenanceDisposition::RealizedAt(site));
+        assert!(realized.contains("realized-at: node:machine=1,block=2,node=3"));
         assert!(realized.contains("runtime-charge=1"));
-        let unreachable = render(ProvenanceDisposition::ProvenUnreachableAt(location));
-        assert!(unreachable.contains("proven-unreachable-at: machine=1, block=2, node=3"));
+        let unreachable = render(ProvenanceDisposition::ProvenUnreachableAt(site));
+        assert!(unreachable.contains("proven-unreachable-at: node:machine=1,block=2,node=3"));
         assert!(unreachable.contains("runtime-charge=none reason=proven-unreachable"));
     }
 }
