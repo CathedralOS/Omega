@@ -451,6 +451,15 @@ means no synchronous invocation. Parameter paths distinguish two values of the
 same boundary trait. Internally selected bindings may be named by their trait
 identity when no parameter path exists.
 
+Typed lowering resolves every authored `invokes` target once, to either an
+exact non-`self` parameter symbol and ordinal or an exact boundary-trait symbol.
+Later effect inference and package review consume that retained identity; they
+do not search for a same-spelled trait again. Compiler-issued review also keeps
+the exact authored target-name span beside that identity, joins top-level
+machines to the checked invocation plan, and fails closed on missing,
+duplicated, stale, or malformed custody. The coordinate explains the row and
+does not enter its semantic compatibility bytes.
+
 Moving a binding into a linear registration has different timing:
 
 ```omega

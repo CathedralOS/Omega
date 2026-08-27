@@ -29,7 +29,7 @@ use crate::{
     ValueDefinition, ValueDefinitionSite, ValueUse,
 };
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v7\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v8\0";
 
 pub fn recompute_psi_optimization_unit_identity(
     unit: &PsiOptimizationUnit,
@@ -48,6 +48,10 @@ pub fn recompute_psi_optimization_unit_identity(
         &unit.ownership_frontier_facts,
         encode_ownership_frontier_fact,
     );
+    bytes.slice(&unit.pruned_machines, |bytes, custody| {
+        bytes.id(custody.machine);
+        bytes.u32(custody.source_ordinal);
+    });
     bytes.slice(&unit.functions, encode_function);
     OptimizationUnitIdentity::from_canonical_bytes(&bytes.finish())
 }

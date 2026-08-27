@@ -177,6 +177,7 @@ mod tests {
             provider_candidates: Vec::new(),
             accepted_obligation_facts: Vec::new(),
             ownership_frontier_facts: Vec::new(),
+            pruned_machines: Vec::new(),
             functions,
         };
         unit.identity = recompute_psi_optimization_unit_identity(&unit);

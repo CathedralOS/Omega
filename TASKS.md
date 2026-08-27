@@ -2076,8 +2076,15 @@ Remaining:
   full success; equal/empty settlement preserves sidecar identity, rejection
   preserves its prior identity and contents, and backend planning consumes only
   that retained sidecar instead of a driver-couriered pre-lowering vector. The
-  checked/terminal cutover, remaining post-check fact couriers/mutations, and
-  request-level output-destination policy remain open.
+  selected `ProgramEntry` now travels through one build-owned typed settlement
+  carrier as well: exact target-slot resolution, source-signature validation,
+  and optional physical/semantic/storage calling-plan settlement occur in their
+  original diagnostic order, remain joined through component-progress and
+  provider projection, and split only beside the backend/storage consumers.
+  The test-harness entry-name override remains a name-only fallback outside
+  that authority carrier. The checked/terminal cutover, remaining post-check
+  fact couriers/mutations, and request-level output-destination policy remain
+  open.
 
   Restore the driver contract:
 
@@ -5443,8 +5450,10 @@ Owners:
   snapshots, matching, normalized identity, loans, and call-access facts keep
   it distinct. Checked Omega bodies may explicitly attenuate an exclusive
   mutable whole place to `&write` for an unrestricted primitive scalar or fixed
-  literal-length array of unrestricted primitive scalars, replace the whole
-  referent, and forward the loan only through an explicit `&write` argument.
+  literal-length array whose element is either an unrestricted primitive scalar
+  or an eligible material nongeneric, invariant-free `[copy]` record, replace
+  the whole referent, and forward the loan only through an explicit `&write`
+  argument.
   Such a checked fixed array additionally permits literal or dynamic element
   replacement after the ordinary range checker proves the index in bounds.
   Literal mutation and caller-visible write frames retain the exact
@@ -5459,7 +5468,12 @@ Owners:
   provided every intermediate receiver is likewise a non-generic checked
   record with no authored default domain, every selected field is relevant and
   unconstrained, and the displaced leaf is an unrestricted primitive or a whole
-  literal-length array of unrestricted primitive scalars. The ordinary
+  supported literal-length fixed array. An eligible path may
+  now also end in a whole nongeneric, invariant-free `[copy]` record leaf.
+  Replacement treats that leaf as one freely discardable value and retains one
+  final `Field` segment without decomposing or observing its members; affine or
+  linear, generic, qualified, invariant-bearing, quotient, sum, erased, and
+  other non-discardable record leaves remain fenced. The ordinary
   mutation summary retains the complete exact, ordered field-symbol path;
   nested array replacement introduces no element or range segment. Such an
   eligible record path may additionally end in one in-bounds literal or
@@ -5474,12 +5488,15 @@ Owners:
   mutation and caller-visible write frame retain the ordered field symbols and
   exact `FixedRange`; existing half-open overlap preserves adjacent windows
   and record siblings. The same statically normalized closed-range replacement
-  now applies to literal fixed arrays of any unrestricted primitive scalar,
-  directly or through an eligible record path. Bounds normalize to one exact
-  half-open element-ordinal `FixedRange`, and the replacement remains an array
-  literal of exactly the same element count. Symbolic or open-ended ranges,
-  slices, and nonliteral replacements remain fenced. Atomic, qualified,
-  constrained, generic, erased, and non-discardable element forms still reject.
+  now applies to every supported literal fixed array, directly or through an
+  eligible record path. Primitive and eligible `[copy]` record elements each
+  remain one atomic array position: bounds normalize to one exact half-open
+  element-ordinal `FixedRange`, and the replacement remains an array literal of
+  exactly the same element count. Fixed/runtime element frames likewise retain
+  only `FixedIndex`/`Index` and never decompose record members. Symbolic or open-
+  ended ranges, slices, nested arrays, and nonliteral replacements remain
+  fenced. Atomic, qualified, constrained, generic, erased, sum, and non-
+  discardable element forms still reject.
   A direct `&write [u8]` root may read its exact `.len` descriptor metadata,
   and a direct supported literal fixed-array root may read `.len` as static type
   metadata; neither inspects the referenced bytes. The same static `.len`

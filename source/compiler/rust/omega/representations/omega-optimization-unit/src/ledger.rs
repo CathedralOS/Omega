@@ -8,11 +8,11 @@ use psi_core::{BlockId, EdgeId, FuelScheduleIdentity, MachineId, OperationId};
 use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use crate::{
-    FuelSettlement, NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance,
-    PsiRealizationSite,
+    FuelSettlement, NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody,
+    PsiProvenance, PsiRealizationSite,
 };
 
-const LEDGER_MAGIC: &[u8] = b"omega.psi-transformation-ledger.v3\0";
+const LEDGER_MAGIC: &[u8] = b"omega.psi-transformation-ledger.v4\0";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiTransformationRecord {
@@ -21,6 +21,7 @@ pub struct PsiTransformationRecord {
     pub validator: OptimizationValidatorIdentity,
     pub input: OptimizationUnitIdentity,
     pub output: OptimizationUnitIdentity,
+    pub pruned_machines: Vec<PrunedMachineCustody>,
     pub provenance: Vec<ProvenanceRewrite>,
 }
 
@@ -43,6 +44,9 @@ pub enum InvalidPsiTransformationLedger {
     NonCanonicalProvenance,
     FuelProvenanceMismatch,
     ZeroFuelSettlement,
+    NonCanonicalMachineRoster,
+    DuplicatePrunedMachine,
+    DuplicatePrunedSourceOrdinal,
 }
 
 impl std::fmt::Display for InvalidPsiTransformationLedger {
@@ -89,6 +93,8 @@ impl PsiTransformationLedger {
     ) -> Result<Self, InvalidPsiTransformationLedger> {
         let mut revision = input;
         let mut candidates = BTreeSet::new();
+        let mut pruned_machines = BTreeSet::new();
+        let mut pruned_source_ordinals = BTreeSet::new();
         for record in &records {
             if record.input != revision || record.input == record.output {
                 return Err(InvalidPsiTransformationLedger::BrokenRevisionChain);
@@ -97,6 +103,21 @@ impl PsiTransformationLedger {
                 return Err(InvalidPsiTransformationLedger::DuplicateCandidate);
             }
             validate_provenance(&record.provenance)?;
+            if record
+                .pruned_machines
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+            {
+                return Err(InvalidPsiTransformationLedger::NonCanonicalMachineRoster);
+            }
+            for custody in &record.pruned_machines {
+                if !pruned_machines.insert(custody.machine) {
+                    return Err(InvalidPsiTransformationLedger::DuplicatePrunedMachine);
+                }
+                if !pruned_source_ordinals.insert(custody.source_ordinal) {
+                    return Err(InvalidPsiTransformationLedger::DuplicatePrunedSourceOrdinal);
+                }
+            }
             revision = record.output;
         }
         if revision != output {
@@ -175,6 +196,16 @@ impl PsiTransformationLedger {
             let validator = OptimizationValidatorIdentity::from_bytes(cursor.array()?);
             let record_input = OptimizationUnitIdentity::from_bytes(cursor.array()?);
             let record_output = OptimizationUnitIdentity::from_bytes(cursor.array()?);
+            let pruned_count = cursor.length()?;
+            let mut pruned_machines = Vec::with_capacity(pruned_count.min(cursor.remaining()));
+            for _ in 0..pruned_count {
+                let machine = semantic_id(u64::from_le_bytes(cursor.array()?), MachineId::new)?;
+                let source_ordinal = u32::from_le_bytes(cursor.array()?);
+                pruned_machines.push(PrunedMachineCustody {
+                    machine,
+                    source_ordinal,
+                });
+            }
             let provenance_count = cursor.length()?;
             let mut provenance = Vec::with_capacity(provenance_count.min(cursor.remaining()));
             for _ in 0..provenance_count {
@@ -216,6 +247,7 @@ impl PsiTransformationLedger {
                 validator,
                 input: record_input,
                 output: record_output,
+                pruned_machines,
                 provenance,
             });
         }
@@ -310,6 +342,11 @@ fn encode_ledger(
         encoded.extend_from_slice(&record.validator.bytes());
         encoded.extend_from_slice(&record.input.bytes());
         encoded.extend_from_slice(&record.output.bytes());
+        encode_len(&mut encoded, record.pruned_machines.len());
+        for custody in &record.pruned_machines {
+            encoded.extend_from_slice(&custody.machine.get().to_le_bytes());
+            encoded.extend_from_slice(&custody.source_ordinal.to_le_bytes());
+        }
         encode_len(&mut encoded, record.provenance.len());
         for row in &record.provenance {
             encode_realization_site(&mut encoded, row.input);
@@ -482,6 +519,7 @@ mod tests {
             validator: OptimizationValidatorIdentity::from_canonical_bytes(b"validator"),
             input: OptimizationUnitIdentity::from_canonical_bytes(input),
             output: OptimizationUnitIdentity::from_canonical_bytes(output),
+            pruned_machines: Vec::new(),
             provenance: vec![ProvenanceRewrite {
                 input: site,
                 disposition: ProvenanceDisposition::RealizedAt(site),
@@ -515,6 +553,7 @@ mod tests {
             ),
             input: OptimizationUnitIdentity::from_canonical_bytes(input),
             output: OptimizationUnitIdentity::from_canonical_bytes(output),
+            pruned_machines: Vec::new(),
             provenance: vec![
                 ProvenanceRewrite {
                     input: realized_site,
@@ -602,6 +641,40 @@ mod tests {
     }
 
     #[test]
+    fn machine_roster_custody_round_trips_and_rejects_duplicates() {
+        let mut row = record(b"input", b"middle");
+        row.pruned_machines.push(PrunedMachineCustody {
+            machine: MachineId::new(7).unwrap(),
+            source_ordinal: 1,
+        });
+        let ledger = PsiTransformationLedger::new(
+            source(),
+            FuelScheduleIdentity::new(1).unwrap(),
+            row.input,
+            row.output,
+            vec![row.clone()],
+        )
+        .unwrap();
+        assert_eq!(
+            PsiTransformationLedger::decode(&ledger.encode()),
+            Ok(ledger)
+        );
+
+        let mut second = record(b"middle", b"output");
+        second.pruned_machines = row.pruned_machines.clone();
+        assert_eq!(
+            PsiTransformationLedger::new(
+                source(),
+                FuelScheduleIdentity::new(1).unwrap(),
+                row.input,
+                second.output,
+                vec![row, second],
+            ),
+            Err(InvalidPsiTransformationLedger::DuplicatePrunedMachine)
+        );
+    }
+
+    #[test]
     fn broken_chain_and_fuel_mapping_reject() {
         let row = record(b"input", b"output");
         assert_eq!(
@@ -650,6 +723,7 @@ mod tests {
         cursor.take(2 + 32 + 4 + 32 + 32).unwrap();
         assert_eq!(cursor.length().unwrap(), 1);
         cursor.take(32 * 5).unwrap();
+        assert_eq!(cursor.length().unwrap(), 0);
         assert_eq!(cursor.length().unwrap(), 2);
         cursor.take(1 + 8 + 8 + 4).unwrap();
         let disposition_offset = cursor.offset;

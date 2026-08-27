@@ -2494,11 +2494,19 @@ complete.
   receiver, receiver shape, and operational acknowledgement before emitting the
   `body_call` anchor. Missing, duplicate, unknown, late-bound, or contradictory
   provenance rejects; compiler-synthesized calls emit no invented location.
-  Current conflict fingerprint v7, renderer V6, and canonical-row recovery
-  envelope v4 bind the appended roles; stale envelopes reject rather than being
-  reinterpreted. Per-fact spans and authored `reaches`/`invokes` clause
-  occurrences remain incremental engineering work and require deliberate span
-  retention before typed lowering, not later source-text reconstruction.
+  Authored `invokes` targets now lower to one typed occurrence that binds the
+  diagnostic name, exact parameter-symbol/ordinal or boundary-trait symbol,
+  and exact target-name span. Effect inference consumes that retained target
+  rather than reselecting a same-spelled trait. Callable, public-trait
+  requirement, and recursively structural machine-parameter rows carry the
+  span under `synchronous_invocation`; top-level projection requires exact
+  equality with the inferred and checked invocation plans. Missing, malformed,
+  duplicated, aliased, stale-target, or source-less custody rejects. Current
+  conflict fingerprint v8, renderer V7, and canonical-row recovery envelope v5
+  bind the appended roles; stale envelopes reject rather than being
+  reinterpreted. Per-fact spans and authored `reaches` occurrences remain
+  incremental engineering work and require deliberate retention before typed
+  lowering, not later source-text reconstruction.
   Canonical recovery and root-project file custody are recorded below; none of
   these concerns requires nominal Chi or a new owner decision.
 

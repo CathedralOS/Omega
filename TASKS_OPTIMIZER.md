@@ -427,12 +427,12 @@ These facts constrain the work below.
   this admission meaning. General native publication of these broader CFG
   shapes remains unavailable until their physical lowering vocabulary exists.
 - The fourth exact `ControlFlowCleanup` rule,
-  `adjacent-single-predecessor-block-merge.v2`, removes a genuinely redundant
+  `adjacent-single-predecessor-block-merge.v3`, removes a genuinely redundant
   jump and block boundary without treating the target as empty. Admission is
   limited to an immediately adjacent target with exactly one incoming edge.
-  The target must begin with either a real operation having no successor arms
-  or its sole conditional terminator; non-adjacent block motion and direct
-  terminal-exit fusion remain outside the rule. Typed target parameters are
+  The target must begin with either a real operation having no successor arms,
+  its sole conditional terminator, or an exact return/crash terminal carrying
+  edge provenance; non-adjacent block motion remains outside the rule. Typed target parameters are
   replaced by the exact incoming bindings, ownership snapshots must agree
   at edge entry, edge exit, and target entry, and every moved node occurrence
   is replayed. The removed jump-edge source/fuel is fused behind the first
@@ -441,8 +441,22 @@ These facts constrain the work below.
   successor edges. Validator corruption tests reject forged node and fanout
   occurrences, while verified artifact tests reach the exact one-block and
   three-block projections. Candidate v13, optimization-unit identity v7, the
-  v7 pass, prephysical manifest v6, and optimized-plan projection v7 bind this
-  additional admission meaning; ledger v3 already represents both moves.
+  v9 pass, prephysical manifest v8, and optimized-plan projection v9 bind this
+  additional admission meaning; ledger v4 already represents both moves.
+- The fifth exact `ControlFlowCleanup` rule,
+  `unreachable-private-machine-pruning.v1`, atomically removes the complete
+  active function complement outside the executable root closure. Roots are
+  the module entry, provider candidates, conservatively retained attached
+  functions, and their transitive internal-call and nominal-cleanup-machine
+  references. The candidate names the exact canonical machine set rather than
+  inventing a node decision point; the independent validator reconstructs the
+  closure and exact complement without trusting `CallGraph`. Active plus pruned
+  machines must form an order-preserving partition of the verified source
+  roster. Accepted-obligation and ownership-frontier catalogs remain immutable
+  historical custody, while every source-bearing removed node and successor
+  edge is ledgered as proven unreachable with its original fuel. Candidate
+  v14, optimization-unit identity v8, ledger v4, the v9 pass, prephysical
+  manifest v8, and optimized-plan projection v9 bind machine-roster replay.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds its input
   revision, rule contract, decision point, affected region, required analyses
@@ -886,20 +900,22 @@ dependency.
   location changes; and durably records the rejected edge plus every deleted
   node and its original scheduled fuel as independently proven unreachable and
   uncharged. Successor-edge custody and ledger v3 now distinguish the two
-  conditional arms directly. The v7 pass also includes exact linear empty-jump
+  conditional arms directly. The v9 pass also includes exact linear empty-jump
   threading plus `path-qualified-empty-block-thread.v1`: typed bindings are
   composed, ownership frontiers must be identical across each bypass, and the
   removed outgoing source is realized on every and only mutually exclusive
   incoming edge. Its fourth rule removes an adjacent jump into a unique-
-  predecessor block whose first node is either a real non-branching operation
-  or the block's sole conditional. It substitutes typed block parameters and
+  predecessor block whose first node is either a real non-branching operation,
+  the block's sole conditional, or its exact return/crash terminal. It substitutes typed block parameters and
   realizes the removed edge at the first operation or across exactly the two
   mutually exclusive successor edges, without authorizing non-adjacent code
-  motion. Candidate v13, optimization-unit identity v7, prephysical manifest
-  v6, and projection v7 bind record-by-record one-to-one, many-to-one, and
-  one-to-many occurrence replay. Non-adjacent/direct-terminal redundant jumps,
-  unreachable cleanup
-  not caused by the conditional fold, and private-machine pruning remain open.
+  motion. Its fifth rule prunes the exact unreachable private-machine
+  complement, rooting entry, providers, attached functions, internal calls,
+  and nominal cleanup-machine references. Candidate v14, optimization-unit
+  identity v8, ledger v4, prephysical manifest v8, and projection v9 bind both
+  occurrence and function-roster replay. Non-adjacent redundant jumps and
+  unreachable cleanup not caused by the conditional fold
+  remain open.
 
 - **OPT-SCCP.** Implement sparse conditional constant propagation over the
   closed integer and Boolean Terminal Psi operations.

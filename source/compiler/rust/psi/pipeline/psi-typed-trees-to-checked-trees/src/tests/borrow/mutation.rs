@@ -1,14 +1,16 @@
 use super::super::*;
 
 #[test]
-fn write_only_fixed_primitive_range_call_retains_exact_element_window() {
+fn write_only_fixed_copy_record_range_call_retains_exact_element_window() {
     let source = r#"
-        machine fill(values: &write [u32; 4]) {
-            values[1..3] = [70000, 80000];
+        data Leaf [copy] { value: u16; enabled: bool; }
+
+        machine fill(values: &write [Leaf; 4], first: Leaf, second: Leaf) {
+            values[1..3] = [first, second];
         }
 
-        machine forward(values: &write [u32; 4]) {
-            fill(&write values);
+        machine forward(values: &write [Leaf; 4], first: Leaf, second: Leaf) {
+            fill(&write values, first, second);
         }
     "#;
 
@@ -34,7 +36,7 @@ fn write_only_fixed_primitive_range_call_retains_exact_element_window() {
         .iter()
         .find(|parameter| parameter.name.as_str() == "values")
         .map(|parameter| parameter.symbol)
-        .expect("forward primitive-array parameter");
+        .expect("forward copy-record-array parameter");
 
     let facts = build_borrow_facts(&program);
     let borrow_state = facts
@@ -67,14 +69,16 @@ fn write_only_fixed_primitive_range_call_retains_exact_element_window() {
 }
 
 #[test]
-fn write_only_fixed_primitive_call_retains_exact_literal_index() {
+fn write_only_fixed_copy_record_call_retains_exact_literal_index() {
     let source = r#"
-        machine fill(values: &write [u16; 4]) {
-            values[2] = 700;
+        data Leaf [copy] { value: u16; enabled: bool; }
+
+        machine fill(values: &write [Leaf; 4], replacement: Leaf) {
+            values[2] = replacement;
         }
 
-        machine forward(values: &write [u16; 4]) {
-            fill(&write values);
+        machine forward(values: &write [Leaf; 4], replacement: Leaf) {
+            fill(&write values, replacement);
         }
     "#;
 
@@ -100,7 +104,7 @@ fn write_only_fixed_primitive_call_retains_exact_literal_index() {
         .iter()
         .find(|parameter| parameter.name.as_str() == "values")
         .map(|parameter| parameter.symbol)
-        .expect("forward primitive-array parameter");
+        .expect("forward copy-record-array parameter");
 
     let facts = build_borrow_facts(&program);
     let borrow_state = facts
@@ -133,14 +137,16 @@ fn write_only_fixed_primitive_call_retains_exact_literal_index() {
 }
 
 #[test]
-fn write_only_dynamic_primitive_call_retains_collection_coarse_mutation() {
+fn write_only_dynamic_copy_record_call_retains_collection_coarse_mutation() {
     let source = r#"
-        machine fill(values: &write [u32; 4], index: u64 [0..=3]) {
-            values[index] = 70000;
+        data Leaf [copy] { value: u16; enabled: bool; }
+
+        machine fill(values: &write [Leaf; 4], replacement: Leaf, index: u64 [0..=3]) {
+            values[index] = replacement;
         }
 
-        machine forward(values: &write [u32; 4], index: u64 [0..=3]) {
-            fill(&write values, index);
+        machine forward(values: &write [Leaf; 4], replacement: Leaf, index: u64 [0..=3]) {
+            fill(&write values, replacement, index);
         }
     "#;
 
@@ -166,7 +172,7 @@ fn write_only_dynamic_primitive_call_retains_collection_coarse_mutation() {
         .iter()
         .find(|parameter| parameter.name.as_str() == "values")
         .map(|parameter| parameter.symbol)
-        .expect("forward primitive-array parameter");
+        .expect("forward copy-record-array parameter");
 
     let facts = build_borrow_facts(&program);
     let borrow_state = facts
@@ -359,10 +365,15 @@ fn write_only_record_field_call_retains_exact_common_field() {
 }
 
 #[test]
-fn write_only_nested_record_field_call_retains_exact_common_field_path() {
+fn write_only_nested_copy_record_leaf_call_retains_one_exact_common_field_path() {
     let source = r#"
+        data Leaf [copy] {
+            value: u16;
+            enabled: bool;
+        }
+
         data Inner {
-            value: u8;
+            leaf: Leaf;
             spare: u8;
         }
 
@@ -371,12 +382,12 @@ fn write_only_nested_record_field_call_retains_exact_common_field_path() {
             other: Inner;
         }
 
-        machine fill(outer: &write Outer) {
-            outer.inner.value = 7;
+        machine fill(outer: &write Outer, replacement: Leaf) {
+            outer.inner.leaf = replacement;
         }
 
-        machine forward(outer: &write Outer) {
-            fill(&write outer);
+        machine forward(outer: &write Outer, replacement: Leaf) {
+            fill(&write outer, replacement);
         }
     "#;
 
@@ -408,16 +419,16 @@ fn write_only_nested_record_field_call_retains_exact_common_field_path() {
         .iter()
         .find(|definition| definition.name.as_str() == "Inner")
         .expect("Inner definition");
-    let value_field_symbol = program
+    let leaf_field_symbol = program
         .data_members(inner)
         .iter()
         .find_map(|member| match member {
-            psi_typed_trees::data::DataMember::Field(field) if field.name.as_str() == "value" => {
+            psi_typed_trees::data::DataMember::Field(field) if field.name.as_str() == "leaf" => {
                 Some(field.symbol)
             }
             _ => None,
         })
-        .expect("Inner.value field");
+        .expect("Inner.leaf field");
     let forward = program
         .machines()
         .iter()
@@ -465,9 +476,10 @@ fn write_only_nested_record_field_call_retains_exact_common_field_path() {
                 symbol: inner_field_symbol,
             },
             psi_facts::PlaceSegment::Field {
-                symbol: value_field_symbol,
+                symbol: leaf_field_symbol,
             },
-        ]
+        ],
+        "whole record-leaf mutation keeps one field segment for the leaf rather than decomposing its children"
     );
 }
 

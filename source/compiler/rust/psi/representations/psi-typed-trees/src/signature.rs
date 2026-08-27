@@ -3,6 +3,47 @@ use crate::types::TypeReferenceHandle;
 use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
 
+/// Exact semantic target selected by one authored `invokes` occurrence.
+/// Spelling is never used to reselect this target after typed lowering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredInvocationTarget {
+    Unresolved,
+    Parameter { ordinal: u32, symbol: SymbolHandle },
+    Service(SymbolHandle),
+}
+
+/// One source-backed synchronous-invocation declaration. The source span and
+/// exact target travel as one compiler-owned record so review provenance can
+/// never be paired with a target by position or spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthoredInvocation {
+    pub name: Identifier,
+    pub source_span: psi_source::SourceSpan,
+    pub target: AuthoredInvocationTarget,
+}
+
+impl Default for AuthoredInvocation {
+    fn default() -> Self {
+        Self {
+            name: Identifier::default(),
+            source_span: psi_source::SourceSpan::default(),
+            target: AuthoredInvocationTarget::Unresolved,
+        }
+    }
+}
+
+impl AuthoredInvocation {
+    pub fn as_str(&self) -> &str {
+        self.name.as_str()
+    }
+}
+
+impl std::fmt::Display for AuthoredInvocation {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.name.fmt(formatter)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateSignature {
     pub symbol: SymbolHandle,
@@ -15,7 +56,7 @@ pub struct StateSignature {
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: TypeReferenceHandle,
-    pub invokes: HandleSpan<Identifier>,
+    pub invokes: HandleSpan<AuthoredInvocation>,
     /// EFX: normalized symbol-resolved boundary-service row.
     pub service_reach_row: psi_language_semantics::ServiceReachRowId,
     pub service_reach_is_installation_bound: bool,

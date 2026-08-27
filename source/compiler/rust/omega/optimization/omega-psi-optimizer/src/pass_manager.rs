@@ -69,6 +69,7 @@ pub struct PsiOptimizationCommit {
     pub input: OptimizationUnitIdentity,
     pub output: OptimizationUnitIdentity,
     pub predicted_cost_delta: i64,
+    pub pruned_machines: Vec<omega_optimization_unit::PrunedMachineCustody>,
     pub provenance: Vec<ProvenanceRewrite>,
     pub declaration: PsiRewriteCandidate,
 }
@@ -268,6 +269,7 @@ fn run_registries(
                 validator: commit.validator,
                 input: commit.input,
                 output: commit.output,
+                pruned_machines: commit.pruned_machines.clone(),
                 provenance: commit.provenance.clone(),
             })
             .collect(),
@@ -472,6 +474,7 @@ fn run_unit(
                         validator: commit.validator,
                         input: commit.input,
                         output: commit.output,
+                        pruned_machines: commit.pruned_machines.clone(),
                         provenance: commit.provenance.clone(),
                     })
                     .collect(),
@@ -490,6 +493,7 @@ fn run_unit(
         let validator = validated.validator();
         let candidate_identity = validated.candidate();
         let provenance = validated.provenance().to_vec();
+        let pruned_machines = candidate.patch_ref().pruned_machine_custody().to_vec();
         let next = validated.into_unit();
         register_revision(&mut seen_revisions, next.identity, usage.iterations)?;
         let current_measure = convergence_measure(&next, registry);
@@ -510,6 +514,7 @@ fn run_unit(
             input: input_identity,
             output: next.identity,
             predicted_cost_delta: candidate.predicted_cost_delta(),
+            pruned_machines,
             provenance,
             declaration: candidate,
         });
@@ -668,7 +673,7 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
         b"omega.psi-pass.copy-propagation.v1",
     );
     let cfg_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-        b"omega.psi-pass.control-flow-cleanup.v7",
+        b"omega.psi-pass.control-flow-cleanup.v9",
     );
     if registry.pass() == Some(cfg_pass) {
         control_flow_structure_count(unit)
@@ -1037,11 +1042,11 @@ mod tests {
         let registry = built_in_psi_registry(&selections).unwrap();
         let (output, commits, usage, _, manifest, ledger) =
             run_unit(unit.clone(), &registry, budget(8)).unwrap();
-        assert_eq!(commits.len(), 1);
-        assert_eq!(usage.commits, 1);
-        assert_eq!(usage.iterations, 2);
-        assert_eq!(output.functions[0].blocks[0].nodes[1].successors.len(), 1);
-        assert_eq!(ledger.records().len(), 1);
+        assert_eq!(commits.len(), 2);
+        assert_eq!(usage.commits, 2);
+        assert_eq!(usage.iterations, 3);
+        assert_eq!(output.functions[0].blocks.len(), 1);
+        assert_eq!(ledger.records().len(), 2);
         assert_eq!(ledger.records()[0].provenance.len(), 2);
         assert!(matches!(
             ledger.records()[0].provenance[0].disposition,
@@ -1052,8 +1057,8 @@ mod tests {
             omega_optimization_unit::ProvenanceDisposition::ProvenUnreachableAt(_)
         ));
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 4);
-        assert_eq!(manifest.decisions().len(), 1);
+        assert_eq!(manifest.ordered_rules().len(), 5);
+        assert_eq!(manifest.decisions().len(), 2);
         assert_eq!(manifest.decisions()[0].consumed_facts().len(), 1);
 
         let (second, second_commits, _, _, _, second_ledger) =
@@ -1115,12 +1120,12 @@ mod tests {
         let (output, commits, usage, _, manifest, ledger) =
             run_unit(unit.clone(), &registry, budget(8)).unwrap();
 
-        assert_eq!(commits.len(), 1);
-        assert_eq!(usage.commits, 1);
-        assert_eq!(usage.iterations, 2);
-        assert_eq!(usage.rule_evaluations, 6);
-        assert_eq!(output.functions[0].blocks.len(), 2);
-        assert_eq!(ledger.records().len(), 1);
+        assert_eq!(commits.len(), 2);
+        assert_eq!(usage.commits, 2);
+        assert_eq!(usage.iterations, 3);
+        assert_eq!(usage.rule_evaluations, 11);
+        assert_eq!(output.functions[0].blocks.len(), 1);
+        assert_eq!(ledger.records().len(), 2);
         assert_eq!(ledger.records()[0].provenance.len(), 3);
         assert!(
             ledger.records()[0]
@@ -1128,7 +1133,7 @@ mod tests {
                 .iter()
                 .all(|row| row.disposition.is_realized())
         );
-        assert_eq!(manifest.unwrap().ordered_rules().len(), 4);
+        assert_eq!(manifest.unwrap().ordered_rules().len(), 5);
 
         let (second, second_commits, second_usage, _, _, second_ledger) =
             run_unit(output.clone(), &registry, budget(8)).unwrap();

@@ -2,7 +2,7 @@ use crate::data::lower_type_parameter;
 use crate::domain::lower_proof_facts;
 use crate::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
-use crate::state::lower_state;
+use crate::state::{lower_authored_invocations, lower_state};
 use crate::type_reference::lower_type_reference_into_table;
 use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees as resolved;
@@ -156,10 +156,26 @@ pub(crate) fn lower_machine(
         let _ = lower_expression_handle(lowerer, machine.ranking_range)?;
     }
 
-    for binding in lowerer.source_trees.machine_invokes(machine) {
+    let invocation_parameters = lowerer
+        .source_trees
+        .machine_state_handles(machine.states)
+        .first()
+        .map(|state| {
+            lowerer
+                .source_trees
+                .state_parameters(lowerer.source_trees.machine_state(*state).parameters)
+        })
+        .unwrap_or_default();
+    let invocations = lower_authored_invocations(
+        &lowerer.source_trees,
+        lowerer.source_trees.machine_invokes(machine),
+        invocation_parameters,
+        machine.name.as_str(),
+    )?;
+    for invocation in invocations {
         lowerer
             .typed_trees
-            .push_machine_invoke(&mut typed_machine, crate::name::lower_name(binding));
+            .push_machine_invoke(&mut typed_machine, invocation);
     }
 
     for contract in lowerer.source_trees.machine_contracts(machine) {

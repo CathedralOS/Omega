@@ -73,42 +73,58 @@ fn validate_declared_targets(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
 fn validate_target_names(
     program: &TypedTrees,
     owner: &str,
-    targets: &[psi_typed_trees::name::Identifier],
+    targets: &[psi_typed_trees::signature::AuthoredInvocation],
     parameters: &[StateParameter],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut seen = Vec::new();
     for target in targets {
-        if seen.iter().any(|name: &&str| *name == target.as_str()) {
+        if target.target != psi_typed_trees::signature::AuthoredInvocationTarget::Unresolved
+            && seen.contains(&target.target)
+        {
             diagnostics.push(Diagnostic::error(format!(
                 "callable `{owner}` declares `invokes {};` more than once",
-                target.as_str(),
+                target.name,
             )));
             continue;
         }
-        seen.push(target.as_str());
+        seen.push(target.target);
 
-        if let Some(parameter) = parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .find(|parameter| parameter.name.as_str() == target.as_str())
-        {
-            if boundary_trait_for_type(program, parameter.type_reference).is_none() {
+        match target.target {
+            psi_typed_trees::signature::AuthoredInvocationTarget::Unresolved => {
                 diagnostics.push(Diagnostic::error(format!(
-                    "callable `{owner}` declares `invokes {};`, but parameter `{}` is not a boundary binding",
-                    target.as_str(),
-                    target.as_str(),
+                    "callable `{owner}` declares `invokes {};`, but `{}` is neither one of its boundary-binding parameters nor a known boundary trait",
+                    target.name,
+                    target.name,
                 )));
             }
-            continue;
-        }
-
-        if boundary_trait_by_name(program, target.as_str()).is_none() {
-            diagnostics.push(Diagnostic::error(format!(
-                "callable `{owner}` declares `invokes {};`, but `{}` is neither one of its boundary-binding parameters nor a known boundary trait",
-                target.as_str(),
-                target.as_str(),
-            )));
+            psi_typed_trees::signature::AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
+                let parameter = parameters
+                    .iter()
+                    .filter(|parameter| !parameter.is_self)
+                    .nth(ordinal as usize);
+                if parameter.is_none_or(|parameter| {
+                    parameter.symbol != symbol
+                        || boundary_trait_for_type(program, parameter.type_reference).is_none()
+                }) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "callable `{owner}` retains `invokes {};` with a stale or non-boundary parameter target",
+                        target.name,
+                    )));
+                }
+            }
+            psi_typed_trees::signature::AuthoredInvocationTarget::Service(symbol) => {
+                if !program
+                    .traits()
+                    .iter()
+                    .any(|definition| definition.symbol == symbol && definition.is_boundary)
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "callable `{owner}` retains `invokes {};` with a stale or non-boundary service target",
+                        target.name,
+                    )));
+                }
+            }
         }
     }
 }
@@ -241,21 +257,4 @@ fn boundary_trait_for_type(
         .traits()
         .iter()
         .find(|definition| definition.is_boundary && definition.symbol == symbol)
-}
-
-fn boundary_trait_by_name<'a>(
-    program: &'a TypedTrees,
-    name: &str,
-) -> Option<&'a psi_typed_trees::trait_definition::TraitDefinition> {
-    let exact = program
-        .traits()
-        .iter()
-        .find(|definition| definition.is_boundary && definition.name.as_str() == name);
-    exact.or_else(|| {
-        let mut matches = program.traits().iter().filter(|definition| {
-            definition.is_boundary && definition.name.as_str().rsplit("::").next() == Some(name)
-        });
-        let first = matches.next()?;
-        matches.next().is_none().then_some(first)
-    })
 }

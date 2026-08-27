@@ -294,6 +294,7 @@ fn validate_run_records(
             validator: commit.validator,
             input: commit.input,
             output: commit.output,
+            pruned_machines: commit.pruned_machines.clone(),
             provenance: commit.provenance.clone(),
         })
         .collect::<Vec<_>>();
@@ -350,13 +351,25 @@ fn project_plan(
     source: &TerminalAbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<TerminalAbstractOperationPlan, OptimizedAbstractProjectionError> {
-    if source.functions.len() != unit.functions.len()
-        || source
-            .functions
-            .iter()
-            .map(|function| function.machine)
-            .ne(unit.functions.iter().map(|function| function.machine))
-    {
+    if source.functions.len() != unit.functions.len() + unit.pruned_machines.len() {
+        return Err(OptimizedAbstractProjectionError::FunctionRosterMismatch);
+    }
+    let mut active = unit.functions.iter();
+    let mut next_active = active.next();
+    for (ordinal, source_function) in source.functions.iter().enumerate() {
+        if next_active.is_some_and(|function| function.machine == source_function.machine) {
+            next_active = active.next();
+            continue;
+        }
+        let ordinal = u32::try_from(ordinal)
+            .map_err(|_| OptimizedAbstractProjectionError::FunctionRosterMismatch)?;
+        if !unit.pruned_machines.iter().any(|custody| {
+            custody.source_ordinal == ordinal && custody.machine == source_function.machine
+        }) {
+            return Err(OptimizedAbstractProjectionError::FunctionRosterMismatch);
+        }
+    }
+    if next_active.is_some() {
         return Err(OptimizedAbstractProjectionError::FunctionRosterMismatch);
     }
     let functions = unit
@@ -578,6 +591,94 @@ mod tests {
         )
     }
 
+    fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationUnit {
+        let entry_machine = MachineId::new(1_041).unwrap();
+        let entry_block = BlockId::new(1_042).unwrap();
+        let mut module = module_with_blocks(
+            entry_machine,
+            entry_block,
+            TerminalMachineResult::Unit,
+            vec![Block {
+                id: entry_block,
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::ReturnUnit {
+                    edge: EdgeId::new(1_043).unwrap(),
+                    trivial_affine_discards: Vec::new(),
+                },
+            }],
+        );
+        let private_machine = MachineId::new(1_044).unwrap();
+        let private_block = BlockId::new(1_045).unwrap();
+        module.machines.push(TerminalMachine {
+            id: private_machine,
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: private_block,
+            blocks: vec![Block {
+                id: private_block,
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::ReturnUnit {
+                    edge: EdgeId::new(1_046).unwrap(),
+                    trivial_affine_discards: Vec::new(),
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(1_047).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        });
+        verified(module, ProofBundle::default())
+    }
+
+    fn adjacent_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_051).unwrap();
+        let entry = BlockId::new(1_052).unwrap();
+        let target = BlockId::new(1_053).unwrap();
+        verified(
+            module_with_blocks(
+                machine,
+                entry,
+                TerminalMachineResult::Unit,
+                vec![
+                    Block {
+                        id: entry,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Jump {
+                            edge: EdgeId::new(1_054).unwrap(),
+                            target,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                    Block {
+                        id: target,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::ReturnUnit {
+                            edge: EdgeId::new(1_055).unwrap(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                ],
+            ),
+            ProofBundle::default(),
+        )
+    }
+
     fn exact_add_verified() -> VerifiedPsiOptimizationUnit {
         let machine = MachineId::new(1_011).unwrap();
         let block = BlockId::new(1_012).unwrap();
@@ -713,6 +814,64 @@ mod tests {
         assert_eq!(first.validation(), second.validation());
         assert!(first.commits().is_empty());
         assert!(first.pass_manifests().is_empty());
+    }
+
+    #[test]
+    fn private_machine_pruning_projects_exact_roster_and_ledger_custody() {
+        let selections = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        let optimized =
+            project_optimization_run(run(unreachable_private_machine_verified(), selections))
+                .unwrap();
+
+        assert_eq!(optimized.verified_input().plan().functions.len(), 2);
+        assert_eq!(optimized.plan().functions.len(), 1);
+        assert_eq!(optimized.unit().functions.len(), 1);
+        assert_eq!(optimized.unit().pruned_machines.len(), 1);
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.transformation_ledger().records().len(), 1);
+        assert_eq!(
+            optimized.transformation_ledger().records()[0].pruned_machines,
+            optimized.unit().pruned_machines
+        );
+        assert!(
+            optimized.transformation_ledger().records()[0]
+                .provenance
+                .iter()
+                .all(|row| matches!(
+                    row.disposition,
+                    omega_optimization_unit::ProvenanceDisposition::ProvenUnreachableAt(_)
+                ))
+        );
+
+        let mut wrong_ordinal = optimized.unit().clone();
+        wrong_ordinal.pruned_machines[0].source_ordinal = 0;
+        wrong_ordinal.identity =
+            omega_optimization_unit::recompute_psi_optimization_unit_identity(&wrong_ordinal);
+        assert_eq!(
+            omega_optimization_validation::validate_transformed_psi_optimization_unit(
+                optimized.verified_input(),
+                &wrong_ordinal,
+            ),
+            Err(OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)
+        );
+    }
+
+    #[test]
+    fn adjacent_terminal_jump_fusion_reaches_verified_one_block_projection() {
+        let selections = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        let optimized =
+            project_optimization_run(run(adjacent_terminal_jump_verified(), selections)).unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.plan().functions[0].block_entries.len(), 1);
+        assert_eq!(optimized.unit().functions[0].blocks.len(), 1);
+        assert_eq!(
+            optimized.unit().functions[0].blocks[0].nodes[0].provenance,
+            [
+                omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(1_055).unwrap()),
+                omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(1_054).unwrap()),
+            ]
+        );
     }
 
     #[test]
