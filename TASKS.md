@@ -47,13 +47,13 @@ task here; do not duplicate optimizer pass milestones in both queues.
 Remaining:
 
 - **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as
-  Omega source under `source/compiler/omega/psi/` and
-  `source/compiler/omega/omega/`, with the hosted product entrypoints at
-  `source/compiler/omega/{build.omg,main.omg}`. Preserve the Psi/Omega ownership
+  Omega source under `source/psi/` and
+  `source/omega/`, with the hosted product entrypoints at
+  `source/omega/{build.omg,main.omg}`. Preserve the Psi/Omega ownership
   firewall: Psi owns parsing and target-neutral semantics through terminal Psi;
   Omega owns provider installation, optimization, target realization, and
   artifact emission. The current implementation under
-  `source/compiler/rust/` is a migration/reference producer, not the
+  `source/on-ramp/rust/` is a migration/reference producer, not the
   source tree for this task.
 
   Acceptance: the exact Omega source tree builds a compiler that implements the
@@ -111,15 +111,15 @@ Remaining:
   for that checkpoint; the final manifest and profile freeze only at the
   completed bridge join.
 
-  Current checkpoint: `source/compiler/omega/source-checkpoints/checkpoint-000001.json`
-  closes the first real Psi source-to-token slice under `source/compiler/omega/psi/` plus
-  the hosted entrypoint under `source/compiler/omega/`. It includes source/span,
+  Current checkpoint: `source/omega/source-checkpoints/checkpoint-000001.json`
+  closes the first real Psi source-to-token slice under `source/psi/` plus
+  the hosted entrypoint under `source/omega/`. It includes source/span,
   token, and lexical-diagnostic representations; Unicode 17 XID tables; nested
   comments; numeric metadata; cooked/raw strings; punctuation; deterministic
   capacity failures; and a native adapter publishing the versioned structural
   `OMGLEX1` lexical observation. Its provisional
   feature census is
-  `source/compiler/omega/source-checkpoints/profile-000001.md`. The complete gate now
+  `source/omega/source-checkpoints/profile-000001.md`. The complete gate now
   compares an independently encoded Rust observation across accepted,
   retained-prefix rejection, invalid-UTF-8, token-capacity, and source-capacity
   cases and rejects a tampered stream. Parsing and every later Psi/Omega phase remain open; this
@@ -135,7 +135,7 @@ Remaining:
   coherent closure and rejects later source, provenance, prelude,
   feature-partition, or resource drift until the complete evidence set is
   reviewed and refreshed again. Replacing
-  `source/compiler/omega/build.omg`'s legacy `target ... {}` blocks is
+  `source/omega/build.omg`'s legacy `target ... {}` blocks is
   design-blocked on **OWNER_QUESTIONS Q8**. The file currently declares four
   selectable targets while the normative durable `Build` projection owns one
   selected target and the checkpoint's actual toolchain prelude exposes no
@@ -173,7 +173,7 @@ Remaining:
   layout become the public Omega ABI by accident.
 
 - **OMEGA-RUST-COMPARATOR.** Maintain the current Rust Psi/Omega compiler under
-  `source/compiler/rust/` as a parallel differential implementation
+  `source/on-ramp/rust/` as a parallel differential implementation
   while its bug-finding value justifies its cost. It may compare diagnostics,
   normalized semantics, artifacts, and execution observations against the
   Omega-written product compiler, but it grants no authority and must be
@@ -182,8 +182,8 @@ Remaining:
   Acceptance: shared product suites can exercise both implementations without
   making Rust agreement or availability a correctness, bootstrap, or release
   condition. Rust-specific maintenance stays in the explicit
-  `source/compiler/rust/` owner and never
-  moves into `source/compiler/omega/{psi,omega}/`.
+  `source/on-ramp/rust/` owner and never
+  moves into `source/omega/{psi,omega}/`.
 
 ## Execution order
 

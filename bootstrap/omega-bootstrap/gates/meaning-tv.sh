@@ -1,1 +1,0 @@
-../../../source/assurance/refinement/omega-bootstrap/meaning-tv.sh

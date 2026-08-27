@@ -13,7 +13,7 @@ overview says "emergent / to be decided," the calls here are the decision.
 Format: each decision is **D#**, states the call, the rationale, and the resulting
 policy. Decisions bind the construction; they do not touch language *meaning*
 (owned by the language guide) nor prescribe the internals of the current product
-implementation under `source/compiler/rust/psi/` and `source/compiler/rust/omega/`.
+implementation under `source/on-ramp/rust/psi/` and `source/on-ramp/rust/omega/`.
 
 ---
 
@@ -28,7 +28,7 @@ The overview's "Two roles for Rust" is the ordering law. Made concrete, per arti
 | Gamma meaning, now supplied by `interp.beta` / `typeck.beta` | **trusted base** | **RUST CLOSED** — the surviving meaning implementation is Beta on the seed lineage. |
 | Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **MIGRATING** — the Beta-written `omega2gamma` route and Gamma execution cover the admitted D0/O1 compiler canaries. `gamma_emit.rs` is a differential reference there; each bridge capability added toward `Ωself` must bring lower-rung meaning with it. |
 | Psi/Omega meaning and artifact-aware verification | **trusted base** | **OPEN** — the current Rust interpreter/verifier remains an explicit migration dependency until the lower-rung semantic-ledger and hosted meaning route close. |
-| `beta-rust`, `delta-rust`, `source/compiler/rust/` | **untrusted producers** | **DEFERRABLE** — replaced as required dependencies for self-sufficiency, not for soundness pedigree. The current Rust Omega compiler remains a maintained reference producer while useful. |
+| `beta-rust`, `delta-rust`, `source/on-ramp/rust/` | **untrusted producers** | **DEFERRABLE** — replaced as required dependencies for self-sufficiency, not for soundness pedigree. The current Rust Omega compiler remains a maintained reference producer while useful. |
 
 **Policy:** no work removes Rust from a *producer* merely for pedigree while Rust
 still sits in any meaning/checker or while an upstream artifact that builds those
@@ -262,7 +262,7 @@ process-termination surface unless a concrete compiler-host argument requires
 more. General boundary traits, filesystem access, and other host extensibility
 are not presumed Delta facilities.
 The provisional evidence ledger is
-[`bootstrap/delta/FEATURE_LEDGER.md`](../../../bootstrap/delta/FEATURE_LEDGER.md).
+[`source/delta/FEATURE_LEDGER.md`](../../../source/delta/FEATURE_LEDGER.md).
 
 Delta source builds `omega-bootstrap`. That compiler is intentionally
 input-incomplete: it accepts only the Omega product-compiler source profile
@@ -335,14 +335,14 @@ work, not a second bootstrap task or architectural dependency. As
 with every hosted edge, a defect can reproduce; proof, meaning, and
 translation-validation gates remain responsible for detecting it.
 
-`bootstrap/delta/rust/` is Delta's disposable Rust implementation;
-`bootstrap/delta/` owns the language corpus, the self-hosted
+`source/on-ramp/rust/delta/` is Delta's disposable Rust implementation;
+`source/delta/` owns the language corpus, the self-hosted
 `lowermachine.alp`, and lattice-built artifacts. The former `compiler/delta-rs`
 and `compiler/delta` compatibility entries are retired. The self-host and
 meaning diamond remain principal gates.
 
 The certificate checker is renamed the **proof kernel**. Its canonical owner is
-`source/assurance/proof-kernel/`. It remains a trusted assurance service with
+`source/proof-kernel/`. It remains a trusted assurance service with
 Beta and Gamma implementations. The rename changes neither its authority nor its
 validation gates; it removes the false claim that proof checking is a language
 stage between Gamma and Delta.

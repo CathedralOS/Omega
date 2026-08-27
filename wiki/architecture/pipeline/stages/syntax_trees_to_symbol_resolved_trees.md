@@ -99,23 +99,23 @@ Must not own:
 ## Implementation Map
 
 The Psi product role owns this stage and its eventual hosted source belongs
-under `source/compiler/omega/psi/`. The current Rust implementation stays split by identity
+under `source/psi/`. The current Rust implementation stays split by identity
 task:
 
-- `source/compiler/rust/psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees` contains the
+- `source/on-ramp/rust/psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees` contains the
   stage implementation. All workspace consumers invoke it directly.
 
-- `source/compiler/rust/psi/pipeline/psi-generic-instances` contains the pre-resolution
+- `source/on-ramp/rust/psi/pipeline/psi-generic-instances` contains the pre-resolution
   closed-instance and contextual-construction normalization used by that stage
   and by Psi-owned probe frontends. Its public entry consumes one syntax tree
   and returns the normalized tree; the in-place elaborator is private. Omega
   orchestration may sequence that Psi entry while the larger frontend conveyor
   is split, but cannot own or extend the language elaboration.
 
-- `source/compiler/rust/psi/representations/psi-symbol-resolved-trees` contains the stage
+- `source/on-ramp/rust/psi/representations/psi-symbol-resolved-trees` contains the stage
   output.
 
-- `source/compiler/rust/psi/foundation/psi-language-semantics` contains the resolved
+- `source/on-ramp/rust/psi/foundation/psi-language-semantics` contains the resolved
   semantic identities, service/domain tables, machine supply/termination
   plans, establishment routes, and byte-sequence predicate vocabulary carried
   by this stage.

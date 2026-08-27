@@ -1,0 +1,1 @@
+../../../refinement/delta-omega-bootstrap/gamma2claim.py

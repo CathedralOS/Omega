@@ -1,0 +1,68 @@
+# Precise cache profile for the active OMGRFN7--9 responsibility gates and
+# composites. The union is deliberate: these checkers share materialized Beta
+# sources and one immutable successor-frame vocabulary.
+script source/refinement/delta-omega-bootstrap/omgrfn7-source-witness-independent.sh
+script source/refinement/delta-omega-bootstrap/omgrfn7-witness-ckir5-tables.sh
+script source/refinement/delta-omega-bootstrap/omgrfn7-source-ckir5-lowering.sh
+script source/refinement/delta-omega-bootstrap/omgrfn7-source-lowering-meaning.sh
+script source/refinement/delta-omega-bootstrap/omgrfn7-ckir5-structure.sh
+script source/refinement/delta-omega-bootstrap/omgrfn7-ckir5-result.sh
+script source/refinement/delta-omega-bootstrap/omgrfn7-ckir5-elf.sh
+script source/refinement/delta-omega-bootstrap/omgrfn7-same-frame-composite.sh
+script source/refinement/delta-omega-bootstrap/omgrfn8-same-frame-composite.sh
+script source/refinement/delta-omega-bootstrap/omgrfn9-same-frame-composite.sh
+
+input source/on-ramp/rust/delta
+
+# Shared bridge producers and artifact references used to construct frames.
+input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-resolve.alp
+input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-resolved-to-ckir3.alp
+input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-resolved-to-ckir4.alp
+input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-checked-ir-v4-to-elf.alp
+input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-checked-ir-v5-to-elf.alp
+input source/on-ramp/omega-bootstrap/compiler/omega_bootstrap_bundle.py
+input source/on-ramp/omega-bootstrap/compiler/omega_bootstrap_compilation.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v2_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v3_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v4_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v5_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v6_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v7_reference.py
+input source/on-ramp/omega-bootstrap/gates/delta-checked-ir-v5-fixture.py
+input source/on-ramp/omega-bootstrap/gates/delta-checked-ir-v5-backend-fixture.py
+input source/on-ramp/omega-bootstrap/gates/delta-resolved-to-ckir3-fixture.py
+input source/on-ramp/omega-bootstrap/gates/delta-resolved-to-ckir3-frame.py
+input source/on-ramp/omega-bootstrap/gates/delta-resolved-to-ckir4-frame.py
+input source/on-ramp/omega-bootstrap/gates/delta-resolved-to-ckir5-fixture.py
+input source/on-ramp/omega-bootstrap/gates/fixtures/ckir5-payload-sums
+input source/on-ramp/omega-bootstrap/gates/fixtures/ckir6-logical-not
+input source/on-ramp/omega-bootstrap/gates/fixtures/ckir7-logical-binary
+
+# Independent lower-rooted responsibility implementations and pure
+# materializers. Rung compiler/assembler inputs remain covered by CORE.
+input source/refinement/delta-omega-bootstrap/omgrfn4-frame-omgcomp-custody.beta
+input source/refinement/delta-omega-bootstrap/omgrfn4-source-witness-independent.beta
+input source/refinement/delta-omega-bootstrap/omgrfn5-frame-omgcomp-custody.beta
+input source/refinement/delta-omega-bootstrap/omgrfn5_bundle.py
+input source/refinement/delta-omega-bootstrap/omgrfn5_r5_cases.py
+input source/refinement/delta-omega-bootstrap/omgrfn6_bundle.py
+input source/refinement/delta-omega-bootstrap/omgrfn7-component-envelope-r5.beta
+input source/refinement/delta-omega-bootstrap/omgrfn7-source-witness-independent.beta
+input source/refinement/delta-omega-bootstrap/omgrfn7-witness-ckir5-tables.beta
+input source/refinement/delta-omega-bootstrap/omgrfn7-source-ckir5-lowering.beta
+input source/refinement/delta-omega-bootstrap/omgrfn7-source-lowering-meaning.beta
+input source/refinement/delta-omega-bootstrap/omgrfn7_bundle.py
+input source/refinement/delta-omega-bootstrap/omgrfn7_r5_cases.py
+input source/refinement/delta-omega-bootstrap/omgrfn7_source_lowering_reference.py
+input source/refinement/delta-omega-bootstrap/omgrfn8-materialize-r1-r2.py
+input source/refinement/delta-omega-bootstrap/omgrfn8-materialize-r3-r5.py
+input source/refinement/delta-omega-bootstrap/omgrfn8_bundle.py
+input source/refinement/delta-omega-bootstrap/omgrfn9-materialize-r1-r2.py
+input source/refinement/delta-omega-bootstrap/omgrfn9-materialize-r3-r5.py
+input source/refinement/delta-omega-bootstrap/omgrfn9_bundle.py
+input source/refinement/delta-omega-bootstrap/ckir5-refinement-artifact.beta
+input source/refinement/delta-omega-bootstrap/ckir5-refinement-result.beta
+input source/refinement/delta-omega-bootstrap/ckir5-refinement-elf.beta
+
+input source/psi/source/source.omg
+input source/psi/generated/unicode_tables.omg

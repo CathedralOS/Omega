@@ -9,7 +9,7 @@
 > diamond exist while the full Rust-free hosting path remains under construction.
 > The proof kernel is a cross-cutting assurance service, independently
 > implemented in Beta and Gamma, rather than a language rung. One command checks
-> the current construction: `sh bootstrap/verify-lattice.sh`.
+> the current construction: `sh tools/bootstrap/verify-lattice.sh`.
 >
 > **Live build status + onboarding for a fresh agent:**
 > [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md). Target ownership and paths:
@@ -43,7 +43,7 @@ from two things it is easy to confuse it with:
   [design briefs](../../design_briefs/). The lattice must *preserve* that
   meaning; it does not define it.
 - **How Omega compiles today** — the current Rust implementation under
-  `source/compiler/rust/psi/` and `source/compiler/rust/omega/`, exposed by `source/compiler/rust/apps/omega-cli/`. Owned by
+  `source/on-ramp/rust/psi/` and `source/on-ramp/rust/omega/`, exposed by `source/on-ramp/rust/apps/omega-cli/`. Owned by
   [Repository Layout](../repository_layout.md) and
   [Pipeline Architecture](../pipeline/pipeline.md). In this architecture
   the product compiler is a *role*, not a rival (see
@@ -278,9 +278,9 @@ bootstrap rung adds **one coherent idea** and is implemented in the rung below.
 
 | Rung | Adds (one idea) | Lower-rooted realization | Meaning defined by | Status |
 | --- | --- | --- | --- | --- |
-| [alpha](rungs/alpha.md) | raw computation: bytes, fixed-width arithmetic, bounded memory, load/store, branch, byte I/O, trap | native (hand-written per ISA); Alpha assembler written in Alpha | the VM's own small-step semantics ([`SEMANTICS.md`](../../../bootstrap/alpha/SEMANTICS.md)) | **EXISTS** — 21-opcode tape VM, audited x64/arm64 realizations, written semantics, conformance suite, and self-hosting Alpha assembler |
-| [beta](rungs/beta.md) | names + structure: a small structured systems language (procedures, locals, control flow, memory) | Alpha-rooted cold start; steady-state `bc.beta` self-host | Beta's written small-step semantics ([`SEMANTICS.md`](../../../bootstrap/beta/SEMANTICS.md)) | **EXISTS + SELF-HOSTS + REFINES** — the Alpha-rooted artifact is used downstream and its complete `B_bc1` maximal observable is checked below `bc` |
-| [gamma](rungs/gamma.md) | safe definitional computation: algebraic data, pattern matching, pure functions, fuel-bounded evaluation, a simple type system | beta | a Gamma reference interpreter written in Beta ([`interp.beta`](../../../bootstrap/gamma/interp.beta)) | **EXISTS** — fuel-bounded functional core, ADTs, pattern matching, and a static type checker; also hosts an independent proof-kernel implementation ([`checker.gamma`](../../../source/assurance/proof-kernel/implementations/gamma/checker.gamma)) |
+| [alpha](rungs/alpha.md) | raw computation: bytes, fixed-width arithmetic, bounded memory, load/store, branch, byte I/O, trap | native (hand-written per ISA); Alpha assembler written in Alpha | the VM's own small-step semantics ([`SEMANTICS.md`](../../../source/alpha/SEMANTICS.md)) | **EXISTS** — 21-opcode tape VM, audited x64/arm64 realizations, written semantics, conformance suite, and self-hosting Alpha assembler |
+| [beta](rungs/beta.md) | names + structure: a small structured systems language (procedures, locals, control flow, memory) | Alpha-rooted cold start; steady-state `bc.beta` self-host | Beta's written small-step semantics ([`SEMANTICS.md`](../../../source/beta/SEMANTICS.md)) | **EXISTS + SELF-HOSTS + REFINES** — the Alpha-rooted artifact is used downstream and its complete `B_bc1` maximal observable is checked below `bc` |
+| [gamma](rungs/gamma.md) | safe definitional computation: algebraic data, pattern matching, pure functions, fuel-bounded evaluation, a simple type system | beta | a Gamma reference interpreter written in Beta ([`interp.beta`](../../../source/gamma/interp.beta)) | **EXISTS** — fuel-bounded functional core, ADTs, pattern matching, and a static type checker; also hosts an independent proof-kernel implementation ([`checker.gamma`](../../../source/proof-kernel/implementations/gamma/checker.gamma)) |
 | [delta](rungs/delta.md) | a robust deterministic compiler-host surface justified by the complete canonical Delta-compiler and `omega-bootstrap` source closures | execute the Delta-written compiler through Delta-to-Gamma elaboration and Gamma's interpreter; later self-rebuilds are optional evidence | Delta-to-Gamma elaboration plus the Gamma reference interpreter | **WORKING RUNG** — native corpus, self-hosting compiler, and meaning diamond exist; complete elaborator coverage and Rust-free publication of the final compiler remain open |
 
 The [proof kernel](proof_kernel.md) and the [Psi/Omega toolchain](omega_toolchain.md)
@@ -329,7 +329,7 @@ This architecture does not demote the existing docs; it assigns roles.
 
 - **Language docs** (`language_guide/`, `design_briefs/`) own **meaning**. The
   lattice preserves it. Authoritative, unchanged.
-- **`source/compiler/rust/{psi,omega}/`** (`pipeline/`, `repository_layout`) forms
+- **`source/on-ramp/rust/{psi,omega}/`** (`pipeline/`, `repository_layout`) forms
   the **current fast, untrusted producer** and today's executable reference for the language. In this
   architecture it sits on the *machine* side; it is progressively replaced by
   lattice-built rungs and, in the end-state, its output is *checked* rather than
@@ -374,7 +374,7 @@ Checking sets the **order**, because Rust plays two different roles:
   result is authoritative. Until that route lands, every Rust verifier,
   reduction family, and denotation rule it supplies is named explicitly as a
   versioned trusted dependency.
-- **Rust as the producer** (`source/compiler/rust/{psi,omega}/`) is, once a
+- **Rust as the producer** (`source/on-ramp/rust/{psi,omega}/`) is, once a
   complete verifier-plus-kernel route exists, *outside the soundness base*. It
   must become omittable for self-sufficiency, but its removal from the repository
   is unnecessary. It may remain a maintained, non-authoritative differential

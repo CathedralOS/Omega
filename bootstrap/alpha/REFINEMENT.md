@@ -1,1 +1,0 @@
-../../source/assurance/refinement/beta/REFINEMENT.md

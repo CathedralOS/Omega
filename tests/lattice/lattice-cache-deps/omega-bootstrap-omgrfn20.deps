@@ -1,0 +1,41 @@
+# Precise cache profile for the actual native/self OMGCOMP3 -> OMGRSW9 ->
+# CKIR17 producer bytes joined to all OMGRFN20 responsibilities.
+script source/refinement/delta-omega-bootstrap/omgrfn20-same-frame-composite.sh
+
+input tools/bootstrap/paths.sh
+input source/on-ramp/rust/delta
+input source/delta/samples/lowermachine.alp
+input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V3.md
+input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V9.md
+input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V17.md
+input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_LOWERING_V18.md
+input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-provider-plan.alp
+input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-provider-plan-to-ckir.alp
+input source/on-ramp/omega-bootstrap/compiler/omega_bootstrap_bundle.py
+input source/on-ramp/omega-bootstrap/compiler/omega_bootstrap_compilation.py
+input source/on-ramp/omega-bootstrap/compiler/omega_bootstrap_compilation_v2.py
+input source/on-ramp/omega-bootstrap/compiler/omega_bootstrap_compilation_v3.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v2_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v3_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v4_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v5_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v14_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v15_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v17_reference.py
+input source/on-ramp/omega-bootstrap/gates/delta-checked-ir-v17-fixture.py
+input source/on-ramp/omega-bootstrap/gates/omgrsw9_provider_plan_fixture.py
+input source/on-ramp/omega-bootstrap/gates/omgrsw9_provider_plan_reference.py
+input source/on-ramp/omega-bootstrap/gates/fixtures/omgcomp3-console-provider-plan
+input source/refinement/delta-omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V20.md
+input source/refinement/delta-omega-bootstrap/omgrfn19_witness.py
+input source/refinement/delta-omega-bootstrap/omgrfn20-production.py
+input source/refinement/delta-omega-bootstrap/omgrfn20-r1.py
+input source/refinement/delta-omega-bootstrap/omgrfn20-r2.py
+input source/refinement/delta-omega-bootstrap/omgrfn20-r3.py
+input source/refinement/delta-omega-bootstrap/omgrfn20-r4.py
+input source/refinement/delta-omega-bootstrap/omgrfn20-r5.py
+input source/refinement/delta-omega-bootstrap/omgrfn20_bundle.py
+input source/refinement/delta-omega-bootstrap/omgrfn20_ckir.py
+input source/refinement/delta-omega-bootstrap/omgrfn20_frame.py
+input source/refinement/delta-omega-bootstrap/omgrfn20_owner.py
+input source/refinement/delta-omega-bootstrap/omgrfn20_source.py

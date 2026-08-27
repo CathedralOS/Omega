@@ -655,7 +655,7 @@ coverage test proving that every enabled rule phase is actually scheduled.
 Final product source:
 
 ```text
-source/compiler/omega/omega/optimization/
+source/omega/optimization/
   core/
   psi/{analyses,passes,validation}/
   lowering/
@@ -663,13 +663,13 @@ source/compiler/omega/omega/optimization/
   machine/
   policy/
   cost/
-source/compiler/omega/omega/pipeline/
+source/omega/pipeline/
 ```
 
 Rust migration/reference implementation:
 
 ```text
-source/compiler/rust/omega/
+source/on-ramp/rust/omega/
   foundation/omega-optimization-core/
   representations/omega-optimization-unit/
   representations/omega-register-model/
@@ -684,7 +684,7 @@ source/compiler/rust/omega/
 ```
 
 Do not create one crate per analysis or pass. Do not place Rust under
-`source/compiler/omega/omega/`. Existing representation crates continue to own
+`source/omega/`. Existing representation crates continue to own
 their data; optimizer/pipeline crates transform them. ISA crates own declarative
 target facts and encodings, not cross-target pass policy.
 

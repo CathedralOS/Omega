@@ -21,12 +21,12 @@ the implementation small.
 ## Implementation and meaning
 
 Beta's runtime meaning is fixed by its written small-step
-[`SEMANTICS.md`](../../../../bootstrap/beta/SEMANTICS.md). Beta compiles
+[`SEMANTICS.md`](../../../../source/beta/SEMANTICS.md). Beta compiles
 structurally to Alpha assembly, which the Alpha assembler lowers to a tape
 governed by Alpha's written semantics. The steady-state compiler is
-`bootstrap/beta/bc.beta`, written in Beta and self-hosted to a byte-identical
+`source/beta/bc.beta`, written in Beta and self-hosted to a byte-identical
 fixed point. The first compiler was cold-started by the disposable
-`bootstrap/beta/rust/` producer. The current persisted artifact is
+`source/on-ramp/rust/beta/` producer. The current persisted artifact is
 instead reconstructed by the Alpha-written cold-start compiler and contains no
 Rust producer in its lineage. Its independent ROOT checker now establishes
 complete lower-rooted maximal-observation correspondence against `bc.beta` for
@@ -35,7 +35,7 @@ dependency closure; authority comes from that separate refinement check.
 
 The Alpha assembler formerly lived in `compiler/beta/`, but it is an Alpha tool:
 it is written in Alpha assembly and translates Alpha assembly to Alpha tapes.
-Its canonical owner is now `bootstrap/alpha/assembler/`; the old entry is
+Its canonical owner is now `source/alpha/assembler/`; the old entry is
 retired. “Beta” without qualification means the
 structured language compiled by `bc`.
 
@@ -49,19 +49,19 @@ Beta remains a small compiler-construction substrate with raw memory.
 
 ## Current repository reality
 
-- `bootstrap/alpha/assembler/assembler.alpha` — self-hosting Alpha assembler;
-- `bootstrap/beta/bc.beta` — self-hosting Beta compiler;
-- `bootstrap/beta/rust/` — retained Rust diagnostic/reference producer;
-- `bootstrap/beta/reference/` — untrusted executable Python semantic
+- `source/alpha/assembler/assembler.alpha` — self-hosting Alpha assembler;
+- `source/beta/bc.beta` — self-hosting Beta compiler;
+- `source/on-ramp/rust/beta/` — retained Rust diagnostic/reference producer;
+- `source/beta/reference/` — untrusted executable Python semantic
   reference, parser, and fuzzing;
-- `source/assurance/refinement/beta/` — symbolic/refinement reconstruction;
-- `bootstrap/beta/CALLING_CONVENTION.md` — Beta's frame and register
+- `source/refinement/alpha-beta/` — symbolic/refinement reconstruction;
+- `source/beta/CALLING_CONVENTION.md` — Beta's frame and register
   discipline over Alpha;
-- `bootstrap/beta/LANGUAGE.md` — current Beta surface.
-- `bootstrap/beta/SEMANTICS.md` — canonical small-step runtime meaning and
+- `source/beta/LANGUAGE.md` — current Beta surface.
+- `source/beta/SEMANTICS.md` — canonical small-step runtime meaning and
   maximal observations.
 
-`bootstrap/beta/cold-start/full-source.sh`, `selfhost.sh`, and `test.sh`
+`source/beta/cold-start/full-source.sh`, `selfhost.sh`, and `test.sh`
 gate reconstruction, the fixed point, and language behavior. The obsolete
 Python backend and gate were removed because they added no unique semantic or
 lower-rooted refinement coverage.

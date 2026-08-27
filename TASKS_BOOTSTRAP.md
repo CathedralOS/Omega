@@ -65,8 +65,8 @@ Standing invariants:
   of exact source, canonical meaning, and exact artifact. Compiler agreement,
   fixed points, and implementation diversity are regression evidence only; DDC
   has no bootstrap or release role.
-- `source/compiler/omega/{psi,omega}/` are the permanent Omega-written product
-  owners. `source/compiler/rust/` is a maintained external reference producer.
+- `source/omega/{psi,omega}/` are the permanent Omega-written product
+  owners. `source/on-ramp/rust/` is a maintained external reference producer.
 - The bridge may use a private checked IR and conservative backend. It need not
   use Terminal Psi internally merely because it compiles product modules that
   implement Terminal Psi.
@@ -153,10 +153,10 @@ Current milestone-level evidence:
 
 | Responsibility | Current boundary | Detail owner |
 | --- | --- | --- |
-| source custody | generic bounded `OMGCOMP1`, target/provider/build-role and generated-source custody, raw-envelope SHA-256, and path-independent V1 snapshots for the canonical Delta compiler source plus a provisional three-root bridge action DAG | [`bootstrap/omega-bootstrap/compiler/`](bootstrap/omega-bootstrap/compiler/) and [`DELTA_SOURCE_CLOSURE_SNAPSHOT_V1.md`](bootstrap/delta/DELTA_SOURCE_CLOSURE_SNAPSHOT_V1.md) |
+| source custody | generic bounded `OMGCOMP1`, target/provider/build-role and generated-source custody, raw-envelope SHA-256, and path-independent V1 snapshots for the canonical Delta compiler source plus a provisional three-root bridge action DAG | [`source/on-ramp/omega-bootstrap/compiler/`](source/on-ramp/omega-bootstrap/compiler/) and [`DELTA_SOURCE_CLOSURE_SNAPSHOT_V1.md`](source/delta/DELTA_SOURCE_CLOSURE_SNAPSHOT_V1.md) |
 | source resolution | compositional slices for selected data, calls, views, arithmetic, and static provider planning; OMGRSWC12 now closes the actual `TokenStream::push` shape over eight records, five pure copyable sum families, two actual-capacity record arrays, semantic structural copies, fifteen data writes, a ten-argument call, and indexed payload dispatch | versioned `OMGRSW*` contracts beside the bridge |
 | checked lowering/artifacts | OMGLOWL21/CKIR20 close that TokenStream projection through exact modular meaning and a conservative Linux-x86-64 artifact; the separate CKIR17 line retains platform-neutral provider-adapter observations | versioned `OMGLOW*`/`CKIR*` contracts beside the bridge |
-| lower-rooted reconstruction | OMGRFN23 joins exact TokenStream source, resolution, checked IR, corrected artifact, native/self producer variants, resources, and independent responsibility-local R1–R5 reconstruction | [`source/assurance/refinement/omega-bootstrap/`](source/assurance/refinement/omega-bootstrap/) |
+| lower-rooted reconstruction | OMGRFN23 joins exact TokenStream source, resolution, checked IR, corrected artifact, native/self producer variants, resources, and independent responsibility-local R1–R5 reconstruction | [`source/refinement/delta-omega-bootstrap/`](source/refinement/delta-omega-bootstrap/) |
 | compilation authority | externally gated on the accepted-lock/source-closure projection | [external dependency](#external-contract-dependency) |
 
 Open work:

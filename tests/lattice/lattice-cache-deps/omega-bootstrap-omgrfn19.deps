@@ -1,0 +1,24 @@
+# Precise cache profile for the actual focused producer-backed OMGRFN19
+# same-frame structural composite.
+script source/refinement/delta-omega-bootstrap/omgrfn19-same-frame-composite.sh
+
+input tools/bootstrap/paths.sh
+input source/on-ramp/rust/delta
+input source/delta/samples/lowermachine.alp
+input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V3.md
+input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V9.md
+input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-provider-plan.alp
+input source/on-ramp/omega-bootstrap/gates/omgrsw9_provider_plan_fixture.py
+input source/on-ramp/omega-bootstrap/gates/omgrsw9_provider_plan_reference.py
+input source/on-ramp/omega-bootstrap/gates/fixtures/omgcomp3-console-provider-plan
+input source/refinement/delta-omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V19.md
+input source/refinement/delta-omega-bootstrap/omgrfn19-r1.py
+input source/refinement/delta-omega-bootstrap/omgrfn19-r2.py
+input source/refinement/delta-omega-bootstrap/omgrfn19-r3.py
+input source/refinement/delta-omega-bootstrap/omgrfn19-r4.py
+input source/refinement/delta-omega-bootstrap/omgrfn19-r5.py
+input source/refinement/delta-omega-bootstrap/omgrfn19_bundle.py
+input source/refinement/delta-omega-bootstrap/omgrfn19_frame.py
+input source/refinement/delta-omega-bootstrap/omgrfn19_owner.py
+input source/refinement/delta-omega-bootstrap/omgrfn19_source.py
+input source/refinement/delta-omega-bootstrap/omgrfn19_witness.py
