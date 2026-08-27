@@ -153,8 +153,9 @@ mod proof;
 mod qualification_evidence;
 mod review_sources;
 
-/// Join checked call identity to the earliest typed owner of its exact authored
-/// source span. Compiler-generated calls contribute no authored location.
+/// Read the exact authored source span retained when checked call identity was
+/// still joined to its typed owner. Compiler-generated calls contribute no
+/// authored location.
 ///
 /// This is a compiler-internal package-review seam, not a public IR contract.
 pub fn derive_checked_body_call_source_spans(

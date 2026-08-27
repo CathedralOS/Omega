@@ -2459,8 +2459,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 73);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 31);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 74);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 32);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -8703,7 +8703,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("do not equal its exact checked synchronous-invocation fact")
+            .contains("do not equal its exact checked published ceiling")
     }));
 
     let mut source_tamper = checked;
