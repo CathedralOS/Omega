@@ -866,6 +866,116 @@ mod tests {
         )
     }
 
+    fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_501).unwrap();
+        let entry = BlockId::new(1_502).unwrap();
+        let descendant = BlockId::new(1_503).unwrap();
+        let target = BlockId::new(1_504).unwrap();
+        let sibling = BlockId::new(1_505).unwrap();
+        let predecessor = BlockId::new(1_506).unwrap();
+        let condition = ValueId::new(1_507).unwrap();
+        let incoming = ValueId::new(1_508).unwrap();
+        let target_parameter = ValueId::new(1_509).unwrap();
+        let target_result = ValueId::new(1_510).unwrap();
+        let computed = ValueId::new(1_511).unwrap();
+        let predecessor_value = ValueId::new(1_520).unwrap();
+        let result = ValueId::new(1_522).unwrap();
+        let boolean = |id| ValueDeclaration {
+            id,
+            scalar_type: ScalarType::Boolean,
+        };
+        let mut module = module_with_blocks(
+            machine,
+            entry,
+            TerminalMachineResult::Scalar(boolean(result)),
+            vec![
+                Block {
+                    id: entry,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Conditional {
+                        condition,
+                        when_true: SuccessorEdge {
+                            edge: EdgeId::new(1_512).unwrap(),
+                            target: predecessor,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                        when_false: SuccessorEdge {
+                            edge: EdgeId::new(1_513).unwrap(),
+                            target: sibling,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                },
+                Block {
+                    id: descendant,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(1_514).unwrap(),
+                        result: OperationResult::Scalar(boolean(computed)),
+                        kind: OperationKind::BooleanEqual {
+                            left: target_parameter,
+                            right: target_result,
+                        },
+                    }],
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(1_515).unwrap(),
+                        value: computed,
+                        cleanup_actions: Vec::new(),
+                    },
+                },
+                Block {
+                    id: target,
+                    parameters: vec![boolean(target_parameter)],
+                    operations: vec![Operation {
+                        id: OperationId::new(1_516).unwrap(),
+                        result: OperationResult::Scalar(boolean(target_result)),
+                        kind: OperationKind::BooleanNot {
+                            operand: target_parameter,
+                        },
+                    }],
+                    terminator: Terminator::Jump {
+                        edge: EdgeId::new(1_517).unwrap(),
+                        target: descendant,
+                        arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    id: sibling,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(1_518).unwrap(),
+                        value: incoming,
+                        cleanup_actions: Vec::new(),
+                    },
+                },
+                Block {
+                    id: predecessor,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(1_521).unwrap(),
+                        result: OperationResult::Scalar(boolean(predecessor_value)),
+                        kind: OperationKind::BooleanNot { operand: incoming },
+                    }],
+                    terminator: Terminator::Jump {
+                        edge: EdgeId::new(1_519).unwrap(),
+                        target,
+                        arguments: vec![predecessor_value],
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+            ],
+        );
+        module.machines[0]
+            .parameters
+            .extend([boolean(condition), boolean(incoming)]);
+        verified(module, ProofBundle::default())
+    }
+
     fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
         let machine = MachineId::new(1_061).unwrap();
         let entry = BlockId::new(1_062).unwrap();
@@ -1163,6 +1273,64 @@ mod tests {
                 omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(1_054).unwrap()),
             ]
         );
+    }
+
+    #[test]
+    fn non_adjacent_block_merges_replay_and_lower_in_both_target_families() {
+        let selections = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        let optimized =
+            project_optimization_run(run(non_adjacent_block_merge_verified(), selections.clone()))
+                .unwrap();
+
+        assert_eq!(optimized.commits().len(), 2);
+        assert_eq!(optimized.transformation_ledger().records().len(), 2);
+        assert_eq!(
+            optimized
+                .transformation_ledger()
+                .records()
+                .iter()
+                .map(|record| record.provenance.len())
+                .collect::<Vec<_>>(),
+            [6, 6]
+        );
+        assert!(
+            optimized
+                .transformation_ledger()
+                .records()
+                .iter()
+                .flat_map(|record| &record.provenance)
+                .all(|row| row.disposition.is_realized())
+        );
+        assert_eq!(optimized.plan().functions[0].block_entries.len(), 3);
+        assert_eq!(optimized.plan().functions[0].operations.len(), 6);
+        assert_eq!(optimized.unit().functions[0].blocks.len(), 3);
+        assert!(matches!(
+            optimized.plan().functions[0].operations[2],
+            TerminalAbstractOperation::BooleanNot { .. }
+        ));
+        assert!(matches!(
+            optimized.plan().functions[0].operations[3],
+            TerminalAbstractOperation::BooleanNot { .. }
+        ));
+        assert!(matches!(
+            optimized.plan().functions[0].operations[4],
+            TerminalAbstractOperation::BooleanEqual { .. }
+        ));
+        assert!(matches!(
+            optimized.plan().functions[0].operations[5],
+            TerminalAbstractOperation::Return { .. }
+        ));
+
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let optimized = project_optimization_run(run(
+                non_adjacent_block_merge_verified(),
+                selections.clone(),
+            ))
+            .unwrap();
+            let lowered = lower_optimized_to_target_operations(optimized, target).unwrap();
+            assert_eq!(lowered.target(), target);
+            assert_eq!(lowered.optimized().commits().len(), 2);
+        }
     }
 
     #[test]
