@@ -66,24 +66,63 @@ impl<'evidence, Owner> TerminalComponentCompileRequest<'evidence, Owner> {
         &self.deployment_owner
     }
 
-    #[allow(clippy::type_complexity)]
-    pub fn into_parts(
+    fn bind_checked(
         self,
-    ) -> (
-        CompileOptions,
-        Option<PackageCompilationInputs>,
-        &'evidence psi_proof_admission::AdmissionProfile,
-        Vec<TerminalComponentProviderSettlement<'evidence>>,
-        Owner,
-    ) {
-        (
-            self.options,
-            self.package_inputs,
-            self.profile,
-            self.settlements,
-            self.deployment_owner,
-        )
+        checked: CheckedCompilation,
+    ) -> Result<
+        BoundTerminalComponentCompileRequest<'evidence, Owner>,
+        TerminalComponentCompileRequestBindingError<'evidence, Owner>,
+    > {
+        let Self {
+            options,
+            package_inputs,
+            profile,
+            settlements,
+            deployment_owner,
+        } = self;
+        match TerminalComponentStagingInputs::from_checked(&checked, profile, settlements) {
+            Ok(staging_inputs) => Ok(BoundTerminalComponentCompileRequest {
+                options,
+                package_inputs,
+                checked,
+                staging_inputs,
+                deployment_owner,
+            }),
+            Err(error) => {
+                let diagnostic = error.diagnostic().clone();
+                let (_, profile, settlements) = error.into_parts();
+                Err(TerminalComponentCompileRequestBindingError {
+                    diagnostic,
+                    checked,
+                    request: Self {
+                        options,
+                        package_inputs,
+                        profile,
+                        settlements,
+                        deployment_owner,
+                    },
+                })
+            }
+        }
     }
+}
+
+/// One request whose checked target/subsystem binding has completed without
+/// consuming or rearranging any external staging or deployment custody.
+struct BoundTerminalComponentCompileRequest<'evidence, Owner> {
+    options: CompileOptions,
+    package_inputs: Option<PackageCompilationInputs>,
+    checked: CheckedCompilation,
+    staging_inputs: TerminalComponentStagingInputs<'evidence>,
+    deployment_owner: Owner,
+}
+
+/// A failed request-owned checked binding. The exact checked result and the
+/// complete original request remain paired for inspection or corrected retry.
+struct TerminalComponentCompileRequestBindingError<'evidence, Owner> {
+    diagnostic: Diagnostic,
+    checked: CheckedCompilation,
+    request: TerminalComponentCompileRequest<'evidence, Owner>,
 }
 
 /// A rejected typed terminal compile handoff.
@@ -159,30 +198,25 @@ where
             }));
         }
     };
+    let BoundTerminalComponentCompileRequest {
+        options,
+        package_inputs,
+        checked,
+        staging_inputs,
+        deployment_owner,
+    } = match request.bind_checked(checked) {
+        Ok(bound) => bound,
+        Err(error) => {
+            return Err(Box::new(
+                TerminalComponentCompileError::StagingInputBinding {
+                    diagnostic: error.diagnostic,
+                    checked: error.checked,
+                    request: error.request,
+                },
+            ));
+        }
+    };
     let source_file_count = checked.source_file_count();
-    let (options, package_inputs, profile, settlements, deployment_owner) = request.into_parts();
-    let staging_inputs =
-        match TerminalComponentStagingInputs::from_checked(&checked, profile, settlements) {
-            Ok(inputs) => inputs,
-            Err(error) => {
-                let diagnostic = error.diagnostic().clone();
-                let (_, profile, settlements) = error.into_parts();
-                let request = TerminalComponentCompileRequest {
-                    options,
-                    package_inputs,
-                    profile,
-                    settlements,
-                    deployment_owner,
-                };
-                return Err(Box::new(
-                    TerminalComponentCompileError::StagingInputBinding {
-                        diagnostic,
-                        checked,
-                        request,
-                    },
-                ));
-            }
-        };
     match stage_acquire_and_deploy_terminal_component_output(
         &options,
         source_file_count,
@@ -196,5 +230,182 @@ where
             options,
             package_inputs,
         })),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_terminal_installation_evidence::TerminalProviderExecutionEvidence;
+    use omega_terminal_target_operations::{
+        TerminalBoundaryRealization, TerminalLinuxExitGroupI32Realization,
+    };
+
+    #[derive(Debug)]
+    struct TestProviderExecution;
+
+    impl TerminalProviderExecutionEvidence for TestProviderExecution {
+        fn requirement_identity(&self) -> &str {
+            "Test::exit"
+        }
+
+        fn provider_plan(&self) -> u64 {
+            11
+        }
+
+        fn provider_execution_identity(&self) -> u64 {
+            12
+        }
+
+        fn provider_execution_fingerprint(&self) -> u64 {
+            13
+        }
+
+        fn normalized_root_identity(&self) -> u64 {
+            14
+        }
+
+        fn boundary_contract_fingerprint(&self) -> u64 {
+            15
+        }
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct TestDeploymentOwner(u64);
+
+    fn canary_root() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "../../../../../../tests/canaries/pass/ownership/linear_transfer_and_consume/main.omg",
+        )
+    }
+
+    fn options(root_path: std::path::PathBuf, target_name: Option<&str>) -> CompileOptions {
+        CompileOptions {
+            root_path,
+            build_dir: Some("exact-terminal-build".into()),
+            target_name: target_name.map(str::to_owned),
+            write_output: false,
+        }
+    }
+
+    fn settlement(execution: &TestProviderExecution) -> TerminalComponentProviderSettlement<'_> {
+        TerminalComponentProviderSettlement {
+            provider_execution: execution,
+            realization: TerminalBoundaryRealization::LinuxExitGroupI32(
+                TerminalLinuxExitGroupI32Realization,
+            ),
+        }
+    }
+
+    fn package_inputs(source_root: &std::path::Path) -> PackageCompilationInputs {
+        let identity = psi_core::PackageKeyIdentity::from_digest([0x71; 32])
+            .expect("nonzero package identity");
+        PackageCompilationInputs::new(
+            identity,
+            vec![crate::PackageSourceBinding::new(
+                identity,
+                "terminal-owner-fixture",
+                source_root.to_path_buf(),
+            )],
+            Vec::new(),
+        )
+        .expect("single-package fixture is a closed reconciled graph")
+    }
+
+    #[test]
+    fn targetless_binding_preserves_the_exact_checked_result_and_request_custody() {
+        let root = canary_root();
+        let checked = crate::compile_to_checked(&root, None)
+            .expect("targetless ownership canary should check");
+        let expected_checked = checked.clone();
+        let profile = psi_proof_admission::AdmissionProfile::default();
+        let execution = TestProviderExecution;
+        let expected_package_inputs = package_inputs(
+            root.parent()
+                .expect("ownership canary has a concrete source root"),
+        );
+        let expected_options = options(root, None);
+        let request = TerminalComponentCompileRequest::new(
+            expected_options.clone(),
+            &profile,
+            vec![settlement(&execution)],
+            TestDeploymentOwner(91),
+        )
+        .with_package_inputs(expected_package_inputs.clone());
+
+        let error = match request.bind_checked(checked) {
+            Ok(_) => panic!("targetless checked result must reject staging-input binding"),
+            Err(error) => error,
+        };
+
+        assert_eq!(
+            error.diagnostic.message,
+            "terminal component staging requires an exact native target selected by the owning checked result"
+        );
+        assert_eq!(error.checked, expected_checked);
+        assert_eq!(error.request.options(), &expected_options);
+        assert_eq!(
+            error.request.package_inputs(),
+            Some(&expected_package_inputs)
+        );
+        assert!(std::ptr::eq(error.request.profile(), &profile));
+        assert_eq!(error.request.settlements().len(), 1);
+        assert!(std::ptr::eq(
+            error.request.settlements()[0].provider_execution,
+            &execution as &dyn TerminalProviderExecutionEvidence,
+        ));
+        assert_eq!(
+            error.request.settlements()[0].realization,
+            TerminalBoundaryRealization::LinuxExitGroupI32(TerminalLinuxExitGroupI32Realization,)
+        );
+        assert_eq!(error.request.deployment_owner(), &TestDeploymentOwner(91));
+    }
+
+    #[test]
+    fn selected_target_binding_conserves_the_complete_request_in_one_bound_owner() {
+        let root = canary_root();
+        let checked = crate::compile_to_checked(&root, Some("macos_arm64"))
+            .expect("selected-target ownership canary should check");
+        let expected_checked = checked.clone();
+        let expected_target = checked
+            .selected_native_target()
+            .expect("selected-target checked result retains native target");
+        let expected_subsystem = checked.subsystem();
+        let profile = psi_proof_admission::AdmissionProfile::default();
+        let execution = TestProviderExecution;
+        let expected_package_inputs = package_inputs(
+            root.parent()
+                .expect("ownership canary has a concrete source root"),
+        );
+        let expected_options = options(root, Some("macos_arm64"));
+        let request = TerminalComponentCompileRequest::new(
+            expected_options.clone(),
+            &profile,
+            vec![settlement(&execution)],
+            TestDeploymentOwner(92),
+        )
+        .with_package_inputs(expected_package_inputs.clone());
+
+        let bound = match request.bind_checked(checked) {
+            Ok(bound) => bound,
+            Err(_) => panic!("selected-target checked result must bind staging inputs"),
+        };
+
+        assert_eq!(bound.options, expected_options);
+        assert_eq!(bound.package_inputs, Some(expected_package_inputs));
+        assert_eq!(bound.checked, expected_checked);
+        assert_eq!(bound.staging_inputs.target(), expected_target);
+        assert_eq!(bound.staging_inputs.subsystem(), expected_subsystem);
+        assert!(std::ptr::eq(bound.staging_inputs.profile(), &profile));
+        assert_eq!(bound.staging_inputs.settlements().len(), 1);
+        assert!(std::ptr::eq(
+            bound.staging_inputs.settlements()[0].provider_execution,
+            &execution as &dyn TerminalProviderExecutionEvidence,
+        ));
+        assert_eq!(
+            bound.staging_inputs.settlements()[0].realization,
+            TerminalBoundaryRealization::LinuxExitGroupI32(TerminalLinuxExitGroupI32Realization,)
+        );
+        assert_eq!(bound.deployment_owner, TestDeploymentOwner(92));
     }
 }
