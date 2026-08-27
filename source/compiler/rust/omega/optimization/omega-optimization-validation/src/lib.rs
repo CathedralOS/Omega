@@ -13,15 +13,16 @@ use omega_optimization_core::{
     OptimizationValidatorIdentity,
 };
 use omega_optimization_unit::{
-    BlockParameterIncomingBinding, BooleanConstantRewrite, ConstantConditionalRewrite,
-    IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationEdge,
-    OptimizationFact, OwnershipEvent, OwnershipFrontierFact, OwnershipFrontierLiveClaim,
-    OwnershipFrontierOwnedPlace, OwnershipFrontierPartialCustody, OwnershipFrontierSite,
-    OwnershipFrontierSnapshot, ProvenanceDisposition, PsiNodeObservation, PsiOptimizationFunction,
-    PsiOptimizationUnit, PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
-    RedundantBlockParameterRewrite, ScalarConstantValue, SccpBlockRow, SccpEdgeRow, SccpEdgeState,
-    SccpMachineSnapshot, SccpValueRow, SccpValueState, ValueDefinition, ValueDefinitionSite,
-    ValueUse, canonical_ownership_frontier_snapshot, derived_sccp_scalar_constant_fact_identity,
+    AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
+    ConstantConditionalRewrite, IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation,
+    OptimizationEdge, OptimizationFact, OwnershipEvent, OwnershipFrontierFact,
+    OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace, OwnershipFrontierPartialCustody,
+    OwnershipFrontierSite, OwnershipFrontierSnapshot, ProvenanceDisposition, PsiNodeObservation,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
+    PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterRewrite, ScalarConstantValue,
+    ScalarSubstitution, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
+    SccpValueRow, SccpValueState, ValueDefinition, ValueDefinitionSite, ValueUse,
+    canonical_ownership_frontier_snapshot, derived_sccp_scalar_constant_fact_identity,
     literal_scalar_constant_fact_identity, recompute_psi_optimization_unit_identity,
     reconstruct_psi_closed_region_observation, reconstruct_psi_observation_model,
 };
@@ -598,6 +599,9 @@ pub fn validate_scalar_evaluation_candidate(
         PsiRewritePatch::ThreadPathQualifiedEmptyBlock(_) => {
             Err(OptimizationUnitValidationError::CandidatePatchMismatch)
         }
+        PsiRewritePatch::MergeAdjacentBlock(_) => {
+            Err(OptimizationUnitValidationError::CandidatePatchMismatch)
+        }
     }
 }
 
@@ -623,6 +627,9 @@ pub fn validate_psi_rewrite_candidate(
         }
         PsiRewritePatch::ThreadPathQualifiedEmptyBlock(_) => {
             validate_path_qualified_empty_block_candidate(input, candidate)
+        }
+        PsiRewritePatch::MergeAdjacentBlock(_) => {
+            validate_adjacent_block_merge_candidate(input, candidate)
         }
     }
 }
@@ -1480,6 +1487,380 @@ pub fn validate_path_qualified_empty_block_candidate(
         ),
         provenance: accepted_provenance,
     })
+}
+
+/// Independently replay one adjacent single-predecessor block merge. The
+/// validator rederives adjacency, unique incoming custody, typed parameter
+/// substitutions, ownership-frontier identity, and every moved occurrence.
+pub fn validate_adjacent_block_merge_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_psi_optimization_unit(input)?;
+    if candidate.input() != input.identity {
+        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
+    }
+    if !candidate
+        .required_analyses()
+        .contains(AnalysisKind::ControlFlowGraph)
+        || !candidate
+            .required_analyses()
+            .contains(AnalysisKind::OwnershipFrontiers)
+        || !candidate
+            .invalidated_analyses()
+            .contains(AnalysisKind::ControlFlowGraph)
+        || !candidate
+            .invalidated_analyses()
+            .contains(AnalysisKind::UseDefinition)
+        || !candidate
+            .invalidated_analyses()
+            .contains(AnalysisKind::EffectSummaries)
+        || candidate.safety_class() != OptimizationSafetyClass::StructuralIdentity
+    {
+        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
+    }
+    let PsiRewritePatch::MergeAdjacentBlock(patch) = candidate.patch() else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
+    if candidate.decision_point() != patch.predecessor {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
+    let function = input
+        .functions
+        .iter()
+        .find(|function| function.machine == patch.predecessor.machine)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let predecessor_position = function
+        .blocks
+        .iter()
+        .position(|block| block.id == patch.predecessor.block)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let target_position = function
+        .blocks
+        .iter()
+        .position(|block| block.id == patch.target)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if target_position != predecessor_position + 1 || function.entry == patch.target {
+        return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
+    }
+    let predecessor = &function.blocks[predecessor_position];
+    let target = &function.blocks[target_position];
+    let predecessor_index = usize::try_from(patch.predecessor.node)
+        .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if predecessor_index + 1 != predecessor.nodes.len()
+        || target.nodes.first().is_none_or(|node| {
+            !node.successors.is_empty()
+                || !matches!(node.provenance.first(), Some(PsiProvenance::Operation(_)))
+        })
+    {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
+    let predecessor_node = &predecessor.nodes[predecessor_index];
+    let O::Jump {
+        psi_edge,
+        target: jump_target,
+        bindings,
+    } = &predecessor_node.operation
+    else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
+    if *psi_edge != patch.incoming_edge || *jump_target != patch.target {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
+    let incoming = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .filter(|edge| edge.target == patch.target)
+        .collect::<Vec<_>>();
+    if incoming.len() != 1 || incoming[0].psi_edge != patch.incoming_edge {
+        return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
+    }
+    if target.parameters.len() != bindings.len() {
+        return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
+    }
+    let mut substitutions = target
+        .parameters
+        .iter()
+        .zip(bindings)
+        .map(|(parameter, binding)| {
+            (binding.parameter == parameter.value && binding.scalar_type == parameter.scalar_type)
+                .then_some(ScalarSubstitution {
+                    from: parameter.value,
+                    to: binding.argument,
+                    scalar_type: parameter.scalar_type,
+                })
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or(OptimizationUnitValidationError::CandidateIncomingBindingMismatch)?;
+    substitutions.sort();
+    if candidate.substitutions() != substitutions {
+        return Err(OptimizationUnitValidationError::CandidateSubstitutionMismatch);
+    }
+    if !reconstruct_adjacent_merge_ownership_is_identity(
+        input,
+        function,
+        patch.incoming_edge,
+        patch.target,
+    ) {
+        return Err(OptimizationUnitValidationError::CandidateObservationMismatch);
+    }
+    let (expected_blocks, accepted_provenance) =
+        reconstruct_adjacent_merge_accounting(function, patch)
+            .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
+    if candidate.affected_blocks() != expected_blocks
+        || candidate.provenance() != accepted_provenance
+    {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    }
+
+    let mut output = input.clone();
+    let output_function = output
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == patch.predecessor.machine)
+        .expect("candidate function exists");
+    let mut moved = output_function.blocks.remove(target_position);
+    let output_predecessor = &mut output_function.blocks[predecessor_position];
+    let removed = output_predecessor
+        .nodes
+        .pop()
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let removed_edge = removed
+        .successors
+        .iter()
+        .find(|edge| edge.psi_edge == patch.incoming_edge)
+        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+    for node in &mut moved.nodes {
+        rewrite_scalar_substitutions(
+            &mut node.operation,
+            &substitutions,
+            patch.predecessor.machine,
+            patch.target,
+        );
+    }
+    let first = moved
+        .nodes
+        .first_mut()
+        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+    first.provenance.extend_from_slice(&removed_edge.provenance);
+    first.fuel.extend_from_slice(&removed_edge.fuel);
+    output_predecessor.nodes.append(&mut moved.nodes);
+    for (node_index, node) in output_predecessor.nodes.iter_mut().enumerate() {
+        let node_index = u32::try_from(node_index)
+            .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
+        node.definitions = expected_definitions(&node.operation, output_predecessor.id, node_index);
+        node.uses = expected_uses(&node.operation, output_predecessor.id, node_index);
+        node.successors = preserve_edge_custody(node);
+        node.ownership = expected_ownership(&node.operation);
+    }
+    let mut effect = 0u64;
+    for block in &mut output_function.blocks {
+        for node in &mut block.nodes {
+            node.effect = omega_optimization_unit::EffectLink {
+                input: effect,
+                output: effect
+                    .checked_add(1)
+                    .expect("validated function effect count fits u64"),
+            };
+            effect = effect
+                .checked_add(1)
+                .expect("validated function effect count fits u64");
+        }
+    }
+    output_function.facts = reconstruct_fact_index(output_function);
+    output_function.declared_places = reconstruct_declared_places(output_function)?;
+    output.identity = recompute_psi_optimization_unit_identity(&output);
+    validate_psi_optimization_unit(&output)?;
+    let output_function = output
+        .functions
+        .iter()
+        .find(|function| function.machine == patch.predecessor.machine)
+        .expect("output function exists");
+    for input_block in &function.blocks {
+        if !expected_blocks.contains(&input_block.id)
+            && output_function
+                .blocks
+                .iter()
+                .find(|block| block.id == input_block.id)
+                != Some(input_block)
+        {
+            return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
+        }
+    }
+    Ok(ValidatedPsiRewrite {
+        unit: output,
+        candidate: candidate.identity(),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(
+            b"omega.validator.adjacent-single-predecessor-block-merge.v1",
+        ),
+        provenance: accepted_provenance,
+    })
+}
+
+fn preserve_edge_custody(
+    node: &omega_optimization_unit::OptimizationNode,
+) -> Vec<OptimizationEdge> {
+    let expected = expected_edges(&node.operation);
+    expected
+        .into_iter()
+        .map(|mut edge| {
+            if let Some(existing) = node
+                .successors
+                .iter()
+                .find(|existing| existing.psi_edge == edge.psi_edge)
+            {
+                edge.provenance = existing.provenance.clone();
+                edge.fuel = existing.fuel.clone();
+            }
+            edge
+        })
+        .collect()
+}
+
+fn rewrite_scalar_substitutions(
+    operation: &mut O,
+    substitutions: &[ScalarSubstitution],
+    machine: MachineId,
+    removed_block: BlockId,
+) {
+    for substitution in substitutions {
+        rewrite_block_parameter_operation(
+            operation,
+            RedundantBlockParameterRewrite {
+                machine,
+                block: removed_block,
+                position: 0,
+                parameter: substitution.from,
+                replacement: substitution.to,
+                scalar_type: substitution.scalar_type,
+            },
+        );
+    }
+}
+
+fn reconstruct_adjacent_merge_ownership_is_identity(
+    unit: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    incoming: EdgeId,
+    target: BlockId,
+) -> bool {
+    let sites = [
+        OwnershipFrontierSite::EdgeEntry(incoming),
+        OwnershipFrontierSite::EdgeExit(incoming),
+        OwnershipFrontierSite::BlockEntry(target),
+    ];
+    let facts = sites.map(|site| {
+        unit.ownership_frontier_facts
+            .iter()
+            .find(|fact| fact.machine == function.machine && fact.site == site)
+    });
+    if facts.iter().all(Option::is_none) {
+        return function.structural_parameters.is_empty()
+            && function.entry_claim_declarations.is_empty()
+            && function.declared_places.is_empty();
+    }
+    facts.iter().all(Option::is_some)
+        && facts
+            .windows(2)
+            .all(|pair| pair[0].unwrap().snapshot == pair[1].unwrap().snapshot)
+}
+
+fn reconstruct_adjacent_merge_accounting(
+    function: &PsiOptimizationFunction,
+    patch: AdjacentBlockMergeRewrite,
+) -> Option<(
+    Vec<BlockId>,
+    Vec<omega_optimization_unit::ProvenanceRewrite>,
+)> {
+    let predecessor_position = function
+        .blocks
+        .iter()
+        .position(|block| block.id == patch.predecessor.block)?;
+    let target_position = function
+        .blocks
+        .iter()
+        .position(|block| block.id == patch.target)?;
+    if target_position != predecessor_position.checked_add(1)? {
+        return None;
+    }
+    let predecessor = &function.blocks[predecessor_position];
+    let predecessor_node = predecessor
+        .nodes
+        .get(usize::try_from(patch.predecessor.node).ok()?)?;
+    let incoming = predecessor_node
+        .successors
+        .iter()
+        .find(|edge| edge.psi_edge == patch.incoming_edge)?;
+    let target = &function.blocks[target_position];
+    let output_first = PsiRealizationSite::Node(NodeLocation {
+        machine: function.machine,
+        block: predecessor.id,
+        node: patch.predecessor.node,
+    });
+    let incoming_site = PsiRealizationSite::Edge {
+        machine: function.machine,
+        edge: patch.incoming_edge,
+    };
+    let mut affected = BTreeSet::from([predecessor.id, target.id]);
+    let mut realized = vec![omega_optimization_unit::ProvenanceRewrite {
+        input: incoming_site,
+        disposition: ProvenanceDisposition::RealizedAt(output_first),
+        sources: incoming.provenance.clone(),
+        fuel: incoming.fuel.clone(),
+    }];
+    for (node_index, node) in target.nodes.iter().enumerate() {
+        if node.provenance.is_empty() {
+            continue;
+        }
+        let input = PsiRealizationSite::Node(NodeLocation {
+            machine: function.machine,
+            block: target.id,
+            node: u32::try_from(node_index).ok()?,
+        });
+        let output = PsiRealizationSite::Node(NodeLocation {
+            machine: function.machine,
+            block: predecessor.id,
+            node: patch
+                .predecessor
+                .node
+                .checked_add(u32::try_from(node_index).ok()?)?,
+        });
+        realized.push(omega_optimization_unit::ProvenanceRewrite {
+            input,
+            disposition: ProvenanceDisposition::RealizedAt(output),
+            sources: node.provenance.clone(),
+            fuel: node.fuel.clone(),
+        });
+    }
+    for block in function.blocks.iter().skip(target_position + 1) {
+        affected.insert(block.id);
+        for (node_index, node) in block.nodes.iter().enumerate() {
+            if node.provenance.is_empty() {
+                continue;
+            }
+            let site = PsiRealizationSite::Node(NodeLocation {
+                machine: function.machine,
+                block: block.id,
+                node: u32::try_from(node_index).ok()?,
+            });
+            realized.push(omega_optimization_unit::ProvenanceRewrite {
+                input: site,
+                disposition: ProvenanceDisposition::RealizedAt(site),
+                sources: node.provenance.clone(),
+                fuel: node.fuel.clone(),
+            });
+        }
+    }
+    realized.sort_by_key(|row| {
+        (
+            row.input,
+            row.disposition.canonical_tag(),
+            row.disposition.site(),
+        )
+    });
+    Some((affected.into_iter().collect(), realized))
 }
 
 fn rewrite_successor_operation(
@@ -5211,7 +5592,14 @@ fn provenance_matches_operation(
     provenance: &[PsiProvenance],
 ) -> bool {
     let expected = expected_provenance(operation);
-    provenance == expected
+    if expected.is_empty() {
+        provenance.is_empty()
+    } else {
+        provenance.starts_with(&expected)
+            && provenance[expected.len()..]
+                .iter()
+                .all(|source| matches!(source, PsiProvenance::Edge(_)))
+    }
 }
 
 fn successors_match_operation(

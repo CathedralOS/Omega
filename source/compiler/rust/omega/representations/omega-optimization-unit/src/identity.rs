@@ -29,7 +29,7 @@ use crate::{
     ValueDefinition, ValueDefinitionSite, ValueUse,
 };
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v6\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v7\0";
 
 pub fn recompute_psi_optimization_unit_identity(
     unit: &PsiOptimizationUnit,

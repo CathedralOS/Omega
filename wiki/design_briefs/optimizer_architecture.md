@@ -880,9 +880,9 @@ realized at its original input location. The rejected edge and every node or
 successor edge in every deleted block are separately `ProvenUnreachableAt`
 their exact original input occurrences:
 their scheduled units remain durable audit custody but carry no runtime charge.
-The v5 rule and pass plus v4 validator independently reconstruct the Boolean
-fact, successors and bindings, reachability, exact affected roster, all
-disposition/fuel rows, dense effects, node metadata, current operation facts,
+The v5 rule and v4 validator, registered in the v6 pass, independently
+reconstruct the Boolean fact, successors and bindings, reachability, exact
+affected roster, all disposition/fuel rows, dense effects, node metadata, current operation facts,
 declared places, and output identity before total validation. `CallGraph` is explicitly
 invalidated, while verifier-accepted obligation and ownership-frontier catalogs
 remain immutable source custody. The pass manager records only that validator-
@@ -896,9 +896,8 @@ distinguish source-scheduled fuel from runtime charge.
 The convergence measure counts functions, blocks, nodes, and successor edges,
 so every accepted atomic fold/prune strictly decreases it. This authority is
 specific to the reachability complement created by the proven conditional
-choice; it is not a general dead-region eraser. Redundant jumps can now use the
-path-qualified occurrence vocabulary but still need their own exact rewrite
-contract, and private-machine pruning still needs function-roster custody. Crash, cleanup,
+choice; it is not a general dead-region eraser. Private-machine pruning still
+needs function-roster custody. Crash, cleanup,
 suspension, call, and boundary-only blocks are never classified as empty: they
 may disappear only when the fresh structural traversal proves them unreachable,
 with every removed source site tombstoned and independently validated.
@@ -939,12 +938,31 @@ form an antichain; the total validator additionally rejects any duplicated
 source whose edge occurrences can execute sequentially. A verified artifact
 test fans one source out and then threads both resulting occurrences through
 later rewrites, with projection replay reaching the exact final occurrence
-map. Candidate v11, optimization-unit content identity v6, ledger v3,
-`ControlFlowCleanup` v5, prephysical manifest v4, and optimized-plan projection
-validation v5 bind this admission meaning. Marking a reachable outgoing source
+map. Candidate v12, optimization-unit content identity v7, ledger v3,
+`ControlFlowCleanup` v6, prephysical manifest v5, and optimized-plan projection
+validation v6 bind this admission meaning. Marking a reachable outgoing source
 `ProvenUnreachableAt` remains invalid. Physical publication for newly admitted
 CFG shapes still fails closed until target/selected/native custody supports the
 shape.
+
+The fourth rule, `adjacent-single-predecessor-block-merge.v1`, is the first
+nonempty redundant-jump elimination contract. It merges only the immediately
+following target block, only when the jump is its sole incoming edge, and only
+when the target begins with a real operation that has no successor arms. These
+restrictions make the transformation block-boundary erasure rather than code
+motion or conditional custody fanout. The validator independently reconstructs
+typed target-parameter substitutions and requires identical ownership snapshots
+at incoming-edge entry, incoming-edge exit, and target-block entry. Every moved
+node occurrence is renamed to its new block/node location; the removed edge's
+source and fuel are additionally realized behind the first operation's direct
+provenance at that same node. Later nodes whose dense effects shift are also
+accounted for. A corruption test rejects a forged realization site, and a full
+artifact test replays the ledger to the exact one-block prephysical projection.
+Candidate v12, optimization-unit content identity v7, `ControlFlowCleanup` v6,
+prephysical manifest v5, and optimized-plan projection validation v6 bind this
+admission meaning; ledger v3 already expresses the many-to-one move. Nonadjacent
+merges, targets beginning in a conditional/terminator, and native publication
+for inherited node-edge custody remain fail-closed.
 
 Baseline choice lives in `omega-optimization-policy`, outside rule and
 validator crates. The pass manager first obtains independently constructed
