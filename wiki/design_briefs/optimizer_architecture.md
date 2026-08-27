@@ -897,8 +897,7 @@ distinguish source-scheduled fuel from runtime charge.
 The convergence measure counts functions, blocks, nodes, and successor edges,
 so every accepted atomic fold/prune strictly decreases it. This authority is
 specific to the reachability complement created by the proven conditional
-choice; it is not a general dead-region eraser. Private-machine pruning still
-needs function-roster custody. Crash, cleanup,
+choice; it is not a general dead-region eraser. Crash, cleanup,
 suspension, call, and boundary-only blocks are never classified as empty: they
 may disappear only when the fresh structural traversal proves them unreachable,
 with every removed source site tombstoned and independently validated.
@@ -968,6 +967,29 @@ prephysical manifest v6, and optimized-plan projection validation v7 bind this
 admission meaning; ledger v3 expresses both the many-to-one move and one-to-many
 fanout. Nonadjacent merges, direct terminal-exit fusion, and native publication
 for inherited node-edge custody remain fail-closed.
+
+The fifth rule, `unreachable-private-machine-pruning.v1`, is a module-roster
+rewrite rather than a node rewrite. Its candidate decision point is the exact
+canonical machine set, never a surrogate first node. The root set contains the
+module entry, every provider candidate, every nominally attached function, and
+their transitive internal-call and nominal-cleanup-machine closure. The rule
+atomically removes the entire active complement, including disconnected call
+chains and recursive islands; the independent validator reconstructs that root
+closure without trusting the optimizer's call graph.
+
+Function removal retains more custody than ordinary link-time dead stripping.
+`PrunedMachineCustody` binds every removed machine to its verified source-roster
+ordinal. Active and pruned machines must form an exact, order-preserving
+partition of the source roster, while accepted-obligation and verifier-owned
+ownership-frontier catalogs remain complete historical facts. Ledger v4
+records roster dispositions independently of its node/edge occurrence rows;
+every source-bearing node and successor edge in a removed function is also
+tombstoned with its original fuel. Projection replay requires the cumulative
+ledger roster to equal the final unit roster custody and rejects an omitted,
+duplicated, reordered, resurrected, provider-root, attachment-root, call-root,
+or cleanup-root machine. Candidate v14, optimization-unit content identity v8,
+`ControlFlowCleanup` v8, prephysical manifest v7, and optimized-plan projection
+validation v8 bind this admission meaning.
 
 Baseline choice lives in `omega-optimization-policy`, outside rule and
 validator crates. The pass manager first obtains independently constructed
