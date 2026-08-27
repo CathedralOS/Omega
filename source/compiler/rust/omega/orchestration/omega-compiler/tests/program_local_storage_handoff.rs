@@ -1946,6 +1946,36 @@ fn source_derived_one_root_introduction_retains_exact_installation_account_and_o
         (0x6000, 0x800)
     );
 
+    let understated = registry
+        .materialize(
+            established,
+            one_root_extent_plan(
+                &carrier_identity,
+                &qualification_identity,
+                &algebra_parameter,
+                0x6000,
+                1,
+            ),
+        )
+        .expect_err("a smaller plan cannot understate the source-derived owner capacity");
+    assert_eq!(
+        understated.diagnostic().0,
+        "program-local Extent geometry does not equal its established interval capacity"
+    );
+    assert_eq!(registry.held_accounts(), 0);
+    let [(established, understated_plan)]: [_; 1] = (*understated)
+        .into_inputs()
+        .try_into()
+        .expect("capacity understatement returns the exact account and plan");
+    assert_eq!(
+        established.lineage().occurrence().prebinding(),
+        prebinding_identity
+    );
+    assert_eq!(
+        (understated_plan.base(), understated_plan.length()),
+        (0x6000, 1)
+    );
+
     let extent = registry
         .materialize(
             established,
