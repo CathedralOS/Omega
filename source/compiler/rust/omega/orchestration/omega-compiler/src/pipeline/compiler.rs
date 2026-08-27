@@ -358,36 +358,15 @@ impl Compiler {
         // be emitted. Retain the independently evaluated request at this seam.
         let _optimization_report_request = computed_build_config.optimization_report_request;
         let build_config = computed_build_config.config;
-        let selected_program_entry = crate::pipeline::build_config::selected_program_entry_machine(
+        let selected_program_entry = crate::pipeline::build_config::select_compiler_program_entry(
+            &typed,
             &build_config,
             self.options.target_name.as_deref(),
+            &boundary_calling_plan_realizations,
         )?;
-        let selected_program_entry_source_signature =
-            if let Some(selected_program_entry) = selected_program_entry {
-                Some(
-                    crate::pipeline::build_config::validate_selected_program_entry_shape(
-                        &typed,
-                        selected_program_entry,
-                    )?,
-                )
-            } else {
-                None
-            };
-        let program_entry_realization = if let Some(selected_program_entry) = selected_program_entry
-        {
-            crate::pipeline::build_config::validate_selected_program_entry_calling_plan(
-                &typed,
-                selected_program_entry,
-                &boundary_calling_plan_realizations,
-            )?
-        } else {
-            None
-        };
-        let program_entry_boundary_plan = program_entry_realization
-            .as_ref()
-            .map(|realization| realization.semantic_boundary_entry_plan.clone());
         let entry_machine_name = selected_program_entry
-            .map(|selected| selected.machine_name.to_owned())
+            .as_ref()
+            .map(|selected| selected.machine_name().to_owned())
             .or(self.test_entry_machine_name.clone());
         let target_provider_defaults =
             crate::pipeline::build_config::compute_target_provider_defaults(
@@ -496,14 +475,13 @@ impl Compiler {
             crate::pipeline::component_progress::build_selected_component_progress_manifest(
                 &checked.program,
                 &checked.selected_provider_plans,
-                selected_program_entry_source_signature
-                    .as_ref()
-                    .map(|source| {
-                        crate::pipeline::component_progress::ExactComponentProgressRoot::new(
-                            source.machine_symbol(),
-                            source.normalized_callable_identity(),
-                        )
-                    }),
+                selected_program_entry.as_ref().map(|selected| {
+                    let source = selected.source_signature();
+                    crate::pipeline::component_progress::ExactComponentProgressRoot::new(
+                        source.machine_symbol(),
+                        source.normalized_callable_identity(),
+                    )
+                }),
                 entry_machine_name.as_deref(),
             )?
             .map(Arc::new);
@@ -609,17 +587,26 @@ impl Compiler {
         // in-source `target { subsystem }` word is retired.
         let _ = build_machine_present;
         let (subsystem, freestanding) = (build_config.subsystem, build_config.freestanding);
-        let program_storage_entry_provider = program_entry_realization
+        let program_storage_entry_provider = selected_program_entry
             .as_ref()
-            .map(|realization| {
+            .and_then(|selected| selected.calling_plans())
+            .map(|calling_plans| {
                 crate::pipeline::provider_plans::optional_selected_external_root_provider_plan(
                     &checked.selected_provider_plans,
-                    &realization.storage_entry.schema().trait_name,
+                    &calling_plans.storage_entry.schema().trait_name,
                 )
                 .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])
             })
             .transpose()?
             .flatten();
+        let (selected_program_entry_source_signature, program_entry_realization) =
+            selected_program_entry.map_or((None, None), |selected| {
+                let (source_signature, calling_plans) = selected.into_parts();
+                (Some(source_signature), calling_plans)
+            });
+        let program_entry_boundary_plan = program_entry_realization
+            .as_ref()
+            .map(|realization| realization.semantic_boundary_entry_plan.clone());
         // Selected external leaves become the target's source-authored
         // platform surface.
         let mut backend = control_flow_to_backend_plan(

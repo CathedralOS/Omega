@@ -1366,6 +1366,73 @@ pub(crate) struct SelectedProgramEntryCallingPlans {
     pub(crate) storage_entry: super::program_storage_entry::SelectedProgramStorageEntryPlan,
 }
 
+/// Complete compiler-owned settlement for one target-selected `ProgramEntry`.
+///
+/// The source signature and optional two-surface calling plans are validated
+/// while typed declarations are still available, then travel together instead
+/// of becoming independent driver couriers. A test-harness entry-name override
+/// is deliberately absent: it cannot acquire source, calling-plan, or storage
+/// authority through this carrier.
+pub(crate) struct SelectedCompilerProgramEntry {
+    source_signature: super::SelectedProgramEntrySourceSignature,
+    calling_plans: Option<SelectedProgramEntryCallingPlans>,
+}
+
+impl SelectedCompilerProgramEntry {
+    fn new(
+        source_signature: super::SelectedProgramEntrySourceSignature,
+        calling_plans: Option<SelectedProgramEntryCallingPlans>,
+    ) -> Self {
+        Self {
+            source_signature,
+            calling_plans,
+        }
+    }
+
+    pub(crate) fn machine_name(&self) -> &str {
+        self.source_signature.machine_name()
+    }
+
+    pub(crate) const fn source_signature(&self) -> &super::SelectedProgramEntrySourceSignature {
+        &self.source_signature
+    }
+
+    pub(crate) const fn calling_plans(&self) -> Option<&SelectedProgramEntryCallingPlans> {
+        self.calling_plans.as_ref()
+    }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        super::SelectedProgramEntrySourceSignature,
+        Option<SelectedProgramEntryCallingPlans>,
+    ) {
+        (self.source_signature, self.calling_plans)
+    }
+}
+
+/// Resolve and validate the complete compiler-owned `ProgramEntry` input.
+/// Diagnostic order is intentional: exact target-slot selection precedes
+/// source-shape validation, which precedes optional physical/semantic calling-
+/// plan validation.
+pub(crate) fn select_compiler_program_entry(
+    typed: &TypedTrees,
+    config: &BuildConfig,
+    target_name: Option<&str>,
+    realizations: &[super::calling_policy_plans::BoundaryCallingPlanRealization],
+) -> Result<Option<SelectedCompilerProgramEntry>, Vec<Diagnostic>> {
+    let Some(selected) = selected_program_entry_machine(config, target_name)? else {
+        return Ok(None);
+    };
+    let source_signature = validate_selected_program_entry_shape(typed, selected)?;
+    let calling_plans =
+        validate_selected_program_entry_calling_plan(typed, selected, realizations)?;
+    Ok(Some(SelectedCompilerProgramEntry::new(
+        source_signature,
+        calling_plans,
+    )))
+}
+
 pub(crate) fn validate_selected_program_entry_calling_plan(
     typed: &TypedTrees,
     selected: SelectedProgramEntry<'_>,
@@ -3484,7 +3551,8 @@ fn extract_build_config(
 #[cfg(test)]
 mod tests {
     use super::{
-        BuildConfig, BuildMachineFilesystemScope, RootBinding, selected_program_entry_machine,
+        BuildConfig, BuildMachineFilesystemScope, RootBinding, SelectedCompilerProgramEntry,
+        select_compiler_program_entry, selected_program_entry_machine,
     };
     use psi_checked_interpreter::{FilesystemSponsor, FilesystemSponsorLimits};
     use std::{
@@ -3513,6 +3581,71 @@ mod tests {
                 .collect(),
             ..BuildConfig::default()
         }
+    }
+
+    fn source_only_program_entry_settlement() -> SelectedCompilerProgramEntry {
+        let source_signature =
+            super::super::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+                omega_target::TargetProfile::WindowsX64.program_entry_slot(),
+                psi_symbols::SymbolHandle::from_arena_index(1),
+                psi_symbols::SymbolHandle::from_arena_index(2),
+                "Application::start".into(),
+                "entry".into(),
+                "Application::start::entry() -> Unit".into(),
+                super::super::ProgramEntrySourceReceiverSignature::Free,
+                Vec::new(),
+            )
+            .expect("exact source-only ProgramEntry fixture");
+        SelectedCompilerProgramEntry::new(source_signature, None)
+    }
+
+    #[test]
+    fn compiler_program_entry_absence_needs_no_typed_or_calling_plan_facts() {
+        let selected = select_compiler_program_entry(
+            &psi_typed_trees::TypedTrees::default(),
+            &BuildConfig::default(),
+            None,
+            &[],
+        )
+        .expect("an absent ProgramEntry is a complete settlement");
+
+        assert!(selected.is_none());
+    }
+
+    #[test]
+    fn compiler_program_entry_consuming_split_preserves_source_only_custody() {
+        let selected = source_only_program_entry_settlement();
+        let expected_source = selected.source_signature().clone();
+
+        assert_eq!(selected.machine_name(), "Application::start");
+        assert!(selected.calling_plans().is_none());
+        let (source_signature, calling_plans) = selected.into_parts();
+
+        assert_eq!(source_signature, expected_source);
+        assert!(calling_plans.is_none());
+    }
+
+    #[test]
+    fn compiler_program_entry_validates_source_before_calling_plans() {
+        let config = config_with_root_bindings(&[(
+            "windows_x86_64::ProgramEntry",
+            "MissingApplication::start",
+        )]);
+        let result = select_compiler_program_entry(
+            &psi_typed_trees::TypedTrees::default(),
+            &config,
+            Some("windows_x64"),
+            &[],
+        );
+        let Err(diagnostics) = result else {
+            panic!("missing source entry must reject before calling-plan selection")
+        };
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].to_string(),
+            "error: build root slot names unknown entry machine `MissingApplication::start`"
+        );
     }
 
     #[test]

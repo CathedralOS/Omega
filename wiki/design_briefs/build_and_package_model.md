@@ -401,6 +401,15 @@ trait's current requirement count. Exact slot consumers can cite only the
 selected requirement's normalized contract; they possess no conformance
 identity from which trait laws could be cited.
 
+Compiler orchestration retains that selected entry as one build-owned typed
+settlement carrier. Target-slot resolution runs first, exact source-shape
+validation second, and optional physical/semantic plus program-storage calling-
+plan validation third. The source signature and both calling surfaces remain
+joined through component-progress and provider projection, then split only at
+their backend and storage consumers. A test-harness entry-name override is not
+part of this carrier and cannot acquire slot, signature, calling-plan, or
+storage authority.
+
 The physical arrival requirement, semantic arrival requirement, and selected
 source entry are different layers, not competing entry identities. For example,
 a hosted profile records:
