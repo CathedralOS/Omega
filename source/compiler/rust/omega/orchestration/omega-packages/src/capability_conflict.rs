@@ -20,10 +20,10 @@ use std::cmp::Ordering;
 use std::fmt;
 
 const CONFLICT_FINGERPRINT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CAPABILITY-CONFLICT\0";
-const CONFLICT_FINGERPRINT_VERSION: u16 = 8;
+const CONFLICT_FINGERPRINT_VERSION: u16 = 9;
 const CANDIDATE_CLOSURE_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CANDIDATE-CLOSURE\0";
 const CANDIDATE_CLOSURE_VERSION: u16 = 2;
-const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V7\n";
+const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V8\n";
 
 /// Resource ceilings for exact review-row comparison.
 ///
@@ -1638,6 +1638,7 @@ const fn source_location_role_tag(role: PackageReviewSourceLocationRole) -> u8 {
         PackageReviewSourceLocationRole::ContractClause => 12,
         PackageReviewSourceLocationRole::BodyCall => 13,
         PackageReviewSourceLocationRole::SynchronousInvocation => 14,
+        PackageReviewSourceLocationRole::ServiceReach => 15,
     }
 }
 
@@ -1664,6 +1665,7 @@ const fn source_location_role_token(role: PackageReviewSourceLocationRole) -> &'
         PackageReviewSourceLocationRole::ContractClause => "contract_clause",
         PackageReviewSourceLocationRole::BodyCall => "body_call",
         PackageReviewSourceLocationRole::SynchronousInvocation => "synchronous_invocation",
+        PackageReviewSourceLocationRole::ServiceReach => "service_reach",
     }
 }
 

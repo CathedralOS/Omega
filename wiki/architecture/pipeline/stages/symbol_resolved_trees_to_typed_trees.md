@@ -47,6 +47,11 @@ Must own:
 - Typed machine contracts retain the optional named evidence binding separately
   from the proposition fact it names; this stage does not infer or select the
   evidence producer.
+- Typed reach custody preserves the resolved owner, every authored keyword
+  occurrence, and every exact target-symbol/span pair. The semantic row remains
+  normalized separately, allowing package projection to distinguish authored
+  empty publication from omission and to verify source custody without
+  reconstructing names.
 - Typed call telescopes retain a nested conformance application's own
   lifetime/type/const/static-machine argument kinds. Every non-lifetime slot is
   present explicitly; ordinary lifetime constraints remain available for the

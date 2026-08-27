@@ -61,7 +61,10 @@ The Psi product role owns this stage; its eventual hosted source belongs under
 - `parser/machine/clauses.rs` owns machine `satisfies`, external-realization
   `via <Binding>`, `terminates [by ...]`, `reaches`, `invokes`, `suspends`,
   `blocks`, `crashes`, `requires`, and `ensures`
-  clauses. A machine `requires` or `ensures` clause may retain one explicit
+  clauses. Every authored `reaches` keyword is retained independently from its
+  member span, including a memberless clause, so later stages can distinguish
+  explicit empty publication from omission without reparsing source text. A
+  machine `requires` or `ensures` clause may retain one explicit
   evidence-term binding (`name: proposition`); a named clause contains exactly
   one proposition. An `ensures` section also admits one
   `ExactResultCase -> { guarantees }` group per declared result case. Group
