@@ -592,6 +592,51 @@ mod tests {
         )
     }
 
+    fn dead_scalar_literals_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_081).unwrap();
+        let block = BlockId::new(1_082).unwrap();
+        let boolean = ValueId::new(1_083).unwrap();
+        let integer = ValueId::new(1_084).unwrap();
+        verified(
+            module_with_blocks(
+                machine,
+                block,
+                TerminalMachineResult::Unit,
+                vec![Block {
+                    id: block,
+                    parameters: Vec::new(),
+                    operations: vec![
+                        Operation {
+                            id: OperationId::new(1_085).unwrap(),
+                            result: OperationResult::Scalar(ValueDeclaration {
+                                id: boolean,
+                                scalar_type: ScalarType::Boolean,
+                            }),
+                            kind: OperationKind::BooleanConstant { value: true },
+                        },
+                        Operation {
+                            id: OperationId::new(1_086).unwrap(),
+                            result: OperationResult::Scalar(ValueDeclaration {
+                                id: integer,
+                                scalar_type: ScalarType::Integer(
+                                    IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                                ),
+                            }),
+                            kind: OperationKind::IntegerConstant {
+                                value: IntegerValue::Unsigned(7),
+                            },
+                        },
+                    ],
+                    terminator: Terminator::ReturnUnit {
+                        edge: EdgeId::new(1_087).unwrap(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+            ),
+            ProofBundle::default(),
+        )
+    }
+
     fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationUnit {
         let entry_machine = MachineId::new(1_041).unwrap();
         let entry_block = BlockId::new(1_042).unwrap();
@@ -995,6 +1040,32 @@ mod tests {
                 .filter(|row| row.input == source_site)
                 .count(),
             2
+        );
+    }
+
+    #[test]
+    fn dead_scalar_literal_elimination_replays_transitive_fuel_to_the_terminal() {
+        let selections =
+            OptimizationSelections::new([Optimization::DeadPureScalarElimination]).unwrap();
+        let optimized =
+            project_optimization_run(run(dead_scalar_literals_verified(), selections)).unwrap();
+        assert_eq!(optimized.commits().len(), 2);
+        assert_eq!(optimized.plan().functions[0].operations.len(), 1);
+        assert_eq!(optimized.unit().functions[0].facts.len(), 0);
+        let terminal = &optimized.unit().functions[0].blocks[0].nodes[0];
+        assert!(matches!(
+            terminal.operation,
+            TerminalAbstractOperation::ReturnUnit { .. }
+        ));
+        assert_eq!(terminal.provenance.len(), 3);
+        assert_eq!(terminal.fuel.len(), 3);
+        assert!(
+            optimized
+                .transformation_ledger()
+                .records()
+                .iter()
+                .flat_map(|record| &record.provenance)
+                .all(|row| row.disposition.is_realized())
         );
     }
 

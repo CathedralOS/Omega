@@ -10,12 +10,13 @@ use omega_optimization_core::{
 };
 use omega_optimization_unit::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
-    ConstantConditionalRewrite, IntegerConstantRewrite, IntegerEvaluationWitness,
-    LinearEmptyBlockRewrite, NodeLocation, OptimizationFact, OwnershipFrontierSite,
-    PathQualifiedEmptyBlockRewrite, ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody,
-    PsiOptimizationUnit, PsiProvenance, PsiRealizationSite, PsiRewriteCandidate,
-    RedundantBlockParameterRewrite, RedundantBlockParameterWitness, ScalarSubstitution,
-    SharedTerminalJumpFusionRewrite, UnreachablePrivateMachinesRewrite,
+    ConstantConditionalRewrite, DeadScalarNodeRewrite, IntegerConstantRewrite,
+    IntegerEvaluationWitness, LinearEmptyBlockRewrite, NodeLocation, OptimizationFact,
+    OwnershipFrontierSite, PathQualifiedEmptyBlockRewrite, ProvenanceDisposition,
+    ProvenanceRewrite, PrunedMachineCustody, PsiOptimizationUnit, PsiProvenance,
+    PsiRealizationSite, PsiRewriteCandidate, RedundantBlockParameterRewrite,
+    RedundantBlockParameterWitness, ScalarSubstitution, SharedTerminalJumpFusionRewrite,
+    UnreachablePrivateMachinesRewrite,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{BlockId, IntegerValue, MachineId, OperationId, ValueId};
@@ -28,12 +29,144 @@ use crate::{
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v1";
 const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v10";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
+const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v1";
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ConstantConditionalFoldRule;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct UnreachablePrivateMachinePruneRule;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DeadScalarLiteralEliminationRule;
+
+impl DeadScalarLiteralEliminationRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.dead-unused-scalar-literal-elimination.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(DEAD_PURE_SCALAR_PASS_NAME),
+            1,
+            AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for DeadScalarLiteralEliminationRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        let Some(AnalysisProduct::ValueLiveness(liveness)) =
+            analyses.get(AnalysisKind::ValueLiveness)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::ValueLiveness,
+            ));
+        };
+        let Some(AnalysisProduct::EffectSummaries(effects)) =
+            analyses.get(AnalysisKind::EffectSummaries)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::EffectSummaries,
+            ));
+        };
+        let mut candidates = Vec::new();
+        for function in &unit.functions {
+            for block in &function.blocks {
+                for (node_index, node) in block.nodes.iter().enumerate() {
+                    let (source_operation, result, scalar_type) = match node.operation {
+                        O::IntegerConstant {
+                            psi_operation,
+                            result,
+                            scalar_type,
+                            ..
+                        } => (psi_operation, result, scalar_type),
+                        O::BooleanConstant {
+                            psi_operation,
+                            result,
+                            ..
+                        } => (psi_operation, result, psi_core::ScalarType::Boolean),
+                        _ => continue,
+                    };
+                    let Some(next) = block.nodes.get(node_index + 1) else {
+                        continue;
+                    };
+                    if next
+                        .provenance
+                        .iter()
+                        .any(|source| node.provenance.contains(source))
+                    {
+                        continue;
+                    }
+                    let node_index =
+                        u32::try_from(node_index).expect("optimization node index fits u32");
+                    let live = liveness
+                        .blocks
+                        .iter()
+                        .find(|row| row.machine == function.machine && row.block == block.id)
+                        .and_then(|row| row.nodes.iter().find(|row| row.node == node_index));
+                    let effect = effects.nodes.iter().find(|row| {
+                        row.machine == function.machine
+                            && row.block == block.id
+                            && row.node == node_index
+                    });
+                    if live.is_none_or(|row| row.exit.contains(&result))
+                        || effect.is_none_or(|row| {
+                            row.revision != unit.identity
+                                || row.class != crate::EffectClass::PureScalar
+                                || row.observable != crate::EffectKnowledge::No
+                                || row.structural_state != crate::EffectKnowledge::No
+                                || row.crash != crate::EffectKnowledge::No
+                                || row.suspension != crate::EffectKnowledge::No
+                        })
+                    {
+                        continue;
+                    }
+                    let location = NodeLocation {
+                        machine: function.machine,
+                        block: block.id,
+                        node: node_index,
+                    };
+                    let Some((affected_blocks, provenance)) =
+                        dead_scalar_node_accounting(function, location)
+                    else {
+                        continue;
+                    };
+                    candidates.push(
+                        PsiRewriteCandidate::new_dead_scalar_node(
+                            unit.identity,
+                            Self::contract(),
+                            affected_blocks,
+                            provenance,
+                            -1,
+                            DeadScalarNodeRewrite {
+                                location,
+                                source_operation,
+                                result,
+                                scalar_type,
+                            },
+                        )
+                        .map_err(RuleProposalError::InvalidCandidate)?,
+                    );
+                }
+            }
+        }
+        Ok(candidates)
+    }
+}
 
 impl UnreachablePrivateMachinePruneRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -1552,6 +1685,76 @@ fn shared_terminal_fusion_accounting(
     let mut affected = vec![predecessor.block, target];
     affected.sort();
     affected.dedup();
+    Some((affected, provenance))
+}
+
+fn dead_scalar_node_accounting(
+    function: &omega_optimization_unit::PsiOptimizationFunction,
+    location: NodeLocation,
+) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
+    let block_position = function
+        .blocks
+        .iter()
+        .position(|block| block.id == location.block)?;
+    let node_position = usize::try_from(location.node).ok()?;
+    let block = &function.blocks[block_position];
+    let removed = block.nodes.get(node_position)?;
+    block.nodes.get(node_position.checked_add(1)?)?;
+    let output_receiver = PsiRealizationSite::Node(location);
+    let mut provenance = vec![ProvenanceRewrite {
+        input: PsiRealizationSite::Node(location),
+        disposition: ProvenanceDisposition::RealizedAt(output_receiver),
+        sources: removed.provenance.clone(),
+        fuel: removed.fuel.clone(),
+    }];
+    for (index, node) in block.nodes.iter().enumerate().skip(node_position + 1) {
+        if node.provenance.is_empty() {
+            continue;
+        }
+        let old = NodeLocation {
+            machine: function.machine,
+            block: block.id,
+            node: u32::try_from(index).ok()?,
+        };
+        let new = NodeLocation {
+            node: old.node.checked_sub(1)?,
+            ..old
+        };
+        provenance.push(ProvenanceRewrite {
+            input: PsiRealizationSite::Node(old),
+            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(new)),
+            sources: node.provenance.clone(),
+            fuel: node.fuel.clone(),
+        });
+    }
+    let mut affected = vec![block.id];
+    for later in function.blocks.iter().skip(block_position + 1) {
+        affected.push(later.id);
+        for (index, node) in later.nodes.iter().enumerate() {
+            if node.provenance.is_empty() {
+                continue;
+            }
+            let site = PsiRealizationSite::Node(NodeLocation {
+                machine: function.machine,
+                block: later.id,
+                node: u32::try_from(index).ok()?,
+            });
+            provenance.push(ProvenanceRewrite {
+                input: site,
+                disposition: ProvenanceDisposition::RealizedAt(site),
+                sources: node.provenance.clone(),
+                fuel: node.fuel.clone(),
+            });
+        }
+    }
+    affected.sort();
+    provenance.sort_by_key(|row| {
+        (
+            row.input,
+            row.disposition.canonical_tag(),
+            row.disposition.site(),
+        )
+    });
     Some((affected, provenance))
 }
 
@@ -3123,6 +3326,7 @@ pub fn built_in_psi_registries(
             Optimization::SparseConditionalConstantPropagation
                 | Optimization::ControlFlowCleanup
                 | Optimization::CopyPropagation
+                | Optimization::DeadPureScalarElimination
         )
     }) {
         return Err(RuleRegistryError::UnsupportedOptimization(*unsupported));
@@ -3138,6 +3342,11 @@ pub fn built_in_psi_registries(
     }
     if psi_selections.contains(Optimization::CopyPropagation) {
         registries.push(registry_for_optimization(Optimization::CopyPropagation)?);
+    }
+    if psi_selections.contains(Optimization::DeadPureScalarElimination) {
+        registries.push(registry_for_optimization(
+            Optimization::DeadPureScalarElimination,
+        )?);
     }
     Ok(registries)
 }
@@ -3207,6 +3416,9 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
     if optimization == Optimization::CopyPropagation {
         register!(0, RedundantBlockParameterRule);
     }
+    if optimization == Optimization::DeadPureScalarElimination {
+        register!(0, DeadScalarLiteralEliminationRule);
+    }
     registrations
 }
 
@@ -3239,9 +3451,9 @@ pub(crate) mod tests {
     use omega_optimization_validation::{
         OptimizationUnitValidationError, validate_adjacent_block_merge_candidate,
         validate_boolean_evaluation_candidate, validate_constant_conditional_candidate,
-        validate_integer_evaluation_candidate, validate_linear_empty_block_candidate,
-        validate_path_qualified_empty_block_candidate, validate_psi_optimization_unit,
-        validate_redundant_block_parameter_candidate,
+        validate_dead_scalar_node_candidate, validate_integer_evaluation_candidate,
+        validate_linear_empty_block_candidate, validate_path_qualified_empty_block_candidate,
+        validate_psi_optimization_unit, validate_redundant_block_parameter_candidate,
         validate_shared_terminal_jump_fusion_candidate,
         validate_unreachable_private_machines_candidate,
     };
@@ -3800,6 +4012,60 @@ pub(crate) mod tests {
                         },
                         TerminalAbstractOperation::ReturnUnit {
                             psi_edge: id(936, EdgeId::new),
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    pub(crate) fn dead_scalar_literals_unit() -> PsiOptimizationUnit {
+        let machine = id(1_201, MachineId::new);
+        let block = id(1_202, BlockId::new);
+        let boolean = id(1_203, ValueId::new);
+        let integer_value = id(1_204, ValueId::new);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([39; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry: block,
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        TerminalAbstractOperation::BooleanConstant {
+                            psi_operation: id(1_205, OperationId::new),
+                            result: boolean,
+                            value: true,
+                        },
+                        TerminalAbstractOperation::IntegerConstant {
+                            psi_operation: id(1_206, OperationId::new),
+                            result: integer_value,
+                            scalar_type: ScalarType::Integer(integer),
+                            value: psi_core::IntegerValue::Unsigned(7),
+                        },
+                        TerminalAbstractOperation::ReturnUnit {
+                            psi_edge: id(1_207, EdgeId::new),
                             cleanup_actions: Vec::new(),
                         },
                     ],
@@ -5038,6 +5304,8 @@ pub(crate) mod tests {
         assert_eq!(built_in_psi_registry(&cleanup).unwrap().len(), 6);
         let copy = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
         assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
+        let dead = OptimizationSelections::new([Optimization::DeadPureScalarElimination]).unwrap();
+        assert_eq!(built_in_psi_registry(&dead).unwrap().len(), 1);
         let unsupported_combination = OptimizationSelections::new([
             Optimization::SparseConditionalConstantPropagation,
             Optimization::CopyPropagation,
@@ -5714,6 +5982,97 @@ pub(crate) mod tests {
             validate_shared_terminal_jump_fusion_candidate(&threaded, &forged),
             Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
         );
+    }
+
+    #[test]
+    fn dead_scalar_literals_rehome_operation_custody_without_tombstones() {
+        let unit = dead_scalar_literals_unit();
+        let contract = DeadScalarLiteralEliminationRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let candidates = DeadScalarLiteralEliminationRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap();
+        assert_eq!(candidates.len(), 2);
+        let first = candidates
+            .iter()
+            .find(|candidate| candidate.node_decision_point().unwrap().node == 0)
+            .unwrap();
+        let accepted = validate_dead_scalar_node_candidate(&unit, first).unwrap();
+        assert_eq!(accepted.unit().functions[0].blocks[0].nodes.len(), 2);
+        assert_eq!(accepted.unit().functions[0].facts.len(), 1);
+        assert_eq!(
+            accepted.unit().functions[0].blocks[0].nodes[0].provenance,
+            [
+                PsiProvenance::Operation(id(1_206, OperationId::new)),
+                PsiProvenance::Operation(id(1_205, OperationId::new)),
+            ]
+        );
+        assert!(
+            accepted
+                .provenance()
+                .iter()
+                .all(|row| row.disposition.is_realized())
+        );
+
+        let next_unit = accepted.into_unit();
+        let mut manager = crate::AnalysisManager::new(&next_unit);
+        let products = manager
+            .require_all(&next_unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let [second] = DeadScalarLiteralEliminationRule
+            .propose(&next_unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .try_into()
+            .expect("only the inherited integer literal remains dead");
+        let final_unit = validate_dead_scalar_node_candidate(&next_unit, &second)
+            .unwrap()
+            .into_unit();
+        let terminal = &final_unit.functions[0].blocks[0].nodes[0];
+        assert!(matches!(terminal.operation, O::ReturnUnit { .. }));
+        assert_eq!(
+            terminal.provenance,
+            [
+                PsiProvenance::Edge(id(1_207, EdgeId::new)),
+                PsiProvenance::Operation(id(1_206, OperationId::new)),
+                PsiProvenance::Operation(id(1_205, OperationId::new)),
+            ]
+        );
+
+        let mut used = unit.clone();
+        used.functions[0].blocks[0].nodes[2].operation = O::Return {
+            psi_edge: id(1_207, EdgeId::new),
+            result: id(1_204, ValueId::new),
+            value: id(1_204, ValueId::new),
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
+            cleanup_actions: Vec::new(),
+        };
+        used.functions[0].result = TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+            value: id(1_204, ValueId::new),
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
+        });
+        used.functions[0].blocks[0].nodes[2].uses = vec![omega_optimization_unit::ValueUse {
+            value: id(1_204, ValueId::new),
+            block: id(1_202, BlockId::new),
+            node: 2,
+        }];
+        used.identity = recompute_psi_optimization_unit_identity(&used);
+        validate_psi_optimization_unit(&used).unwrap();
+        let liveness = compute_analysis(&used, AnalysisKind::ValueLiveness).unwrap();
+        let effects = compute_analysis(&used, AnalysisKind::EffectSummaries).unwrap();
+        let proposed = DeadScalarLiteralEliminationRule
+            .propose(&used, RuleAnalysisView::new(&[liveness, effects]))
+            .unwrap();
+        assert_eq!(proposed.len(), 1);
+        assert_eq!(proposed[0].node_decision_point().unwrap().node, 0);
     }
 
     #[test]
