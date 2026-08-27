@@ -3,6 +3,7 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompileOutputKind {
     CheckOnly,
+    TerminalArtifact,
     RetainedNativeArtifact,
     NativeExecutable,
     ObjectContainer,
@@ -430,6 +431,9 @@ pub struct CompileReport {
     /// Complete validated native payload retained before any output or runtime
     /// installation. Exactly the retained-native output kind owns this value.
     retained_native_artifact: Option<RetainedNativeArtifact>,
+    /// Canonical source-free Psi artifact retained at the exact Psi/Omega
+    /// ownership seam. It carries no target or deployment authority.
+    terminal_artifact: Option<psi_terminal_codec::CanonicalTerminalArtifact>,
     /// Exact checked publication receipt for a native executable image.
     /// Object-container fallbacks and check-only compilations retain `None`.
     executable_publication: Option<ExecutablePublicationReceipt>,
@@ -478,6 +482,7 @@ impl CompileReport {
             wrote_output,
             output_kind,
             retained_native_artifact: None,
+            terminal_artifact: None,
             executable_publication,
             app_bundle_publication,
             terminal_component_deployment: None,
@@ -529,6 +534,7 @@ impl CompileReport {
             wrote_output: true,
             output_kind: CompileOutputKind::NativeExecutable,
             retained_native_artifact: None,
+            terminal_artifact: None,
             executable_publication: None,
             app_bundle_publication: None,
             terminal_component_deployment: Some(deployment),
@@ -555,6 +561,7 @@ impl CompileReport {
             wrote_output: false,
             output_kind: CompileOutputKind::RetainedNativeArtifact,
             retained_native_artifact: Some(artifact),
+            terminal_artifact: None,
             executable_publication: None,
             app_bundle_publication: None,
             terminal_component_deployment: None,
@@ -586,6 +593,47 @@ impl CompileReport {
 
     pub const fn retained_native_artifact(&self) -> Option<&RetainedNativeArtifact> {
         self.retained_native_artifact.as_ref()
+    }
+
+    pub(crate) fn from_terminal_artifact(
+        root_path: PathBuf,
+        source_file_count: usize,
+        artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+        build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
+        build_observation_summary: Option<super::build_config::BuildObservationSummary>,
+    ) -> Result<Self, &'static str> {
+        artifact
+            .validate()
+            .map_err(|_| "compiler report received an invalid canonical Terminal artifact")?;
+        let report = Self {
+            root_path,
+            source_file_count,
+            wrote_output: false,
+            output_kind: CompileOutputKind::TerminalArtifact,
+            retained_native_artifact: None,
+            terminal_artifact: Some(artifact),
+            executable_publication: None,
+            app_bundle_publication: None,
+            terminal_component_deployment: None,
+            program_storage_entry: None,
+            program_storage_entry_bridge: None,
+            build_evaluation_usage,
+            build_observation_summary,
+        };
+        report
+            .has_consistent_executable_publication_custody()
+            .then_some(report)
+            .ok_or("compiler report retained inconsistent Terminal-artifact custody")
+    }
+
+    pub const fn terminal_artifact(
+        &self,
+    ) -> Option<&psi_terminal_codec::CanonicalTerminalArtifact> {
+        self.terminal_artifact.as_ref()
+    }
+
+    pub fn into_terminal_artifact(self) -> Option<psi_terminal_codec::CanonicalTerminalArtifact> {
+        self.terminal_artifact
     }
 
     /// Transfer the complete non-clonable pre-publication native payload out
@@ -718,13 +766,26 @@ impl CompileReport {
         let cardinality_matches_kind = match self.output_kind {
             CompileOutputKind::CheckOnly => {
                 !self.wrote_output
+                    && self.terminal_artifact.is_none()
                     && self.retained_native_artifact.is_none()
+                    && self.executable_publication.is_none()
+                    && self.app_bundle_publication.is_none()
+                    && self.terminal_component_deployment.is_none()
+            }
+            CompileOutputKind::TerminalArtifact => {
+                !self.wrote_output
+                    && self.retained_native_artifact.is_none()
+                    && self
+                        .terminal_artifact
+                        .as_ref()
+                        .is_some_and(|artifact| artifact.validate().is_ok())
                     && self.executable_publication.is_none()
                     && self.app_bundle_publication.is_none()
                     && self.terminal_component_deployment.is_none()
             }
             CompileOutputKind::RetainedNativeArtifact => {
                 !self.wrote_output
+                    && self.terminal_artifact.is_none()
                     && self
                         .retained_native_artifact
                         .as_ref()
@@ -735,6 +796,7 @@ impl CompileReport {
             }
             CompileOutputKind::NativeExecutable => {
                 self.wrote_output
+                    && self.terminal_artifact.is_none()
                     && self.retained_native_artifact.is_none()
                     && match (
                         self.executable_publication.as_ref(),
@@ -751,6 +813,7 @@ impl CompileReport {
             }
             CompileOutputKind::ObjectContainer => {
                 self.wrote_output
+                    && self.terminal_artifact.is_none()
                     && self.retained_native_artifact.is_none()
                     && self.executable_publication.is_none()
                     && self.app_bundle_publication.is_none()
@@ -797,6 +860,7 @@ fn program_storage_emission_matches_output_kind(
     match (output_kind, bridge_emission) {
         (_, None) => true,
         (CompileOutputKind::CheckOnly, Some((_, _, false))) => true,
+        (CompileOutputKind::TerminalArtifact, Some(_)) => false,
         (CompileOutputKind::RetainedNativeArtifact, Some((_, _, false))) => true,
         (CompileOutputKind::NativeExecutable, Some((true, false, true)))
         | (CompileOutputKind::NativeExecutable, Some((false, true, false))) => true,
@@ -825,6 +889,7 @@ fn retained_entry_boundary_matches_publication(
         (CompileOutputKind::CheckOnly, Some(_)) => {
             publication_boundary_contract_fingerprint.is_none()
         }
+        (CompileOutputKind::TerminalArtifact, Some(_)) => false,
         (CompileOutputKind::RetainedNativeArtifact, Some(_)) => {
             publication_boundary_contract_fingerprint.is_none()
         }
@@ -1013,6 +1078,7 @@ mod tests {
             wrote_output,
             output_kind,
             retained_native_artifact: None,
+            terminal_artifact: None,
             executable_publication: flat,
             app_bundle_publication: bundle,
             terminal_component_deployment: None,
