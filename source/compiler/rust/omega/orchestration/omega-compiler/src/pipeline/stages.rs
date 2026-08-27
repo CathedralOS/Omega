@@ -131,6 +131,7 @@ pub(super) struct CheckedProgramSurface {
     pub(super) component_progress: Option<Arc<omega_effects::ComponentProgressManifest>>,
     pub(super) task_activations: Arc<omega_task_plans::TaskActivationPlanSet>,
     pub(super) callback_placements: Arc<[omega_backend_plan::BoundNominalCallbackPlacement]>,
+    pub(super) external_binding_rows: Arc<[omega_calling_conventions::ExternalBindingRow]>,
 }
 
 #[derive(Clone, Default)]
@@ -944,6 +945,7 @@ pub(super) fn typed_trees_to_checked_trees(
             component_progress: None,
             task_activations: Arc::new(omega_task_plans::TaskActivationPlanSet::default()),
             callback_placements: Arc::from([]),
+            external_binding_rows: Arc::from([]),
         })
     })
 }
@@ -978,7 +980,6 @@ pub(super) fn control_flow_to_backend_plan(
     entry_boundary_plan: Option<omega_calling_conventions::BoundaryEntryPlan>,
     target_name: Option<&str>,
     freestanding: bool,
-    external_binding_rows: &[omega_calling_conventions::ExternalBindingRow],
     control_flow: ControlFlowPlan,
     workers: omega_core::parallel::WorkerPoolHandle,
     timings: &mut CompileTimings,
@@ -994,7 +995,7 @@ pub(super) fn control_flow_to_backend_plan(
         checked.callback_placements,
         target_profile,
         freestanding,
-        external_binding_rows,
+        &checked.external_binding_rows,
         Arc::new(control_flow),
         workers,
     )
