@@ -8,6 +8,7 @@ alpha/          audited execution seed and Alpha-owned assembler
 beta/           Beta language, compiler source, artifacts, and reference meaning
 gamma/          Gamma language, interpreter, and type checker
 delta/          Delta language, compiler source, and canonical samples
+library/        core, allocation, and standard library source
 psi/            Omega-written target-neutral product compiler
 omega/          Omega-written target realization and product entrypoint
 proof-kernel/   cross-language certificate checking
@@ -21,5 +22,6 @@ artifact. Repository-wide lattice orchestration lives under
 [`tools/bootstrap/`](../tools/bootstrap/); its shared corpora and cache
 manifests live under [`tests/lattice/`](../tests/lattice/).
 
-The package library remains at `omega/language/` until the package resolver can
-move it to `source/library/` without a compatibility path.
+The package library lives at `source/library/`. Temporary compiler readers may
+still address that physical location while package-manager P8 completes the
+ordinary package-graph route; no compatibility path exists.

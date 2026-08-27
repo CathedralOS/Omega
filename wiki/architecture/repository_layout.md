@@ -187,6 +187,10 @@ Omega/
 |   |-- beta/                                              # Beta language, compiler, and reference meaning.
 |   |-- gamma/                                             # Gamma language, interpreter, and type checker.
 |   |-- delta/                                             # Delta language, compiler, and canonical artifacts.
+|   |-- library/                                           # Core, allocation, and standard library source.
+|   |   |-- core/                                          # Always-available language package.
+|   |   |-- alloc/                                         # Allocation facilities.
+|   |   `-- std/                                           # Higher-level standard package surface.
 |   |-- psi/                                               # Omega-written target-neutral product compiler source.
 |   |-- omega/                                             # Omega-written target realization and product entrypoint.
 |   |   |-- build.omg                                      # Product build/composition entrypoint.
@@ -200,11 +204,6 @@ Omega/
 |
 |-- tests/lattice/{corpus,lattice-cache-deps}/             # Shared lattice inputs and cache manifests.
 |-- tools/bootstrap/                                       # Lattice orchestration and path gates.
-|
-|-- omega/
-|   `-- language/
-|       |-- core/                                       # Always-available language package.
-|       `-- std/                                        # Higher-level standard package surface.
 |
 |-- samples/
 |   |-- cli_mvp/                                        # Smallest console program.
@@ -229,6 +228,7 @@ steps are complete:
 
 ```text
 source/{alpha,beta,gamma,delta}/       canonical language rungs
+source/library/                        core, allocation, and standard libraries
 source/{psi,omega}/                    Omega-written product compiler halves
 source/proof-kernel/                   cross-cutting proof checking
 source/refinement/                     explicit cross-owner refinement joins
@@ -247,9 +247,10 @@ owner at `source/proof-kernel/`, separate from both the language spine and the
 product compiler. Refinement joins likewise live under `source/refinement/`
 rather than being hidden inside either endpoint.
 
-`omega/language/` has not moved. Its planned destination is `source/library/`,
-but that last relocation remains blocked until package-manager P8 removes the
-hardcoded standard-library path. No compatibility symlink is introduced.
+The package library now lives at `source/library/`. The relocation deliberately
+has no compatibility symlink. Package-manager P8 still owns removal of the
+temporary physical-path readers that were updated to this location during the
+move; the final implementation resolves std through the package graph.
 
 ## Placement Rules
 
@@ -392,8 +393,8 @@ hardcoded standard-library path. No compatibility symlink is introduced.
   than as empty directories on disk.
 - The retired `omega/host` capability scaffold is not a second boundary model.
   Portable host requirements and checked adapters live under
-  `omega/language/std`; target-owned implementations/defaults live under
-  `omega/language/std/targets`. [Retired: Host Package Scaffold](../design_briefs/retired_host_package_scaffold.md)
+  `source/library/std`; target-owned implementations/defaults live under
+  `source/library/std/targets`. [Retired: Host Package Scaffold](../design_briefs/retired_host_package_scaffold.md)
   preserves the migration fence for any future dedicated provider package; the
   `omega/host/` directory itself is gone.
 - Import tables, export tables, loader metadata, startup selection, and final

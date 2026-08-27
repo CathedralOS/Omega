@@ -1,5 +1,5 @@
 // RUN CANARY (exit 70) + interpreter differential. Math roster N4, first
-// slice: `Nat` lives in the bundled core (omega/language/core/nat.omg)
+// slice: `Nat` lives in the bundled core (source/library/core/nat.omg)
 // as ORDINARY RECURSIVE DATA -- the "core-injection" question dissolved:
 // the bundled `omega::` root plus N1's computed proof-only
 // classification already compose (recursive data is legal to declare,

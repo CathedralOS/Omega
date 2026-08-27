@@ -1,6 +1,6 @@
 // RUN CANARY (exit 70) + interpreter differential. N4 Rat rung: the
 // canonical-representative Rat carrier lives in the bundled core
-// (omega/language/core/rat.omg) as proof-only data over Nat -- mk_rat
+// (source/library/core/rat.omg) as proof-only data over Nat -- mk_rat
 // reduces by the gcd (the divisibility theory above it is the remaining
 // ladder), rat_eq is cross-multiplication. A program that uses core Rat
 // and never consumes it at runtime compiles and runs untouched.

@@ -2992,9 +2992,10 @@ complete.
 
 ## P8 — Declaration surface, workspace, and stdlib packaging
 
-Settled 2026-08-25. These land after P1's identity work and before any
-repository relocation; directory moves are cheap only once nothing resolves the
-standard library by path.
+Settled 2026-08-25. Identity and workspace declaration work landed first. The
+library relocation to `source/library/` was then performed on 2026-08-26 without
+a compatibility path; remaining physical-path readers are explicitly temporary
+debt in this section, not a reason to preserve the old tree.
 
 - [x] **Retire the `PACKAGE` const and its parser.** `declaration.rs` currently
       lexes `build.omg` and shape-matches a top-level literal — exactly one
@@ -3035,7 +3036,7 @@ standard library by path.
       application, and workspace builds without executing them. The product
       compiler checkpoint and feature/resource profile pin the expanded build
       vocabulary and application source.
-- [x] **Give `omega/language/std` a `build.omg`.** `builder.package(
+- [x] **Give `source/library/std` a `build.omg`.** `builder.package(
       "omega-language-std")`. Today the standard library has no manifest of any
       kind, which is why no git URL can name it and why minimal checkout is
       impossible.
@@ -3174,12 +3175,22 @@ standard library by path.
       Completed 2026-08-25: the governing brief now states that
       `omega::language::core` is bundled by decision, its version is the
       language version, and two versions cannot coexist in one graph.
-- [ ] **Replace the bundled-std reader.** `frontend.rs:643` reads
-      `omega/language/std/<module>.omg` directly. Route it through ordinary
-      package resolution once std is a package.
+- [ ] **Remove post-relocation physical std routing.** The relocation updated
+      `frontend.rs`, `stages.rs`, interpreter generation, and tests to the new
+      `source/library/` location so the repository remains buildable. Those
+      direct reads are temporary compatibility *code*, not a compatibility
+      path. Route every std module and target/provider selection through the
+      exact ordinary package graph; only `omega::language::core` remains welded
+      to the compiler by language-version identity.
+
+      Acceptance: production compilation has no physical `source/library/std`
+      lookup or repository-relative std fallback; filesystem and GUI provider
+      injection resolves exact graph nodes; std source is classified by its
+      admitted package identity rather than residence beneath a toolchain root;
+      and removing the declared std dependency rejects every std selection.
 
       Milestone 2026-08-26: a resolver/compiler vertical canary now consumes
-      the repository's real `omega/language/std` through an ordinary
+      the repository's real `source/library/std` through an ordinary
       `Source::Path` dependency. Resolution reads std's own
       `builder.package("omega-language-std")`, derives the requester-local
       `omega_language_std` alias, snapshots it outside the live toolchain tree,
@@ -3254,7 +3265,7 @@ standard library by path.
       handwritten; the two runtime source-reading parity tests and four-way
       catalog mirror are gone.
 
-Repository relocation (`source/on-ramp/rust` out of `bootstrap/`,
-Omega product source under `source/omega`, and `tests/` ownership of
-canaries and fixtures) is tracked separately and depends
-on nothing here except that the standard library stop being reached by path.
+Repository relocation is complete, including the move from `omega/language/`
+to `source/library/`. This section owns the remaining semantic cleanup: std must
+stop being reached by physical repository path even though that path is now in
+the correct ownership tree.

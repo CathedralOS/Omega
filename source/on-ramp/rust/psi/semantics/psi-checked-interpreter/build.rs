@@ -2,7 +2,7 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const FILESYSTEM_HOST_SOURCE: &str = "../../../../../../omega/language/std/filesystem_host.omg";
+const FILESYSTEM_HOST_SOURCE: &str = "../../../../../../source/library/std/filesystem_host.omg";
 
 struct Operation {
     name: String,
@@ -143,7 +143,7 @@ fn rust_variant(name: &str) -> String {
 
 fn render_operations(operations: &[Operation]) -> String {
     let mut generated = String::from(
-        "// @generated from omega/language/std/filesystem_host.omg by psi-checked-interpreter/build.rs.\n",
+        "// @generated from source/library/std/filesystem_host.omg by psi-checked-interpreter/build.rs.\n",
     );
     generated.push_str(
         "#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n#[repr(u16)]\npub(super) enum FilesystemHostOperation {\n",

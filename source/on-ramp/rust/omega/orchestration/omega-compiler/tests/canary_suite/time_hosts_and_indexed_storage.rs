@@ -395,7 +395,7 @@ fn cross_linux_value_syscalls_compile_on_both_architectures() {
             "{target} must retain its kernel stat extent"
         );
         let target_source = fs::read_to_string(repo_root().join(format!(
-            "omega/language/std/targets/{target}/filesystem_impl.omg"
+            "source/library/std/targets/{target}/filesystem_impl.omg"
         )))
         .expect("read Linux target filesystem policy");
         if target == "linux_arm64" {

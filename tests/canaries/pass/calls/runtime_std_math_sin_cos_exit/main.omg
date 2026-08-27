@@ -1,7 +1,7 @@
 use omega::language::core::float_operations;
 
 // std math sin/cos, natively (2026-07-11): the pure-Omega implementations
-// in omega/language/std/math.omg run through the real dispatch pipeline --
+// in source/library/std/math.omg run through the real dispatch pipeline --
 // sin(1) exercises the polynomial, sin(10) the binary-ladder range
 // reduction, cos(1) the let-bound sin composition. Each value is pinned to
 // a 1e-11 window around the true result (the degree-15 Taylor's worst case

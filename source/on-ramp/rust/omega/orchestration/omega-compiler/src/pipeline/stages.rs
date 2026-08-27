@@ -286,7 +286,7 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
         inject_build_prelude(&mut source_storage, build_source_id, timings)?;
     if build_requires_filesystem_layout {
         imports.seed(
-            crate::pipeline::frontend::bundled_omega_root().join("language/std/filesystem.omg"),
+            crate::pipeline::frontend::bundled_omega_root().join("std/filesystem.omg"),
         );
         load_pending_imports(
             &mut source_storage,
