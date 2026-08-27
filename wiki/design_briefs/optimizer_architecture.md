@@ -30,10 +30,12 @@ repeat milestone history.
 
 The repository currently has two backend lanes.
 
-- The development compiler in `source/compiler/rust/omega/` still lowers
-  `CheckedTrees -> StateGraph -> ControlFlowPlan -> AbstractOperations`. Its
-  state-value planner performs useful expression substitution and constant
-  folding, but it still consumes checked-tree expression handles.
+- The installed-output compatibility path in
+  `source/compiler/rust/omega/` still lowers `CheckedTrees -> StateGraph ->
+  ControlFlowPlan -> AbstractOperations`. Its state-value planner performs
+  useful expression substitution and constant folding, but it still consumes
+  checked-tree expression handles. The retained-native product no longer uses
+  this path.
 - The target architecture lowers canonical Terminal Psi artifact sections
   through `omega-terminal-psi-to-abstract-operations`. That path first decodes
   and verifies the semantic module and proof bundle, then produces

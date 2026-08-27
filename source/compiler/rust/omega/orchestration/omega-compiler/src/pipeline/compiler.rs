@@ -60,6 +60,7 @@ pub struct CompileRequest {
     requested_product: RequestedCompileProduct,
     executable_tcb_policy: ExecutableTcbBuildPolicy,
     artifact_policy: ArtifactEmissionPolicy,
+    terminal_admission_profile: psi_proof_admission::AdmissionProfile,
     package_inputs: Option<PackageCompilationInputs>,
 }
 
@@ -72,6 +73,7 @@ impl CompileRequest {
             requested_product,
             executable_tcb_policy: ExecutableTcbBuildPolicy::default(),
             artifact_policy: ArtifactEmissionPolicy::Full,
+            terminal_admission_profile: psi_proof_admission::AdmissionProfile::default(),
             package_inputs: None,
         }
     }
@@ -91,6 +93,17 @@ impl CompileRequest {
 
     pub fn with_artifact_policy(mut self, artifact_policy: ArtifactEmissionPolicy) -> Self {
         self.artifact_policy = artifact_policy;
+        self
+    }
+
+    /// Select the exact owner-accepted admission set used while verifying a
+    /// canonical Terminal artifact. The default is empty and therefore
+    /// rejects every admission-authorized obligation.
+    pub fn with_terminal_admission_profile(
+        mut self,
+        profile: psi_proof_admission::AdmissionProfile,
+    ) -> Self {
+        self.terminal_admission_profile = profile;
         self
     }
 
@@ -194,6 +207,7 @@ pub struct Compiler {
     test_entry_machine_name: Option<String>,
     worker_count: Option<usize>,
     artifact_policy: ArtifactEmissionPolicy,
+    terminal_admission_profile: psi_proof_admission::AdmissionProfile,
     package_inputs: Option<PackageCompilationInputs>,
 }
 
@@ -206,6 +220,7 @@ impl Compiler {
             test_entry_machine_name: None,
             worker_count: None,
             artifact_policy: request.artifact_policy,
+            terminal_admission_profile: request.terminal_admission_profile,
             package_inputs: request.package_inputs,
         }
     }
@@ -223,6 +238,7 @@ impl Compiler {
             test_entry_machine_name: None,
             worker_count: None,
             artifact_policy: ArtifactEmissionPolicy::Full,
+            terminal_admission_profile: psi_proof_admission::AdmissionProfile::default(),
             package_inputs: None,
         }
     }
@@ -243,19 +259,21 @@ impl Compiler {
     }
 
     pub fn compile(self) -> Result<CompileReport, Vec<Diagnostic>> {
-        if self.requested_product == RequestedCompileProduct::TerminalArtifact {
-            return self.compile_terminal_artifact();
-        }
         match self.requested_product {
-            RequestedCompileProduct::Check
-            | RequestedCompileProduct::NativeArtifact
-            | RequestedCompileProduct::InstalledOutput => {}
-            RequestedCompileProduct::TerminalArtifact => unreachable!(),
+            RequestedCompileProduct::TerminalArtifact => self.compile_terminal_artifact(),
+            RequestedCompileProduct::NativeArtifact => self.compile_native_artifact(),
+            RequestedCompileProduct::Check | RequestedCompileProduct::InstalledOutput => {
+                self.compile_legacy()
+            }
         }
+    }
+
+    /// Compatibility route retained only for checked reporting and installed
+    /// output while the remaining Terminal vocabulary migrates. Native
+    /// artifacts must never enter this StateGraph path.
+    fn compile_legacy(self) -> Result<CompileReport, Vec<Diagnostic>> {
         let installs_output = self.requested_product.installs_output();
-        let retains_native_artifact =
-            self.requested_product == RequestedCompileProduct::NativeArtifact;
-        let requires_native_backend = installs_output || retains_native_artifact;
+        let requires_native_backend = installs_output;
         let mut timings = CompileTimings::default();
         let emit_auxiliary_artifacts = self.artifact_policy.emits_auxiliary_artifacts();
 
@@ -641,33 +659,6 @@ impl Compiler {
         let (emission_plan, emitted) =
             backend_plan_to_native_image_payload(&backend, subsystem, &mut timings)?;
 
-        if retains_native_artifact {
-            let artifact = super::RetainedNativeArtifact::checked(emission_plan, emitted)
-                .map_err(|message| vec![Diagnostic::error(message)])?;
-            write_final_pipeline_observations(
-                &self.options,
-                self.artifact_policy,
-                FinalPipelineObservation::RetainedNative {
-                    backend: &backend.plan,
-                    emission: artifact.emission_plan(),
-                    storage_bridge: program_storage_entry_bridge.as_ref(),
-                    timings: timings.as_slice(),
-                },
-            )?;
-            return CompileReport::from_retained_native_artifact(
-                self.options.root_path,
-                source_file_count,
-                artifact,
-                program_storage_entry_bridge
-                    .as_ref()
-                    .map(|bridge| bridge.binding().clone()),
-                program_storage_entry_bridge,
-                build_evaluation_usage,
-                build_observation_summary,
-            )
-            .map_err(|message| vec![Diagnostic::error(message)]);
-        }
-
         let output = if installs_output {
             let written_output = write_output(
                 &self.options,
@@ -716,6 +707,67 @@ impl Compiler {
                 build_observation_summary,
             )
             .map_err(|message| vec![Diagnostic::error(message)])
+    }
+
+    /// Produce a complete target-native artifact exclusively through the
+    /// canonical Terminal-Psi handoff. Unsupported vocabulary, unresolved
+    /// provider executions, admissions outside the selected profile, and
+    /// build-bound component progress reject here; none may fall back to the
+    /// legacy StateGraph backend.
+    fn compile_native_artifact(self) -> Result<CompileReport, Vec<Diagnostic>> {
+        let checked = crate::pipeline::checked_entry::compile_to_checked_for_terminal(
+            &self.options,
+            self.package_inputs.as_ref(),
+        )?;
+        let source_file_count = checked.source_file_count();
+        let entry_machine = checked
+            .selected_program_entry_machine()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "native-artifact production requires one exact selected program entry",
+                )]
+            })?
+            .to_owned();
+        let target = checked.selected_native_target().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "native-artifact production requires one exact selected native target",
+            )]
+        })?;
+        if checked
+            .component_progress()
+            .is_some_and(|manifest| !manifest.pending().is_empty())
+        {
+            return Err(vec![Diagnostic::error(
+                "native-artifact production cannot discard pending build-bound component progress; request component staging with explicit establishment evidence",
+            )]);
+        }
+        let build_evaluation_usage = checked.build_evaluation_usage();
+        let build_observation_summary = checked.build_observation_summary().cloned();
+        let artifact =
+            psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, &entry_machine)
+                .map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "native-artifact Terminal production failed: {error}"
+                    ))]
+                })?;
+        let native_artifact =
+            crate::pipeline::terminal_native_artifact::realize_terminal_native_artifact(
+                artifact,
+                target,
+                checked.subsystem(),
+                &self.terminal_admission_profile,
+                checked.optimization_selections(),
+                checked.selected_provider_plans(),
+                &[],
+            )?;
+        CompileReport::from_retained_native_artifact(
+            self.options.root_path,
+            source_file_count,
+            native_artifact,
+            build_evaluation_usage,
+            build_observation_summary,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])
     }
 
     /// Produce the canonical Psi-owned handoff artifact without entering any

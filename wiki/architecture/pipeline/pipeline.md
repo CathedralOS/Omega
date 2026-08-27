@@ -113,12 +113,18 @@ the orchestration boundary without turning report generation into language
 semantics or duplicating policy through every representation stage.
 
 `RequestedCompileProduct::NativeArtifact` is a distinct stopping boundary. It
-runs native backend and blocker validation, then returns exactly one non-clonable
-payload owning the emission plan and complete image-writer inputs. Its report
-has no executable path, publication, installation, terminal deployment, or
-runtime authority and records that no primary output was written. Auxiliary
-observations remain controlled independently by `ArtifactEmissionPolicy`; with
-`OutputOnly`, retained-artifact compilation creates no build directory.
+runs the Psi-owned checked frontend and canonical Terminal producer, then gives
+that complete artifact to the source-free Terminal-native realization path
+shared with component staging. It returns exactly one non-clonable payload
+owning the canonical Terminal identity, checked target, selected-provider
+projection, object and relocation evidence, encoded text, and independently
+replayed final executable image. Its report has no executable path,
+publication, installation, terminal deployment, or runtime authority and
+records that no primary output was written. Unsupported Terminal vocabulary
+rejects at this boundary without legacy fallback, and pending component
+progress rejects rather than being discarded. Auxiliary observations remain
+controlled independently by `ArtifactEmissionPolicy`; with `OutputOnly`,
+retained-artifact compilation creates no build directory.
 
 ## Representation Root Shape
 
@@ -188,9 +194,11 @@ Current deliberate gaps:
 - Terminal Psi is the expression-lowering boundary for the migrated scalar,
   control, call, crash, contract, and content-conservation slices. Unsupported
   aggregate, cleanup, transfer, boundary, loop, suspension, and ordering slices
-  still use the bootstrap `StateGraph`/`ControlFlowPlan` path, whose typed
-  expression references prevent it from becoming a portable boundary. Each
-  completed terminal slice retires its corresponding tree consumer.
+  reject for retained native artifacts and still use the bootstrap
+  `StateGraph`/`ControlFlowPlan` path only for the not-yet-cut-over installed
+  output product. That path's typed expression references prevent it from
+  becoming a portable boundary. Each completed terminal slice retires its
+  corresponding tree consumer.
 
 - Moves and drops now have durable checked/control-flow event plumbing, but
   event production still needs type-aware precision plus transition and nested

@@ -135,6 +135,42 @@ pub fn emit_terminal_executable_image(
     })
 }
 
+/// Independently replay the complete object-to-executable-image join retained
+/// by a source-free Terminal native artifact.
+///
+/// This repeats final-text relocation-envelope validation and requires the
+/// recomputed evidence to equal the evidence sealed by image construction.
+pub fn validate_terminal_executable_image(
+    artifact: &TerminalObjectArtifact,
+    image: &TerminalExecutableImage,
+) -> Result<(), Diagnostic> {
+    if artifact.terminal_psi() != image.terminal_psi()
+        || artifact.target() != image.target()
+        || artifact.functions() != image.functions()
+        || artifact.fuel_attribution() != image.fuel_attribution()
+        || artifact.port_effects() != image.port_effects()
+        || artifact.boundary_settlements() != image.boundary_settlements()
+    {
+        return Err(Diagnostic::error(
+            "terminal object and executable image have different semantic or evidence identity",
+        ));
+    }
+    let recomputed = validate_terminal_image(
+        artifact,
+        artifact.object(),
+        artifact.relocations(),
+        artifact.text_bytes(),
+        None,
+        image.output(),
+    )?;
+    if image.output().compiler_text_validation != Some(recomputed) {
+        return Err(Diagnostic::error(
+            "terminal executable image retained stale final-text validation evidence",
+        ));
+    }
+    Ok(())
+}
+
 /// Emit the runnable Linux x86-64 image for the exact published proof-free i32
 /// scalar-call reference.
 ///

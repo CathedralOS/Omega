@@ -1,5 +1,10 @@
 use std::path::PathBuf;
 
+/// Complete non-clonable Terminal-Psi native artifact retained before output
+/// publication. The compatibility name remains while callers migrate from the
+/// former legacy `EmissionPlan + EmittedProgram` payload.
+pub use omega_terminal_native_artifact::TerminalNativeArtifact as RetainedNativeArtifact;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompileOutputKind {
     CheckOnly,
@@ -7,81 +12,6 @@ pub enum CompileOutputKind {
     RetainedNativeArtifact,
     NativeExecutable,
     ObjectContainer,
-}
-
-/// Complete address-free native payload retained before output publication.
-///
-/// This carrier owns the validated emission plan and every input that the
-/// legacy image writer would consume. It grants no filesystem, loading,
-/// installation, or runtime authority and is deliberately non-clonable.
-#[derive(Debug)]
-#[must_use = "a retained native artifact owns the compiler's emitted payload"]
-pub struct RetainedNativeArtifact {
-    emission_plan: omega_artifacts::EmissionPlan,
-    emitted: EmittedProgram,
-}
-
-impl RetainedNativeArtifact {
-    pub(super) fn checked(
-        emission_plan: omega_artifacts::EmissionPlan,
-        emitted: EmittedProgram,
-    ) -> Result<Self, &'static str> {
-        validate_retained_native_artifact(&emission_plan, &emitted)?;
-        Ok(Self {
-            emission_plan,
-            emitted,
-        })
-    }
-
-    pub fn validate(&self) -> Result<(), &'static str> {
-        validate_retained_native_artifact(&self.emission_plan, &self.emitted)
-    }
-
-    pub const fn emission_plan(&self) -> &omega_artifacts::EmissionPlan {
-        &self.emission_plan
-    }
-
-    pub const fn target(&self) -> omega_target::NativeTarget {
-        self.emitted.target
-    }
-
-    pub const fn subsystem(&self) -> u16 {
-        self.emitted.subsystem
-    }
-
-    pub const fn planned_text_bytes(&self) -> usize {
-        self.emitted.planned_text_bytes
-    }
-
-    pub const fn callback_placement_identity_fingerprint(&self) -> u64 {
-        self.emitted.callback_placement_identity_fingerprint
-    }
-
-    pub const fn object(&self) -> &omega_object_file::ObjectPlan {
-        &self.emitted.object
-    }
-
-    pub const fn relocations(&self) -> &omega_object_file::RelocationPlan {
-        &self.emitted.relocations
-    }
-
-    pub const fn encoded_machine_code(&self) -> &omega_machine_bytes::EncodedMachineCode {
-        &self.emitted.encoded_machine_code
-    }
-
-    pub const fn encoded_machine_semantics(
-        &self,
-    ) -> &omega_machine_bytes::EncodedMachineSemanticSummary {
-        &self.emitted.encoded_machine_semantics
-    }
-
-    pub fn text_bytes(&self) -> &[u8] {
-        &self.emitted.text_bytes
-    }
-
-    pub fn data_bytes(&self) -> &[u8] {
-        &self.emitted.data_bytes
-    }
 }
 
 #[derive(Debug)]
@@ -100,54 +30,6 @@ pub(super) struct EmittedProgram {
     pub(super) encoded_machine_semantics: omega_machine_bytes::EncodedMachineSemanticSummary,
     pub(super) text_bytes: Vec<u8>,
     pub(super) data_bytes: Vec<u8>,
-}
-
-fn validate_retained_native_artifact(
-    emission_plan: &omega_artifacts::EmissionPlan,
-    emitted: &EmittedProgram,
-) -> Result<(), &'static str> {
-    if !emission_plan.blockers.is_empty() {
-        return Err("retained native artifact contains unresolved emission blockers");
-    }
-    if emitted.object.target != emitted.target || emitted.relocations.target != emitted.target {
-        return Err("retained native artifact target disagrees with its object or relocations");
-    }
-    if emission_plan.image_format != emitted.target.object_format {
-        return Err("retained native artifact image format disagrees with its target");
-    }
-    if emission_plan.entry_symbol != omega_object_file::object_entry_symbol_name(&emitted.object) {
-        return Err("retained native artifact entry symbol drifted from its object");
-    }
-    if emission_plan.sections != emitted.object.layout.sections.len()
-        || emission_plan.symbols != emitted.object.layout.symbols.len()
-    {
-        return Err("retained native artifact object inventory drifted from its emission plan");
-    }
-    if emission_plan.relocations != emitted.relocations.record_count() {
-        return Err("retained native artifact relocation inventory drifted from its emission plan");
-    }
-    if emission_plan.data_bytes != emitted.data_bytes.len() {
-        return Err("retained native artifact data bytes drifted from its emission plan");
-    }
-    if emission_plan.machine_code_bytes != emitted.encoded_machine_code.byte_count
-        || emission_plan.encoded_machine_bytes != emitted.encoded_machine_code.bytes.len()
-        || emitted.encoded_machine_code.byte_count != emitted.encoded_machine_code.bytes.len()
-        || emitted.text_bytes != emitted.encoded_machine_code.bytes.storage_slice()
-    {
-        return Err("retained native artifact text bytes drifted from encoded machine custody");
-    }
-    let object_text_bytes = emitted
-        .object
-        .layout
-        .sections
-        .iter()
-        .find(|(_, section)| section.kind == omega_object_file::SectionKind::Text)
-        .map(|(_, section)| section.size)
-        .unwrap_or(0);
-    if emitted.planned_text_bytes != object_text_bytes {
-        return Err("retained native artifact text extent drifted from its object plan");
-    }
-    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -545,16 +427,16 @@ impl CompileReport {
         })
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_retained_native_artifact(
         root_path: PathBuf,
         source_file_count: usize,
         artifact: RetainedNativeArtifact,
-        program_storage_entry: Option<super::ProgramStorageEntryPlanBinding>,
-        program_storage_entry_bridge: Option<super::ProgramStorageEntryNativeBridgePlan>,
         build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
         build_observation_summary: Option<super::build_config::BuildObservationSummary>,
     ) -> Result<Self, &'static str> {
+        artifact
+            .validate()
+            .map_err(|_| "compiler report received an invalid Terminal native artifact")?;
         let report = Self {
             root_path,
             source_file_count,
@@ -565,16 +447,13 @@ impl CompileReport {
             executable_publication: None,
             app_bundle_publication: None,
             terminal_component_deployment: None,
-            program_storage_entry,
-            program_storage_entry_bridge,
+            program_storage_entry: None,
+            program_storage_entry_bridge: None,
             build_evaluation_usage,
             build_observation_summary,
         };
         if !report.has_consistent_executable_publication_custody() {
             return Err("compiler report retained inconsistent native-artifact custody");
-        }
-        if !report.has_consistent_program_storage_entry_custody() {
-            return Err("compiler report retained inconsistent program-storage entry custody");
         }
         Ok(report)
     }
@@ -861,11 +740,10 @@ fn program_storage_emission_matches_output_kind(
         (_, None) => true,
         (CompileOutputKind::CheckOnly, Some((_, _, false))) => true,
         (CompileOutputKind::TerminalArtifact, Some(_)) => false,
-        (CompileOutputKind::RetainedNativeArtifact, Some((_, _, false))) => true,
+        (CompileOutputKind::RetainedNativeArtifact, Some(_)) => false,
         (CompileOutputKind::NativeExecutable, Some((true, false, true)))
         | (CompileOutputKind::NativeExecutable, Some((false, true, false))) => true,
         (CompileOutputKind::CheckOnly, Some((_, _, true)))
-        | (CompileOutputKind::RetainedNativeArtifact, Some((_, _, true)))
         | (CompileOutputKind::NativeExecutable, Some(_))
         | (CompileOutputKind::ObjectContainer, Some(_)) => false,
     }
@@ -890,9 +768,7 @@ fn retained_entry_boundary_matches_publication(
             publication_boundary_contract_fingerprint.is_none()
         }
         (CompileOutputKind::TerminalArtifact, Some(_)) => false,
-        (CompileOutputKind::RetainedNativeArtifact, Some(_)) => {
-            publication_boundary_contract_fingerprint.is_none()
-        }
+        (CompileOutputKind::RetainedNativeArtifact, Some(_)) => false,
         (CompileOutputKind::NativeExecutable, Some(retained)) => {
             publication_boundary_contract_fingerprint == Some(retained)
         }
@@ -919,129 +795,9 @@ fn emitted_boundary_contract_matches_publication(
 #[cfg(test)]
 mod tests {
     use super::{
-        CompileOutputKind, CompileReport, EmittedProgram, ExecutablePublicationDestination,
-        ExecutablePublicationReceipt, RetainedNativeArtifact,
+        CompileOutputKind, CompileReport, ExecutablePublicationDestination,
+        ExecutablePublicationReceipt,
     };
-
-    fn retained_native_parts() -> (omega_artifacts::EmissionPlan, EmittedProgram) {
-        let target = omega_target::NativeTarget::windows_x64();
-        let mut object = omega_object_file::ObjectPlan::with_capacity(target, 1, 1);
-        object
-            .layout
-            .sections
-            .insert(omega_object_file::SectionPlan {
-                kind: omega_object_file::SectionKind::Text,
-                size: 1,
-                alignment: 1,
-            });
-        let entry = object.layout.symbols.insert(omega_object_file::SymbolPlan {
-            name: "entry".into(),
-            section: omega_object_file::SymbolSection::Section(
-                omega_object_file::SectionKind::Text,
-            ),
-            offset: 0,
-            size: 1,
-            kind: omega_object_file::SymbolKind::Function,
-            import_library: String::new(),
-        });
-        object.layout.entry_symbol = entry;
-        let mut encoded = omega_machine_bytes::EncodedMachinePlan::with_capacity(target, 0, 0, 1);
-        encoded.code.bytes.insert(0x90);
-        encoded.code.byte_count = 1;
-        let emission_plan = omega_artifacts::EmissionPlan {
-            image_format: target.object_format,
-            entry_symbol: "entry".into(),
-            sections: 1,
-            symbols: 1,
-            host_bindings: 0,
-            host_calls: 0,
-            data_bytes: 0,
-            selected_instructions: 0,
-            instruction_operands: 0,
-            machine_code_bytes: 1,
-            encoded_machine_bytes: 1,
-            relocations: 0,
-            blockers: psi_arena::Arena::new(),
-        };
-        let emitted = EmittedProgram {
-            target,
-            subsystem: 3,
-            planned_text_bytes: 1,
-            callback_placement_identity_fingerprint: 7,
-            object,
-            relocations: omega_object_file::RelocationPlan::with_target(target),
-            encoded_machine_code: encoded.code,
-            encoded_machine_semantics: encoded.semantics,
-            text_bytes: vec![0x90],
-            data_bytes: Vec::new(),
-        };
-        (emission_plan, emitted)
-    }
-
-    #[test]
-    fn retained_native_artifact_replays_payload_and_rejects_corruption() {
-        let (plan, emitted) = retained_native_parts();
-        let _artifact =
-            RetainedNativeArtifact::checked(plan, emitted).expect("valid retained native artifact");
-
-        let (mut plan, emitted) = retained_native_parts();
-        plan.blockers.insert(omega_artifacts::EmissionBlocker {
-            stage: "test".into(),
-            reason: "unresolved".into(),
-        });
-        assert!(RetainedNativeArtifact::checked(plan, emitted).is_err());
-
-        let (plan, mut emitted) = retained_native_parts();
-        emitted.text_bytes[0] ^= 1;
-        assert!(RetainedNativeArtifact::checked(plan, emitted).is_err());
-
-        let (mut plan, emitted) = retained_native_parts();
-        plan.sections += 1;
-        assert!(RetainedNativeArtifact::checked(plan, emitted).is_err());
-
-        let (plan, mut emitted) = retained_native_parts();
-        emitted.relocations.target = omega_target::NativeTarget::linux_x64();
-        assert!(RetainedNativeArtifact::checked(plan, emitted).is_err());
-    }
-
-    #[test]
-    fn retained_native_report_requires_exactly_one_unpublished_artifact() {
-        let (plan, emitted) = retained_native_parts();
-        let artifact = RetainedNativeArtifact::checked(plan, emitted).expect("valid artifact");
-        let report = CompileReport::from_retained_native_artifact(
-            "Main/main.omg".into(),
-            1,
-            artifact,
-            None,
-            None,
-            None,
-            None,
-        )
-        .expect("valid retained report");
-        assert!(!report.wrote_output());
-        assert!(report.has_consistent_executable_publication_custody());
-
-        let mut missing = report;
-        missing.retained_native_artifact = None;
-        assert!(!missing.has_consistent_executable_publication_custody());
-
-        let (plan, emitted) = retained_native_parts();
-        let mut published = CompileReport::from_retained_native_artifact(
-            "Main/main.omg".into(),
-            1,
-            RetainedNativeArtifact::checked(plan, emitted).expect("valid artifact"),
-            None,
-            None,
-            None,
-            None,
-        )
-        .expect("valid retained report");
-        published.executable_publication = Some(receipt(
-            ExecutablePublicationDestination::FlatOutput,
-            "build/main",
-        ));
-        assert!(!published.has_consistent_executable_publication_custody());
-    }
 
     fn receipt(
         destination: ExecutablePublicationDestination,
