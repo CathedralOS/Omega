@@ -70,6 +70,7 @@ negative matrices belong in the linked bridge contracts and beside their gates.
 | implementation of Omega trapping addition | the Delta-written OMGLOWC/CKIR11 path implements the 78 direct canonical trapping-u32 leaf-plus-anonymous-literal uses among 104 checkpoint additions; independent meaning, runtime-overflow behavior, conservative carry/range/store emission, and OMGRFN13 R1–R5 are closed | encode the bridge's selected Omega rule with Delta's existing checked arithmetic machinery; do not infer Delta domains, Omega policy syntax, full-width public `u32`, or general arithmetic from this product implementation | selected product-source path demonstrated; no Delta language feature inferred |
 | implementation of Omega compositional full-width trapping arithmetic | OMGRSW7/OMGLOWF/CKIR14/OMGRFN16 close one recursive pure same-carrier `u32 in Trapping` relation over `+`, `-`, and `*`; the gate carries the actual UTF-8 trees, ordinary precedence/association, first-trap behavior, exact high-word literals and widening, assignment/guard/call/transition contexts with complete ordered pure siblings, inherited CKIR12 views, native/self identity, independent meaning, conservative artifacts, and persisted lower-rooted R1–R5 | retain the single bounded operation-tree implementation and its modular gates; do not replace it with compiler-file-shaped expression/context permutations, widen effectful operand-order custody, or infer a Delta arithmetic-policy surface from this private bridge implementation | selected product-source path demonstrated through persisted lower-rooted OMGRFN16; final Delta-v1 disposition remains open |
 | implementation of Omega direct pure full-width `u64 < u64` | OMGRSW8/OMGLOWH/CKIR16/OMGRFN18 close one same-carrier relation with four-word interval custody, exact contextual literals, storage/call/edge transport, true-edge predecessor/intersection facts, paired-word meaning, conservative unsigned emission, and persisted lower-rooted R1–R5 | implement the selected Omega relation with explicit paired words and existing deterministic Delta storage; do not infer Delta `u64` syntax, a public 64-bit ABI, arithmetic, dynamic indexing, mixed carriers, other comparisons, or dependent types from this private bridge representation | selected product-source path demonstrated through persisted lower-rooted OMGRFN18; no Delta language feature inferred |
+| implementation of Omega guarded full-width fixed-buffer indexing and mutation | OMGRSWA10/OMGLOWJ19/CKIR18/OMGRFN21 close one name/order-independent `SourceUnit`-like projection through a Trapping full-`u64` lookup index, guarded load/store, authored Exact `length + 1`, defensive carry/range traps, native/self production, modular Rust-free meaning, conservative artifacts, resource teeth, and lower-rooted R1–R5 | keep the selected carrier as explicit paired-word data and deterministic fixed storage in Delta; do not infer Delta `u64` syntax, Omega arithmetic-policy qualification, general dynamic indexing, mutable slices, allocation, or unrelated full-width operations from the bridge implementation | selected product-source path demonstrated; no Delta `u64`, policy, slice, or allocation feature inferred |
 | implementation of selected Omega `Console` checked adapters | OMGRSW9/OMGLOWI18/CKIR17/OMGRFN20 close the exact six-requirement static plan, receiverless `write`/`write_line` adapters, ranked recurrent helper, explicit `u8 as i32`, and ordered abstract `write_byte` events through native/self identity and lower-rooted reconstruction | keep this as private bridge checking over an already reconciled graph; do not infer Delta boundary traits, provider selection, calling conventions, syscalls, native effects, or an `i32` cast surface from the implementation | selected platform-neutral checked execution demonstrated; provider admission, target calling-plan custody, native effects, artifacts, and authority remain open |
 | implementation of bounded SHA-256 | the Delta-written structural producer hashes exact raw envelopes through the public 267,280-byte OMGCOMP ceiling; fixed vectors, padding edges, native/self agreement, adjacent exhaustion, and one lower-rung Gamma observation are closed | retain byte-wise 32-bit words and exact small carries; do not infer Delta wrapping arithmetic, a public full-width `u32`, or package/lock authority from a bridge-local digest implementation | selected bridge prerequisite demonstrated; no Delta arithmetic or authority feature inferred |
 | bool-only prefix logical negation | the selected OMGLOW7/CKIR6 relation closes least-OMGRSW1/2/3 production, lower-rung meaning, conservative emission, and all OMGRFN8 R1–R5 joins over one immutable payload-sum carrier | retain ordinary Omega spelling and exact Boolean meaning; do not add integer truthiness, bitwise complement, or user-defined unary dispatch | selected compiler path demonstrated; broader expression coverage and final disposition unresolved |
@@ -89,12 +90,21 @@ Evidence for these rows stays with the bridge contracts rather than being
 duplicated here. Start at the
 [`omega-bootstrap` status](../omega-bootstrap/README.md), the base
 [`checked-IR contract`](../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR.md),
-the current [`CKIR17`](../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V17.md)
-successor, and the current platform-neutral
-[`OMGRFN20`](../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V20.md)
-lower-rooted contract. Git and those versioned contract directories retain the
+the current entry-bearing
+[`CKIR18`](../omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V18.md)
+successor, and the current
+[`OMGRFN21`](../../source/assurance/refinement/omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V21.md)
+lower-rooted contract. The separate CKIR17/OMGRFN20 line remains the active
+platform-neutral provider-adapter evidence. Git and those versioned contract directories retain the
 earlier milestones; this ledger records only the current design evidence and
 open Delta-v1 disposition.
+
+The path-independent
+[`source-closure V1`](DELTA_SOURCE_CLOSURE_SNAPSHOT_V1.md) machinery now binds
+the exact canonical compiler source image and one provisional three-root bridge
+action DAG, including normalized unsigned imported-tool identity. This proves
+the manifest mechanism and selected snapshot contents. It does not complete the
+two final source manifests required below or freeze any ledger row.
 
 ## Freeze gate
 

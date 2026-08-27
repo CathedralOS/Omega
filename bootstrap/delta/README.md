@@ -34,6 +34,14 @@ source- and cost-driven in the feature ledger.
 - [`samples/`](samples/) contains the executable language corpus.
 - [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) tracks provisional candidates and the
   evidence required to retain or remove them before the v1 freeze.
+- [`DELTA_SOURCE_CLOSURE_SNAPSHOT_V1.md`](DELTA_SOURCE_CLOSURE_SNAPSHOT_V1.md)
+  defines the path-independent closure format. The first snapshots bind the
+  exact canonical compiler source image and one explicitly provisional
+  three-root fixed-`u64` bridge action DAG. Filesystem locators and platform
+  signing are diagnostic/staging data; source bytes, build edges, and normalized
+  unsigned tool content are semantic commitments. These snapshots validate the
+  manifest machinery but are not the final complete Delta-compiler or bridge
+  closures.
 - [`samples/lowermachine.alp`](samples/lowermachine.alp) is the Delta-written
   Delta-to-ARM64 compiler and self-host fixed point. Its native publisher
   batches `write_byte` output in a fixed 4 KiB buffer, flushes before ordered

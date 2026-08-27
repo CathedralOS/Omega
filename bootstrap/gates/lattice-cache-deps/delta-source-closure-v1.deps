@@ -1,0 +1,33 @@
+# Precise cache profile for the path-independent Delta source-closure V1
+# canonical compiler root and provisional three-root fixed-u64 bridge slice.
+script bootstrap/delta/source-closure-snapshot-v1.sh
+
+input bootstrap/paths.sh
+input bootstrap/delta/DELTA_SOURCE_CLOSURE_SNAPSHOT_V1.md
+input bootstrap/delta/source_closure_snapshot_v1.py
+input bootstrap/delta/source-closures/canonical-compiler-v1.json
+input bootstrap/delta/source-closures/canonical-compiler-v1.locations.json
+input bootstrap/delta/source-closures/u64-buffer-bridge-slice-v1.json
+input bootstrap/delta/source-closures/u64-buffer-bridge-slice-v1.locations.json
+input bootstrap/delta/source-closures/tool-manifests/delta-compiler-darwin-arm64-v1.json
+input bootstrap/delta/samples/lowermachine.alp
+input bootstrap/delta/rust
+input bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_BUNDLE.md
+input bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md
+input bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V10.md
+input bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_LOWERING_V19.md
+input bootstrap/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V18.md
+input bootstrap/omega-bootstrap/compiler/omega-bootstrap-u64-buffer-resolve.alp
+input bootstrap/omega-bootstrap/compiler/omega-bootstrap-u64-buffer-to-ckir.alp
+input bootstrap/omega-bootstrap/compiler/omega-bootstrap-checked-ir-v18-to-elf.alp
+input bootstrap/omega-bootstrap/compiler/omega_bootstrap_bundle.py
+input bootstrap/omega-bootstrap/compiler/omega_bootstrap_compilation.py
+input bootstrap/omega-bootstrap/gates/omgrsw10_u64_buffer_fixture.py
+input bootstrap/omega-bootstrap/gates/delta-u64-buffer-to-ckir18-fixture.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v2_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v3_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v4_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v5_reference.py
+input bootstrap/omega-bootstrap/gates/checked_ir_v18_reference.py
+input bootstrap/omega-bootstrap/gates/delta-checked-ir-v18-fixture.py
+input bootstrap/omega-bootstrap/gates/delta-checked-ir-v18-backend-fixture.py
