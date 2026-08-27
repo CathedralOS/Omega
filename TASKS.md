@@ -9061,8 +9061,16 @@ boundary without its corresponding checked law.
   placement fixups remain in their original owner. Independent replay checks
   exact row coverage, bytes, sizes, fixups, masks, zero placeholders,
   constraints, storage bounds and targets, deterministic identity, and complete
-  header-template custody. It resolves no address or placement. Runnable ELF
-  emission remains fail closed before image mutation: section-header
+  header-template custody. It resolves no address or placement. A relative
+  payload-layout rung now consumes the indexed roster and classifies every non-
+  null row into exact read-only, read-execute, read-write, or file-only domains
+  from retained `sh_flags`. It packs each domain independently in numeric roster
+  order with checked `sh_addralign`, exact relative offsets and spans,
+  deterministic identity, and recoverable replay of every row and geometry.
+  These offsets begin at zero per domain and are not `sh_offset` or `sh_addr`;
+  absolute region bases, W^X load/program-header placement, all twenty-one
+  header-fixup resolutions, payload mutation, and final-byte replay remain open.
+  Runnable ELF emission remains fail closed before image mutation: section-header
   placement and fixup resolution, `PT_INTERP` program-header placement,
   `PT_DYNAMIC`, `.dynamic` address resolution, optional
   `.gnu.hash`, address-resolved fixup application, complete
