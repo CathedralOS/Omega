@@ -8108,8 +8108,12 @@ compiler concept is introduced.
   Emission and checked-progress replay independently require structural place
   equality rather than label fallback, source-before-destination construction,
   exact statement-transfer origin/point, valid formation ownership, and
-  identical payload/evidence. Unknown, expression, type, indexed/ranged, local,
-  generic, invalid-member, or mismatched source occurrences remain fail closed.
+  identical payload/evidence. Every retained source, contextual source
+  occurrence, and destination parameter root must belong to the formation
+  machine or exact formation state; same-shaped foreign-machine and sibling-
+  state parameter substitution rejects independently at production and replay.
+  Unknown, expression, type, indexed/ranged, local, generic, invalid-member, or
+  mismatched source occurrences remain fail closed.
   This carrier grants no admission or Terminal authority. Broader authored
   qualification-preserving transitions outside this narrow existing flow shape
   remain engineering work.

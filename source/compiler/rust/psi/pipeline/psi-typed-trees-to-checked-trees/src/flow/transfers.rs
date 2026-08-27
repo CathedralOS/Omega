@@ -296,11 +296,38 @@ fn retain_qualification_correspondence(
     destination_payload: FactPayload,
     evidence: QualificationEvidence,
 ) {
+    let ProgramPoint::Statement {
+        machine_symbol,
+        state_symbol,
+        ..
+    } = formation
+    else {
+        return;
+    };
     if evidence.origin != psi_language_semantics::QualificationEvidenceOrigin::CheckedTransformation
         || !exact_evidence_source(program, evidence)
-        || !exact_structural_symbol_place(program, semantic, source_place)
-        || !exact_structural_symbol_place(program, semantic, source_occurrence_place)
-        || !exact_structural_symbol_place(program, semantic, destination_place)
+        || !exact_statement_owner(program, machine_symbol, state_symbol)
+        || !exact_structural_symbol_place(
+            program,
+            semantic,
+            source_place,
+            machine_symbol,
+            state_symbol,
+        )
+        || !exact_structural_symbol_place(
+            program,
+            semantic,
+            source_occurrence_place,
+            machine_symbol,
+            state_symbol,
+        )
+        || !exact_structural_symbol_place(
+            program,
+            semantic,
+            destination_place,
+            machine_symbol,
+            state_symbol,
+        )
         || !semantic.facts.is_valid(source_fact)
         || !semantic.facts.is_valid(destination_fact)
         || source_fact == destination_fact
@@ -377,6 +404,8 @@ fn exact_structural_symbol_place(
     program: &psi_typed_trees::TypedTrees,
     semantic: &FactPlan,
     handle: PlaceHandle,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
 ) -> bool {
     if !semantic.places.is_valid(handle) {
         return false;
@@ -385,7 +414,13 @@ fn exact_structural_symbol_place(
     let psi_facts::PlaceRoot::Symbol(root) = place.root else {
         return false;
     };
-    if !root.is_valid() || program.symbols.get(root).kind != psi_symbols::SymbolKind::Parameter {
+    if !root.is_valid()
+        || program.symbols.get(root).kind != psi_symbols::SymbolKind::Parameter
+        || !matches!(
+            program.symbols.get(root).parent,
+            parent if parent == machine_symbol || parent == state_symbol
+        )
+    {
         return false;
     }
     let Some(segments) = semantic.place_segments.span(place.segments) else {
@@ -403,6 +438,18 @@ fn exact_structural_symbol_place(
         | psi_facts::PlaceSegment::FixedRange { .. }
         | psi_facts::PlaceSegment::Index { .. } => false,
     })
+}
+
+fn exact_statement_owner(
+    program: &psi_typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+) -> bool {
+    machine_symbol.is_valid()
+        && state_symbol.is_valid()
+        && program.symbols.get(machine_symbol).kind == psi_symbols::SymbolKind::Machine
+        && program.symbols.get(state_symbol).kind == psi_symbols::SymbolKind::State
+        && program.symbols.get(state_symbol).parent == machine_symbol
 }
 
 fn contextual_expression_place(
@@ -442,6 +489,8 @@ mod tests {
         payload: FactPayload,
         evidence: QualificationEvidence,
         local: SymbolHandle,
+        foreign_parameter: SymbolHandle,
+        sibling_state_parameter: SymbolHandle,
     }
 
     fn correspondence_fixture() -> CorrespondenceFixture {
@@ -455,6 +504,10 @@ mod tests {
                 (SymbolKind::Field, SymbolNameRef::Static("source")),
                 (SymbolKind::Field, SymbolNameRef::Static("destination")),
                 (SymbolKind::Local, SymbolNameRef::Static("excluded_local")),
+                (
+                    SymbolKind::Machine,
+                    SymbolNameRef::Static("foreign_transform"),
+                ),
             ],
         );
         let declarations = SymbolTableBuilder::child_handles(declarations).collect::<Vec<_>>();
@@ -463,17 +516,32 @@ mod tests {
         let source_field = declarations[2];
         let destination_field = declarations[3];
         let local = declarations[4];
+        let foreign_machine = declarations[5];
         let machine_members = symbols.insert_children(
             machine,
             [
                 (SymbolKind::State, SymbolNameRef::Static("entry")),
                 (SymbolKind::Parameter, SymbolNameRef::Static("self")),
+                (SymbolKind::State, SymbolNameRef::Static("sibling")),
             ],
         );
         let machine_members =
             SymbolTableBuilder::child_handles(machine_members).collect::<Vec<_>>();
         let state = machine_members[0];
         let parameter = machine_members[1];
+        let sibling_state = machine_members[2];
+        let sibling_state_parameter = SymbolTableBuilder::child_handles(symbols.insert_children(
+            sibling_state,
+            [(SymbolKind::Parameter, SymbolNameRef::Static("sibling_self"))],
+        ))
+        .next()
+        .expect("sibling state parameter");
+        let foreign_parameter = SymbolTableBuilder::child_handles(symbols.insert_children(
+            foreign_machine,
+            [(SymbolKind::Parameter, SymbolNameRef::Static("foreign_self"))],
+        ))
+        .next()
+        .expect("foreign machine parameter");
         let program = psi_typed_trees::TypedTrees {
             symbols: symbols.finish(),
             ..psi_typed_trees::TypedTrees::default()
@@ -539,6 +607,8 @@ mod tests {
             payload,
             evidence,
             local,
+            foreign_parameter,
+            sibling_state_parameter,
         }
     }
 
@@ -616,5 +686,39 @@ mod tests {
                 .qualification_correspondences
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn foreign_machine_or_sibling_state_parameter_correspondence_is_not_retained() {
+        for sibling_state in [false, true] {
+            for endpoint in 0..3 {
+                let mut fixture = correspondence_fixture();
+                let foreign_root = if sibling_state {
+                    fixture.sibling_state_parameter
+                } else {
+                    fixture.foreign_parameter
+                };
+                match endpoint {
+                    0 => {
+                        fixture.semantic.places.get_mut(fixture.source_place).root =
+                            psi_facts::PlaceRoot::Symbol(foreign_root);
+                    }
+                    1 => {
+                        let occurrence_place = fixture.semantic.append_symbol_place(foreign_root);
+                        fixture.source_occurrence_place = occurrence_place;
+                    }
+                    2 => {
+                        fixture
+                            .semantic
+                            .places
+                            .get_mut(fixture.destination_place)
+                            .root = psi_facts::PlaceRoot::Symbol(foreign_root);
+                    }
+                    _ => unreachable!(),
+                }
+                retain(&mut fixture);
+                assert!(fixture.semantic.qualification_correspondences.is_empty());
+            }
+        }
     }
 }
