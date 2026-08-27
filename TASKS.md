@@ -1956,6 +1956,26 @@ Remaining:
   failed cutover that duplicates semantic lowering and lets the production
   compiler bypass the architecture's named Psi/Omega boundary.
 
+  The first two seam milestones are live. Psi now owns one
+  `CanonicalTerminalArtifact` containing canonical semantic, proof, optional
+  debug, and manifest identity; the exact checked-to-Terminal producer creates
+  it and independently replays every section. The typed `TerminalArtifact`
+  compiler product stops at that carrier without entering StateGraph, native
+  emission, output, or installation. The ordinary `NativeArtifact` product and
+  component staging now consume that same carrier by value through one
+  source-free Terminal-native realization operation. It performs portable
+  verification, target realization, machine/object/image emission, and exact
+  image replay, then returns a non-clonable artifact retaining the canonical
+  Terminal identity, target, selected-provider projection, object, relocation,
+  text, and final-image evidence. Component staging is a thin wrapper adding
+  richer source-selected plan facts and pending progress; direct native
+  requests reject rather than discard pending component progress. Unsupported
+  Terminal vocabulary rejects without legacy fallback, and architecture tests
+  fence the route and dependency closure. The installed-output product still
+  uses the legacy checked-tree backend, so the remaining behavior port, final
+  production cutover, legacy deletion, and dependency-graph closure remain
+  open.
+
   Restore the original mechanical split before doing further redesign:
 
   1. Establish one canonical handoff artifact at the settled ownership seam.
@@ -2025,17 +2045,21 @@ Remaining:
   one explicitly test-only `CompileHarnessRequest` and `compile_harness`
   operation; its entry override and worker ceiling cannot enter the production
   request. `RequestedCompileProduct` now makes `Check`, terminal artifact,
-  retained native artifact, and installed output explicit. The legacy route
-  now executes `Check`, retained `NativeArtifact`, and `InstalledOutput`; it
-  honors the typed request over the compatibility Boolean seed and still
-  rejects terminal-artifact requests before source acquisition rather than
-  falling back. The retained-native route runs the existing validated backend
-  through emission planning, then returns one non-clonable report-owned payload
-  before image writing, publication, installation, or runtime custody. Exact
-  target, subsystem, object and relocation plans, encoded semantics/code,
-  text/data bytes, callback identity, and blocker-free emission plan replay as
-  one cardinality-checked artifact; the report owns no output path and reports
-  `wrote_output == false`. Component-progress rejection and exact source/
+  retained native artifact, and installed output explicit. `TerminalArtifact`
+  now runs the Psi-owned checked frontend and exact canonical producer, returns
+  the complete report-owned artifact, and never enters StateGraph, native
+  emission, output, or installation; unsupported Terminal vocabulary rejects
+  instead of selecting the legacy backend. `NativeArtifact` now enters the
+  same Psi-owned frontend and canonical producer, then crosses one source-free
+  Terminal realization operation shared with component staging. Its retained
+  report payload owns the canonical Terminal artifact, exact target and
+  provider projections, object/relocation/text evidence, and replayed final
+  image while owning no output path, publication, installation, or runtime
+  authority; the report records `wrote_output == false`. Unsupported Terminal
+  vocabulary and pending component progress reject rather than selecting or
+  silently retaining the legacy backend. The legacy route now executes only
+  `Check` and `InstalledOutput` and honors the typed request over the
+  compatibility Boolean seed. Component-progress rejection and exact source/
   harness root resolution now live with the manifest owner; selected-provider
   external-binding projection and its source-boundary plan replay live under
   `provider_plans`; and the strict emitted program-storage bridge owner now

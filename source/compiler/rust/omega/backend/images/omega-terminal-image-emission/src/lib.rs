@@ -49,7 +49,7 @@ pub use image_output::{
     emit_terminal_executable_image, emit_terminal_native_fuel_executable_image,
     emit_terminal_native_fuel_object_container,
     emit_terminal_native_fuel_transfer_runtime_executable_image, emit_terminal_object_container,
-    emit_terminal_scalar_call_reference_linux_x86_64_image,
+    emit_terminal_scalar_call_reference_linux_x86_64_image, validate_terminal_executable_image,
 };
 pub use installation::*;
 pub use installed_artifact::{
