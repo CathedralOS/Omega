@@ -1188,6 +1188,96 @@ mod tests {
         )
     }
 
+    fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationUnit {
+        let caller = MachineId::new(1_601).unwrap();
+        let callee = MachineId::new(1_602).unwrap();
+        let caller_entry = BlockId::new(1_603).unwrap();
+        let caller_result = ValueId::new(1_604).unwrap();
+        let call_result = ValueId::new(1_605).unwrap();
+        let forwarded = ValueId::new(1_606).unwrap();
+        let caller_exit = BlockId::new(1_607).unwrap();
+        let callee_entry = BlockId::new(1_611).unwrap();
+        let callee_value = ValueId::new(1_612).unwrap();
+        let callee_result = ValueId::new(1_613).unwrap();
+        let boolean = |id| ValueDeclaration {
+            id,
+            scalar_type: ScalarType::Boolean,
+        };
+        let mut module = module_with_blocks(
+            caller,
+            caller_entry,
+            TerminalMachineResult::Scalar(boolean(caller_result)),
+            vec![
+                Block {
+                    id: caller_entry,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(1_608).unwrap(),
+                        result: OperationResult::Scalar(boolean(call_result)),
+                        kind: OperationKind::Call {
+                            callee,
+                            arguments: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
+                        },
+                    }],
+                    terminator: Terminator::Jump {
+                        edge: EdgeId::new(1_609).unwrap(),
+                        target: caller_exit,
+                        arguments: vec![call_result],
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    id: caller_exit,
+                    parameters: vec![boolean(forwarded)],
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(1_610).unwrap(),
+                        value: forwarded,
+                        cleanup_actions: Vec::new(),
+                    },
+                },
+            ],
+        );
+        module.machines.push(TerminalMachine {
+            id: callee,
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: TerminalMachineResult::Scalar(boolean(callee_result)),
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: callee_entry,
+            blocks: vec![Block {
+                id: callee_entry,
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: OperationId::new(1_614).unwrap(),
+                    result: OperationResult::Scalar(boolean(callee_value)),
+                    kind: OperationKind::BooleanConstant { value: true },
+                }],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(1_615).unwrap(),
+                    value: callee_value,
+                    cleanup_actions: Vec::new(),
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(1_616).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        });
+        verified(module, ProofBundle::default())
+    }
+
     fn run(
         verified: VerifiedPsiOptimizationUnit,
         selections: OptimizationSelections,
@@ -1769,6 +1859,62 @@ mod tests {
         let target =
             lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64()).unwrap();
         assert_eq!(target.optimized().commits().len(), 1);
+    }
+
+    #[test]
+    fn copy_propagation_preserves_scalar_call_result_effect_and_custody() {
+        let verified = call_result_block_parameter_verified();
+        let call_before = verified.unit().functions[0].blocks[0].nodes[0].clone();
+        let callee_before = verified.unit().functions[1].clone();
+        let selections = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
+        let optimized = project_optimization_run(run(verified, selections)).unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.transformation_ledger().records().len(), 1);
+        assert_eq!(
+            optimized.unit().functions[0].blocks[0].nodes[0],
+            call_before
+        );
+        assert!(matches!(
+            optimized.unit().functions[0].blocks[0].nodes[0].operation,
+            TerminalAbstractOperation::Call {
+                result,
+                callee,
+                ..
+            } if result == ValueId::new(1_605).unwrap()
+                && callee == MachineId::new(1_602).unwrap()
+        ));
+        assert!(
+            optimized.plan().functions[0].block_entries[1]
+                .parameters
+                .is_empty()
+        );
+        assert!(matches!(
+            &optimized.plan().functions[0].operations[1],
+            TerminalAbstractOperation::Jump { bindings, .. } if bindings.is_empty()
+        ));
+        assert!(matches!(
+            &optimized.plan().functions[0].operations[2],
+            TerminalAbstractOperation::Return { value, .. }
+                if *value == ValueId::new(1_605).unwrap()
+        ));
+        assert_eq!(optimized.unit().functions[1], callee_before);
+        assert_eq!(
+            optimized
+                .pre_physical_manifest()
+                .record()
+                .source_statistics
+                .functions,
+            2
+        );
+        assert_eq!(
+            optimized
+                .pre_physical_manifest()
+                .record()
+                .optimized_statistics
+                .functions,
+            2
+        );
     }
 
     #[test]
