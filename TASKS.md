@@ -7582,7 +7582,19 @@ Owners:
   unchanged, and an unsuccessful unregister retains it. Capacity bounds live
   runtime registrations, not statically emitted thunk count. `build.omg`
   selects and admits the realization/resources; ordinary Omega control flow
-  performs registration.
+  performs registration. The deployment-owned custody rung is now live below
+  that source protocol. It transactionally installs an independently admitted
+  callback root into the exact deployment ledger before the ordinary registrar
+  call, retains the installed root and ledger in a non-Clone pending carrier,
+  and admits only the later exact successful provider receipt. The live carrier
+  then owns reclaimable registration plus ledger custody until exact provider
+  unregister and root quiescence return the original slot authority. Every
+  installation, receipt, unsuccessful-unregister, and nonquiescent rejection
+  returns complete retry custody; a false registrar result can explicitly
+  remove the still-unregistered pending root. This does not yet join the
+  emitted callback store/demand catalog to the installed callback entry, invoke
+  the registrar, create the source-level linear `Registration`, or bind live-
+  registration capacity. Those remain engineering rungs.
 - **FOREIGN-RETAINED-ARGUMENT-BACKING — generalize outside callbacks.** Keep
   argument backing and retention off callback-materialization rows. Specify the
   ordinary outbound-plan dispositions for call-scoped storage, public
