@@ -228,6 +228,351 @@ fn final_source_wrapper_and_entry_linkage_names_are_canonical() {
 }
 
 #[test]
+fn callback_function_address_store_replays_both_symbolic_addresses_on_both_isas() {
+    use omega_calling_conventions::{
+        MachineRegister, MachineStateSet, RegisterSet, StateFootprintEvidence,
+        compose_state_footprints,
+    };
+    use omega_control_flow::{MachineFunctionIdentity, StateKey};
+    use omega_machine_bytes::{
+        CompilerInstructionValidationKind, EncodedMachineFunction, EncodedMachineInstruction,
+        EncodedMachinePlan,
+    };
+    use omega_machine_instructions::{BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin};
+    use omega_target::{Architecture, NativeTarget};
+    use omega_target_operations::RuntimeStorageRegion;
+    use psi_arena::HandleSpan;
+    use psi_symbols::SymbolHandle;
+
+    let key = StateKey {
+        machine: SymbolHandle::from_arena_index(1),
+        state: SymbolHandle::from_arena_index(2),
+        segment_index: 0,
+    };
+    let source_identity = MachineFunctionIdentity::source(key);
+    let callback_identity = MachineFunctionIdentity::callback_thunk(key, 7).unwrap();
+
+    for target in [NativeTarget::windows_x64(), NativeTarget::linux_arm64()] {
+        let architecture = target.architecture;
+        let enter = match architecture {
+            Architecture::X86_64 => omega_isa_x86_64::encode_function_enter_bytes().to_vec(),
+            Architecture::Aarch64 => omega_isa_aarch64::encode_function_enter_bytes().to_vec(),
+        };
+        let store = match architecture {
+            Architecture::X86_64 => {
+                omega_isa_x86_64::encode_runtime_storage_function_address_write(
+                    RuntimeStorageRegion::Machine,
+                    24,
+                )
+                .unwrap()
+                .0
+            }
+            Architecture::Aarch64 => {
+                omega_isa_aarch64::encode_runtime_storage_function_address_write(24).unwrap()
+            }
+        };
+        let leave = match architecture {
+            Architecture::X86_64 => omega_isa_x86_64::encode_return_bytes().to_vec(),
+            Architecture::Aarch64 => omega_isa_aarch64::encode_return_bytes().to_vec(),
+        };
+        let mut plan = EncodedMachinePlan::with_capacity(
+            target,
+            1,
+            3,
+            enter.len() + store.len() + leave.len(),
+        );
+        let enter_bytes = plan.code.bytes.insert_many(enter.iter().copied());
+        let store_offset = enter.len();
+        let store_bytes = plan.code.bytes.insert_many(store.iter().copied());
+        let return_bytes = plan.code.bytes.insert_many(leave.iter().copied());
+        let mut instruction_span = HandleSpan::empty();
+        for instruction in [
+            EncodedMachineInstruction {
+                selected_instruction_index: 1,
+                bytes: enter_bytes,
+                compiler_validation_kind: Some(CompilerInstructionValidationKind::FunctionEnter),
+                ..EncodedMachineInstruction::default()
+            },
+            EncodedMachineInstruction {
+                selected_instruction_index: 2,
+                bytes: store_bytes,
+                compiler_validation_kind: Some(
+                    CompilerInstructionValidationKind::CompilerBodyFunctionAddressStore {
+                        function: callback_identity,
+                        target_region: RuntimeStorageRegion::Machine,
+                        target_offset: 24,
+                    },
+                ),
+                ..EncodedMachineInstruction::default()
+            },
+            EncodedMachineInstruction {
+                selected_instruction_index: 3,
+                bytes: return_bytes,
+                compiler_validation_kind: Some(CompilerInstructionValidationKind::FunctionReturn),
+                ..EncodedMachineInstruction::default()
+            },
+        ] {
+            plan.code
+                .instructions
+                .append_to_span(&mut instruction_span, instruction);
+        }
+        let function = plan.code.functions.insert(EncodedMachineFunction {
+            symbol: "registrar".into(),
+            identity: source_identity,
+            byte_offset: 0,
+            byte_count: plan.code.bytes.len(),
+            instructions: instruction_span,
+        });
+        plan.code.byte_count = plan.code.bytes.len();
+
+        let mut object = omega_object_file::ObjectPlan::with_capacities(target, 0, 3, 2);
+        let source_symbol =
+            bind_encoded_function_object_symbol(&mut object, plan.code.functions.get(function));
+        let callback_symbol = object.layout.symbols.insert(SymbolPlan {
+            name: "callback_private".into(),
+            section: SymbolSection::Section(SectionKind::Text),
+            offset: plan.code.byte_count,
+            size: 4,
+            kind: SymbolKind::Function,
+            import_library: String::new(),
+        });
+        object
+            .layout
+            .function_symbols
+            .insert(omega_object_file::FunctionSymbolPlan {
+                identity: callback_identity,
+                symbol: callback_symbol,
+            });
+        let storage_symbol = object.layout.symbols.insert(SymbolPlan {
+            name: omega_object_file::storage_region_symbol_name(
+                RuntimeStorageRegion::Machine,
+                "Main",
+            ),
+            section: SymbolSection::Section(SectionKind::Bss),
+            offset: 0,
+            size: 64,
+            kind: SymbolKind::Object,
+            import_library: String::new(),
+        });
+
+        let mut relocations = RelocationPlan::with_target(target);
+        let sites = match architecture {
+            Architecture::X86_64 => vec![
+                (
+                    store_offset + 2,
+                    8,
+                    RelocationKind::Absolute64,
+                    callback_symbol,
+                ),
+                (
+                    store_offset + 12,
+                    8,
+                    RelocationKind::Absolute64,
+                    storage_symbol,
+                ),
+            ],
+            Architecture::Aarch64 => vec![
+                (
+                    store_offset,
+                    4,
+                    RelocationKind::Aarch64Page21,
+                    callback_symbol,
+                ),
+                (
+                    store_offset + 4,
+                    4,
+                    RelocationKind::Aarch64PageOffset12,
+                    callback_symbol,
+                ),
+                (
+                    store_offset + 8,
+                    4,
+                    RelocationKind::Aarch64Page21,
+                    storage_symbol,
+                ),
+                (
+                    store_offset + 12,
+                    4,
+                    RelocationKind::Aarch64PageOffset12,
+                    storage_symbol,
+                ),
+            ],
+        };
+        for (offset, byte_width, kind, symbol_handle) in sites {
+            relocations.push_record(RelocationRecord {
+                origin: RelocationOrigin::Instruction {
+                    function_symbol_handle: source_symbol,
+                    selected_instruction_index: 2,
+                },
+                section: SectionKind::Text,
+                offset,
+                byte_width,
+                symbol_handle,
+                addend: 0,
+                kind,
+            });
+        }
+
+        let store_registers = match architecture {
+            Architecture::X86_64 => {
+                RegisterSet::new([MachineRegister::X86R14, MachineRegister::X86R15])
+            }
+            Architecture::Aarch64 => {
+                RegisterSet::new([MachineRegister::Aarch64X(16), MachineRegister::Aarch64X(17)])
+            }
+        };
+        let enter_footprint = match architecture {
+            Architecture::X86_64 => StateFootprintEvidence::new(
+                omega_isa_x86_64::function_enter_register_writes(),
+                omega_isa_x86_64::function_enter_additional_machine_state(),
+            ),
+            Architecture::Aarch64 => StateFootprintEvidence::new(
+                omega_isa_aarch64::function_enter_register_writes(),
+                omega_isa_aarch64::function_enter_additional_machine_state(),
+            ),
+        };
+        let return_footprint = match architecture {
+            Architecture::X86_64 => StateFootprintEvidence::new(
+                omega_isa_x86_64::return_register_writes(),
+                omega_isa_x86_64::return_additional_machine_state(),
+            ),
+            Architecture::Aarch64 => StateFootprintEvidence::new(
+                omega_isa_aarch64::return_register_writes(),
+                omega_isa_aarch64::return_additional_machine_state(),
+            ),
+        };
+        plan.semantics
+            .boundaries
+            .footprints
+            .boundary_contract_fingerprint = Some(0x1234);
+        plan.semantics.boundaries.footprints.fragments.extend([
+            BoundaryFootprintFragment {
+                origin: BoundaryFootprintFragmentOrigin::CallReturnMechanics,
+                evidence: compose_state_footprints([&enter_footprint, &return_footprint]),
+            },
+            BoundaryFootprintFragment {
+                origin: BoundaryFootprintFragmentOrigin::CompilerBodyPlaceAddressWrite,
+                evidence: StateFootprintEvidence::new(store_registers, MachineStateSet::empty()),
+            },
+        ]);
+        let final_bytes = plan
+            .code
+            .bytes
+            .iter()
+            .map(|(_, byte)| *byte)
+            .collect::<Vec<_>>();
+        let evidence = validate_compiler_function_instruction_boundaries(
+            architecture,
+            &plan.code,
+            &final_bytes,
+            &object,
+            &relocations,
+            &plan.semantics,
+        )
+        .expect("exact callback address store must replay through final bytes");
+        assert_eq!(evidence.instruction_count, 3);
+
+        let mut redirected = relocations.clone();
+        let redirected_record = redirected
+            .record_set
+            .records
+            .iter()
+            .find(|(_, record)| record.symbol_handle == callback_symbol)
+            .unwrap()
+            .0;
+        redirected
+            .record_set
+            .records
+            .get_mut(redirected_record)
+            .symbol_handle = source_symbol;
+        assert!(
+            validate_compiler_function_instruction_boundaries(
+                architecture,
+                &plan.code,
+                &final_bytes,
+                &object,
+                &redirected,
+                &plan.semantics,
+            )
+            .is_err()
+        );
+
+        let first_record = relocations.records().next().unwrap().0;
+        let mut wrong_kind = relocations.clone();
+        wrong_kind.record_set.records.get_mut(first_record).kind = RelocationKind::X86_64Relative32;
+        assert!(
+            validate_compiler_function_instruction_boundaries(
+                architecture,
+                &plan.code,
+                &final_bytes,
+                &object,
+                &wrong_kind,
+                &plan.semantics,
+            )
+            .is_err()
+        );
+        let mut wrong_addend = relocations.clone();
+        wrong_addend.record_set.records.get_mut(first_record).addend = 1;
+        assert!(
+            validate_compiler_function_instruction_boundaries(
+                architecture,
+                &plan.code,
+                &final_bytes,
+                &object,
+                &wrong_addend,
+                &plan.semantics,
+            )
+            .is_err()
+        );
+        let mut wrong_origin = relocations.clone();
+        wrong_origin.record_set.records.get_mut(first_record).origin =
+            RelocationOrigin::Instruction {
+                function_symbol_handle: callback_symbol,
+                selected_instruction_index: 2,
+            };
+        assert!(
+            validate_compiler_function_instruction_boundaries(
+                architecture,
+                &plan.code,
+                &final_bytes,
+                &object,
+                &wrong_origin,
+                &plan.semantics,
+            )
+            .is_err()
+        );
+        let duplicate_record = relocations.records().next().unwrap().1.clone();
+        let mut duplicate = relocations.clone();
+        duplicate.push_record(duplicate_record);
+        assert!(
+            validate_compiler_function_instruction_boundaries(
+                architecture,
+                &plan.code,
+                &final_bytes,
+                &object,
+                &duplicate,
+                &plan.semantics,
+            )
+            .is_err()
+        );
+
+        let mut changed_opcode = final_bytes.clone();
+        changed_opcode[store_offset + store.len() - 1] ^= 1;
+        assert!(
+            validate_compiler_function_instruction_boundaries(
+                architecture,
+                &plan.code,
+                &changed_opcode,
+                &object,
+                &relocations,
+                &plan.semantics,
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn final_instruction_relocations_retain_the_exact_function_owner() {
     let target = NativeTarget::linux_x64();
     let mut object = omega_object_file::ObjectPlan::with_capacities(target, 0, 1, 0);

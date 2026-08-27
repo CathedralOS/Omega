@@ -95,10 +95,10 @@ pub struct CallbackRegistrarAssignedOperandBinding {
 /// Object-relative request to store one exact private callback address into a
 /// registrar argument's runtime-storage field.
 ///
-/// Both object symbols are identity evidence only. This row deliberately owns
-/// no target/assigned store operation, relocation record or kind, encoded byte
-/// site, resolved address, runtime execution, registration authority, or
-/// callback lease. Those require a later explicit address-store operation.
+/// Both object symbols and all three store handles are exact retained identity
+/// evidence. This row deliberately owns no relocation record or kind, encoded
+/// byte site, resolved address, runtime execution, registration authority,
+/// callback lease, or publication authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallbackPrivateObjectStoreRequest {
     pub assigned_binding_index: usize,
@@ -114,6 +114,9 @@ pub struct CallbackPrivateObjectStoreRequest {
     pub function_identity: MachineFunctionIdentity,
     pub function_symbol: omega_object_file::ObjectSymbolHandle,
     pub function_symbol_plan: omega_object_file::SymbolPlan,
+    pub abstract_store_instruction: Handle<omega_abstract_operations::AbstractOperation>,
+    pub target_store_instruction: Handle<omega_target_operations::TargetOperation>,
+    pub assigned_store_instruction: Handle<omega_assigned_target_operations::AssignedOperation>,
 }
 
 /// Independently replay one address-free demand against its exact checked
@@ -725,7 +728,8 @@ pub fn replay_callback_registrar_assigned_operand_bindings(
 }
 
 /// Independently replay the complete object-relative callback store-request
-/// catalog without minting a relocation or executable store.
+/// catalog, including its exact executable-store handles, without minting a
+/// relocation, runtime registration, lease, or publication authority.
 #[allow(clippy::too_many_arguments)]
 pub fn replay_callback_private_object_store_requests(
     target: omega_target::NativeTarget,
@@ -850,6 +854,165 @@ pub fn replay_callback_private_object_store_requests(
                 "callback function-symbol snapshot",
             ));
         }
+        let group_count = assigned_bindings
+            .iter()
+            .filter(|candidate| candidate.assigned_instruction == binding.assigned_instruction)
+            .count();
+        let group_ordinal = assigned_bindings[..binding_index]
+            .iter()
+            .filter(|candidate| candidate.assigned_instruction == binding.assigned_instruction)
+            .count();
+        let store_index = usize::try_from(binding.assigned_instruction.arena_index())
+            .ok()
+            .and_then(|registrar| registrar.checked_sub(group_count))
+            .and_then(|first| first.checked_add(group_ordinal))
+            .ok_or_else(|| object_store_error(binding_index, "pre-registrar store position"))?;
+        let store_index = u32::try_from(store_index)
+            .map_err(|_| object_store_error(binding_index, "pre-registrar store position"))?;
+        let abstract_store =
+            Handle::from_parts(store_index, binding.abstract_instruction.generation());
+        let target_store = Handle::from_parts(store_index, binding.target_instruction.generation());
+        let assigned_store =
+            Handle::from_parts(store_index, binding.assigned_instruction.generation());
+        if !abstract_operations
+            .code
+            .instructions
+            .is_valid(abstract_store)
+            || !target_operations.code.instructions.is_valid(target_store)
+            || !assigned_operations
+                .code
+                .instructions
+                .is_valid(assigned_store)
+        {
+            return Err(object_store_error(
+                binding_index,
+                "valid contiguous pre-registrar address-store handles",
+            ));
+        }
+        let abstract_store_row = abstract_operations.code.instructions.get(abstract_store);
+        let target_store_row = target_operations.code.instructions.get(target_store);
+        let assigned_store_row = assigned_operations.code.instructions.get(assigned_store);
+        let abstract_registrar = abstract_operations
+            .code
+            .instructions
+            .get(binding.abstract_instruction);
+        let target_registrar = target_operations
+            .code
+            .instructions
+            .get(binding.target_instruction);
+        let assigned_registrar = assigned_operations
+            .code
+            .instructions
+            .get(binding.assigned_instruction);
+        let abstract_functions = abstract_operations
+            .code
+            .functions
+            .iter()
+            .filter(|(_, function)| {
+                handle_in_span(abstract_store, function.instructions)
+                    && handle_in_span(binding.abstract_instruction, function.instructions)
+            })
+            .map(|(_, function)| function)
+            .collect::<Vec<_>>();
+        let target_functions = target_operations
+            .code
+            .functions
+            .iter()
+            .filter(|(_, function)| {
+                handle_in_span(target_store, function.instructions)
+                    && handle_in_span(binding.target_instruction, function.instructions)
+            })
+            .map(|(_, function)| function)
+            .collect::<Vec<_>>();
+        let assigned_functions = assigned_operations
+            .code
+            .functions
+            .iter()
+            .filter(|(_, function)| {
+                handle_in_span(assigned_store, function.instructions)
+                    && handle_in_span(binding.assigned_instruction, function.instructions)
+            })
+            .map(|(_, function)| function)
+            .collect::<Vec<_>>();
+        let ([abstract_function], [target_function], [assigned_function]) = (
+            abstract_functions.as_slice(),
+            target_functions.as_slice(),
+            assigned_functions.as_slice(),
+        ) else {
+            return Err(object_store_error(
+                binding_index,
+                "one exact store/registrar function span",
+            ));
+        };
+        if request.abstract_store_instruction != abstract_store
+            || request.target_store_instruction != target_store
+            || request.assigned_store_instruction != assigned_store
+            || abstract_function.identity != target_function.identity
+            || target_function.identity != assigned_function.identity
+            || abstract_function.symbol != target_function.symbol
+            || target_function.symbol != assigned_function.symbol
+            || abstract_store_row.source_key != abstract_registrar.source_key
+            || abstract_store_row.source_statement != abstract_registrar.source_statement
+            || target_store_row.source_key != target_registrar.source_key
+            || target_store_row.source_statement != target_registrar.source_statement
+            || assigned_store_row.source_key != assigned_registrar.source_key
+            || assigned_store_row.source_statement != assigned_registrar.source_statement
+            || abstract_store_row.source_key != target_store_row.source_key
+            || abstract_store_row.source_statement != target_store_row.source_statement
+            || target_store_row.source_key != assigned_store_row.source_key
+            || target_store_row.source_statement != assigned_store_row.source_statement
+            || !matches!(
+                abstract_store_row.kind,
+                omega_abstract_operations::AbstractOperationKind::WriteFunctionAddressToRuntimeStorage {
+                    function,
+                    target_region,
+                    target_offset,
+                } if function == request.function_identity
+                    && target_region == request.storage_region
+                    && target_offset == request.destination_offset
+            )
+            || !matches!(
+                target_store_row.kind,
+                omega_target_operations::TargetOperationKind::WriteFunctionAddressToRuntimeStorage {
+                    function,
+                    target_region,
+                    target_offset,
+                } if function == request.function_identity
+                    && target_region == request.storage_region
+                    && target_offset == request.destination_offset
+            )
+            || !matches!(
+                assigned_store_row.kind,
+                omega_assigned_target_operations::AssignedOperationKind::WriteFunctionAddressToRuntimeStorage {
+                    function,
+                    target_region,
+                    target_offset,
+                } if function == request.function_identity
+                    && target_region == request.storage_region
+                    && target_offset == request.destination_offset
+            )
+        {
+            return Err(object_store_error(
+                binding_index,
+                "exact contiguous pre-registrar address-store operation",
+            ));
+        }
+    }
+    let store_count = assigned_operations
+        .code
+        .instructions
+        .iter()
+        .filter(|(_, instruction)| {
+            matches!(
+                instruction.kind,
+                omega_assigned_target_operations::AssignedOperationKind::WriteFunctionAddressToRuntimeStorage { .. }
+            )
+        })
+        .count();
+    if store_count != requests.len() {
+        return Err(PlanDiagnostic(
+            "callback address-store operation cardinality drifted".into(),
+        ));
     }
     Ok(())
 }

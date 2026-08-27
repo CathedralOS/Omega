@@ -250,6 +250,114 @@ pub(super) fn validate_compiler_place_string_relocations(
     Ok(sites.into_iter().map(|(site, _)| site).collect())
 }
 
+pub(super) fn validate_compiler_function_address_store_relocations(
+    architecture: Architecture,
+    object: &omega_object_file::ObjectPlan,
+    relocations: &RelocationPlan,
+    selected_instruction_index: u32,
+    instruction_byte_offset: usize,
+    function: omega_control_flow::MachineFunctionIdentity,
+    target_region: omega_target_operations::RuntimeStorageRegion,
+    target_offset: usize,
+) -> Result<Vec<usize>, Diagnostic> {
+    #[derive(Clone, Copy)]
+    enum ExpectedTarget {
+        Function,
+        Storage,
+    }
+
+    let (function_symbol, _) = omega_object_file::object_function_symbol(object, function)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "final callback address store lost function symbol for {function:?}"
+            ))
+        })?;
+    let sites = match architecture {
+        Architecture::X86_64 => {
+            let (_, target_sites) =
+                omega_isa_x86_64::encode_runtime_storage_function_address_write(
+                    target_region,
+                    target_offset,
+                )?;
+            let mut sites = vec![(0usize, ExpectedTarget::Function)];
+            for (offset, side) in target_sites.iter() {
+                if side != omega_isa_x86_64::PlaceCopySide::Target {
+                    return Err(Diagnostic::error(
+                        "final callback address store encoded a non-target storage site",
+                    ));
+                }
+                sites.push((offset, ExpectedTarget::Storage));
+            }
+            sites
+        }
+        Architecture::Aarch64 => vec![
+            (0usize, ExpectedTarget::Function),
+            (8usize, ExpectedTarget::Storage),
+        ],
+    };
+    let mut actual = relocations
+        .records()
+        .filter_map(|(_, relocation)| {
+            (relocation.section == SectionKind::Text
+                && relocation.origin.selected_instruction_index()
+                    == Some(selected_instruction_index))
+            .then_some(relocation)
+        })
+        .collect::<Vec<_>>();
+    actual.sort_unstable_by_key(|relocation| relocation.offset);
+    let mut expected = Vec::new();
+    for (site, target) in &sites {
+        match architecture {
+            Architecture::X86_64 => expected.push((
+                instruction_byte_offset + site + 2,
+                RelocationKind::Absolute64,
+                8usize,
+                *target,
+            )),
+            Architecture::Aarch64 => {
+                expected.push((
+                    instruction_byte_offset + site,
+                    RelocationKind::Aarch64Page21,
+                    4usize,
+                    *target,
+                ));
+                expected.push((
+                    instruction_byte_offset + site + 4,
+                    RelocationKind::Aarch64PageOffset12,
+                    4usize,
+                    *target,
+                ));
+            }
+        }
+    }
+    expected.sort_unstable_by_key(|(offset, _, _, _)| *offset);
+    let matches = actual.len() == expected.len()
+        && actual
+            .iter()
+            .zip(&expected)
+            .all(|(relocation, (offset, kind, width, target))| {
+                let target_matches = match target {
+                    ExpectedTarget::Function => relocation.symbol_handle == function_symbol,
+                    ExpectedTarget::Storage => compiler_storage_symbol_matches(
+                        object,
+                        relocation.symbol_handle,
+                        target_region,
+                    ),
+                };
+                relocation.offset == *offset
+                    && relocation.kind == *kind
+                    && relocation.byte_width == *width
+                    && relocation.addend == 0
+                    && target_matches
+            });
+    if !matches {
+        return Err(Diagnostic::error(format!(
+            "compiler callback address store instruction #{selected_instruction_index} does not retain its exact function/storage relocation set"
+        )));
+    }
+    Ok(sites.into_iter().map(|(site, _)| site).collect())
+}
+
 pub(super) fn validate_compiler_text_buffer_materialize_relocations(
     architecture: Architecture,
     object: &omega_object_file::ObjectPlan,

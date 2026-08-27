@@ -74,6 +74,20 @@ pub(super) fn plan_callback_private_object_store_requests(
                     )
                 },
             )?;
+        let group_count = assigned_bindings
+            .iter()
+            .filter(|candidate| candidate.assigned_instruction == binding.assigned_instruction)
+            .count();
+        let group_ordinal = assigned_bindings[..binding_index]
+            .iter()
+            .filter(|candidate| candidate.assigned_instruction == binding.assigned_instruction)
+            .count();
+        let store_index = usize::try_from(binding.assigned_instruction.arena_index())
+            .ok()
+            .and_then(|registrar| registrar.checked_sub(group_count))
+            .and_then(|first| first.checked_add(group_ordinal))
+            .and_then(|index| u32::try_from(index).ok())
+            .ok_or_else(|| store_error(binding_index, "pre-registrar store position is invalid"))?;
         requests.push(CallbackPrivateObjectStoreRequest {
             assigned_binding_index: binding_index,
             assigned_binding: binding.clone(),
@@ -88,6 +102,18 @@ pub(super) fn plan_callback_private_object_store_requests(
             function_identity,
             function_symbol,
             function_symbol_plan: function_symbol_plan.clone(),
+            abstract_store_instruction: psi_arena::Handle::from_parts(
+                store_index,
+                binding.abstract_instruction.generation(),
+            ),
+            target_store_instruction: psi_arena::Handle::from_parts(
+                store_index,
+                binding.target_instruction.generation(),
+            ),
+            assigned_store_instruction: psi_arena::Handle::from_parts(
+                store_index,
+                binding.assigned_instruction.generation(),
+            ),
         });
     }
 

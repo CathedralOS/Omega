@@ -837,6 +837,17 @@ fn compiler_instruction_validation_kind(
                 target_offset: *target_offset,
             },
         ),
+        SelectedInstructionKind::WriteFunctionAddressToRuntimeStorage {
+            function,
+            target_region,
+            target_offset,
+        } => Some(
+            CompilerInstructionValidationKind::CompilerBodyFunctionAddressStore {
+                function: *function,
+                target_region: *target_region,
+                target_offset: *target_offset,
+            },
+        ),
         SelectedInstructionKind::ReadRuntimeByte {
             target_region,
             target_offset,

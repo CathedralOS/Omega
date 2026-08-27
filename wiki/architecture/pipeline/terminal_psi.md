@@ -267,10 +267,17 @@ region/base and target-closed field geometry to the canonical BSS storage
 symbol and binds the demand's function identity to one exact private text
 symbol. Full snapshots replay against the rebuilt object plan; `DataAddress`,
 direct parameters, ambiguous or malformed symbols, and geometry drift reject.
-No target/assigned store operation or encoded patch site exists yet, so this is
-not a relocation record and grants no bytes, runtime address, registration, or
-lease authority. The next prerequisite is explicit callback-address store
-lowering.
+For this one-slot production shape, backend orchestration now inserts an exact
+`WriteFunctionAddressToRuntimeStorage` operation contiguously before the
+registrar call and rederives its target/assigned identity after every operation
+arena rebuild. Both target encoders retain separate symbolic function and BSS
+bases, relocation planning emits the architecture-specific pair(s), and final
+replay independently binds function identity, storage symbol, sites, kinds,
+addends, origin, cardinality, and unchanged instruction bits. The operation's
+scratch/state demand is included in the validated root boundary footprint.
+This grants no runtime registration, invocation, callback lifetime/lease, or
+publication authority; `DataAddress`, direct parameters, and multi-segment
+paths remain fenced.
 
 Reference identities retain loan compatibility and permitted operations
 separately. `&write T` carries an exclusive loan over an existing valid `T`

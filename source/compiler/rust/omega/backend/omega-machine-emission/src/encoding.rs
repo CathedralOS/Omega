@@ -607,6 +607,15 @@ pub(super) fn encode_machine_instruction_bytes(
                 *target_offset,
             )
         }
+        SelectedInstructionKind::WriteFunctionAddressToRuntimeStorage {
+            target_region,
+            target_offset,
+            ..
+        } => omega_instruction_selection::encode_runtime_storage_function_address_write(
+            input.target.architecture,
+            *target_region,
+            *target_offset,
+        ),
         SelectedInstructionKind::WritePlaceBinary {
             target,
             byte_size,

@@ -779,6 +779,15 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 data: remap_data_handle(*data),
                 target_offset: *target_offset,
             },
+            omega_abstract_operations::AbstractOperationKind::WriteFunctionAddressToRuntimeStorage {
+                function,
+                target_region,
+                target_offset,
+            } => Self::WriteFunctionAddressToRuntimeStorage {
+                function: *function,
+                target_region: *target_region,
+                target_offset: *target_offset,
+            },
             omega_abstract_operations::AbstractOperationKind::SetDispatchState {
                 dispatch_index,
             } => Self::SetDispatchState {

@@ -823,6 +823,15 @@ fn selected_instruction_name(
             let data_symbol = backend_plan.data.objects.get(*data).symbol.as_ref();
             format!("write data address `{data_symbol}` -> frame[{target_offset}]")
         }
+        SelectedInstructionKind::WriteFunctionAddressToRuntimeStorage {
+            function,
+            target_region,
+            target_offset,
+        } => {
+            let target_symbol =
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
+            format!("write function address {function:?} -> {target_symbol}[{target_offset}]")
+        }
         SelectedInstructionKind::WritePlaceBoundedBuffer { target, literal } => {
             let target_symbol =
                 storage_region_symbol_name(target.region, backend_plan.entry_machine_name());

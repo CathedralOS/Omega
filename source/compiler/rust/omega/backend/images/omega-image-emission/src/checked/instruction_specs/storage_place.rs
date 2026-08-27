@@ -1051,6 +1051,33 @@ pub(super) fn expected_storage_place_spec(
                             target_offset,
                         },
                     ),
+                    omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyFunctionAddressStore {
+                        function,
+                        target_region,
+                        target_offset,
+                    } => (
+                        None,
+                        match architecture {
+                            Architecture::X86_64 => {
+                                omega_isa_x86_64::encode_runtime_storage_function_address_write(
+                                    target_region,
+                                    target_offset,
+                                )?
+                                .0
+                            }
+                            Architecture::Aarch64 => {
+                                omega_isa_aarch64::encode_runtime_storage_function_address_write(
+                                    target_offset,
+                                )?
+                            }
+                        },
+                        35u8,
+                        CompilerInstructionRelocationRecipe::FunctionAddressStore {
+                            function,
+                            target_region,
+                            target_offset,
+                        },
+                    ),
                     omega_machine_bytes::CompilerInstructionValidationKind::CompilerBodyConstantHostResult {
                         result_region,
                         result_offset,

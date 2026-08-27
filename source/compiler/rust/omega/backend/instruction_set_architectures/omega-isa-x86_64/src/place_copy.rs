@@ -597,7 +597,17 @@ pub fn encode_place_string_write(
 pub fn encode_runtime_frame_data_address_write(
     target_offset: usize,
 ) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
-    let target = Place::at(RuntimeStorageRegion::RuntimeFrame, target_offset);
+    encode_runtime_storage_function_address_write(RuntimeStorageRegion::RuntimeFrame, target_offset)
+}
+
+/// Store one relocated compiler-private function address into a direct
+/// runtime-storage pointer word. Both immediate sites remain symbolic until
+/// object relocation.
+pub fn encode_runtime_storage_function_address_write(
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+) -> Result<(Vec<u8>, PlaceCopySites), Diagnostic> {
+    let target = Place::at(target_region, target_offset);
     let mut bytes = Vec::new();
     let mut sites = PlaceCopySites::default();
     super::append_mov_r14_imm64(&mut bytes, 0);
@@ -2150,5 +2160,22 @@ mod tests {
             &[0x49, 0xbf],
             "r15 owns the runtime-frame relocation"
         );
+    }
+
+    #[test]
+    fn callback_function_address_store_preserves_exact_storage_region_and_sites() {
+        for region in [
+            RuntimeStorageRegion::Machine,
+            RuntimeStorageRegion::RuntimeFrame,
+        ] {
+            let (bytes, sites) = encode_runtime_storage_function_address_write(region, 40).unwrap();
+            assert_eq!(bytes.len(), 27);
+            assert_eq!(
+                sites.iter().collect::<Vec<_>>(),
+                vec![(10, PlaceCopySide::Target)]
+            );
+            assert_eq!(&bytes[2..10], &[0; 8]);
+            assert_eq!(&bytes[12..20], &[0; 8]);
+        }
     }
 }

@@ -1,4 +1,5 @@
 mod byte_io;
+mod callback_private_stores;
 mod context;
 mod dynamic_table_calls;
 mod host_operation;
@@ -68,6 +69,10 @@ pub(super) fn collect_instruction_relocations(
     };
 
     if internal_calls::collect_internal_call_relocation(&mut context, &instruction.kind)? {
+    } else if callback_private_stores::collect_callback_private_store_relocations(
+        &mut context,
+        &instruction.kind,
+    )? {
     } else if host_operation::collect_host_operation_relocations(&mut context, &instruction.kind)? {
     } else if dynamic_table_calls::collect_dynamic_table_call_relocations(
         &mut context,

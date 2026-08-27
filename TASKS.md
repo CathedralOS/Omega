@@ -7509,11 +7509,21 @@ Owners:
   region/base/slot/destination offsets, pointer extent, alignment, and both
   complete symbol snapshots. Independent replay rejects missing, duplicate,
   reordered, substituted, out-of-bounds, misaligned, `DataAddress`, direct-
-  parameter, or object-symbol-drifted rows. This remains a request only: it
-  owns no selected/assigned address-store operation, `RelocationRecord`,
-  relocation kind, encoded byte site, runtime address, registration authority,
-  or lease. An explicit callback-address store operation is the next
-  engineering prerequisite before relocation emission.
+  parameter, or object-symbol-drifted rows. The exact address-store operation
+  rung is now complete for that production shape. Backend orchestration inserts
+  one `WriteFunctionAddressToRuntimeStorage` immediately before the exact
+  registrar operation, preserves the registrar source coordinate and function
+  span, rederives target/assigned handles after both insertion and the
+  program-storage wrapper rebuild, and extends the validated root
+  `CompilerBodyPlaceAddressWrite` footprint. Both ISAs encode the function and
+  storage bases symbolically; relocation planning emits the exact x86-64
+  `Absolute64` pair or AArch64 `Page21`/`PageOffset12` pairs, and final replay
+  independently rejoins the private function identity, canonical BSS symbol,
+  sites, kinds, addends, origin, cardinality, and unchanged instruction bits.
+  `DataAddress`, direct parameters, multi-segment paths, registration,
+  invocation, callback lifetime/lease, and publication authority remain
+  fenced. Runtime registration and lifetime custody are the next engineering
+  rungs.
 
   The first source canary cohort is live: the exact target-selected registrar
   closes two explicitly named, nonoverlapping nested private slots for two

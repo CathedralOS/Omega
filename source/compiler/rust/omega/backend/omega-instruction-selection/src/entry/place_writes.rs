@@ -141,22 +141,37 @@ pub fn derive_boundary_compiler_body_place_address_write_footprint<'instruction>
     let mut registers = Vec::new();
     let mut additional_state = MachineStateSet::empty();
     for instruction in instructions {
-        let SelectedInstructionKind::WritePlaceAddress {
-            source,
-            target_offset,
-        } = instruction
-        else {
-            continue;
-        };
-        let Ok(clobbers) =
-            crate::write_place_address_register_writes(architecture, source, *target_offset)
-        else {
-            continue;
-        };
-        registers.extend_from_slice(clobbers.as_slice());
-        additional_state = additional_state.union(
-            crate::write_place_address_additional_machine_state(architecture),
-        );
+        match instruction {
+            SelectedInstructionKind::WritePlaceAddress {
+                source,
+                target_offset,
+            } => {
+                let Ok(clobbers) = crate::write_place_address_register_writes(
+                    architecture,
+                    source,
+                    *target_offset,
+                ) else {
+                    continue;
+                };
+                registers.extend_from_slice(clobbers.as_slice());
+                additional_state = additional_state.union(
+                    crate::write_place_address_additional_machine_state(architecture),
+                );
+            }
+            SelectedInstructionKind::WriteFunctionAddressToRuntimeStorage { .. } => {
+                registers.extend_from_slice(match architecture {
+                    omega_target::Architecture::X86_64 => &[
+                        omega_calling_conventions::MachineRegister::X86R14,
+                        omega_calling_conventions::MachineRegister::X86R15,
+                    ],
+                    omega_target::Architecture::Aarch64 => &[
+                        omega_calling_conventions::MachineRegister::Aarch64X(16),
+                        omega_calling_conventions::MachineRegister::Aarch64X(17),
+                    ],
+                });
+            }
+            _ => {}
+        }
     }
     let evidence = StateFootprintEvidence::new(RegisterSet::new(registers), additional_state);
     validate_state_footprint(boundary, &evidence)?;

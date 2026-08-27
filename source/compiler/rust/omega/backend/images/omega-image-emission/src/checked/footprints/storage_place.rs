@@ -529,6 +529,20 @@ pub(super) fn storage_place_footprint_parts(
             },
             MachineStateSet::empty(),
         ),
+        CompilerInstructionValidationKind::CompilerBodyFunctionAddressStore { .. } => (
+            BoundaryFootprintFragmentOrigin::CompilerBodyPlaceAddressWrite,
+            match architecture {
+                Architecture::X86_64 => omega_calling_conventions::RegisterSet::new([
+                    omega_calling_conventions::MachineRegister::X86R14,
+                    omega_calling_conventions::MachineRegister::X86R15,
+                ]),
+                Architecture::Aarch64 => omega_calling_conventions::RegisterSet::new([
+                    omega_calling_conventions::MachineRegister::Aarch64X(16),
+                    omega_calling_conventions::MachineRegister::Aarch64X(17),
+                ]),
+            },
+            MachineStateSet::empty(),
+        ),
         CompilerInstructionValidationKind::CompilerBodyConstantHostResult {
             result_offset,
             result_byte_size,

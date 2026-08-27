@@ -88,10 +88,15 @@ Must not own:
 
 - Keep runtime text and runtime storage relocation families aligned with instruction-selection families as new selected instructions land.
 - Boundary summaries are preserved beside this stage, but target policy validation still needs explicit linkage between source boundary edges and lowered host-operation relocations.
-- Private callback materialization currently reaches an object-relative
-  `CallbackPrivateObjectStoreRequest`: exact `RuntimeStorageAddress` storage
-  geometry is joined to canonical BSS and private text symbols, but no
-  selected/assigned callback-address store operation or encoded patch site yet
-  exists. This stage must not infer a relocation record from that request;
-  explicit store lowering is the next prerequisite. `DataAddress` and direct
-  callback parameters remain fenced.
+- Private callback materialization now reaches one exact
+  `WriteFunctionAddressToRuntimeStorage` operation for the production one-slot
+  `Field`/`RuntimeStorageAddress` shape. The object-relative request retains
+  its exact abstract/target/assigned store handles and both symbol snapshots;
+  relocation discovery derives the function and BSS sites from that operation,
+  emitting two `Absolute64` records on x86-64 or two
+  `Page21`/`PageOffset12` pairs on AArch64. The stage must still rejoin the
+  private `MachineFunctionIdentity`, canonical storage symbol, exact registrar
+  order/source/function span, and complete record set; it cannot infer runtime
+  registration, invocation, lifetime/lease, or publication authority.
+  `DataAddress`, direct callback parameters, and multi-segment paths remain
+  fenced.

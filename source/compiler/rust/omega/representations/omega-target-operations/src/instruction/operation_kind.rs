@@ -530,6 +530,11 @@ pub enum TargetOperationKind {
         data: TargetDataObjectHandle,
         target_offset: usize,
     },
+    WriteFunctionAddressToRuntimeStorage {
+        function: omega_control_flow::MachineFunctionIdentity,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+    },
     SetDispatchState {
         dispatch_index: u32,
     },
