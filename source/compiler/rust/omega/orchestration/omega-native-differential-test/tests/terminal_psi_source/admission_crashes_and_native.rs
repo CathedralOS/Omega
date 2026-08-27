@@ -1533,16 +1533,23 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     let attribution_fingerprint = installed_attribution.fingerprint();
     let runtime_fingerprint = transfer_runtime.fingerprint();
     let component_candidate =
-        TerminalComponentCandidate::from_parts(TerminalComponentCandidateParts {
-            target: object_artifact.target(),
+        TerminalComponentCandidate::checked(TerminalComponentCandidateParts {
+            native_artifact: TerminalNativeArtifact::from_replayed_parts(
+                TerminalNativeArtifactParts {
+                    target: object_artifact.target(),
+                    terminal_artifact: deployment_terminal_artifact,
+                    object: object_artifact,
+                    image: image.clone(),
+                    selected_provider_plans: Vec::new(),
+                    provider_executions: Vec::new(),
+                },
+            )
+            .expect("deployment fixture retains one exact Terminal-native artifact"),
             entry_machine: "terminal_constant".into(),
-            terminal_artifact: deployment_terminal_artifact,
-            object: object_artifact,
-            image: image.clone(),
             selected_provider_plans: omega_effects::SelectedProviderPlanFacts::default(),
-            provider_executions: Vec::new(),
             component_progress: None,
-        });
+        })
+        .expect("deployment fixture retains matching component policy");
     let mut deployment_session = begin_terminal_component_deployment_with_claimed_registry(
         component_candidate,
         installed_code,

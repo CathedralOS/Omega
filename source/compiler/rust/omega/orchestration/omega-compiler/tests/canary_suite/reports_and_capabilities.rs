@@ -141,9 +141,9 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
     let native_dir = unique_no_output_build_dir();
     let native = omega_compiler::compile(
         CompileRequest::new(CompileOptions {
-            root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
+            root_path: pass_canary("terminal_psi/selected_empty_component").join("main.omg"),
             build_dir: Some(native_dir.clone()),
-            target_name: Some("windows_x64".into()),
+            target_name: Some("linux_x64".into()),
             write_output: true,
         })
         .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact)
@@ -165,21 +165,21 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
     artifact
         .validate()
         .expect("retained native payload must independently replay");
-    assert_eq!(artifact.target(), omega_target::NativeTarget::windows_x64());
+    assert_eq!(artifact.target(), omega_target::NativeTarget::linux_x64());
     assert_eq!(
-        artifact.emission_plan().encoded_machine_bytes,
-        artifact.text_bytes().len()
+        artifact.terminal_artifact().manifest().semantic(),
+        artifact.object().terminal_psi()
     );
+    assert_eq!(
+        artifact.object().terminal_psi(),
+        artifact.image().terminal_psi()
+    );
+    assert!(!artifact.object().text_bytes().is_empty());
+    assert!(!artifact.image().output().bytes.is_empty());
     assert!(
         !native_dir.exists(),
         "output-only retained native compilation must not create a build directory"
     );
-    native
-        .into_retained_native_artifact()
-        .expect("native artifact custody must leave the report only by value")
-        .validate()
-        .expect("transferred native artifact custody must still replay");
-
     let terminal_dir = unique_no_output_build_dir();
     let terminal = omega_compiler::compile(
         CompileRequest::new(CompileOptions {
@@ -214,6 +214,22 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         )
         .expect("retained semantic identity")
     );
+    let native_artifact = native
+        .retained_native_artifact()
+        .expect("native report retains its canonical Terminal realization");
+    assert_eq!(
+        native_artifact.terminal_artifact().manifest(),
+        artifact.manifest(),
+        "Terminal-only and native products must share the exact canonical handoff"
+    );
+    assert_eq!(
+        native_artifact.terminal_artifact().semantic_bytes(),
+        artifact.semantic_bytes()
+    );
+    assert_eq!(
+        native_artifact.terminal_artifact().proof_bytes(),
+        artifact.proof_bytes()
+    );
     assert!(
         !terminal_dir.exists(),
         "terminal artifact production must not create native or report output"
@@ -223,6 +239,11 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         .expect("terminal artifact custody must leave the report only by value")
         .validate()
         .expect("transferred terminal artifact custody must still replay");
+    native
+        .into_retained_native_artifact()
+        .expect("native artifact custody must leave the report only by value")
+        .validate()
+        .expect("transferred native artifact custody must still replay");
 
     let unsupported = omega_compiler::compile(
         CompileRequest::new(CompileOptions {
@@ -239,6 +260,28 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
             .message
             .contains("terminal-artifact production failed")
     }));
+
+    let unsupported_native_dir = unique_no_output_build_dir();
+    let unsupported_native = omega_compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
+            build_dir: Some(unsupported_native_dir.clone()),
+            target_name: Some("windows_x64".into()),
+            write_output: false,
+        })
+        .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+    )
+    .expect_err("unsupported Terminal constructs must not fall back for NativeArtifact");
+    assert!(unsupported_native.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("native-artifact Terminal production failed")
+    }));
+    assert!(
+        !unsupported_native_dir.exists(),
+        "failed Terminal-native realization must not write output or reports"
+    );
 }
 
 #[test]

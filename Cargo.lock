@@ -564,6 +564,7 @@ dependencies = [
  "omega-terminal-image-emission",
  "omega-terminal-installation-evidence",
  "omega-terminal-machine-emission",
+ "omega-terminal-native-artifact",
  "omega-terminal-psi-to-abstract-operations",
  "omega-terminal-target-operations",
  "omega-terminal-target-operations-to-assigned-target-operations",
@@ -1640,7 +1641,7 @@ dependencies = [
  "omega-effects",
  "omega-target",
  "omega-terminal-image-emission",
- "omega-terminal-installation-evidence",
+ "omega-terminal-native-artifact",
  "psi-terminal-codec",
 ]
 
@@ -1739,6 +1740,16 @@ dependencies = [
  "psi-core",
  "psi-terminal",
  "psi-terminal-fuel",
+]
+
+[[package]]
+name = "omega-terminal-native-artifact"
+version = "0.1.0"
+dependencies = [
+ "omega-target",
+ "omega-terminal-image-emission",
+ "omega-terminal-installation-evidence",
+ "psi-terminal-codec",
 ]
 
 [[package]]
