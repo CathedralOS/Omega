@@ -47,15 +47,16 @@ pub use observation::{
 
 pub use rewrite::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
-    ConstantConditionalRewrite, DeadScalarNodeRewrite, IntegerConstantRewrite,
-    IntegerEvaluationWitness, LinearEmptyBlockRewrite, LocalScalarCommonSubexpressionRewrite,
-    NodeLocation, PathQualifiedEmptyBlockRewrite, ProvenanceDisposition, ProvenanceRewrite,
-    PsiRealizationSite, PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewriteDecisionPoint,
-    PsiRewritePatch, RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
-    ScalarConstantValue, ScalarEvaluationWitness, ScalarSubstitution, SccpBlockRow, SccpEdgeRow,
-    SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState,
-    SharedTerminalJumpFusionRewrite, UnreachablePrivateMachinesRewrite,
-    derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
+    ConstantConditionalRewrite, DeadScalarNodeRewrite, DominatingScalarCommonSubexpressionRewrite,
+    IntegerConstantRewrite, IntegerEvaluationWitness, LinearEmptyBlockRewrite,
+    LocalScalarCommonSubexpressionRewrite, NodeLocation, PathQualifiedEmptyBlockRewrite,
+    ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite, PsiRewriteCandidate,
+    PsiRewriteCandidateError, PsiRewriteDecisionPoint, PsiRewritePatch,
+    RedundantBlockParameterRewrite, RedundantBlockParameterWitness, ScalarConstantValue,
+    ScalarEvaluationWitness, ScalarSubstitution, SccpBlockRow, SccpEdgeRow, SccpEdgeState,
+    SccpMachineSnapshot, SccpValueRow, SccpValueState, SharedTerminalJumpFusionRewrite,
+    UnreachablePrivateMachinesRewrite, derived_sccp_scalar_constant_fact_identity,
+    literal_scalar_constant_fact_identity,
 };
 
 /// The exact immutable Terminal Psi semantic site realized by one unit node.
