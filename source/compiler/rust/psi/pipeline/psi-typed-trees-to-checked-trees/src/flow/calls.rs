@@ -90,6 +90,8 @@ pub(super) fn build_call_flow_fact(
         suspension: Default::default(),
         blocking: Default::default(),
         operational_acknowledgement: Default::default(),
+        authored_source_span: None,
+        authored_source_custody_valid: false,
     }
 }
 

@@ -26,6 +26,11 @@ impl SynchronousInvocationFacts {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineSynchronousInvocationFact {
     pub machine: SymbolHandle,
+    /// Exact symbolic targets retained before provider settlement can rewrite
+    /// the typed call structure. The string plan below is a review-facing
+    /// rendering, not an identity source.
+    pub published_targets: Vec<psi_effects::InvocationTarget>,
+    pub checked_inferred_targets: Vec<psi_effects::InvocationTarget>,
     pub plan: SynchronousInvocationPlan,
 }
 
@@ -43,6 +48,8 @@ mod tests {
             machines: vec![
                 MachineSynchronousInvocationFact {
                     machine: published,
+                    published_targets: Vec::new(),
+                    checked_inferred_targets: vec![psi_effects::InvocationTarget::Parameter(0)],
                     plan: SynchronousInvocationPlan {
                         interface: SynchronousInvocationInterface::PublishedCeiling,
                         published: Vec::new(),
@@ -51,6 +58,10 @@ mod tests {
                 },
                 MachineSynchronousInvocationFact {
                     machine: internal,
+                    published_targets: Vec::new(),
+                    checked_inferred_targets: vec![psi_effects::InvocationTarget::Service(
+                        SymbolHandle::from_arena_index(4),
+                    )],
                     plan: SynchronousInvocationPlan {
                         interface: SynchronousInvocationInterface::InternalInferred,
                         published: Vec::new(),
@@ -67,6 +78,10 @@ mod tests {
         );
         assert!(published_plan.published.is_empty());
         assert_eq!(published_plan.checked_inferred, ["parameter:0"]);
+        assert_eq!(
+            facts.machines[0].checked_inferred_targets,
+            [psi_effects::InvocationTarget::Parameter(0)]
+        );
 
         let internal_plan = facts.for_machine(internal).expect("internal plan");
         assert_eq!(

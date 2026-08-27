@@ -436,11 +436,14 @@ reuse the callable sidecar. Every projected declaration family recursively
 collects the same anchor from structural static-machine parameter contracts.
 Checked body calls add
 `body_call` anchors by joining checked-flow coordinates to exact typed
-statement, expression, and named-transition sites. Statement and transition
+statement, expression, and named-transition sites during checked lowering,
+before provider settlement may rewrite typed call identity. Statement and transition
 sites carry explicit authored call-selection occurrences; expression sites
 reuse their existing attached occurrences. The join verifies target, receiver,
-receiver shape, and operational acknowledgement, rejects missing or
-contradictory provenance, and emits no source location for generated calls.
+receiver shape, and operational acknowledgement at capture, rejects missing or
+contradictory provenance, and emits no source location for generated calls. A
+legitimate late-bound target does not invalidate source custody: the span proves
+where the call was authored, not that target finalization has occurred.
 Authored `invokes` targets now enter typed trees as one record binding the
 diagnostic name, exact parameter-symbol/ordinal or exact boundary-trait symbol,
 and exact target-name span. Invocation inference consumes the retained target,
@@ -448,6 +451,9 @@ never a later same-spelled trait scan. Callable, public-trait requirement, and
 recursively structural machine-parameter rows carry those spans under
 `synchronous_invocation`; top-level projection joins them to the exact checked
 plan and rejects missing, malformed, duplicate, aliased, or stale custody.
+Checked invocation facts retain exact symbolic published and inferred targets
+before provider settlement; package review does not re-infer effects from the
+transformed typed tree.
 Authored `reaches` clauses retain every keyword and member occurrence through
 syntax, resolution, typed lowering, copying, and specialization. Resolution
 binds each member once to its exact boundary-trait symbol; semantic
@@ -467,7 +473,7 @@ requires the authored boolean, retained keywords, and exact checked interface
 to agree; omission and inference acquire no invented location. For public or
 otherwise contract-supplied machines, the checked operational fact is the
 published may-ceiling, not a claim that the current body exercised it. Review
-v73/row v31, recovery v7, conflict fingerprint v10, and renderer V9 bind the
+v74/row v32, recovery v7, conflict fingerprint v10, and renderer V9 bind the
 current source schema. Coordinates remain explanatory rather than semantic
 identity. Remaining per-fact spans are later rungs;
 missing spans must be retained before they are erased, never recovered by
@@ -1464,6 +1470,19 @@ resolved commit/tree/content tuple. This is resolver custody only—not lock
 encoding, compiler evidence, admission, or `PackageInstance` construction—and
 the ordinary obligation ledger intentionally remains source-selector-free.
 Multi-package Git selection remains a separate open decision.
+
+The versioned `CanonicalSourceClosureSubject` is the bounded canonical form of
+that source-selection question. It retains the exact root request and every
+requester/ordinal dependency occurrence, resolved alias, selected package key,
+immutable resolution, and content identity. Recovery reconstructs one strictly
+ordered closed graph and rejects malformed, mismatched, noncanonical, or over-
+limit state. Its fingerprint names the question only: use requires independent
+resolution and snapshotting followed by complete reconstruction and exact
+equality. Snapshot/cache paths, raw source bytes, transport execution
+observations, compiler-consumption/build observations, artifacts, certificates,
+admissions, and open obligations remain separately bound. This is neither an
+accepted lock nor a package instance, and a future multi-package Git selector
+adds a request case rather than changing today's repository-root meaning.
 
 Terminal Psi now provides the first concrete replay ledger: one ordered,
 owner-tagged set covers executable operations, call and nominal-cleanup
