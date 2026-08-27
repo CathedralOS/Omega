@@ -176,8 +176,9 @@ use structural_scalar_return::{
     lower_structural_scalar_return_machine, lower_trait_operator_scalar_return_machine,
 };
 use structural_types::{
-    lower_structural_type_plans, retain_additional_structural_types,
-    terminal_byte_sequence_carrier, terminal_structural_field_type,
+    lower_mixed_cases, lower_mixed_fields, lower_structural_type_plans,
+    retain_additional_structural_types, terminal_byte_sequence_carrier,
+    terminal_structural_field_type,
 };
 use structural_unit_control::lower_structural_unit_control_machine;
 use unit_cleanup::{

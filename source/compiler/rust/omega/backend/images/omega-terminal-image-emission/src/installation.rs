@@ -77,7 +77,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 39;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 40;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -2981,6 +2981,11 @@ fn encode_structural_types(
                 bytes.extend_from_slice(&[3, 0, 0, 0]);
                 encode_structural_cases(bytes, cases)?;
             }
+            psi_terminal::StructuralTypeShape::Mixed { fields, cases } => {
+                bytes.extend_from_slice(&[5, 0, 0, 0]);
+                encode_structural_fields(bytes, fields)?;
+                encode_structural_cases(bytes, cases)?;
+            }
         }
     }
     Ok(())
@@ -3035,6 +3040,10 @@ fn decode_structural_types(
                     }
                 })
             }
+            5 => psi_terminal::StructuralTypeShape::Mixed {
+                fields: decode_structural_fields(reader)?,
+                cases: decode_structural_cases(reader)?,
+            },
             tag => {
                 return Err(TerminalInstallationError::InvalidStructuralTypeShapeTag(
                     tag,
@@ -3601,6 +3610,51 @@ mod resource_tests {
         }];
         let mut bytes = Vec::new();
         encode_structural_types(&mut bytes, &declarations).expect("encode structural sum");
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_structural_types(&mut reader), Ok(declarations));
+        assert_eq!(reader.remaining(), 0);
+    }
+
+    #[test]
+    fn mixed_common_fields_and_cases_round_trip_in_installations() {
+        let declarations = vec![psi_terminal::StructuralTypeDeclaration {
+            id: StructuralTypeId::new(1).expect("structural type"),
+            identity: "Message".into(),
+            shape: psi_terminal::StructuralTypeShape::Mixed {
+                fields: vec![psi_terminal::StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(1).expect("common field"),
+                    identity: "active".into(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: psi_terminal::StructuralFieldType::Scalar(
+                        psi_core::ScalarType::Boolean,
+                    ),
+                }],
+                cases: vec![
+                    psi_terminal::StructuralCaseDeclaration {
+                        id: StructuralCaseId::new(1).expect("empty case"),
+                        identity: "Empty".into(),
+                        fields: Vec::new(),
+                    },
+                    psi_terminal::StructuralCaseDeclaration {
+                        id: StructuralCaseId::new(2).expect("data case"),
+                        identity: "Data".into(),
+                        fields: vec![psi_terminal::StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(2).expect("payload field"),
+                            identity: "value".into(),
+                            relevance: psi_terminal::BindingRelevance::Relevant,
+                            field_type: psi_terminal::StructuralFieldType::Scalar(
+                                psi_core::ScalarType::Integer(
+                                    psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+                                        .expect("i32"),
+                                ),
+                            ),
+                        }],
+                    },
+                ],
+            },
+        }];
+        let mut bytes = Vec::new();
+        encode_structural_types(&mut bytes, &declarations).expect("encode mixed structural type");
         let mut reader = Reader::new(&bytes);
         assert_eq!(decode_structural_types(&mut reader), Ok(declarations));
         assert_eq!(reader.remaining(), 0);

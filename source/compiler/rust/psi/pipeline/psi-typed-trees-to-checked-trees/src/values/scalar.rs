@@ -946,7 +946,120 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                         }));
                         Some(())
                     }
-                    psi_typed_trees::data::DataShapeKind::Mixed => None,
+                    psi_typed_trees::data::DataShapeKind::Mixed => {
+                        // This first mixed-shape slice is whole-root only. A
+                        // mixed child below a record field, case payload, or
+                        // projected call needs its own complete path/replay
+                        // canary before it may reuse this carrier.
+                        if !left_path.is_empty() || !right_path.is_empty() {
+                            return None;
+                        }
+                        for member in members {
+                            let psi_typed_trees::data::DataMember::Field(field) = member else {
+                                continue;
+                            };
+                            if field.relevance.is_erased() {
+                                return None;
+                            }
+                            let field_identity = field
+                                .identity
+                                .map(|identity| format!("#{identity}"))
+                                .unwrap_or_else(|| field.name.as_str().to_owned());
+                            let mut left = left_path.to_vec();
+                            left.push(CheckedStructuralPredicatePathSegment::Field(
+                                field_identity.clone(),
+                            ));
+                            let mut right = right_path.to_vec();
+                            right
+                                .push(CheckedStructuralPredicatePathSegment::Field(field_identity));
+                            append_acyclic_structural_equality(
+                                program,
+                                left_parameter,
+                                right_parameter,
+                                field.type_reference,
+                                &left,
+                                &right,
+                                comparisons,
+                                visiting,
+                            )?;
+                        }
+                        let mut arms = Vec::new();
+                        for member in members {
+                            let psi_typed_trees::data::DataMember::Variant(variant) = member else {
+                                continue;
+                            };
+                            let case = variant
+                                .identity
+                                .map(|identity| format!("#{identity}"))
+                                .unwrap_or_else(|| variant.name.as_str().to_owned());
+                            let mut arm = vec![
+                                CheckedBooleanExpression::StructuralCaseMembership {
+                                    subject: CheckedStructuralParameterField {
+                                        parameter_position: left_parameter,
+                                        path: left_path.to_vec(),
+                                    },
+                                    case: case.clone(),
+                                },
+                                CheckedBooleanExpression::StructuralCaseMembership {
+                                    subject: CheckedStructuralParameterField {
+                                        parameter_position: right_parameter,
+                                        path: right_path.to_vec(),
+                                    },
+                                    case: case.clone(),
+                                },
+                            ];
+                            for field in program.data_payload_fields(variant) {
+                                if field.relevance.is_erased() {
+                                    return None;
+                                }
+                                let field_identity = field
+                                    .identity
+                                    .map(|identity| format!("#{identity}"))
+                                    .unwrap_or_else(|| field.name.as_str().to_owned());
+                                let mut left = left_path.to_vec();
+                                left.push(CheckedStructuralPredicatePathSegment::Case(
+                                    case.clone(),
+                                ));
+                                left.push(CheckedStructuralPredicatePathSegment::Field(
+                                    field_identity.clone(),
+                                ));
+                                let mut right = right_path.to_vec();
+                                right.push(CheckedStructuralPredicatePathSegment::Case(
+                                    case.clone(),
+                                ));
+                                right.push(CheckedStructuralPredicatePathSegment::Field(
+                                    field_identity,
+                                ));
+                                append_acyclic_structural_equality(
+                                    program,
+                                    left_parameter,
+                                    right_parameter,
+                                    field.type_reference,
+                                    &left,
+                                    &right,
+                                    &mut arm,
+                                    visiting,
+                                )?;
+                            }
+                            let mut arm = arm.into_iter();
+                            let first = arm.next()?;
+                            arms.push(arm.fold(first, |left, right| {
+                                CheckedBooleanExpression::And {
+                                    left: Box::new(left),
+                                    right: Box::new(right),
+                                }
+                            }));
+                        }
+                        let mut arms = arms.into_iter();
+                        let first = arms.next()?;
+                        comparisons.push(arms.fold(first, |left, right| {
+                            CheckedBooleanExpression::Or {
+                                left: Box::new(left),
+                                right: Box::new(right),
+                            }
+                        }));
+                        Some(())
+                    }
                 }
             })();
             visiting.pop();

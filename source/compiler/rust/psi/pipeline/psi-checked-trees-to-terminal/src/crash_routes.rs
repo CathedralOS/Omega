@@ -198,8 +198,13 @@ fn lower_structural_member_path(
             if selected_case_fields.is_some() || index + 1 == path.len() {
                 return unsupported("structural scalar contract has a malformed case path");
             }
-            let StructuralTypeShape::Sum { cases } = &declaration.shape else {
-                return unsupported("structural scalar contract case receiver is not a sum");
+            let cases = match &declaration.shape {
+                StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
+                    cases
+                }
+                _ => {
+                    return unsupported("structural scalar contract case receiver is not a sum");
+                }
             };
             let case = cases
                 .iter()
@@ -218,10 +223,15 @@ fn lower_structural_member_path(
         let fields = if let Some(fields) = selected_case_fields.take() {
             fields
         } else {
-            let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                return unsupported("structural scalar contract field receiver is not a record");
-            };
-            fields
+            match &declaration.shape {
+                StructuralTypeShape::Record { fields }
+                | StructuralTypeShape::Mixed { fields, .. } => fields,
+                _ => {
+                    return unsupported(
+                        "structural scalar contract field receiver is not a record",
+                    );
+                }
+            }
         };
         let field = fields
             .iter()
@@ -327,8 +337,11 @@ fn lower_structural_sum_subject(
             if selected_case_fields.is_some() {
                 return unsupported("structural sum predicate has adjacent case selections");
             }
-            let StructuralTypeShape::Sum { cases } = &declaration.shape else {
-                return unsupported("structural sum predicate case receiver is not a sum");
+            let cases = match &declaration.shape {
+                StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
+                    cases
+                }
+                _ => return unsupported("structural sum predicate case receiver is not a sum"),
             };
             let case = cases
                 .iter()
@@ -347,10 +360,13 @@ fn lower_structural_sum_subject(
         let fields = if let Some(fields) = selected_case_fields.take() {
             fields
         } else {
-            let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                return unsupported("structural sum predicate path receiver is not a record");
-            };
-            fields
+            match &declaration.shape {
+                StructuralTypeShape::Record { fields }
+                | StructuralTypeShape::Mixed { fields, .. } => fields,
+                _ => {
+                    return unsupported("structural sum predicate path receiver is not a record");
+                }
+            }
         };
         let field = fields
             .iter()
@@ -373,7 +389,7 @@ fn lower_structural_sum_subject(
             .iter()
             .find(|declaration| declaration.id == structural_type)
             .map(|declaration| &declaration.shape),
-        Some(StructuralTypeShape::Sum { .. })
+        Some(StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. })
     ) {
         return unsupported("structural sum predicate subject is not a sum");
     }
@@ -1177,13 +1193,16 @@ pub(super) fn lower_structural_crash_route_buckets(
         if let CheckedBooleanExpression::StructuralCaseMembership { subject, case } = expression {
             let (subject, structural_type) =
                 lower_structural_sum_subject(subject, parameters, structural_types)?;
-            let StructuralTypeShape::Sum { cases } = &structural_types
+            let cases = match &structural_types
                 .iter()
                 .find(|declaration| declaration.id == structural_type)
                 .expect("sum subject type was resolved")
                 .shape
-            else {
-                unreachable!("sum subject resolver returned a sum")
+            {
+                StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
+                    cases
+                }
+                _ => unreachable!("sum subject resolver returned a sum"),
             };
             let case = cases
                 .iter()
@@ -1645,10 +1664,14 @@ pub(super) fn structural_crash_route_argument_prefix(
             ))?;
         match segment {
             StructuralPathSegment::Field(identity) => {
-                let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                    return unsupported(
-                        "structural crash route argument path receiver is not a record",
-                    );
+                let fields = match &declaration.shape {
+                    StructuralTypeShape::Record { fields }
+                    | StructuralTypeShape::Mixed { fields, .. } => fields,
+                    _ => {
+                        return unsupported(
+                            "structural crash route argument path receiver is not a record",
+                        );
+                    }
                 };
                 let field = fields
                     .iter()

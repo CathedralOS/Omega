@@ -1,5 +1,91 @@
 use super::*;
 
+fn validate_structural_fields(
+    module: &TerminalModule,
+    structural_type: StructuralTypeId,
+    fields: &[psi_terminal::StructuralFieldDeclaration],
+    permit_provider_attachment: bool,
+) -> Result<(), ModuleError> {
+    let mut field_ids = BTreeSet::new();
+    let mut field_names = BTreeSet::new();
+    for field in fields {
+        if !field_ids.insert(field.id)
+            || field.identity.is_empty()
+            || !field_names.insert(field.identity.as_str())
+        {
+            return Err(ModuleError::InvalidStructuralFieldIdentity {
+                structural_type,
+                field: field.id,
+            });
+        }
+        match &field.field_type {
+            StructuralFieldType::Erased { type_identity } if type_identity.is_empty() => {
+                return Err(ModuleError::InvalidErasedStructuralField {
+                    structural_type,
+                    field: field.id,
+                });
+            }
+            StructuralFieldType::Erased { .. }
+                if !field.relevance.is_erased()
+                    && !(permit_provider_attachment
+                        && module.machines.iter().any(|machine| {
+                            machine.structural_places.iter().any(|place| {
+                                matches!(
+                                    place.kind,
+                                    StructuralPlaceKind::ProviderAttachment {
+                                        attachment,
+                                        field: provider_field,
+                                        ..
+                                    } if attachment == structural_type
+                                        && provider_field == field.id
+                                )
+                            })
+                        })) =>
+            {
+                return Err(ModuleError::InvalidErasedStructuralField {
+                    structural_type,
+                    field: field.id,
+                });
+            }
+            StructuralFieldType::Scalar(_) | StructuralFieldType::Structural(_)
+                if field.relevance.is_erased() =>
+            {
+                return Err(ModuleError::InvalidErasedStructuralField {
+                    structural_type,
+                    field: field.id,
+                });
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn validate_structural_cases(
+    module: &TerminalModule,
+    structural_type: StructuralTypeId,
+    cases: &[psi_terminal::StructuralCaseDeclaration],
+) -> Result<(), ModuleError> {
+    if cases.is_empty() {
+        return Err(ModuleError::EmptyStructuralSum(structural_type));
+    }
+    let mut case_ids = BTreeSet::new();
+    let mut case_names = BTreeSet::new();
+    for case in cases {
+        if !case_ids.insert(case.id)
+            || case.identity.is_empty()
+            || !case_names.insert(case.identity.as_str())
+        {
+            return Err(ModuleError::InvalidStructuralCaseIdentity {
+                structural_type,
+                case: case.id,
+            });
+        }
+        validate_structural_fields(module, structural_type, &case.fields, false)?;
+    }
+    Ok(())
+}
+
 pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), ModuleError> {
     let mut types = BTreeMap::new();
     let mut type_names = BTreeSet::new();
@@ -18,106 +104,12 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         ) {
             return Err(ModuleError::InvalidStructuralTypeIdentity(declaration.id));
         } else if let StructuralTypeShape::Record { fields } = &declaration.shape {
-            let mut field_ids = BTreeSet::new();
-            let mut field_names = BTreeSet::new();
-            for field in fields {
-                if !field_ids.insert(field.id)
-                    || field.identity.is_empty()
-                    || !field_names.insert(field.identity.as_str())
-                {
-                    return Err(ModuleError::InvalidStructuralFieldIdentity {
-                        structural_type: declaration.id,
-                        field: field.id,
-                    });
-                }
-                match &field.field_type {
-                    StructuralFieldType::Erased { type_identity } if type_identity.is_empty() => {
-                        return Err(ModuleError::InvalidErasedStructuralField {
-                            structural_type: declaration.id,
-                            field: field.id,
-                        });
-                    }
-                    StructuralFieldType::Erased { .. }
-                        if !field.relevance.is_erased()
-                            && !module.machines.iter().any(|machine| {
-                                machine.structural_places.iter().any(|place| {
-                                    matches!(
-                                        place.kind,
-                                        StructuralPlaceKind::ProviderAttachment {
-                                            attachment,
-                                            field: provider_field,
-                                            ..
-                                        } if attachment == declaration.id
-                                            && provider_field == field.id
-                                    )
-                                })
-                            }) =>
-                    {
-                        return Err(ModuleError::InvalidErasedStructuralField {
-                            structural_type: declaration.id,
-                            field: field.id,
-                        });
-                    }
-                    StructuralFieldType::Scalar(_) | StructuralFieldType::Structural(_)
-                        if field.relevance.is_erased() =>
-                    {
-                        return Err(ModuleError::InvalidErasedStructuralField {
-                            structural_type: declaration.id,
-                            field: field.id,
-                        });
-                    }
-                    _ => {}
-                }
-            }
+            validate_structural_fields(module, declaration.id, fields, true)?;
         } else if let StructuralTypeShape::Sum { cases } = &declaration.shape {
-            if cases.is_empty() {
-                return Err(ModuleError::EmptyStructuralSum(declaration.id));
-            }
-            let mut case_ids = BTreeSet::new();
-            let mut case_names = BTreeSet::new();
-            for case in cases {
-                if !case_ids.insert(case.id)
-                    || case.identity.is_empty()
-                    || !case_names.insert(case.identity.as_str())
-                {
-                    return Err(ModuleError::InvalidStructuralCaseIdentity {
-                        structural_type: declaration.id,
-                        case: case.id,
-                    });
-                }
-                let mut field_ids = BTreeSet::new();
-                let mut field_names = BTreeSet::new();
-                for field in &case.fields {
-                    if !field_ids.insert(field.id)
-                        || field.identity.is_empty()
-                        || !field_names.insert(field.identity.as_str())
-                    {
-                        return Err(ModuleError::InvalidStructuralFieldIdentity {
-                            structural_type: declaration.id,
-                            field: field.id,
-                        });
-                    }
-                    match &field.field_type {
-                        StructuralFieldType::Erased { type_identity }
-                            if !field.relevance.is_erased() || type_identity.is_empty() =>
-                        {
-                            return Err(ModuleError::InvalidErasedStructuralField {
-                                structural_type: declaration.id,
-                                field: field.id,
-                            });
-                        }
-                        StructuralFieldType::Scalar(_) | StructuralFieldType::Structural(_)
-                            if field.relevance.is_erased() =>
-                        {
-                            return Err(ModuleError::InvalidErasedStructuralField {
-                                structural_type: declaration.id,
-                                field: field.id,
-                            });
-                        }
-                        _ => {}
-                    }
-                }
-            }
+            validate_structural_cases(module, declaration.id, cases)?;
+        } else if let StructuralTypeShape::Mixed { fields, cases } = &declaration.shape {
+            validate_structural_fields(module, declaration.id, fields, false)?;
+            validate_structural_cases(module, declaration.id, cases)?;
         } else if matches!(
             declaration.shape,
             StructuralTypeShape::FixedArray { length: 0, .. }
@@ -144,6 +136,18 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             }
             StructuralTypeShape::Sum { cases } => {
                 for field in cases.iter().flat_map(|case| &case.fields) {
+                    if let StructuralFieldType::Structural(target) = &field.field_type
+                        && !types.contains_key(target)
+                    {
+                        return Err(ModuleError::UnknownStructuralType(*target));
+                    }
+                }
+            }
+            StructuralTypeShape::Mixed { fields, cases } => {
+                for field in fields
+                    .iter()
+                    .chain(cases.iter().flat_map(|case| &case.fields))
+                {
                     if let StructuralFieldType::Structural(target) = &field.field_type
                         && !types.contains_key(target)
                     {
@@ -1122,6 +1126,16 @@ fn validate_structural_type_graph(
             }
             StructuralTypeShape::Sum { cases } => {
                 for field in cases.iter().flat_map(|case| &case.fields) {
+                    if let StructuralFieldType::Structural(target) = &field.field_type {
+                        visit(*target, types, active, complete)?;
+                    }
+                }
+            }
+            StructuralTypeShape::Mixed { fields, cases } => {
+                for field in fields
+                    .iter()
+                    .chain(cases.iter().flat_map(|case| &case.fields))
+                {
                     if let StructuralFieldType::Structural(target) = &field.field_type {
                         visit(*target, types, active, complete)?;
                     }

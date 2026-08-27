@@ -168,6 +168,18 @@ pub(super) fn lower_unit_structural_types(
                     }
                 }
             }
+            CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
+                for field in fields
+                    .iter()
+                    .chain(cases.iter().flat_map(|case| &case.fields))
+                {
+                    if let CheckedUnitStructuralFieldType::Structural { type_identity } =
+                        &field.field_type
+                    {
+                        collect(plans, type_identity, active, selected)?;
+                    }
+                }
+            }
         }
         active.pop();
         selected.push(identity.to_owned());
@@ -335,6 +347,10 @@ pub(super) fn lower_unit_structural_types(
                     .collect::<Result<Vec<_>, LoweringError>>()?;
                 StructuralTypeShape::Sum { cases }
             }
+            CheckedUnitStructuralTypeShape::Mixed { fields, cases } => StructuralTypeShape::Mixed {
+                fields: lower_mixed_fields(fields, &type_ids, &mut next_field)?,
+                cases: lower_mixed_cases(cases, &type_ids, &mut next_field, &mut next_case)?,
+            },
         };
         declarations.push(StructuralTypeDeclaration {
             id: lookup_type_id(&type_ids, &identity)?,

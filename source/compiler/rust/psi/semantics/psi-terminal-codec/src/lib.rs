@@ -90,7 +90,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 30;
+const FORMAT_MARKER: u16 = 31;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -287,6 +287,56 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
                             }
                             _ => {}
                         }
+                    }
+                }
+            }
+            StructuralTypeShape::Mixed { fields, cases } => {
+                require_unique_nonempty_identities(
+                    fields.iter().map(|field| field.identity.as_str()),
+                    "mixed structural field identity",
+                )?;
+                require_unique_nonempty_identities(
+                    cases.iter().map(|case| case.identity.as_str()),
+                    "mixed structural case identity",
+                )?;
+                if cases.is_empty() {
+                    return malformed("mixed structural type must declare at least one case");
+                }
+                for case in cases {
+                    require_unique_nonempty_identities(
+                        case.fields.iter().map(|field| field.identity.as_str()),
+                        "mixed structural case payload field identity",
+                    )?;
+                }
+                for field in fields
+                    .iter()
+                    .chain(cases.iter().flat_map(|case| &case.fields))
+                {
+                    match &field.field_type {
+                        StructuralFieldType::Structural(field_type)
+                            if !has_structural_type(module, *field_type) =>
+                        {
+                            return malformed(
+                                "mixed structural field references an unknown structural type",
+                            );
+                        }
+                        StructuralFieldType::Erased { type_identity }
+                            if !field.relevance.is_erased() || type_identity.is_empty() =>
+                        {
+                            return malformed(
+                                "opaque mixed structural field must have erased relevance and a nonempty type identity",
+                            );
+                        }
+                        StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::IeeeFloat(_)
+                        | StructuralFieldType::Structural(_)
+                            if field.relevance.is_erased() =>
+                        {
+                            return malformed(
+                                "erased mixed structural field must use its opaque semantic type identity",
+                            );
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -640,7 +690,10 @@ fn validate_structural_path(
             return malformed("structural path has an unknown structural type");
         };
         structural_type = match (segment, &declaration.shape) {
-            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
+            (
+                StructuralPathSegment::Field(identity),
+                StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. },
+            ) => {
                 if identity.is_empty() {
                     return malformed("structural path field identity cannot be empty");
                 }
@@ -668,6 +721,9 @@ fn validate_structural_path(
                 return malformed("structural path field requires a record type");
             }
             (StructuralPathSegment::FixedIndex(_), StructuralTypeShape::Record { .. }) => {
+                return malformed("structural path fixed index requires a fixed-array type");
+            }
+            (StructuralPathSegment::FixedIndex(_), StructuralTypeShape::Mixed { .. }) => {
                 return malformed("structural path fixed index requires a fixed-array type");
             }
             (_, StructuralTypeShape::Sum { .. }) => {
@@ -1323,6 +1379,16 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
             }
             StructuralTypeShape::Sum { cases } => {
                 for field in cases.iter().flat_map(|case| &case.fields) {
+                    if let StructuralFieldType::Structural(target) = &field.field_type {
+                        visit(module, *target, active, complete)?;
+                    }
+                }
+            }
+            StructuralTypeShape::Mixed { fields, cases } => {
+                for field in fields
+                    .iter()
+                    .chain(cases.iter().flat_map(|case| &case.fields))
+                {
                     if let StructuralFieldType::Structural(target) = &field.field_type {
                         visit(module, *target, active, complete)?;
                     }

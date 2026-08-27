@@ -2951,7 +2951,8 @@ fn split_affine_frontier_at_projection(
         }
         StructuralTypeShape::ByteSequence(_)
         | StructuralTypeShape::FixedArray { .. }
-        | StructuralTypeShape::Sum { .. } => None,
+        | StructuralTypeShape::Sum { .. }
+        | StructuralTypeShape::Mixed { .. } => None,
     }
     .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)?;
     split_affine_frontier_at_projection(structural_types, frontier, selected, projected_path)
@@ -2972,7 +2973,10 @@ fn resolve_structural_path_type(
                 StructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
             ) if index < length => *element,
-            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
+            (
+                StructuralPathSegment::Field(identity),
+                StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. },
+            ) => {
                 let field = fields
                     .iter()
                     .find(|field| field.identity == *identity && !field.relevance.is_erased())

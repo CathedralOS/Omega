@@ -481,7 +481,7 @@ conclusion nor a case-membership fact; structural return rebases the complete
 implication to the caller result. One optional Terminal-only selected-evidence
 binding may now retain the exact guarded case, row position, obligation, public
 selector, atomic proposition, callee term/interface, distinct caller-local term,
-and result-root validity intersection. Format 30 / vocabulary 32 encode those
+and result-root validity intersection. Format 31 / vocabulary 33 encode those
 coordinates. Validation requires the exact named callee row and producer
 provenance and rejects identity/interface/dependency drift, duplicate output,
 or unconditional/projection reuse. Omission remains fact-only, and the selected
@@ -1715,9 +1715,18 @@ acyclic record or pure-sum tree directly held by a case-payload field also
 expands its supported leaves transitively. Those paths retain every exact
 alternating case, payload field, enclosing record field, and leaf identity in
 order through nested sums, and whole-root calls independently rebase both
-operands. Mixed common-field/case shapes, recursive cycles, address and erased
-payload equality, written `equals` bodies, and runtime sum layout remain outside
-this bounded terminal slice. When an acyclic
+operands. Direct whole-root mixed shapes retain both common fields and a closed
+case roster. Their equality is one canonical conjunction: supported
+common-field leaf equalities in declaration order followed by one
+source-ordered disjunction whose arms contain matching membership for both
+roots and the selected case's supported payload-leaf equalities. Inequality is
+that complete equality proposition implying falsehood. Whole-root Unit calls
+independently rebase both operands, while codec format 31 / vocabulary 33,
+verifier, fixed-fuel, interpreter, and installation format 40 preserve and
+replay the exact common-field, case, and payload-field identities. Nested or
+projected mixed values, recursive cycles, address and erased payload equality,
+written `equals` bodies, and runtime sum layout remain outside this bounded
+terminal slice. When an acyclic
 relevant record field reaches a payload-bearing sum, the same sum proposition
 is retained below that field path, and independent verification preserves the
 complete `Field -> Case -> Field` identity chain. Direct source-call rebasing

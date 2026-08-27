@@ -185,8 +185,11 @@ fn structural_subject_type(
             if selected_case_fields.is_some() {
                 return None;
             }
-            let StructuralTypeShape::Sum { cases } = &declaration.shape else {
-                return None;
+            let cases = match &declaration.shape {
+                StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
+                    cases
+                }
+                _ => return None,
             };
             selected_case_fields = Some(
                 &cases
@@ -213,7 +216,7 @@ fn structural_subject_type(
         structural_type = match (segment, &declaration.shape) {
             (
                 CanonicalStructuralPathSegment::Field(field_id),
-                StructuralTypeShape::Record { fields },
+                StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. },
             ) => {
                 let field = fields
                     .iter()
@@ -265,8 +268,10 @@ fn validate_boolean_field_terms(
                 if selected_case_fields.is_some() || is_last {
                     return None;
                 }
-                let StructuralTypeShape::Sum { cases } = &declaration.shape else {
-                    return None;
+                let cases = match &declaration.shape {
+                    StructuralTypeShape::Sum { cases }
+                    | StructuralTypeShape::Mixed { cases, .. } => cases,
+                    _ => return None,
                 };
                 selected_case_fields = Some(
                     &cases
@@ -296,7 +301,8 @@ fn validate_boolean_field_terms(
             match (segment, &declaration.shape) {
                 (
                     CanonicalStructuralPathSegment::Field(field_id),
-                    StructuralTypeShape::Record { fields },
+                    StructuralTypeShape::Record { fields }
+                    | StructuralTypeShape::Mixed { fields, .. },
                 ) => {
                     let field = fields
                         .iter()
@@ -780,7 +786,9 @@ fn validate_boolean_field_terms(
                         .find(|declaration| declaration.id == structural_type)
                 })
                 .is_some_and(|declaration| {
-                    matches!(&declaration.shape, StructuralTypeShape::Sum { cases }
+                    matches!(&declaration.shape,
+                        StructuralTypeShape::Sum { cases }
+                        | StructuralTypeShape::Mixed { cases, .. }
                         if cases.iter().any(|candidate| candidate.id == *case))
                 });
             if !valid {
@@ -827,7 +835,9 @@ pub(super) fn validate_structural_case_memberships(
                         .find(|declaration| declaration.id == structural_type)
                 })
                 .is_some_and(|declaration| {
-                    matches!(&declaration.shape, StructuralTypeShape::Sum { cases }
+                    matches!(&declaration.shape,
+                        StructuralTypeShape::Sum { cases }
+                        | StructuralTypeShape::Mixed { cases, .. }
                         if cases.iter().any(|candidate| candidate.id == *case))
                 });
             if !valid {

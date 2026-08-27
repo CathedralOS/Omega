@@ -1485,6 +1485,16 @@ fn encode_structural_type(bytes: &mut CanonicalBytes, declaration: &StructuralTy
                 bytes.slice(&case.fields, encode_structural_field);
             }
         }
+        StructuralTypeShape::Mixed { fields, cases } => {
+            bytes.u8(5);
+            bytes.slice(fields, encode_structural_field);
+            bytes.len(cases.len());
+            for case in cases {
+                bytes.id(case.id);
+                bytes.string(&case.identity);
+                bytes.slice(&case.fields, encode_structural_field);
+            }
+        }
     }
 }
 

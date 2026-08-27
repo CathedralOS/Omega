@@ -53,6 +53,22 @@ pub(super) fn encode_structural_type(
                 }
             }
         }
+        StructuralTypeShape::Mixed { fields, cases } => {
+            writer.u8(5);
+            writer.len("mixed structural fields", fields.len())?;
+            for field in fields {
+                encode_structural_field(writer, field)?;
+            }
+            writer.len("mixed structural cases", cases.len())?;
+            for case in cases {
+                writer.id(case.id);
+                writer.string("mixed structural case identity", &case.identity)?;
+                writer.len("mixed structural case payload fields", case.fields.len())?;
+                for field in &case.fields {
+                    encode_structural_field(writer, field)?;
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -86,6 +102,16 @@ pub(super) fn decode_structural_type(
             },
             tag => return Err(CodecError::InvalidTag("ByteSequenceCarrier", tag)),
         }),
+        5 => StructuralTypeShape::Mixed {
+            fields: decode_counted(reader, decode_structural_field)?,
+            cases: decode_counted(reader, |reader| {
+                Ok(StructuralCaseDeclaration {
+                    id: reader.id("StructuralCaseId")?,
+                    identity: reader.string("mixed structural case identity")?,
+                    fields: decode_counted(reader, decode_structural_field)?,
+                })
+            })?,
+        },
         tag => return Err(CodecError::InvalidTag("StructuralTypeShape", tag)),
     };
     Ok(StructuralTypeDeclaration {

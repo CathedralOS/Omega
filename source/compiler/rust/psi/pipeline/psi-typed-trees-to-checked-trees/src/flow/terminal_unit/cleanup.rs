@@ -874,7 +874,8 @@ pub(super) fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTyp
         }),
         CheckedUnitStructuralTypeShape::ByteSequence(_)
         | CheckedUnitStructuralTypeShape::FixedArray { .. }
-        | CheckedUnitStructuralTypeShape::Sum { .. } => false,
+        | CheckedUnitStructuralTypeShape::Sum { .. }
+        | CheckedUnitStructuralTypeShape::Mixed { .. } => false,
     }
 }
 
