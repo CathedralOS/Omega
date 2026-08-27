@@ -2894,6 +2894,36 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
     let module = program_local_root_module();
     let catalog = program_local_root_catalog(&module);
     let terminal = program_local_terminal_object(&module);
+    let mut narrowed_module = module.clone();
+    let boundary_identity = narrowed_module.boundary_machines[0].identity.clone();
+    let qualification_identity = narrowed_module.structural_domains[0].identity.clone();
+    let carrier_identity = narrowed_module.structural_types[0].identity.clone();
+    let narrowed_schema = {
+        let schema = &mut narrowed_module.boundary_machines[0].program_local_root_introductions[0];
+        schema.capacity = psi_core::ContentProjectionExpression::CountedQuantity(
+            psi_core::ContentProjectionScalar::Natural("1".into()),
+        );
+        schema.projection.projection_fingerprint =
+            psi_language_semantics::content::terminal_projection_fingerprint(
+                &schema.algebra,
+                &schema.capacity,
+            );
+        schema.identity = program_local_root_introduction_identity(
+            &boundary_identity,
+            &qualification_identity,
+            &carrier_identity,
+            schema,
+        );
+        schema.clone()
+    };
+    narrowed_module.structural_domains[0].content_projection = Some(StructuralContentProjection {
+        identity: narrowed_schema.projection,
+        algebra: narrowed_schema.algebra.clone(),
+        expression: narrowed_schema.capacity.clone(),
+    });
+    let narrowed_catalog = program_local_root_catalog(&narrowed_module);
+    let narrowed_terminal = program_local_terminal_object(&narrowed_module);
+    assert_ne!(catalog.terminal_psi(), narrowed_catalog.terminal_psi());
     let (mut root_ledger, root, wrong_claim_root) = install_test_root_pair_with_ids(
         &mut code,
         (1, 20, 21, 22, vec![program_local_claim()]),
@@ -2929,6 +2959,24 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
     let mut installation = root_ledger
         .claim_program_local_root_installation_ledger()
         .expect("sole program-local cohort verifier");
+    let original_catalog_narrowed_artifact = installation
+        .prebind(&catalog, &narrowed_terminal, &root)
+        .expect_err("a narrowed artifact cannot carry the original producer catalog");
+    assert_eq!(
+        original_catalog_narrowed_artifact.0,
+        "program-local root catalog does not match the terminal artifact identity"
+    );
+    assert_eq!(installation.prebindings().count(), 0);
+
+    let narrowed_catalog_original_artifact = installation
+        .prebind(&narrowed_catalog, &terminal, &root)
+        .expect_err("a narrowed producer catalog cannot describe the original artifact");
+    assert_eq!(
+        narrowed_catalog_original_artifact.0,
+        "program-local root catalog does not match the terminal artifact identity"
+    );
+    assert_eq!(installation.prebindings().count(), 0);
+
     assert!(
         installation
             .prebind(&catalog, &wrong_object, &root)
