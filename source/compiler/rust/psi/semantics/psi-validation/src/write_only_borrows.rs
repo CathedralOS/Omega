@@ -60,7 +60,7 @@ pub(crate) fn validate_checked_write_only_slice(
             for root in &roots {
                 if !is_supported_checked_referee(program, root.referee) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, fixed byte arrays, forwarding-only byte slices, and non-generic invariant-free checked records",
+                        "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, literal fixed arrays of unrestricted primitive scalars, forwarding-only byte slices, and non-generic invariant-free checked records",
                         machine.name,
                         state.name,
                         root.name,
@@ -86,11 +86,25 @@ fn is_unrestricted_scalar(program: &TypedTrees, type_reference: TypeReferenceHan
         && program.primitive_type_reference(type_reference).is_some()
 }
 
-fn fixed_byte_array_length(
+fn fixed_unrestricted_primitive_array_shape(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<(TypeReferenceHandle, usize)> {
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    is_unrestricted_scalar(program, *element_type).then_some((*element_type, *length))
+}
+
+fn fixed_unrestricted_primitive_array_length(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
-    fixed_byte_array_shape(program, type_reference).map(|(_, length)| length)
+    fixed_unrestricted_primitive_array_shape(program, type_reference).map(|(_, length)| length)
 }
 
 fn literal_fixed_array_length(
@@ -125,7 +139,7 @@ fn fixed_byte_array_shape(
 
 fn is_supported_checked_referee(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
     is_unrestricted_scalar(program, type_reference)
-        || fixed_byte_array_length(program, type_reference).is_some()
+        || fixed_unrestricted_primitive_array_length(program, type_reference).is_some()
         || is_byte_slice(program, type_reference)
         || write_only_record(program, type_reference).is_some()
 }
@@ -149,7 +163,7 @@ fn is_write_only_length_metadata(
 
     if direct_write_only_root(program, member.receiver, roots).is_some_and(|root| {
         is_byte_slice(program, root.referee)
-            || fixed_byte_array_length(program, root.referee).is_some()
+            || fixed_unrestricted_primitive_array_length(program, root.referee).is_some()
     }) {
         return true;
     }
@@ -190,7 +204,7 @@ fn write_only_record<'program>(
 
 fn whole_root_replacement_is_supported(program: &TypedTrees, root: &WriteOnlyRoot) -> bool {
     is_unrestricted_scalar(program, root.referee)
-        || fixed_byte_array_length(program, root.referee).is_some()
+        || fixed_unrestricted_primitive_array_length(program, root.referee).is_some()
         || write_only_record(program, root.referee).is_some_and(|definition| {
             definition.properties.multiplicity == psi_language_semantics::Multiplicity::Unrestricted
         })
@@ -257,8 +271,9 @@ fn write_only_record_field_type(
 }
 
 /// The final displaced record-path leaf must be an unrestricted primitive or
-/// a whole fixed byte array. Indexed byte-element stores reuse the same exact
-/// path resolver below and apply their own narrower leaf/index gate.
+/// a literal fixed array of unrestricted primitive scalars. Indexed element
+/// stores reuse the same exact path resolver below and apply their own narrower
+/// leaf/index gate.
 fn write_only_record_field_assignment(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -266,7 +281,7 @@ fn write_only_record_field_assignment(
 ) -> bool {
     write_only_record_field_type(program, expression, roots).is_some_and(|field_type| {
         is_unrestricted_scalar(program, field_type)
-            || fixed_byte_array_length(program, field_type).is_some()
+            || fixed_unrestricted_primitive_array_length(program, field_type).is_some()
     })
 }
 
@@ -310,7 +325,7 @@ fn validate_statement(
                 // The range-specific gate owns non-observation and RHS shape.
                 // Ordinary range validation independently owns order/bounds.
             } else if let Some(index) =
-                write_only_byte_element_assignment_index(program, assignment.target, roots)
+                write_only_element_assignment_index(program, assignment.target, roots)
             {
                 // The normal range checker separately proves a dynamic index
                 // is in bounds. This gate owns only non-observation: the index
@@ -510,7 +525,7 @@ fn validate_write_only_byte_range_assignment(
     true
 }
 
-fn write_only_byte_element_assignment_index(
+fn write_only_element_assignment_index(
     program: &TypedTrees,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
@@ -534,7 +549,7 @@ fn write_only_byte_element_assignment_index(
         ))
         .then_some(indexed.index);
     }
-    let length = fixed_byte_array_length(program, collection_type)?;
+    let length = fixed_unrestricted_primitive_array_length(program, collection_type)?;
     match program.expression_table.expression(indexed.index) {
         ExpressionNode::Range(_) => None,
         ExpressionNode::Integer(index) => {
@@ -555,26 +570,26 @@ fn diagnose_unsupported_write_only_assignment_target(
 ) {
     if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
         && let Some(root) = direct_write_only_root(program, indexed.collection, roots)
-        && fixed_byte_array_length(program, root.referee).is_some()
+        && fixed_unrestricted_primitive_array_length(program, root.referee).is_some()
     {
         let detail = match program.expression_table.expression(indexed.index) {
             ExpressionNode::Range(_) => "range projection is not implemented",
             ExpressionNode::Integer(index) => match index.value_i64() {
                 Some(value) if value < 0 => "the index must be non-negative",
-                Some(_) => "the literal index is outside the fixed byte array",
+                Some(_) => "the literal index is outside the fixed array",
                 None => "the literal index is outside the supported index range",
             },
-            _ => "the index expression is not an admissible byte-element place",
+            _ => "the index expression is not an admissible element place",
         };
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{machine}` state `{state}` writes through unsupported projection of write-only byte array `{}`; {detail}; whole-array replacement and proven-in-bounds element replacement are accepted",
+            "machine `{machine}` state `{state}` writes through unsupported projection of write-only fixed array `{}`; {detail}; whole-array replacement and proven-in-bounds element replacement are accepted, while range replacement remains byte-array-only",
             root.name,
         )));
         return;
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive or whole fixed byte array, a proven-in-bounds element of a fixed byte array, or a proven-in-bounds element of a direct byte slice; sum-payload, qualified, invariant-dependent, range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive or a literal fixed array of unrestricted primitive scalars, a proven-in-bounds element of such a fixed array, or a proven-in-bounds element of a direct byte slice; sum-payload, qualified, invariant-dependent, non-byte range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 
@@ -658,7 +673,7 @@ fn validate_expression(
         ExpressionNode::Indexed(indexed) => {
             if let Some(root) = mentioned_write_only_root(program, indexed.collection, roots) {
                 diagnostics.push(Diagnostic::error(format!(
-                    "machine `{machine}` state `{state}` reads through index projection of write-only parameter `{}`; `&write` permits fixed byte-element replacement but never observation",
+                    "machine `{machine}` state `{state}` reads through index projection of write-only parameter `{}`; `&write` permits admitted fixed-array element replacement but never observation",
                     root.name,
                 )));
             } else {

@@ -70,6 +70,13 @@ Must own:
   of every loan. Write-only checking admits only content-independent
   projection and non-observing writes, composes the restriction through calls,
   and retains exact outcome write footprints for dependent-fact invalidation.
+  Literal fixed arrays of unrestricted primitive scalars admit whole
+  replacement, static length metadata, and literal or ordinarily proven
+  dynamic element stores through direct roots and eligible plain-record paths.
+  Mutation and caller-visible frames retain exact `FixedIndex` or conservative
+  runtime `Index` identity. Atomic, qualified, constrained, generic, noncopy,
+  and non-byte range forms remain fenced; this creates no executable Terminal
+  write authority.
 - Reach summaries, invocation edges, and boundary contract facts that later stages must preserve.
 - Bounded installation-row facts keyed by exact boundary-requirement path,
   including the declared service upper bound, symbolic dependencies through
