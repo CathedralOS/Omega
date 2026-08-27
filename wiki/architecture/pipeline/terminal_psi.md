@@ -324,8 +324,14 @@ record writes retain every field identity; dynamic indexes remain conservatively
 collection-wide in caller-visible mutation summaries. A forwarding-only
 Terminal rung now carries closed owned/shared/mutable/write-only access on
 structural parameters and call arguments, with canonical format 27 identity.
-The verifier rejects widening, target disagreement, overlapping exclusive
-arguments, and Boolean structural observation through write-only access.
+That rung now includes one exact unrestricted `WriteOnlyBorrow` field-path
+subloan. The verifier replays its ordered path, structural type, and access and
+treats it as a claim-free non-transferring subloan rather than an owned linear
+projection; malformed path, target type/access, source access, qualification,
+arity, or provider substitution rejects. Reusable local or re-entrant reborrow
+authority does not follow. The verifier also rejects widening, target
+disagreement, overlapping exclusive arguments, and Boolean structural
+observation through write-only access.
 Executable Terminal stores, runtime/provider realization, and native lowering
 remain gated; physical pointer-layout equivalence is not permission equivalence.
 

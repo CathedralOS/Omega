@@ -891,8 +891,16 @@ fn validate_structural_arguments(
                 presented: argument.access,
             });
         }
+        let unrestricted_write_only_field_subloan = is_nonempty_field_path(&argument.path)
+            && argument.access == StructuralAccess::WriteOnlyBorrow
+            && expected.access == StructuralAccess::WriteOnlyBorrow
+            && actual_access == StructuralAccess::WriteOnlyBorrow
+            && expected.multiplicity == StructuralMultiplicity::Unrestricted
+            && actual_multiplicity == StructuralMultiplicity::Unrestricted;
         let actual_multiplicity = if argument.path.is_empty() {
             actual_multiplicity
+        } else if unrestricted_write_only_field_subloan {
+            StructuralMultiplicity::Unrestricted
         } else if expected.multiplicity == StructuralMultiplicity::Affine
             && is_bounded_partial_affine_path(module, root_type, &argument.path)
             && actual_multiplicity == StructuralMultiplicity::Affine
@@ -1000,6 +1008,23 @@ fn validate_unit_call_claim_transfers(
                 .iter()
                 .filter(|claim| claim.input == parameter.place)
                 .collect::<Vec<_>>();
+            let claim_free_unrestricted_write_only_field = caller
+                .structural_parameters
+                .iter()
+                .find(|actual| actual.place == argument.place)
+                .is_some_and(|actual| {
+                    is_nonempty_field_path(&argument.path)
+                        && argument.access == StructuralAccess::WriteOnlyBorrow
+                        && parameter.access == StructuralAccess::WriteOnlyBorrow
+                        && actual.access == StructuralAccess::WriteOnlyBorrow
+                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                        && actual.multiplicity == StructuralMultiplicity::Unrestricted
+                })
+                && callee_claims.is_empty()
+                && caller
+                    .entry_claims
+                    .iter()
+                    .all(|claim| claim.input != argument.place);
             let claim_free_direct_affine = caller
                 .structural_parameters
                 .iter()
@@ -1013,7 +1038,8 @@ fn validate_unit_call_claim_transfers(
                     .entry_claims
                     .iter()
                     .all(|claim| claim.input != argument.place);
-            if !claim_free_direct_affine
+            if !claim_free_unrestricted_write_only_field
+                && !claim_free_direct_affine
                 && !matches!(callee_claims.as_slice(), [claim] if claim.path.is_empty())
             {
                 return Err(ModuleError::UnitCallClaimPresenceMismatch {

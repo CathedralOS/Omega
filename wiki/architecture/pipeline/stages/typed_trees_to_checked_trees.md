@@ -70,6 +70,10 @@ Must own:
   of every loan. Write-only checking admits only content-independent
   projection and non-observing writes, composes the restriction through calls,
   and retains exact outcome write footprints for dependent-fact invalidation.
+  A direct checked-call argument may retain one exact `Field`-only write-only
+  subloan when the existing common-field leaf referee and the one-parameter,
+  single-state checked Unit call shape both hold. This does not admit general
+  projected expression formation or reusable local-reference aliases.
   Recursively literal fixed arrays whose ultimate elements are unrestricted
   primitive scalars or eligible material nongeneric, invariant-free `[copy]`
   records or sums admit whole replacement, static length metadata, and literal

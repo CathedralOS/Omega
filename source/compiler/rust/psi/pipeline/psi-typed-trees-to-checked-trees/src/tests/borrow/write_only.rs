@@ -53,6 +53,183 @@ fn nested_unconstrained_primitive_record_field_is_writable() {
 }
 
 #[test]
+fn exact_common_field_write_only_subloan_is_forwardable() {
+    lower_typed_trees(typed(
+        r#"
+            data Inner { value: u16; sibling: u16; }
+            data Outer { inner: Inner; other: Inner; }
+
+            machine replace(value: &write u16) {
+                value = 7;
+            }
+
+            machine forward(outer: &write Outer) {
+                replace(&write outer.inner.value);
+            }
+        "#,
+    ))
+    .expect("an exact common-field path may form a narrower write-only subloan");
+}
+
+#[test]
+fn indexed_write_only_subloan_remains_fenced() {
+    let rendered = rendered_rejection(
+        r#"
+            data Outer { values: [u16; 2]; }
+
+            machine replace(value: &write u16) {
+                value = 7;
+            }
+
+            machine forward(outer: &write Outer) {
+                replace(&write outer.values[0]);
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("forms `&write` from an unsupported projection")
+            && rendered.contains("content-independent common-field path"),
+        "indexed subloan unexpectedly crossed the common-field gate: {rendered}"
+    );
+}
+
+#[test]
+fn non_field_and_non_closed_field_write_only_subloans_remain_fenced() {
+    for (name, source) in [
+        (
+            "range",
+            r#"
+                data Outer { values: [u16; 2]; }
+                machine replace(values: &write [u16; 1]) {}
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.values[0..1]);
+                }
+            "#,
+        ),
+        (
+            "generic leaf",
+            r#"
+                data Leaf<T [copy]> [copy] { value: T; }
+                data Outer { leaf: Leaf<u16>; }
+                machine replace(value: &write Leaf<u16>) {}
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.leaf);
+                }
+            "#,
+        ),
+        (
+            "qualified leaf",
+            r#"
+                data Leaf [copy] { value: u16; }
+                domain Leaf::Valid requires self.value <= 10;
+                data Outer { leaf: Leaf in Valid; }
+                machine replace(value: &write Leaf in Valid) {}
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.leaf);
+                }
+            "#,
+        ),
+        (
+            "invariant-bearing leaf",
+            r#"
+                data Leaf [copy]
+                where value <= limit,
+                { value: u16; limit: u16; }
+                data Outer { leaf: Leaf; }
+                machine replace(value: &write Leaf) {}
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.leaf);
+                }
+            "#,
+        ),
+        (
+            "constrained leaf",
+            r#"
+                data Outer { value: u16 [0..=10]; }
+                machine replace(value: &write u16 [0..=10]) {}
+                machine forward(outer: &write Outer) {
+                    replace(&write outer.value);
+                }
+            "#,
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains("forms `&write` from an unsupported projection")
+                && rendered.contains("content-independent common-field path"),
+            "{name} unexpectedly crossed the common-field subloan gate: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn write_only_subloan_remains_checked_body_only() {
+    let rendered = rendered_rejection(
+        r#"
+            data Leaf [copy] { value: u16; }
+            boundary trait Sink {
+                machine fill(destination: &write Leaf) reaches Sink;
+            }
+            data Outer { leaf: Leaf; }
+            machine forward(outer: &write Outer) reaches Sink {
+                Sink::fill(&write outer.leaf);
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("uses `&write` outside the checked whole-scalar parameter slice")
+            && rendered.contains("traits"),
+        "a bodyless provider boundary unexpectedly accepted write-only authority: {rendered}"
+    );
+}
+
+#[test]
+fn projected_write_only_subloan_cannot_be_retained_in_a_local_alias() {
+    let rendered = rendered_rejection(
+        r#"
+            data Leaf [copy] { value: u16; }
+            data Outer { leaf: Leaf; }
+            machine replace(value: &write Leaf) {}
+            machine forward(outer: &write Outer) {
+                let child: &write Leaf = &write outer.leaf;
+                replace(child);
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("forms `&write` from an unsupported projection")
+            && rendered.contains("only as a direct checked-call argument"),
+        "a projected subloan unexpectedly escaped into a reusable local: {rendered}"
+    );
+}
+
+#[test]
+fn sum_case_payload_cannot_form_a_write_only_subloan() {
+    let rendered = rendered_rejection(
+        r#"
+            data Choice [copy] {
+                case Empty;
+                case Value(value: u16);
+            }
+            machine replace(value: &write u16) {}
+            machine done() {}
+            machine forward(choice: &write Choice) {
+                transition choice {
+                    Choice::Value { value } -> replace(&write value)
+                    Choice::Empty -> done()
+                }
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("write-only parameter `choice`")
+            && (rendered.contains("never observation")
+                || rendered.contains("never grants observation")),
+        "a case/payload-derived subloan unexpectedly bypassed tag and payload observation fences: {rendered}"
+    );
+}
+
+#[test]
 fn unrestricted_plain_record_leaves_are_wholly_replaceable() {
     lower_typed_trees(typed(
         r#"

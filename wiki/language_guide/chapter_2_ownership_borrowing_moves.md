@@ -150,13 +150,18 @@ storage containing no live `T` is a separate feature.
 > unrestricted primitive leaf through a finite path of relevant unconstrained
 > common fields in plain invariant-free records, read a literal fixed-array
 > length as static metadata through the same eligible record paths, and forward
-> the loan explicitly. Record-held slice descriptors remain content-bearing.
+> the loan explicitly. One bounded subloan form may pass
+> `&write root.field...leaf` directly to a checked call when the complete field
+> path and leaf meet that same non-observation referee. It cannot be retained in
+> a local alias. Record-held slice descriptors remain content-bearing.
 > General symbolic or open-ended range projection, sum projection,
 > opaque providers, executable Terminal writes, runtime realization, and native
 > ABI lowering remain gated. Forwarding-only structural parameters and calls do
 > preserve owned/shared/mutable/write-only access through Terminal format 27;
-> the independent verifier checks exact target access, legal attenuation, and
-> exclusive-argument overlap. `&write` is never temporarily lowered as `&mut`.
+> one exact unrestricted record-leaf field path now crosses that codec and the
+> independent verifier. Verification checks the exact path, type, target access,
+> legal attenuation, and exclusive-argument overlap. `&write` is never
+> temporarily lowered as `&mut`.
 
 Code may perform plain typed stores, content-independent field/index/range
 projection, disjoint subdivision, and read view metadata such as a slice's
