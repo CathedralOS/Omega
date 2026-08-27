@@ -270,33 +270,47 @@ fn collect_checked_statement_selections(
                     }
                 }
 
-                let pending = program
-                    .authored_declaration_selections()
-                    .iter()
-                    .filter(|selection| {
-                        selection.source_span() == call.source_span
-                            && selection.kind() == AuthoredDeclarationSelectionKind::Call
-                            && selection.target()
-                                == AuthoredDeclarationSelectionTarget::LateBound(
-                                    AuthoredDeclarationSelectionLateBinding::CheckedCall,
-                                )
-                    })
-                    .map(|selection| selection.occurrence_id())
-                    .collect::<Vec<_>>();
+                let Some(occurrence) = call.authored_call_selection else {
+                    return Err(Diagnostic::error(
+                        "source-authored checked statement call has no attached call selection",
+                    )
+                    .with_source_span(call.source_span));
+                };
+                let Some(selection) = program.authored_declaration_selections().get(occurrence)
+                else {
+                    return Err(Diagnostic::error(format!(
+                        "statement call retains unknown authored selection occurrence {}",
+                        occurrence.ordinal(),
+                    ))
+                    .with_source_span(call.source_span));
+                };
+                if selection.kind() != AuthoredDeclarationSelectionKind::Call
+                    || selection.exposure()
+                        != psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+                    || selection.source_span() != call.source_span
+                {
+                    return Err(Diagnostic::error(
+                        "statement call retains mismatched authored call-selection evidence",
+                    )
+                    .with_source_span(call.source_span));
+                }
                 let resolution_target = checked_statement_call_intrinsic(program, state, call)
                     .map(CheckedResolutionTarget::Intrinsic)
                     .or_else(|| declaration_target(target));
-                if let Some(target) = resolution_target {
-                    for occurrence in pending {
-                        push_consistent_resolution(
-                            resolutions,
-                            CheckedResolution {
-                                occurrence,
-                                binding: AuthoredDeclarationSelectionLateBinding::CheckedCall,
-                                target,
-                            },
-                        )?;
-                    }
+                if selection.target()
+                    == AuthoredDeclarationSelectionTarget::LateBound(
+                        AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                    )
+                    && let Some(target) = resolution_target
+                {
+                    push_consistent_resolution(
+                        resolutions,
+                        CheckedResolution {
+                            occurrence,
+                            binding: AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                            target,
+                        },
+                    )?;
                 }
             }
         }

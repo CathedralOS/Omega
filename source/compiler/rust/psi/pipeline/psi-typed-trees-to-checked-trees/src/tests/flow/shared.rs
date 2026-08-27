@@ -64,6 +64,7 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
     let call_statement_receiver = HandleSpan::empty();
     let call_statement = StatementNode::Call(TableCall {
         source_span: psi_source::SourceSpan::default(),
+        authored_call_selection: None,
         receiver: call_statement_receiver,
         receiver_symbol: caller_machine_symbol,
         target: Identifier::generated("run"),
@@ -319,6 +320,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
         .statement_table
         .insert(StatementNode::Call(TableCall {
             source_span: psi_source::SourceSpan::default(),
+            authored_call_selection: None,
             receiver: HandleSpan::empty(),
             receiver_symbol: target_machine_symbol,
             target: Identifier::generated("write_line"),

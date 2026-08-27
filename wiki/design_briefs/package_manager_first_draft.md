@@ -434,11 +434,18 @@ their semantic facts. Direct machine, public-trait requirement, and public-
 operator contracts carry it under `contract_clause`, and accepted-claim rows
 reuse the callable sidecar. Every projected declaration family recursively
 collects the same anchor from structural static-machine parameter contracts.
-Recovery envelope v3, conflict fingerprint v6, and renderer V5 bind
-the source schema. Coordinates remain explanatory rather than semantic
-identity. Per-fact spans, body sites, and authored `reaches`/`invokes`
-members remain later rungs; missing spans must be retained before they are
-erased, never recovered by parsing source text in package orchestration.
+Checked body calls add
+`body_call` anchors by joining checked-flow coordinates to exact typed
+statement, expression, and named-transition sites. Statement and transition
+sites carry explicit authored call-selection occurrences; expression sites
+reuse their existing attached occurrences. The join verifies target, receiver,
+receiver shape, and operational acknowledgement, rejects missing or
+contradictory provenance, and emits no source location for generated calls.
+Recovery envelope v4, conflict fingerprint v7, and renderer V6 bind the current
+source schema. Coordinates remain explanatory rather than semantic identity.
+Per-fact spans and authored `reaches`/`invokes` members remain later rungs;
+missing spans must be retained before they are erased, never recovered by
+parsing source text in package orchestration.
 
 Proposition and named-evidence rows apply that rule as an explicit join. The
 typed application owns the structural proposition declaration, binder

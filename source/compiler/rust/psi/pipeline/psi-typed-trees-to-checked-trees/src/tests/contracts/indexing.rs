@@ -337,6 +337,7 @@ fn indexes_call_contract_facts_by_target_machine() {
         &mut caller_state.statement_nodes,
         StatementNode::Call(TableCall {
             source_span: psi_source::SourceSpan::default(),
+            authored_call_selection: None,
             receiver_symbol: target_machine_symbol,
             target_symbol: target_state_symbol,
             receiver,
@@ -517,6 +518,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         &mut caller_state.statement_nodes,
         StatementNode::Call(TableCall {
             source_span: psi_source::SourceSpan::default(),
+            authored_call_selection: None,
             receiver_symbol: target_machine_symbol,
             target_symbol: target_state_symbol,
             receiver,

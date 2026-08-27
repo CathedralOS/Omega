@@ -578,6 +578,7 @@ fn count_transition_target_node(
             path,
             arguments,
             evidence_arguments,
+            ..
         } => {
             for name in statements.name_path_members(path.members) {
                 count_transition_path_member(name, counts);

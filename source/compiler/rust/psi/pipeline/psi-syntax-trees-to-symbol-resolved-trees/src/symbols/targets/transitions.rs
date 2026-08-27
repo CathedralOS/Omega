@@ -219,6 +219,8 @@ fn reclassify_state_call_value_target(
                 path_starts_at_self: false,
                 arguments: call.arguments,
                 evidence_arguments: call.evidence_arguments.clone(),
+                source_span: call.target.source_span(),
+                authored_call_selection: None,
             },
         },
     )

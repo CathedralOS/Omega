@@ -145,6 +145,11 @@ pub struct CallStorage {
     pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
     /// `_ = call();` -- the caller explicitly discards a non-unit result.
     pub discards_result: bool,
+    /// Exact ledger occurrence for this authored statement call. Generated
+    /// calls retain `None`.
+    pub authored_call_selection: Option<
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+    >,
 }
 
 impl Deref for Call {
@@ -205,6 +210,10 @@ pub struct NamedTransitionTargetStorage {
     pub path_starts_at_self: bool,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
     pub evidence_arguments: Box<[DiagnosticName]>,
+    pub source_span: SourceSpan,
+    pub authored_call_selection: Option<
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+    >,
 }
 
 impl Deref for NamedTransitionTarget {
@@ -312,6 +321,13 @@ impl StatementTable {
         self.nodes.transition_targets.get(handle)
     }
 
+    pub fn transition_target_mut(
+        &mut self,
+        handle: TransitionTargetHandle,
+    ) -> &mut TransitionTargetNode {
+        self.nodes.transition_targets.get_mut(handle)
+    }
+
     pub fn outcome_proof_selectors(
         &self,
         span: HandleSpan<TableOutcomeProofSelector>,
@@ -388,6 +404,7 @@ impl StatementTable {
                     evidence_arguments: call.evidence_arguments.clone(),
                     operational_acknowledgement: call.operational_acknowledgement,
                     discards_result: call.discards_result,
+                    authored_call_selection: call.authored_call_selection,
                 }))
             }
             Statement::ProofOutputBindingStatement(package) => {
@@ -562,6 +579,8 @@ impl StatementTable {
                     copy_expression_handles,
                 ),
                 evidence_arguments: named.evidence_arguments.clone(),
+                source_span: named.source_span,
+                authored_call_selection: named.authored_call_selection,
             },
             TransitionTarget::Value(expression) => {
                 TransitionTargetNode::Value(expression_handle_from_tree(
@@ -640,6 +659,9 @@ pub struct TableCall {
     pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
     /// `_ = call();` -- the caller explicitly discards a non-unit result.
     pub discards_result: bool,
+    pub authored_call_selection: Option<
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+    >,
 }
 
 impl Default for TableCall {
@@ -655,6 +677,7 @@ impl Default for TableCall {
             evidence_arguments: Box::default(),
             operational_acknowledgement: Default::default(),
             discards_result: false,
+            authored_call_selection: None,
         }
     }
 }
@@ -722,6 +745,10 @@ pub enum TransitionTargetNode {
         path: TableNamePath,
         arguments: HandleSpan<crate::expression::ExpressionHandle>,
         evidence_arguments: Box<[DiagnosticName]>,
+        source_span: SourceSpan,
+        authored_call_selection: Option<
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+        >,
     },
     Value(crate::expression::ExpressionHandle),
     SelfTarget,
@@ -779,6 +806,8 @@ mod tests {
                     path_starts_at_self: false,
                     arguments,
                     evidence_arguments: Box::default(),
+                    source_span: Default::default(),
+                    authored_call_selection: None,
                 },
             }),
             continuation: None,

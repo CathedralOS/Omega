@@ -995,6 +995,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         &mut state.statement_nodes,
         StatementNode::Call(TableCall {
             source_span: psi_source::SourceSpan::default(),
+            authored_call_selection: None,
             receiver_symbol: machine_symbol,
             target_symbol,
             receiver: Default::default(),
@@ -1120,6 +1121,7 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
         &mut state.statement_nodes,
         StatementNode::Call(TableCall {
             source_span: psi_source::SourceSpan::default(),
+            authored_call_selection: None,
             receiver_symbol: machine_symbol,
             target_symbol,
             receiver: Default::default(),

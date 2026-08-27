@@ -53,8 +53,7 @@ pub(super) fn find_call_site_in_expression<'program>(
                     traversal.state,
                     receiver_symbol,
                     receiver_path.as_deref(),
-                )
-                || call.target_symbol.is_valid();
+                );
 
             if is_machine_call {
                 if traversal.is_target_call_site() {
