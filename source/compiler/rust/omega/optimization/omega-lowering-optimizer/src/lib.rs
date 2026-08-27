@@ -643,6 +643,42 @@ mod tests {
         verified(module, ProofBundle::default())
     }
 
+    fn adjacent_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_051).unwrap();
+        let entry = BlockId::new(1_052).unwrap();
+        let target = BlockId::new(1_053).unwrap();
+        verified(
+            module_with_blocks(
+                machine,
+                entry,
+                TerminalMachineResult::Unit,
+                vec![
+                    Block {
+                        id: entry,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Jump {
+                            edge: EdgeId::new(1_054).unwrap(),
+                            target,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                    Block {
+                        id: target,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::ReturnUnit {
+                            edge: EdgeId::new(1_055).unwrap(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                ],
+            ),
+            ProofBundle::default(),
+        )
+    }
+
     fn exact_add_verified() -> VerifiedPsiOptimizationUnit {
         let machine = MachineId::new(1_011).unwrap();
         let block = BlockId::new(1_012).unwrap();
@@ -817,6 +853,24 @@ mod tests {
                 &wrong_ordinal,
             ),
             Err(OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)
+        );
+    }
+
+    #[test]
+    fn adjacent_terminal_jump_fusion_reaches_verified_one_block_projection() {
+        let selections = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        let optimized =
+            project_optimization_run(run(adjacent_terminal_jump_verified(), selections)).unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.plan().functions[0].block_entries.len(), 1);
+        assert_eq!(optimized.unit().functions[0].blocks.len(), 1);
+        assert_eq!(
+            optimized.unit().functions[0].blocks[0].nodes[0].provenance,
+            [
+                omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(1_055).unwrap()),
+                omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(1_054).unwrap()),
+            ]
         );
     }
 
