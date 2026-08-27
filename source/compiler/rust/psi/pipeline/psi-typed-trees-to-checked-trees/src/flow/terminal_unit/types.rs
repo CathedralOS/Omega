@@ -1045,7 +1045,10 @@ impl<'program> ShapeCollector<'program> {
         if data.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
             || !matches!(
                 psi_typed_trees::data::DataDefinition::shape_kind_from_members(members),
-                DataShapeKind::Empty | DataShapeKind::Record | DataShapeKind::Enum
+                DataShapeKind::Empty
+                    | DataShapeKind::Record
+                    | DataShapeKind::Enum
+                    | DataShapeKind::Mixed
             )
         {
             return None;
@@ -1150,44 +1153,63 @@ impl<'program> ShapeCollector<'program> {
         if data.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
             || !matches!(
                 psi_typed_trees::data::DataDefinition::shape_kind_from_members(&members),
-                DataShapeKind::Empty | DataShapeKind::Record | DataShapeKind::Enum
+                DataShapeKind::Empty
+                    | DataShapeKind::Record
+                    | DataShapeKind::Enum
+                    | DataShapeKind::Mixed
             )
         {
             self.in_progress.remove(&identity);
             return None;
         }
-        if matches!(
-            psi_typed_trees::data::DataDefinition::shape_kind_from_members(&members),
-            DataShapeKind::Enum
-        ) {
+        let shape_kind = psi_typed_trees::data::DataDefinition::shape_kind_from_members(&members);
+        if matches!(shape_kind, DataShapeKind::Enum | DataShapeKind::Mixed) {
+            let mut fields = Vec::new();
             let mut cases = Vec::with_capacity(members.len());
             for member in &members {
-                let DataMember::Variant(variant) = member else {
-                    unreachable!("enum shape contains only cases")
-                };
-                let mut fields = Vec::new();
-                for field in self.program.data_payload_fields(variant) {
-                    let Some(field) =
-                        self.structural_field_plan(field, binders, &substitutions, &identity)
-                    else {
-                        self.in_progress.remove(&identity);
-                        return None;
-                    };
-                    fields.push(field);
+                match member {
+                    DataMember::Field(field) => {
+                        let Some(field) =
+                            self.structural_field_plan(field, binders, &substitutions, &identity)
+                        else {
+                            self.in_progress.remove(&identity);
+                            return None;
+                        };
+                        fields.push(field);
+                    }
+                    DataMember::Variant(variant) => {
+                        let mut payload_fields = Vec::new();
+                        for field in self.program.data_payload_fields(variant) {
+                            let Some(field) = self.structural_field_plan(
+                                field,
+                                binders,
+                                &substitutions,
+                                &identity,
+                            ) else {
+                                self.in_progress.remove(&identity);
+                                return None;
+                            };
+                            payload_fields.push(field);
+                        }
+                        cases.push(psi_checked_trees::CheckedUnitStructuralCasePlan {
+                            identity: variant
+                                .identity
+                                .map(|identity| format!("#{identity}"))
+                                .unwrap_or_else(|| variant.name.as_str().to_owned()),
+                            fields: payload_fields,
+                        });
+                    }
                 }
-                cases.push(psi_checked_trees::CheckedUnitStructuralCasePlan {
-                    identity: variant
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| variant.name.as_str().to_owned()),
-                    fields,
-                });
             }
             self.types.insert(
                 identity.clone(),
                 CheckedUnitStructuralTypePlan {
                     identity: identity.clone(),
-                    shape: CheckedUnitStructuralTypeShape::Sum { cases },
+                    shape: if matches!(shape_kind, DataShapeKind::Mixed) {
+                        CheckedUnitStructuralTypeShape::Mixed { fields, cases }
+                    } else {
+                        CheckedUnitStructuralTypeShape::Sum { cases }
+                    },
                 },
             );
             self.in_progress.remove(&identity);
@@ -1318,6 +1340,18 @@ impl<'program> ShapeCollector<'program> {
                     }
                     CheckedUnitStructuralTypeShape::Sum { cases } => {
                         for field in cases.iter().flat_map(|case| &case.fields) {
+                            if let CheckedUnitStructuralFieldType::Structural { type_identity } =
+                                &field.field_type
+                            {
+                                retained.insert(type_identity.clone());
+                            }
+                        }
+                    }
+                    CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
+                        for field in fields
+                            .iter()
+                            .chain(cases.iter().flat_map(|case| &case.fields))
+                        {
                             if let CheckedUnitStructuralFieldType::Structural { type_identity } =
                                 &field.field_type
                             {

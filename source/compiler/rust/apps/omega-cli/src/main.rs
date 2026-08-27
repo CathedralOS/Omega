@@ -479,6 +479,9 @@ fn terminal_summary(
                 psi_terminal::StructuralTypeShape::Sum { cases } => {
                     format!("sum(cases={})", cases.len())
                 }
+                psi_terminal::StructuralTypeShape::Mixed { fields, cases } => {
+                    format!("mixed(fields={},cases={})", fields.len(), cases.len())
+                }
             }
         )
         .expect("writing to a String cannot fail");

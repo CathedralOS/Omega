@@ -3399,7 +3399,7 @@ fn structural_shape(
                     .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
                 Ok(ValueShape::integer(byte_size, element.alignment))
             }
-            StructuralTypeShape::Sum { .. } => {
+            StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. } => {
                 Err(LoweringError::UnsupportedStructuralSum(structural_type))
             }
         }

@@ -2692,13 +2692,19 @@ Remaining:
   through nested sums; whole-root Unit calls independently rebase both operands,
   and codec, verifier, fixed-fuel, and interpreter replay retain both `==` and
   `!=`. Unknown or redirected case/field identities reject independently.
-  Mixed common-field/case shapes, recursive cycles, address and erased payload
-  equality, and runtime sum layout remain fenced.
-  Semantic codec v18,
-  proof-bundle v18, and installation-record v24 retain the structural shapes,
-  case-payload paths, and proposition. Continue with the fenced mixed,
-  recursive, and erased aggregate cases. Concrete machine/state
-  contracts plus domain/data predicates and trait requirement signatures,
+  Direct whole-root mixed shapes now retain both their common fields and closed
+  case roster. Equality canonically conjoins the common-field leaf equalities
+  first with one source-ordered disjunction of per-case membership and payload
+  conjunctions; inequality is that complete equality proposition implying
+  falsehood. Exact common-field, case, and payload-field identities survive
+  whole-root Unit-call rebasing, and semantic codec, verifier, fixed-fuel, and
+  interpreter replay reject redirected or reordered structure. Nested or
+  projected mixed values, recursive cycles, address and erased payload equality,
+  and runtime sum layout remain fenced. Semantic codec format 31 / vocabulary
+  33, proof-bundle v19, and installation-record v40 retain the structural
+  shapes, case-payload paths, and proposition. Continue with those fenced
+  nested/projected mixed, recursive, and erased aggregate cases. Concrete
+  machine/state contracts plus domain/data predicates and trait requirement signatures,
   machine-parameter requirements, and root/domain operator contracts now reject
   direct binary and named-float `Trapping` arithmetic plus direct Trapping
   conversions. Comparisons, bitwise inspection, float classification,
@@ -8482,8 +8488,8 @@ Remaining N6/N8 work:
   live on this exact Terminal-only call shape. One optional binding names the
   exact guarded callee case, dense row position, obligation, public selector,
   atomic proposition, callee term/interface, distinct caller-local output term,
-  and source-handle-free result-root validity intersection. Codec format 30 /
-  vocabulary 32 retain those coordinates canonically. Validation rejects an
+  and source-handle-free result-root validity intersection. Codec format 31 /
+  vocabulary 33 retain those coordinates canonically. Validation rejects an
   unnamed or nonmatching row, identity/interface/dependency drift, missing
   producer provenance, duplicate output, and any unconditional contract-lane or
   evidence-projection reuse of the guarded output. Omission remains fact-only,

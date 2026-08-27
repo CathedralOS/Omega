@@ -1346,9 +1346,12 @@ pub(crate) fn structural_argument_canonical_prefix(
                     .iter()
                     .find(|declaration| declaration.id == structural_type)
                     .and_then(|declaration| match &declaration.shape {
-                        StructuralTypeShape::Record { fields } => fields.iter().find(|field| {
-                            field.identity == *identity && !field.relevance.is_erased()
-                        }),
+                        StructuralTypeShape::Record { fields }
+                        | StructuralTypeShape::Mixed { fields, .. } => {
+                            fields.iter().find(|field| {
+                                field.identity == *identity && !field.relevance.is_erased()
+                            })
+                        }
                         StructuralTypeShape::ByteSequence(_)
                         | StructuralTypeShape::FixedArray { .. }
                         | StructuralTypeShape::Sum { .. } => None,

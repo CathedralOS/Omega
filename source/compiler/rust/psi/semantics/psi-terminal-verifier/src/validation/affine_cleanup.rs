@@ -457,7 +457,8 @@ pub(super) fn valid_nominal_cleanup_requirements(
             StructuralTypeShape::Record { fields } => Some(fields),
             StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::FixedArray { .. }
-            | StructuralTypeShape::Sum { .. } => None,
+            | StructuralTypeShape::Sum { .. }
+            | StructuralTypeShape::Mixed { .. } => None,
         })
     else {
         return false;

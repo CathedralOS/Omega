@@ -646,6 +646,12 @@ pub enum CheckedUnitStructuralTypeShape {
     Sum {
         cases: Vec<CheckedUnitStructuralCasePlan>,
     },
+    /// A closed sum with common fields. Common-field and case declaration
+    /// order are both semantic; payload fields remain owned by their case.
+    Mixed {
+        fields: Vec<CheckedUnitStructuralFieldPlan>,
+        cases: Vec<CheckedUnitStructuralCasePlan>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

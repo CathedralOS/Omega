@@ -27,7 +27,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        32
+        33
     }
 }
 
@@ -244,6 +244,13 @@ pub enum StructuralTypeShape {
     /// A closed pure sum. Case and payload-field declaration order is semantic;
     /// their IDs are strictly increasing in the canonical encoding.
     Sum {
+        cases: Vec<StructuralCaseDeclaration>,
+    },
+    /// A closed sum with fields available independently of the selected case.
+    /// Common-field and case declaration order is semantic and all IDs are
+    /// canonical within their respective namespaces.
+    Mixed {
+        fields: Vec<StructuralFieldDeclaration>,
         cases: Vec<StructuralCaseDeclaration>,
     },
 }

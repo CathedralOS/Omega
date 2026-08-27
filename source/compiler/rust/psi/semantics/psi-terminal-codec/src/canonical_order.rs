@@ -91,6 +91,29 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                     "structural case fields by StructuralFieldId",
                 ));
             }
+            StructuralTypeShape::Mixed { fields, .. }
+                if !strictly_increasing(fields.iter().map(|field| field.id)) =>
+            {
+                return Err(CodecError::NonCanonicalOrder(
+                    "mixed structural fields by StructuralFieldId",
+                ));
+            }
+            StructuralTypeShape::Mixed { cases, .. }
+                if !strictly_increasing(cases.iter().map(|case| case.id)) =>
+            {
+                return Err(CodecError::NonCanonicalOrder(
+                    "mixed structural cases by StructuralCaseId",
+                ));
+            }
+            StructuralTypeShape::Mixed { cases, .. }
+                if cases
+                    .iter()
+                    .any(|case| !strictly_increasing(case.fields.iter().map(|field| field.id))) =>
+            {
+                return Err(CodecError::NonCanonicalOrder(
+                    "mixed structural case fields by StructuralFieldId",
+                ));
+            }
             _ => {}
         }
     }

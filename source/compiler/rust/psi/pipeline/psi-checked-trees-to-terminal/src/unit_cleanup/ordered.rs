@@ -455,7 +455,8 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
                     }
                     StructuralTypeShape::ByteSequence(_)
                     | StructuralTypeShape::FixedArray { .. }
-                    | StructuralTypeShape::Sum { .. } => None,
+                    | StructuralTypeShape::Sum { .. }
+                    | StructuralTypeShape::Mixed { .. } => None,
                 })
                 .filter(|field| {
                     !field.relevance.is_erased()

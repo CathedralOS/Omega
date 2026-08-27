@@ -25,6 +25,72 @@ pub(super) fn terminal_byte_sequence_carrier(
     }
 }
 
+pub(super) fn lower_mixed_fields(
+    fields: &[psi_checked_trees::CheckedUnitStructuralFieldPlan],
+    type_ids: &[(String, StructuralTypeId)],
+    next_field: &mut u64,
+) -> Result<Vec<StructuralFieldDeclaration>, LoweringError> {
+    let mut identities = BTreeSet::new();
+    fields
+        .iter()
+        .map(|field| {
+            if field.identity.is_empty() || !identities.insert(field.identity.as_str()) {
+                return unsupported("mixed structural type has duplicate field identities");
+            }
+            let field_type = match &field.field_type {
+                CheckedUnitStructuralFieldType::Scalar(primitive) => {
+                    terminal_structural_field_type(*primitive)?
+                }
+                CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
+                    StructuralFieldType::ByteSequence(terminal_byte_sequence_carrier(*carrier))
+                }
+                CheckedUnitStructuralFieldType::Structural { type_identity } => {
+                    StructuralFieldType::Structural(lookup_type_id(type_ids, type_identity)?)
+                }
+                CheckedUnitStructuralFieldType::ProviderBacked { .. } => {
+                    return unsupported(
+                        "provider-backed fields are outside mixed structural lowering",
+                    );
+                }
+                CheckedUnitStructuralFieldType::Erased { type_identity } => {
+                    StructuralFieldType::Erased {
+                        type_identity: type_identity.clone(),
+                    }
+                }
+            };
+            Ok(StructuralFieldDeclaration {
+                id: structural_field_id(allocate_dense(next_field)?),
+                identity: field.identity.clone(),
+                relevance: field.relevance,
+                field_type,
+            })
+        })
+        .collect()
+}
+
+pub(super) fn lower_mixed_cases(
+    cases: &[psi_checked_trees::CheckedUnitStructuralCasePlan],
+    type_ids: &[(String, StructuralTypeId)],
+    next_field: &mut u64,
+    next_case: &mut u64,
+) -> Result<Vec<StructuralCaseDeclaration>, LoweringError> {
+    let mut identities = BTreeSet::new();
+    cases
+        .iter()
+        .map(|case| {
+            if case.identity.is_empty() || !identities.insert(case.identity.as_str()) {
+                return unsupported("mixed structural type has duplicate case identities");
+            }
+            Ok(StructuralCaseDeclaration {
+                id: StructuralCaseId::new(allocate_dense(next_case)?)
+                    .expect("allocated structural case identity is nonzero"),
+                identity: case.identity.clone(),
+                fields: lower_mixed_fields(&case.fields, type_ids, next_field)?,
+            })
+        })
+        .collect()
+}
+
 pub(super) fn retain_additional_structural_types(
     module: &mut TerminalModule,
     plans: &[CheckedUnitStructuralTypePlan],
@@ -67,6 +133,18 @@ pub(super) fn retain_additional_structural_types(
             } => collect(plans, element_type_identity, active, selected)?,
             CheckedUnitStructuralTypeShape::Sum { cases } => {
                 for field in cases.iter().flat_map(|case| &case.fields) {
+                    if let CheckedUnitStructuralFieldType::Structural { type_identity } =
+                        &field.field_type
+                    {
+                        collect(plans, type_identity, active, selected)?;
+                    }
+                }
+            }
+            CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
+                for field in fields
+                    .iter()
+                    .chain(cases.iter().flat_map(|case| &case.fields))
+                {
                     if let CheckedUnitStructuralFieldType::Structural { type_identity } =
                         &field.field_type
                     {
@@ -122,10 +200,17 @@ pub(super) fn retain_additional_structural_types(
         .structural_types
         .iter()
         .flat_map(|declaration| match &declaration.shape {
-            StructuralTypeShape::Record { fields } => fields.as_slice(),
-            StructuralTypeShape::ByteSequence(_)
-            | StructuralTypeShape::FixedArray { .. }
-            | StructuralTypeShape::Sum { .. } => &[],
+            StructuralTypeShape::Record { fields } => fields.iter().collect::<Vec<_>>(),
+            StructuralTypeShape::Sum { cases } => {
+                cases.iter().flat_map(|case| case.fields.iter()).collect()
+            }
+            StructuralTypeShape::Mixed { fields, cases } => fields
+                .iter()
+                .chain(cases.iter().flat_map(|case| case.fields.iter()))
+                .collect(),
+            StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::FixedArray { .. } => {
+                Vec::new()
+            }
         })
         .map(|field| field.id.get())
         .max()
@@ -139,6 +224,7 @@ pub(super) fn retain_additional_structural_types(
         .iter()
         .flat_map(|declaration| match &declaration.shape {
             StructuralTypeShape::Sum { cases } => cases.as_slice(),
+            StructuralTypeShape::Mixed { cases, .. } => cases.as_slice(),
             StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::Record { .. }
             | StructuralTypeShape::FixedArray { .. } => &[],
@@ -276,6 +362,10 @@ pub(super) fn retain_additional_structural_types(
                     .collect::<Result<Vec<_>, LoweringError>>()?;
                 StructuralTypeShape::Sum { cases }
             }
+            CheckedUnitStructuralTypeShape::Mixed { fields, cases } => StructuralTypeShape::Mixed {
+                fields: lower_mixed_fields(fields, &type_ids, &mut next_field)?,
+                cases: lower_mixed_cases(cases, &type_ids, &mut next_field, &mut next_case)?,
+            },
         };
         module.structural_types.push(StructuralTypeDeclaration {
             id: lookup_type_id(&type_ids, &identity)?,
@@ -443,6 +533,17 @@ pub(super) fn lower_structural_type_plans(
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
                     StructuralTypeShape::Sum { cases }
+                }
+                CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
+                    StructuralTypeShape::Mixed {
+                        fields: lower_mixed_fields(fields, &type_ids, &mut next_field)?,
+                        cases: lower_mixed_cases(
+                            cases,
+                            &type_ids,
+                            &mut next_field,
+                            &mut next_case,
+                        )?,
+                    }
                 }
             };
             Ok(StructuralTypeDeclaration {

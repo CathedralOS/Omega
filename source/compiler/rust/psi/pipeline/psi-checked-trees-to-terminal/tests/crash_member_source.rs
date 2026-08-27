@@ -575,6 +575,83 @@ const NESTED_PAYLOAD_SUM_EQUALITY_SOURCE: &str = r#"
     {}
 "#;
 
+const MIXED_AGGREGATE_EQUALITY_SOURCE: &str = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Message {
+        active: bool;
+        case Empty;
+        case Data(value: i32);
+    }
+    MessageEquatable: Message satisfies Equatable;
+
+    data Helper {}
+    machine Helper::inspect(left: Message, right: Message)
+    crashes Abort
+        left == right
+    {}
+
+    machine Helper::different(left: Message, right: Message)
+    crashes Abort
+        left != right
+    {}
+
+    data Root {}
+    machine Root::enter(left: Message, right: Message)
+    crashes Abort
+        left == right
+    {
+        Helper::inspect(left, right);
+    }
+
+    data Different {}
+    machine Different::enter(left: Message, right: Message)
+    crashes Abort
+        left != right
+    {
+        Helper::different(left, right);
+    }
+"#;
+
+const MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES: [&str; 4] = [
+    r#"
+        trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
+        data Message { pointer: addr; case Empty; case Data(value: i32); }
+        MessageEquatable: Message satisfies Equatable;
+        data Root {}
+        machine Root::enter(left: Message, right: Message)
+        crashes Abort left == right {}
+    "#,
+    r#"
+        trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
+        data Message { proof [erased]: i32; case Empty; case Data(value: i32); }
+        MessageEquatable: Message satisfies Equatable;
+        data Root {}
+        machine Root::enter(left: Message, right: Message)
+        crashes Abort left == right {}
+    "#,
+    r#"
+        trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
+        data Message { active: bool; case Empty; case More(next: Message); }
+        MessageEquatable: Message satisfies Equatable;
+        data Root {}
+        machine Root::enter(left: Message, right: Message)
+        crashes Abort left == right {}
+    "#,
+    r#"
+        trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
+        data Message { active: bool; case Empty; case Data(value: i32); }
+        MessageEquatable: Message satisfies Equatable;
+        data Envelope { message: Message; }
+        EnvelopeEquatable: Envelope satisfies Equatable;
+        data Root {}
+        machine Root::enter(left: Envelope, right: Envelope)
+        crashes Abort left == right {}
+    "#,
+];
+
 const NESTED_RECORD_PAYLOAD_SUM_EQUALITY_SOURCE: &str = r#"
     trait Equatable {
         machine equals(&self, rhs: &Self) -> bool;
@@ -4327,6 +4404,330 @@ fn nested_payload_sum_equality_retains_exact_record_case_payload_paths_end_to_en
 }
 
 #[test]
+fn mixed_aggregate_equality_retains_common_fields_cases_and_call_rebasing_end_to_end() {
+    fn collect_scalar_paths(
+        term: &ScalarTerm,
+        boolean: &mut Vec<(psi_core::PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+        integer: &mut Vec<(psi_core::PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+    ) {
+        match term {
+            ScalarTerm::BooleanField { root, path } => boolean.push((*root, path.clone())),
+            ScalarTerm::IntegerField { root, path, .. } => integer.push((*root, path.clone())),
+            ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. } => {
+                collect_scalar_paths(left, boolean, integer);
+                collect_scalar_paths(right, boolean, integer);
+            }
+            _ => {}
+        }
+    }
+
+    fn collect(
+        proposition: &Proposition,
+        memberships: &mut Vec<(
+            psi_core::PlaceId,
+            Vec<CanonicalStructuralPathSegment>,
+            psi_core::StructuralCaseId,
+        )>,
+        boolean: &mut Vec<(psi_core::PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+        integer: &mut Vec<(psi_core::PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+    ) {
+        match proposition {
+            Proposition::StructuralCaseMembership { subject, case } => {
+                memberships.push((subject.root(), subject.path().to_vec(), *case));
+            }
+            Proposition::Equal(left, right)
+            | Proposition::LessThan(left, right)
+            | Proposition::LessOrEqual(left, right) => {
+                collect_scalar_paths(left, boolean, integer);
+                collect_scalar_paths(right, boolean, integer);
+            }
+            Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
+                for child in children {
+                    collect(child, memberships, boolean, integer);
+                }
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                collect(premise, memberships, boolean, integer);
+                collect(conclusion, memberships, boolean, integer);
+            }
+            Proposition::Truth
+            | Proposition::Falsehood
+            | Proposition::Atom(_)
+            | Proposition::IeeeFloatComparison { .. }
+            | Proposition::ByteSequenceEqual { .. }
+            | Proposition::ContentConservation(_) => {}
+        }
+    }
+
+    let tokens = Lexer::new(MIXED_AGGREGATE_EQUALITY_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let equal = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("mixed equality lowers through the direct call");
+    let different = psi_checked_trees_to_terminal::lower_machine(&checked, "Different::enter")
+        .expect("mixed inequality lowers through the direct call");
+
+    for (lowered, is_different) in [(&equal, false), (&different, true)] {
+        let machine = &lowered.semantic_module.machines[0];
+        let declaration = lowered
+            .semantic_module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == machine.structural_parameters[0].structural_type)
+            .expect("Message structural type");
+        let StructuralTypeShape::Mixed { fields, cases } = &declaration.shape else {
+            panic!("Message retains its mixed shape")
+        };
+        let active = fields
+            .iter()
+            .find(|field| field.identity == "active")
+            .expect("common active field");
+        let data = cases
+            .iter()
+            .find(|case| case.identity == "Data")
+            .expect("Data case");
+        let value = data
+            .fields
+            .iter()
+            .find(|field| field.identity == "value")
+            .expect("Data value field");
+        let [CrashRouteGuard::Predicate(route)] =
+            machine.contract.crash_routes[0].alternatives.as_slice()
+        else {
+            panic!("mixed equality publishes one predicate")
+        };
+        let equality = if is_different {
+            let Proposition::Implication {
+                premise,
+                conclusion,
+            } = route.proposition()
+            else {
+                panic!("mixed inequality is an implication")
+            };
+            assert!(matches!(conclusion.as_ref(), Proposition::Falsehood));
+            premise.as_ref()
+        } else {
+            route.proposition()
+        };
+        let Proposition::Conjunction(canonical) = equality else {
+            panic!("mixed equality is one canonical conjunction")
+        };
+        assert_eq!(canonical.len(), 2);
+        assert!(matches!(
+            &canonical[0],
+            Proposition::Equal(_, ScalarTerm::BooleanEqual { .. })
+        ));
+        assert!(matches!(
+            &canonical[1],
+            Proposition::Disjunction(arms) if arms.len() == 2
+        ));
+        if is_different {
+            assert!(matches!(
+                route.proposition(),
+                Proposition::Implication { conclusion, .. }
+                    if matches!(conclusion.as_ref(), Proposition::Falsehood)
+            ));
+        }
+        let mut memberships = Vec::new();
+        let mut boolean = Vec::new();
+        let mut integer = Vec::new();
+        collect(
+            route.proposition(),
+            &mut memberships,
+            &mut boolean,
+            &mut integer,
+        );
+        assert_eq!(memberships.len(), 4);
+        assert!(memberships.iter().all(|(root, path, case)| {
+            machine
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.place == *root)
+                && path.is_empty()
+                && cases.iter().any(|candidate| candidate.id == *case)
+        }));
+        assert_eq!(boolean.len(), 2);
+        assert!(boolean.iter().all(|(root, path)| {
+            machine
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.place == *root)
+                && path == &[CanonicalStructuralPathSegment::Field(active.id)]
+        }));
+        assert_eq!(integer.len(), 2);
+        assert!(integer.iter().all(|(root, path)| {
+            machine
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.place == *root)
+                && path
+                    == &[
+                        CanonicalStructuralPathSegment::Case(data.id),
+                        CanonicalStructuralPathSegment::Field(value.id),
+                    ]
+        }));
+        let verified = psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .expect("verifier replays the exact mixed paths");
+        let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+            .expect("mixed equality has fixed fuel");
+        validate_fixed_entry_fuel(&verified, &fixed).expect("mixed equality fuel recomputes");
+        let semantics = encode_module(&lowered.semantic_module).expect("semantic encode");
+        assert_eq!(
+            decode_module(&semantics),
+            Ok(lowered.semantic_module.clone())
+        );
+    }
+
+    struct Accept;
+    impl TerminalEffectHandler for Accept {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Ok(())
+        }
+    }
+    let verified = psi_terminal_verifier::verify_module(
+        &equal.semantic_module,
+        &equal.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("mixed equality verifies before interpretation");
+    let fixed = derive_fixed_entry_fuel(&verified, equal.semantic_module.entry)
+        .expect("mixed equality has fixed fuel");
+    let semantics = encode_module(&equal.semantic_module).expect("semantic encode");
+    let proof = encode_proof_bundle(&equal.proof_bundle).expect("proof encode");
+    let arguments = equal.semantic_module.machines[0]
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| TerminalStructuralValue {
+            opaque_identity: 701 + u64::try_from(index).expect("small parameter index"),
+            structural_type: parameter.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    let measured = interpret_terminal_artifact_with_effect_handler_measured(
+        &semantics,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &arguments,
+        &mut Accept,
+    )
+    .expect("verified mixed equality remains executable metadata");
+    assert_eq!(measured.value(), TerminalExecutionResult::Unit);
+    assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
+
+    let mut redirected = equal.semantic_module.clone();
+    let cases = redirected
+        .structural_types
+        .iter_mut()
+        .find_map(|declaration| match &mut declaration.shape {
+            StructuralTypeShape::Mixed { cases, .. } => Some(cases),
+            _ => None,
+        })
+        .expect("Message remains a mixed structural type");
+    cases[0].id = psi_core::StructuralCaseId::new(u64::MAX).expect("nonzero case");
+    let redirected_result = psi_terminal_verifier::validate_module(&redirected);
+    assert!(
+        matches!(
+            redirected_result,
+            Err(psi_terminal_verifier::ModuleError::InvalidStructuralCaseMembership { .. })
+        ),
+        "unexpected redirected mixed case result: {redirected_result:?}"
+    );
+
+    let mut common_field_drift = equal.semantic_module.clone();
+    let fields = common_field_drift
+        .structural_types
+        .iter_mut()
+        .find_map(|declaration| match &mut declaration.shape {
+            StructuralTypeShape::Mixed { fields, .. } => Some(fields),
+            _ => None,
+        })
+        .expect("Message common fields");
+    fields[0].id = StructuralFieldId::new(u64::MAX).expect("nonzero field");
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&common_field_drift),
+        Err(psi_terminal_verifier::ModuleError::InvalidBooleanFieldTerm { .. })
+    ));
+
+    let mut payload_field_drift = equal.semantic_module.clone();
+    let cases = payload_field_drift
+        .structural_types
+        .iter_mut()
+        .find_map(|declaration| match &mut declaration.shape {
+            StructuralTypeShape::Mixed { cases, .. } => Some(cases),
+            _ => None,
+        })
+        .expect("Message cases");
+    let data = cases
+        .iter_mut()
+        .find(|case| case.identity == "Data")
+        .expect("Data case");
+    data.fields[0].id = StructuralFieldId::new(u64::MAX).expect("nonzero field");
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&payload_field_drift),
+        Err(psi_terminal_verifier::ModuleError::InvalidIntegerFieldTerm { .. })
+    ));
+
+    let mut noncanonical = equal.semantic_module.clone();
+    let cases = noncanonical
+        .structural_types
+        .iter_mut()
+        .find_map(|declaration| match &mut declaration.shape {
+            StructuralTypeShape::Mixed { cases, .. } => Some(cases),
+            _ => None,
+        })
+        .expect("Message cases");
+    cases.swap(0, 1);
+    assert!(matches!(
+        encode_module(&noncanonical),
+        Err(psi_terminal_codec::CodecError::NonCanonicalOrder(
+            "mixed structural cases by StructuralCaseId"
+        ))
+    ));
+}
+
+#[test]
+fn mixed_aggregate_nested_address_erased_and_recursive_equality_remain_fenced() {
+    for source in MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = match lower_symbol_resolved_trees(&resolved) {
+            Ok(typed) => typed,
+            Err(_) => continue,
+        };
+        let checked = match lower_typed_trees(typed) {
+            Ok(checked) => checked,
+            Err(diagnostics) => {
+                assert!(!diagnostics.is_empty());
+                continue;
+            }
+        };
+        let result = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter");
+        assert!(matches!(
+            result,
+            Err(psi_checked_trees_to_terminal::LoweringError::Unsupported(
+                "structural crash route is outside checked Boolean member lowering"
+            ))
+        ));
+    }
+}
+
+#[test]
 fn payload_sum_nested_record_equality_rebases_and_replays_end_to_end() {
     struct Accept;
     impl TerminalEffectHandler for Accept {
@@ -5220,7 +5621,8 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
                 .find(|field| matches!(field.field_type, StructuralFieldType::ByteSequence(_))),
             StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::FixedArray { .. }
-            | StructuralTypeShape::Sum { .. } => None,
+            | StructuralTypeShape::Sum { .. }
+            | StructuralTypeShape::Mixed { .. } => None,
         })
         .expect("borrowed byte-sequence field");
     field.field_type = StructuralFieldType::Scalar(psi_core::ScalarType::Boolean);
