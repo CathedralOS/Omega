@@ -894,6 +894,24 @@ pub fn lower_machine(
     Ok(lowered)
 }
 
+/// Produce the canonical source-free artifact consumed at the Psi/Omega seam.
+///
+/// Unsupported checked constructs fail at lowering; this operation never
+/// selects the legacy checked-tree backend as a fallback.
+pub fn produce_terminal_artifact(
+    checked: &CheckedTrees,
+    machine_name: &str,
+) -> Result<psi_terminal_codec::CanonicalTerminalArtifact, TerminalArtifactProductionError> {
+    let lowered =
+        lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
+    psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        lowered.debug_map.as_ref(),
+    )
+    .map_err(TerminalArtifactProductionError::Artifact)
+}
+
 fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
@@ -1211,6 +1229,20 @@ impl std::fmt::Display for LoweringError {
 }
 
 impl std::error::Error for LoweringError {}
+
+#[derive(Debug)]
+pub enum TerminalArtifactProductionError {
+    Lowering(LoweringError),
+    Artifact(psi_terminal_codec::CanonicalTerminalArtifactError),
+}
+
+impl std::fmt::Display for TerminalArtifactProductionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
+
+impl std::error::Error for TerminalArtifactProductionError {}
 
 #[cfg(test)]
 mod tests;

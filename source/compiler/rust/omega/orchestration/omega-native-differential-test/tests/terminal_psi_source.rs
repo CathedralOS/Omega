@@ -11,17 +11,19 @@ use omega_calling_conventions::{
     validate_entry_stack_realization,
 };
 use omega_compiler::{
-    CompileOptions, CompileReport, OwnedTerminalComponentDeploymentError,
+    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileReport, CompileRequest,
+    OwnedTerminalComponentDeploymentError, RequestedCompileProduct,
     SuppliedTerminalComponentDeploymentError, TerminalComponentCandidate,
     TerminalComponentCandidateParts, TerminalComponentCompileError,
     TerminalComponentCompileRequest, TerminalComponentDeploymentInputOwner,
     TerminalComponentDeploymentInputRejection, TerminalComponentDeploymentInputs,
     TerminalComponentDeploymentOutputError, TerminalComponentDeploymentOutputStage,
     TerminalComponentDeploymentSupply, TerminalComponentProviderSettlement,
-    TerminalComponentStagingInputs, acquire_and_deploy_terminal_component_output,
-    compile_terminal_component_output, compile_to_checked,
-    deploy_and_write_terminal_component_output, stage_acquire_and_deploy_terminal_component_output,
-    stage_terminal_component, write_finalized_terminal_component_output,
+    TerminalComponentStagingInputs, TerminalNativeArtifact, TerminalNativeArtifactParts,
+    acquire_and_deploy_terminal_component_output, compile_terminal_component_output,
+    compile_to_checked, deploy_and_write_terminal_component_output,
+    stage_acquire_and_deploy_terminal_component_output,
+    stage_terminal_component as stage_terminal_artifact, write_finalized_terminal_component_output,
 };
 use omega_component_deployment::{
     ComponentProgressAttestationBinding, DynamicNativeFuelRootDeployment,
@@ -258,6 +260,47 @@ fn selected_optimizer_source_canary() -> PathBuf {
 
 fn selected_lowering_optimizer_source_canary() -> PathBuf {
     terminal_source_canary("selected_lowering_optimizer_component")
+}
+
+fn stage_terminal_component(
+    checked: &CheckedCompilation,
+    target: NativeTarget,
+    subsystem: u16,
+    profile: &AdmissionProfile,
+    settlements: &[TerminalComponentProviderSettlement<'_>],
+) -> Result<TerminalComponentCandidate, Vec<psi_diagnostics::Diagnostic>> {
+    let selected_target = checked.selected_native_target().ok_or_else(|| {
+        vec![psi_diagnostics::Diagnostic::error(
+            "terminal component staging requires one exact selected native target",
+        )]
+    })?;
+    if selected_target != target {
+        return Err(vec![psi_diagnostics::Diagnostic::error(format!(
+            "terminal component staging target {target:?} does not match checked target {selected_target:?}"
+        ))]);
+    }
+    let entry_machine = checked.selected_program_entry_machine().ok_or_else(|| {
+        vec![psi_diagnostics::Diagnostic::error(
+            "terminal component staging requires one exact selected program entry",
+        )]
+    })?;
+    let artifact = psi_checked_trees_to_terminal::produce_terminal_artifact(checked, entry_machine)
+        .map_err(|error| {
+            vec![psi_diagnostics::Diagnostic::error(format!(
+                "terminal component artifact production failed: {error}"
+            ))]
+        })?;
+    stage_terminal_artifact(
+        artifact,
+        entry_machine,
+        target,
+        subsystem,
+        profile,
+        checked.optimization_selections(),
+        checked.selected_provider_plans(),
+        checked.component_progress(),
+        settlements,
+    )
 }
 
 fn unsupported_optimizer_source_canary() -> PathBuf {
@@ -689,6 +732,35 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
     assert!(!candidate.proof_bytes().is_empty());
     assert!(!candidate.object().text_bytes().is_empty());
     assert!(!candidate.image().output().bytes.is_empty());
+
+    let direct_report = omega_compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: progress_free_selected_source_canary(),
+            build_dir: None,
+            target_name: Some("linux_x64".into()),
+            write_output: false,
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+    )
+    .expect("ordinary NativeArtifact compilation shares component realization");
+    let direct = direct_report
+        .retained_native_artifact()
+        .expect("ordinary compilation retains one Terminal-native artifact");
+    assert_eq!(
+        direct.terminal_artifact().manifest(),
+        candidate.terminal_artifact().manifest()
+    );
+    assert_eq!(direct.object(), candidate.object());
+    assert_eq!(
+        direct.object().relocations(),
+        candidate.object().relocations()
+    );
+    assert_eq!(
+        direct.object().text_bytes(),
+        candidate.object().text_bytes()
+    );
+    assert_eq!(direct.image(), candidate.image());
 
     let target_mismatch = stage_terminal_component(
         &checked,
@@ -1322,6 +1394,23 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     assert_eq!(demand.provider_service_identity, "Scheduler");
     assert_eq!(demand.profile_identity, "Scheduler::WeakFair");
     assert_eq!(demand.establishment_routes.len(), 1);
+
+    let direct_native = omega_compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: progress_source_canary(),
+            build_dir: None,
+            target_name: Some("linux_x64".into()),
+            write_output: false,
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+    )
+    .expect_err("a bare native artifact cannot discard build-bound progress");
+    assert!(direct_native.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot discard pending build-bound component progress")
+    }));
 
     let provider = admit_native_provider_for_selected_plan(
         target,

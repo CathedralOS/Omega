@@ -154,9 +154,9 @@ Current milestone-level evidence:
 | Responsibility | Current boundary | Detail owner |
 | --- | --- | --- |
 | source custody | generic bounded `OMGCOMP1`, target/provider/build-role and generated-source custody, raw-envelope SHA-256, and path-independent V1 snapshots for the canonical Delta compiler source plus a provisional three-root bridge action DAG | [`bootstrap/omega-bootstrap/compiler/`](bootstrap/omega-bootstrap/compiler/) and [`DELTA_SOURCE_CLOSURE_SNAPSHOT_V1.md`](bootstrap/delta/DELTA_SOURCE_CLOSURE_SNAPSHOT_V1.md) |
-| source resolution | compositional slices for selected data, calls, views, arithmetic, and static provider planning; OMGRSWA10 closes the guarded full-`u64` fixed-buffer projection | versioned `OMGRSW*` contracts beside the bridge |
-| checked lowering/artifacts | OMGLOWJ19/CKIR18 close the fixed-buffer projection through exact meaning and a conservative Linux-x86-64 artifact; the separate CKIR17 line retains platform-neutral provider-adapter observations | versioned `OMGLOW*`/`CKIR*` contracts beside the bridge |
-| lower-rooted reconstruction | OMGRFN21 joins exact fixed-buffer source, resolution, checked IR, artifact, native/self producer variants, resources, and independent R1–R5 reconstruction | [`source/assurance/refinement/omega-bootstrap/`](source/assurance/refinement/omega-bootstrap/) |
+| source resolution | compositional slices for selected data, calls, views, arithmetic, and static provider planning; OMGRSWB11 extends the guarded full-`u64` fixed-buffer relation to actual-capacity arrays of copyable records, nested scalar fields, and nine-argument calls | versioned `OMGRSW*` contracts beside the bridge |
+| checked lowering/artifacts | OMGLOWK20/CKIR19 close that record-array projection through exact meaning and a conservative Linux-x86-64 artifact; the separate CKIR17 line retains platform-neutral provider-adapter observations | versioned `OMGLOW*`/`CKIR*` contracts beside the bridge |
+| lower-rooted reconstruction | OMGRFN22 joins exact record-array source, resolution, checked IR, artifact, native/self producer variants, resources, and independent R1–R5 reconstruction | [`source/assurance/refinement/omega-bootstrap/`](source/assurance/refinement/omega-bootstrap/) |
 | compilation authority | externally gated on the accepted-lock/source-closure projection | [external dependency](#external-contract-dependency) |
 
 Open work:

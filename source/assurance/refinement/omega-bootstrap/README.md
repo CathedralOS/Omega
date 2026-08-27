@@ -1,16 +1,23 @@
 # Bridge refinement reconstruction
 
 The active entry-bearing artifact successor is
+[`OMGRFN22`](OMGCOMP_REFINEMENT_WITNESS_V22.md): `OMGRFNM\0` / version 22
+binds exact OMGCOMP1 and OMGRSWB11 to CKIR19's actual-capacity guarded
+full-`u64` array of copyable records, derived record stride and field layout,
+nine typed nested stores, scalar readback, Exact count increment, two real
+receiver calls, and exact conservative Linux-x86-64 artifact. Modular Python
+owners and 21 persisted-Beta projections close R1–R5 below the tape ceiling.
+A separate same-frame composite checks actual native/self resolver, lowerer,
+and backend bytes across renamed, reordered, inert-field, cross-pair, resource,
+and artifact-mutation cases. Payload-sum copying, structural-value projection,
+computed/effectful indexes, allocation, and the complete `TokenStream` remain
+outside this capability-shaped relation.
+
+The preceding scalar fixed-buffer carrier remains
 [`OMGRFN21`](OMGCOMP_REFINEMENT_WITNESS_V21.md): `OMGRFNL\0` / version 21
 binds exact OMGCOMP1 and OMGRSWA10 to CKIR18's guarded full-`u64` fixed-buffer
 load/store indexing, authored Exact `length + 1`, defensive carry/range traps,
-and exact conservative Linux-x86-64 artifact. Modular Python owners and five
-persisted-Beta projections close R1–R5 below the tape ceiling. A separate
-same-frame composite checks actual native/self resolver, lowerer, and backend
-bytes across renamed, reordered, inert-field, cross-pair, resource, and
-artifact-mutation cases. The relation is capability-shaped rather than a
-whole-product `SourceUnit` allowlist and grants no product, package, provider,
-compilation, or final-profile authority.
+and exact conservative Linux-x86-64 artifact. It remains a required regression.
 
 The active platform-neutral execution successor is
 [`OMGRFN20`](OMGCOMP_REFINEMENT_WITNESS_V20.md): `OMGRFNK\0` / version 20 binds

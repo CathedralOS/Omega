@@ -36,6 +36,25 @@ pub fn lower_symbol_resolved_trees(
     };
     lowerer.typed_trees.service_reaches = symbol_resolved_trees.service_reaches.clone();
     lowerer.typed_trees.service_reach_rows = symbol_resolved_trees.service_reach_rows.clone();
+    lowerer.typed_trees.authored_service_reach_rows = symbol_resolved_trees
+        .authored_service_reach_rows
+        .iter()
+        .map(|row| psi_typed_trees::signature::AuthoredServiceReachRow {
+            owner: row.owner,
+            keyword_source_spans: row.keyword_source_spans.clone(),
+            targets: row
+                .targets
+                .iter()
+                .map(
+                    |target| psi_typed_trees::signature::AuthoredServiceReachTarget {
+                        service: target.service,
+                        source_span: target.source_span,
+                    },
+                )
+                .collect(),
+            installation_bound: row.installation_bound,
+        })
+        .collect();
     lowerer.typed_trees.semantic_domains = symbol_resolved_trees.semantic_domains.clone();
     lowerer.typed_trees.external_bindings = symbol_resolved_trees.external_bindings.clone();
     lowerer.typed_trees.retain_authored_declaration_selections(
@@ -326,6 +345,7 @@ impl Lowerer<'_> {
             symbols,
             service_reaches,
             service_reach_rows,
+            authored_service_reach_rows,
             semantic_domains,
             external_bindings,
             plan_laid_layouts: _,
@@ -344,6 +364,7 @@ impl Lowerer<'_> {
         // The copied semantic interners survive the rebuild.
         trees.service_reaches = service_reaches;
         trees.service_reach_rows = service_reach_rows;
+        trees.authored_service_reach_rows = authored_service_reach_rows;
         trees.semantic_domains = semantic_domains;
         trees.external_bindings = external_bindings;
         trees.evidence_forwardings = evidence_forwardings

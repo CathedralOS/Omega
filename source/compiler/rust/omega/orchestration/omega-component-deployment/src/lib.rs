@@ -22,7 +22,8 @@ use omega_external_roots::{
     RootAdmission, RootAdmissionId, RootRemovalReceipt, RootSlotAuthority, ValidatedExternalRoot,
 };
 use omega_terminal_component_candidate::{
-    TerminalComponentCandidate, TerminalComponentCandidateParts,
+    TerminalComponentCandidate, TerminalComponentCandidateParts, TerminalNativeArtifact,
+    TerminalNativeArtifactParts,
 };
 use omega_terminal_image_emission::{
     bind_installed_terminal_artifact,
@@ -714,10 +715,10 @@ impl ProgressClosedTerminalComponentDeployment {
             .map(omega_effects::provider_plan::ProviderPlan::identity_fingerprint)
             .collect::<Vec<_>>();
         let record = match build_terminal_installation_record_with_selected_provider_plans_and_evidence(
-            &candidate.image,
+            candidate.native_artifact.image(),
             profile_decision,
             selected_provider_plan_identities,
-            &candidate.provider_executions,
+            candidate.native_artifact.provider_executions(),
             progress.as_ref().map(|value| value as &dyn omega_terminal_installation_evidence::TerminalComponentProgressAcceptanceEvidence),
         ) {
             Ok(record) => record,
@@ -769,16 +770,19 @@ impl ProgressClosedTerminalComponentDeployment {
         };
 
         let TerminalComponentCandidateParts {
-            target,
+            native_artifact,
             entry_machine,
-            semantic_bytes,
-            proof_bytes,
-            object,
-            image,
             selected_provider_plans,
-            provider_executions,
             component_progress,
         } = candidate;
+        let TerminalNativeArtifactParts {
+            target,
+            terminal_artifact,
+            object,
+            image,
+            selected_provider_plans: native_selected_provider_plans,
+            provider_executions,
+        } = native_artifact.into_parts();
         let artifact = match bind_installed_terminal_artifact(object, image, record, installed) {
             Ok(artifact) => artifact,
             Err(error) => {
@@ -788,14 +792,19 @@ impl ProgressClosedTerminalComponentDeployment {
                     session: ProgressClosedTerminalComponentDeployment {
                         session: TerminalComponentDeploymentSession {
                             candidate: TerminalComponentCandidateParts {
-                                target,
+                                native_artifact: TerminalNativeArtifact::from_replayed_parts(
+                                    TerminalNativeArtifactParts {
+                                        target,
+                                        terminal_artifact,
+                                        object,
+                                        image,
+                                        selected_provider_plans: native_selected_provider_plans,
+                                        provider_executions,
+                                    },
+                                )
+                                .expect("failed installation must return the validated native artifact unchanged"),
                                 entry_machine,
-                                semantic_bytes,
-                                proof_bytes,
-                                object,
-                                image,
                                 selected_provider_plans,
-                                provider_executions,
                                 component_progress,
                             },
                             installed,
@@ -817,14 +826,19 @@ impl ProgressClosedTerminalComponentDeployment {
                     session: ProgressClosedTerminalComponentDeployment {
                         session: TerminalComponentDeploymentSession {
                             candidate: TerminalComponentCandidateParts {
-                                target,
+                                native_artifact: TerminalNativeArtifact::from_replayed_parts(
+                                    TerminalNativeArtifactParts {
+                                        target,
+                                        terminal_artifact,
+                                        object,
+                                        image,
+                                        selected_provider_plans: native_selected_provider_plans,
+                                        provider_executions,
+                                    },
+                                )
+                                .expect("failed runnable binding must return the validated native artifact unchanged"),
                                 entry_machine,
-                                semantic_bytes,
-                                proof_bytes,
-                                object,
-                                image,
                                 selected_provider_plans,
-                                provider_executions,
                                 component_progress,
                             },
                             installed,
