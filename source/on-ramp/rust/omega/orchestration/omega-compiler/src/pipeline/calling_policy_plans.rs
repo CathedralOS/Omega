@@ -1,6 +1,6 @@
 //! Build-time evaluation of source-authored calling policies.
 //!
-//! The source vocabulary lives in `omega/language/std/calling.omg`; this
+//! The source vocabulary lives in `source/library/std/calling.omg`; this
 //! module is the compiler-owned decoder that keeps that open policy surface
 //! behind the closed normalized-plan validator.
 

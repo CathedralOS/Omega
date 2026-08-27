@@ -6,8 +6,8 @@
   "entry_source": "source/omega/main.omg",
   "build_source": "source/omega/build.omg",
   "source_file_count": 12,
-  "content_set_sha256": "fd50b73c9fca3c8d528b827c30e10f262a74c334068841ed6d7931d63d8d4fba",
-  "closure_sha256": "cc194dde97c89889636b5067804813205943435f1379a5ef8bd4583b90e80b2d",
+  "content_set_sha256": "cd1f299b94a91d1a5f239f45c9bfbb8487a7438e6be03d51a281c7a8cc9a452d",
+  "closure_sha256": "af6fba1c53dc5b1538cff63804f7f2357923b3e61d3b54533cdaf8003e75391e",
   "configurations": [
     {
       "native_provider_substitution": true,
@@ -30,31 +30,31 @@
     {
       "byte_length": 3722,
       "origin": "toolchain",
-      "path": "omega/language/std/console.omg",
+      "path": "source/library/std/console.omg",
       "sha256": "2ed299e2743203ef3d34933f4afeb3cde707e7482ed105229bc68a54dec43fc0"
     },
     {
       "byte_length": 1119,
       "origin": "toolchain",
-      "path": "omega/language/std/targets/linux_arm64/console_impl.omg",
+      "path": "source/library/std/targets/linux_arm64/console_impl.omg",
       "sha256": "5ffe7785a705bbf4e59a08c097ea95c75f8ede4fed99277d61a005d78f827720"
     },
     {
       "byte_length": 1107,
       "origin": "toolchain",
-      "path": "omega/language/std/targets/linux_x64/console_impl.omg",
+      "path": "source/library/std/targets/linux_x64/console_impl.omg",
       "sha256": "aa0210a405cc2075fa62331a5fe504a0d50d75a1985f50a2cdd8d39bf8889429"
     },
     {
       "byte_length": 1119,
       "origin": "toolchain",
-      "path": "omega/language/std/targets/macos_arm64/console_impl.omg",
+      "path": "source/library/std/targets/macos_arm64/console_impl.omg",
       "sha256": "9ed36117d110d108217adcc56b0c45e8f0943a10b5ed151dd522140c4b1337ed"
     },
     {
       "byte_length": 1119,
       "origin": "toolchain",
-      "path": "omega/language/std/targets/windows_x64/console_impl.omg",
+      "path": "source/library/std/targets/windows_x64/console_impl.omg",
       "sha256": "ad0f21f993c21093dee249fcd937036012fa491c0a1dbcf06f869a00a343bbd3"
     },
     {
@@ -115,34 +115,34 @@
   ],
   "dependency_edges": [
     {
-      "from": "omega/language/std/console.omg",
+      "from": "source/library/std/console.omg",
       "kind": "use",
       "request": "omega::language::std::targets::linux_arm64::console_impl",
-      "to": "omega/language/std/targets/linux_arm64/console_impl.omg"
+      "to": "source/library/std/targets/linux_arm64/console_impl.omg"
     },
     {
-      "from": "omega/language/std/console.omg",
+      "from": "source/library/std/console.omg",
       "kind": "use",
       "request": "omega::language::std::targets::linux_x64::console_impl",
-      "to": "omega/language/std/targets/linux_x64/console_impl.omg"
+      "to": "source/library/std/targets/linux_x64/console_impl.omg"
     },
     {
-      "from": "omega/language/std/console.omg",
+      "from": "source/library/std/console.omg",
       "kind": "use",
       "request": "omega::language::std::targets::macos_arm64::console_impl",
-      "to": "omega/language/std/targets/macos_arm64/console_impl.omg"
+      "to": "source/library/std/targets/macos_arm64/console_impl.omg"
     },
     {
-      "from": "omega/language/std/console.omg",
+      "from": "source/library/std/console.omg",
       "kind": "use",
       "request": "omega::language::std::targets::windows_x64::console_impl",
-      "to": "omega/language/std/targets/windows_x64/console_impl.omg"
+      "to": "source/library/std/targets/windows_x64/console_impl.omg"
     },
     {
       "from": "source/omega/main.omg",
       "kind": "use",
       "request": "omega::language::std::console",
-      "to": "omega/language/std/console.omg"
+      "to": "source/library/std/console.omg"
     },
     {
       "from": "source/omega/main.omg",
@@ -189,7 +189,7 @@
     {
       "path": "source/on-ramp/rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs",
       "role": "virtual_source_provider",
-      "sha256": "140c5f2ade3a2c40f4d76f19d22805f99ace53b4a94812e8e8779786e37a9014"
+      "sha256": "3e7b205939afd2ff79aa07d074efa4ab93a6d8d9df4684d1d0fd4a2fb4e9a314"
     },
     {
       "path": "source/on-ramp/rust/psi/pipeline/psi-source-files-to-tokens/Cargo.toml",

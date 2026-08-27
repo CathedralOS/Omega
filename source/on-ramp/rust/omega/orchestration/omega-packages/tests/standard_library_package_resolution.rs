@@ -43,9 +43,9 @@ impl Drop for TempTree {
 fn repository_standard_library() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .map(|ancestor| ancestor.join("omega/language/std"))
+        .map(|ancestor| ancestor.join("source/library/std"))
         .find(|candidate| candidate.join("build.omg").is_file())
-        .expect("repository omega/language/std package")
+        .expect("repository source/library/std package")
         .canonicalize()
         .expect("canonical standard-library package root")
 }

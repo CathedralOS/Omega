@@ -25,7 +25,7 @@ real package fixture demonstrates an irreducible external contract.
   `omega-build-declarations` crate owns this grammar; package identity and
   dependency projection consume its validated results rather than maintaining
   another build-entry parser or name/path validator.
-- This repository's root workspace currently names `omega/language/std`,
+- This repository's root workspace currently names `source/library/std`,
   `source/psi`, and `source/omega`. Each member owns
   its declaration; paths locate members but do not name them.
 - The real `omega-language-std` package has a resolver/compiler vertical

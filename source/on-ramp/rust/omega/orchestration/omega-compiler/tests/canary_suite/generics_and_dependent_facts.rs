@@ -1261,7 +1261,7 @@ fn closed_indexed_domain_canaries() {
 
 #[test]
 fn std_units_package_conversion_and_operator_canaries() {
-    let source = fs::read_to_string(repo_root().join("omega/language/std/units.omg"))
+    let source = fs::read_to_string(repo_root().join("source/library/std/units.omg"))
         .expect("read shipped units package");
     for published_name in [
         "Units::METER",

@@ -47,7 +47,7 @@ fn package_inputs_for_source(source: &Path, digest_byte: u8) -> PackageCompilati
     .expect("test package inputs should validate")
 }
 
-/// The vocabulary (mirrors omega/language/core/layout.omg) + the CLayout
+/// The vocabulary (mirrors source/library/core/layout.omg) + the CLayout
 /// policy + a UEFI-ish schema. Inlined because temp-dir programs cannot
 /// resolve `use omega::...` library paths.
 const PILOT: &str = r#"
@@ -382,7 +382,7 @@ fn plan_laid_private_callback_slot_retains_exact_target_neutral_demand() {
         .ancestors()
         .nth(6)
         .expect("compiler crate should live under source/on-ramp/rust/omega/orchestration/omega-compiler");
-    let core_layout = fs::read_to_string(repository.join("omega/language/core/layout.omg"))
+    let core_layout = fs::read_to_string(repository.join("source/library/core/layout.omg"))
         .expect("read normative core layout source");
     assert_eq!(
         core_layout

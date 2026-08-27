@@ -1853,7 +1853,7 @@ machine Main::main(&mut self) {
     );
 }
 
-/// The REAL shipped std module `omega/language/std/filesystem.omg`, imported via
+/// The REAL shipped std module `source/library/std/filesystem.omg`, imported via
 /// `use` and driven through its ergonomic `Filesystem` API — a full CRUD
 /// round-trip in the interpreter. Proves the canonical std::fs surface (not an
 /// inline copy) works end-to-end.

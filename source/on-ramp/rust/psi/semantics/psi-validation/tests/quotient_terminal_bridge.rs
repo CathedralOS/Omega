@@ -69,7 +69,7 @@ machine admitted(value: EquivalenceClass) -> EquivalenceClass {
 }
 "#;
 
-const CORE_RELATION: &str = include_str!("../../../../../../../omega/language/core/relation.omg");
+const CORE_RELATION: &str = include_str!("../../../../../../../source/library/core/relation.omg");
 
 fn lower(source: &str) -> TypedTrees {
     let package = PackageKeyIdentity::from_digest([0x71; 32]).expect("nonzero package identity");
@@ -80,9 +80,9 @@ fn lower_with_package(source: &str, package: Option<PackageKeyIdentity>) -> Type
     let mut sources = SourceMap::default();
     let core_source_id = sources
         .add_with_metadata(
-            PathBuf::from("omega/language/core/relation.omg"),
+            PathBuf::from("source/library/core/relation.omg"),
             CORE_RELATION.to_owned(),
-            PathBuf::from("omega/language/core"),
+            PathBuf::from("source/library/core"),
             None,
             SourceOrigin::Toolchain,
         )

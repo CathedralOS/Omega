@@ -34,7 +34,7 @@ pipeline and remains visible in the boundary report.
 
 The standard library is ordinary Omega code wherever possible: byte/text
 domains, slices, math, collections, parsing helpers, and portable console
-adapters. Target provider packages under `omega/language/std/targets/` adapt
+adapters. Target provider packages under `source/library/std/targets/` adapt
 those requirements to the selected ABI; they are ordinary source inputs to a
 derived, validated, admitted provider plan rather than floating compiler magic.
 

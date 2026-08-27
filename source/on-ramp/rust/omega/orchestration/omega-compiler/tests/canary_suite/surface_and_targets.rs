@@ -100,7 +100,7 @@ fn retired_domain_when_surface_is_absent_from_authored_corpus() {
 #[test]
 fn filesystem_open_flags_are_not_provider_values() {
     let root = repo_root();
-    let portable = fs::read_to_string(root.join("omega/language/std/filesystem.omg"))
+    let portable = fs::read_to_string(root.join("source/library/std/filesystem.omg"))
         .expect("read portable filesystem module");
     assert!(
         !portable.contains("FilesystemHost::O_"),
@@ -108,7 +108,7 @@ fn filesystem_open_flags_are_not_provider_values() {
     );
 
     for target in ["windows_x64", "macos_arm64", "linux_x64", "linux_arm64"] {
-        let relative = format!("omega/language/std/targets/{target}/filesystem_impl.omg");
+        let relative = format!("source/library/std/targets/{target}/filesystem_impl.omg");
         let source = fs::read_to_string(root.join(&relative))
             .unwrap_or_else(|error| panic!("read {relative}: {error}"));
         assert!(
@@ -122,7 +122,7 @@ fn filesystem_open_flags_are_not_provider_values() {
 fn linux_direct_syscall_wrappers_do_not_read_ambient_errno() {
     let root = repo_root();
     for target in ["linux_x64", "linux_arm64"] {
-        let relative = format!("omega/language/std/targets/{target}/filesystem_impl.omg");
+        let relative = format!("source/library/std/targets/{target}/filesystem_impl.omg");
         let source = fs::read_to_string(root.join(&relative))
             .unwrap_or_else(|error| panic!("read {relative}: {error}"));
         assert!(

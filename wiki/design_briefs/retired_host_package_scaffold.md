@@ -17,9 +17,9 @@ and trust were fused into one declaration. Trailing `boundary host` /
 
 Current surfaces live in these places:
 
-- portable boundary traits and checked adapters: `omega/language/std/`;
+- portable boundary traits and checked adapters: `source/library/std/`;
 - target-owned provider defaults and implementations:
-  `omega/language/std/targets/`;
+  `source/library/std/targets/`;
 - generic binding, calling-plan, admission, and selection machinery: the
   provider-plan implementation and its architecture briefs.
 

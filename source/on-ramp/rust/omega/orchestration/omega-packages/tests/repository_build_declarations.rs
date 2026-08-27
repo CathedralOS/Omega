@@ -121,7 +121,7 @@ fn repository_workspace_declares_its_members_in_authored_order() {
         declaration,
         BuildDeclaration::Workspace(omega_packages::WorkspaceDeclaration {
             members: vec![
-                WorkspaceMemberPath::parse("omega/language/std").unwrap(),
+                WorkspaceMemberPath::parse("source/library/std").unwrap(),
                 WorkspaceMemberPath::parse("source/psi").unwrap(),
                 WorkspaceMemberPath::parse("source/omega").unwrap(),
             ],
@@ -145,7 +145,7 @@ fn compiler_application_and_standard_library_declare_their_kinds() {
         })
     );
     assert_eq!(
-        extract_build_declaration(root.join("omega/language/std")).unwrap(),
+        extract_build_declaration(root.join("source/library/std")).unwrap(),
         BuildDeclaration::Package(omega_packages::PackageDeclaration {
             name: PackageName::parse("omega-language-std").unwrap(),
         })

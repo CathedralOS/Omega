@@ -17,6 +17,10 @@ source/
   beta/                        Beta language, compiler, and reference meaning
   gamma/                       Gamma language, interpreter, and type checker
   delta/                       Delta language, compiler, and canonical artifacts
+  library/                     core, allocation, and standard library source
+    core/                      bundled language-versioned core
+    alloc/                     allocation facilities
+    std/                       ordinary standard-library package
   psi/                         Omega-written target-neutral product compiler
     build.omg                  Psi package declaration
     generated/                 generated semantic tables
@@ -54,9 +58,9 @@ tools/
   bootstrap/               lattice orchestration and canonical path gates
 ```
 
-`omega/language/` remains the one blocked relocation. Its planned destination
-is `source/library/`, but package-manager P8 must first remove the hardcoded
-standard-library path.
+The package library has moved to `source/library/` without a compatibility
+path. Package-manager P8 still tracks replacement of temporary physical-path
+readers with ordinary package-graph resolution.
 
 Canonical directories are named by durable role, not by every implementation
 language that may temporarily occupy that role. `source/on-ramp/rust/` carries
@@ -130,7 +134,7 @@ rejects new sibling-relative cross-owner references.
 | Omega-written Psi/Omega compiler | `source/{psi,omega}/` | first Psi lexical checkpoint landed |
 | product source checkpoints | `source/omega/source-checkpoints/` | active |
 | hosted product entrypoint | `source/omega/{build.omg,main.omg}` | active |
-| standard library | `omega/language/` | move to `source/library/` blocked on P8 |
+| language libraries | `source/library/` | placement complete; bundled-std reader retirement remains in P8 |
 
 `source/` contains the semantic spine, product compiler, proof services, and
 clearly marked on-ramps. `tests/` contains language canaries, package fixtures,

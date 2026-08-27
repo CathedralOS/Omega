@@ -50,7 +50,7 @@ fn compile_std_negative(name: &str, source: &str) -> String {
         .ancestors()
         .nth(6)
         .unwrap()
-        .join("omega/language/std/tests")
+        .join("source/library/std/tests")
         .join(format!(".callback-{name}-{}.omg", std::process::id()));
     fs::write(&path, source).expect("write hermetic callback source canary");
     let result = compile_to_checked(&path, Some("windows_x64"));
@@ -268,7 +268,7 @@ fn target_selected_callback_policy_consumes_two_closed_layout_demands() {
         .ancestors()
         .nth(6)
         .unwrap()
-        .join("omega/language/std/tests/callback_materialization_closure.omg");
+        .join("source/library/std/tests/callback_materialization_closure.omg");
     assert_eq!(
         fs::read_to_string(&main_path).unwrap(),
         CALLBACK_MATERIALIZATION_POLICY.trim_start_matches('\n'),

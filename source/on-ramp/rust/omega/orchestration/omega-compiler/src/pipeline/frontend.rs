@@ -286,7 +286,7 @@ pub fn discover_imports_with_packages(
                     if is_bundled_omega_path(members) {
                         imports.push(resolve_reconciled_import(
                             bundled_omega_root(),
-                            &members[1..],
+                            &members[2..],
                             "toolchain",
                         )?);
                         continue;
@@ -351,7 +351,7 @@ pub fn discover_imports_with_packages(
                         if is_bundled_omega_path(provider) {
                             imports.push(resolve_reconciled_import(
                                 bundled_omega_root(),
-                                &provider[1..],
+                                &provider[2..],
                                 "toolchain",
                             )?);
                         }
@@ -367,7 +367,7 @@ pub fn discover_imports_with_packages(
                         if is_bundled_omega_path(policy) {
                             imports.push(resolve_reconciled_import(
                                 bundled_omega_root(),
-                                &policy[1..],
+                                &policy[2..],
                                 "toolchain",
                             )?);
                         }
@@ -413,6 +413,7 @@ fn own_token_stream(tokens: &TokenStream<'_>, source: &Arc<str>) -> TokenStream<
 fn resolve_source_path(root_dir: &Path, source_path: &[Identifier]) -> PathBuf {
     let mut segments = source_path.iter();
     let mut path = if is_bundled_omega_path(source_path) {
+        segments.next();
         segments.next();
         bundled_omega_root()
     } else {
@@ -468,23 +469,26 @@ fn resolve_reconciled_import(
 fn is_bundled_omega_path(path: &[Identifier]) -> bool {
     path.first()
         .is_some_and(|segment| segment.as_str() == "omega")
+        && path
+            .get(1)
+            .is_some_and(|segment| segment.as_str() == "language")
 }
 
 pub(crate) fn bundled_omega_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../../../omega")
+        .join("../../../../../../source/library")
         .canonicalize()
         .unwrap_or_else(|_| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../../../omega")
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../../../../source/library")
         })
 }
 
-/// Read a bundled std module's source text (`omega/language/std/<module>.omg`).
+/// Read a bundled std module's source text (`source/library/std/<module>.omg`).
 /// Target-specific provider substitution uses this to inject bundled provider
 /// modules, such as `macos_gui`, that application source does not import itself.
 pub(crate) fn read_bundled_std_source(module: &str) -> Result<String, Vec<Diagnostic>> {
     let mut path = bundled_omega_root();
-    path.push("language");
     path.push("std");
     path.push(format!("{module}.omg"));
     std::fs::read_to_string(&path).map_err(|error| {
