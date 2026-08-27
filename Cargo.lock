@@ -1648,6 +1648,7 @@ dependencies = [
  "omega-target",
  "omega-terminal-image-emission",
  "omega-terminal-installation-evidence",
+ "psi-terminal-codec",
 ]
 
 [[package]]

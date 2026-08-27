@@ -74,8 +74,7 @@ impl TerminalProviderExecutionEvidence for TerminalComponentProviderExecution {
 pub struct TerminalComponentCandidate {
     target: omega_target::NativeTarget,
     entry_machine: String,
-    semantic_bytes: Vec<u8>,
-    proof_bytes: Vec<u8>,
+    terminal_artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     object: omega_terminal_image_emission::TerminalObjectArtifact,
     image: omega_terminal_image_emission::TerminalExecutableImage,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
@@ -92,8 +91,7 @@ pub struct TerminalComponentCandidate {
 pub struct TerminalComponentCandidateParts {
     pub target: omega_target::NativeTarget,
     pub entry_machine: String,
-    pub semantic_bytes: Vec<u8>,
-    pub proof_bytes: Vec<u8>,
+    pub terminal_artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     pub object: omega_terminal_image_emission::TerminalObjectArtifact,
     pub image: omega_terminal_image_emission::TerminalExecutableImage,
     pub selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
@@ -110,8 +108,7 @@ impl TerminalComponentCandidate {
         Self {
             target: parts.target,
             entry_machine: parts.entry_machine,
-            semantic_bytes: parts.semantic_bytes,
-            proof_bytes: parts.proof_bytes,
+            terminal_artifact: parts.terminal_artifact,
             object: parts.object,
             image: parts.image,
             selected_provider_plans: parts.selected_provider_plans,
@@ -129,11 +126,15 @@ impl TerminalComponentCandidate {
     }
 
     pub fn semantic_bytes(&self) -> &[u8] {
-        &self.semantic_bytes
+        self.terminal_artifact.semantic_bytes()
     }
 
     pub fn proof_bytes(&self) -> &[u8] {
-        &self.proof_bytes
+        self.terminal_artifact.proof_bytes()
+    }
+
+    pub const fn terminal_artifact(&self) -> &psi_terminal_codec::CanonicalTerminalArtifact {
+        &self.terminal_artifact
     }
 
     pub const fn object(&self) -> &omega_terminal_image_emission::TerminalObjectArtifact {
@@ -161,8 +162,7 @@ impl TerminalComponentCandidate {
         TerminalComponentCandidateParts {
             target: self.target,
             entry_machine: self.entry_machine,
-            semantic_bytes: self.semantic_bytes,
-            proof_bytes: self.proof_bytes,
+            terminal_artifact: self.terminal_artifact,
             object: self.object,
             image: self.image,
             selected_provider_plans: self.selected_provider_plans,

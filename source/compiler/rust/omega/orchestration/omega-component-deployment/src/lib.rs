@@ -771,8 +771,7 @@ impl ProgressClosedTerminalComponentDeployment {
         let TerminalComponentCandidateParts {
             target,
             entry_machine,
-            semantic_bytes,
-            proof_bytes,
+            terminal_artifact,
             object,
             image,
             selected_provider_plans,
@@ -790,8 +789,7 @@ impl ProgressClosedTerminalComponentDeployment {
                             candidate: TerminalComponentCandidateParts {
                                 target,
                                 entry_machine,
-                                semantic_bytes,
-                                proof_bytes,
+                                terminal_artifact,
                                 object,
                                 image,
                                 selected_provider_plans,
@@ -819,8 +817,7 @@ impl ProgressClosedTerminalComponentDeployment {
                             candidate: TerminalComponentCandidateParts {
                                 target,
                                 entry_machine,
-                                semantic_bytes,
-                                proof_bytes,
+                                terminal_artifact,
                                 object,
                                 image,
                                 selected_provider_plans,
