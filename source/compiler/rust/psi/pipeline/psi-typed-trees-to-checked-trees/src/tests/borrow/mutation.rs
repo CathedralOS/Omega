@@ -484,6 +484,122 @@ fn write_only_nested_copy_record_leaf_call_retains_one_exact_common_field_path()
 }
 
 #[test]
+fn write_only_copy_sum_call_retains_atomic_root_and_field_paths() {
+    let source = r#"
+        data Choice [copy] {
+            case Empty;
+            case Value(value: u16);
+        }
+        data Holder { choice: Choice; sibling: u8; }
+
+        machine fill(
+            direct: &write Choice,
+            holder: &write Holder,
+            replacement: Choice
+        ) {
+            direct = replacement;
+            holder.choice = replacement;
+        }
+
+        machine forward(
+            direct: &write Choice,
+            holder: &write Holder,
+            replacement: Choice
+        ) {
+            fill(&write direct, &write holder, replacement);
+        }
+    "#;
+
+    let tokens = psi_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved =
+        psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let program = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type");
+    let holder = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Holder")
+        .expect("Holder definition");
+    let choice_field_symbol = program
+        .data_members(holder)
+        .iter()
+        .find_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field) if field.name.as_str() == "choice" => {
+                Some(field.symbol)
+            }
+            _ => None,
+        })
+        .expect("Holder.choice field");
+    let forward = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward")
+        .expect("forward machine");
+    let forward_state = program
+        .machine_states(forward)
+        .first()
+        .expect("forward entry state");
+    let holder_symbol = program
+        .state_parameters(forward_state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "holder")
+        .map(|parameter| parameter.symbol)
+        .expect("forward holder parameter");
+    let direct_symbol = program
+        .state_parameters(forward_state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "direct")
+        .map(|parameter| parameter.symbol)
+        .expect("forward direct parameter");
+
+    let facts = build_borrow_facts(&program);
+    let borrow_state = facts
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| state.state_symbol == forward_state.symbol)
+        .expect("forward borrow state");
+    let call = facts
+        .calls
+        .span_or_empty(borrow_state.calls)
+        .first()
+        .expect("forwarding call");
+    let mut cache = StateMutationSummaryCache::default();
+    let places = call_mutated_places(
+        &program,
+        forward.symbol,
+        forward_state.symbol,
+        &facts,
+        call,
+        &mut cache,
+    );
+
+    assert_eq!(places.len(), 2, "exact sum writes: {places:?}");
+    let direct = places
+        .iter()
+        .find(|place| place.root == psi_facts::PlaceRoot::Symbol(direct_symbol))
+        .expect("direct sum root mutation");
+    assert!(
+        direct.segments.is_empty(),
+        "whole direct sum replacement must remain an atomic root: {direct:?}"
+    );
+    let nested = places
+        .iter()
+        .find(|place| place.root == psi_facts::PlaceRoot::Symbol(holder_symbol))
+        .expect("nested sum field mutation");
+    assert_eq!(
+        nested.segments,
+        [psi_facts::PlaceSegment::Field {
+            symbol: choice_field_symbol,
+        }],
+        "whole sum replacement retains its field as one atomic place without case/payload decomposition"
+    );
+}
+
+#[test]
 fn write_only_nested_fixed_byte_array_field_call_retains_exact_ordered_field_path() {
     let source = r#"
         data Inner {

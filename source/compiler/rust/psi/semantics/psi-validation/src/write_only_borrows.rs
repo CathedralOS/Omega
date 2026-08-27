@@ -60,7 +60,7 @@ pub(crate) fn validate_checked_write_only_slice(
             for root in &roots {
                 if !is_supported_checked_referee(program, root.referee) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, literal fixed arrays whose elements are unrestricted primitive scalars or eligible material plain `[copy]` records, forwarding-only byte slices, and non-generic invariant-free checked records",
+                        "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, literal fixed arrays whose elements are unrestricted primitive scalars or eligible material plain `[copy]` records, forwarding-only byte slices, non-generic invariant-free checked records, and closed material `[copy]` sums as atomic whole values",
                         machine.name,
                         state.name,
                         root.name,
@@ -127,6 +127,7 @@ fn is_supported_checked_referee(program: &TypedTrees, type_reference: TypeRefere
         || fixed_unrestricted_write_only_array_length(program, type_reference).is_some()
         || is_byte_slice(program, type_reference)
         || write_only_record(program, type_reference).is_some()
+        || is_unrestricted_write_only_sum(program, type_reference)
 }
 
 fn is_byte_slice(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
@@ -158,12 +159,11 @@ fn is_write_only_length_metadata(
         .is_some()
 }
 
-/// The first aggregate rung is deliberately nominal and closed. It admits an
-/// ordinary checked record only when its shape is known without substitution
-/// and no authored default-domain fact can couple a field write to retained
-/// content. Field eligibility is checked separately at the exact assignment
-/// target, so a record may contain wider siblings without making them writable.
-fn write_only_record<'program>(
+/// Resolve one closed nominal data definition whose shape is known without
+/// substitution and whose authored domain cannot couple replacement to prior
+/// content. Record traversal and atomic sum replacement apply their own shape
+/// judgments below.
+fn closed_write_only_data<'program>(
     program: &'program TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<&'program DataDefinition> {
@@ -181,9 +181,20 @@ fn write_only_record<'program>(
         && program.data_type_parameters(definition).is_empty()
         && definition.quotient.is_none()
         && definition.where_facts.is_empty()
-        && !definition.zero_gated
-        && DataDefinition::shape_kind_from_members(program.data_members(definition))
-            == DataShapeKind::Record)
+        && !definition.zero_gated)
+        .then_some(definition)
+}
+
+/// The first aggregate traversal rung is deliberately nominal and closed. A
+/// record may contain wider siblings without making them writable; final-leaf
+/// eligibility is checked separately at the exact assignment target.
+fn write_only_record<'program>(
+    program: &'program TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<&'program DataDefinition> {
+    let definition = closed_write_only_data(program, type_reference)?;
+    (DataDefinition::shape_kind_from_members(program.data_members(definition))
+        == DataShapeKind::Record)
         .then_some(definition)
 }
 
@@ -193,6 +204,30 @@ fn is_unrestricted_write_only_record(
 ) -> bool {
     write_only_record(program, type_reference).is_some_and(|definition| {
         definition.properties.multiplicity == psi_language_semantics::Multiplicity::Unrestricted
+    })
+}
+
+/// A closed material `[copy]` sum may be displaced only as one whole value.
+/// The incoming value supplies its complete tag and payload, so this judgment
+/// neither observes nor projects the prior case. Erased payload occurrences
+/// remain outside the runtime replacement carrier.
+fn is_unrestricted_write_only_sum(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    closed_write_only_data(program, type_reference).is_some_and(|definition| {
+        definition.properties.multiplicity == psi_language_semantics::Multiplicity::Unrestricted
+            && DataDefinition::shape_kind_from_members(program.data_members(definition))
+                == DataShapeKind::Enum
+            && program.data_members(definition).iter().all(|member| {
+                let DataMember::Variant(variant) = member else {
+                    return false;
+                };
+                program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .all(|field| !field.relevance.is_erased())
+            })
     })
 }
 
@@ -218,6 +253,7 @@ fn whole_root_replacement_is_supported(program: &TypedTrees, root: &WriteOnlyRoo
     is_unrestricted_scalar(program, root.referee)
         || fixed_unrestricted_write_only_array_length(program, root.referee).is_some()
         || is_unrestricted_write_only_record(program, root.referee)
+        || is_unrestricted_write_only_sum(program, root.referee)
 }
 
 /// Resolve `root.record_field...leaf`, where every receiver is an admitted
@@ -281,9 +317,10 @@ fn write_only_record_field_type(
 }
 
 /// The final displaced record-path leaf must be an unrestricted primitive, a
-/// literal fixed array of eligible unrestricted elements, or a whole eligible
-/// unrestricted record. Indexed element stores reuse the same exact path
-/// resolver below and apply their own narrower leaf/index gate.
+/// literal fixed array of eligible unrestricted elements, a whole eligible
+/// unrestricted record, or a closed material `[copy]` sum treated atomically.
+/// Indexed element stores reuse the same exact path resolver below and apply
+/// their own narrower leaf/index gate.
 fn write_only_record_field_assignment(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -293,6 +330,7 @@ fn write_only_record_field_assignment(
         is_unrestricted_scalar(program, field_type)
             || fixed_unrestricted_write_only_array_length(program, field_type).is_some()
             || is_unrestricted_write_only_record(program, field_type)
+            || is_unrestricted_write_only_sum(program, field_type)
     })
 }
 
@@ -314,13 +352,13 @@ fn validate_statement(
             if let Some(root) = direct_write_only_root(program, assignment.target, roots) {
                 if !whole_root_replacement_is_supported(program, root) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine}` state `{state}` replaces whole write-only record `{}`; whole-root replacement requires a freely discardable root, so replace one eligible primitive field through an invariant-free record path or declare and prove an unrestricted record instead",
+                        "machine `{machine}` state `{state}` replaces whole write-only aggregate `{}`; whole-root replacement requires a freely discardable supported root, so replace one eligible leaf through an invariant-free record path or declare and prove an unrestricted material aggregate instead",
                         root.name,
                     )));
                 }
                 // An admitted whole-value replacement observes no prior
-                // content. Record roots additionally satisfy the explicit
-                // discardability check above.
+                // content. Aggregate roots additionally satisfy the explicit
+                // closed-shape/material/discardability checks above.
             } else if write_only_record_field_assignment(program, assignment.target, roots) {
                 // One content-independent common-field-path store. The exact
                 // field place is retained by the ordinary checked mutation facts.
@@ -601,7 +639,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a whole eligible unrestricted record, or a literal fixed array whose elements are unrestricted primitive scalars or eligible material plain `[copy]` records, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; sum-payload, qualified, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a whole eligible unrestricted record or closed material `[copy]` sum, or a literal fixed array whose elements are unrestricted primitive scalars or eligible material plain `[copy]` records, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; sum case/payload projection, qualified, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 
