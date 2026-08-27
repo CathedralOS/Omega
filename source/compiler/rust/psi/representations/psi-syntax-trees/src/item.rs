@@ -768,6 +768,9 @@ pub struct Machine {
     /// the syntax->resolved lowering refuses it loudly until TPR3's cycle
     /// checker consumes ranges (never silently dropped).
     pub ranking_range: crate::expression::ExpressionHandle,
+    /// Exact `reaches` keyword occurrences. Nonempty means the author wrote a
+    /// ceiling even when `service_reaches` is empty.
+    pub service_reach_keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub service_reaches: HandleSpan<Identifier>,
     /// `reaches <= Bound` on one top-level bodyless boundary requirement.
     /// The written row is a conservative upper bound; installation supplies
@@ -834,6 +837,9 @@ pub struct StateSignature {
     /// supplied by installation. Only bodyless boundary-trait requirements may
     /// carry this marker.
     pub service_reach_is_installation_bound: bool,
+    /// Exact `reaches` keyword occurrences. This preserves an authored empty
+    /// ceiling independently from an omitted inferred row.
+    pub service_reach_keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub service_reaches: HandleSpan<Identifier>,
     /// Bodyless direct synchronous invocation ceiling. Members name callable
     /// parameters (or a boundary-trait identity when no parameter path exists).
@@ -1187,6 +1193,9 @@ impl ItemTable {
             parameters: signature.parameters,
             return_type: signature.return_type,
             service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
+            service_reach_keyword_source_spans: signature
+                .service_reach_keyword_source_spans
+                .clone(),
             service_reaches: signature.service_reaches,
             invokes: signature.invokes,
             suspends: signature.suspends,
@@ -1211,6 +1220,7 @@ impl ItemTable {
         self.state_storage.machines.append(MachineNode {
             name: machine.name.clone(),
             satisfies: machine.satisfies,
+            service_reach_keyword_source_spans: machine.service_reach_keyword_source_spans.clone(),
             service_reaches: machine.service_reaches,
             invokes: machine.invokes,
             suspends: machine.suspends,
@@ -1293,6 +1303,7 @@ pub struct StateSignatureNode {
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
     pub service_reach_is_installation_bound: bool,
+    pub service_reach_keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub service_reaches: HandleSpan<Identifier>,
     pub invokes: HandleSpan<Identifier>,
     pub suspends: bool,
@@ -1316,6 +1327,7 @@ pub struct StateNode {
 pub struct MachineNode {
     pub name: Identifier,
     pub satisfies: HandleSpan<SatisfiesClause>,
+    pub service_reach_keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub service_reaches: HandleSpan<Identifier>,
     pub invokes: HandleSpan<Identifier>,
     pub suspends: bool,

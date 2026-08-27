@@ -288,6 +288,16 @@ Implementations and providers refine each ceiling independently. Imports use
 pinned requirement contracts, so later provider selection cannot widen a
 compiled consumer.
 
+For a private body, omission of `reaches` requests inference, while an authored
+memberless `reaches` clause publishes an explicit empty ceiling. The compiler
+retains that authorship independently from the normalized set, so the two forms
+cannot collapse merely because both begin with an empty row. Each authored
+member is resolved once to its exact boundary trait. Normalization then adds
+the services contributed by `invokes` and the transitive parent closure.
+Package review points only to authored member occurrences—or to the `reaches`
+keyword for an authored empty ceiling. It does not fabricate source coordinates
+for inferred members, invocation-contributed services, or parent closure.
+
 One deliberately narrow exception supports installation-bound provider
 requirements whose exact service row is selected with the installed
 realization:

@@ -945,11 +945,12 @@ validation v7 bind this admission meaning. Marking a reachable outgoing source
 CFG shapes still fails closed until target/selected/native custody supports the
 shape.
 
-The fourth rule, `adjacent-single-predecessor-block-merge.v2`, is the first
+The fourth rule, `adjacent-single-predecessor-block-merge.v3`, is the first
 nonempty redundant-jump elimination contract. It merges only the immediately
 following target block and only when the jump is its sole incoming edge. The
-target must begin with a real operation having no successor arms or consist of
-its conditional terminator. These restrictions make the transformation block-
+target must begin with a real operation having no successor arms, consist of
+its conditional terminator, or consist of an exact return/crash terminal with
+edge provenance. These restrictions make the transformation block-
 boundary erasure rather than non-adjacent code motion. The validator
 independently reconstructs
 typed target-parameter substitutions and requires identical ownership snapshots
@@ -962,13 +963,40 @@ unit antichain check rejects any sequentially executable duplicate. Later nodes
 whose dense effects shift are also accounted for. Corruption tests reject
 forged node and fanout realization sites, and full artifact tests replay the
 ledger to exact one-block and three-block prephysical projections. Candidate
-v13, optimization-unit content identity v7, `ControlFlowCleanup` v7,
-prephysical manifest v6, and optimized-plan projection validation v7 bind this
-admission meaning; ledger v3 expresses both the many-to-one move and one-to-many
-fanout. Nonadjacent merges, direct terminal-exit fusion, and native publication
+v14, optimization-unit content identity v8, `ControlFlowCleanup` v9,
+prephysical manifest v8, and optimized-plan projection validation v9 bind this
+admission meaning; ledger v4 expresses both the many-to-one move and one-to-many
+fanout. Direct terminal fusion retains the terminal edge and removed jump edge
+at the fused node, so return, cleanup, structural-return, crash, and fuel work
+are not classified as empty. Nonadjacent merges and native publication
 for inherited node-edge custody remain fail-closed.
 
-The fifth rule, `unreachable-private-machine-pruning.v1`, is a module-roster
+The fifth rule, `shared-terminal-jump-fusion.v1`, removes one unconditional
+jump into a shared terminal-only target without moving or deleting that target.
+The target is non-entry, has at least two incoming edges, and contains exactly
+one `Return`, `ReturnUnit`, `ReturnStructural`, or `Crash`. The chosen jump's
+typed bindings replace target parameters only in the cloned terminal; the
+retained target and its parameter declarations remain byte-for-byte unchanged.
+Ownership snapshots at incoming-edge entry, incoming-edge exit, and target
+entry must be identical.
+
+Custody is an exact one-to-many plus many-to-one relation. The incoming edge is
+realized at the cloned terminal, while the original terminal node is realized
+both at the clone and at its unchanged target site with identical source and
+fuel vectors. Total-unit validation permits duplicated edge provenance at node
+sites only when every occurrence is an exact no-successor terminal and their
+blocks are pairwise incomparable in the output CFG. Duplicate operation
+sources, node/edge cross-kind duplication, same-block duplication, and
+sequentially executable occurrences remain invalid. The rewrite preserves the
+jump node's effect link, rebuilds metadata/facts/places and identity, and
+strictly decreases successor count. Candidate v15, optimization-unit content
+identity v9, `ControlFlowCleanup` v10, prephysical manifest v9, and optimized-
+plan projection validation v10 bind the admitted fanout; ledger v4 already
+expresses it. Full artifact replay reaches two exact mutually exclusive
+terminal occurrences without classifying return, cleanup, crash, or fuel as
+empty work.
+
+The sixth rule, `unreachable-private-machine-pruning.v1`, is a module-roster
 rewrite rather than a node rewrite. Its candidate decision point is the exact
 canonical machine set, never a surrogate first node. The root set contains the
 module entry, every provider candidate, every nominally attached function, and
@@ -988,8 +1016,51 @@ tombstoned with its original fuel. Projection replay requires the cumulative
 ledger roster to equal the final unit roster custody and rejects an omitted,
 duplicated, reordered, resurrected, provider-root, attachment-root, call-root,
 or cleanup-root machine. Candidate v14, optimization-unit content identity v8,
-`ControlFlowCleanup` v8, prephysical manifest v7, and optimized-plan projection
-validation v8 bind this admission meaning.
+`ControlFlowCleanup` v9, prephysical manifest v8, and optimized-plan projection
+validation v9 bind this admission meaning.
+
+### Dead pure scalar work
+
+`DeadPureScalarElimination` is an explicit named suite that currently expands
+to two exact rules. `dead-unused-scalar-literal-elimination.v1` contains only
+`BooleanConstant` and `IntegerConstant`.
+`dead-unused-unconditionally-total-scalar-elimination.v1` contains only:
+
+- Boolean not/equality and integer equality/order comparisons;
+- integer bitwise not/and/or/xor and widening;
+- wrapping integer shifts; and
+- wrapping or saturating integer add, subtract, and multiply.
+
+The second list is deliberately closed. Each admitted operation is pure,
+unconditionally total for already verified typed operands, and carries no
+operation obligation. Exact casts, exact arithmetic and shifts, every
+divide/remainder policy, calls, structural work, and boundary/service/control
+operations remain excluded. In particular, an admitted proof obligation is
+not evidence that dead-code elimination may silently discard the operation;
+proof-bearing elimination needs its own explicit rule and custody contract.
+
+Both rules require value liveness and effect summaries. The independent
+validator checks the candidate rule identity against an independent copy of
+the corresponding closed operation list, reconstructs the exact
+definition/type, rejects any operation-obligation reference, and proves
+absence from live-out and every use site. A valid block always retains a
+following terminator, so deletion realizes the removed operation's provenance
+and fuel at the immediately following, co-executed node rather than marking
+reachable work unreachable. Later sourced nodes shifted by deletion receive
+exact ledger relocation rows, while dense effects, definitions/uses, literal
+facts, places, and unit identity are rebuilt.
+
+Node provenance retains the receiver's primary source as an exact prefix and
+may then carry inherited operation or edge sources. A jump or conditional may
+therefore hold unconditional inherited node custody before its arm-specific
+successor edges. Global uniqueness, fuel equality, and terminal-antichain rules
+still reject duplicated or co-executable occurrences. A verified wrapping-add
+artifact first removes the unused total arithmetic node, then revisits the
+earlier rule and removes both newly dead literals; artifact replay leaves the
+return with all original source/fuel sites. Candidate v16, optimization-unit
+content identity v10, the named v2 pass, prephysical manifest v10, and
+optimized-plan projection validation v11 bind this meaning; ledger v4 already
+represents the many-to-one moves.
 
 Baseline choice lives in `omega-optimization-policy`, outside rule and
 validator crates. The pass manager first obtains independently constructed
