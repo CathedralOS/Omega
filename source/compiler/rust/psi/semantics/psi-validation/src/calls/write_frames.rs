@@ -1419,18 +1419,19 @@ fn statement_call_preserves_transparent_result(
 /// A complete bounded call tree may supply an assignment value without
 /// perturbing a separately returned place only when its root result is proven
 /// non-reference. A direct primitive scalar value may wrap complete
-/// caller-isolated call producers in up to two unary, binary, primitive-cast,
+/// caller-isolated call producers in up to three unary, binary, primitive-cast,
 /// member-projection, or indexing shells. One
 /// primitive-only record, selected-case, or fixed-array literal may
 /// independently contain such a tree in each direct field/element, and up to
-/// two nested aggregates of those concrete kinds may do the same. Projected
-/// aggregate literals retain their narrower depth-two rail. Reference-bearing
-/// or generic literals, wider aggregate or scalar-computation depth, and
-/// unknown return types fail closed.
+/// two nested aggregates of those concrete kinds may do the same under their
+/// existing two-shell computation budget. Projected aggregate literals retain
+/// their narrower depth-two rail. Reference-bearing or generic literals, wider
+/// aggregate or scalar-computation depth, and unknown return types fail closed.
 const TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH: usize = 4;
 const TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_AGGREGATE_DEPTH: usize = 3;
 const TRANSPARENT_ASSIGNMENT_VALUE_PROJECTED_AGGREGATE_DEPTH: usize = 2;
-const TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH: usize = 2;
+const TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_COMPUTED_DEPTH: usize = 3;
+const TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_COMPUTED_DEPTH: usize = 2;
 
 fn value_expression_assignment_preserves_transparent_result(
     program: &TypedTrees,
@@ -1475,7 +1476,7 @@ fn value_expression_assignment_preserves_transparent_result(
                 parameters,
                 aliases,
                 TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_AGGREGATE_DEPTH,
-                TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+                TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_COMPUTED_DEPTH,
             )
         }),
         ExpressionNode::Binary(_)
@@ -1494,7 +1495,7 @@ fn value_expression_assignment_preserves_transparent_result(
                 active_states,
                 parameters,
                 aliases,
-                TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+                TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_COMPUTED_DEPTH,
             )
         }
         ExpressionNode::Cast(cast)
@@ -1510,7 +1511,7 @@ fn value_expression_assignment_preserves_transparent_result(
                 active_states,
                 parameters,
                 aliases,
-                TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+                TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_COMPUTED_DEPTH,
             )
         }
         _ => false,
@@ -1633,8 +1634,9 @@ fn array_value_assignment_preserves_transparent_result(
 /// records and fixed arrays returned by calls can feed member/index shells. A
 /// direct member projection may additionally select from one concrete literal
 /// whose effectful fields are bounded direct-call trees, and may itself sit
-/// below one further computation shell. The literal member consumes one of the
-/// established two shells rather than resetting that budget. A third
+/// below one further computation shell. Concrete literals retain that separate
+/// two-shell frontier instead of inheriting the three direct-scalar shells.
+/// Aggregate fields remain at two shells as well, and a fourth direct-scalar
 /// computation shell fails closed.
 #[allow(clippy::too_many_arguments)]
 fn primitive_computed_assignment_value_preserves_transparent_result(
@@ -1758,7 +1760,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
                                 parameters,
                                 aliases,
                                 remaining_aggregate_depth - 1,
-                                TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+                                TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_COMPUTED_DEPTH,
                             )
                         },
                     )
@@ -1774,7 +1776,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
                         active_states,
                         parameters,
                         aliases,
-                        TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+                        TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_COMPUTED_DEPTH,
                         false,
                     )
                 }
@@ -1794,7 +1796,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
                         active_states,
                         parameters,
                         aliases,
-                        TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+                        TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_COMPUTED_DEPTH,
                         false,
                     )
                 }
@@ -1809,7 +1811,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
                         active_states,
                         parameters,
                         aliases,
-                        TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+                        TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_COMPUTED_DEPTH,
                         false,
                     )
                 }
@@ -1824,7 +1826,7 @@ fn aggregate_value_assignment_preserves_transparent_result(
                         active_states,
                         parameters,
                         aliases,
-                        TRANSPARENT_ASSIGNMENT_VALUE_COMPUTED_DEPTH,
+                        TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_COMPUTED_DEPTH,
                         false,
                     )
                 }
@@ -1895,7 +1897,12 @@ fn primitive_computed_value_preserves_transparent_result(
                 parameters,
                 aliases,
             ),
-            ExpressionNode::StructLiteral(_) if direct_concrete_literal_member => {
+            ExpressionNode::StructLiteral(_)
+                if direct_concrete_literal_member
+                    && remaining_computed_depth
+                        > TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_COMPUTED_DEPTH
+                            - TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_COMPUTED_DEPTH =>
+            {
                 concrete_literal_member_operand_preserves_transparent_result(
                     program,
                     current_machine,
@@ -1905,10 +1912,18 @@ fn primitive_computed_value_preserves_transparent_result(
                     parameters,
                     aliases,
                     TRANSPARENT_ASSIGNMENT_VALUE_PROJECTED_AGGREGATE_DEPTH,
-                    remaining_computed_depth - 1,
+                    remaining_computed_depth.saturating_sub(1).saturating_sub(
+                        TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_COMPUTED_DEPTH
+                            - TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_COMPUTED_DEPTH,
+                    ),
                 )
             }
-            ExpressionNode::ArrayLiteral(_) if direct_array_literal_index => {
+            ExpressionNode::ArrayLiteral(_)
+                if direct_array_literal_index
+                    && remaining_computed_depth
+                        > TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_COMPUTED_DEPTH
+                            - TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_COMPUTED_DEPTH =>
+            {
                 concrete_array_literal_index_operand_preserves_transparent_result(
                     program,
                     current_machine,
@@ -1918,7 +1933,10 @@ fn primitive_computed_value_preserves_transparent_result(
                     parameters,
                     aliases,
                     TRANSPARENT_ASSIGNMENT_VALUE_PROJECTED_AGGREGATE_DEPTH,
-                    remaining_computed_depth - 1,
+                    remaining_computed_depth.saturating_sub(1).saturating_sub(
+                        TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_COMPUTED_DEPTH
+                            - TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_COMPUTED_DEPTH,
+                    ),
                 )
             }
             ExpressionNode::Binary(_)
