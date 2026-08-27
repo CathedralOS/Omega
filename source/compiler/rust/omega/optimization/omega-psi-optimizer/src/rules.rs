@@ -10,13 +10,13 @@ use omega_optimization_core::{
 };
 use omega_optimization_unit::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
-    ConstantConditionalRewrite, DeadScalarNodeRewrite, IntegerConstantRewrite,
-    IntegerEvaluationWitness, LinearEmptyBlockRewrite, LocalScalarCommonSubexpressionRewrite,
-    NodeLocation, OptimizationFact, OwnershipFrontierSite, PathQualifiedEmptyBlockRewrite,
-    ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody, PsiOptimizationUnit,
-    PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, RedundantBlockParameterRewrite,
-    RedundantBlockParameterWitness, ScalarSubstitution, SharedTerminalJumpFusionRewrite,
-    UnreachablePrivateMachinesRewrite,
+    ConstantConditionalRewrite, DeadScalarNodeRewrite, DominatingScalarCommonSubexpressionRewrite,
+    IntegerConstantRewrite, IntegerEvaluationWitness, LinearEmptyBlockRewrite,
+    LocalScalarCommonSubexpressionRewrite, NodeLocation, OptimizationFact, OwnershipFrontierSite,
+    PathQualifiedEmptyBlockRewrite, ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody,
+    PsiOptimizationUnit, PsiProvenance, PsiRealizationSite, PsiRewriteCandidate,
+    RedundantBlockParameterRewrite, RedundantBlockParameterWitness, ScalarSubstitution,
+    SharedTerminalJumpFusionRewrite, UnreachablePrivateMachinesRewrite,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{BlockId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId};
@@ -31,7 +31,7 @@ const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-clea
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v2";
 const PROOF_CHECK_ELISION_PASS_NAME: &[u8] = b"omega.psi-pass.proof-check-elision.v1";
-const GLOBAL_VALUE_NUMBERING_PASS_NAME: &[u8] = b"omega.psi-pass.global-value-numbering.v1";
+const GLOBAL_VALUE_NUMBERING_PASS_NAME: &[u8] = b"omega.psi-pass.global-value-numbering.v2";
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ConstantConditionalFoldRule;
@@ -50,6 +50,9 @@ pub struct ProofCertifiedDeadScalarEliminationRule;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SameBlockTotalScalarCseRule;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DominatorTotalScalarGvnRule;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum TotalScalarExpressionKey {
@@ -523,6 +526,246 @@ impl PsiOptimizationRule for SameBlockTotalScalarCseRule {
         }
         Ok(candidates)
     }
+}
+
+impl DominatorTotalScalarGvnRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.dominator-obligation-free-total-scalar-gvn.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(GLOBAL_VALUE_NUMBERING_PASS_NAME),
+            1,
+            AnalysisSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::Dominators,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for DominatorTotalScalarGvnRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        if analyses.get(AnalysisKind::ControlFlowGraph).is_none() {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::ControlFlowGraph,
+            ));
+        }
+        let Some(AnalysisProduct::Dominators(dominators)) = analyses.get(AnalysisKind::Dominators)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(AnalysisKind::Dominators));
+        };
+        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
+            analyses.get(AnalysisKind::UseDefinition)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::UseDefinition,
+            ));
+        };
+        let Some(AnalysisProduct::EffectSummaries(effects)) =
+            analyses.get(AnalysisKind::EffectSummaries)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::EffectSummaries,
+            ));
+        };
+        let mut candidates = Vec::new();
+        for function in &unit.functions {
+            let machine_dominators = dominators
+                .functions
+                .iter()
+                .find(|(machine, _)| *machine == function.machine)
+                .map(|(_, rows)| rows.as_slice())
+                .unwrap_or_default();
+            let value_types = function
+                .parameters
+                .iter()
+                .map(|row| (row.value, row.scalar_type))
+                .chain(function.blocks.iter().flat_map(|block| {
+                    block
+                        .parameters
+                        .iter()
+                        .map(|row| (row.value, row.scalar_type))
+                }))
+                .chain(function.blocks.iter().flat_map(|block| {
+                    block.nodes.iter().flat_map(|node| {
+                        node.definitions
+                            .iter()
+                            .map(|row| (row.value, row.scalar_type))
+                    })
+                }))
+                .collect::<BTreeMap<_, _>>();
+            let mut expressions = Vec::new();
+            for block in &function.blocks {
+                for (index, node) in block.nodes.iter().enumerate() {
+                    let node_index =
+                        u32::try_from(index).expect("optimization node index fits u32");
+                    let Some((key, operation, result, scalar_type)) =
+                        total_scalar_expression(&node.operation, &value_types)
+                    else {
+                        continue;
+                    };
+                    if !exact_pure_scalar_effect(
+                        unit,
+                        effects,
+                        function.machine,
+                        block.id,
+                        node_index,
+                    ) {
+                        continue;
+                    }
+                    expressions.push((
+                        key,
+                        NodeLocation {
+                            machine: function.machine,
+                            block: block.id,
+                            node: node_index,
+                        },
+                        operation,
+                        result,
+                        scalar_type,
+                    ));
+                }
+            }
+            for (key, redundant, redundant_operation, redundant_result, scalar_type) in &expressions
+            {
+                if !use_definitions.uses.iter().any(|(machine, use_site)| {
+                    *machine == function.machine && use_site.value == *redundant_result
+                }) {
+                    continue;
+                }
+                let Some(redundant_block) = function
+                    .blocks
+                    .iter()
+                    .find(|block| block.id == redundant.block)
+                else {
+                    continue;
+                };
+                let redundant_index = usize::try_from(redundant.node).expect("u32 fits usize");
+                let Some(redundant_node) = redundant_block.nodes.get(redundant_index) else {
+                    continue;
+                };
+                let Some(receiver) = redundant_block.nodes.get(redundant_index + 1) else {
+                    continue;
+                };
+                if receiver
+                    .provenance
+                    .iter()
+                    .any(|source| redundant_node.provenance.contains(source))
+                {
+                    continue;
+                }
+                let leader = expressions
+                    .iter()
+                    .filter(|(candidate_key, location, _, _, candidate_type)| {
+                        candidate_key == key
+                            && *candidate_type == *scalar_type
+                            && location.block != redundant.block
+                            && block_dominates(machine_dominators, location.block, redundant.block)
+                    })
+                    .min_by_key(|(_, location, _, _, _)| {
+                        let depth = machine_dominators
+                            .iter()
+                            .find(|(block, _)| *block == location.block)
+                            .map_or(usize::MAX, |(_, rows)| rows.len());
+                        (depth, *location)
+                    });
+                let Some((_, leader, leader_operation, leader_result, _)) = leader else {
+                    continue;
+                };
+                let replacement_definition = omega_optimization_unit::ValueDefinition {
+                    value: *leader_result,
+                    scalar_type: *scalar_type,
+                    site: omega_optimization_unit::ValueDefinitionSite::Node {
+                        block: leader.block,
+                        node: leader.node,
+                    },
+                };
+                if !use_definitions
+                    .uses
+                    .iter()
+                    .filter(|(machine, use_site)| {
+                        *machine == function.machine && use_site.value == *redundant_result
+                    })
+                    .all(|(_, use_site)| match replacement_definition.site {
+                        omega_optimization_unit::ValueDefinitionSite::Node { block, node }
+                            if block == use_site.block =>
+                        {
+                            node < use_site.node
+                        }
+                        omega_optimization_unit::ValueDefinitionSite::Node { block, .. } => {
+                            block_dominates(machine_dominators, block, use_site.block)
+                        }
+                        _ => false,
+                    })
+                {
+                    continue;
+                }
+                let Some((affected_blocks, provenance)) =
+                    local_cse_accounting(function, *redundant, *redundant_result)
+                else {
+                    continue;
+                };
+                let patch = DominatingScalarCommonSubexpressionRewrite {
+                    leader: *leader,
+                    redundant: *redundant,
+                    leader_operation: *leader_operation,
+                    redundant_operation: *redundant_operation,
+                    leader_result: *leader_result,
+                    redundant_result: *redundant_result,
+                    scalar_type: *scalar_type,
+                };
+                candidates.push(
+                    PsiRewriteCandidate::new_dominating_scalar_common_subexpression(
+                        unit.identity,
+                        Self::contract(),
+                        affected_blocks,
+                        provenance,
+                        -1,
+                        patch,
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+        Ok(candidates)
+    }
+}
+
+fn exact_pure_scalar_effect(
+    unit: &PsiOptimizationUnit,
+    effects: &crate::EffectSummaryAnalysis,
+    machine: MachineId,
+    block: BlockId,
+    node: u32,
+) -> bool {
+    effects.nodes.iter().any(|row| {
+        row.revision == unit.identity
+            && row.machine == machine
+            && row.block == block
+            && row.node == node
+            && row.class == crate::EffectClass::PureScalar
+            && row.observable == crate::EffectKnowledge::No
+            && row.structural_state == crate::EffectKnowledge::No
+            && row.crash == crate::EffectKnowledge::No
+            && row.suspension == crate::EffectKnowledge::No
+    })
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -4353,6 +4596,7 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
     }
     if optimization == Optimization::GlobalValueNumbering {
         register!(0, SameBlockTotalScalarCseRule);
+        register!(1, DominatorTotalScalarGvnRule);
     }
     if optimization == Optimization::DeadPureScalarElimination {
         register!(0, DeadScalarLiteralEliminationRule);
@@ -4393,8 +4637,9 @@ pub(crate) mod tests {
     use omega_optimization_validation::{
         OptimizationUnitValidationError, validate_adjacent_block_merge_candidate,
         validate_boolean_evaluation_candidate, validate_constant_conditional_candidate,
-        validate_dead_scalar_node_candidate, validate_integer_evaluation_candidate,
-        validate_linear_empty_block_candidate,
+        validate_dead_scalar_node_candidate,
+        validate_dominating_scalar_common_subexpression_candidate,
+        validate_integer_evaluation_candidate, validate_linear_empty_block_candidate,
         validate_local_scalar_common_subexpression_candidate,
         validate_path_qualified_empty_block_candidate, validate_psi_optimization_unit,
         validate_redundant_block_parameter_candidate,
@@ -5092,6 +5337,344 @@ pub(crate) mod tests {
                             value: equal,
                             scalar_type: ScalarType::Boolean,
                             cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    pub(crate) fn dominator_gvn_unit() -> PsiOptimizationUnit {
+        let machine = id(1_341, MachineId::new);
+        let dominated = id(1_342, BlockId::new);
+        let entry = id(1_343, BlockId::new);
+        let left = id(1_344, ValueId::new);
+        let right = id(1_345, ValueId::new);
+        let leader = id(1_346, ValueId::new);
+        let redundant = id(1_347, ValueId::new);
+        let equal = id(1_348, ValueId::new);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([42; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry,
+                    parameters: vec![
+                        TerminalAbstractParameter {
+                            value: left,
+                            scalar_type: ScalarType::Integer(integer),
+                        },
+                        TerminalAbstractParameter {
+                            value: right,
+                            scalar_type: ScalarType::Integer(integer),
+                        },
+                    ],
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: equal,
+                        scalar_type: ScalarType::Boolean,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![
+                        TerminalAbstractBlockEntry {
+                            block: dominated,
+                            parameters: Vec::new(),
+                            operation_offset: 0,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: entry,
+                            parameters: Vec::new(),
+                            operation_offset: 3,
+                        },
+                    ],
+                    operations: vec![
+                        TerminalAbstractOperation::WrappingIntegerAdd {
+                            psi_operation: id(1_351, OperationId::new),
+                            result: redundant,
+                            scalar_type: integer,
+                            left: right,
+                            right: left,
+                        },
+                        TerminalAbstractOperation::IntegerEqual {
+                            psi_operation: id(1_352, OperationId::new),
+                            result: equal,
+                            left: leader,
+                            right: redundant,
+                        },
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(1_353, EdgeId::new),
+                            result: equal,
+                            value: equal,
+                            scalar_type: ScalarType::Boolean,
+                            cleanup_actions: Vec::new(),
+                        },
+                        TerminalAbstractOperation::WrappingIntegerAdd {
+                            psi_operation: id(1_349, OperationId::new),
+                            result: leader,
+                            scalar_type: integer,
+                            left,
+                            right,
+                        },
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(1_350, EdgeId::new),
+                            target: dominated,
+                            bindings: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    pub(crate) fn diamond_dominator_gvn_unit() -> PsiOptimizationUnit {
+        let machine = id(1_401, MachineId::new);
+        let join = id(1_402, BlockId::new);
+        let left_block = id(1_403, BlockId::new);
+        let entry = id(1_404, BlockId::new);
+        let right_block = id(1_405, BlockId::new);
+        let condition = id(1_406, ValueId::new);
+        let operand = id(1_407, ValueId::new);
+        let outer_first = id(1_408, ValueId::new);
+        let outer_second = id(1_409, ValueId::new);
+        let inner_first = id(1_410, ValueId::new);
+        let inner_second = id(1_411, ValueId::new);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([43; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry,
+                    parameters: vec![
+                        TerminalAbstractParameter {
+                            value: condition,
+                            scalar_type: ScalarType::Boolean,
+                        },
+                        TerminalAbstractParameter {
+                            value: operand,
+                            scalar_type: ScalarType::Integer(integer),
+                        },
+                    ],
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: inner_second,
+                        scalar_type: ScalarType::Integer(integer),
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![
+                        TerminalAbstractBlockEntry {
+                            block: join,
+                            parameters: Vec::new(),
+                            operation_offset: 0,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: left_block,
+                            parameters: Vec::new(),
+                            operation_offset: 3,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: entry,
+                            parameters: Vec::new(),
+                            operation_offset: 4,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: right_block,
+                            parameters: Vec::new(),
+                            operation_offset: 7,
+                        },
+                    ],
+                    operations: vec![
+                        TerminalAbstractOperation::IntegerBitwiseNot {
+                            psi_operation: id(1_412, OperationId::new),
+                            result: inner_first,
+                            scalar_type: integer,
+                            operand,
+                        },
+                        TerminalAbstractOperation::IntegerBitwiseNot {
+                            psi_operation: id(1_413, OperationId::new),
+                            result: inner_second,
+                            scalar_type: integer,
+                            operand: inner_first,
+                        },
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(1_414, EdgeId::new),
+                            result: inner_second,
+                            value: inner_second,
+                            scalar_type: ScalarType::Integer(integer),
+                            cleanup_actions: Vec::new(),
+                        },
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(1_415, EdgeId::new),
+                            target: join,
+                            bindings: Vec::new(),
+                        },
+                        TerminalAbstractOperation::IntegerBitwiseNot {
+                            psi_operation: id(1_416, OperationId::new),
+                            result: outer_first,
+                            scalar_type: integer,
+                            operand,
+                        },
+                        TerminalAbstractOperation::IntegerBitwiseNot {
+                            psi_operation: id(1_417, OperationId::new),
+                            result: outer_second,
+                            scalar_type: integer,
+                            operand: outer_first,
+                        },
+                        TerminalAbstractOperation::Conditional {
+                            condition,
+                            when_true: TerminalAbstractSuccessor {
+                                psi_edge: id(1_418, EdgeId::new),
+                                target: left_block,
+                                bindings: Vec::new(),
+                            },
+                            when_false: TerminalAbstractSuccessor {
+                                psi_edge: id(1_419, EdgeId::new),
+                                target: right_block,
+                                bindings: Vec::new(),
+                            },
+                        },
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(1_420, EdgeId::new),
+                            target: join,
+                            bindings: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    fn sibling_only_gvn_unit() -> PsiOptimizationUnit {
+        let machine = id(1_441, MachineId::new);
+        let join = id(1_442, BlockId::new);
+        let left_block = id(1_443, BlockId::new);
+        let entry = id(1_444, BlockId::new);
+        let right_block = id(1_445, BlockId::new);
+        let condition = id(1_446, ValueId::new);
+        let operand = id(1_447, ValueId::new);
+        let sibling = id(1_448, ValueId::new);
+        let redundant = id(1_449, ValueId::new);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([44; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry,
+                    parameters: vec![
+                        TerminalAbstractParameter {
+                            value: condition,
+                            scalar_type: ScalarType::Boolean,
+                        },
+                        TerminalAbstractParameter {
+                            value: operand,
+                            scalar_type: ScalarType::Integer(integer),
+                        },
+                    ],
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: redundant,
+                        scalar_type: ScalarType::Integer(integer),
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![
+                        TerminalAbstractBlockEntry {
+                            block: join,
+                            parameters: Vec::new(),
+                            operation_offset: 0,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: left_block,
+                            parameters: Vec::new(),
+                            operation_offset: 2,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: entry,
+                            parameters: Vec::new(),
+                            operation_offset: 4,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: right_block,
+                            parameters: Vec::new(),
+                            operation_offset: 5,
+                        },
+                    ],
+                    operations: vec![
+                        TerminalAbstractOperation::IntegerBitwiseNot {
+                            psi_operation: id(1_450, OperationId::new),
+                            result: redundant,
+                            scalar_type: integer,
+                            operand,
+                        },
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(1_451, EdgeId::new),
+                            result: redundant,
+                            value: redundant,
+                            scalar_type: ScalarType::Integer(integer),
+                            cleanup_actions: Vec::new(),
+                        },
+                        TerminalAbstractOperation::IntegerBitwiseNot {
+                            psi_operation: id(1_452, OperationId::new),
+                            result: sibling,
+                            scalar_type: integer,
+                            operand,
+                        },
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(1_453, EdgeId::new),
+                            target: join,
+                            bindings: Vec::new(),
+                        },
+                        TerminalAbstractOperation::Conditional {
+                            condition,
+                            when_true: TerminalAbstractSuccessor {
+                                psi_edge: id(1_454, EdgeId::new),
+                                target: left_block,
+                                bindings: Vec::new(),
+                            },
+                            when_false: TerminalAbstractSuccessor {
+                                psi_edge: id(1_455, EdgeId::new),
+                                target: right_block,
+                                bindings: Vec::new(),
+                            },
+                        },
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(1_456, EdgeId::new),
+                            target: join,
+                            bindings: Vec::new(),
                         },
                     ],
                 }],
@@ -6420,7 +7003,7 @@ pub(crate) mod tests {
         let copy = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
         assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
         let gvn = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
-        assert_eq!(built_in_psi_registry(&gvn).unwrap().len(), 1);
+        assert_eq!(built_in_psi_registry(&gvn).unwrap().len(), 2);
         let dead = OptimizationSelections::new([Optimization::DeadPureScalarElimination]).unwrap();
         assert_eq!(built_in_psi_registry(&dead).unwrap().len(), 2);
         let proof = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
@@ -7197,6 +7780,208 @@ pub(crate) mod tests {
         assert_eq!(
             validate_local_scalar_common_subexpression_candidate(&unit, &forged),
             Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
+        );
+    }
+
+    #[test]
+    fn dominator_gvn_reuses_a_canonical_cross_block_total_scalar_expression() {
+        let unit = dominator_gvn_unit();
+        let local_contract = SameBlockTotalScalarCseRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let local_products = manager
+            .require_all(&unit, local_contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert!(
+            SameBlockTotalScalarCseRule
+                .propose(&unit, RuleAnalysisView::new(&local_products))
+                .unwrap()
+                .is_empty()
+        );
+
+        let contract = DominatorTotalScalarGvnRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let [candidate] = DominatorTotalScalarGvnRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .try_into()
+            .expect("entry expression strictly dominates one cross-block duplicate");
+        let PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(patch) = candidate.patch()
+        else {
+            unreachable!()
+        };
+        assert_eq!(patch.leader.block, id(1_343, BlockId::new));
+        assert_eq!(patch.redundant.block, id(1_342, BlockId::new));
+        let accepted =
+            validate_dominating_scalar_common_subexpression_candidate(&unit, &candidate).unwrap();
+        let output = accepted.unit();
+        assert_eq!(output.functions[0].blocks[0].nodes.len(), 2);
+        assert!(
+            matches!(output.functions[0].blocks[0].nodes[0].operation, O::IntegerEqual { left, right, .. } if left == id(1_346, ValueId::new) && right == left)
+        );
+        assert_eq!(
+            output.functions[0].blocks[0].nodes[0].provenance,
+            [
+                PsiProvenance::Operation(id(1_352, OperationId::new)),
+                PsiProvenance::Operation(id(1_351, OperationId::new))
+            ]
+        );
+        assert!(
+            output.functions[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .flat_map(|node| &node.uses)
+                .all(|row| row.value != id(1_347, ValueId::new))
+        );
+
+        let mut forged_patch = patch;
+        forged_patch.leader.node = 1;
+        forged_patch.leader_operation = id(1_350, OperationId::new);
+        let forged = PsiRewriteCandidate::new_dominating_scalar_common_subexpression(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            candidate.provenance().to_vec(),
+            -1,
+            forged_patch,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_dominating_scalar_common_subexpression_candidate(&unit, &forged),
+            Err(OptimizationUnitValidationError::CandidatePatchMismatch)
+        );
+    }
+
+    #[test]
+    fn dominator_gvn_cascades_through_a_non_topological_diamond_to_fixed_point() {
+        let mut unit = diamond_dominator_gvn_unit();
+        let contract = DominatorTotalScalarGvnRule::contract();
+        for (expected_redundant, expected_leader) in [
+            (id(1_410, ValueId::new), id(1_408, ValueId::new)),
+            (id(1_411, ValueId::new), id(1_409, ValueId::new)),
+        ] {
+            let mut manager = crate::AnalysisManager::new(&unit);
+            let products = manager
+                .require_all(&unit, contract.required_analyses())
+                .unwrap()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>();
+            let [candidate] = DominatorTotalScalarGvnRule
+                .propose(&unit, RuleAnalysisView::new(&products))
+                .unwrap()
+                .try_into()
+                .expect("one newly exposed cross-block value number");
+            let PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(patch) =
+                candidate.patch()
+            else {
+                unreachable!()
+            };
+            assert_eq!(patch.redundant_result, expected_redundant);
+            assert_eq!(patch.leader_result, expected_leader);
+            assert_eq!(
+                candidate.affected_blocks(),
+                [
+                    id(1_402, BlockId::new),
+                    id(1_403, BlockId::new),
+                    id(1_404, BlockId::new),
+                    id(1_405, BlockId::new)
+                ]
+            );
+            unit = validate_dominating_scalar_common_subexpression_candidate(&unit, &candidate)
+                .unwrap()
+                .into_unit();
+        }
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert!(
+            DominatorTotalScalarGvnRule
+                .propose(&unit, RuleAnalysisView::new(&products))
+                .unwrap()
+                .is_empty()
+        );
+        let join = &unit.functions[0].blocks[0];
+        assert_eq!(join.nodes.len(), 1);
+        assert!(
+            matches!(join.nodes[0].operation, O::Return { value, .. } if value == id(1_409, ValueId::new))
+        );
+        assert_eq!(
+            join.nodes[0].provenance,
+            [
+                PsiProvenance::Edge(id(1_414, EdgeId::new)),
+                PsiProvenance::Operation(id(1_413, OperationId::new)),
+                PsiProvenance::Operation(id(1_412, OperationId::new))
+            ]
+        );
+    }
+
+    #[test]
+    fn dominator_gvn_rejects_an_equivalent_sibling_expression_at_a_join() {
+        let unit = sibling_only_gvn_unit();
+        let contract = DominatorTotalScalarGvnRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert!(
+            DominatorTotalScalarGvnRule
+                .propose(&unit, RuleAnalysisView::new(&products))
+                .unwrap()
+                .is_empty()
+        );
+
+        let function = &unit.functions[0];
+        let leader = NodeLocation {
+            machine: function.machine,
+            block: id(1_443, BlockId::new),
+            node: 0,
+        };
+        let redundant = NodeLocation {
+            machine: function.machine,
+            block: id(1_442, BlockId::new),
+            node: 0,
+        };
+        let (affected, provenance) =
+            local_cse_accounting(function, redundant, id(1_449, ValueId::new)).unwrap();
+        let forged = PsiRewriteCandidate::new_dominating_scalar_common_subexpression(
+            unit.identity,
+            contract,
+            affected,
+            provenance,
+            -1,
+            DominatingScalarCommonSubexpressionRewrite {
+                leader,
+                redundant,
+                leader_operation: id(1_452, OperationId::new),
+                redundant_operation: id(1_450, OperationId::new),
+                leader_result: id(1_448, ValueId::new),
+                redundant_result: id(1_449, ValueId::new),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                ),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            validate_dominating_scalar_common_subexpression_candidate(&unit, &forged),
+            Err(OptimizationUnitValidationError::CandidatePatchMismatch)
         );
     }
 
