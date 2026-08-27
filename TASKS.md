@@ -5446,9 +5446,13 @@ Owners:
   required known end and an exact-width array-literal replacement. Its checked
   mutation and caller-visible write frame retain the ordered field symbols and
   exact `FixedRange`; existing half-open overlap preserves adjacent windows
-  and record siblings. Symbolic or open-ended ranges and all non-byte ranges
-  remain fenced. Atomic, qualified, constrained, generic, erased, and
-  non-discardable element forms still reject.
+  and record siblings. The same statically normalized closed-range replacement
+  now applies to literal fixed arrays of any unrestricted primitive scalar,
+  directly or through an eligible record path. Bounds normalize to one exact
+  half-open element-ordinal `FixedRange`, and the replacement remains an array
+  literal of exactly the same element count. Symbolic or open-ended ranges,
+  slices, and nonliteral replacements remain fenced. Atomic, qualified,
+  constrained, generic, erased, and non-discardable element forms still reject.
   A direct `&write [u8]` root may read its exact `.len` descriptor metadata,
   and a direct supported literal fixed-array root may read `.len` as static type
   metadata; neither inspects the referenced bytes. The same static `.len`
@@ -5483,8 +5487,8 @@ Owners:
   realization.
 
   Remaining work is the broader executable access discipline: add
-  broader content-independent aggregate and symbolic byte-range projection,
-  finer symbolic dynamic-index footprints,
+  broader content-independent aggregate and symbolic range projection, finer
+  symbolic dynamic-index footprints,
   reject take/swap/read-modify-write, content-driven projection,
   non-discardable displacement, and invariant restoration that depends on
   reading the referent, and retain exact per-outcome write footprints so

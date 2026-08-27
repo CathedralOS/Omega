@@ -74,9 +74,11 @@ Must own:
   replacement, static length metadata, and literal or ordinarily proven
   dynamic element stores through direct roots and eligible plain-record paths.
   Mutation and caller-visible frames retain exact `FixedIndex` or conservative
-  runtime `Index` identity. Atomic, qualified, constrained, generic, noncopy,
-  and non-byte range forms remain fenced; this creates no executable Terminal
-  write authority.
+  runtime `Index` identity. Statically normalized closed ranges over the same
+  arrays admit exact-width array-literal replacement and retain the normalized
+  half-open element-ordinal `FixedRange`. Atomic, qualified, constrained,
+  generic, noncopy, symbolic/open range, slice-range, and nonliteral forms
+  remain fenced; this creates no executable Terminal write authority.
 - Reach summaries, invocation edges, and boundary contract facts that later stages must preserve.
 - Bounded installation-row facts keyed by exact boundary-requirement path,
   including the declared service upper bound, symbolic dependencies through

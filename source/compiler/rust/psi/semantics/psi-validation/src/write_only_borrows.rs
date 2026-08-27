@@ -121,22 +121,6 @@ fn literal_fixed_array_length(
     Some(*length)
 }
 
-fn fixed_byte_array_shape(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, usize)> {
-    let TypeReferenceNode::FixedArray {
-        element_type,
-        length: FixedArrayLength::Literal(length),
-    } = program.type_reference_table.type_reference(type_reference)
-    else {
-        return None;
-    };
-    (is_unrestricted_scalar(program, *element_type)
-        && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8))
-    .then_some((*element_type, *length))
-}
-
 fn is_supported_checked_referee(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
     is_unrestricted_scalar(program, type_reference)
         || fixed_unrestricted_primitive_array_length(program, type_reference).is_some()
@@ -313,7 +297,7 @@ fn validate_statement(
             } else if write_only_record_field_assignment(program, assignment.target, roots) {
                 // One content-independent common-field-path store. The exact
                 // field place is retained by the ordinary checked mutation facts.
-            } else if validate_write_only_byte_range_assignment(
+            } else if validate_write_only_fixed_array_range_assignment(
                 program,
                 machine_definition,
                 state_definition,
@@ -400,12 +384,12 @@ fn validate_statement(
     }
 }
 
-/// Validate the first exact range-replacement rung: a statically normalized
-/// half-open window of a direct `&write [u8; N]` or an eligible common-field
-/// path ending in `[u8; N]`, replaced by an array literal of exactly the same
-/// width. Returns whether the target was such a range even when another checker
-/// owns its eventual rejection.
-fn validate_write_only_byte_range_assignment(
+/// Validate an exact range replacement: a statically normalized half-open
+/// window of a direct fixed array of unrestricted primitive scalars, or an
+/// eligible common-field path ending in one, replaced by an array literal of
+/// exactly the same element width. Returns whether the target was such a range
+/// even when another checker owns its eventual rejection.
+fn validate_write_only_fixed_array_range_assignment(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
@@ -431,7 +415,8 @@ fn validate_write_only_byte_range_assignment(
             };
             (root, collection_type)
         };
-    let Some((element_type, collection_len)) = fixed_byte_array_shape(program, collection_type)
+    let Some((element_type, collection_len)) =
+        fixed_unrestricted_primitive_array_shape(program, collection_type)
     else {
         return false;
     };
@@ -460,7 +445,7 @@ fn validate_write_only_byte_range_assignment(
         );
     } else {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` replaces a write-only byte range with an omitted end; this exact-footprint rung requires a statically known end bound",
+            "machine `{}` state `{}` replaces a write-only fixed-array range with an omitted end; this exact-footprint rung requires a statically known end bound",
             machine.name, state.name,
         )));
         return true;
@@ -487,7 +472,7 @@ fn validate_write_only_byte_range_assignment(
         });
     let (Some(start), Some(end)) = (start, end) else {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` replaces a write-only byte range whose bounds are not statically known; exact range replacement currently requires literal bounds",
+            "machine `{}` state `{}` replaces a write-only fixed-array range whose bounds are not statically known; exact range replacement currently requires literal bounds",
             machine.name, state.name,
         )));
         return true;
@@ -503,7 +488,7 @@ fn validate_write_only_byte_range_assignment(
         ExpressionNode::ArrayLiteral(_)
     ) {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` replaces write-only byte range `{}[{}..{}]` from a non-literal value; the exact range-replacement rung requires an array literal of {} byte(s)",
+            "machine `{}` state `{}` replaces write-only fixed-array range `{}[{}..{}]` from a non-literal value; the exact range-replacement rung requires an array literal of {} element(s)",
             machine.name,
             state.name,
             root.name,
@@ -582,14 +567,14 @@ fn diagnose_unsupported_write_only_assignment_target(
             _ => "the index expression is not an admissible element place",
         };
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{machine}` state `{state}` writes through unsupported projection of write-only fixed array `{}`; {detail}; whole-array replacement and proven-in-bounds element replacement are accepted, while range replacement remains byte-array-only",
+            "machine `{machine}` state `{state}` writes through unsupported projection of write-only fixed array `{}`; {detail}; whole-array replacement, proven-in-bounds element replacement, and statically normalized closed-range replacement are accepted",
             root.name,
         )));
         return;
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive or a literal fixed array of unrestricted primitive scalars, a proven-in-bounds element of such a fixed array, or a proven-in-bounds element of a direct byte slice; sum-payload, qualified, invariant-dependent, non-byte range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive or a literal fixed array of unrestricted primitive scalars, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; sum-payload, qualified, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 
