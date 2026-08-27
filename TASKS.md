@@ -2054,9 +2054,15 @@ Remaining:
   reporting likewise captures its source rows once in a consuming observation,
   preserves the initial report write, and settles checked capability rows from
   that same carrier without cloning or couriering the syntax tree. Capability
-  validation still runs when auxiliary output is suppressed. The checked/
-  terminal cutover, remaining post-check fact couriers/mutations, and request-
-  level output-destination policy remain open.
+  validation still runs when auxiliary output is suppressed. Selected external-
+  binding projection now also settles transactionally onto the checked phase
+  result from its retained typed, selected-plan, and evaluated calling-plan
+  evidence. Complete rows publish in original selected-plan order only after
+  full success; equal/empty settlement preserves sidecar identity, rejection
+  preserves its prior identity and contents, and backend planning consumes only
+  that retained sidecar instead of a driver-couriered pre-lowering vector. The
+  checked/terminal cutover, remaining post-check fact couriers/mutations, and
+  request-level output-destination policy remain open.
 
   Restore the driver contract:
 
@@ -5452,9 +5458,13 @@ Owners:
   required known end and an exact-width array-literal replacement. Its checked
   mutation and caller-visible write frame retain the ordered field symbols and
   exact `FixedRange`; existing half-open overlap preserves adjacent windows
-  and record siblings. Symbolic or open-ended ranges and all non-byte ranges
-  remain fenced. Atomic, qualified, constrained, generic, erased, and
-  non-discardable element forms still reject.
+  and record siblings. The same statically normalized closed-range replacement
+  now applies to literal fixed arrays of any unrestricted primitive scalar,
+  directly or through an eligible record path. Bounds normalize to one exact
+  half-open element-ordinal `FixedRange`, and the replacement remains an array
+  literal of exactly the same element count. Symbolic or open-ended ranges,
+  slices, and nonliteral replacements remain fenced. Atomic, qualified,
+  constrained, generic, erased, and non-discardable element forms still reject.
   A direct `&write [u8]` root may read its exact `.len` descriptor metadata,
   and a direct supported literal fixed-array root may read `.len` as static type
   metadata; neither inspects the referenced bytes. The same static `.len`
@@ -5489,8 +5499,8 @@ Owners:
   realization.
 
   Remaining work is the broader executable access discipline: add
-  broader content-independent aggregate and symbolic byte-range projection,
-  finer symbolic dynamic-index footprints,
+  broader content-independent aggregate and symbolic range projection, finer
+  symbolic dynamic-index footprints,
   reject take/swap/read-modify-write, content-driven projection,
   non-discardable displacement, and invariant restoration that depends on
   reading the referent, and retain exact per-outcome write footprints so
@@ -7584,7 +7594,19 @@ Owners:
   unchanged, and an unsuccessful unregister retains it. Capacity bounds live
   runtime registrations, not statically emitted thunk count. `build.omg`
   selects and admits the realization/resources; ordinary Omega control flow
-  performs registration.
+  performs registration. The deployment-owned custody rung is now live below
+  that source protocol. It transactionally installs an independently admitted
+  callback root into the exact deployment ledger before the ordinary registrar
+  call, retains the installed root and ledger in a non-Clone pending carrier,
+  and admits only the later exact successful provider receipt. The live carrier
+  then owns reclaimable registration plus ledger custody until exact provider
+  unregister and root quiescence return the original slot authority. Every
+  installation, receipt, unsuccessful-unregister, and nonquiescent rejection
+  returns complete retry custody; a false registrar result can explicitly
+  remove the still-unregistered pending root. This does not yet join the
+  emitted callback store/demand catalog to the installed callback entry, invoke
+  the registrar, create the source-level linear `Registration`, or bind live-
+  registration capacity. Those remain engineering rungs.
 - **FOREIGN-RETAINED-ARGUMENT-BACKING — generalize outside callbacks.** Keep
   argument backing and retention off callback-materialization rows. Specify the
   ordinary outbound-plan dispositions for call-scoped storage, public

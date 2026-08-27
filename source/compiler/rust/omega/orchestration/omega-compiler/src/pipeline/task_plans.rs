@@ -2413,6 +2413,7 @@ mod tests {
             component_progress: None,
             task_activations,
             callback_placements: Arc::from([]),
+            external_binding_rows: Arc::from([]),
         }
     }
 
