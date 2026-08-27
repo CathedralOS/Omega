@@ -875,6 +875,8 @@ mod tests {
             .machines
             .push(MachineSynchronousInvocationFact {
                 machine,
+                published_targets: Vec::new(),
+                checked_inferred_targets: Vec::new(),
                 plan: SynchronousInvocationPlan {
                     interface: SynchronousInvocationInterface::PublishedCeiling,
                     published: Vec::new(),
@@ -1221,6 +1223,8 @@ mod tests {
             .machines
             .push(MachineSynchronousInvocationFact {
                 machine,
+                published_targets: Vec::new(),
+                checked_inferred_targets: Vec::new(),
                 plan: SynchronousInvocationPlan {
                     interface: SynchronousInvocationInterface::PublishedCeiling,
                     published: vec!["parameter:0".to_owned(), "service:Clock".to_owned()],
@@ -1250,6 +1254,8 @@ mod tests {
             .machines
             .push(MachineSynchronousInvocationFact {
                 machine,
+                published_targets: Vec::new(),
+                checked_inferred_targets: Vec::new(),
                 plan: SynchronousInvocationPlan {
                     interface: SynchronousInvocationInterface::InternalInferred,
                     published: Vec::new(),

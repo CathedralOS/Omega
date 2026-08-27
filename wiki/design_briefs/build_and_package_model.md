@@ -1064,6 +1064,18 @@ evidence, admission, or a package instance, and it is deliberately absent from
 the ordinary obligation ledger. Multi-package Git selection remains governed
 by its separate open selector decision.
 
+`CanonicalSourceClosureSubject` now gives that exact source-selection question
+a bounded canonical form. It retains the root request and every requester-
+owned dependency occurrence by authored ordinal, together with its resolved
+alias and exact selected package key, immutable resolution, and content
+identity. Strict recovery reconstructs and validates one canonical closed graph;
+its fingerprint is inert until a consumer independently resolves, snapshots,
+reconstructs, and compares the complete subject. Cache/snapshot paths, source
+bytes, transport execution observations, compiler source-consumption and build
+observations, artifacts, certificates, admissions, and open obligations remain
+separate subjects. No accepted-lock or `PackageInstance` constructor consumes
+this record.
+
 The first bounded replay component exists at Terminal Psi. The verifier exposes
 one complete ordered obligation set for executable operations, call and nominal
 cleanup requirements, and contract guarantees; each row retains exact owner,
@@ -1181,18 +1193,24 @@ named-evidence, and outcome-group forms. Accepted-claim rows share the callable
 source sidecar and therefore point to the trusted `ensures` clause. These
 coordinates remain outside semantic row bytes,
 while checked body calls add exact `body_call` anchors by joining checked-flow
-coordinates to typed statement, expression, and named-transition sites.
+coordinates to typed statement, expression, and named-transition sites during
+checked lowering, before provider settlement may rewrite typed call identity.
 Statement and transition sites retain explicit authored call-selection
 occurrences; expression sites reuse their existing attached occurrences. The
 join verifies checked target, receiver, receiver shape, and operational
-acknowledgement. Missing, duplicate, unknown, late-bound, or contradictory
+acknowledgement at capture. A legitimate late-bound target does not invalidate
+source custody: the span proves where a call was authored, not that target
+finalization already occurred. Missing, duplicate, unknown, or contradictory
 provenance rejects, while compiler-generated calls produce no invented source
 location. Authored `invokes` targets are retained as one typed record binding
 their exact parameter-symbol/ordinal or boundary-trait symbol to the target-name
 span. Invocation inference consumes that target rather than reselecting by
 spelling. Callable, public-trait requirement, and recursively structural
 machine-parameter review rows carry the span under `synchronous_invocation`,
-with top-level rows joined exactly to checked invocation facts.
+with top-level rows joined exactly to checked invocation facts. Those facts
+retain the exact symbolic published and inferred targets before provider
+settlement; package review does not re-infer effects from the transformed typed
+tree.
 Authored `reaches` clauses retain every keyword and target occurrence through
 syntax, resolution, typed lowering, copying, and specialization. Resolution
 binds targets once to exact boundary-trait symbols. Projection rederives the
@@ -1211,7 +1229,7 @@ authored booleans, and checked published/internal interfaces to agree exactly;
 omission and inference receive no invented location. A public or otherwise
 contract-supplied machine's checked operational fact remains its published may-
 ceiling, not an observation that the current body exercised that permission.
-Review v73/row v31, recovery v7, conflict fingerprint v10, and renderer V9 bind
+Review v74/row v32, recovery v7, conflict fingerprint v10, and renderer V9 bind
 the current source schema. Remaining per-fact spans are incremental; absent
 late-stage spans must be retained by their earlier owner, not reconstructed
 from source text.

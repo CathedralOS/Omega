@@ -28,6 +28,7 @@ mod review_closure;
 mod review_evidence;
 mod source;
 mod source_adapter;
+mod source_closure_subject;
 mod source_commands;
 mod source_patch;
 mod source_review;
@@ -117,6 +118,12 @@ pub use source_adapter::{
     ResolveGitPackageClosureError, ResolveWorkspacePackageClosureError,
     resolve_external_local_package_closure, resolve_git_package_closure,
     resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
+};
+pub use source_closure_subject::{
+    CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
+    CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubject,
+    CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectFingerprint,
+    CanonicalSourceClosureSubjectLimits, SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
 };
 pub use source_commands::{
     PackageSourceAudit, PackageSourceAuditCommandError, PackageSourceRequest,

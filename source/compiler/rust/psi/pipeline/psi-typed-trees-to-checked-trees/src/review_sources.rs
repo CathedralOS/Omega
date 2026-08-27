@@ -2,7 +2,6 @@ use psi_diagnostics::Diagnostic;
 use psi_language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
     AuthoredDeclarationSelectionOccurrenceId as OccurrenceId,
-    AuthoredDeclarationSelectionTarget as SelectionTarget,
 };
 use psi_source::SourceSpan;
 use psi_symbols::SymbolHandle;
@@ -13,39 +12,38 @@ use crate::lookup::{
 };
 use crate::semantic_calls::{CallSite, find_call_site};
 
-pub(super) fn derive_checked_body_call_source_spans(
+pub(super) fn bind_checked_body_call_source_spans(
     program: &TypedTrees,
-    facts: &psi_checked_trees::CheckFacts,
-    machine_symbol: SymbolHandle,
-) -> Result<Vec<SourceSpan>, Vec<Diagnostic>> {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed machine {machine_symbol:?} is absent from typed trees",
-        ))]);
-    };
-    let mut spans = Vec::new();
-    for (_, checked_state) in facts
-        .flow
+    flow: &mut psi_checked_trees::FlowFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    let checked_states = flow
         .control
         .states
         .iter()
-        .filter(|(_, state)| state.machine_symbol == machine_symbol)
-    {
+        .map(|(_, state)| state.clone())
+        .collect::<Vec<_>>();
+    for checked_state in checked_states {
+        let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == checked_state.machine_symbol)
+        else {
+            return Err(vec![Diagnostic::error(format!(
+                "checked machine {:?} is absent while binding call source custody",
+                checked_state.machine_symbol,
+            ))]);
+        };
         let Some(state) = program
             .machine_states(machine)
             .iter()
             .find(|state| state.symbol == checked_state.state_symbol)
         else {
             return Err(vec![Diagnostic::error(format!(
-                "checked state {:?} is absent from reviewed machine {machine_symbol:?}",
-                checked_state.state_symbol,
+                "checked state {:?} is absent from machine {:?} while binding call source custody",
+                checked_state.state_symbol, checked_state.machine_symbol,
             ))]);
         };
-        for checked_call in facts.flow.control.calls.span_or_empty(checked_state.calls) {
+        for checked_call in flow.control.calls.span_mut_or_empty(checked_state.calls) {
             let Some(call_site) = find_call_site(
                 program,
                 checked_state.machine_symbol,
@@ -62,8 +60,59 @@ pub(super) fn derive_checked_body_call_source_spans(
                 ))]);
             };
             validate_checked_call_join(program, machine, state, checked_call, &call_site)?;
-            if let Some(source_span) = authored_call_span(program, &call_site)? {
-                spans.push(source_span);
+            match authored_call_span(program, &call_site) {
+                Ok(source_span) => {
+                    checked_call.authored_source_span = source_span;
+                    checked_call.authored_source_custody_valid = true;
+                }
+                Err(_) => {
+                    checked_call.authored_source_span = None;
+                    checked_call.authored_source_custody_valid = false;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn derive_checked_body_call_source_spans(
+    _program: &TypedTrees,
+    facts: &psi_checked_trees::CheckFacts,
+    machine_symbol: SymbolHandle,
+) -> Result<Vec<SourceSpan>, Vec<Diagnostic>> {
+    let mut spans = Vec::new();
+    for (_, checked_state) in facts
+        .flow
+        .control
+        .states
+        .iter()
+        .filter(|(_, state)| state.machine_symbol == machine_symbol)
+    {
+        for checked_call in facts.flow.control.calls.span_or_empty(checked_state.calls) {
+            if !checked_call.authored_source_custody_valid {
+                return Err(vec![Diagnostic::error(format!(
+                    "checked body call {} in statement {} has invalid retained source custody",
+                    checked_call.call_ordinal, checked_call.statement_index,
+                ))]);
+            }
+            match (
+                checked_call.operational_acknowledgement.origin,
+                checked_call.authored_source_span.and_then(nonempty_span),
+            ) {
+                (
+                    psi_language_semantics::CallOperationalAcknowledgementOrigin::Source,
+                    Some(source_span),
+                ) => spans.push(source_span),
+                (
+                    psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                    None,
+                ) => {}
+                _ => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "checked body call {} in statement {} has contradictory retained source custody",
+                        checked_call.call_ordinal, checked_call.statement_index,
+                    ))]);
+                }
             }
         }
     }
@@ -254,7 +303,6 @@ fn validate_occurrence(
         || selection.exposure() != Exposure::PrivateImplementation
         || nonempty_span(selection.source_span()).is_none()
         || expected_span.is_some_and(|expected| expected != selection.source_span())
-        || matches!(selection.target(), SelectionTarget::LateBound(_))
     {
         return Err(vec![
             Diagnostic::error(format!(

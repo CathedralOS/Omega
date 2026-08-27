@@ -90,6 +90,16 @@ parent, but
 does not claim hostile same-user handle-relative custody or give the record
 authority.
 
+Resolved package custody now also projects a bounded
+`CanonicalSourceClosureSubject`: the exact root request and every authored
+dependency request occurrence joined to its alias, selected package key, and
+immutable resolution/content identity. This is a canonical question for later
+independent reconstruction, not the resolver receipt described above. It omits
+cache/snapshot paths, execution-transport observations, isolation claims,
+compiler consumption, and phase verdicts. Decode and fingerprinting grant no
+authority; a consumer must independently resolve and snapshot the source and
+require complete subject equality.
+
 ## Current engineering delta
 
 Git resolution now treats helper-reported IDs, listings, and framing only as

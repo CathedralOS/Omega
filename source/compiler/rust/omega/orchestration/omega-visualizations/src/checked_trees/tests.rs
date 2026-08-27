@@ -85,6 +85,8 @@ fn push_behavior_contract(
     program.facts.synchronous_invocations.machines.push(
         psi_checked_trees::MachineSynchronousInvocationFact {
             machine,
+            published_targets: Vec::new(),
+            checked_inferred_targets: Vec::new(),
             plan: Default::default(),
         },
     );

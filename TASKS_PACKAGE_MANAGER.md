@@ -2272,6 +2272,28 @@ complete.
   and source-subject reconstruction remain open; Q2 separately governs multi-
   package Git selection.
 
+  Milestone 2026-08-26: `CanonicalSourceClosureSubject` now projects that
+  resolver custody into one bounded, source-handle-free canonical source-
+  selection question. It retains the exact root request, every requester-owned
+  dependency request by authored ordinal, every resolved alias, and the exact
+  selected `PackageKey` plus immutable resolution/content for each occurrence.
+  Distinct diamond requests remain distinct. Projection independently rejoins
+  root/dependency request kinds to selected lineage, aliases to authored or
+  package-derived names, contiguous ordinals to requester edges, and the full
+  package table to one closed reachable acyclic graph. Strict recovery rejects
+  unknown versions/cases, malformed or noncanonical ordering/framing,
+  mismatched requests, aliases, targets, lineage, or resolution, open or cyclic
+  graph state, trailing bytes, and resource-ceiling violations. A domain-
+  separated fingerprint identifies only this exact question; a consumer must
+  independently resolve and snapshot the closure, reconstruct the complete
+  subject, and require exact equality. Snapshot/cache paths, resolver limits,
+  source bytes, transport execution observations, compiler source-consumption
+  and build observations, artifacts, review rows, certificates, decisions, and
+  open obligations remain separate. This creates no accepted lock,
+  `PackageInstance`, discharge result, admission, or promotion path. Q2 may add
+  a future multi-package Git request case without blocking the current
+  versioned sum.
+
   Milestone 2026-08-26: the current ordinary package-review vocabulary now has
   a source-handle-free `OrdinaryPackageObligationLedger`. It contains the exact
   package, target, compiler-consumed dependency closure, strictly ordered
@@ -2487,20 +2509,27 @@ complete.
   expression-node token is a complete fact span. Accepted-claim rows reuse the callable sidecar, so a bodyless
   trusted guarantee points at its `ensures` clause rather than only its
   declaration. Checked body calls now join each checked-flow call coordinate to
-  the exact typed statement, expression, or named-transition call site. Source
-  statement and transition calls carry an explicit authored call-selection
-  occurrence through resolution and typed lowering; expression calls reuse
-  their existing attached occurrence. Projection verifies checked target,
-  receiver, receiver shape, and operational acknowledgement before emitting the
-  `body_call` anchor. Missing, duplicate, unknown, late-bound, or contradictory
-  provenance rejects; compiler-synthesized calls emit no invented location.
+  the exact typed statement, expression, or named-transition call site while
+  that join is still stable. Source statement and transition calls carry an
+  explicit authored call-selection occurrence through resolution and typed
+  lowering; expression calls reuse their existing attached occurrence. Checked
+  lowering verifies target, receiver, receiver shape, and operational
+  acknowledgement, then retains the exact authored span on the checked call.
+  Package projection consumes that retained custody rather than rejoining
+  transformed typed calls after provider settlement. A legitimately late-bound
+  source target may be unsettled at capture time; the location does not pretend
+  to prove target finalization. Missing, duplicate, unknown, or contradictory
+  source custody rejects; compiler-synthesized calls emit no invented location.
   Authored `invokes` targets now lower to one typed occurrence that binds the
   diagnostic name, exact parameter-symbol/ordinal or boundary-trait symbol,
   and exact target-name span. Effect inference consumes that retained target
   rather than reselecting a same-spelled trait. Callable, public-trait
   requirement, and recursively structural machine-parameter rows carry the
   span under `synchronous_invocation`; top-level projection requires exact
-  equality with the inferred and checked invocation plans. Missing, malformed,
+  equality with the checked invocation plan. Exact symbolic published and
+  inferred targets are retained during checked lowering because provider
+  settlement may later rewrite typed call structure; package projection never
+  re-infers effects from that transformed tree. Missing, malformed,
   duplicated, aliased, stale-target, or source-less custody rejects. Authored
   `reaches` clauses now retain every keyword occurrence and every member target
   occurrence through syntax, resolution, typed lowering, copying, and generic
@@ -2526,7 +2555,7 @@ complete.
   otherwise contract-supplied machines, the checked operational summary remains
   the published may-ceiling by language design—it is not presented as a second
   observation that the retained body happened to be quiet. Current package
-  review v73/canonical row v31, conflict fingerprint v10, renderer V9, and
+  review v74/canonical row v32, conflict fingerprint v10, renderer V9, and
   canonical-row recovery envelope v7 bind the appended roles; stale envelopes
   reject rather than being reinterpreted. Remaining per-fact spans are
   incremental engineering work and require deliberate retention before typed
