@@ -164,17 +164,28 @@ fn validate_qualification_correspondences(
             ));
             continue;
         }
-        if !exact_correspondence_place(program, semantic, correspondence.source_place)
-            || !exact_correspondence_place(
-                program,
-                semantic,
-                correspondence.source_occurrence_place,
-            )
-            || !exact_correspondence_place(program, semantic, correspondence.destination_place)
-            || correspondence.source_place == correspondence.destination_place
+        if !exact_correspondence_place(
+            program,
+            semantic,
+            correspondence.source_place,
+            machine_symbol,
+            state_symbol,
+        ) || !exact_correspondence_place(
+            program,
+            semantic,
+            correspondence.source_occurrence_place,
+            machine_symbol,
+            state_symbol,
+        ) || !exact_correspondence_place(
+            program,
+            semantic,
+            correspondence.destination_place,
+            machine_symbol,
+            state_symbol,
+        ) || correspondence.source_place == correspondence.destination_place
         {
             diagnostics.push(Diagnostic::error(
-                "qualification correspondence place is not an exact structural symbol place",
+                "qualification correspondence place is not an exact formation-owned structural symbol place",
             ));
             continue;
         }
@@ -265,6 +276,8 @@ fn exact_correspondence_place(
     program: &psi_typed_trees::TypedTrees,
     semantic: &psi_facts::FactPlan,
     handle: psi_facts::PlaceHandle,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
 ) -> bool {
     if !semantic.places.is_valid(handle) {
         return false;
@@ -273,7 +286,13 @@ fn exact_correspondence_place(
     let PlaceRoot::Symbol(root) = place.root else {
         return false;
     };
-    if !root.is_valid() || program.symbols.get(root).kind != psi_symbols::SymbolKind::Parameter {
+    if !root.is_valid()
+        || program.symbols.get(root).kind != psi_symbols::SymbolKind::Parameter
+        || !matches!(
+            program.symbols.get(root).parent,
+            parent if parent == machine_symbol || parent == state_symbol
+        )
+    {
         return false;
     }
     let Some(segments) = semantic.place_segments.span(place.segments) else {
@@ -927,6 +946,8 @@ mod tests {
         psi_facts::FactPlan,
         SymbolHandle,
         SymbolHandle,
+        SymbolHandle,
+        SymbolHandle,
     ) {
         let mut symbols = SymbolTableBuilder::new();
         let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
@@ -942,6 +963,7 @@ mod tests {
                     SymbolKind::TypeParameter,
                     SymbolNameRef::Static("ExcludedType"),
                 ),
+                (SymbolKind::Machine, SymbolNameRef::Static("foreign_worker")),
             ],
         );
         let roots = SymbolTableBuilder::child_handles(roots).collect::<Vec<_>>();
@@ -951,17 +973,32 @@ mod tests {
         let destination_field = roots[3];
         let excluded_local = roots[4];
         let excluded_generic = roots[5];
+        let foreign_machine = roots[6];
         let machine_members = symbols.insert_children(
             machine,
             [
                 (SymbolKind::State, SymbolNameRef::Static("entry")),
                 (SymbolKind::Parameter, SymbolNameRef::Static("self")),
+                (SymbolKind::State, SymbolNameRef::Static("sibling")),
             ],
         );
         let machine_members =
             SymbolTableBuilder::child_handles(machine_members).collect::<Vec<_>>();
         let state = machine_members[0];
         let self_parameter = machine_members[1];
+        let sibling_state = machine_members[2];
+        let sibling_state_parameter = SymbolTableBuilder::child_handles(symbols.insert_children(
+            sibling_state,
+            [(SymbolKind::Parameter, SymbolNameRef::Static("sibling_self"))],
+        ))
+        .next()
+        .expect("sibling state parameter");
+        let foreign_parameter = SymbolTableBuilder::child_handles(symbols.insert_children(
+            foreign_machine,
+            [(SymbolKind::Parameter, SymbolNameRef::Static("foreign_self"))],
+        ))
+        .next()
+        .expect("foreign machine parameter");
         let program = psi_typed_trees::TypedTrees {
             symbols: symbols.finish(),
             ..psi_typed_trees::TypedTrees::default()
@@ -1028,18 +1065,25 @@ mod tests {
             },
             evidence,
         });
-        (program, semantic, excluded_local, excluded_generic)
+        (
+            program,
+            semantic,
+            excluded_local,
+            excluded_generic,
+            foreign_parameter,
+            sibling_state_parameter,
+        )
     }
 
     #[test]
     fn checked_progress_replays_exact_qualification_correspondence() {
-        let (program, semantic, _, _) = correspondence_fixture();
+        let (program, semantic, _, _, _, _) = correspondence_fixture();
         assert!(validate_qualification_correspondences(&program, &semantic).is_empty());
     }
 
     #[test]
     fn checked_progress_rejects_correspondence_payload_place_and_order_drift() {
-        let (program, semantic, _, _) = correspondence_fixture();
+        let (program, semantic, _, _, _, _) = correspondence_fixture();
 
         let mut payload = semantic.clone();
         let row = payload
@@ -1126,7 +1170,14 @@ mod tests {
 
     #[test]
     fn checked_progress_rejects_excluded_roots_and_malformed_formation() {
-        let (program, semantic, excluded_local, excluded_generic) = correspondence_fixture();
+        let (
+            program,
+            semantic,
+            excluded_local,
+            excluded_generic,
+            foreign_parameter,
+            sibling_state_parameter,
+        ) = correspondence_fixture();
         let row = semantic
             .qualification_correspondences
             .iter()
@@ -1156,6 +1207,38 @@ mod tests {
                 validate_qualification_correspondences(&program, &drifted)
                     .iter()
                     .any(|diagnostic| diagnostic.message.contains("structural symbol place"))
+            );
+        }
+
+        for excluded_symbol in [foreign_parameter, sibling_state_parameter] {
+            for destination in [false, true] {
+                let mut drifted = semantic.clone();
+                let place = if destination {
+                    drifted
+                        .qualification_correspondences
+                        .get(row)
+                        .destination_place
+                } else {
+                    source_place
+                };
+                drifted.places.get_mut(place).root = PlaceRoot::Symbol(excluded_symbol);
+                assert!(
+                    validate_qualification_correspondences(&program, &drifted)
+                        .iter()
+                        .any(|diagnostic| diagnostic.message.contains("formation-owned"))
+                );
+            }
+
+            let mut occurrence = semantic.clone();
+            let occurrence_place = occurrence.append_symbol_place(excluded_symbol);
+            occurrence
+                .qualification_correspondences
+                .get_mut(row)
+                .source_occurrence_place = occurrence_place;
+            assert!(
+                validate_qualification_correspondences(&program, &occurrence)
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("formation-owned"))
             );
         }
 
