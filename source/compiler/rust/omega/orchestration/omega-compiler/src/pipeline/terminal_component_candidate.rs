@@ -10,8 +10,6 @@ use omega_terminal_installation_evidence::TerminalProviderExecutionEvidence;
 use omega_terminal_target_operations::TerminalBoundaryRealization;
 use psi_diagnostics::Diagnostic;
 
-use super::CheckedCompilation;
-
 #[derive(Debug)]
 enum StagedAbstractOperations {
     Compatibility(omega_terminal_abstract_operations::TerminalAbstractOperationPlan),
@@ -40,51 +38,38 @@ pub struct TerminalComponentProviderSettlement<'execution> {
 /// component candidate. Runtime installation and publication deliberately do
 /// not occur here.
 pub fn stage_terminal_component(
-    checked: &CheckedCompilation,
+    terminal_artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+    entry_machine: &str,
     target: omega_target::NativeTarget,
     subsystem: u16,
     profile: &psi_proof_admission::AdmissionProfile,
+    optimization_selections: &omega_optimization_core::OptimizationSelections,
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+    component_progress: Option<&omega_effects::ComponentProgressManifest>,
     settlements: &[TerminalComponentProviderSettlement<'_>],
 ) -> Result<TerminalComponentCandidate, Vec<Diagnostic>> {
-    let selected_target = checked.selected_native_target().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "terminal component staging requires one exact selected native target",
-        )]
-    })?;
-    if target != selected_target {
-        return Err(vec![Diagnostic::error(format!(
-            "terminal component staging target {target:?} does not match checked target {selected_target:?}"
-        ))]);
-    }
-    let entry_machine = checked.selected_program_entry_machine().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "terminal component staging requires one exact selected program entry",
-        )]
-    })?;
-    let lowered = psi_checked_trees_to_terminal::lower_machine(checked, entry_machine)
-        .map_err(|error| stage_error("checked-to-terminal lowering", error))?;
-    let semantic_bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
-        .map_err(|error| stage_error("semantic encoding", error))?;
-    let proof_bytes = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
-        .map_err(|error| stage_error("proof encoding", error))?;
-    let abstract_operations = if checked.optimization_selections().is_empty() {
+    terminal_artifact
+        .validate()
+        .map_err(|error| stage_error("canonical artifact replay", error))?;
+    let semantic_bytes = terminal_artifact.semantic_bytes();
+    let proof_bytes = terminal_artifact.proof_bytes();
+    let abstract_operations = if optimization_selections.is_empty() {
         StagedAbstractOperations::Compatibility(
             omega_terminal_psi_to_abstract_operations::lower_artifact_sections(
-                &semantic_bytes,
-                &proof_bytes,
+                semantic_bytes,
+                proof_bytes,
                 profile,
             )
             .map_err(|error| stage_error("verified artifact lowering", error))?,
         )
     } else {
-        let request = omega_optimization_pipeline::compiler_baseline_request_v1(
-            checked.optimization_selections(),
-        )
-        .expect("the selected staging branch is nonempty");
+        let request =
+            omega_optimization_pipeline::compiler_baseline_request_v1(optimization_selections)
+                .expect("the selected staging branch is nonempty");
         StagedAbstractOperations::Optimized(Box::new(
             omega_optimization_pipeline::optimize_artifact_sections(
-                &semantic_bytes,
-                &proof_bytes,
+                semantic_bytes,
+                proof_bytes,
                 profile,
                 request,
             )
@@ -103,8 +88,7 @@ pub fn stage_terminal_component(
                 "terminal component staging received more than one provider execution for requirement `{requirement}`"
             ))]);
         }
-        let selected_plan = checked
-            .selected_provider_plans()
+        let selected_plan = selected_provider_plans
             .plan_by_identity(evidence.provider_plan())
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(
@@ -173,11 +157,11 @@ pub fn stage_terminal_component(
                     *optimized, target, &admitted,
                 )
                 .map_err(|error| {
-                    optimized_physical_stage_error(checked.optimization_selections(), error)
+                    optimized_physical_stage_error(optimization_selections, error)
                 })?;
             return Err(
                 crate::pipeline::optimization_gate::optimized_publication_unavailable(
-                    checked.optimization_selections(),
+                    optimization_selections,
                 ),
             );
         }
@@ -198,14 +182,12 @@ pub fn stage_terminal_component(
         TerminalComponentCandidateParts {
             target,
             entry_machine: entry_machine.to_owned(),
-            semantic_bytes,
-            proof_bytes,
+            terminal_artifact,
             object,
             image,
-            selected_provider_plans: checked.selected_provider_plans().clone(),
+            selected_provider_plans: selected_provider_plans.clone(),
             provider_executions,
-            component_progress: checked
-                .component_progress()
+            component_progress: component_progress
                 .filter(|manifest| !manifest.pending().is_empty())
                 .cloned(),
         },

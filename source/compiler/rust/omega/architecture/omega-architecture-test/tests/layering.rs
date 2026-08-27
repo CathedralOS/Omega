@@ -692,6 +692,42 @@ fn first_terminal_psi_source_slice_stays_fail_closed() {
 }
 
 #[test]
+fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
+    let root = workspace_root();
+    let producer_path =
+        root.join("source/compiler/rust/psi/pipeline/psi-checked-trees-to-terminal/src/lib.rs");
+    let producer = std::fs::read_to_string(&producer_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", producer_path.display()));
+    assert!(
+        producer.contains("pub fn produce_terminal_artifact(")
+            && producer.contains("CanonicalTerminalArtifact::from_parts("),
+        "Psi must own the exact checked-to-canonical-Terminal-artifact handoff"
+    );
+
+    let stage_path = root.join(
+        "source/compiler/rust/omega/orchestration/omega-compiler/src/pipeline/terminal_component_candidate.rs",
+    );
+    let stage = std::fs::read_to_string(&stage_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", stage_path.display()));
+    assert!(
+        stage.contains("terminal_artifact: psi_terminal_codec::CanonicalTerminalArtifact"),
+        "Omega component staging must receive the complete Psi-owned artifact by value"
+    );
+    for forbidden in [
+        "CheckedCompilation",
+        "CheckedTrees",
+        "lower_machine(",
+        "encode_module(",
+        "encode_proof_bundle(",
+    ] {
+        assert!(
+            !stage.contains(forbidden),
+            "Omega component staging reopened pre-Terminal state through `{forbidden}`"
+        );
+    }
+}
+
+#[test]
 fn admitted_external_root_entry_fact_cannot_detach_before_body_dispatch() {
     let root = workspace_root();
     let path = root.join(
