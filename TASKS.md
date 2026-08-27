@@ -5445,11 +5445,11 @@ Owners:
   snapshots, matching, normalized identity, loans, and call-access facts keep
   it distinct. Checked Omega bodies may explicitly attenuate an exclusive
   mutable whole place to `&write` for an unrestricted primitive scalar or fixed
-  literal-length array whose element is either an unrestricted primitive scalar
-  or an eligible material nongeneric, invariant-free `[copy]` record or sum, or
-  for a closed material nongeneric, invariant-free `[copy]` sum, replace the
-  whole referent, and forward the loan only through an explicit `&write`
-  argument.
+  recursively literal-length array whose ultimate element is either an
+  unrestricted primitive scalar or an eligible material nongeneric,
+  invariant-free `[copy]` record or sum, or for a closed material nongeneric,
+  invariant-free `[copy]` sum, replace the whole referent, and forward the loan
+  only through an explicit `&write` argument.
   Such a checked fixed array additionally permits literal or dynamic element
   replacement after the ordinary range checker proves the index in bounds.
   Literal mutation and caller-visible write frames retain the exact
@@ -5492,10 +5492,13 @@ Owners:
   element-ordinal `FixedRange`, and the replacement remains an array literal of
   exactly the same element count. Fixed/runtime element frames likewise retain
   only `FixedIndex`/`Index` and never decompose record members or sum tags and
-  payloads. Symbolic or open-ended ranges, slices, nested arrays, and nonliteral
-  replacements remain fenced. Atomic, qualified, constrained, generic, erased,
-  noncopy, and other non-discardable element forms still reject; matching and
-  case/payload projection remain observations rather than array operations.
+  payloads. Recursively literal fixed arrays now participate in that same
+  operation set, but each selected inner array remains one atomic outer element
+  or range position; a second inner index is not an admitted place. Symbolic or
+  open-ended ranges, slices, and nonliteral replacements remain fenced. Atomic,
+  qualified, constrained, generic, erased, noncopy, and other non-discardable
+  ultimate element forms still reject; matching and case/payload projection
+  remain observations rather than array operations.
   A direct `&write [u8]` root may read its exact `.len` descriptor metadata,
   and a direct supported literal fixed-array root may read `.len` as static type
   metadata; neither inspects the referenced bytes. The same static `.len`
