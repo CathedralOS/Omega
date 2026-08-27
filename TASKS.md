@@ -2048,9 +2048,15 @@ Remaining:
   reporting likewise captures its source rows once in a consuming observation,
   preserves the initial report write, and settles checked capability rows from
   that same carrier without cloning or couriering the syntax tree. Capability
-  validation still runs when auxiliary output is suppressed. The checked/
-  terminal cutover, remaining post-check fact couriers/mutations, and request-
-  level output-destination policy remain open.
+  validation still runs when auxiliary output is suppressed. Selected external-
+  binding projection now also settles transactionally onto the checked phase
+  result from its retained typed, selected-plan, and evaluated calling-plan
+  evidence. Complete rows publish in original selected-plan order only after
+  full success; equal/empty settlement preserves sidecar identity, rejection
+  preserves its prior identity and contents, and backend planning consumes only
+  that retained sidecar instead of a driver-couriered pre-lowering vector. The
+  checked/terminal cutover, remaining post-check fact couriers/mutations, and
+  request-level output-destination policy remain open.
 
   Restore the driver contract:
 

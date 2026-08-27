@@ -367,6 +367,16 @@ construction resolves its boundary slot against this carrier and copies the
 resulting plan identity into the root candidate before validation; an absent or
 ambiguous retained selection rejects.
 
+The compiler's exact external-binding projection is a separate non-authorizing
+sidecar of the checked phase result. It derives from checked-retained typed
+declarations, the original ordered selected-plan input, and the already-
+evaluated boundary calling-plan realizations. Projection stages every row
+before publication; equal or empty settlement preserves the existing Arc, and
+rejection preserves its prior identity and contents. Backend planning consumes
+only that retained sidecar rather than a pre-lowering vector couriered by the
+driver. The sidecar preserves binding/calling-plan identity and order but grants
+no provider admission, selection, ABI, or execution authority.
+
 There is no parallel source-level primitive-provider registry. The retired
 top-level `provider Name : Category;` declaration and operator-local
 `provider Name` clause are bootstrap artifacts; requirement declarations do not
