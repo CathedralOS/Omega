@@ -1059,10 +1059,39 @@ successor edges. Global uniqueness, fuel equality, and terminal-antichain rules
 still reject duplicated or co-executable occurrences. A verified wrapping-add
 artifact first removes the unused total arithmetic node, then revisits the
 earlier rule and removes both newly dead literals; artifact replay leaves the
-return with all original source/fuel sites. Candidate v16, optimization-unit
-content identity v10, the named v2 pass, prephysical manifest v10, and
-optimized-plan projection validation v11 bind this meaning; ledger v4 already
+return with all original source/fuel sites. Candidate v17, optimization-unit
+content identity v10, the named v2 pass, prephysical manifest v11, and
+optimized-plan projection validation v12 bind this meaning; ledger v4 already
 represents the many-to-one moves.
+
+### Proof-certified dead scalar work
+
+The first exact `ProofCheckElision` rule is
+`dead-unused-proof-certified-scalar-elimination.v1`. It admits only exact
+integer cast, exact shifts, exact add/subtract/multiply/divide/remainder, and
+wrapping or saturating divide/remainder. These operations are pure but carry an
+operation obligation, so apparent result liveness alone never authorizes their
+removal.
+
+Every candidate instead carries the exact `AcceptedObligationFactIdentity` in
+a dedicated proof witness. Candidate construction fails closed when the active
+operation-reference fact has no matching accepted row. The independent
+validator duplicates the closed operation vocabulary, reconstructs its
+obligation and result type, and requires the accepted row to match identity,
+machine, operation, and obligation. The decision manifest records that row as
+the transformation's consumed fact.
+
+Deletion then uses the same co-executed provenance/fuel relocation and metadata
+rebuild as obligation-free dead scalar work. The active
+`OperationObligationReference` leaves the function fact index with its removed
+owner, but the verifier-owned accepted-obligation catalog remains byte-for-byte
+intact as historical proof custody. A verified artifact carries the exact
+accepted fact through projection after removing an unused exact add. Candidate
+v17, optimization-unit content identity v10, the named v1 pass, prephysical
+manifest v11, and optimized-plan projection validation v12 bind this meaning;
+ledger v4 already represents the relocation. This first slice does not remove
+live computations, runtime policy events, or physical checks not represented
+by this exact Psi contract.
 
 Baseline choice lives in `omega-optimization-policy`, outside rule and
 validator crates. The pass manager first obtains independently constructed

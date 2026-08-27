@@ -486,6 +486,7 @@ impl PsiRewritePatch {
 enum PsiRewriteWitness {
     ScalarEvaluation(ScalarEvaluationWitness),
     RedundantBlockParameter(RedundantBlockParameterWitness),
+    AcceptedObligation(AcceptedObligationFactIdentity),
     StructuralIdentity,
 }
 
@@ -742,6 +743,27 @@ impl PsiRewriteCandidate {
         )
     }
 
+    pub fn new_proof_certified_dead_scalar_node(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        provenance: Vec<ProvenanceRewrite>,
+        obligation_fact: AcceptedObligationFactIdentity,
+        predicted_cost_delta: i64,
+        patch: DeadScalarNodeRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            Vec::new(),
+            provenance,
+            PsiRewriteWitness::AcceptedObligation(obligation_fact),
+            predicted_cost_delta,
+            PsiRewritePatch::RemoveDeadScalarNode(patch),
+        )
+    }
+
     pub fn new_unreachable_private_machines(
         input: OptimizationUnitIdentity,
         contract: OptimizationRuleContract,
@@ -893,7 +915,7 @@ impl PsiRewriteCandidate {
             PsiRewriteWitness::ScalarEvaluation(
                 ScalarEvaluationWitness::ProofCertifiedUnary { .. }
                     | ScalarEvaluationWitness::ProofCertifiedBinary { .. }
-            )
+            ) | PsiRewriteWitness::AcceptedObligation(_)
         ) {
             return Err(PsiRewriteCandidateError::ProofWitnessSafetyMismatch);
         }
@@ -1088,7 +1110,11 @@ impl PsiRewriteCandidate {
                                 .node()
                                 .is_some_and(|location| !affected_blocks.contains(&location.block))
                     })
-                    || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
+                    || !matches!(
+                        witness,
+                        PsiRewriteWitness::StructuralIdentity
+                            | PsiRewriteWitness::AcceptedObligation(_)
+                    )
                 {
                     return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
                 }
@@ -1198,6 +1224,7 @@ impl PsiRewriteCandidate {
         match &self.witness {
             PsiRewriteWitness::ScalarEvaluation(witness) => Some(*witness),
             PsiRewriteWitness::RedundantBlockParameter(_)
+            | PsiRewriteWitness::AcceptedObligation(_)
             | PsiRewriteWitness::StructuralIdentity => None,
         }
     }
@@ -1206,7 +1233,17 @@ impl PsiRewriteCandidate {
         match &self.witness {
             PsiRewriteWitness::ScalarEvaluation(_) => None,
             PsiRewriteWitness::RedundantBlockParameter(witness) => Some(witness),
+            PsiRewriteWitness::AcceptedObligation(_) => None,
             PsiRewriteWitness::StructuralIdentity => None,
+        }
+    }
+
+    pub const fn accepted_obligation_witness(&self) -> Option<AcceptedObligationFactIdentity> {
+        match &self.witness {
+            PsiRewriteWitness::AcceptedObligation(identity) => Some(*identity),
+            PsiRewriteWitness::ScalarEvaluation(_)
+            | PsiRewriteWitness::RedundantBlockParameter(_)
+            | PsiRewriteWitness::StructuralIdentity => None,
         }
     }
 
@@ -1242,6 +1279,9 @@ impl PsiRewriteCandidate {
                 OptimizationFactReference::ScalarConstant(*right_fact),
                 OptimizationFactReference::AcceptedObligation(*obligation_fact),
             ],
+            PsiRewriteWitness::AcceptedObligation(identity) => {
+                vec![OptimizationFactReference::AcceptedObligation(*identity)]
+            }
             PsiRewriteWitness::RedundantBlockParameter(_)
             | PsiRewriteWitness::StructuralIdentity => Vec::new(),
         };
@@ -1276,7 +1316,7 @@ fn encode_candidate(
     patch: &PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v16\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v17\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     match decision_point {
@@ -1384,6 +1424,10 @@ fn encode_candidate(
             }
         }
         PsiRewriteWitness::StructuralIdentity => bytes.push(3),
+        PsiRewriteWitness::AcceptedObligation(identity) => {
+            bytes.push(4);
+            bytes.extend_from_slice(&identity.bytes());
+        }
     }
     bytes.extend_from_slice(&predicted_cost_delta.to_le_bytes());
     match patch {
