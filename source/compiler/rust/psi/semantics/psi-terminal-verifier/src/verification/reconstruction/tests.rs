@@ -2346,21 +2346,31 @@ fn exact_division_selects_two_definition_affine_safe_divisor() {
 }
 
 #[test]
-fn exact_division_selects_three_and_four_definition_affine_safe_divisors() {
+fn exact_division_selects_three_through_five_definition_affine_safe_divisors() {
     let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-    let context = PropositionContext::from_value_types((1..=6).map(|id| {
+    let context = PropositionContext::from_value_types((1..=8).map(|id| {
         (
             ValueId::new(id).expect("value id"),
             ScalarType::Integer(signed),
         )
     }))
-    .expect("six i8 values");
+    .expect("eight i8 values");
     let three_step_goal = CanonicalScalarGoal::ExactDivisionDefined {
         integer_type: signed,
         left: value(1, signed),
         right: value(6, signed),
     };
     let four_step_goal = CanonicalScalarGoal::ExactDivisionDefined {
+        integer_type: signed,
+        left: value(1, signed),
+        right: value(7, signed),
+    };
+    let five_step_goal = CanonicalScalarGoal::ExactDivisionDefined {
+        integer_type: signed,
+        left: value(1, signed),
+        right: value(8, signed),
+    };
+    let six_step_goal = CanonicalScalarGoal::ExactDivisionDefined {
         integer_type: signed,
         left: value(1, signed),
         right: value(2, signed),
@@ -2371,6 +2381,14 @@ fn exact_division_selects_three_and_four_definition_affine_safe_divisors() {
     );
     let four_step_root_bound = Proposition::LessOrEqual(
         ScalarTerm::integer(signed, IntegerValue::Signed(-3)).expect("i8 -3"),
+        value(3, signed),
+    );
+    let five_step_root_bound = Proposition::LessOrEqual(
+        ScalarTerm::integer(signed, IntegerValue::Signed(-4)).expect("i8 -4"),
+        value(3, signed),
+    );
+    let six_step_root_bound = Proposition::LessOrEqual(
+        ScalarTerm::integer(signed, IntegerValue::Signed(-5)).expect("i8 -5"),
         value(3, signed),
     );
     let definitions = [
@@ -2402,13 +2420,31 @@ fn exact_division_selects_three_and_four_definition_affine_safe_divisors() {
             .expect("third exact add"),
         ),
         Proposition::Equal(
-            value(2, signed),
+            value(7, signed),
             ScalarTerm::exact_integer_add(
                 signed,
                 value(6, signed),
                 ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
             )
             .expect("fourth exact add"),
+        ),
+        Proposition::Equal(
+            value(8, signed),
+            ScalarTerm::exact_integer_add(
+                signed,
+                value(7, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+            )
+            .expect("fifth exact add"),
+        ),
+        Proposition::Equal(
+            value(2, signed),
+            ScalarTerm::exact_integer_add(
+                signed,
+                value(8, signed),
+                ScalarTerm::integer(signed, IntegerValue::Signed(1)).expect("i8 one"),
+            )
+            .expect("sixth exact add"),
         ),
     ];
     assert!(exact_division_has_prior_certificate(
@@ -2423,21 +2459,34 @@ fn exact_division_selects_three_and_four_definition_affine_safe_divisors() {
         &definitions,
         std::slice::from_ref(&four_step_root_bound),
     ));
-    assert!(!exact_division_has_prior_certificate(
+    assert!(exact_division_has_prior_certificate(
         &context,
-        &four_step_goal,
-        &definitions[..3],
-        std::slice::from_ref(&four_step_root_bound),
+        &five_step_goal,
+        &definitions,
+        std::slice::from_ref(&five_step_root_bound),
     ));
     assert!(!exact_division_has_prior_certificate(
         &context,
-        &four_step_goal,
+        &five_step_goal,
+        &definitions[..4],
+        std::slice::from_ref(&five_step_root_bound),
+    ));
+    assert!(!exact_division_has_prior_certificate(
+        &context,
+        &five_step_goal,
         &[
+            definitions[4].clone(),
             definitions[3].clone(),
             definitions[2].clone(),
             definitions[1].clone(),
             definitions[0].clone(),
         ],
-        &[four_step_root_bound],
+        &[five_step_root_bound],
+    ));
+    assert!(!exact_division_has_prior_certificate(
+        &context,
+        &six_step_goal,
+        &definitions,
+        &[six_step_root_bound],
     ));
 }
