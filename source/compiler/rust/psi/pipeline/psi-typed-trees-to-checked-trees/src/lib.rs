@@ -151,6 +151,19 @@ pub(crate) use semantic_calls::call_site_evidence_arguments;
 
 mod proof;
 mod qualification_evidence;
+mod review_sources;
+
+/// Join checked call identity to the earliest typed owner of its exact authored
+/// source span. Compiler-generated calls contribute no authored location.
+///
+/// This is a compiler-internal package-review seam, not a public IR contract.
+pub fn derive_checked_body_call_source_spans(
+    program: &psi_typed_trees::TypedTrees,
+    facts: &psi_checked_trees::CheckFacts,
+    machine_symbol: psi_symbols::SymbolHandle,
+) -> Result<Vec<psi_source::SourceSpan>, Vec<psi_diagnostics::Diagnostic>> {
+    review_sources::derive_checked_body_call_source_spans(program, facts, machine_symbol)
+}
 
 #[cfg(test)]
 pub(crate) use borrow::build_borrow_facts;

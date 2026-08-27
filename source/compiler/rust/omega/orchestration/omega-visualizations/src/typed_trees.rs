@@ -995,6 +995,7 @@ fn transition_target_label(program: &TypedTrees, target: TransitionTargetHandle)
             path,
             arguments,
             evidence_arguments,
+            ..
         } => {
             let path = program
                 .statement_table

@@ -156,6 +156,7 @@ fn lower_statement_node(
                         .into_boxed_slice(),
                     operational_acknowledgement: call.operational_acknowledgement,
                     discards_result: call.discards_result,
+                    authored_call_selection: None,
                 },
             }));
             Ok(hoisted)
@@ -1168,6 +1169,8 @@ fn rewrite_guarded_call_arm(lowerer: &mut Lowerer, target: TransitionTarget) -> 
             path_starts_at_self: false,
             arguments,
             evidence_arguments: Box::default(),
+            source_span: Default::default(),
+            authored_call_selection: None,
         },
     })
 }
@@ -1279,6 +1282,8 @@ fn rewrite_guarded_transition_argument_calls(
             path_starts_at_self: false,
             arguments,
             evidence_arguments: Box::default(),
+            source_span: Default::default(),
+            authored_call_selection: None,
         },
     })
 }
@@ -2013,6 +2018,7 @@ fn lower_transition_target_node(
             path_starts_at_self,
             arguments,
             evidence_arguments,
+            source_span,
         } => {
             let arguments = lower_statement_expressions(lowerer, syntax_trees, *arguments)?;
             // A runtime-indexed read in OPERAND position inside a transition
@@ -2053,6 +2059,8 @@ fn lower_transition_target_node(
                         .map(crate::name::lower_name)
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
+                    source_span: *source_span,
+                    authored_call_selection: None,
                 },
             }))
         }

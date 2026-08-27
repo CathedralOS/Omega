@@ -2388,6 +2388,7 @@ pub enum PackageReviewSourceLocationRole {
     SemanticDependencyDeclaration,
     TraitParent,
     ContractClause,
+    BodyCall,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2710,6 +2711,18 @@ pub fn project_checked_package_review(
             compilation,
             compilation.machine_type_parameters(machine),
             &mut contract_locations,
+        );
+        contract_locations.extend(
+            psi_typed_trees_to_checked_trees::derive_checked_body_call_source_spans(
+                &compilation.typed,
+                &compilation.facts,
+                machine.symbol,
+            )?
+            .into_iter()
+            .map(|source_span| ProjectedNestedSourceLocation {
+                source_span,
+                role: PackageReviewSourceLocationRole::BodyCall,
+            }),
         );
         external_executable_supply.extend(executable_supply.into_iter().map(|row| {
             ProjectedReviewRow {

@@ -5087,6 +5087,45 @@ fn parses_evidence_lane_on_named_transition_without_dropping_it() {
 }
 
 #[test]
+fn tail_self_call_rewrite_retains_the_authored_target_span() {
+    let source = r#"
+        machine repeat(remaining: u64) -> u64
+        terminates by remaining -> Nat::Descending;
+        {
+            repeat(remaining - 1)
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let parsed = parse_syntax_trees(&tokens).expect("tail self call should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine");
+    let state = parsed
+        .items
+        .state(parsed.items.state_handles(machine.states)[0]);
+    let StatementNode::Transition(transition) = parsed
+        .statements
+        .statement(parsed.items.statements(state.statements)[0])
+    else {
+        panic!("tail self call should rewrite to a transition");
+    };
+    let psi_syntax_trees::statement::TransitionTargetNode::Named { source_span, .. } =
+        parsed.statements.transition_target(transition.target)
+    else {
+        panic!("tail self call should retain a named target");
+    };
+    assert_eq!(
+        &source[source_span.span.start..source_span.span.end],
+        "repeat"
+    );
+    assert_eq!(source_span.span.start, source.rfind("repeat").unwrap());
+}
+
+#[test]
 fn rejects_self_as_ordinary_declaration_name() {
     let source = r#"
         data self {}

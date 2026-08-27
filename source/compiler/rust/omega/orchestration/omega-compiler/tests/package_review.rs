@@ -715,6 +715,82 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
+fn callable_review_sources_join_all_authored_checked_body_call_forms() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    let source = r#"machine make() -> u64 { 1u64 }
+machine consume(value: u64) { }
+pub machine api() {
+    consume(make());
+    transition { _ -> done() }
+
+    state done() { }
+}
+"#;
+    package.write("main.omg", source);
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("checked body-call source fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("checked body-call sources should join package review");
+    let api = review
+        .canonical_rows()
+        .expect("body-call canonical rows")
+        .into_iter()
+        .find(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::Callable
+                && row
+                    .key_bytes()
+                    .windows("api".len())
+                    .any(|window| window == b"api")
+        })
+        .expect("public api callable row");
+    let mut body_call_text = api
+        .source()
+        .authored_locations()
+        .expect("public api declaration and body calls")
+        .iter()
+        .filter(|location| location.role() == PackageReviewSourceLocationRole::BodyCall)
+        .map(|location| {
+            let start = usize::try_from(location.start_byte()).unwrap();
+            let end = usize::try_from(location.end_byte()).unwrap();
+            source[start..end].to_owned()
+        })
+        .collect::<Vec<_>>();
+    body_call_text.sort();
+    assert!(body_call_text.iter().any(|text| text == "consume"));
+    assert!(body_call_text.iter().any(|text| text == "make"));
+    assert!(body_call_text.iter().any(|text| text == "done"));
+    let recovered = decode_package_review_canonical_row(
+        &encode_package_review_canonical_row(&api).expect("encode body-call source row"),
+    )
+    .expect("recover body-call source row");
+    assert!(
+        recovered
+            .source()
+            .authored_locations()
+            .is_some_and(|locations| locations
+                .iter()
+                .any(|location| { location.role() == PackageReviewSourceLocationRole::BodyCall }))
+    );
+}
+
+#[test]
 fn carried_transitive_types_project_exact_package_qualified_dependency_rows() {
     let Some(target) = host_target_name() else {
         return;
