@@ -81,6 +81,7 @@ pub(crate) fn append_inherited_trait_contract_facts(
     program: &psi_typed_trees::TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
     contract_facts: &mut psi_arena::Arena<ContractProofFact>,
+    evidence_terms: &psi_arena::Arena<CheckedEvidenceTerm>,
 ) {
     let mut visited_traits = Vec::new();
     for conformance in program.machine_trait_conformances(machine) {
@@ -92,6 +93,7 @@ pub(crate) fn append_inherited_trait_contract_facts(
             machine,
             trait_definition,
             contract_facts,
+            evidence_terms,
             &mut visited_traits,
         );
     }
@@ -102,6 +104,7 @@ fn append_trait_contract_facts_for_machine(
     machine: &psi_typed_trees::machine::Machine,
     trait_definition: &psi_typed_trees::trait_definition::TraitDefinition,
     contract_facts: &mut psi_arena::Arena<ContractProofFact>,
+    evidence_terms: &psi_arena::Arena<CheckedEvidenceTerm>,
     visited_traits: &mut Vec<SymbolHandle>,
 ) {
     if visited_traits
@@ -114,17 +117,47 @@ fn append_trait_contract_facts_for_machine(
     visited_traits.push(trait_definition.symbol);
 
     for signature in program.trait_machine_signatures(trait_definition) {
+        let exact_direct_requirement =
+            machine_selects_exact_requirement(program, machine, trait_definition.symbol, signature);
         let Some((target_machine_symbol, target_state_symbol)) =
-            trait_requirement_state_symbols(program, machine, signature)
+            trait_requirement_state_symbols(program, machine, trait_definition.symbol, signature)
         else {
             continue;
         };
 
+        let mut requires_position = 0usize;
+        let mut ensures_position = 0usize;
         for contract in program.state_signature_contracts(signature) {
             let Some(kind) = super::super::contract_fact_kind(&contract.kind) else {
                 continue;
             };
             for fact in super::super::fact_handles(contract.facts) {
+                let evidence_term = contract.binding.as_ref().and_then(|_| {
+                    if !exact_direct_requirement {
+                        return None;
+                    }
+                    let lane_position = match kind {
+                        ContractProofFactKind::Requires => {
+                            let position = requires_position;
+                            requires_position += 1;
+                            position
+                        }
+                        ContractProofFactKind::Ensures => {
+                            let position = ensures_position;
+                            ensures_position += 1;
+                            position
+                        }
+                    };
+                    evidence_terms.iter().find_map(|(handle, term)| {
+                        (term.owner
+                            == ContractProofFactOwner::Machine {
+                                machine_symbol: target_machine_symbol,
+                            }
+                            && term.kind == kind
+                            && term.lane_position == lane_position)
+                            .then_some(handle)
+                    })
+                });
                 let qualification_authorization =
                     crate::qualification_evidence::boundary_qualification_authorization(
                         program,
@@ -140,7 +173,7 @@ fn append_trait_contract_facts_for_machine(
                         state_symbol: target_state_symbol,
                     },
                     fact,
-                    evidence_term: None,
+                    evidence_term,
                     qualification_authorization,
                 });
             }
@@ -156,6 +189,7 @@ fn append_trait_contract_facts_for_machine(
             machine,
             required_trait,
             contract_facts,
+            evidence_terms,
             visited_traits,
         );
     }
@@ -201,7 +235,10 @@ fn estimated_trait_contract_fact_capacity_for_machine(
     let direct = program
         .trait_machine_signatures(trait_definition)
         .iter()
-        .filter(|signature| trait_requirement_state_symbols(program, machine, signature).is_some())
+        .filter(|signature| {
+            trait_requirement_state_symbols(program, machine, trait_definition.symbol, signature)
+                .is_some()
+        })
         .map(|signature| {
             program
                 .state_signature_contracts(signature)
@@ -231,8 +268,15 @@ fn estimated_trait_contract_fact_capacity_for_machine(
 fn trait_requirement_state_symbols(
     program: &psi_typed_trees::TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
+    trait_symbol: SymbolHandle,
     requirement: &psi_typed_trees::signature::StateSignature,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
+    if machine_selects_exact_requirement(program, machine, trait_symbol, requirement) {
+        return program
+            .machine_states(machine)
+            .first()
+            .map(|state| (machine.symbol, state.symbol));
+    }
     trait_conformance_candidate_machines(program, machine)
         .into_iter()
         .find_map(|candidate| {
@@ -241,6 +285,24 @@ fn trait_requirement_state_symbols(
                 .iter()
                 .find(|state| state.name == requirement.name)
                 .map(|state| (candidate.symbol, state.symbol))
+        })
+}
+
+fn machine_selects_exact_requirement(
+    program: &psi_typed_trees::TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    trait_symbol: SymbolHandle,
+    requirement: &psi_typed_trees::signature::StateSignature,
+) -> bool {
+    program
+        .machine_trait_conformances(machine)
+        .iter()
+        .any(|conformance| {
+            conformance.symbol == trait_symbol
+                && conformance
+                    .requirement
+                    .as_ref()
+                    .is_some_and(|name| *name == requirement.name)
         })
 }
 

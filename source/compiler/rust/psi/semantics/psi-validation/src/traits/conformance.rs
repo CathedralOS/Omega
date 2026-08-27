@@ -1306,6 +1306,16 @@ fn validate_machine_single_requirement(
         diagnostics,
     );
 
+    validate_concrete_named_evidence_contract_conformance(
+        program,
+        machine,
+        entry_state,
+        trait_definition,
+        requirement,
+        explicit_type_arguments,
+        diagnostics,
+    );
+
     // A LAW requirement (ensures on the requirement) demands the satisfier
     // PROVE the law: proven-ensures |= declared-law, forall-to-forall.
     crate::contract_entailment::check_law_conformance(
@@ -1317,6 +1327,220 @@ fn validate_machine_single_requirement(
         explicit_type_arguments,
         diagnostics,
     );
+}
+
+/// Validate the first deliberately closed named-witness conformance surface.
+///
+/// Incoming names are satisfier-local aliases, while outgoing names are the
+/// requirement's public selectors. Both lanes otherwise retain exact order,
+/// proposition application, and evidence-interface identity. Generic trait,
+/// requirement, machine, and proposition telescopes remain fenced until the
+/// conformance substitution carrier owns their complete identities.
+#[allow(clippy::too_many_arguments)]
+fn validate_concrete_named_evidence_contract_conformance(
+    program: &TypedTrees,
+    machine: &Machine,
+    entry_state: &State,
+    trait_definition: &TraitDefinition,
+    requirement: &StateSignature,
+    explicit_type_arguments: &[TypeReferenceHandle],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let required_requires = named_contracts(
+        program.state_signature_contracts(requirement),
+        SignatureContractKind::Requires,
+    );
+    let required_ensures = named_contracts(
+        program.state_signature_contracts(requirement),
+        SignatureContractKind::Ensures,
+    );
+    let actual_requires = named_contracts(
+        program.machine_contracts(machine),
+        SignatureContractKind::Requires,
+    );
+    let actual_ensures = named_contracts(
+        program.machine_contracts(machine),
+        SignatureContractKind::Ensures,
+    );
+    if required_requires.is_empty()
+        && required_ensures.is_empty()
+        && actual_requires.is_empty()
+        && actual_ensures.is_empty()
+    {
+        return;
+    }
+
+    if !explicit_type_arguments.is_empty()
+        || !trait_definition.lifetime_parameters.is_empty()
+        || !program.trait_type_parameters(trait_definition).is_empty()
+        || !requirement.lifetime_parameters.is_empty()
+        || !program
+            .state_signature_type_parameters(requirement)
+            .is_empty()
+        || !machine.lifetime_parameters.is_empty()
+        || !program.machine_type_parameters(machine).is_empty()
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` satisfies `{}::{}` with named evidence, but named-witness conformance currently requires a concrete non-generic trait, requirement, and satisfier",
+            machine.name, trait_definition.name, requirement.name,
+        )));
+        return;
+    }
+
+    validate_named_contract_lane(
+        program,
+        machine,
+        entry_state,
+        trait_definition,
+        requirement,
+        SignatureContractKind::Requires,
+        &required_requires,
+        &actual_requires,
+        false,
+        diagnostics,
+    );
+    validate_named_contract_lane(
+        program,
+        machine,
+        entry_state,
+        trait_definition,
+        requirement,
+        SignatureContractKind::Ensures,
+        &required_ensures,
+        &actual_ensures,
+        true,
+        diagnostics,
+    );
+}
+
+fn named_contracts(
+    contracts: &[psi_typed_trees::signature::SignatureContract],
+    kind: SignatureContractKind,
+) -> Vec<&psi_typed_trees::signature::SignatureContract> {
+    contracts
+        .iter()
+        .filter(|contract| contract.kind == kind && contract.binding.is_some())
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_named_contract_lane(
+    program: &TypedTrees,
+    machine: &Machine,
+    entry_state: &State,
+    trait_definition: &TraitDefinition,
+    requirement: &StateSignature,
+    kind: SignatureContractKind,
+    required: &[&psi_typed_trees::signature::SignatureContract],
+    actual: &[&psi_typed_trees::signature::SignatureContract],
+    permits_strengthening: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let lane = match kind {
+        SignatureContractKind::Requires => "requires",
+        SignatureContractKind::Ensures => "ensures",
+        _ => unreachable!("named conformance lane is requires or ensures"),
+    };
+    let cardinality_matches = if permits_strengthening {
+        actual.len() >= required.len()
+    } else {
+        actual.len() == required.len()
+    };
+    if !cardinality_matches {
+        let expectation = if permits_strengthening {
+            format!("at least {}", required.len())
+        } else {
+            required.len().to_string()
+        };
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` satisfies `{}::{}` but its named {lane} lane has {} row(s); the requirement owns {expectation}",
+            machine.name,
+            trait_definition.name,
+            requirement.name,
+            actual.len(),
+        )));
+        return;
+    }
+
+    let parameter_substitutions = program
+        .state_signature_parameters(requirement)
+        .iter()
+        .zip(program.state_parameters(entry_state))
+        .map(|(required, actual)| {
+            (
+                required.symbol,
+                required.name.as_str().to_owned(),
+                actual.name.as_str().to_owned(),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    for (lane_position, (required, actual)) in required.iter().zip(actual).enumerate() {
+        let required_name = required
+            .binding
+            .as_ref()
+            .expect("named requirement row has a binding");
+        let actual_name = actual
+            .binding
+            .as_ref()
+            .expect("named satisfier row has a binding");
+        if kind == SignatureContractKind::Ensures && required_name != actual_name {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` satisfies `{}::{}` but named ensures lane {} renames public selector `{required_name}` to `{actual_name}`",
+                machine.name,
+                trait_definition.name,
+                requirement.name,
+                lane_position,
+            )));
+            continue;
+        }
+
+        let required_facts = program.proof_facts.span_or_empty(required.facts);
+        let actual_facts = program.proof_facts.span_or_empty(actual.facts);
+        let (
+            [ProofFact::Proposition(required_application)],
+            [ProofFact::Proposition(actual_application)],
+        ) = (required_facts, actual_facts)
+        else {
+            // Named-contract validation owns the malformed-row diagnostics.
+            continue;
+        };
+        if !required_application.binder_arguments.is_empty()
+            || !actual_application.binder_arguments.is_empty()
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` satisfies `{}::{}` but named {lane} lane {} uses a generic proposition telescope; this first conformance rung is concrete only",
+                machine.name,
+                trait_definition.name,
+                requirement.name,
+                lane_position,
+            )));
+            continue;
+        }
+        let argument_labels = program
+            .expression_table
+            .expression_handles(required_application.arguments)
+            .iter()
+            .map(|argument| {
+                program.render_proof_expression_with_parameters(*argument, &parameter_substitutions)
+            })
+            .collect::<Vec<_>>();
+        let expected = program.normalize_nominal_proposition_application_with_labels(
+            required_application,
+            &[],
+            &argument_labels,
+        );
+        let observed = program.normalize_nominal_proposition_application(actual_application);
+        if expected != observed {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` satisfies `{}::{}` but named {lane} lane {} does not retain the requirement's exact proposition and evidence interface",
+                machine.name,
+                trait_definition.name,
+                requirement.name,
+                lane_position,
+            )));
+        }
+    }
 }
 
 /// Compose a parent edge such as `Forwarded<U>: Sink<U>` with the concrete

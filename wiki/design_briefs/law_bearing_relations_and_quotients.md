@@ -158,6 +158,16 @@ opaque requirement-level witness declared by the trait, never a satisfier-
 private proof identity or projection. This preservation is semantic only: no
 evidence lane contributes runtime ABI storage or dispatch fields.
 
+The first checked conformance rung implements that rule for one concrete,
+non-generic satisfier and requirement. Named input aliases may differ locally,
+but lane cardinality/order, normalized proposition, and carrierless evidence
+interface must match; named outputs additionally retain the exact public
+selector, with concrete strengthening appended only after the inherited
+prefix. The inherited fact rows reuse the satisfier's exact checked evidence
+terms and lane positions. Generic substitution, defaults, requirement calls,
+dynamic dispatch, Terminal publication, and package exposure remain fenced
+until their owners can retain the same identities.
+
 The initial forwarding form is a bare-name assignment from a current machine's
 named `requires` term to one of its named `ensures` terms. It erases before the
 runtime statement stream and records an exact checked source-to-output binding;
