@@ -1026,8 +1026,14 @@ Remaining:
   canary; do not invent an `Unbounded` production variant solely to reject it.
   Source, canonical-codec, and verifier canaries now close
   coherent understatement of a producer schema against its independent owner
-  projection; retain that invariant through the remaining artifact and
-  installation work rather than adding a second authored total.
+  projection. Downstream artifact prebinding now also cross-pairs two
+  independently valid but semantically distinct Terminal artifacts and proves
+  that neither producer catalog can describe the other's artifact identity;
+  rejection commits no prebinding and exact retry succeeds. The real
+  source-to-installation handoff likewise rejects a materialization plan that
+  understates the owner-derived interval capacity, returns the exact account,
+  and then accepts the full verified geometry. Retain those invariants through
+  the remaining installation work rather than adding a second authored total.
   A shared cap is one aggregate parent root divided among children; another
   child without supply rejects. Cross-epoch limits require persistent authority.
 - **BOUNDARY-ISSUANCE** (after conservation): derive invocation geometry from
