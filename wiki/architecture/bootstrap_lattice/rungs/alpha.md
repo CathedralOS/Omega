@@ -30,7 +30,7 @@ is per-platform.
 Alpha is role #1 (executor); its meaning is pinned by a **small-step operational
 semantics** — a written, per-opcode description of how `(pc, memory, registers,
 stack)` transitions, what `getbyte`/`putbyte` observe, and what `halt`/`trap`/
-out-of-memory produce. [`bootstrap/alpha/SEMANTICS.md`](../../../../bootstrap/alpha/SEMANTICS.md)
+out-of-memory produce. [`source/alpha/SEMANTICS.md`](../../../../source/alpha/SEMANTICS.md)
 is that specification. The `.hex` listing audited against the native binary is
 an encoding, not a substitute for the semantics.
 
@@ -42,7 +42,7 @@ meaningful, or correct — only that it computes deterministically.
 
 ## Current repo reality
 
-`bootstrap/alpha/` is a 21-opcode register tape VM (`halt, imm, mov, add, sub,
+`source/alpha/` is a 21-opcode register tape VM (`halt, imm, mov, add, sub,
 mul, div, mod, loadb, storeb, load, store, jmp, jz, jnz, jlt, jeq, read, write,
 call, ret`; unknown opcode → trap). Shipped as **two independent per-platform
 seeds**, each hand-authored against the same semantics:
@@ -70,9 +70,9 @@ multiplicity—supply authority.
 Gaps versus this target, all small and self-contained:
 
 - **Written small-step semantics — DONE.**
-  [`bootstrap/alpha/SEMANTICS.md`](../../../../bootstrap/alpha/SEMANTICS.md) is the
+  [`source/alpha/SEMANTICS.md`](../../../../source/alpha/SEMANTICS.md) is the
   per-opcode operational spec the seeds are audited against, and
-  [`conformance.sh`](../../../../bootstrap/alpha/conformance.sh) is its executable
+  [`conformance.sh`](../../../../source/alpha/conformance.sh) is its executable
   companion — hand-built tapes pinning every rule and edge (signed div/mod,
   signed `jlt`, EOF, the three traps) that any seed must pass. (The two committed
   seeds both implement it; div/mod now trap on `INT_MIN/-1` to match the x64

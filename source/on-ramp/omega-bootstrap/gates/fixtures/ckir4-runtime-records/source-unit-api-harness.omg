@@ -1,0 +1,11 @@
+// Same logical module and owner as exact source/psi/source/source.omg.
+// Compose the complete SourceUnit API through already-admitted CKIR4 forms.
+machine SourceUnit::bootstrap_source_api_probe(&mut self) -> u8 {
+    transition { _ -> run() }
+
+    state run(&mut self) {
+        self.clear(SourceId { value: 1 });
+        self.append(70);
+        self.byte_or_nul(0)
+    }
+}

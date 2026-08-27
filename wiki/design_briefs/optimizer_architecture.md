@@ -31,7 +31,7 @@ repeat milestone history.
 The repository currently has two backend lanes.
 
 - The installed-output compatibility path in
-  `source/compiler/rust/omega/` still lowers `CheckedTrees -> StateGraph ->
+  `source/on-ramp/rust/omega/` still lowers `CheckedTrees -> StateGraph ->
   ControlFlowPlan -> AbstractOperations`. Its state-value planner performs
   useful expression substitution and constant folding, but it still consumes
   checked-tree expression handles. The retained-native product no longer uses
@@ -1858,10 +1858,10 @@ actually identity-bound.
 ## Folder ownership
 
 The final Omega-written product source belongs under
-`source/compiler/omega/omega/`:
+`source/omega/`:
 
 ```text
-source/compiler/omega/omega/
+source/omega/
   optimization/
     core/                 # selections, rule IDs, decisions, reports, ledgers
     psi/                  # target-neutral Terminal-Psi-derived optimizer
@@ -1877,7 +1877,7 @@ source/compiler/omega/omega/
 ```
 
 During the Rust migration/reference phase, mirror responsibility rather than
-files under `source/compiler/rust/omega/`:
+files under `source/on-ramp/rust/omega/`:
 
 ```text
 omega/

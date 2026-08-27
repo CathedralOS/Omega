@@ -3,9 +3,9 @@
 [Lattice overview](../bootstrap_lattice.md) | Prev: [Gamma](gamma.md) | Next:
 [Omega product toolchain](../omega_toolchain.md)
 
-> **Status: WORKING RUNG.** `bootstrap/delta/` owns the language corpus,
+> **Status: WORKING RUNG.** `source/delta/` owns the language corpus,
 > Delta-written compiler, and lattice-built artifacts. The disposable Rust
-> producer lives separately under `bootstrap/delta/rust/`. Native,
+> producer lives separately under `source/on-ramp/rust/delta/`. Native,
 > self-hosting, and Delta-to-Gamma meaning gates exist today; exact lower-rung
 > coverage of the eventual `omega-bootstrap` compiler remains open.
 
@@ -66,27 +66,27 @@ substitute for this required publication and refinement join.
 
 ## Implementation
 
-- `bootstrap/delta/samples/` is the canonical executable language corpus.
-- `bootstrap/delta/samples/lowermachine.alp` is the self-hosting compiler
+- `source/delta/samples/` is the canonical executable language corpus.
+- `source/delta/samples/lowermachine.alp` is the self-hosting compiler
   written in Delta.
-- `bootstrap/delta/rust/` is the current disposable Rust producer and
+- `source/on-ramp/rust/delta/` is the current disposable Rust producer and
   executable reference. The former `compiler/delta-rs` entry is retired.
 - `DELTA_EMIT=gamma` exposes the Rust reference elaborator. The
   `delta-meaning-diamond.sh` gate compares it with native execution; it is useful
   regression evidence, not the final authority.
-- `bootstrap/omega-bootstrap/meaning/omega2gamma.beta` is the lower-rung, Rust-free elaborator for
+- `source/on-ramp/omega-bootstrap/meaning/omega2gamma.beta` is the lower-rung, Rust-free elaborator for
   the shared Delta/Omega machine surface. Gamma's `interp.beta` executes its
   result. Exact coverage of the Delta source eventually used by
   both the Delta compiler and `omega-bootstrap` remains the closure criterion.
-- `bootstrap/delta/build/` contains the checked-in bootstrap binaries
+- `source/delta/build/` contains the checked-in bootstrap binaries
   produced by this work.
-- `bootstrap/delta/samples/bootstrap-storage.alp` is the first fixed-backing
+- `source/delta/samples/bootstrap-storage.alp` is the first fixed-backing
   storage profile canary. It uses checked integer-offset reservations and bulk
   reset without adding pointers or a general heap to Delta.
-- `bootstrap/delta/rust/delta-storage-meaning.sh` evaluates that canary and a
+- `source/on-ramp/rust/delta/delta-storage-meaning.sh` evaluates that canary and a
   perturbation through `omega2gamma.beta` and Gamma's `interp.beta`, without the
   Rust Gamma emitter defining the result.
-- `bootstrap/omega-bootstrap/compiler/omega-bootstrap-frontend.alp` is the
+- `source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-frontend.alp` is the
   historical O0/O1 and bounded-scalar bridge regression slice written in Delta.
   It decodes the complete bounded canonical
   bundle, retains unit provenance, validates each unit independently, and admits
@@ -96,15 +96,15 @@ substitute for this required publication and refinement join.
   through Delta-written `lowermachine`; the lower-rung meaning gate executes the
   complete frontend through `omega2gamma.beta` and Gamma. The old Delta-sample
   path is compatibility plumbing.
-- `bootstrap/omega-bootstrap/compiler/BOOTSTRAP_PROFILES.md` freezes the current Delta D0
+- `source/on-ramp/omega-bootstrap/compiler/BOOTSTRAP_PROFILES.md` freezes the current Delta D0
   implementation profile, Omega O0/O1 vertical-canary input profiles, and the
   profile-neutral scalar-call conformance slice; the production `Ωself` profile
   remains source-derived.
-- `bootstrap/omega-bootstrap/compiler/omega-bootstrap-terminal-to-elf.alp` is
+- `source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-terminal-to-elf.alp` is
   the matching historical direct-artifact backend. It emits exact O0/O1 and
   bounded scalar-call Linux x86-64 images without a host assembler or linker;
   general Omega lowering remains open.
-- `bootstrap/omega-bootstrap/compiler/omega-bootstrap-source-custody-check.alp`
+- `source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-source-custody-check.alp`
   is the first checkpoint-driven general frontend cost probe. Its corresponding
   artifact task has selected a private versioned checked IR and direct
   conservative backend rather than a Terminal-Psi widening. That choice does

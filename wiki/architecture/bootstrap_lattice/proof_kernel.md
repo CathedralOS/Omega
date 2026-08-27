@@ -11,7 +11,7 @@ The proof kernel is deliberately not a language rung. Programs do not elaborate
 through it, and it adds no stage between Gamma and Delta. It is an assurance
 service used by producers and artifact verifiers throughout the build lattice.
 
-Its canonical owner is `source/assurance/proof-kernel/`. Beta, Gamma, and
+Its canonical owner is `source/proof-kernel/`. Beta, Gamma, and
 executable reference implementations live under `implementations/`; untrusted automation,
 fixtures, and executable policy live under `tools/`, `corpus/`, and `gates/`.
 The product-local Rust crate `psi-proof-admission` remains under Psi semantics;
@@ -43,10 +43,10 @@ they gain no authority by producing a candidate certificate.
 
 The principal low-rung implementations are:
 
-- `source/assurance/proof-kernel/implementations/beta/check.beta` — logical proof checking in Beta;
-- `source/assurance/proof-kernel/implementations/beta/eq.beta` — fuel-bounded definitional equality;
-- `source/assurance/proof-kernel/implementations/gamma/checker.gamma` — independently written Gamma checker;
-- `source/assurance/proof-kernel/implementations/gamma/checker_typed.gamma` — typed Gamma form checked by Gamma's
+- `source/proof-kernel/implementations/beta/check.beta` — logical proof checking in Beta;
+- `source/proof-kernel/implementations/beta/eq.beta` — fuel-bounded definitional equality;
+- `source/proof-kernel/implementations/gamma/checker.gamma` — independently written Gamma checker;
+- `source/proof-kernel/implementations/gamma/checker_typed.gamma` — typed Gamma form checked by Gamma's
   static type checker.
 
 They are separately written implementations of a shared calculus. Shared

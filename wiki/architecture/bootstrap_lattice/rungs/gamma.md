@@ -39,17 +39,17 @@ and auditable.
 
 ## Current repository reality
 
-- `bootstrap/gamma/interp.beta` — canonical pure, fuel-bounded interpreter;
+- `source/gamma/interp.beta` — canonical pure, fuel-bounded interpreter;
   tail-position control is trampolined, while dense integers and ordinary
   two-field `Cons` values use semantics-transparent compact representations so
   compiler-sized reference evaluation remains bounded without enlarging Alpha's
   fixed memory;
-- `bootstrap/gamma/typeck.beta` — static checker for `Int`, declared ADTs,
+- `source/gamma/typeck.beta` — static checker for `Int`, declared ADTs,
   functions, constructors, and matches;
-- `source/assurance/proof-kernel/implementations/gamma/` — independent
+- `source/proof-kernel/implementations/gamma/` — independent
   proof-kernel implementations hosted by Gamma, owned by assurance rather than
   the language rung;
-- `bootstrap/gamma/canonical-bytes/` and
+- `source/gamma/canonical-bytes/` and
   `terminal-codec-primitives/` — reusable typed byte and terminal-grammar
   fragments, without a fixed-version live terminal decoder.
 

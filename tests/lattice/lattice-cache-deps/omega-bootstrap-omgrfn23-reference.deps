@@ -1,0 +1,45 @@
+# Precise cache profile for OMGRFN23's independent TokenStream R1-R5 owners and
+# responsibility-split persisted/self-Beta projections. Producers stay out.
+script source/refinement/delta-omega-bootstrap/omgrfn23-reference.sh
+
+input tools/bootstrap/paths.sh
+input source/alpha/seed_env.sh
+input source/alpha/alpha_arm64_macos
+input source/alpha/assembler/beta_arm64_macos
+input source/beta/artifact_env.sh
+input source/beta/artifacts/bc.tape
+input source/beta/bc.beta
+input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md
+input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V12.md
+input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V20.md
+input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_LOWERING_V21.md
+input source/on-ramp/omega-bootstrap/compiler/omega_bootstrap_bundle.py
+input source/on-ramp/omega-bootstrap/compiler/omega_bootstrap_compilation.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v2_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v3_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v4_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v5_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v20_reference.py
+input source/on-ramp/omega-bootstrap/gates/delta-checked-ir-v20-fixture.py
+input source/on-ramp/omega-bootstrap/gates/omgrsw12_token_stream_fixture.py
+input source/refinement/delta-omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V23.md
+input source/refinement/delta-omega-bootstrap/omgrfn23-beta-join.sh
+input source/refinement/delta-omega-bootstrap/omgrfn23-materialize-beta.py
+input source/refinement/delta-omega-bootstrap/omgrfn23-r1.py
+input source/refinement/delta-omega-bootstrap/omgrfn23-r2.py
+input source/refinement/delta-omega-bootstrap/omgrfn23-r3.py
+input source/refinement/delta-omega-bootstrap/omgrfn23-r4-lowering.py
+input source/refinement/delta-omega-bootstrap/omgrfn23-r4-source-result.py
+input source/refinement/delta-omega-bootstrap/omgrfn23-r5-elf.py
+input source/refinement/delta-omega-bootstrap/omgrfn23-r5-result.py
+input source/refinement/delta-omega-bootstrap/omgrfn23-r5-structure.py
+input source/refinement/delta-omega-bootstrap/omgrfn23_bundle.py
+input source/refinement/delta-omega-bootstrap/omgrfn23_ckir.py
+input source/refinement/delta-omega-bootstrap/omgrfn23_elf.py
+input source/refinement/delta-omega-bootstrap/omgrfn23_frame.py
+input source/refinement/delta-omega-bootstrap/omgrfn23_gate.py
+input source/refinement/delta-omega-bootstrap/omgrfn23_lowering.py
+input source/refinement/delta-omega-bootstrap/omgrfn23_owner.py
+input source/refinement/delta-omega-bootstrap/omgrfn23_owner_test.py
+input source/refinement/delta-omega-bootstrap/omgrfn23_profiles.py
+input source/refinement/delta-omega-bootstrap/omgrfn23_source.py

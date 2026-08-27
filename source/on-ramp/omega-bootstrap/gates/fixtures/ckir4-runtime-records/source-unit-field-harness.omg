@@ -1,0 +1,13 @@
+// Same logical module as source/psi/source/source.omg.  The leading scalar
+// makes the SourceUnit receiver address observably distinct from the root.
+data SourceHost {
+    prefix: u8;
+    source: SourceUnit;
+}
+
+machine SourceHost::run(&mut self) -> u8 {
+    self.prefix = 1;
+    self.source.clear(SourceId { value: 1 });
+    self.source.append(70);
+    self.source.byte_or_nul(0)
+}

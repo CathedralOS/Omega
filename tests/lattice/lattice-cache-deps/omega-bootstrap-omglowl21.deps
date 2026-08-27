@@ -1,0 +1,35 @@
+# Precise cache profile for focused OMGCOMP1 -> OMGRSWC12 -> CKIR20 native/self
+# production and the compact persisted-Beta/Gamma facility-meaning join.
+script source/on-ramp/omega-bootstrap/gates/delta-token-stream-to-ckir20.sh
+script source/on-ramp/omega-bootstrap/gates/delta-token-stream-to-ckir20-meaning.sh
+
+input tools/bootstrap/paths.sh
+input source/on-ramp/rust/delta
+input source/delta/samples/lowermachine.alp
+input source/alpha/seed_env.sh
+input source/alpha/alpha_arm64_macos
+input source/alpha/assembler/beta_arm64_macos
+input source/beta/artifact_env.sh
+input source/beta/artifacts/bc.tape
+input source/gamma/interp.beta
+input source/on-ramp/omega-bootstrap/meaning/omega2gamma.beta
+input source/on-ramp/omega-bootstrap/meaning/decode-gamma-output.py
+input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md
+input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V12.md
+input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V20.md
+input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_LOWERING_V21.md
+input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-token-stream-resolve.alp
+input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-token-stream-to-ckir.alp
+input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-token-stream-meaning-probe.alp
+input source/on-ramp/omega-bootstrap/compiler/omega_bootstrap_bundle.py
+input source/on-ramp/omega-bootstrap/compiler/omega_bootstrap_compilation.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v2_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v3_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v4_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v5_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v20_reference.py
+input source/on-ramp/omega-bootstrap/gates/delta-checked-ir-v20-fixture.py
+input source/on-ramp/omega-bootstrap/gates/delta-ckir4-meaning-runner.py
+input source/on-ramp/omega-bootstrap/gates/delta-record-array-to-ckir19-meaning.sh
+input source/on-ramp/omega-bootstrap/gates/delta-token-stream-to-ckir20-fixture.py
+input source/on-ramp/omega-bootstrap/gates/omgrsw12_token_stream_fixture.py

@@ -82,20 +82,20 @@ Must not own:
 ## Implementation Map
 
 The Psi product role owns this stage and its eventual hosted source belongs
-under `source/compiler/omega/psi/`. The current Rust implementation makes typed semantic
+under `source/psi/`. The current Rust implementation makes typed semantic
 surfaces visible by file:
 
-- `source/compiler/rust/psi/pipeline/psi-symbol-resolved-trees-to-typed-trees` contains the
+- `source/on-ramp/rust/psi/pipeline/psi-symbol-resolved-trees-to-typed-trees` contains the
   stage implementation. All workspace consumers invoke it directly.
 
-- `source/compiler/rust/psi/foundation/psi-language-semantics` contains canonical
+- `source/on-ramp/rust/psi/foundation/psi-language-semantics` contains canonical
   const-value atoms and normalized wire scalar ranges used by typed
   normalization.
-- `source/compiler/rust/psi/foundation/{psi-extents,psi-layout-plans,psi-access-plans}`
+- `source/on-ramp/rust/psi/foundation/{psi-extents,psi-layout-plans,psi-access-plans}`
   contain the normalized author-selected geometry and placed-access semantics that
   typed `Placed<P, T>` surfaces retain. Concrete ABI selection and target
   lowering remain Omega-owned.
-- `source/compiler/rust/psi/representations/psi-typed-trees` contains the typed source
+- `source/on-ramp/rust/psi/representations/psi-typed-trees` contains the typed source
   representation. Consumers depend on this Psi owner directly.
 
 - `lowerer.rs` owns stage entry and the top-level lowering conveyor. Behavior

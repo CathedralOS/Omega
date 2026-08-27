@@ -97,23 +97,23 @@ The distinction is architectural:
 
 ## Current repository roles
 
-- `source/compiler/rust/{psi,omega}/` is the current working Rust
+- `source/on-ramp/rust/{psi,omega}/` is the current working Rust
   compiler and executable reference producer;
-  `source/compiler/rust/apps/omega-cli/` is its user-facing executable.
-- `source/compiler/omega/{psi,omega}/` owns the Omega-written product source. Checkpoint
+  `source/on-ramp/rust/apps/omega-cli/` is its user-facing executable.
+- `source/omega/{psi,omega}/` owns the Omega-written product source. Checkpoint
   000001 implements the complete Psi source-to-token spelling phase under
-  `source/compiler/omega/psi/`; later Psi phases and `source/compiler/omega/omega/` remain open. Hosted
-  product entrypoints live under `source/compiler/omega/`, and exact closure and
-  profile snapshots live under `source/compiler/omega/source-checkpoints/`.
-- `bootstrap/omega-bootstrap/` is the owner for Rust-free meaning,
+  `source/psi/`; later Psi phases and `source/omega/` remain open. Hosted
+  product entrypoints live under `source/omega/`, and exact closure and
+  profile snapshots live under `source/omega/source-checkpoints/`.
+- `source/on-ramp/omega-bootstrap/` is the owner for Rust-free meaning,
   Delta-written bridge-compiler slices/profiles, and bootstrap validation.
-- `bootstrap/delta/` owns the bootstrap language corpus and Delta-written
-  compiler; `bootstrap/delta/rust/` is its disposable Rust producer.
+- `source/delta/` owns the bootstrap language corpus and Delta-written
+  compiler; `source/on-ramp/rust/delta/` is its disposable Rust producer.
   Together their current gates are growing toward `omega-bootstrap` without
   assigning language ownership to Rust.
 
 Role-local Rust bootstrap producers live beneath their rung; the current Rust
-Psi/Omega compiler lives at `source/compiler/rust/`. Neither location grants
+Psi/Omega compiler lives at `source/on-ramp/rust/`. Neither location grants
 semantic authority. See the [repository structure](repository_structure.md).
 
 Hosting does not by itself prove compiler correctness. A defect in
@@ -148,7 +148,7 @@ regression canaries. They establish useful source-to-terminal, direct-ELF,
 resource, self-built, and lower-rung-meaning seams, but they are not numbered
 compiler generations and admit no feature to `Ωself`. Their exact contracts,
 limits, observations, and remaining target boundaries live beside the bridge in
-[`BOOTSTRAP_PROFILES.md`](../../../bootstrap/omega-bootstrap/compiler/BOOTSTRAP_PROFILES.md)
-and the [bridge README](../../../bootstrap/omega-bootstrap/README.md). New
+[`BOOTSTRAP_PROFILES.md`](../../../source/on-ramp/omega-bootstrap/compiler/BOOTSTRAP_PROFILES.md)
+and the [bridge README](../../../source/on-ramp/omega-bootstrap/README.md). New
 architecture should be derived from the complete source contracts above, not
 from those historical canary envelopes.

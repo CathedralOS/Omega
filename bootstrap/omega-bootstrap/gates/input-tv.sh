@@ -1,1 +1,0 @@
-../../../source/assurance/refinement/omega-bootstrap/input-tv.sh

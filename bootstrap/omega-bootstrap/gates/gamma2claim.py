@@ -1,1 +1,0 @@
-../../../source/assurance/refinement/omega-bootstrap/gamma2claim.py

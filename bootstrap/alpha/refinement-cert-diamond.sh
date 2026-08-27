@@ -1,1 +1,0 @@
-../../source/assurance/refinement/beta/refinement-cert-diamond.sh

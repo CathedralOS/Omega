@@ -1,0 +1,11 @@
+# Precise cache profile for the platform-neutral CKIR19 record-array checked
+# execution reference. Producer, backend, meaning, and refinement stay outside.
+script source/on-ramp/omega-bootstrap/gates/delta-checked-ir-v19-reference.sh
+
+input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V19.md
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v2_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v3_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v4_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v5_reference.py
+input source/on-ramp/omega-bootstrap/gates/checked_ir_v19_reference.py
+input source/on-ramp/omega-bootstrap/gates/delta-checked-ir-v19-fixture.py

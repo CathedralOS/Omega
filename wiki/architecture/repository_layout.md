@@ -37,13 +37,13 @@ object/linker/image writers remain placement intent rather than current
 packages.
 
 > **Ownership boundary.** The current Cargo implementation is explicitly an
-> external-language producer under `source/compiler/rust/`. Its `psi/`
+> external-language producer under `source/on-ramp/rust/`. Its `psi/`
 > half implements parsing and target-neutral semantics through terminal Psi;
 > its `omega/` half implements provider, ABI, target, artifact, and execution
-> machinery. `source/compiler/omega/{psi,omega}/` owns Omega-written product source; the
+> machinery. `source/{psi,omega}/` owns Omega-written product source; the
 > first Psi lexical checkpoint has landed while later phases remain open.
 > Bootstrap gates resolve cross-owner locations through the
-> role manifest in `bootstrap/paths.sh`; new cross-owner sibling-relative paths
+> role manifest in `tools/bootstrap/paths.sh`; new cross-owner sibling-relative paths
 > are rejected. The tree below documents the current Cargo/product structure;
 > the canonical bootstrap inventory is documented in the
 > [bootstrap repository structure](bootstrap_lattice/repository_structure.md),
@@ -59,7 +59,7 @@ packages.
 Omega/
 |-- Cargo.toml
 |-- README.md
-|-- source/compiler/rust/
+|-- source/on-ramp/rust/
 |   |-- apps/
 |   |   `-- [CRATE] omega-cli/                            # Current Rust `omega` development command.
 |   |
@@ -182,16 +182,24 @@ Omega/
 |           |-- [CRATE] omega-native-differential-test/    # Cross-layer Psi-interpreter/native differential tests only.
 |           `-- [CRATE] omega-visualizations/             # Visualization/dump views of pipeline artifacts.
 |
-|-- source/compiler/omega/                                 # Hosted Omega-written product compiler.
-|   |-- build.omg                                          # Product build/composition entrypoint.
-|   |-- main.omg                                           # Product machine entrypoint.
-|   |-- psi/                                               # Omega-written Psi source; lexical checkpoint landed.
-|   |-- omega/                                             # Omega-written backend/optimizer owner; implementation open.
-|   `-- source-checkpoints/                                # Exact product closures and provisional Ωself censuses.
+|-- source/
+|   |-- alpha/                                             # Alpha semantics, seeds, and assembler.
+|   |-- beta/                                              # Beta language, compiler, and reference meaning.
+|   |-- gamma/                                             # Gamma language, interpreter, and type checker.
+|   |-- delta/                                             # Delta language, compiler, and canonical artifacts.
+|   |-- psi/                                               # Omega-written target-neutral product compiler source.
+|   |-- omega/                                             # Omega-written target realization and product entrypoint.
+|   |   |-- build.omg                                      # Product build/composition entrypoint.
+|   |   |-- main.omg                                       # Product machine entrypoint.
+|   |   `-- source-checkpoints/                            # Exact product closures and provisional Ωself censuses.
+|   |-- proof-kernel/                                      # Cross-cutting proof checking.
+|   |-- refinement/                                        # Explicit checked joins between semantic owners.
+|   `-- on-ramp/                                           # Replaceable external or bridge implementations.
+|       |-- rust/                                          # Current Rust producers, including CLI and compiler.
+|       `-- omega-bootstrap/                               # Delta-written hosted-build bridge.
 |
-|-- source/assurance/                                      # Cross-cutting proof and refinement services.
-|-- bootstrap/{alpha,beta,gamma,delta}/                    # Rungs with their role-local producers.
-|-- bootstrap/gates/{corpus,lattice-cache-deps}/           # Shared lattice inputs and cache manifests.
+|-- tests/lattice/{corpus,lattice-cache-deps}/             # Shared lattice inputs and cache manifests.
+|-- tools/bootstrap/                                       # Lattice orchestration and path gates.
 |
 |-- omega/
 |   `-- language/
@@ -220,21 +228,24 @@ The displayed tree is the canonical ownership shape. The unblocked relocation
 steps are complete:
 
 ```text
-source/compiler/rust/                 current Rust compiler producer
-source/compiler/omega/                Omega-written product compiler and entrypoint
-source/assurance/                     cross-cutting proof and refinement services
-bootstrap/{alpha,beta,gamma,delta}/   language rungs and their role-local producers
-bootstrap/omega-bootstrap/            Delta-written hosted-build bridge
-bootstrap/gates/                      shared lattice corpora and cache manifests
-tests/{canaries,fixtures}/            language and package integration tests
-tools/                                repository maintenance scripts
+source/{alpha,beta,gamma,delta}/       canonical language rungs
+source/{psi,omega}/                    Omega-written product compiler halves
+source/proof-kernel/                   cross-cutting proof checking
+source/refinement/                     explicit cross-owner refinement joins
+source/on-ramp/rust/                   current Rust producers
+source/on-ramp/omega-bootstrap/        Delta-written hosted-build bridge
+tests/lattice/                         shared lattice corpora and cache manifests
+tests/{canaries,fixtures}/             language and package integration tests
+tools/bootstrap/                       lattice orchestration and path gates
+tools/                                 other repository maintenance scripts
 ```
 
 Each rung remains the semantic owner of its language and lattice-built
 artifacts. A Rust producer nested beneath that rung is tooling for the same
-concept, not a second semantic owner. The proof kernel remains under
-`source/assurance/`, separate from both the language spine and the product
-compiler.
+concept, not a second semantic owner. The proof kernel remains a first-class
+owner at `source/proof-kernel/`, separate from both the language spine and the
+product compiler. Refinement joins likewise live under `source/refinement/`
+rather than being hidden inside either endpoint.
 
 `omega/language/` has not moved. Its planned destination is `source/library/`,
 but that last relocation remains blocked until package-manager P8 removes the
@@ -244,9 +255,9 @@ hardcoded standard-library path. No compatibility symlink is introduced.
 
 ### Front Door
 
-- Product entrypoints stay thin. `source/compiler/omega/{build.omg,main.omg}`
+- Product entrypoints stay thin. `source/omega/{build.omg,main.omg}`
   owns the hosted product entrypoint; the current Rust `omega-cli` stays with
-  its producer under `source/compiler/rust/apps/`. The language-server and
+  its producer under `source/on-ramp/rust/apps/`. The language-server and
   docs-generator are not yet separate applications.
 - `orchestration/` sequences phases, owns artifacts and the top-level
   check/build API (`omega-compiler`, `omega-backend-pipeline`, `omega-artifacts`,
@@ -281,7 +292,7 @@ hardcoded standard-library path. No compatibility symlink is introduced.
 
 - The Psi role owns Omega-file parsing and all target-neutral language meaning
   through terminal Psi. Its current Rust realization is
-  `source/compiler/rust/psi/`. Psi crates must not depend on Omega
+  `source/on-ramp/rust/psi/`. Psi crates must not depend on Omega
   crates; the architecture test enforces that firewall.
 - Existing target-neutral `omega-*` crates are migration inputs, not a second
   permanent frontend. Move or rename them under Psi ownership as terminal
@@ -289,7 +300,7 @@ hardcoded standard-library path. No compatibility symlink is introduced.
 - The Omega backend role begins its long-term semantic consumption at terminal
   Psi and owns provider installation, ABI/storage realization, optimization,
   target lowering, and native execution machinery. Its current Rust realization
-  is `source/compiler/rust/omega/`. Psi owns both transitional
+  is `source/on-ramp/rust/omega/`. Psi owns both transitional
   checked-tree reference execution and canonical terminal-Psi interpretation;
   Omega contains only the cross-layer native differential-test harness. That
   harness keeps shared artifact decoding, verified lowering, and native image

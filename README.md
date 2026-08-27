@@ -146,7 +146,7 @@ lives in
 The two source contracts—literal Delta v1 and the ordinary-Omega `Ωself`
 compiler-source profile—are defined and kept distinct in
 [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
-[`source/compiler/omega/README.md`](source/compiler/omega/README.md) describes the product-source side;
+[`source/omega/README.md`](source/omega/README.md) describes the product-source side;
 the proof kernel is cross-cutting assurance, not another language rung.
 
 ## Samples And Canaries
