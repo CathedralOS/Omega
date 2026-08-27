@@ -274,7 +274,12 @@ decoded: it can replay exact installation, slot, envelope, and admission
 identity, but cannot recreate live custody. `Prepared` publication failure
 returns every input, `Activated` finalization requires the exact retained live
 occurrence, and restart reconciliation leaves rollback versus roll-forward to
-the selected runtime policy.
+the selected runtime policy. Its generic durable adapter publishes one new
+canonical record without replacing an existing path, synchronizes both file and
+directory, and returns a non-clonable exact-byte replay receipt. A visible record
+whose staging cleanup or directory synchronization is incomplete remains an
+explicit recovery state; the adapter does not choose a Cathedral path,
+retention rule, cohort, rollback, or roll-forward action.
 
 ## Component Implementation Work
 
