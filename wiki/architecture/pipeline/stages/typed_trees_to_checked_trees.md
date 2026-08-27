@@ -79,6 +79,12 @@ Must own:
   half-open element-ordinal `FixedRange`. Atomic, qualified, constrained,
   generic, noncopy, symbolic/open range, slice-range, and nonliteral forms
   remain fenced; this creates no executable Terminal write authority.
+  An eligible plain-record path may also replace one whole nongeneric,
+  invariant-free `[copy]` record leaf as a single freely discardable value. Its
+  mutation/frame place ends in exactly one `Field` segment and never decomposes
+  or observes child members. Affine/linear, generic, qualified,
+  invariant-bearing, quotient, sum, erased, and array-of-record leaves remain
+  fenced, as do member observation and read-modify-write.
 - Reach summaries, invocation edges, and boundary contract facts that later stages must preserve.
 - Bounded installation-row facts keyed by exact boundary-requirement path,
   including the declared service upper bound, symbolic dependencies through

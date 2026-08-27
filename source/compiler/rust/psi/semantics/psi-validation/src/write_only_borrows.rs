@@ -186,12 +186,19 @@ fn write_only_record<'program>(
         .then_some(definition)
 }
 
+fn is_unrestricted_write_only_record(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    write_only_record(program, type_reference).is_some_and(|definition| {
+        definition.properties.multiplicity == psi_language_semantics::Multiplicity::Unrestricted
+    })
+}
+
 fn whole_root_replacement_is_supported(program: &TypedTrees, root: &WriteOnlyRoot) -> bool {
     is_unrestricted_scalar(program, root.referee)
         || fixed_unrestricted_primitive_array_length(program, root.referee).is_some()
-        || write_only_record(program, root.referee).is_some_and(|definition| {
-            definition.properties.multiplicity == psi_language_semantics::Multiplicity::Unrestricted
-        })
+        || is_unrestricted_write_only_record(program, root.referee)
 }
 
 /// Resolve `root.record_field...leaf`, where every receiver is an admitted
@@ -254,10 +261,10 @@ fn write_only_record_field_type(
     None
 }
 
-/// The final displaced record-path leaf must be an unrestricted primitive or
-/// a literal fixed array of unrestricted primitive scalars. Indexed element
-/// stores reuse the same exact path resolver below and apply their own narrower
-/// leaf/index gate.
+/// The final displaced record-path leaf must be an unrestricted primitive, a
+/// literal fixed array of unrestricted primitive scalars, or a whole eligible
+/// unrestricted record. Indexed element stores reuse the same exact path
+/// resolver below and apply their own narrower leaf/index gate.
 fn write_only_record_field_assignment(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -266,6 +273,7 @@ fn write_only_record_field_assignment(
     write_only_record_field_type(program, expression, roots).is_some_and(|field_type| {
         is_unrestricted_scalar(program, field_type)
             || fixed_unrestricted_primitive_array_length(program, field_type).is_some()
+            || is_unrestricted_write_only_record(program, field_type)
     })
 }
 
@@ -574,7 +582,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive or a literal fixed array of unrestricted primitive scalars, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; sum-payload, qualified, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a whole eligible unrestricted record, or a literal fixed array of unrestricted primitive scalars, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; sum-payload, qualified, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 
