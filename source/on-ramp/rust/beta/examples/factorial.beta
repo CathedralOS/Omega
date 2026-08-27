@@ -1,8 +1,0 @@
-; recursive factorial in Beta — CFG/state control flow (no if). -> 120
-proc main() {
-    return fact(5)
-}
-proc fact(n) {
-    state rec { to base when (n < 2)  return n * fact(n - 1) }
-    state base { return 1 }
-}

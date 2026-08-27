@@ -23,10 +23,9 @@ Rust and no numeric-opcode step in normal use.
   encoding rather than ported from `assembler.alpha`. `asm-diamond.sh` compares
   outputs over a corpus and is useful for catching encoder bugs. Agreement is
   diagnostic evidence, not source-to-artifact authority.
-- `../assembler-rust/` — a throwaway Rust producer, used
-  **only for a cold start**: minting the
-  very first `beta_x64_windows.exe` when no assembler exists yet. Normal use never
-  touches it; the Alpha assembler rebuilds itself (see `selfhost.sh`).
+The historical Rust cold-start producer has been retired. The checked-in seed,
+written semantics, self-hosting reconstruction, and independent reference gate
+are the maintained path.
 
 ```
 ./selfhost.sh                                                  # Alpha assembler rebuilds itself, no Rust

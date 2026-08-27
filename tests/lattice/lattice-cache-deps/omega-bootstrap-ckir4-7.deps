@@ -19,7 +19,7 @@ script source/on-ramp/omega-bootstrap/gates/delta-resolved-to-ckir7-meaning.sh
 script source/on-ramp/omega-bootstrap/gates/delta-checked-ir-v7-backend.sh
 
 # Delta compiler construction used by native/self observations.
-input source/on-ramp/rust/delta
+input source/delta
 
 # Exact bridge programs and Python transport helpers.
 input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-resolve.alp

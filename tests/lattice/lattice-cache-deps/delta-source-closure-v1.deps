@@ -11,7 +11,7 @@ input source/delta/source-closures/u64-buffer-bridge-slice-v1.json
 input source/delta/source-closures/u64-buffer-bridge-slice-v1.locations.json
 input source/delta/source-closures/tool-manifests/delta-compiler-darwin-arm64-v1.json
 input source/delta/samples/lowermachine.alp
-input source/on-ramp/rust/delta
+input source/delta
 input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_BUNDLE.md
 input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md
 input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V10.md

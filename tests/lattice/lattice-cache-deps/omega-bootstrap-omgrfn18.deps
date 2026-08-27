@@ -12,7 +12,7 @@ input source/alpha/assembler
 input source/beta/artifact_env.sh
 input source/beta/artifacts/bc.tape
 input source/gamma/interp.beta
-input source/on-ramp/rust/delta
+input source/delta
 input source/delta/samples/lowermachine.alp
 input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-resolve.alp
 input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-resolved-to-ckir4.alp

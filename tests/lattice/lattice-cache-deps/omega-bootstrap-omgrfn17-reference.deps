@@ -3,7 +3,7 @@
 # Rust-free meaning are intentionally separate lattice obligations.
 script source/refinement/delta-omega-bootstrap/omgrfn17-reference.sh
 
-input source/on-ramp/rust/delta
+input source/delta
 input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-resolve.alp
 input source/on-ramp/omega-bootstrap/compiler/omega_bootstrap_bundle.py
 input source/on-ramp/omega-bootstrap/compiler/omega_bootstrap_compilation.py

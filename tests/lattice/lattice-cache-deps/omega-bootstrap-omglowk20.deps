@@ -4,7 +4,7 @@ script source/on-ramp/omega-bootstrap/gates/delta-record-array-to-ckir19.sh
 script source/on-ramp/omega-bootstrap/gates/delta-record-array-to-ckir19-meaning.sh
 
 input tools/bootstrap/paths.sh
-input source/on-ramp/rust/delta
+input source/delta
 input source/delta/samples/lowermachine.alp
 input source/alpha/seed_env.sh
 input source/alpha/alpha_arm64_macos

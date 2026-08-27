@@ -40,9 +40,6 @@ source/
       apps/omega-cli/       current Rust development command
       psi/                  current Rust source/semantic producer
       omega/                current Rust target/backend producer
-      alpha-assembler/      Rust Alpha assembler producer
-      beta/                 Rust Beta producer
-      delta/                Rust Delta producer
     omega-bootstrap/        Delta-built bridge compiler owner
     meaning/                Rust-free lower-rung meaning for Delta/bridge slices
     compiler/               Delta source, profiles, and source-bundle format
@@ -63,8 +60,9 @@ standard-library path.
 
 Canonical directories are named by durable role, not by every implementation
 language that may temporarily occupy that role. `source/on-ramp/rust/` carries
-the language qualifier because it is the external Rust producer. The permanent
-product owners are `source/psi/` and `source/omega/`; if another
+the language qualifier because it is the temporary external Psi/Omega product
+implementation. The permanent product owners are `source/psi/` and
+`source/omega/`; if another
 external-language producer is retained, it belongs under its own explicit
 on-ramp owner rather than replacing or renaming those paths.
 
@@ -121,12 +119,9 @@ rejects new sibling-relative cross-owner references.
 | Responsibility | Canonical owner | Placement status |
 | --- | --- | --- |
 | Alpha rung and assembler | `source/alpha/` | complete |
-| Alpha assembler Rust producer | `source/on-ramp/rust/alpha-assembler/` | complete |
 | Beta rung and reference | `source/beta/` | complete |
-| Beta Rust producer | `source/on-ramp/rust/beta/` | complete |
 | Gamma rung | `source/gamma/` | complete |
 | Delta rung | `source/delta/` | complete; Delta v1 remains open |
-| Delta Rust producer | `source/on-ramp/rust/delta/` | complete |
 | current Rust Psi/Omega compiler and CLI | `source/on-ramp/rust/` | complete |
 | cross-cutting proof kernel | `source/proof-kernel/` | placement complete; assurance capabilities continue to evolve here |
 | Beta-source/Alpha-artifact refinement | `source/refinement/alpha-beta/` | complete |

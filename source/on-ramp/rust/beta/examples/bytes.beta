@@ -1,7 +1,0 @@
-; byte[] memory: store two bytes and read them back. 65 + 66 = 131.
-proc main() {
-    let base = 2097152
-    byte[base] = 65
-    byte[base + 1] = 66
-    return byte[base] + byte[base + 1]
-}

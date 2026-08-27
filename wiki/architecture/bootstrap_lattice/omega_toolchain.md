@@ -107,10 +107,9 @@ The distinction is architectural:
   profile snapshots live under `source/omega/source-checkpoints/`.
 - `source/on-ramp/omega-bootstrap/` is the owner for Rust-free meaning,
   Delta-written bridge-compiler slices/profiles, and bootstrap validation.
-- `source/delta/` owns the bootstrap language corpus and Delta-written
-  compiler; `source/on-ramp/rust/delta/` is its disposable Rust producer.
-  Together their current gates are growing toward `omega-bootstrap` without
-  assigning language ownership to Rust.
+- `source/delta/` owns the bootstrap language corpus, Delta-written compiler
+  experiment, and provisional artifacts. Its canonical lower-rooted compiler
+  publication remains open; no external Delta producer is retained.
 
 Role-local Rust bootstrap producers live beneath their rung; the current Rust
 Psi/Omega compiler lives at `source/on-ramp/rust/`. Neither location grants

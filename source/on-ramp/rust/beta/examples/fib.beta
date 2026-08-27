@@ -1,8 +1,0 @@
-; tree-recursive Fibonacci in Beta — CFG/state control flow (no if). -> 55
-proc main() {
-    return fib(10)
-}
-proc fib(n) {
-    state rec { to base when (n < 2)  return fib(n - 1) + fib(n - 2) }
-    state base { return n }
-}

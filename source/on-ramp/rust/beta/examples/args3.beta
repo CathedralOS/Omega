@@ -1,3 +1,0 @@
-; 3-arg call: the 3rd arg must survive the callee prologue. f(10,20,30)=a+c=40.
-proc main() { return f(10, 20, 30) }
-proc f(a, b, c) { return a + c }

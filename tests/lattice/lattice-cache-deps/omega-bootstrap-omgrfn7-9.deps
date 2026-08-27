@@ -12,7 +12,7 @@ script source/refinement/delta-omega-bootstrap/omgrfn7-same-frame-composite.sh
 script source/refinement/delta-omega-bootstrap/omgrfn8-same-frame-composite.sh
 script source/refinement/delta-omega-bootstrap/omgrfn9-same-frame-composite.sh
 
-input source/on-ramp/rust/delta
+input source/delta
 
 # Shared bridge producers and artifact references used to construct frames.
 input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-resolve.alp

@@ -1,7 +1,0 @@
-; a procedure with a parameter, called from main. -> 42
-proc main() {
-    return double(21)
-}
-proc double(x) {
-    return x + x
-}

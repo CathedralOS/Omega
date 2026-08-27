@@ -4,7 +4,7 @@
 script source/on-ramp/omega-bootstrap/gates/delta-sha256.sh
 script source/on-ramp/omega-bootstrap/gates/delta-sha256-meaning.sh
 
-input source/on-ramp/rust/delta
+input source/delta
 input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION.md
 input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_SHA256.md
 input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-sha256.alp
