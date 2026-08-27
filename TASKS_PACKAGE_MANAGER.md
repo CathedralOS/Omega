@@ -2515,11 +2515,22 @@ complete.
   an authored empty row—under `service_reach`. Parent closure, inference, and
   invocation-only reach receive no invented source location. Missing,
   duplicated carrier rows, stale targets, malformed spans, installation-bound
-  disagreement, or semantic disagreement reject. Current conflict fingerprint
-  v9, renderer V8, and canonical-row recovery envelope v6 bind the appended
-  roles; stale envelopes reject rather than being reinterpreted. Remaining
-  per-fact spans are incremental engineering work and require deliberate
-  retention before typed lowering, not later source-text reconstruction.
+  disagreement, or semantic disagreement reject. Authored `suspends` and
+  `blocks` clauses now likewise retain each exact keyword occurrence through
+  syntax, resolution, typed lowering, trait-default synthesis, copying, and
+  generic specialization. Callable, public-trait requirement, and recursively
+  structural machine-parameter rows carry them under distinct `suspension` and
+  `blocking` source roles. Projection requires authored booleans, keyword
+  custody, and checked published/internal interfaces to agree exactly; omitted
+  clauses and compiler inference receive no invented location. For public and
+  otherwise contract-supplied machines, the checked operational summary remains
+  the published may-ceiling by language design—it is not presented as a second
+  observation that the retained body happened to be quiet. Current package
+  review v73/canonical row v31, conflict fingerprint v10, renderer V9, and
+  canonical-row recovery envelope v7 bind the appended roles; stale envelopes
+  reject rather than being reinterpreted. Remaining per-fact spans are
+  incremental engineering work and require deliberate retention before typed
+  lowering, not later source-text reconstruction.
   Canonical recovery and root-project file custody are recorded below; none of
   these concerns requires nominal Chi or a new owner decision.
 

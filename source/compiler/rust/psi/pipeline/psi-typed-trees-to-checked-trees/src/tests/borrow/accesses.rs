@@ -80,7 +80,9 @@ fn collects_mutable_attached_data_argument_access_roots() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -205,7 +207,9 @@ fn collects_disjoint_member_access_segments() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -438,7 +442,9 @@ fn collects_unresolved_local_argument_access_roots() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };

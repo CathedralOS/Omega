@@ -1246,7 +1246,9 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -1362,7 +1364,9 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };

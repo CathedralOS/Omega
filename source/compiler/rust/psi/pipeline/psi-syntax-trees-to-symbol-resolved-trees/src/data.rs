@@ -227,6 +227,8 @@ pub(crate) fn lower_type_parameters(
                             &contract.service_reach_keyword_source_spans,
                             contract.service_reaches,
                             contract.invokes,
+                            &contract.suspends_keyword_source_spans,
+                            &contract.blocks_keyword_source_spans,
                             contract.suspends,
                             contract.blocks,
                             contract.contracts,

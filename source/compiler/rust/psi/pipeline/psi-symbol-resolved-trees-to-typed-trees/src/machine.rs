@@ -27,6 +27,8 @@ pub(crate) fn lower_machine(
         termination_plan: machine.termination_plan.clone(),
         service_reach_row: machine.service_reach_row,
         service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
+        suspends_keyword_source_spans: machine.suspends_keyword_source_spans.clone(),
+        blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
         lifetime_parameters: machine
             .lifetime_parameters
             .iter()

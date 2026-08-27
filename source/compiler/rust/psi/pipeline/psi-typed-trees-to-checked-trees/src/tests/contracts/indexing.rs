@@ -29,7 +29,9 @@ fn carries_machine_contract_facts_into_checked_proof_facts() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -109,7 +111,9 @@ fn centralizes_contract_facts_in_semantic_fact_plan() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -200,7 +204,9 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         termination_guarantee: psi_language_semantics::TerminationGuarantee::NoGuarantee,
     };
@@ -272,7 +278,9 @@ fn indexes_call_contract_facts_by_target_machine() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -317,7 +325,9 @@ fn indexes_call_contract_facts_by_target_machine() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -417,7 +427,9 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         service_reach_row: Default::default(),
         service_reach_is_installation_bound: false,
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         termination_guarantee: psi_language_semantics::TerminationGuarantee::NoGuarantee,
     };
@@ -452,7 +464,9 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -498,7 +512,9 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -599,7 +615,9 @@ fn indexes_terminal_state_contract_ensures() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };

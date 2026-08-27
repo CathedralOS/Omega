@@ -62,6 +62,10 @@ Must own:
   before table rebuilding consumes that form. Exact targets and static
   conformance arguments settle here; unresolved call targets retain an explicit
   checked-call obligation at the target token.
+- Preserving authored `suspends` and `blocks` keyword spans on machine and
+  structural signature owners while their booleans acquire resolved context.
+  Synthesized trait-default machines inherit the originating requirement's
+  spans; this stage does not reconstruct them from source text.
 - Recording every source-backed static argument path recursively. A resolved
   conformance uses the conformance kind; every other selected type, machine, or
   forwarded binder uses the common static-argument kind. Literal arguments
