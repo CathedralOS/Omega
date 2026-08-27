@@ -673,7 +673,7 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
         b"omega.psi-pass.copy-propagation.v1",
     );
     let cfg_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-        b"omega.psi-pass.control-flow-cleanup.v9",
+        b"omega.psi-pass.control-flow-cleanup.v10",
     );
     if registry.pass() == Some(cfg_pass) {
         control_flow_structure_count(unit)
@@ -1057,7 +1057,7 @@ mod tests {
             omega_optimization_unit::ProvenanceDisposition::ProvenUnreachableAt(_)
         ));
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 5);
+        assert_eq!(manifest.ordered_rules().len(), 6);
         assert_eq!(manifest.decisions().len(), 2);
         assert_eq!(manifest.decisions()[0].consumed_facts().len(), 1);
 
@@ -1123,7 +1123,7 @@ mod tests {
         assert_eq!(commits.len(), 2);
         assert_eq!(usage.commits, 2);
         assert_eq!(usage.iterations, 3);
-        assert_eq!(usage.rule_evaluations, 11);
+        assert_eq!(usage.rule_evaluations, 12);
         assert_eq!(output.functions[0].blocks.len(), 1);
         assert_eq!(ledger.records().len(), 2);
         assert_eq!(ledger.records()[0].provenance.len(), 3);
@@ -1133,7 +1133,7 @@ mod tests {
                 .iter()
                 .all(|row| row.disposition.is_realized())
         );
-        assert_eq!(manifest.unwrap().ordered_rules().len(), 5);
+        assert_eq!(manifest.unwrap().ordered_rules().len(), 6);
 
         let (second, second_commits, second_usage, _, _, second_ledger) =
             run_unit(output.clone(), &registry, budget(8)).unwrap();
