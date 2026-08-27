@@ -4,6 +4,7 @@ use crate::statement::lower_statement_node;
 use crate::type_reference::lower_type_reference_into_table;
 use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees as resolved;
+use psi_symbols::SymbolKind;
 use psi_typed_trees as typed;
 
 pub(crate) fn lower_state(
@@ -386,10 +387,16 @@ pub(crate) fn lower_state_signature(
             .push_state_signature_parameter(&mut typed_signature, parameter);
     }
 
-    for binding in lowerer.source_trees.signature_invokes(signature.invokes) {
+    let invocations = lower_authored_invocations(
+        &lowerer.source_trees,
+        lowerer.source_trees.signature_invokes(signature.invokes),
+        lowerer.source_trees.state_parameters(signature.parameters),
+        signature.name.as_str(),
+    )?;
+    for invocation in invocations {
         lowerer
             .typed_trees
-            .push_state_signature_invoke(&mut typed_signature, crate::name::lower_name(binding));
+            .push_state_signature_invoke(&mut typed_signature, invocation);
     }
 
     for contract in lowerer
@@ -453,6 +460,48 @@ pub(crate) fn lower_state_signature(
     }
 
     Ok(typed_signature)
+}
+
+pub(crate) fn lower_authored_invocations(
+    program: &resolved::SymbolResolvedTrees,
+    declarations: &[resolved::name::DiagnosticName],
+    parameters: &[resolved::signature::StateParameter],
+    owner: &str,
+) -> Result<Vec<typed::signature::AuthoredInvocation>, Diagnostic> {
+    let mut lowered = Vec::with_capacity(declarations.len());
+    for declaration in declarations {
+        let target = if let Some((ordinal, parameter)) = parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .enumerate()
+            .find(|(_, parameter)| parameter.name.as_str() == declaration.as_str())
+        {
+            typed::signature::AuthoredInvocationTarget::Parameter {
+                ordinal: u32::try_from(ordinal).map_err(|_| {
+                    Diagnostic::error(format!(
+                        "callable `{owner}` has too many invocation parameters for portable identity"
+                    ))
+                })?,
+                symbol: parameter.symbol,
+            }
+        } else {
+            let service_symbol = program.symbols.find_child_by_name_and_kind(
+                program.symbols.root(),
+                declaration.as_str(),
+                SymbolKind::Trait,
+            );
+            service_symbol.map_or(
+                typed::signature::AuthoredInvocationTarget::Unresolved,
+                typed::signature::AuthoredInvocationTarget::Service,
+            )
+        };
+        lowered.push(typed::signature::AuthoredInvocation {
+            name: crate::name::lower_name(declaration),
+            source_span: declaration.source_span(),
+            target,
+        });
+    }
+    Ok(lowered)
 }
 
 /// Every normalized declared domain on a parameter type, looking through a

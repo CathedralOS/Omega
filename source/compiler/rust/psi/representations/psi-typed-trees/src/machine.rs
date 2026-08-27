@@ -1,6 +1,6 @@
 use crate::expression::ExpressionHandle;
 use crate::name::Identifier;
-use crate::signature::SignatureContract;
+use crate::signature::{AuthoredInvocation, SignatureContract};
 use crate::state::State;
 use crate::types::TypeReferenceHandle;
 use psi_arena::HandleSpan;
@@ -36,7 +36,7 @@ pub struct Machine {
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
     pub conformance_bounds: Vec<GenericConformanceBound>,
-    pub invokes: HandleSpan<Identifier>,
+    pub invokes: HandleSpan<AuthoredInvocation>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,

@@ -12,9 +12,10 @@ use omega_optimization_unit::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
     ConstantConditionalRewrite, IntegerConstantRewrite, IntegerEvaluationWitness,
     LinearEmptyBlockRewrite, NodeLocation, OptimizationFact, OwnershipFrontierSite,
-    PathQualifiedEmptyBlockRewrite, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit,
-    PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, RedundantBlockParameterRewrite,
-    RedundantBlockParameterWitness, ScalarSubstitution,
+    PathQualifiedEmptyBlockRewrite, ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody,
+    PsiOptimizationUnit, PsiProvenance, PsiRealizationSite, PsiRewriteCandidate,
+    RedundantBlockParameterRewrite, RedundantBlockParameterWitness, ScalarSubstitution,
+    UnreachablePrivateMachinesRewrite,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{BlockId, IntegerValue, MachineId, OperationId, ValueId};
@@ -25,11 +26,215 @@ use crate::{
 };
 
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v1";
-const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v7";
+const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v9";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ConstantConditionalFoldRule;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct UnreachablePrivateMachinePruneRule;
+
+impl UnreachablePrivateMachinePruneRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.unreachable-private-machine-pruning.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
+            1,
+            AnalysisSet::new([AnalysisKind::CallGraph]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::CallGraph,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::StructuralIdentity,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for UnreachablePrivateMachinePruneRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        let Some(AnalysisProduct::CallGraph(call_graph)) = analyses.get(AnalysisKind::CallGraph)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(AnalysisKind::CallGraph));
+        };
+        let machines = rule_unreachable_private_machine_complement(unit, call_graph);
+        if machines.is_empty() {
+            return Ok(Vec::new());
+        }
+        let ordinals = rule_active_source_ordinals(unit);
+        let custody = machines
+            .iter()
+            .map(|machine| PrunedMachineCustody {
+                machine: *machine,
+                source_ordinal: ordinals[machine],
+            })
+            .collect::<Vec<_>>();
+        let Some(provenance) = rule_pruned_machine_provenance(unit, &machines) else {
+            return Ok(Vec::new());
+        };
+        Ok(vec![
+            PsiRewriteCandidate::new_unreachable_private_machines(
+                unit.identity,
+                Self::contract(),
+                provenance,
+                -i64::try_from(machines.len()).unwrap_or(i64::MAX),
+                UnreachablePrivateMachinesRewrite { machines: custody },
+            )
+            .map_err(RuleProposalError::InvalidCandidate)?,
+        ])
+    }
+}
+
+fn rule_active_source_ordinals(unit: &PsiOptimizationUnit) -> BTreeMap<MachineId, u32> {
+    let pruned = unit
+        .pruned_machines
+        .iter()
+        .map(|row| (row.source_ordinal, row.machine))
+        .collect::<BTreeMap<_, _>>();
+    let mut active = unit.functions.iter();
+    let mut result = BTreeMap::new();
+    let total = unit.functions.len() + unit.pruned_machines.len();
+    for ordinal in 0..total {
+        let ordinal = u32::try_from(ordinal).expect("function ordinal fits u32");
+        if !pruned.contains_key(&ordinal) {
+            let function = active
+                .next()
+                .expect("validated roster has active source member");
+            result.insert(function.machine, ordinal);
+        }
+    }
+    result
+}
+
+fn rule_unreachable_private_machine_complement(
+    unit: &PsiOptimizationUnit,
+    call_graph: &crate::CallGraphAnalysis,
+) -> Vec<MachineId> {
+    let active = unit
+        .functions
+        .iter()
+        .map(|function| function.machine)
+        .collect::<BTreeSet<_>>();
+    let mut reachable = BTreeSet::from([unit.entry]);
+    reachable.extend(
+        unit.provider_candidates
+            .iter()
+            .map(|candidate| candidate.candidate),
+    );
+    reachable.extend(
+        unit.functions
+            .iter()
+            .filter(|function| function.attachment.is_some())
+            .map(|function| function.machine),
+    );
+    let mut references = call_graph
+        .callees
+        .iter()
+        .map(|(machine, callees)| (*machine, callees.iter().copied().collect::<BTreeSet<_>>()))
+        .collect::<BTreeMap<_, _>>();
+    for function in &unit.functions {
+        let function_references = references.entry(function.machine).or_default();
+        for operation in function
+            .blocks
+            .iter()
+            .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
+        {
+            match operation {
+                O::Return {
+                    cleanup_actions, ..
+                }
+                | O::ReturnUnit {
+                    cleanup_actions, ..
+                } => {
+                    function_references.extend(cleanup_actions.iter().filter_map(|action| {
+                        match action {
+                            psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                                Some(cleanup.cleanup_machine)
+                            }
+                            _ => None,
+                        }
+                    }));
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut work = reachable.iter().copied().collect::<Vec<_>>();
+    while let Some(machine) = work.pop() {
+        for callee in references.get(&machine).into_iter().flatten().copied() {
+            if active.contains(&callee) && reachable.insert(callee) {
+                work.push(callee);
+            }
+        }
+    }
+    active.difference(&reachable).copied().collect()
+}
+
+fn rule_pruned_machine_provenance(
+    unit: &PsiOptimizationUnit,
+    machines: &[MachineId],
+) -> Option<Vec<ProvenanceRewrite>> {
+    let machines = machines.iter().copied().collect::<BTreeSet<_>>();
+    let mut rows = Vec::new();
+    for function in unit
+        .functions
+        .iter()
+        .filter(|function| machines.contains(&function.machine))
+    {
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let input = PsiRealizationSite::Node(NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: u32::try_from(node_index).ok()?,
+                });
+                if !node.provenance.is_empty() {
+                    rows.push(ProvenanceRewrite {
+                        input,
+                        disposition: ProvenanceDisposition::ProvenUnreachableAt(input),
+                        sources: node.provenance.clone(),
+                        fuel: node.fuel.clone(),
+                    });
+                }
+                for edge in &node.successors {
+                    let input = PsiRealizationSite::Edge {
+                        machine: function.machine,
+                        edge: edge.psi_edge,
+                    };
+                    if !edge.provenance.is_empty() {
+                        rows.push(ProvenanceRewrite {
+                            input,
+                            disposition: ProvenanceDisposition::ProvenUnreachableAt(input),
+                            sources: edge.provenance.clone(),
+                            fuel: edge.fuel.clone(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    rows.sort_by_key(|row| {
+        (
+            row.input,
+            row.disposition.canonical_tag(),
+            row.disposition.site(),
+        )
+    });
+    Some(rows)
+}
 
 impl ConstantConditionalFoldRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -381,10 +586,10 @@ impl AdjacentBlockMergeRule {
     pub fn contract() -> OptimizationRuleContract {
         OptimizationRuleContract::new(
             OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.adjacent-single-predecessor-block-merge.v2",
+                b"omega.psi-rule.adjacent-single-predecessor-block-merge.v3",
             ),
             OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-            2,
+            3,
             AnalysisSet::new([
                 AnalysisKind::ControlFlowGraph,
                 AnalysisKind::OwnershipFrontiers,
@@ -430,7 +635,15 @@ impl PsiOptimizationRule for AdjacentBlockMergeRule {
                 };
                 let eligible_first = target.nodes.first().is_some_and(|node| {
                     (node.successors.is_empty()
-                        && matches!(node.provenance.first(), Some(PsiProvenance::Operation(_))))
+                        && (matches!(node.provenance.first(), Some(PsiProvenance::Operation(_)))
+                            || (matches!(node.provenance.first(), Some(PsiProvenance::Edge(_)))
+                                && matches!(
+                                    node.operation,
+                                    O::Return { .. }
+                                        | O::ReturnUnit { .. }
+                                        | O::ReturnStructural { .. }
+                                        | O::Crash { .. }
+                                ))))
                         || (matches!(node.operation, O::Conditional { .. })
                             && node.successors.len() == 2
                             && node.provenance.is_empty())
@@ -2765,6 +2978,7 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
         register!(1, LinearEmptyBlockThreadRule);
         register!(2, PathQualifiedEmptyBlockThreadRule);
         register!(3, AdjacentBlockMergeRule);
+        register!(4, UnreachablePrivateMachinePruneRule);
     }
     if optimization == Optimization::CopyPropagation {
         register!(0, RedundantBlockParameterRule);
@@ -2802,8 +3016,9 @@ pub(crate) mod tests {
         OptimizationUnitValidationError, validate_adjacent_block_merge_candidate,
         validate_boolean_evaluation_candidate, validate_constant_conditional_candidate,
         validate_integer_evaluation_candidate, validate_linear_empty_block_candidate,
-        validate_path_qualified_empty_block_candidate,
+        validate_path_qualified_empty_block_candidate, validate_psi_optimization_unit,
         validate_redundant_block_parameter_candidate,
+        validate_unreachable_private_machines_candidate,
     };
     use omega_terminal_abstract_operations::{
         TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
@@ -2811,8 +3026,8 @@ pub(crate) mod tests {
         TerminalAbstractResult, TerminalAbstractSuccessor, TerminalValueBinding,
     };
     use psi_core::{
-        BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, ObligationId,
-        OperationId, ScalarType, ValueId,
+        BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
+        MachineId, ObligationId, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
     };
     use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -4508,7 +4723,7 @@ pub(crate) mod tests {
             ))
         );
         let cleanup = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
-        assert_eq!(built_in_psi_registry(&cleanup).unwrap().len(), 4);
+        assert_eq!(built_in_psi_registry(&cleanup).unwrap().len(), 5);
         let copy = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
         assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
         let unsupported_combination = OptimizationSelections::new([
@@ -4545,6 +4760,142 @@ pub(crate) mod tests {
         assert_eq!(
             mixed_registries[0].contracts().collect::<Vec<_>>(),
             sccp_registries[0].contracts().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn unreachable_private_machine_pruning_is_atomic_canonical_and_idempotent() {
+        let mut unit = linear_empty_block_unit();
+        let mut private = unit.functions[0].clone();
+        private.machine = MachineId::new(99).unwrap();
+        unit.functions.push(private);
+        unit.identity = recompute_psi_optimization_unit_identity(&unit);
+        validate_psi_optimization_unit(&unit).unwrap();
+
+        let call_graph = compute_analysis(&unit, AnalysisKind::CallGraph).unwrap();
+        let candidates = UnreachablePrivateMachinePruneRule
+            .propose(&unit, RuleAnalysisView::new(&[call_graph]))
+            .unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(
+            candidates[0].affected_machines(),
+            [MachineId::new(99).unwrap()]
+        );
+        assert!(candidates[0].provenance().iter().all(|row| {
+            row.input.machine() == MachineId::new(99).unwrap()
+                && row.disposition == ProvenanceDisposition::ProvenUnreachableAt(row.input)
+        }));
+
+        let accepted =
+            validate_unreachable_private_machines_candidate(&unit, &candidates[0]).unwrap();
+        assert_eq!(accepted.unit().functions.len(), 1);
+        assert_eq!(
+            accepted.unit().pruned_machines,
+            [PrunedMachineCustody {
+                machine: MachineId::new(99).unwrap(),
+                source_ordinal: 1,
+            }]
+        );
+        assert_eq!(
+            accepted.unit().accepted_obligation_facts,
+            unit.accepted_obligation_facts
+        );
+        assert_eq!(
+            accepted.unit().ownership_frontier_facts,
+            unit.ownership_frontier_facts
+        );
+
+        let call_graph = compute_analysis(accepted.unit(), AnalysisKind::CallGraph).unwrap();
+        assert!(
+            UnreachablePrivateMachinePruneRule
+                .propose(accepted.unit(), RuleAnalysisView::new(&[call_graph]))
+                .unwrap()
+                .is_empty()
+        );
+
+        let PsiRewritePatch::PruneUnreachablePrivateMachines(patch) = candidates[0].patch() else {
+            unreachable!("pruning rule emits its typed patch")
+        };
+        let mut incomplete = candidates[0].provenance().to_vec();
+        incomplete.pop();
+        let forged = PsiRewriteCandidate::new_unreachable_private_machines(
+            unit.identity,
+            UnreachablePrivateMachinePruneRule::contract(),
+            incomplete,
+            -1,
+            patch,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_unreachable_private_machines_candidate(&unit, &forged),
+            Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
+        );
+    }
+
+    #[test]
+    fn private_machine_roots_include_calls_attachments_cleanup_and_prune_recursive_islands() {
+        let mut unit = linear_empty_block_unit();
+        let template = unit.functions[0].clone();
+        for machine in [99, 100, 101, 102, 103, 104] {
+            let mut function = template.clone();
+            function.machine = MachineId::new(machine).unwrap();
+            unit.functions.push(function);
+        }
+        unit.functions[0].blocks[0].nodes[0].operation = O::CallUnit {
+            psi_operation: OperationId::new(9_001).unwrap(),
+            callee: MachineId::new(99).unwrap(),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+        };
+        unit.functions[2].attachment = Some(StructuralTypeId::new(9_002).unwrap());
+        unit.provider_candidates
+            .push(psi_terminal::ProviderCandidateConformance {
+                boundary: BoundaryMachineId::new(9_006).unwrap(),
+                requirement_identity: "root-test-requirement".into(),
+                provider_identity: "root-test-provider".into(),
+                candidate_identity: "root-test-candidate".into(),
+                candidate: MachineId::new(102).unwrap(),
+                signature: psi_terminal::ProviderUnitSignature {
+                    parameters: Vec::new(),
+                },
+                refinement: psi_terminal::ProviderUnitRefinement {
+                    positional_parameters: Vec::new(),
+                    required_domains: Vec::new(),
+                    realized_service_ceiling: Vec::new(),
+                },
+            });
+        unit.functions[1].blocks[0].nodes[0].operation = O::ReturnUnit {
+            psi_edge: EdgeId::new(9_003).unwrap(),
+            cleanup_actions: vec![psi_terminal::TerminalAffineCleanupAction::InvokeNominal(
+                psi_terminal::NominalAffineCleanup {
+                    place: PlaceId::new(9_004).unwrap(),
+                    structural_type: StructuralTypeId::new(9_005).unwrap(),
+                    cleanup_machine: MachineId::new(101).unwrap(),
+                    cleanup_receiver: None,
+                    requirement_obligations: Vec::new(),
+                },
+            )],
+        };
+        unit.functions[5].blocks[0].nodes[0].operation = O::CallUnit {
+            psi_operation: OperationId::new(9_007).unwrap(),
+            callee: MachineId::new(104).unwrap(),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+        };
+        unit.functions[6].blocks[0].nodes[0].operation = O::CallUnit {
+            psi_operation: OperationId::new(9_008).unwrap(),
+            callee: MachineId::new(103).unwrap(),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+        };
+
+        let analysis = compute_analysis(&unit, AnalysisKind::CallGraph).unwrap();
+        let AnalysisProduct::CallGraph(call_graph) = analysis else {
+            unreachable!("requested call graph analysis")
+        };
+        assert_eq!(
+            rule_unreachable_private_machine_complement(&unit, &call_graph),
+            [MachineId::new(103).unwrap(), MachineId::new(104).unwrap()]
         );
     }
 
@@ -4798,6 +5149,49 @@ pub(crate) mod tests {
             validate_adjacent_block_merge_candidate(&folded, &corrupted),
             Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
         );
+    }
+
+    #[test]
+    fn adjacent_block_merge_fuses_a_direct_terminal_exit_without_erasing_it() {
+        let unit = linear_empty_block_unit();
+        let contract = AdjacentBlockMergeRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let [candidate] = AdjacentBlockMergeRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .try_into()
+            .expect("the adjacent return target is the sole eligible merge");
+        let accepted = validate_adjacent_block_merge_candidate(&unit, &candidate).unwrap();
+        let output = accepted.unit();
+        assert_eq!(output.functions[0].blocks.len(), 2);
+        let terminal = &output.functions[0].blocks[1].nodes[0];
+        assert!(matches!(terminal.operation, O::ReturnUnit { .. }));
+        assert_eq!(
+            terminal.provenance,
+            [
+                PsiProvenance::Edge(id(913, EdgeId::new)),
+                PsiProvenance::Edge(id(912, EdgeId::new)),
+            ]
+        );
+        let incoming = PsiRealizationSite::Edge {
+            machine: id(901, MachineId::new),
+            edge: id(912, EdgeId::new),
+        };
+        assert!(accepted.provenance().iter().any(|row| {
+            row.input == incoming
+                && row.disposition
+                    == ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(NodeLocation {
+                        machine: id(901, MachineId::new),
+                        block: id(903, BlockId::new),
+                        node: 0,
+                    }))
+        }));
     }
 
     #[test]

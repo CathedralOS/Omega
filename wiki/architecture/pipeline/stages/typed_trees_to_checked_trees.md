@@ -70,15 +70,24 @@ Must own:
   of every loan. Write-only checking admits only content-independent
   projection and non-observing writes, composes the restriction through calls,
   and retains exact outcome write footprints for dependent-fact invalidation.
-  Literal fixed arrays of unrestricted primitive scalars admit whole
+  Literal fixed arrays whose elements are unrestricted primitive scalars or
+  eligible material nongeneric, invariant-free `[copy]` records admit whole
   replacement, static length metadata, and literal or ordinarily proven
   dynamic element stores through direct roots and eligible plain-record paths.
-  Mutation and caller-visible frames retain exact `FixedIndex` or conservative
-  runtime `Index` identity. Statically normalized closed ranges over the same
+  Record elements remain atomic array positions: mutation and caller-visible
+  frames retain exact `FixedIndex` or conservative runtime `Index` identity
+  without child fields. Statically normalized closed ranges over the same
   arrays admit exact-width array-literal replacement and retain the normalized
   half-open element-ordinal `FixedRange`. Atomic, qualified, constrained,
-  generic, noncopy, symbolic/open range, slice-range, and nonliteral forms
-  remain fenced; this creates no executable Terminal write authority.
+  generic, noncopy, erased, sum, nested-array, symbolic/open range, slice-range,
+  and nonliteral forms remain fenced; this creates no executable Terminal write
+  authority.
+  An eligible plain-record path may also replace one whole nongeneric,
+  invariant-free `[copy]` record leaf as a single freely discardable value. Its
+  mutation/frame place ends in exactly one `Field` segment and never decomposes
+  or observes child members. Affine/linear, generic, qualified,
+  invariant-bearing, quotient, sum, erased, and array-of-record leaves remain
+  fenced, as do member observation and read-modify-write.
 - Reach summaries, invocation edges, and boundary contract facts that later stages must preserve.
 - Bounded installation-row facts keyed by exact boundary-requirement path,
   including the declared service upper bound, symbolic dependencies through
@@ -149,6 +158,12 @@ move with the compiler; it does not make private IR a package format or justify
 a nominal `Chi` stage. Add a stage only for a genuine reusable semantic boundary,
 and prefer an existing coherent representation such as `Exact` when it preserves
 the required meaning with less machinery.
+
+Authored synchronous-invocation declarations are one concrete use of this
+rule. Typed lowering binds each target-name span directly to its exact
+parameter-symbol/ordinal or boundary-trait symbol. Effect inference consumes
+that exact target, and package projection joins it to checked machine facts;
+neither stage reselects a target from diagnostic spelling.
 
 Must not own:
 

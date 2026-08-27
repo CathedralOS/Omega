@@ -1005,11 +1005,21 @@ fn build_crash_contract_capsules(
                 .filter_map(|service| program.service_reaches.definition(*service))
                 .map(|definition| definition.name.clone())
                 .collect::<Vec<_>>();
-            let published_invocations = program
-                .state_signature_invokes(signature)
-                .iter()
-                .map(|invocation| invocation.as_str().to_owned())
-                .collect::<Vec<_>>();
+            let published_invocations =
+                psi_effects::declared_signature_invocations(program, signature)
+                    .into_iter()
+                    .map(|invocation| match invocation {
+                        psi_effects::InvocationTarget::Parameter(index) => {
+                            format!("parameter:{index}")
+                        }
+                        psi_effects::InvocationTarget::Service(symbol) => program
+                            .traits()
+                            .iter()
+                            .find(|definition| definition.symbol == symbol)
+                            .map(|definition| format!("service:{}", definition.name))
+                            .unwrap_or_else(|| format!("service:#{}", symbol.arena_index())),
+                    })
+                    .collect::<Vec<_>>();
 
             let generic_binders = program
                 .state_signature_type_parameters(signature)

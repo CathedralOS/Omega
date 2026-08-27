@@ -2389,6 +2389,7 @@ pub enum PackageReviewSourceLocationRole {
     TraitParent,
     ContractClause,
     BodyCall,
+    SynchronousInvocation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2707,11 +2708,16 @@ pub fn project_checked_package_review(
             project_callable(compilation, &synchronous_invocations, machine, role, owner)?;
         let mut contract_locations =
             project_contract_clause_source_locations(compilation.machine_contracts(machine));
-        collect_type_parameter_contract_source_locations(
+        contract_locations.extend(project_machine_invocation_source_locations(
+            compilation,
+            &synchronous_invocations,
+            machine,
+        )?);
+        collect_type_parameter_source_locations(
             compilation,
             compilation.machine_type_parameters(machine),
             &mut contract_locations,
-        );
+        )?;
         contract_locations.extend(
             psi_typed_trees_to_checked_trees::derive_checked_body_call_source_spans(
                 &compilation.typed,
@@ -3795,11 +3801,11 @@ fn project_public_traits(
             })
             .collect::<Result<Vec<_>, _>>()?;
         let mut nested_source_locations = Vec::new();
-        collect_type_parameter_contract_source_locations(
+        collect_type_parameter_source_locations(
             compilation,
             parameters,
             &mut nested_source_locations,
-        );
+        )?;
         nested_source_locations.extend(compilation.trait_requirements(definition).iter().map(
             |parent| ProjectedNestedSourceLocation {
                 source_span: parent.source_span,
@@ -3810,11 +3816,15 @@ fn project_public_traits(
             nested_source_locations.extend(project_contract_clause_source_locations(
                 compilation.state_signature_contracts(requirement),
             ));
-            collect_type_parameter_contract_source_locations(
+            nested_source_locations.extend(project_signature_invocation_source_locations(
+                compilation,
+                requirement,
+            )?);
+            collect_type_parameter_source_locations(
                 compilation,
                 compilation.state_signature_type_parameters(requirement),
                 &mut nested_source_locations,
-            );
+            )?;
         }
         rows.push(ProjectedReviewRow {
             row: PackageReviewTraitShape {
@@ -4040,11 +4050,7 @@ fn project_public_conformances(
             declaration: conformance.symbol,
             nested_source_locations: {
                 let mut locations = Vec::new();
-                collect_type_parameter_contract_source_locations(
-                    compilation,
-                    parameters,
-                    &mut locations,
-                );
+                collect_type_parameter_source_locations(compilation, parameters, &mut locations)?;
                 locations
             },
         });
@@ -4497,11 +4503,11 @@ fn project_public_operators(
             project_operator_crash_routes(compilation, checked_crash, &context, &binders)?;
         let mut nested_source_locations =
             project_contract_clause_source_locations(compilation.operator_contracts(declaration));
-        collect_type_parameter_contract_source_locations(
+        collect_type_parameter_source_locations(
             compilation,
             declaration_type_parameters,
             &mut nested_source_locations,
-        );
+        )?;
         rows.push(ProjectedReviewRow {
             row: PackageReviewOperatorShape {
                 coordinate,
@@ -4661,11 +4667,7 @@ fn project_public_domains(
             declaration: definition.symbol,
             nested_source_locations: {
                 let mut locations = Vec::new();
-                collect_type_parameter_contract_source_locations(
-                    compilation,
-                    parameters,
-                    &mut locations,
-                );
+                collect_type_parameter_source_locations(compilation, parameters, &mut locations)?;
                 locations
             },
         });
@@ -5547,11 +5549,7 @@ fn project_public_data(
             declaration: definition.symbol,
             nested_source_locations: {
                 let mut locations = Vec::new();
-                collect_type_parameter_contract_source_locations(
-                    compilation,
-                    parameters,
-                    &mut locations,
-                );
+                collect_type_parameter_source_locations(compilation, parameters, &mut locations)?;
                 locations
             },
         });
@@ -7494,11 +7492,126 @@ fn project_contract_clause_source_locations(
         .collect()
 }
 
-fn collect_type_parameter_contract_source_locations(
+fn project_machine_invocation_source_locations(
+    compilation: &CheckedCompilation,
+    inference: &psi_effects::InvocationInferencePlan,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    let declarations = compilation.machine_invokes(machine);
+    let declared = psi_effects::declared_machine_invocations(compilation, machine);
+    if declared.len() != declarations.len() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` has an unresolved, duplicate, or semantically aliased authored invokes target",
+            machine.name,
+        ))]);
+    }
+    let summary = inference.for_machine(machine.symbol).ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "reviewed callable `{}` has no exact inferred synchronous-invocation row",
+            machine.name,
+        ))]
+    })?;
+    if summary.published != declared {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` authored invokes targets do not equal its inferred published ceiling",
+            machine.name,
+        ))]);
+    }
+
+    let checked = exactly_one(
+        compilation
+            .facts
+            .synchronous_invocations
+            .machines
+            .iter()
+            .filter(|fact| fact.machine == machine.symbol),
+        machine.name.as_str(),
+        "synchronous-invocation",
+    )?;
+    let checked_published = canonical_checked_invocation_targets(compilation, &declared)?;
+    let checked_inferred =
+        canonical_checked_invocation_targets(compilation, &summary.inferred_transitive)?;
+    if checked.plan.published != checked_published
+        || checked.plan.checked_inferred != checked_inferred
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` authored/inferred invokes targets do not equal its exact checked synchronous-invocation fact",
+            machine.name,
+        ))]);
+    }
+
+    Ok(declarations
+        .iter()
+        .map(|declaration| ProjectedNestedSourceLocation {
+            source_span: declaration.source_span,
+            role: PackageReviewSourceLocationRole::SynchronousInvocation,
+        })
+        .collect())
+}
+
+fn project_signature_invocation_source_locations(
+    compilation: &CheckedCompilation,
+    signature: &psi_typed_trees::signature::StateSignature,
+) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    let declarations = compilation.state_signature_invokes(signature);
+    let targets = psi_effects::declared_signature_invocations(compilation, signature);
+    if targets.len() != declarations.len() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed signature `{}` has an unresolved, duplicate, or semantically aliased authored invokes target",
+            signature.name,
+        ))]);
+    }
+
+    Ok(declarations
+        .iter()
+        .map(|declaration| ProjectedNestedSourceLocation {
+            source_span: declaration.source_span,
+            role: PackageReviewSourceLocationRole::SynchronousInvocation,
+        })
+        .collect())
+}
+
+fn canonical_checked_invocation_targets(
+    compilation: &CheckedCompilation,
+    targets: &[psi_effects::InvocationTarget],
+) -> Result<Vec<String>, Vec<Diagnostic>> {
+    let mut canonical = targets
+        .iter()
+        .map(|target| match target {
+            psi_effects::InvocationTarget::Parameter(index) => Ok(format!("parameter:{index}")),
+            psi_effects::InvocationTarget::Service(symbol) => {
+                let matching = compilation
+                    .traits()
+                    .iter()
+                    .filter(|definition| definition.symbol == *symbol)
+                    .collect::<Vec<_>>();
+                let [definition] = matching.as_slice() else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed synchronous invocation resolves service symbol {} to {} declarations; expected exactly one",
+                        symbol.arena_index(),
+                        matching.len(),
+                    ))]);
+                };
+                if !definition.is_boundary {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed synchronous invocation resolves `{}` to a non-boundary trait",
+                        definition.name,
+                    ))]);
+                }
+                Ok(format!("service:{}", definition.name))
+            }
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    canonical.sort();
+    canonical.dedup();
+    Ok(canonical)
+}
+
+fn collect_type_parameter_source_locations(
     compilation: &CheckedCompilation,
     parameters: &[psi_typed_trees::data::TypeParameter],
     locations: &mut Vec<ProjectedNestedSourceLocation>,
-) {
+) -> Result<(), Vec<Diagnostic>> {
     for parameter in parameters {
         let psi_typed_trees::data::TypeParameterKind::Machine {
             contract: psi_typed_trees::data::MachineParameterContract::Structural(signature),
@@ -7509,12 +7622,17 @@ fn collect_type_parameter_contract_source_locations(
         locations.extend(project_contract_clause_source_locations(
             compilation.state_signature_contracts(signature),
         ));
-        collect_type_parameter_contract_source_locations(
+        locations.extend(project_signature_invocation_source_locations(
+            compilation,
+            signature,
+        )?);
+        collect_type_parameter_source_locations(
             compilation,
             compilation.state_signature_type_parameters(signature),
             locations,
-        );
+        )?;
     }
+    Ok(())
 }
 
 fn checked_outcome_specific_guarantee<'a>(

@@ -50,9 +50,10 @@ pub use rewrite::{
     ConstantConditionalRewrite, IntegerConstantRewrite, IntegerEvaluationWitness,
     LinearEmptyBlockRewrite, NodeLocation, PathQualifiedEmptyBlockRewrite, ProvenanceDisposition,
     ProvenanceRewrite, PsiRealizationSite, PsiRewriteCandidate, PsiRewriteCandidateError,
-    PsiRewritePatch, RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
-    ScalarConstantValue, ScalarEvaluationWitness, ScalarSubstitution, SccpBlockRow, SccpEdgeRow,
-    SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState,
+    PsiRewriteDecisionPoint, PsiRewritePatch, RedundantBlockParameterRewrite,
+    RedundantBlockParameterWitness, ScalarConstantValue, ScalarEvaluationWitness,
+    ScalarSubstitution, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
+    SccpValueRow, SccpValueState, UnreachablePrivateMachinesRewrite,
     derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
 };
 
@@ -464,7 +465,17 @@ pub struct PsiOptimizationUnit {
     /// Immutable verifier projection, absent only on low-level bare seeds that
     /// are not authorized optimizer inputs.
     pub ownership_frontier_facts: Vec<OwnershipFrontierFact>,
+    /// Canonical custody for source functions removed by independently proven
+    /// whole-program reachability rewrites. Source ordinals bind each removed
+    /// machine to the immutable verified Terminal-Psi function roster.
+    pub pruned_machines: Vec<PrunedMachineCustody>,
     pub functions: Vec<PsiOptimizationFunction>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PrunedMachineCustody {
+    pub machine: MachineId,
+    pub source_ordinal: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -627,6 +638,7 @@ pub fn reconstruct_psi_optimization_unit_seed(
         provider_candidates: plan.provider_candidates.clone(),
         accepted_obligation_facts: Vec::new(),
         ownership_frontier_facts: Vec::new(),
+        pruned_machines: Vec::new(),
         functions,
     };
     unit.identity = recompute_psi_optimization_unit_identity(&unit);
@@ -1464,6 +1476,12 @@ mod tests {
                 },
             ));
         mutations.push(("ownership frontier fact", unit));
+        let mut unit = baseline.clone();
+        unit.pruned_machines.push(PrunedMachineCustody {
+            machine: id(109, MachineId::new),
+            source_ordinal: 1,
+        });
+        mutations.push(("pruned machine custody", unit));
         let mut unit = baseline.clone();
         unit.functions[0].machine = id(92, MachineId::new);
         mutations.push(("function identity", unit));

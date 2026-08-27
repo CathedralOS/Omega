@@ -229,7 +229,7 @@ pub fn validate_optimized_abstract_plan_projection(
         ledger: ledger.identity(),
         bundle: bundle.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.optimized-abstract-plan-projection.v7",
+            b"omega.validator.optimized-abstract-plan-projection.v9",
         ),
     })
 }
@@ -283,6 +283,15 @@ fn validate_source_custody(
     final_unit: &PsiOptimizationUnit,
     ledger: &PsiTransformationLedger,
 ) -> Result<(), OptimizedAbstractPlanProjectionError> {
+    let mut ledger_pruned = ledger
+        .records()
+        .iter()
+        .flat_map(|record| record.pruned_machines.iter().copied())
+        .collect::<Vec<_>>();
+    ledger_pruned.sort_unstable();
+    if ledger_pruned != final_unit.pruned_machines {
+        return Err(OptimizedAbstractPlanProjectionError::SourceCustodyMismatch);
+    }
     let mut current = source_occurrence_map(initial)
         .ok_or(OptimizedAbstractPlanProjectionError::SourceCustodyMismatch)?;
     let final_sources = source_occurrence_map(final_unit)
@@ -443,13 +452,8 @@ fn validate_projection_shape(
     {
         return Err(OptimizedAbstractPlanProjectionError::ImmutablePlanMetadataMismatch);
     }
-    if source.functions.len() != final_unit.functions.len()
+    if !source_function_roster_partition_is_exact(source, final_unit)
         || projected.functions.len() != final_unit.functions.len()
-        || source
-            .functions
-            .iter()
-            .map(|function| function.machine)
-            .ne(final_unit.functions.iter().map(|function| function.machine))
         || projected
             .functions
             .iter()
@@ -458,12 +462,15 @@ fn validate_projection_shape(
     {
         return Err(OptimizedAbstractPlanProjectionError::SourceFunctionRosterMismatch);
     }
-    for ((source_function, unit_function), projected_function) in source
-        .functions
-        .iter()
-        .zip(&final_unit.functions)
-        .zip(&projected.functions)
+    for (unit_function, projected_function) in final_unit.functions.iter().zip(&projected.functions)
     {
+        let Some(source_function) = source
+            .functions
+            .iter()
+            .find(|source| source.machine == unit_function.machine)
+        else {
+            return Err(OptimizedAbstractPlanProjectionError::SourceFunctionRosterMismatch);
+        };
         if projected_function.attachment != source_function.attachment
             || unit_function.attachment != source_function.attachment
             || projected_function.structural_parameters != source_function.structural_parameters
@@ -495,6 +502,46 @@ fn validate_projection_shape(
         return Err(OptimizedAbstractPlanProjectionError::ReconstructibleProjectionMismatch);
     }
     Ok(())
+}
+
+fn source_function_roster_partition_is_exact(
+    source: &TerminalAbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
+) -> bool {
+    let active = unit
+        .functions
+        .iter()
+        .map(|function| function.machine)
+        .collect::<BTreeSet<_>>();
+    let pruned = unit
+        .pruned_machines
+        .iter()
+        .map(|row| (row.source_ordinal, row.machine))
+        .collect::<BTreeMap<_, _>>();
+    if unit
+        .pruned_machines
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+        || active.len() != unit.functions.len()
+        || active.len() + pruned.len() != source.functions.len()
+    {
+        return false;
+    }
+    let mut active_order = unit.functions.iter().map(|function| function.machine);
+    for (ordinal, source_function) in source.functions.iter().enumerate() {
+        if active.contains(&source_function.machine) {
+            if active_order.next() != Some(source_function.machine) {
+                return false;
+            }
+        } else if u32::try_from(ordinal)
+            .ok()
+            .and_then(|ordinal| pruned.get(&ordinal).copied())
+            != Some(source_function.machine)
+        {
+            return false;
+        }
+    }
+    active_order.next().is_none()
 }
 
 fn same_reconstructible_projection(
@@ -636,6 +683,7 @@ mod tests {
             validator: OptimizationValidatorIdentity::from_canonical_bytes(b"custody-validator"),
             input,
             output,
+            pruned_machines: Vec::new(),
             provenance: vec![ProvenanceRewrite {
                 input: disposition.site(),
                 disposition,

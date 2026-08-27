@@ -401,6 +401,15 @@ trait's current requirement count. Exact slot consumers can cite only the
 selected requirement's normalized contract; they possess no conformance
 identity from which trait laws could be cited.
 
+Compiler orchestration retains that selected entry as one build-owned typed
+settlement carrier. Target-slot resolution runs first, exact source-shape
+validation second, and optional physical/semantic plus program-storage calling-
+plan validation third. The source signature and both calling surfaces remain
+joined through component-progress and provider projection, then split only at
+their backend and storage consumers. A test-harness entry-name override is not
+part of this carrier and cannot acquire slot, signature, calling-plan, or
+storage authority.
+
 The physical arrival requirement, semantic arrival requirement, and selected
 source entry are different layers, not competing entry identities. For example,
 a hosted profile records:
@@ -1171,10 +1180,16 @@ occurrences; expression sites reuse their existing attached occurrences. The
 join verifies checked target, receiver, receiver shape, and operational
 acknowledgement. Missing, duplicate, unknown, late-bound, or contradictory
 provenance rejects, while compiler-generated calls produce no invented source
-location. Recovery envelope v4 and conflict fingerprint v7/rendering V6 bind
-what review shows. Per-fact spans and `reaches`/`invokes` occurrences remain
-incremental; absent late-stage spans must be retained by their earlier owner,
-not reconstructed from source text.
+location. Authored `invokes` targets are retained as one typed record binding
+their exact parameter-symbol/ordinal or boundary-trait symbol to the target-name
+span. Invocation inference consumes that target rather than reselecting by
+spelling. Callable, public-trait requirement, and recursively structural
+machine-parameter review rows carry the span under `synchronous_invocation`,
+with top-level rows joined exactly to checked invocation facts. Recovery
+envelope v5 and conflict fingerprint v8/rendering V7 bind what review shows.
+Per-fact spans and `reaches` occurrences remain incremental; absent late-stage
+spans must be retained by their earlier owner, not reconstructed from source
+text.
 
 Proposition and named-evidence projection is the concrete model for this
 cross-representation rule. Typed proposition applications own structural

@@ -58,6 +58,10 @@ pub enum OptimizationUnitValidationError {
     FunctionResultMismatch(MachineId),
     MissingEntryMachine(MachineId),
     DuplicateMachine(MachineId),
+    NonCanonicalPrunedMachineRoster,
+    ActivePrunedMachineOverlap(MachineId),
+    PrunedEntryMachine(MachineId),
+    PrunedProviderMachine(MachineId),
     DuplicateBoundaryMachine(BoundaryMachineId),
     ScalarOperationContractMismatch {
         machine: MachineId,
@@ -374,6 +378,52 @@ pub fn validate_psi_optimization_unit(
             ));
         }
     }
+    if unit
+        .pruned_machines
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+    {
+        return Err(OptimizationUnitValidationError::NonCanonicalPrunedMachineRoster);
+    }
+    let pruned = unit
+        .pruned_machines
+        .iter()
+        .map(|custody| custody.machine)
+        .collect::<BTreeSet<_>>();
+    if pruned.len() != unit.pruned_machines.len() {
+        return Err(OptimizationUnitValidationError::NonCanonicalPrunedMachineRoster);
+    }
+    if let Some(machine) = machines
+        .keys()
+        .find(|machine| pruned.contains(machine))
+        .copied()
+    {
+        return Err(OptimizationUnitValidationError::ActivePrunedMachineOverlap(
+            machine,
+        ));
+    }
+    if pruned.contains(&unit.entry) {
+        return Err(OptimizationUnitValidationError::PrunedEntryMachine(
+            unit.entry,
+        ));
+    }
+    if let Some(machine) = unit
+        .provider_candidates
+        .iter()
+        .map(|candidate| candidate.candidate)
+        .find(|machine| pruned.contains(machine))
+    {
+        return Err(OptimizationUnitValidationError::PrunedProviderMachine(
+            machine,
+        ));
+    }
+    if unit
+        .accepted_obligation_facts
+        .iter()
+        .any(|fact| !machines.contains_key(&fact.machine) && !pruned.contains(&fact.machine))
+    {
+        return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
+    }
     let mut boundary_machines = BTreeMap::new();
     for boundary in &unit.boundary_machines {
         if boundary_machines.insert(boundary.id, boundary).is_some() {
@@ -391,6 +441,7 @@ pub fn validate_psi_optimization_unit(
             .iter()
             .find(|function| function.machine == fact.machine)
             .is_none()
+            && !pruned.contains(&fact.machine)
         {
             return Err(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch);
         }
@@ -427,7 +478,7 @@ pub fn validate_integer_evaluation_candidate(
     let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    if candidate.decision_point() != patch.location {
+    if candidate.node_decision_point() != Some(patch.location) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let function = input
@@ -599,7 +650,8 @@ pub fn validate_scalar_evaluation_candidate(
         PsiRewritePatch::ThreadPathQualifiedEmptyBlock(_) => {
             Err(OptimizationUnitValidationError::CandidatePatchMismatch)
         }
-        PsiRewritePatch::MergeAdjacentBlock(_) => {
+        PsiRewritePatch::MergeAdjacentBlock(_)
+        | PsiRewritePatch::PruneUnreachablePrivateMachines(_) => {
             Err(OptimizationUnitValidationError::CandidatePatchMismatch)
         }
     }
@@ -631,7 +683,238 @@ pub fn validate_psi_rewrite_candidate(
         PsiRewritePatch::MergeAdjacentBlock(_) => {
             validate_adjacent_block_merge_candidate(input, candidate)
         }
+        PsiRewritePatch::PruneUnreachablePrivateMachines(_) => {
+            validate_unreachable_private_machines_candidate(input, candidate)
+        }
     }
+}
+
+/// Independently reconstruct the complete executable-machine root closure and
+/// remove its exact active complement. Proof/frontier catalogs remain immutable
+/// historical custody; only executable function bodies leave the active roster.
+pub fn validate_unreachable_private_machines_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_psi_optimization_unit(input)?;
+    if candidate.input() != input.identity {
+        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
+    }
+    if !candidate
+        .required_analyses()
+        .contains(AnalysisKind::CallGraph)
+        || !candidate
+            .invalidated_analyses()
+            .contains(AnalysisKind::ControlFlowGraph)
+        || !candidate
+            .invalidated_analyses()
+            .contains(AnalysisKind::CallGraph)
+        || !candidate
+            .invalidated_analyses()
+            .contains(AnalysisKind::UseDefinition)
+        || !candidate
+            .invalidated_analyses()
+            .contains(AnalysisKind::EffectSummaries)
+        || candidate.safety_class() != OptimizationSafetyClass::StructuralIdentity
+        || !candidate.affected_blocks().is_empty()
+        || !candidate.substitutions().is_empty()
+    {
+        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
+    }
+    let omega_optimization_unit::PsiRewriteDecisionPoint::MachineSet(decision_machines) =
+        candidate.decision_point()
+    else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
+    let PsiRewritePatch::PruneUnreachablePrivateMachines(patch) = candidate.patch_ref() else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
+    let expected_machines = unreachable_private_machine_complement(input);
+    let patch_machines = patch
+        .machines
+        .iter()
+        .map(|row| row.machine)
+        .collect::<Vec<_>>();
+    if expected_machines.is_empty()
+        || *decision_machines != expected_machines
+        || patch_machines != expected_machines
+        || candidate.affected_machines() != expected_machines
+    {
+        return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
+    }
+    let source_ordinals = validator_active_source_ordinals(input);
+    let expected_custody = expected_machines
+        .iter()
+        .map(|machine| omega_optimization_unit::PrunedMachineCustody {
+            machine: *machine,
+            source_ordinal: source_ordinals[machine],
+        })
+        .collect::<Vec<_>>();
+    if patch.machines != expected_custody {
+        return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
+    }
+    let expected_provenance = pruned_machine_provenance(input, &expected_machines)
+        .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
+    if candidate.provenance() != expected_provenance {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    }
+    let removed = expected_machines.iter().copied().collect::<BTreeSet<_>>();
+    let mut output = input.clone();
+    output
+        .functions
+        .retain(|function| !removed.contains(&function.machine));
+    output.pruned_machines.extend(expected_custody);
+    output.pruned_machines.sort_unstable();
+    output.identity = recompute_psi_optimization_unit_identity(&output);
+    validate_psi_optimization_unit(&output)?;
+    Ok(ValidatedPsiRewrite {
+        unit: output,
+        candidate: candidate.identity(),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(
+            b"omega.validator.unreachable-private-machine-pruning.v1",
+        ),
+        provenance: expected_provenance,
+    })
+}
+
+fn validator_active_source_ordinals(unit: &PsiOptimizationUnit) -> BTreeMap<MachineId, u32> {
+    let pruned = unit
+        .pruned_machines
+        .iter()
+        .map(|row| (row.source_ordinal, row.machine))
+        .collect::<BTreeMap<_, _>>();
+    let mut active = unit.functions.iter();
+    let mut result = BTreeMap::new();
+    for ordinal in 0..(unit.functions.len() + unit.pruned_machines.len()) {
+        let ordinal = u32::try_from(ordinal).expect("function ordinal fits u32");
+        if !pruned.contains_key(&ordinal) {
+            if let Some(function) = active.next() {
+                result.insert(function.machine, ordinal);
+            }
+        }
+    }
+    result
+}
+
+fn unreachable_private_machine_complement(unit: &PsiOptimizationUnit) -> Vec<MachineId> {
+    let active = unit
+        .functions
+        .iter()
+        .map(|function| function.machine)
+        .collect::<BTreeSet<_>>();
+    let mut reachable = BTreeSet::from([unit.entry]);
+    reachable.extend(
+        unit.provider_candidates
+            .iter()
+            .map(|candidate| candidate.candidate),
+    );
+    reachable.extend(
+        unit.functions
+            .iter()
+            .filter(|function| function.attachment.is_some())
+            .map(|function| function.machine),
+    );
+    let references = unit
+        .functions
+        .iter()
+        .map(|function| (function.machine, validator_machine_references(function)))
+        .collect::<BTreeMap<_, _>>();
+    let mut work = reachable.iter().copied().collect::<Vec<_>>();
+    while let Some(machine) = work.pop() {
+        for callee in references.get(&machine).into_iter().flatten().copied() {
+            if active.contains(&callee) && reachable.insert(callee) {
+                work.push(callee);
+            }
+        }
+    }
+    active.difference(&reachable).copied().collect()
+}
+
+fn validator_machine_references(function: &PsiOptimizationFunction) -> BTreeSet<MachineId> {
+    let mut references = BTreeSet::new();
+    for operation in function
+        .blocks
+        .iter()
+        .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
+    {
+        match operation {
+            O::CallUnit { callee, .. }
+            | O::CallStructuralScalar { callee, .. }
+            | O::CallStructural { callee, .. }
+            | O::Call { callee, .. } => {
+                references.insert(*callee);
+            }
+            O::Return {
+                cleanup_actions, ..
+            }
+            | O::ReturnUnit {
+                cleanup_actions, ..
+            } => {
+                references.extend(cleanup_actions.iter().filter_map(|action| match action {
+                    psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                        Some(cleanup.cleanup_machine)
+                    }
+                    psi_terminal::TerminalAffineCleanupAction::DiscardRoot(_)
+                    | psi_terminal::TerminalAffineCleanupAction::DiscardResidual(_) => None,
+                }));
+            }
+            _ => {}
+        }
+    }
+    references
+}
+
+fn pruned_machine_provenance(
+    unit: &PsiOptimizationUnit,
+    machines: &[MachineId],
+) -> Option<Vec<omega_optimization_unit::ProvenanceRewrite>> {
+    let machines = machines.iter().copied().collect::<BTreeSet<_>>();
+    let mut rows = Vec::new();
+    for function in unit
+        .functions
+        .iter()
+        .filter(|function| machines.contains(&function.machine))
+    {
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let input = PsiRealizationSite::Node(NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: u32::try_from(node_index).ok()?,
+                });
+                if !node.provenance.is_empty() {
+                    rows.push(omega_optimization_unit::ProvenanceRewrite {
+                        input,
+                        disposition: ProvenanceDisposition::ProvenUnreachableAt(input),
+                        sources: node.provenance.clone(),
+                        fuel: node.fuel.clone(),
+                    });
+                }
+                for edge in &node.successors {
+                    let input = PsiRealizationSite::Edge {
+                        machine: function.machine,
+                        edge: edge.psi_edge,
+                    };
+                    if !edge.provenance.is_empty() {
+                        rows.push(omega_optimization_unit::ProvenanceRewrite {
+                            input,
+                            disposition: ProvenanceDisposition::ProvenUnreachableAt(input),
+                            sources: edge.provenance.clone(),
+                            fuel: edge.fuel.clone(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    rows.sort_by_key(|row| {
+        (
+            row.input,
+            row.disposition.canonical_tag(),
+            row.disposition.site(),
+        )
+    });
+    Some(rows)
 }
 
 /// Independently replay one Boolean-proven conditional fold and atomically
@@ -670,7 +953,7 @@ pub fn validate_constant_conditional_candidate(
     let PsiRewritePatch::FoldConstantConditional(patch) = candidate.patch() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    if candidate.decision_point() != patch.location {
+    if candidate.node_decision_point() != Some(patch.location) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let function = input
@@ -1032,7 +1315,7 @@ pub fn validate_linear_empty_block_candidate(
     let PsiRewritePatch::ThreadLinearEmptyBlock(patch) = candidate.patch() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    if candidate.decision_point() != patch.predecessor
+    if candidate.node_decision_point() != Some(patch.predecessor)
         || patch.empty.node != 0
         || patch.empty.machine != patch.predecessor.machine
     {
@@ -1298,7 +1581,7 @@ pub fn validate_path_qualified_empty_block_candidate(
     let PsiRewritePatch::ThreadPathQualifiedEmptyBlock(patch) = candidate.patch() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    if candidate.decision_point() != patch.empty || patch.empty.node != 0 {
+    if candidate.node_decision_point() != Some(patch.empty) || patch.empty.node != 0 {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let function = input
@@ -1522,7 +1805,7 @@ pub fn validate_adjacent_block_merge_candidate(
     let PsiRewritePatch::MergeAdjacentBlock(patch) = candidate.patch() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    if candidate.decision_point() != patch.predecessor {
+    if candidate.node_decision_point() != Some(patch.predecessor) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let function = input
@@ -1549,7 +1832,15 @@ pub fn validate_adjacent_block_merge_candidate(
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
     let eligible_first = target.nodes.first().is_some_and(|node| {
         (node.successors.is_empty()
-            && matches!(node.provenance.first(), Some(PsiProvenance::Operation(_))))
+            && (matches!(node.provenance.first(), Some(PsiProvenance::Operation(_)))
+                || (matches!(node.provenance.first(), Some(PsiProvenance::Edge(_)))
+                    && matches!(
+                        node.operation,
+                        O::Return { .. }
+                            | O::ReturnUnit { .. }
+                            | O::ReturnStructural { .. }
+                            | O::Crash { .. }
+                    ))))
             || (matches!(node.operation, O::Conditional { .. })
                 && node.successors.len() == 2
                 && node.provenance.is_empty())
@@ -1704,7 +1995,7 @@ pub fn validate_adjacent_block_merge_candidate(
         unit: output,
         candidate: candidate.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.adjacent-single-predecessor-block-merge.v2",
+            b"omega.validator.adjacent-single-predecessor-block-merge.v3",
         ),
         provenance: accepted_provenance,
     })
@@ -2739,7 +3030,7 @@ pub fn validate_boolean_evaluation_candidate(
     let PsiRewritePatch::ReplaceBooleanOperationWithConstant(patch) = candidate.patch() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    if candidate.decision_point() != patch.location {
+    if candidate.node_decision_point() != Some(patch.location) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let function = input
@@ -4200,21 +4491,61 @@ fn same_immutable_signature_custody(
         && seed.structural_types == unit.structural_types
         && seed.boundary_machines == unit.boundary_machines
         && seed.provider_candidates == unit.provider_candidates
-        && seed.functions.len() == unit.functions.len()
-        && seed
-            .functions
-            .iter()
-            .zip(&unit.functions)
-            .all(|(seed, unit)| {
-                seed.machine == unit.machine
-                    && seed.attachment == unit.attachment
-                    && seed.parameters == unit.parameters
-                    && seed.structural_parameters == unit.structural_parameters
-                    && seed.result == unit.result
-                    && seed.entry_claim_declarations == unit.entry_claim_declarations
-                    && seed.entry_claims == unit.entry_claims
-                    && seed.published_service_ceiling == unit.published_service_ceiling
-            })
+        && source_roster_partition_is_exact(seed, unit)
+        && unit.functions.iter().all(|unit| {
+            seed.functions
+                .iter()
+                .find(|seed| seed.machine == unit.machine)
+                .is_some_and(|seed| {
+                    seed.machine == unit.machine
+                        && seed.attachment == unit.attachment
+                        && seed.parameters == unit.parameters
+                        && seed.structural_parameters == unit.structural_parameters
+                        && seed.result == unit.result
+                        && seed.entry_claim_declarations == unit.entry_claim_declarations
+                        && seed.entry_claims == unit.entry_claims
+                        && seed.published_service_ceiling == unit.published_service_ceiling
+                })
+        })
+}
+
+fn source_roster_partition_is_exact(
+    seed: &PsiOptimizationUnit,
+    unit: &PsiOptimizationUnit,
+) -> bool {
+    if unit
+        .pruned_machines
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+    {
+        return false;
+    }
+    let active = unit
+        .functions
+        .iter()
+        .map(|function| function.machine)
+        .collect::<BTreeSet<_>>();
+    let pruned = unit
+        .pruned_machines
+        .iter()
+        .map(|row| (row.source_ordinal, row.machine))
+        .collect::<BTreeMap<_, _>>();
+    if active.len() != unit.functions.len() || active.len() + pruned.len() != seed.functions.len() {
+        return false;
+    }
+    let mut active_order = unit.functions.iter().map(|function| function.machine);
+    for (ordinal, source) in seed.functions.iter().enumerate() {
+        let ordinal = u32::try_from(ordinal).ok();
+        if active.contains(&source.machine) {
+            if active_order.next() != Some(source.machine) {
+                return false;
+            }
+        } else if ordinal.and_then(|ordinal| pruned.get(&ordinal).copied()) != Some(source.machine)
+        {
+            return false;
+        }
+    }
+    active_order.next().is_none()
 }
 
 fn validate_function(
