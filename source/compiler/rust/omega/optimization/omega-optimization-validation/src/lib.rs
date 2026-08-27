@@ -9,8 +9,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_optimization_core::{
-    AnalysisKind, OptimizationCandidateIdentity, OptimizationSafetyClass, OptimizationUnitIdentity,
-    OptimizationValidatorIdentity,
+    AnalysisKind, OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationSafetyClass,
+    OptimizationUnitIdentity, OptimizationValidatorIdentity,
 };
 use omega_optimization_unit::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
@@ -2223,9 +2223,9 @@ pub fn validate_shared_terminal_jump_fusion_candidate(
     })
 }
 
-/// Independently remove one unused scalar literal. Literal execution custody
-/// remains realized at the immediately following, necessarily co-executed
-/// node; it is never represented as unreachable work.
+/// Independently remove one unused, unconditionally total scalar operation.
+/// Execution custody remains realized at the immediately following,
+/// necessarily co-executed node; it is never represented as unreachable work.
 pub fn validate_dead_scalar_node_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
@@ -2274,20 +2274,9 @@ pub fn validate_dead_scalar_node_candidate(
         .nodes
         .get(node_index)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let (source_operation, result, scalar_type) = match node.operation {
-        O::IntegerConstant {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        } => (psi_operation, result, scalar_type),
-        O::BooleanConstant {
-            psi_operation,
-            result,
-            ..
-        } => (psi_operation, result, psi_core::ScalarType::Boolean),
-        _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
-    };
+    let (source_operation, result, scalar_type) =
+        independently_validated_dead_scalar_shape(candidate.rule(), &node.operation)
+            .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     if source_operation != patch.source_operation
         || result != patch.result
         || scalar_type != patch.scalar_type
@@ -2300,7 +2289,6 @@ pub fn validate_dead_scalar_node_candidate(
                     node: patch.location.node,
                 },
             }]
-        || !node.uses.is_empty()
         || !node.successors.is_empty()
         || !node.ownership.is_empty()
         || block.nodes.get(node_index + 1).is_none()
@@ -2316,6 +2304,13 @@ pub fn validate_dead_scalar_node_candidate(
             .flat_map(|block| &block.nodes)
             .flat_map(|node| &node.uses)
             .any(|use_site| use_site.value == result)
+        || function.facts.iter().any(|fact| {
+            matches!(
+                fact,
+                OptimizationFact::OperationObligationReference { support, .. }
+                    if *support == source_operation
+            )
+        })
     {
         return Err(OptimizationUnitValidationError::CandidateLiveBoundaryMismatch);
     }
@@ -2398,10 +2393,163 @@ pub fn validate_dead_scalar_node_candidate(
         unit: output,
         candidate: candidate.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.dead-unused-scalar-literal-elimination.v1",
+            b"omega.validator.dead-unused-total-scalar-node.v1",
         ),
         provenance: accepted_provenance,
     })
+}
+
+fn independently_validated_dead_scalar_shape(
+    rule: OptimizationRuleIdentity,
+    operation: &O,
+) -> Option<(psi_core::OperationId, ValueId, ScalarType)> {
+    let literal_rule = OptimizationRuleIdentity::from_canonical_bytes(
+        b"omega.psi-rule.dead-unused-scalar-literal-elimination.v1",
+    );
+    let total_rule = OptimizationRuleIdentity::from_canonical_bytes(
+        b"omega.psi-rule.dead-unused-unconditionally-total-scalar-elimination.v1",
+    );
+    match (rule, operation) {
+        (
+            rule,
+            O::IntegerConstant {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            },
+        ) if rule == literal_rule => Some((*psi_operation, *result, *scalar_type)),
+        (
+            rule,
+            O::BooleanConstant {
+                psi_operation,
+                result,
+                ..
+            },
+        ) if rule == literal_rule => Some((*psi_operation, *result, ScalarType::Boolean)),
+        (
+            rule,
+            O::BooleanNot {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::BooleanEqual {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::IntegerEqual {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::IntegerLessThan {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::IntegerLessOrEqual {
+                psi_operation,
+                result,
+                ..
+            },
+        ) if rule == total_rule => Some((*psi_operation, *result, ScalarType::Boolean)),
+        (
+            rule,
+            O::IntegerBitwiseNot {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::IntegerBitwiseAnd {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::IntegerBitwiseOr {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::IntegerBitwiseXor {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::WrappingIntegerAdd {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::SaturatingIntegerAdd {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::WrappingIntegerSubtract {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::SaturatingIntegerSubtract {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::WrappingIntegerMultiply {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::SaturatingIntegerMultiply {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            },
+        ) if rule == total_rule => {
+            Some((*psi_operation, *result, ScalarType::Integer(*scalar_type)))
+        }
+        (
+            rule,
+            O::IntegerWiden {
+                psi_operation,
+                result,
+                target_type,
+                ..
+            },
+        ) if rule == total_rule => {
+            Some((*psi_operation, *result, ScalarType::Integer(*target_type)))
+        }
+        (
+            rule,
+            O::WrappingIntegerShiftLeft {
+                psi_operation,
+                result,
+                value_type,
+                ..
+            }
+            | O::WrappingIntegerShiftRight {
+                psi_operation,
+                result,
+                value_type,
+                ..
+            },
+        ) if rule == total_rule => {
+            Some((*psi_operation, *result, ScalarType::Integer(*value_type)))
+        }
+        _ => None,
+    }
 }
 
 fn preserve_edge_custody(

@@ -1019,35 +1019,48 @@ or cleanup-root machine. Candidate v14, optimization-unit content identity v8,
 `ControlFlowCleanup` v9, prephysical manifest v8, and optimized-plan projection
 validation v9 bind this admission meaning.
 
-### Dead scalar literals
+### Dead pure scalar work
 
-The first exact `DeadPureScalarElimination` rule is
-`dead-unused-scalar-literal-elimination.v1`. Its closed vocabulary contains only
-`BooleanConstant` and `IntegerConstant`: one scalar definition and no operands,
-proof obligations, ownership, successors, structural state, observation,
-crash, or suspension. Arithmetic policies, casts, shifts, comparisons, calls,
-structural reads, and proof-bearing operations are not generalized into this
-contract merely because a result appears unused.
+`DeadPureScalarElimination` is an explicit named suite that currently expands
+to two exact rules. `dead-unused-scalar-literal-elimination.v1` contains only
+`BooleanConstant` and `IntegerConstant`.
+`dead-unused-unconditionally-total-scalar-elimination.v1` contains only:
 
-The rule requires value liveness and effect summaries. The independent
-validator reconstructs the exact definition/type, absence from live-out and
-every use site, and the total/pure operation shape. A valid block always retains
-a following terminator, so deletion realizes the literal's operation
-provenance and fuel at the immediately following, co-executed node rather than
-marking reachable work unreachable. Later sourced nodes shifted by deletion
-receive exact ledger relocation rows, while dense effects, definitions/uses,
-literal facts, places, and unit identity are rebuilt.
+- Boolean not/equality and integer equality/order comparisons;
+- integer bitwise not/and/or/xor and widening;
+- wrapping integer shifts; and
+- wrapping or saturating integer add, subtract, and multiply.
+
+The second list is deliberately closed. Each admitted operation is pure,
+unconditionally total for already verified typed operands, and carries no
+operation obligation. Exact casts, exact arithmetic and shifts, every
+divide/remainder policy, calls, structural work, and boundary/service/control
+operations remain excluded. In particular, an admitted proof obligation is
+not evidence that dead-code elimination may silently discard the operation;
+proof-bearing elimination needs its own explicit rule and custody contract.
+
+Both rules require value liveness and effect summaries. The independent
+validator checks the candidate rule identity against an independent copy of
+the corresponding closed operation list, reconstructs the exact
+definition/type, rejects any operation-obligation reference, and proves
+absence from live-out and every use site. A valid block always retains a
+following terminator, so deletion realizes the removed operation's provenance
+and fuel at the immediately following, co-executed node rather than marking
+reachable work unreachable. Later sourced nodes shifted by deletion receive
+exact ledger relocation rows, while dense effects, definitions/uses, literal
+facts, places, and unit identity are rebuilt.
 
 Node provenance retains the receiver's primary source as an exact prefix and
 may then carry inherited operation or edge sources. A jump or conditional may
 therefore hold unconditional inherited node custody before its arm-specific
 successor edges. Global uniqueness, fuel equality, and terminal-antichain rules
-still reject duplicated or co-executable occurrences. Two adjacent dead
-literals converge over two iterations; artifact replay leaves the return with
-all original source/fuel sites. Candidate v16, optimization-unit content
-identity v10, the named v1 pass, prephysical manifest v10, and optimized-plan
-projection validation v11 bind this meaning; ledger v4 already represents the
-many-to-one moves.
+still reject duplicated or co-executable occurrences. A verified wrapping-add
+artifact first removes the unused total arithmetic node, then revisits the
+earlier rule and removes both newly dead literals; artifact replay leaves the
+return with all original source/fuel sites. Candidate v16, optimization-unit
+content identity v10, the named v2 pass, prephysical manifest v10, and
+optimized-plan projection validation v11 bind this meaning; ledger v4 already
+represents the many-to-one moves.
 
 Baseline choice lives in `omega-optimization-policy`, outside rule and
 validator crates. The pass manager first obtains independently constructed
