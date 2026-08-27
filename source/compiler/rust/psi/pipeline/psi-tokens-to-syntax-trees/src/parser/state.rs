@@ -36,6 +36,8 @@ pub(super) fn parse_state_signature<'tokens, 'source>(
             service_reach_keyword_source_spans: Vec::new(),
             service_reaches: HandleSpan::empty(),
             invokes: HandleSpan::empty(),
+            suspends_keyword_source_spans: Vec::new(),
+            blocks_keyword_source_spans: Vec::new(),
             suspends: false,
             blocks: false,
             contracts: HandleSpan::empty(),

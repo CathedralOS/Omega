@@ -96,7 +96,9 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -141,7 +143,9 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -246,7 +250,9 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -295,7 +301,9 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -436,7 +444,9 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };
@@ -473,7 +483,9 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
         conformance_bounds: Vec::new(),
         invokes: Default::default(),
         suspends: false,
+        suspends_keyword_source_spans: Vec::new(),
         blocks: false,
+        blocks_keyword_source_spans: Vec::new(),
         contracts: Default::default(),
         states: Default::default(),
     };

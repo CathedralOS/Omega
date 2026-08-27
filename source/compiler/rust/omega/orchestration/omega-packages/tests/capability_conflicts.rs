@@ -820,7 +820,7 @@ end_root_policy_resolution\n",
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render bounded conflict evidence");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V8\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V9\n"));
     assert!(rendered.contains("change added\nkind public_proposition\nrisk blocking\n"));
     assert!(rendered.contains("candidate_location declaration package "));
     assert!(rendered.contains(" \"main.omg\"\n"));
@@ -1723,6 +1723,71 @@ reaches {service}
         .expect("render service-reach conflict");
     assert!(rendered.contains("baseline_location service_reach package "));
     assert!(rendered.contains("candidate_location service_reach package "));
+
+    let _ = std::fs::remove_dir_all(live);
+    let _ = std::fs::remove_dir_all(baseline_cache);
+    let _ = std::fs::remove_dir_all(candidate_cache);
+    let _ = std::fs::remove_dir_all(build_root);
+}
+
+#[test]
+fn operational_changes_render_exact_authored_clause_locations() {
+    let live = temp_root("operational-location-live");
+    let baseline_cache = temp_root("operational-location-baseline");
+    let candidate_cache = temp_root("operational-location-candidate");
+    let build_root = temp_root("operational-location-build");
+    let context = ExternalSourceContext::derive(b"operational-location-conflict-test");
+
+    let source = |clause: &str| format!("pub machine operate()\n{clause};\n{{ }}\n");
+    write_package(&live, &source("suspends"));
+    let baseline_sources = resolve_external_local_package_closure(
+        &live,
+        context.clone(),
+        &baseline_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve operational baseline");
+    let baseline_reviews =
+        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+            .expect("compile operational baseline");
+
+    write_package(&live, &source("blocks"));
+    let candidate_sources = resolve_external_local_package_closure(
+        &live,
+        context,
+        &candidate_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve operational candidate");
+    let candidate_reviews =
+        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+            .expect("compile operational candidate");
+
+    let conflicts = compare_review_only_capabilities(
+        &baseline_reviews,
+        &candidate_reviews,
+        &candidate_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare operational change");
+    let conflict = conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| package.conflicts())
+        .find(|conflict| conflict.kind() == PackageReviewCanonicalRowKind::Callable)
+        .expect("changed callable row");
+    assert_eq!(conflict.risk(), PackageReviewCanonicalRowRisk::Blocking);
+    assert_eq!(
+        conflict.change(),
+        ReviewOnlyCapabilityConflictChange::Changed
+    );
+    let rendered = conflicts
+        .render_bounded(1024 * 1024)
+        .expect("render operational conflict");
+    assert!(rendered.contains("baseline_location suspension package "));
+    assert!(rendered.contains("candidate_location blocking package "));
 
     let _ = std::fs::remove_dir_all(live);
     let _ = std::fs::remove_dir_all(baseline_cache);

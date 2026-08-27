@@ -2015,6 +2015,8 @@ pub struct CheckedPackageCallableReview {
     declared_synchronous_invocations: Option<Vec<PackageReviewSynchronousInvocation>>,
     realized_synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
     capability_flows: Vec<PackageReviewCapabilityFlow>,
+    /// Exact checked operational summary. Published callable surfaces expose
+    /// their authored may-ceiling; the build-machine lane may remain inferred.
     checked_may_suspend: bool,
     checked_may_block: bool,
     checked_termination: PackageReviewTermination,
@@ -2389,6 +2391,8 @@ pub enum PackageReviewSourceLocationRole {
     TraitParent,
     ContractClause,
     BodyCall,
+    Suspension,
+    Blocking,
     ServiceReach,
     SynchronousInvocation,
 }
@@ -2715,6 +2719,10 @@ pub fn project_checked_package_review(
             machine,
         )?);
         contract_locations.extend(project_machine_service_reach_source_locations(
+            compilation,
+            machine,
+        )?);
+        contract_locations.extend(project_machine_operational_source_locations(
             compilation,
             machine,
         )?);
@@ -3826,6 +3834,11 @@ fn project_public_traits(
                 requirement,
             )?);
             nested_source_locations.extend(project_signature_service_reach_source_locations(
+                compilation,
+                definition.symbol,
+                requirement,
+            )?);
+            nested_source_locations.extend(project_signature_operational_source_locations(
                 compilation,
                 definition.symbol,
                 requirement,
@@ -7139,6 +7152,24 @@ fn project_callable(
                 "reviewed callable `{subject}` has no exact inferred synchronous-invocation row"
             ))]
         })?;
+    let suspension = compilation
+        .facts
+        .suspensions
+        .for_machine(machine.symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "reviewed callable `{subject}` has no exact suspension fact"
+            ))]
+        })?;
+    let blocking = compilation
+        .facts
+        .blocking
+        .for_machine(machine.symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "reviewed callable `{subject}` has no exact blocking fact"
+            ))]
+        })?;
 
     let declared_service_reach = match service_reach.interface {
         psi_language_semantics::ServiceReachInterface::PublishedCeiling(row) => {
@@ -7155,6 +7186,33 @@ fn project_callable(
             ))]);
         }
     };
+    if role != PackageReviewCallableRole::Build
+        && matches!(
+            suspension.interface,
+            psi_language_semantics::SuspensionInterface::InternalInferred
+        )
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{subject}` has no published suspension ceiling"
+        ))]);
+    }
+    if role != PackageReviewCallableRole::Build
+        && matches!(
+            blocking.interface,
+            psi_language_semantics::BlockingInterface::InternalInferred
+        )
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{subject}` has no published blocking ceiling"
+        ))]);
+    }
+    if suspension.checked_may_suspend != realized.checked_may_suspend
+        || blocking.checked_may_block != realized.checked_may_block
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{subject}` operational facts do not equal its exact realized contract envelope"
+        ))]);
+    }
     match machine.supply_mode {
         MachineSupplyMode::CheckedBody if !machine.body_is_present => {
             return Err(vec![Diagnostic::error(format!(
@@ -7767,6 +7825,135 @@ fn authored_service_reach_locations(
     }
 }
 
+fn project_machine_operational_source_locations(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    let mut locations = project_operational_keyword_locations(
+        compilation,
+        machine.name.as_str(),
+        "suspends",
+        machine.suspends,
+        &machine.suspends_keyword_source_spans,
+        PackageReviewSourceLocationRole::Suspension,
+    )?;
+    locations.extend(project_operational_keyword_locations(
+        compilation,
+        machine.name.as_str(),
+        "blocks",
+        machine.blocks,
+        &machine.blocks_keyword_source_spans,
+        PackageReviewSourceLocationRole::Blocking,
+    )?);
+
+    let suspension = compilation
+        .facts
+        .suspensions
+        .for_machine(machine.symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "reviewed callable `{}` has no exact suspension fact",
+                machine.name
+            ))]
+        })?;
+    let blocking = compilation
+        .facts
+        .blocking
+        .for_machine(machine.symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "reviewed callable `{}` has no exact blocking fact",
+                machine.name
+            ))]
+        })?;
+    let publishes = machine.is_public
+        || machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody;
+    let expected_suspension = if publishes || machine.suspends {
+        psi_language_semantics::SuspensionInterface::PublishedMaySuspend(machine.suspends)
+    } else {
+        psi_language_semantics::SuspensionInterface::InternalInferred
+    };
+    let expected_blocking = if publishes || machine.blocks {
+        psi_language_semantics::BlockingInterface::PublishedMayBlock(machine.blocks)
+    } else {
+        psi_language_semantics::BlockingInterface::InternalInferred
+    };
+    if suspension.interface != expected_suspension || blocking.interface != expected_blocking {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` authored operational custody does not equal its exact checked interfaces",
+            machine.name
+        ))]);
+    }
+    Ok(locations)
+}
+
+fn project_signature_operational_source_locations(
+    compilation: &CheckedCompilation,
+    owner: SymbolHandle,
+    signature: &psi_typed_trees::signature::StateSignature,
+) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    let mut locations = project_operational_keyword_locations(
+        compilation,
+        signature.name.as_str(),
+        "suspends",
+        signature.suspends,
+        &signature.suspends_keyword_source_spans,
+        PackageReviewSourceLocationRole::Suspension,
+    )?;
+    locations.extend(project_operational_keyword_locations(
+        compilation,
+        signature.name.as_str(),
+        "blocks",
+        signature.blocks,
+        &signature.blocks_keyword_source_spans,
+        PackageReviewSourceLocationRole::Blocking,
+    )?);
+    let checked = exactly_one(
+        compilation
+            .facts
+            .contract_plans
+            .crash_capsules
+            .iter()
+            .filter(|capsule| {
+                capsule.target_machine() == owner && capsule.target_state() == signature.symbol
+            }),
+        signature.name.as_str(),
+        "signature contract capsule",
+    )?;
+    if checked.published_may_suspend() != signature.suspends
+        || checked.published_may_block() != signature.blocks
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed signature `{}` authored operational custody does not equal its exact checked contract capsule",
+            signature.name
+        ))]);
+    }
+    Ok(locations)
+}
+
+fn project_operational_keyword_locations(
+    compilation: &CheckedCompilation,
+    owner_name: &str,
+    clause: &str,
+    authored: bool,
+    source_spans: &[psi_source::SourceSpan],
+    role: PackageReviewSourceLocationRole,
+) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    if authored != !source_spans.is_empty() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{owner_name}` has contradictory authored `{clause}` source custody"
+        ))]);
+    }
+    source_spans
+        .iter()
+        .copied()
+        .map(|source_span| {
+            canonical_source_span_location(compilation, source_span, role)?;
+            Ok(ProjectedNestedSourceLocation { source_span, role })
+        })
+        .collect()
+}
+
 fn project_machine_invocation_source_locations(
     compilation: &CheckedCompilation,
     inference: &psi_effects::InvocationInferencePlan,
@@ -7902,6 +8089,11 @@ fn collect_type_parameter_source_locations(
             signature,
         )?);
         locations.extend(project_signature_service_reach_source_locations(
+            compilation,
+            parameter.symbol,
+            signature,
+        )?);
+        locations.extend(project_signature_operational_source_locations(
             compilation,
             parameter.symbol,
             signature,

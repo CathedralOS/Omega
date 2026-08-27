@@ -1526,6 +1526,8 @@ fn distinct_static_machine_specializations_clone_the_template() {
         machine apply<T, machine F>(value: &T)
         where machine F(item: &T);
         reaches Clock
+        suspends;
+        blocks;
         { F(value); }
         machine caller(card: &Card) {
             apply<Card::power>(card);
@@ -1551,6 +1553,8 @@ fn distinct_static_machine_specializations_clone_the_template() {
         1,
         "typed template retains authored reach before specialization"
     );
+    assert_eq!(typed_apply.suspends_keyword_source_spans.len(), 1);
+    assert_eq!(typed_apply.blocks_keyword_source_spans.len(), 1);
     let checked = lower_typed_trees(typed)
         .expect("each concrete machine tuple should receive its own specialization");
     let apply_specializations: Vec<_> = checked
@@ -1584,6 +1588,13 @@ fn distinct_static_machine_specializations_clone_the_template() {
         .find(|definition| definition.name.as_str() == "Clock")
         .expect("Clock boundary trait");
     for specialization in apply_specializations {
+        let instance = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == specialization.instance)
+            .expect("specialized machine");
+        assert_eq!(instance.suspends_keyword_source_spans.len(), 1);
+        assert_eq!(instance.blocks_keyword_source_spans.len(), 1);
         let rows = checked
             .authored_service_reach_rows_for(specialization.instance)
             .collect::<Vec<_>>();

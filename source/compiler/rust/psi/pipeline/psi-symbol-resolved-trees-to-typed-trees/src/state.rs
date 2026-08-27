@@ -335,6 +335,8 @@ pub(crate) fn lower_state_signature(
         invokes: Default::default(),
         service_reach_row: signature.service_reach_row,
         service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
+        suspends_keyword_source_spans: signature.suspends_keyword_source_spans.clone(),
+        blocks_keyword_source_spans: signature.blocks_keyword_source_spans.clone(),
         suspends: signature.suspends,
         blocks: signature.blocks,
         contracts: Default::default(),

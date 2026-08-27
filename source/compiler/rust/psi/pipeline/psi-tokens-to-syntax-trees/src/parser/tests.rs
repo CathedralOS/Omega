@@ -1919,6 +1919,11 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
         trait Worker {
             machine wait() reaches Clock suspends; blocks; ensures true;
         }
+
+        machine schedule<machine Callback>()
+        where machine Callback() suspends; blocks;
+        {
+        }
         "#;
 
     let tokens = Lexer::new(source)
@@ -1934,6 +1939,8 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
         .expect("machine item");
     assert!(machine.suspends);
     assert!(machine.blocks);
+    assert_eq!(machine.suspends_keyword_source_spans.len(), 1);
+    assert_eq!(machine.blocks_keyword_source_spans.len(), 1);
     let service_reaches = parsed
         .items
         .identifier_path_members(machine.service_reaches);
@@ -1951,11 +1958,80 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
     let signature = parsed.items.state_signature(signature_handle);
     assert!(signature.suspends);
     assert!(signature.blocks);
+    assert_eq!(signature.suspends_keyword_source_spans.len(), 1);
+    assert_eq!(signature.blocks_keyword_source_spans.len(), 1);
     let service_reaches = parsed
         .items
         .identifier_path_members(signature.service_reaches);
     assert_eq!(service_reaches.len(), 1);
     assert_eq!(service_reaches[0].as_str(), "Clock");
+
+    let structural_machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str() == "schedule" =>
+            {
+                Some(machine)
+            }
+            _ => None,
+        })
+        .expect("structural machine-parameter owner");
+    let [parameter] = parsed
+        .items
+        .type_parameters(structural_machine.type_parameters)
+    else {
+        panic!("one structural machine parameter");
+    };
+    let psi_syntax_trees::item::TypeParameterKind::Machine {
+        contract: Some(psi_syntax_trees::item::MachineParameterContract::Structural(contract)),
+    } = &parameter.kind
+    else {
+        panic!("Callback should retain its structural signature");
+    };
+    assert!(contract.suspends);
+    assert!(contract.blocks);
+    assert_eq!(contract.suspends_keyword_source_spans.len(), 1);
+    assert_eq!(contract.blocks_keyword_source_spans.len(), 1);
+
+    let suspends_starts = source
+        .match_indices("suspends")
+        .map(|(start, _)| start)
+        .collect::<Vec<_>>();
+    let blocks_starts = source
+        .match_indices("blocks")
+        .map(|(start, _)| start)
+        .collect::<Vec<_>>();
+    assert_eq!(suspends_starts.len(), 3);
+    assert_eq!(blocks_starts.len(), 3);
+    for (index, source_span) in [
+        machine.suspends_keyword_source_spans[0],
+        signature.suspends_keyword_source_spans[0],
+        contract.suspends_keyword_source_spans[0],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_eq!(source_span.span.start, suspends_starts[index]);
+        assert_eq!(
+            &source[source_span.span.start..source_span.span.end],
+            "suspends"
+        );
+    }
+    for (index, source_span) in [
+        machine.blocks_keyword_source_spans[0],
+        signature.blocks_keyword_source_spans[0],
+        contract.blocks_keyword_source_spans[0],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_eq!(source_span.span.start, blocks_starts[index]);
+        assert_eq!(
+            &source[source_span.span.start..source_span.span.end],
+            "blocks"
+        );
+    }
 }
 
 #[test]

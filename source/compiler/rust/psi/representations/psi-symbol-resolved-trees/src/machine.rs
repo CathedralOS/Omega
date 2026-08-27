@@ -43,6 +43,11 @@ pub struct Machine {
     /// The published row is an installation-selected upper bound rather than
     /// a fixed callable ceiling.
     pub service_reach_is_installation_bound: bool,
+    /// Exact authored operational-clause keyword occurrences. These explain
+    /// the semantic booleans below without making source coordinates part of
+    /// contract identity.
+    pub suspends_keyword_source_spans: Vec<psi_source::SourceSpan>,
+    pub blocks_keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub storage: MachineStorage,
 }
 

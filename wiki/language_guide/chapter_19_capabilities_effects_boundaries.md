@@ -952,6 +952,13 @@ service-reach, suspension, blocking, and guarded-crash ceilings, while the
 binding/provider contract supplies behavior that must refine each of them.
 Trust is assigned at admission rather than selected by source spelling.
 
+For review explanation, the compiler retains the exact authored `suspends` and
+`blocks` keyword locations separately from the operational ceiling. Omitted or
+inferred clauses receive no invented source location, and stale or missing
+source custody rejects review. These remain may-ceilings: a public machine that
+declares `suspends` is reviewed as permitting suspension even if its current
+body happens not to suspend.
+
 ## Freestanding Targets And Hardware Facts
 
 A hosted target's lowest boundary is an operating system. A FREESTANDING

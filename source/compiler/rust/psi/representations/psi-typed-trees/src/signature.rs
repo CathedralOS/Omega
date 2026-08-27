@@ -78,6 +78,10 @@ pub struct StateSignature {
     /// EFX: normalized symbol-resolved boundary-service row.
     pub service_reach_row: psi_language_semantics::ServiceReachRowId,
     pub service_reach_is_installation_bound: bool,
+    /// Exact authored operational-clause keyword occurrences, retained for
+    /// package-review source custody and excluded from semantic identity.
+    pub suspends_keyword_source_spans: Vec<psi_source::SourceSpan>,
+    pub blocks_keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,
@@ -101,6 +105,8 @@ impl Default for StateSignature {
             invokes: HandleSpan::empty(),
             service_reach_row: psi_language_semantics::ServiceReachRowId::NULL,
             service_reach_is_installation_bound: false,
+            suspends_keyword_source_spans: Vec::new(),
+            blocks_keyword_source_spans: Vec::new(),
             suspends: false,
             blocks: false,
             contracts: HandleSpan::empty(),

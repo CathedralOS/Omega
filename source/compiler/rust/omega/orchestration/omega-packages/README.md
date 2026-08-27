@@ -1203,8 +1203,19 @@ Selection and sorting preserve the pair and add exact authored build/target-
 default call sites or a closed reason for an implicit unique choice. The single
 selected-provider row may therefore contain both authored coordinates and
 compiler-derived reasons; free external providers and empty sets also have
-closed reasons. Exact nested clause/use-site coordinates remain unfinished
-engineering work; none independently motivates nominal Chi. The package layer
+closed reasons. Exact `invokes`, `reaches`, `suspends`, and `blocks` occurrences
+now survive their owning frontend stages and appear under distinct source
+roles on callable, public-trait requirement, and recursively structural
+machine-parameter rows. The compiler joins those occurrences to the exact
+resolved target or operational interface and rejects missing, stale, malformed,
+or contradictory custody. It does not parse source text in package
+orchestration or invent locations for inference and closure. Public operational
+facts remain may-ceilings; the review does not mislabel a permissive public
+contract as an observation that its current body exercised the permission.
+Other nested clause/use-site coordinates remain unfinished engineering work;
+none independently motivates nominal Chi. Package review v73/row v31,
+canonical recovery v7, conflict fingerprint v10, and conflict renderer V9 bind
+the current source-role vocabulary. The package layer
 does now validate a complete in-memory
 root-policy disposition for every exact blocking fingerprint. It canonicalizes
 and candidate-binds the decision set, rejects non-blocking or stale decisions,
