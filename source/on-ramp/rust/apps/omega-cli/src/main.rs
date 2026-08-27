@@ -64,7 +64,7 @@ fn main() {
         std::process::exit(2);
     };
 
-    let options = CompileOptions {
+    let mut options = CompileOptions {
         build_dir: arguments.build_dir,
         root_path: arguments.root_path,
         target_name: arguments.target_name,
@@ -76,7 +76,18 @@ fn main() {
     } else {
         ArtifactEmissionPolicy::Full
     };
-    match compile(CompileRequest::new(options).with_artifact_policy(artifact_policy)) {
+    let package_inputs = match reconcile_declared_local_dependencies(&mut options) {
+        Ok(package_inputs) => package_inputs,
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+    };
+    let mut request = CompileRequest::new(options).with_artifact_policy(artifact_policy);
+    if let Some(package_inputs) = package_inputs {
+        request = request.with_package_inputs(package_inputs);
+    }
+    match compile(request) {
         Ok(report) => {
             println!("{}", report.summary());
         }
@@ -88,6 +99,73 @@ fn main() {
             std::process::exit(1);
         }
     };
+}
+
+/// Enter the reconciled package path exactly when the selected project declares
+/// dependencies. A dependency alias is build-owned identity, never a directory
+/// under the entry source. Dependency-free standalone sources retain the small
+/// direct compiler path used by focused probes and canaries.
+fn reconcile_declared_local_dependencies(
+    options: &mut CompileOptions,
+) -> Result<Option<omega_compiler::PackageCompilationInputs>, String> {
+    let project_root = options
+        .root_path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .to_path_buf();
+    if !project_root.join("build.omg").is_file() {
+        return Ok(None);
+    }
+    let dependencies = omega_packages::extract_dependency_projection(&project_root)
+        .map_err(|error| format!("cannot project declared dependencies: {error}"))?;
+    if dependencies.is_empty() {
+        return Ok(None);
+    }
+
+    let entry_relative = options
+        .root_path
+        .strip_prefix(&project_root)
+        .map(std::path::Path::to_path_buf)
+        .map_err(|_| {
+            format!(
+                "entry source {} is outside its selected project root {}",
+                options.root_path.display(),
+                project_root.display()
+            )
+        })?;
+    let cache_root = local_source_cache_root();
+    let closure = omega_packages::resolve_external_local_project_closure(
+        &project_root,
+        omega_packages::ExternalSourceContext::derive(b"omega-cli-local-project-v1"),
+        cache_root,
+        omega_packages::LocalSourceLimits::default(),
+        omega_packages::PackageSourceClosureLimits::default(),
+    )
+    .map_err(|error| format!("cannot resolve declared package closure: {error}"))?;
+    let root_snapshot = closure
+        .source_root(closure.graph().root())
+        .ok_or_else(|| "resolved package closure lost its root source custody".to_owned())?;
+    options.root_path = root_snapshot.join(entry_relative);
+    omega_packages::package_compilation_inputs(&closure)
+        .map(Some)
+        .map_err(|errors| format!("cannot construct compiler package graph: {errors:?}"))
+}
+
+fn local_source_cache_root() -> PathBuf {
+    if let Some(configured) = std::env::var_os("OMEGA_SOURCE_CACHE_DIR") {
+        return PathBuf::from(configured);
+    }
+    if let Some(cache) = std::env::var_os("XDG_CACHE_HOME") {
+        return PathBuf::from(cache).join("omega/source");
+    }
+    if let Some(cache) = std::env::var_os("LOCALAPPDATA") {
+        return PathBuf::from(cache).join("Omega/source");
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        return PathBuf::from(home).join(".cache/omega/source");
+    }
+    std::env::temp_dir().join("omega-source-cache")
 }
 
 fn audit(arguments: impl Iterator<Item = std::ffi::OsString>) {

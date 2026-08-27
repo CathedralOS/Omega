@@ -308,6 +308,13 @@ pub fn discover_imports_with_packages(
                                     .expect("validated dependency target retains a source root"),
                                 &members[1..],
                             ),
+                            None if packages.package_name(requester) == Some(first.as_str()) => (
+                                requester,
+                                packages
+                                    .package_root(requester)
+                                    .expect("validated requester retains a source root"),
+                                &members[1..],
+                            ),
                             None => (
                                 requester,
                                 packages

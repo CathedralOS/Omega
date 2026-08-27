@@ -6,8 +6,8 @@
   "entry_source": "source/omega/main.omg",
   "build_source": "source/omega/build.omg",
   "source_file_count": 12,
-  "content_set_sha256": "14c82d18d3d404969b983542b8723bb3515e13c61c0d27398c494b3ac5755137",
-  "closure_sha256": "c21ac36bda4437a0ee97fd7d21a2ec3a4a94e1b0b1918fb4f306cd9e6f679f22",
+  "content_set_sha256": "fd50b73c9fca3c8d528b827c30e10f262a74c334068841ed6d7931d63d8d4fba",
+  "closure_sha256": "cc194dde97c89889636b5067804813205943435f1379a5ef8bd4583b90e80b2d",
   "configurations": [
     {
       "native_provider_substitution": true,
@@ -28,10 +28,10 @@
   ],
   "compiled_sources": [
     {
-      "byte_length": 3718,
+      "byte_length": 3722,
       "origin": "toolchain",
       "path": "omega/language/std/console.omg",
-      "sha256": "db0f354acff8c97cba0068c48ee66c5795eb6f1d271cabd899e84df275208993"
+      "sha256": "2ed299e2743203ef3d34933f4afeb3cde707e7482ed105229bc68a54dec43fc0"
     },
     {
       "byte_length": 1119,
@@ -70,28 +70,28 @@
       "sha256": "403402b5a15400fc9a56b3dab77ea02d0b2f2223f271d46e40fdb64dac45f018"
     },
     {
-      "byte_length": 78952,
+      "byte_length": 78960,
       "origin": "repository",
       "path": "source/psi/generated/unicode_tables.omg",
-      "sha256": "f7f2c476f3551499033e483f0f3a1b08c976996779e9c10a6993cc52d2dd2f83"
+      "sha256": "025dae763ca6e6178c85fafbb3c31104d657a886967be320e490caade4d18da1"
     },
     {
-      "byte_length": 70033,
+      "byte_length": 70053,
       "origin": "repository",
       "path": "source/psi/lex/lexer.omg",
-      "sha256": "d49389dbe32111761957b7e4f37ffe94cd744a461e56b1e56d39448b4ac92d8f"
+      "sha256": "138aa0163a825a183ebebb999abd32cfbe9ecb800f2cdb8f578d2b1a44cdd8b9"
     },
     {
-      "byte_length": 1614,
+      "byte_length": 1630,
       "origin": "repository",
       "path": "source/psi/source/source.omg",
-      "sha256": "dd33e47c1a20a19bc8e402a146f60e73e446ed9f2159f452d7edd2f069c49aad"
+      "sha256": "c72ac691c13c836c27b1bedaf54a191db46b2aa3b51a6bb00ec2644b9aecd143"
     },
     {
-      "byte_length": 6670,
+      "byte_length": 6706,
       "origin": "repository",
       "path": "source/psi/tokens/tokens.omg",
-      "sha256": "d09347ad5f0593bfe60d67b2917aced0d596be7f75ba43a6e6911f60966c4649"
+      "sha256": "bcf5eb75eb704b37da18c364fc51ee296033965ea39f82c90cdac803c9cec960"
     }
   ],
   "virtual_sources": [
@@ -199,7 +199,7 @@
     {
       "path": "source/on-ramp/rust/psi/pipeline/psi-source-files-to-tokens/src/bin/generate_omega_unicode.rs",
       "role": "generated_source_provider",
-      "sha256": "a00a48ac81bb508c125eed4e518aa74e11bcbbd72b369f0b7efa1f2a5578e1b2"
+      "sha256": "5c444ca1f10f51f18a4c8a3cf1674b3b50c9e055229987f528718f759c81a20c"
     }
   ],
   "generated_sources": [

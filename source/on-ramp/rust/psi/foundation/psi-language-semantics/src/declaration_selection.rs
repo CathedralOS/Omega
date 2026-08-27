@@ -86,6 +86,10 @@ pub enum AuthoredDeclarationSelectionTarget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthoredDeclarationSelectionIntrinsic {
     BuiltinOperator,
+    /// The `len` projection on a fixed array or slice. Collection length is
+    /// compiler-owned value metadata, not a declaration selected from the
+    /// package namespace.
+    CollectionLength,
     /// One exact compiler-owned byte-sequence predicate. Retaining the
     /// particular predicate prevents later evidence consumers from having to
     /// reconstruct semantic identity from the call's diagnostic spelling.

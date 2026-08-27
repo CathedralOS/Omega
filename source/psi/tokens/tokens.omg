@@ -4,14 +4,14 @@ use psi::source::source;
 // remains in the source unit; cooked/raw string tokens additionally retain
 // their exact decoded byte range in TokenStream::decoded.
 
-data NumericBase [copy] {
+pub data NumericBase [copy] {
     case Binary;
     case Octal;
     case Decimal;
     case Hexadecimal;
 }
 
-data KeywordKind [copy] {
+pub data KeywordKind [copy] {
     case As;
     case CallingConvention;
     case Capability;
@@ -44,7 +44,7 @@ data KeywordKind [copy] {
     case While;
 }
 
-data PunctuationKind [copy] {
+pub data PunctuationKind [copy] {
     case Ampersand;
     case AndAnd;
     case Apostrophe;
@@ -89,7 +89,7 @@ data PunctuationKind [copy] {
     case Tilde;
 }
 
-data TokenKind [copy] {
+pub data TokenKind [copy] {
     case Identifier;
     case Integer(
         base: NumericBase,
@@ -109,14 +109,14 @@ data TokenKind [copy] {
     case BlockComment;
 }
 
-data Token [copy] {
+pub data Token [copy] {
     kind: TokenKind;
     source_span: SourceSpan;
     decoded_start: u64 in Trapping;
     decoded_length: u64 in Trapping;
 }
 
-data LexDiagnosticCode [copy] {
+pub data LexDiagnosticCode [copy] {
     case None;
     case InvalidUtf8;
     case UnsupportedPunctuation;
@@ -139,7 +139,7 @@ data LexDiagnosticCode [copy] {
     case DecodedCapacityExceeded;
 }
 
-data LexDiagnostic [copy] {
+pub data LexDiagnostic [copy] {
     code: LexDiagnosticCode;
     source_span: SourceSpan;
 }
@@ -147,7 +147,7 @@ data LexDiagnostic [copy] {
 // A deliberately flat projection used only at the product/checkpoint
 // observation boundary. Keeping this separate from Token avoids copying its
 // nested TokenKind sum through a runtime-selected array element.
-data TokenObservation [copy] {
+pub data TokenObservation [copy] {
     tag: u8;
     first: u8;
     second: u8;
@@ -159,7 +159,7 @@ data TokenObservation [copy] {
     decoded_length: u64 in Trapping;
 }
 
-data TokenStream {
+pub data TokenStream {
     tokens: [Token; 16384] in Trapping;
     observations: [TokenObservation; 16384] in Trapping;
     token_count: u64 [0..=16384];

@@ -300,7 +300,7 @@ pub use psi_layout_plans::{
 };
 pub use source_inspection::{
     SOURCE_CLOSURE_SNAPSHOT_SCHEMA, SourceClosureSnapshot, SourceClosureSnapshotEntry,
-    inspect_source_closure,
+    SourceInspectionRoot, inspect_source_closure, inspect_source_closure_with_packages,
 };
 pub use source_profile::{
     SOURCE_FEATURE_CATALOG, SOURCE_FEATURE_CENSUS_SCHEMA, SOURCE_FEATURE_IDS, SOURCE_RESOURCE_IDS,

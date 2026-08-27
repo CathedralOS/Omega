@@ -118,6 +118,23 @@ def refresh_digests(manifest: dict) -> None:
     manifest["closure_sha256"] = closure_digest(manifest)
 
 
+def refresh_manifest(manifest_path: Path) -> None:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for group in ("compiled_sources", "virtual_sources"):
+        for row in manifest[group]:
+            content = (ROOT / row["path"]).read_bytes()
+            row["byte_length"] = len(content)
+            row["sha256"] = sha256(content)
+    for row in manifest["provenance_inputs"]:
+        row["sha256"] = sha256((ROOT / row["path"]).read_bytes())
+    refresh_digests(manifest)
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
 def verify_build_prelude_snapshot() -> None:
     owner = (ROOT / BUILD_PRELUDE_OWNER).read_text(encoding="utf-8")
     marker = 'const BUILD_PRELUDE: &str = r#"'
@@ -483,7 +500,7 @@ def load_resolver_snapshot(manifest: dict, target: str) -> dict:
         "--locked",
         "--offline",
         "-p",
-        "omega-compiler",
+        "omega-packages",
         "--bin",
         "omega-source-snapshot",
         "--",
@@ -703,6 +720,11 @@ def verify(manifest_path: Path, *, content_only: bool) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="refresh exact source rows and closure digests before verification",
+    )
+    parser.add_argument(
         "--content-only",
         action="store_true",
         help="skip resolver replay; never use this mode as checkpoint acceptance",
@@ -712,6 +734,8 @@ def main() -> None:
     if not manifests:
         fail("no checkpoint manifests")
     for manifest in manifests:
+        if arguments.refresh:
+            refresh_manifest(manifest)
         verify(manifest, content_only=arguments.content_only)
     mode = "content only" if arguments.content_only else "resolver-exact with mutation teeth"
     print(f"verified {len(manifests)} product source checkpoint manifest(s): {mode}")

@@ -186,13 +186,52 @@ pub fn resolve_external_local_package_source(
     limits: LocalSourceLimits,
     source_context: ExternalSourceContext,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    resolve_external_local_declared_source(
+        source_root.as_ref(),
+        cache_dir.as_ref(),
+        limits,
+        source_context,
+        false,
+    )
+}
+
+/// Resolve a local project root selected for execution.
+///
+/// Unlike a dependency source, the root of a compilation may declare either
+/// `builder.application(...)` or `builder.package(...)`. Dependencies reached
+/// from it remain package-only. Keeping that distinction here prevents the CLI
+/// from falling back to directory-shaped import lookup merely because its root
+/// is an application rather than a library package.
+pub fn resolve_external_local_project_source(
+    source_root: impl AsRef<Path>,
+    cache_dir: impl AsRef<Path>,
+    limits: LocalSourceLimits,
+    source_context: ExternalSourceContext,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    resolve_external_local_declared_source(
+        source_root.as_ref(),
+        cache_dir.as_ref(),
+        limits,
+        source_context,
+        true,
+    )
+}
+
+fn resolve_external_local_declared_source(
+    source_root: &Path,
+    cache_dir: &Path,
+    limits: LocalSourceLimits,
+    source_context: ExternalSourceContext,
+    application_root_allowed: bool,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     let limits = limits.compiler_bounded();
     let source = resolve_local_source_snapshot(source_root, cache_dir, limits)?;
     let lineage = SourceLineage::ExternalLocal(ExternalLocalLineage::canonicalize(
         &source.canonical_live_root,
         source_context,
     )?);
-    let (declaration, dependency_requests) = project_package_build(&source.snapshot_root)?;
+    let (declaration, dependency_requests) =
+        project_package_build(&source.snapshot_root, application_root_allowed)?;
     let resolution = ImmutableSourceResolution::external_local(SourceContentDigest::derive(
         source.normalized.content_identity.as_bytes(),
     ));
@@ -243,7 +282,7 @@ pub fn resolve_workspace_member_package_source(
     let source = resolve_local_source_snapshot(&canonical_declared_member_root, cache_dir, limits)?;
     let lineage =
         SourceLineage::Workspace(WorkspaceMemberLineage::new(workspace_identity, member_path));
-    let (declaration, dependency_requests) = project_package_build(&source.snapshot_root)?;
+    let (declaration, dependency_requests) = project_package_build(&source.snapshot_root, false)?;
     let resolution = ImmutableSourceResolution::workspace(SourceContentDigest::derive(
         source.normalized.content_identity.as_bytes(),
     ));
@@ -270,7 +309,7 @@ fn bind_git_package_source(
     source: ResolvedGitSource,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-    let (declaration, dependency_requests) = project_package_build(&source.snapshot_root)?;
+    let (declaration, dependency_requests) = project_package_build(&source.snapshot_root, false)?;
     let resolution = ImmutableSourceResolution::git(
         GitCommitId::parse_hex(&source.commit)?,
         GitTreeId::parse_hex(&source.tree)?,
@@ -289,6 +328,7 @@ fn bind_git_package_source(
 
 fn project_package_build(
     snapshot_root: &Path,
+    application_root_allowed: bool,
 ) -> Result<(PackageDeclaration, Vec<DependencySourceRequest>), ResolvePackageSourceError> {
     let projection = match extract_build_dependency_projection(snapshot_root) {
         Ok(projection) => projection,
@@ -325,6 +365,12 @@ fn project_package_build(
     let (declaration, dependencies) = projection.into_parts();
     match declaration {
         BuildDeclaration::Package(package) => Ok((package, dependencies)),
+        BuildDeclaration::Application(application) if application_root_allowed => Ok((
+            PackageDeclaration {
+                name: application.name,
+            },
+            dependencies,
+        )),
         other => Err(ResolvePackageSourceError::Declaration(
             PackageDeclarationError::ExpectedPackageDeclaration {
                 found: other.kind(),

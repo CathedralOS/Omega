@@ -67,12 +67,12 @@ fn main() {
     )
     .unwrap();
     writeln!(output).unwrap();
-    writeln!(output, "data UnicodeRange [copy] {{").unwrap();
+    writeln!(output, "pub data UnicodeRange [copy] {{").unwrap();
     writeln!(output, "    first: u32 in Trapping;").unwrap();
     writeln!(output, "    last: u32 in Trapping;").unwrap();
     writeln!(output, "}}").unwrap();
     writeln!(output).unwrap();
-    writeln!(output, "data UnicodeTables {{").unwrap();
+    writeln!(output, "pub data UnicodeTables {{").unwrap();
     writeln!(
         output,
         "    xid_start: [UnicodeRange; {}] in Trapping;",

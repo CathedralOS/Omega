@@ -2,12 +2,12 @@
 // Unicode 17.0.0; unicode-ident 1.0.24.
 // XID_Start ranges: 691; XID_Continue ranges: 806.
 
-data UnicodeRange [copy] {
+pub data UnicodeRange [copy] {
     first: u32 in Trapping;
     last: u32 in Trapping;
 }
 
-data UnicodeTables {
+pub data UnicodeTables {
     xid_start: [UnicodeRange; 691] in Trapping;
     xid_continue: [UnicodeRange; 806] in Trapping;
     last_result: bool;

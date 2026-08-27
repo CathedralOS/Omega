@@ -7,7 +7,8 @@ use crate::identity::{
     ExternalSourceContext, PackageKey, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberPath,
 };
 use crate::package_source::{
-    ResolvePackageSourceError, resolve_external_local_package_source, resolve_git_package_source,
+    ResolvePackageSourceError, resolve_external_local_package_source,
+    resolve_external_local_project_source, resolve_git_package_source,
     resolve_workspace_member_package_source,
 };
 use crate::source::{
@@ -353,21 +354,67 @@ pub fn resolve_external_local_package_closure(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    let requested_root = live_root.as_ref().to_path_buf();
+    resolve_external_local_declared_closure(
+        live_root.as_ref(),
+        source_context,
+        cache_dir.as_ref(),
+        source_limits,
+        closure_limits,
+        false,
+    )
+}
+
+/// Resolve a local compilation root and its complete declared dependency
+/// closure. The root may be an application or a package; every dependency is
+/// still required to be a package.
+pub fn resolve_external_local_project_closure(
+    live_root: impl AsRef<Path>,
+    source_context: ExternalSourceContext,
+    cache_dir: impl AsRef<Path>,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
+    resolve_external_local_declared_closure(
+        live_root.as_ref(),
+        source_context,
+        cache_dir.as_ref(),
+        source_limits,
+        closure_limits,
+        true,
+    )
+}
+
+fn resolve_external_local_declared_closure(
+    live_root: &Path,
+    source_context: ExternalSourceContext,
+    cache_dir: &Path,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+    application_root_allowed: bool,
+) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
+    let requested_root = live_root.to_path_buf();
     let root_request = PackageRootSourceRequest::ExternalLocal {
         requested_root: requested_root.clone(),
         source_context: source_context.clone(),
     };
-    let cache_dir = cache_dir.as_ref();
     let local_cache = cache_dir.join("external-local-sources");
     let workspace_cache = cache_dir.join("workspace-members");
     let git_cache = cache_dir.join("git-sources");
-    let root = resolve_external_local_package_source(
-        &requested_root,
-        &local_cache,
-        source_limits,
-        source_context.clone(),
-    )
+    let root = if application_root_allowed {
+        resolve_external_local_project_source(
+            &requested_root,
+            &local_cache,
+            source_limits,
+            source_context.clone(),
+        )
+    } else {
+        resolve_external_local_package_source(
+            &requested_root,
+            &local_cache,
+            source_limits,
+            source_context.clone(),
+        )
+    }
     .map_err(ResolveExternalLocalPackageClosureError::Root)?;
     if root.source().requested_root != requested_root
         || !matches!(

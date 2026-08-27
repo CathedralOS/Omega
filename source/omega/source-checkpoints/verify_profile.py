@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import copy
 import hashlib
 import json
@@ -130,7 +131,7 @@ def load_census(
         "--locked",
         "--offline",
         "-p",
-        "omega-compiler",
+        "omega-packages",
         "--bin",
         "omega-source-snapshot",
         "--",
@@ -530,7 +531,17 @@ def canonical_json(path: Path) -> dict:
 
 
 def main() -> None:
-    run([sys.executable, str(CHECKPOINT_DIR / "verify_manifest.py")], "checkpoint manifest gate")
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="refresh checkpoint bindings and the profile digest before verification",
+    )
+    arguments = parser.parse_args()
+    manifest_command = [sys.executable, str(CHECKPOINT_DIR / "verify_manifest.py")]
+    if arguments.refresh:
+        manifest_command.append("--refresh")
+    run(manifest_command, "checkpoint manifest gate")
     profile_paths = sorted(CHECKPOINT_DIR.glob("profile-*.json"))
     if not profile_paths:
         fail("no machine-readable source profiles")
@@ -546,6 +557,37 @@ def main() -> None:
             )
             for target in profile["configurations"]
         }
+        if arguments.refresh:
+            profile["checkpoint_closure_sha256"] = manifest["closure_sha256"]
+            profile["checkpoint_content_set_sha256"] = manifest["content_set_sha256"]
+            feature_catalog = [row["id"] for row in next(iter(censuses.values()))["features"]]
+            present = {
+                row["id"]
+                for census in censuses.values()
+                for row in census["features"]
+                if row["count"] > 0
+            }
+            profile["admitted_features"] = sorted(present)
+            profile["provisionally_forbidden_features"] = sorted(
+                set(feature_catalog) - present
+            )
+            for resource in profile["resources"]:
+                resource["observed_max"] = max(
+                    next(
+                        row["observed"]
+                        for row in census["resources"]
+                        if row["id"] == resource["id"]
+                    )
+                    for census in censuses.values()
+                )
+            for canary in profile["canaries"]:
+                canary["sha256"] = sha256(repository_file(canary["path"]).read_bytes())
+            refresh_profile_digest(profile)
+            profile_path.write_text(
+                json.dumps(profile, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
         verify_profile_data(profile, manifest, censuses)
         verify_canaries(profile)
         mutation_teeth(profile, manifest, censuses)
