@@ -16,6 +16,7 @@ use psi_language_core::atomic::{AtomicOrderingPlan, MemoryOrdering};
 use psi_layout_plans::{LayoutPlanReport, normalized_layout_plan_fingerprint};
 
 mod access_plan_validation;
+mod atomic_resident_views;
 mod authorization;
 mod borrowed_view;
 mod corresponded_atomic;
@@ -38,6 +39,9 @@ mod resource_profile_validation;
 mod schema_correspondence;
 
 pub use access_plan_validation::validate_access_plan;
+pub use atomic_resident_views::{
+    BorrowedAtomicResidentRetirementError, EstablishedBorrowedAtomicResidentPlacement,
+};
 pub use authorization::effect_footprints_conflict;
 pub use corresponded_atomic::{
     CorrespondedAtomicPrimitiveAccessRejection, CorrespondedAtomicPrimitiveAccessRequest,
