@@ -51,13 +51,11 @@ translation validation supply the assurance.
 The Greek names and order are fixed language roles. The Alpha assembler now
 lives at `source/alpha/assembler/`. Beta proper is the language
 compiled by `source/beta/bc.beta`.
-The disposable Rust producer of Alpha VM tapes lives at
-`source/on-ramp/rust/alpha-assembler/` and has no Beta-language role.
-The disposable Beta-language diagnostic/reference producer lives at
-`source/on-ramp/rust/beta/`.
-Delta's language corpus, Delta-written compiler, and lattice-built artifacts
-live under `source/delta/`; its disposable Rust producer lives under
-`source/on-ramp/rust/delta/`.
+Alpha assembly and Beta compilation are owned solely by their canonical rungs.
+Delta's language corpus, Delta-written compiler experiment, and provisional
+lattice artifacts live under `source/delta/`; publishing its exact compiler
+from the lower lattice remains explicit bootstrap work. The former external
+Alpha, Beta, and Delta Rust producers have been retired.
 
 ## Proof kernel
 

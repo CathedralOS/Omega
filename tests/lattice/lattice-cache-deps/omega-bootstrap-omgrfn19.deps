@@ -3,7 +3,7 @@
 script source/refinement/delta-omega-bootstrap/omgrfn19-same-frame-composite.sh
 
 input tools/bootstrap/paths.sh
-input source/on-ramp/rust/delta
+input source/delta
 input source/delta/samples/lowermachine.alp
 input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_COMPILATION_V3.md
 input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V9.md

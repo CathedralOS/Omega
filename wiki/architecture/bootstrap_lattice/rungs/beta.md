@@ -25,10 +25,9 @@ Beta's runtime meaning is fixed by its written small-step
 structurally to Alpha assembly, which the Alpha assembler lowers to a tape
 governed by Alpha's written semantics. The steady-state compiler is
 `source/beta/bc.beta`, written in Beta and self-hosted to a byte-identical
-fixed point. The first compiler was cold-started by the disposable
-`source/on-ramp/rust/beta/` producer. The current persisted artifact is
-instead reconstructed by the Alpha-written cold-start compiler and contains no
-Rust producer in its lineage. Its independent ROOT checker now establishes
+fixed point. The persisted artifact is reconstructed by the Alpha-written
+cold-start compiler and contains no external producer in its lineage. Its
+independent ROOT checker now establishes
 complete lower-rooted maximal-observation correspondence against `bc.beta` for
 the supported `B_bc1` profile. The fixed point still proves only deterministic
 dependency closure; authority comes from that separate refinement check.
@@ -51,7 +50,6 @@ Beta remains a small compiler-construction substrate with raw memory.
 
 - `source/alpha/assembler/assembler.alpha` — self-hosting Alpha assembler;
 - `source/beta/bc.beta` — self-hosting Beta compiler;
-- `source/on-ramp/rust/beta/` — retained Rust diagnostic/reference producer;
 - `source/beta/reference/` — untrusted executable Python semantic
   reference, parser, and fuzzing;
 - `source/refinement/alpha-beta/` — symbolic/refinement reconstruction;

@@ -2,9 +2,8 @@
 # D0 STORAGE MEANING — run the fixed-backing allocator canary through the
 # lower-rung, Rust-free Delta/Omega -> Gamma elaborator and Gamma interpreter.
 #
-# The Rust on-ramp remains available as a native regression producer, but it is
-# not used to define this slice's result. The separate bc cold-start task still
-# governs how the Beta executables used here acquire lower-rooted authority.
+# This gate is deliberately lower-rooted. The separate bc cold-start task
+# governs how the Beta executables used here acquire authority.
 set -e
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then

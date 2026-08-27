@@ -106,13 +106,9 @@ if [ -f "$BRIDGE_RESOLVER" ] && [ -f "$BRIDGE_LOWERER" ] && [ -f "$BRIDGE_BACKEN
     echo "Delta source closure V1: focused three-root bridge landed without its provisional snapshot" >&2
     exit 1
   }
-  case "$(uname -sm)" in
-    "Darwin arm64") BRIDGE_HOST=1 ;;
-    *) BRIDGE_HOST=0 ;;
-  esac
-  for TOOL in cargo clang codesign cmp python3; do
-    command -v "$TOOL" >/dev/null 2>&1 || BRIDGE_HOST=0
-  done
+  # Artifact replay is suspended until the canonical lower-rooted Delta
+  # compiler is published. Do not reconstruct it through an external producer.
+  BRIDGE_HOST=0
   if [ "$BRIDGE_HOST" -eq 1 ]; then
     BRIDGE_GENERATED=$T/bridge
     mkdir -p "$BRIDGE_GENERATED/source" "$BRIDGE_GENERATED/ckir-reference"
@@ -123,10 +119,8 @@ if [ -f "$BRIDGE_RESOLVER" ] && [ -f "$BRIDGE_LOWERER" ] && [ -f "$BRIDGE_BACKEN
 
     python3 -B "$SOURCE_FIXTURE" build "$BRIDGE_GENERATED/source"
     python3 -B "$CKIR_FIXTURE" emit "$BRIDGE_GENERATED/ckir-reference"
-    cargo build -q --manifest-path "$OMEGA_PATH_DELTA_RUST/Cargo.toml"
-    DELTA=$OMEGA_PATH_DELTA_RUST/target/debug/delta
-    env DELTA_ARCH=aarch64 "$DELTA" "$OMEGA_PATH_DELTA/samples/lowermachine.alp" \
-      "$BRIDGE_GENERATED/lowermachine.signed" >/dev/null
+    echo "Delta source closure V1: canonical lower-rooted compiler unavailable" >&2
+    exit 2
     cp "$BRIDGE_GENERATED/lowermachine.signed" "$BRIDGE_GENERATED/lowermachine.unsigned"
     codesign --remove-signature "$BRIDGE_GENERATED/lowermachine.unsigned"
     cp "$OMEGA_PATH_DELTA/source-closures/tool-manifests/delta-compiler-darwin-arm64-v1.json" \
@@ -182,7 +176,7 @@ PY
       "generated=$BRIDGE_GENERATED" >/dev/null
     BRIDGE_RESULT="three-root provisional bridge source/tool/action DAG exact"
   else
-    BRIDGE_RESULT="three-root provisional bridge artifact replay skipped (requires Darwin arm64 toolchain)"
+    BRIDGE_RESULT="three-root artifact replay suspended pending lower-rooted Delta publication"
   fi
 else
   BRIDGE_RESULT="three-root provisional bridge snapshot deferred (focused lowerer absent)"

@@ -1,9 +1,8 @@
 # `source/beta/` — the Beta compiler, written in Beta (SELF-HOSTING)
 
 This directory owns the complete Beta-language surface and its compiler written
-*in Beta itself* (`bc.beta`), not in the throwaway Rust producer
-(`rust/`) and
-not hand-written in assembly. **It self-hosts** — `bc` compiles its own source to a
+*in Beta itself* (`bc.beta`), not hand-written in assembly. **It self-hosts** —
+`bc` compiles its own source to a
 compiler that reproduces that compilation byte-for-byte (`selfhost.sh`). This
 closes the steady-state execution dependency on Rust. It does not by itself prove
 that the cold-started artifact corresponds to `bc.beta`; the separate
@@ -15,7 +14,7 @@ exact pinned surface, builds `bc.beta`, reaches a byte-identical self-hosted fix
 point, and reconstructs the persisted platform-independent
 [`artifacts/bc.tape`](artifacts/README.md). That artifact passes the whole Beta
 corpus and is consumed by the downstream proof-kernel, Gamma, Delta, bridge, and
-refinement gates. The Rust producer remains diagnostic/on-ramp history.
+refinement gates. The former Rust producer has been retired.
 
 ```
 bc.beta       the Beta compiler, in Beta:  reads .beta on stdin, emits Alpha asm
@@ -34,8 +33,7 @@ source-exhaustion.sh  exact B_bc1 compiler-resource boundaries and checked failu
 ```
 
 The default gates stamp the persisted, platform-independent tape into the host's
-audited Alpha seed. `source/on-ramp/rust/beta/` remains available only as a
-diagnostic/reference producer; it is not in this construction lineage. The
+audited Alpha seed. No parallel Beta producer remains. The
 fixed-point equality establishes deterministic self-reproduction, not compiler
 correctness. Source-to-artifact authority comes from the separate complete
 maximal-observation refinement gate under `source/refinement/alpha-beta/`.
@@ -49,7 +47,7 @@ sh test.sh        # builds bc, compiles arithmetic programs with it, checks resu
 ## Status — SELF-HOSTING (slices 1–6 done)
 
 bc implements the whole Beta language and compiles its own source to a byte-for-byte
-fixed point. Built slice by slice, mirroring the `beta-rust` producer:
+fixed point. It was built slice by slice and is now the sole compiler path:
 
 | Slice | Adds | Notes |
 | --- | --- | --- |
@@ -99,5 +97,4 @@ The Beta compiler has a Rust-free cold-start and steady-state execution path,
 and complete lower-rooted validation of its `B_bc1` source correspondence. It builds
 Gamma's canonical interpreter and type checker; Gamma in turn supplies Delta's meaning substrate. The proof kernel
 is a cross-cutting service with independent Beta and Gamma implementations, not
-a later language rung. The Rust producer (`rust/`) is outside
-the lineage and remains only as a documented diagnostic/reference producer.
+a later language rung. No external Beta producer participates in the lineage.

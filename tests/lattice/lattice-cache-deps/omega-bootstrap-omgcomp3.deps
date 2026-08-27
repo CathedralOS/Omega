@@ -2,7 +2,7 @@
 # semantics and accepted-lock/compilation authority remain separate.
 script source/on-ramp/omega-bootstrap/gates/delta-compilation-envelope-v3.sh
 
-input source/on-ramp/rust/delta
+input source/delta
 input source/delta/samples/lowermachine.alp
 input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-compilation-check.alp
 input source/on-ramp/omega-bootstrap/compiler/omega_bootstrap_bundle.py

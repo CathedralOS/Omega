@@ -3,7 +3,7 @@
 script source/on-ramp/omega-bootstrap/gates/delta-checked-ir-v18-backend.sh
 
 input tools/bootstrap/paths.sh
-input source/on-ramp/rust/delta
+input source/delta
 input source/delta/samples/lowermachine.alp
 input source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V18.md
 input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-checked-ir-v18-to-elf.alp

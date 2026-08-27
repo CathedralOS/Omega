@@ -28,7 +28,7 @@ The overview's "Two roles for Rust" is the ordering law. Made concrete, per arti
 | Gamma meaning, now supplied by `interp.beta` / `typeck.beta` | **trusted base** | **RUST CLOSED** — the surviving meaning implementation is Beta on the seed lineage. |
 | Delta's **meaning** (`gamma_emit.rs`) | **trusted base** | **MIGRATING** — the Beta-written `omega2gamma` route and Gamma execution cover the admitted D0/O1 compiler canaries. `gamma_emit.rs` is a differential reference there; each bridge capability added toward `Ωself` must bring lower-rung meaning with it. |
 | Psi/Omega meaning and artifact-aware verification | **trusted base** | **OPEN** — the current Rust interpreter/verifier remains an explicit migration dependency until the lower-rung semantic-ledger and hosted meaning route close. |
-| `beta-rust`, `delta-rust`, `source/on-ramp/rust/` | **untrusted producers** | **DEFERRABLE** — replaced as required dependencies for self-sufficiency, not for soundness pedigree. The current Rust Omega compiler remains a maintained reference producer while useful. |
+| `source/on-ramp/rust/{psi,omega}/` | **temporary untrusted product producer** | **DEFERRABLE** — replaced for self-sufficiency, not soundness pedigree. External Alpha, Beta, and Delta producers are retired. |
 
 **Policy:** no work removes Rust from a *producer* merely for pedigree while Rust
 still sits in any meaning/checker or while an upstream artifact that builds those
@@ -238,14 +238,14 @@ The names have exactly these roles:
 | `omega-bootstrap` | compiler artifact | accepts `Ωself` and produces the first production `omega` executable |
 | `omega` | production compiler artifact | accepts and implements full Omega; an optional rebuild changes executable quality only |
 
-Delta v1 is not frozen in advance from the current Rust producer or D0 corpus.
+Delta v1 is not frozen from the retired Rust producer or D0 corpus.
 The fixed design constraints are deterministic specified behavior, no undefined
 behavior or ambient host authority, specified failure, lower-rung meaning for
 every admitted construct, and Omega spelling and ordinary meaning whenever
 Delta retains the same construct. The exact scalar, arithmetic, aggregate,
 control, allocation, and boundary inventory remains provisional until the
 canonical compiler/bridge sources and explicit compiler-host design arguments
-justify it. A facility's presence in D0 or acceptance by the Rust producer does
+justify it. A facility's presence in D0 or acceptance by the retired producer does
 not admit it to v1.
 
 The selection rule is whole-bootstrap cost, not literal feature count. A
@@ -335,10 +335,10 @@ work, not a second bootstrap task or architectural dependency. As
 with every hosted edge, a defect can reproduce; proof, meaning, and
 translation-validation gates remain responsible for detecting it.
 
-`source/on-ramp/rust/delta/` is Delta's disposable Rust implementation;
-`source/delta/` owns the language corpus, the self-hosted
-`lowermachine.alp`, and lattice-built artifacts. The former `compiler/delta-rs`
-and `compiler/delta` compatibility entries are retired. The self-host and
+`source/delta/` owns the language corpus, the self-hosted `lowermachine.alp`,
+and provisional lattice artifacts. The former external Rust producer and
+`compiler/delta-rs` / `compiler/delta` compatibility entries are retired. The
+self-host and
 meaning diamond remain principal gates.
 
 The certificate checker is renamed the **proof kernel**. Its canonical owner is

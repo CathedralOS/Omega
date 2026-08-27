@@ -1,3 +1,0 @@
-; 4-arg call: all four args delivered. g(1,2,3,4)=a+b+c+d=10.
-proc main() { return g(1, 2, 3, 4) }
-proc g(a, b, c, d) { return a + b + c + d }

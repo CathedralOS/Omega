@@ -3,11 +3,10 @@
 [Lattice overview](../bootstrap_lattice.md) | Prev: [Gamma](gamma.md) | Next:
 [Omega product toolchain](../omega_toolchain.md)
 
-> **Status: WORKING RUNG.** `source/delta/` owns the language corpus,
-> Delta-written compiler, and lattice-built artifacts. The disposable Rust
-> producer lives separately under `source/on-ramp/rust/delta/`. Native,
-> self-hosting, and Delta-to-Gamma meaning gates exist today; exact lower-rung
-> coverage of the eventual `omega-bootstrap` compiler remains open.
+> **Status: OPEN PUBLICATION EDGE.** `source/delta/` owns the language corpus,
+> Delta-written compiler experiment, and provisional lattice artifacts. The
+> external Rust producer has been retired. Exact lower-rung publication of the
+> canonical compiler remains open.
 
 Delta is the terminal small/Greek language rung in the bootstrap spine:
 
@@ -26,8 +25,8 @@ conservatively lowered; those are artifact properties, not language features.
 
 Delta v1 is designed around the complete canonical Delta-compiler and
 `omega-bootstrap` source closures plus explicit coherence, safety, robustness,
-and maintainability arguments. D0, the sample corpus, and the Rust producer may
-reveal useful facilities but cannot admit them. The design floor is a regular
+and maintainability arguments. D0 and the sample corpus may reveal useful
+facilities but cannot admit them. The design floor is a regular
 C-class compiler host: scalar and aggregate data, structured control, modules,
 deterministic bounded storage or allocation with explicit exhaustion, and a
 sealed byte/artifact/diagnostic/exit boundary. Records, payload sums, arrays,
@@ -60,8 +59,8 @@ Beta-written Delta→Gamma elaborator translates the exact Delta compiler source
 and Gamma's Beta-written interpreter executes it on that same source to emit the
 native compiler artifact. The current route already runs the complete compiler
 on bounded inputs; complete source coverage and artifact publication remain
-open engineering work. This is the concrete `Gamma → Delta` edge. A Rust-built
-or Delta-self-built artifact may remain a differential control, but neither may
+open engineering work. This is the concrete `Gamma → Delta` edge. A
+Delta-self-built artifact may remain a differential control, but it cannot
 substitute for this required publication and refinement join.
 
 ## Implementation
@@ -69,11 +68,6 @@ substitute for this required publication and refinement join.
 - `source/delta/samples/` is the canonical executable language corpus.
 - `source/delta/samples/lowermachine.alp` is the self-hosting compiler
   written in Delta.
-- `source/on-ramp/rust/delta/` is the current disposable Rust producer and
-  executable reference. The former `compiler/delta-rs` entry is retired.
-- `DELTA_EMIT=gamma` exposes the Rust reference elaborator. The
-  `delta-meaning-diamond.sh` gate compares it with native execution; it is useful
-  regression evidence, not the final authority.
 - `source/on-ramp/omega-bootstrap/meaning/omega2gamma.beta` is the lower-rung, Rust-free elaborator for
   the shared Delta/Omega machine surface. Gamma's `interp.beta` executes its
   result. Exact coverage of the Delta source eventually used by
@@ -83,7 +77,7 @@ substitute for this required publication and refinement join.
 - `source/delta/samples/bootstrap-storage.alp` is the first fixed-backing
   storage profile canary. It uses checked integer-offset reservations and bulk
   reset without adding pointers or a general heap to Delta.
-- `source/on-ramp/rust/delta/delta-storage-meaning.sh` evaluates that canary and a
+- `source/on-ramp/omega-bootstrap/gates/delta-storage-meaning.sh` evaluates that canary and a
   perturbation through `omega2gamma.beta` and Gamma's `interp.beta`, without the
   Rust Gamma emitter defining the result.
 - `source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-frontend.alp` is the

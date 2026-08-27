@@ -11,10 +11,6 @@ fail() {
   exit 1
 }
 
-physical_dir() {
-  CDPATH= cd -- "$1" 2>/dev/null && pwd -P
-}
-
 expect_role() {
   actual=$(omega_bootstrap_path "$1") || fail "canonical role is unavailable: $1"
   [ "$actual" = "$2" ] || fail "$1 resolves to $actual, expected $2"
@@ -30,12 +26,8 @@ reject_role() {
   fail "Alpha owner is $OMEGA_PATH_ALPHA"
 [ "$OMEGA_PATH_ALPHA_ASSEMBLER" = "$OMEGA_PATH_ALPHA/assembler" ] ||
   fail "Alpha assembler owner is $OMEGA_PATH_ALPHA_ASSEMBLER"
-[ "$OMEGA_PATH_ALPHA_ASSEMBLER_RUST" = "$OMEGA_REPO_ROOT/source/on-ramp/rust/alpha-assembler" ] ||
-  fail "Alpha assembler Rust on-ramp is $OMEGA_PATH_ALPHA_ASSEMBLER_RUST"
 [ "$OMEGA_PATH_BETA" = "$OMEGA_REPO_ROOT/source/beta" ] ||
   fail "Beta owner is $OMEGA_PATH_BETA"
-[ "$OMEGA_PATH_BETA_RUST" = "$OMEGA_REPO_ROOT/source/on-ramp/rust/beta" ] ||
-  fail "Beta Rust on-ramp is $OMEGA_PATH_BETA_RUST"
 [ "$OMEGA_PATH_BETA_REFERENCE" = "$OMEGA_PATH_BETA/reference" ] ||
   fail "Beta reference owner is $OMEGA_PATH_BETA_REFERENCE"
 [ "$OMEGA_PATH_BETA_REFINEMENT" = "$OMEGA_REPO_ROOT/source/refinement/alpha-beta" ] ||
@@ -44,8 +36,6 @@ reject_role() {
   fail "Gamma owner is $OMEGA_PATH_GAMMA"
 [ "$OMEGA_PATH_DELTA" = "$OMEGA_REPO_ROOT/source/delta" ] ||
   fail "Delta owner is $OMEGA_PATH_DELTA"
-[ "$OMEGA_PATH_DELTA_RUST" = "$OMEGA_REPO_ROOT/source/on-ramp/rust/delta" ] ||
-  fail "Delta Rust on-ramp is $OMEGA_PATH_DELTA_RUST"
 [ "$OMEGA_PATH_PROOF_KERNEL" = "$OMEGA_REPO_ROOT/source/proof-kernel" ] ||
   fail "proof-kernel owner is $OMEGA_PATH_PROOF_KERNEL"
 [ "$OMEGA_PATH_PROOF_KERNEL_GATES" = "$OMEGA_PATH_PROOF_KERNEL/gates" ] ||
@@ -73,10 +63,9 @@ reject_role() {
 
 for owner in \
   "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_ALPHA_ASSEMBLER" \
-  "$OMEGA_PATH_ALPHA_ASSEMBLER_RUST" "$OMEGA_PATH_BETA" \
-  "$OMEGA_PATH_BETA_RUST" "$OMEGA_PATH_BETA_REFERENCE" \
+  "$OMEGA_PATH_BETA" "$OMEGA_PATH_BETA_REFERENCE" \
   "$OMEGA_PATH_BETA_REFINEMENT" "$OMEGA_PATH_GAMMA" \
-  "$OMEGA_PATH_DELTA" "$OMEGA_PATH_DELTA_RUST" \
+  "$OMEGA_PATH_DELTA" \
   "$OMEGA_PATH_PROOF_KERNEL" "$OMEGA_PATH_OMEGA_BOOTSTRAP" \
   "$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT" "$OMEGA_PATH_CORPUS" \
   "$OMEGA_PATH_PSI_RUST" "$OMEGA_PATH_OMEGA_RUST" \
@@ -94,9 +83,6 @@ done
 
 # Role-local links retain deliberately shared assurance/sample ownership. They
 # are separate from the retired top-level compiler facade.
-[ -L "$OMEGA_PATH_DELTA_RUST/samples" ] || fail "Delta Rust samples link is absent"
-[ "$(physical_dir "$OMEGA_PATH_DELTA_RUST/samples")" = "$(physical_dir "$OMEGA_PATH_DELTA/samples")" ] ||
-  fail "Delta Rust samples does not resolve to the Delta corpus"
 for entry in REFINEMENT.md alpha_refinement_check.py alpha_symbolic.py \
   refinement.sh refinement-cert-diamond.sh refinement-samples \
   refinement_compose_gen.py refinement_fork_gen.py refinement_fuzz_gen.py \
@@ -125,15 +111,12 @@ expect_role lattice-tests "$OMEGA_PATH_LATTICE_TEST_ROOT"
 expect_role bootstrap-tools "$OMEGA_PATH_BOOTSTRAP_TOOLS_ROOT"
 expect_role alpha "$OMEGA_PATH_ALPHA"
 expect_role alpha-assembler "$OMEGA_PATH_ALPHA_ASSEMBLER"
-expect_role alpha-assembler-rust "$OMEGA_PATH_ALPHA_ASSEMBLER_RUST"
 expect_role beta "$OMEGA_PATH_BETA"
-expect_role beta-rust "$OMEGA_PATH_BETA_RUST"
 expect_role beta-reference "$OMEGA_PATH_BETA_REFERENCE"
 expect_role refinement "$OMEGA_PATH_REFINEMENT_ROOT"
 expect_role beta-refinement "$OMEGA_PATH_BETA_REFINEMENT"
 expect_role gamma "$OMEGA_PATH_GAMMA"
 expect_role delta "$OMEGA_PATH_DELTA"
-expect_role delta-rust "$OMEGA_PATH_DELTA_RUST"
 expect_role proof-kernel "$OMEGA_PATH_PROOF_KERNEL"
 expect_role proof-kernel-gates "$OMEGA_PATH_PROOF_KERNEL_GATES"
 expect_role proof-kernel-beta "$OMEGA_PATH_PROOF_KERNEL_BETA"
@@ -157,8 +140,8 @@ expect_role omega/backend "$OMEGA_PATH_OMEGA_PRODUCT/backend"
 expect_role source-checkpoints "$OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS"
 expect_role source-checkpoints/verify.sh "$OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS/verify.sh"
 
-for role in beta-rs beta-assembler beta-lang beta-lang-rs beta-lang-py \
-  delta-rs lattice-corpus; do
+for role in alpha-assembler-rust beta-rust beta-rs beta-assembler beta-lang \
+  beta-lang-rs beta-lang-py delta-rust delta-rs lattice-corpus; do
   reject_role "$role"
 done
 

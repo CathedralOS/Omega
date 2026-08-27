@@ -6,7 +6,7 @@ script source/on-ramp/omega-bootstrap/gates/delta-resolved-to-ckir10.sh
 script source/on-ramp/omega-bootstrap/gates/delta-resolved-to-ckir10-meaning.sh
 script source/on-ramp/omega-bootstrap/gates/delta-checked-ir-v10-backend.sh
 
-input source/on-ramp/rust/delta
+input source/delta
 
 input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-resolve.alp
 input source/on-ramp/omega-bootstrap/compiler/omega-bootstrap-resolved-to-ckir4.alp

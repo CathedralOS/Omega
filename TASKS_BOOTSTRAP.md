@@ -65,8 +65,10 @@ Standing invariants:
   of exact source, canonical meaning, and exact artifact. Compiler agreement,
   fixed points, and implementation diversity are regression evidence only; DDC
   has no bootstrap or release role.
-- `source/omega/{psi,omega}/` are the permanent Omega-written product
-  owners. `source/on-ramp/rust/` is a maintained external reference producer.
+- `source/{psi,omega}/` are the permanent Omega-written product owners.
+  `source/on-ramp/rust/` contains only the temporary Psi/Omega product
+  implementation and development CLI. There are no external Alpha, Beta, or
+  Delta producers.
 - The bridge may use a private checked IR and conservative backend. It need not
   use Terminal Psi internally merely because it compiles product modules that
   implement Terminal Psi.
@@ -75,7 +77,7 @@ Standing invariants:
 
 | Component | Present | Remaining closure |
 | --- | --- | --- |
-| Delta | executable corpus, Delta-written self-hosting compiler, native path, and growing Delta→Gamma meaning route | complete required-source coverage, frozen v1 semantics/resources, and lower-rung publication of the exact final compiler |
+| Delta | executable corpus, Delta-written self-hosting compiler experiment, checked-in provisional artifacts, and a growing Delta→Gamma meaning route | a canonical lower-rooted compiler publication, complete required-source coverage, and frozen v1 semantics/resources |
 | `omega-bootstrap` | multi-unit custody plus bounded compositional source→checked-IR→artifact→refinement slices | general `Ωself` frontend, complete conservative backend, complete source closure, and frozen acceptance/resources |
 | production Omega source | coherent checkpoint 000001 for Psi source-to-token processing | parser, checker, compiler-linked Terminal-Psi path, optimizer, backend, entrypoint closure, and final `Ωself` census |
 | hosted build | bounded bridge canaries | one validated `omega-bootstrap` build of full production `omega` |
@@ -122,6 +124,36 @@ The order is:
 3. publish the exact Delta compiler through Gamma and use it to build the
    bridge;
 4. perform the one required hosted production build.
+
+### 0. `LOWER-ROOTED-DELTA-PUBLICATION` — replace the retired external producer
+
+The Rust Alpha assembler, Beta compiler, and Delta compiler producers were
+retired on 2026-08-26. Alpha and Beta already have canonical lower-rooted
+construction paths, so they need no replacement producer. Delta does not yet
+have a complete published host artifact; that missing edge is now visible
+instead of being disguised by a Rust fallback.
+
+- [ ] Execute the exact canonical Delta compiler source through the
+  Beta-written Delta→Gamma elaborator and Gamma interpreter, producing the
+  compiler artifact for every required build host.
+- [ ] Join exact source identity, Delta semantics/resources, target identity,
+  emitted artifact identity, and direct lower-rooted refinement. Checked-in
+  provisional binaries are inputs to reconstruction, never authorities.
+- [ ] Restore the useful compiler-facing gates formerly driven by the external
+  producer: Delta compilation, native execution, self-reproduction,
+  source-to-artifact comparison, backend checks, contract discharge, and
+  certifier checks. They must consume the canonical published artifact through
+  one role, not build an implementation as a side effect.
+- [ ] Rewire or remove every suspended gate and cache profile that still names
+  the retired Rust Delta location or role. Retain a gate only when it specifies
+  a property that the canonical artifact must satisfy.
+- [ ] Restore the downstream Delta/refinement portion of
+  `tools/bootstrap/verify-lattice.sh` only after those gates are lower-rooted.
+
+Acceptance: the closed lattice constructs Delta without Cargo or an external
+Delta implementation; repository path checks contain no live Alpha/Beta/Delta
+Rust producer role; and the default lattice reports exactly the closure it has
+actually verified.
 
 ### 1. Keep product checkpoints and provisional `Ωself` coherent
 

@@ -13,8 +13,8 @@ Alpha seed + Alpha-written assembler
 `cold-start/full-source.sh` reconstructs that tape, compares it byte-for-byte,
 checks another self-build generation, and runs the complete Beta corpus through
 the persisted artifact. `artifact_env.sh` stamps it into the host's audited
-Alpha seed for downstream bootstrap gates. The Rust producer is retained only
-as diagnostic/on-ramp history and is not in this artifact's lineage.
+Alpha seed for downstream bootstrap gates. The historical Rust producer is
+retired and was never in this artifact's lineage.
 
 Regenerate deliberately with `cold-start/rebuild-artifact.sh`; commit a changed
 tape only together with the source/compiler change and a green full-source gate.

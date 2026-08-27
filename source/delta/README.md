@@ -13,8 +13,8 @@ contract is being discovered from the complete canonical Delta-compiler and
 and maintainability arguments, and is tracked in
 [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 
-The corpus and disposable Rust producer are discovery inputs, not a feature
-vote. A construct belongs to Delta v1 when the canonical compiler or bridge
+The corpus and historical producer experiments are discovery inputs, not a
+feature vote. A construct belongs to Delta v1 when the canonical compiler or bridge
 demonstrates a concrete need, or an explicit language-coherence, robustness,
 safety, or maintainability argument shows that retaining it reduces
 whole-bootstrap cost; its lower-rung meaning must also close. Shared constructs
@@ -64,14 +64,16 @@ source- and cost-driven in the feature ledger.
   declarations are joined to the exact phase-1 machine/state identity before
   their comment-aware balanced headers are consumed, so contextual identifiers
   such as `state`, `let`, `write_byte`, and `read_byte` cannot re-enter the
-  statement or boundary-intrinsic dispatcher. A focused gate requires exact
-  Rust/native/self assembly identity and execution across twelve such names.
-- [`build/`](build/) contains the checked-in bootstrap compiler artifacts.
-- [`source/on-ramp/rust/delta/`](../on-ramp/rust/delta/) is the disposable
-  Rust producer and executable reference. It is not Delta's semantic authority.
+  statement or boundary-intrinsic dispatcher. The former external-producer
+  comparison gate is retired; equivalent coverage must return against the
+  canonical lower-rooted compiler artifact.
+- [`build/`](build/) contains provisional checked-in bootstrap compiler
+  artifacts. Their exact lower-rooted publication remains open and is tracked
+  as `LOWER-ROOTED-DELTA-PUBLICATION` in `TASKS_BOOTSTRAP.md`.
 
 The lower-rung Delta-to-Gamma route under [`../on-ramp/omega-bootstrap/meaning/`](../on-ramp/omega-bootstrap/meaning/)
 defines the meaning profile being widened across the canonical Delta compiler
 and `omega-bootstrap`.
-The former `compiler/delta` and `compiler/delta-rs` entries are retired; gates
-use the canonical `delta` and `delta-rust` roles from `tools/bootstrap/paths.sh`.
+The former `compiler/delta`, `compiler/delta-rs`, and external Rust producer are
+retired. Gates must use the canonical `delta` role and may not rebuild a hidden
+implementation as a side effect.
