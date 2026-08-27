@@ -305,6 +305,7 @@ mod tests {
             path_starts_at_self: false,
             arguments,
             evidence_arguments: Box::default(),
+            source_span: Default::default(),
         });
         let guard = expressions.insert(ExpressionNode::Boolean(true));
         let statement = statements.insert(StatementNode::Transition(TableTransition {
