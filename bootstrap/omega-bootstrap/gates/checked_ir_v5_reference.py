@@ -90,6 +90,7 @@ class SchemaCapabilities:
     generalized_nonempty_edges: bool = False
     require_generalized_nonempty_edges: bool = False
     full_width_u64_less: bool = False
+    full_width_u64_index_add: bool = False
 
 
 _BASE_OPCODES = frozenset(range(1, 15))
@@ -212,9 +213,9 @@ def decode(contents: bytes, *, expected_major: int = 5,
            require_trapping_add: bool = False,
            allow_static_byte_view: bool = False,
            capabilities: SchemaCapabilities | None = None) -> Module:
-    require(expected_major in SCHEMA_CAPABILITIES, "internal CKIR schema selection")
-    selected = SCHEMA_CAPABILITIES[expected_major]
+    selected = SCHEMA_CAPABILITIES.get(expected_major)
     if capabilities is None:
+        require(selected is not None, "internal CKIR schema selection")
         legacy_opcodes = set(_BASE_OPCODES)
         if allow_logical_not:
             legacy_opcodes.add(15)
@@ -234,7 +235,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
             require_static_byte_view=allow_static_byte_view,
             require_trapping_add=require_trapping_add,
         )
-    require(capabilities == selected, "internal CKIR feature selection")
+    if selected is not None:
+        require(capabilities == selected, "internal CKIR feature selection")
     allow_static_byte_view = capabilities.allow_static_byte_view
     require(len(contents) >= HEADER.size, "truncated CKIR header")
     magic, major, minor, target, flags, entry, total, *raw_counts = HEADER.unpack_from(contents)
@@ -753,7 +755,13 @@ def decode(contents: bytes, *, expected_major: int = 5,
             base_type = place_types[op_values[0]]
             require(types[base_type][1] == 5 and result_type == types[base_type][4],
                     "index type")
-            require(types[value_types[op_values[1]]][1] in (1, 2), "index scalar")
+            index_kind = types[value_types[op_values[1]]][1]
+            require(index_kind in (1, 2) or (
+                    capabilities.full_width_u64_index_add
+                    and index_kind == 8
+                    and types[types[base_type][4]] ==
+                        (types[base_type][4], 1, 0, 0, 0, 0, 0, 255)),
+                    "index scalar")
             place_mutable[result_id] = place_mutable[op_values[0]]
         elif opcode == 5:
             require(imm0 == imm1 == 0 and visible_place(op_values[0], block, op_id),
@@ -789,6 +797,9 @@ def decode(contents: bytes, *, expected_major: int = 5,
             operand_kind = types[value_types[op_values[0]]][1]
             require(operand_kind == types[value_types[op_values[1]]][1]
                     and (operand_kind in (1, 2)
+                         or (opcode == 8
+                             and capabilities.full_width_u64_index_add
+                             and operand_kind == 8)
                          or (opcode == 9
                              and capabilities.full_width_u64_less
                              and operand_kind == 8)), "arithmetic type")
@@ -1409,8 +1420,13 @@ def interpret(module: Module, step_limit: int = 65_536, frame_limit: int = 64) -
                     semantic_copy(memory, destination, destination_type, image)
                 elif opcode == 8:
                     value = int(values[args[0]][1]) + int(values[args[1]][1])
-                    require(types[result_type][6] <= value <= types[result_type][7],
-                            "runtime add range")
+                    if types[result_type][1] == 8:
+                        low, high = _u64_type_bounds(types[result_type])
+                        require(value <= 0xFFFF_FFFF_FFFF_FFFF,
+                                "runtime u64 add carry")
+                    else:
+                        low, high = types[result_type][6:8]
+                    require(low <= value <= high, "runtime add range")
                     values[result_id] = (result_type, value)
                 elif opcode in (26, 27):
                     left = int(values[args[0]][1])
