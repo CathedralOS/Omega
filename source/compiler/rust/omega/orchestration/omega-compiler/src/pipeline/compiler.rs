@@ -1,6 +1,6 @@
 use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::artifacts::{
-    FinalPipelineObservation, remove_stale_phase_diagrams, write_backend_report,
+    BackendReportObservation, FinalPipelineObservation, remove_stale_phase_diagrams,
     write_checked_snapshot, write_control_flow_snapshot, write_final_pipeline_observations,
     write_pipeline_index, write_resolved_snapshot, write_state_graph_snapshot,
     write_syntax_snapshot, write_typed_snapshot,
@@ -19,7 +19,6 @@ use crate::pipeline::stages::{
     typed_trees_to_checked_trees,
 };
 use crate::pipeline::timing::CompileTimings;
-use omega_artifacts::build_backend_surface_report;
 use omega_core::parallel::WorkerPool;
 use psi_diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -525,8 +524,12 @@ impl Compiler {
             &checked.program,
             emit_auxiliary_artifacts,
         )?;
-        let backend_surface = (emit_auxiliary_artifacts && requires_native_backend)
-            .then(|| build_backend_surface_report(&checked.program, entry_machine_name.as_deref()));
+        let backend_report = BackendReportObservation::capture(
+            &checked.program,
+            entry_machine_name.as_deref(),
+            self.artifact_policy,
+            requires_native_backend,
+        );
 
         // A check-only compilation with no selected runtime root ends at
         // checked semantics. Requiring an entry merely to produce the
@@ -629,15 +632,7 @@ impl Compiler {
             self.options.target_name.as_deref(),
             &mut backend.plan,
         )?;
-        if requires_native_backend && emit_auxiliary_artifacts {
-            write_backend_report(
-                &self.options,
-                backend_surface
-                    .as_ref()
-                    .expect("full output compilation must build its backend report surface"),
-                &backend.plan,
-            )?;
-        }
+        backend_report.write(&self.options, &backend.plan)?;
 
         let (emission_plan, emitted) =
             backend_plan_to_native_image_payload(&backend, subsystem, &mut timings)?;

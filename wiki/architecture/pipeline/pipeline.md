@@ -104,6 +104,11 @@ rows once, writes that initial observation at the source boundary, and later
 consumes the same carrier when checked capability facts become available. It
 does not rebuild those rows from a retained syntax-tree clone, and checked
 capability settlement remains validating under report suppression.
+Backend reporting likewise captures one checked-surface observation only for a
+full native compilation and consumes it once the corresponding backend plan is
+available. Suppressed and non-native products retain canonical absence; the
+pipeline driver neither couriers a raw optional report surface nor owns its
+conditional publication policy.
 
 Production entry points retain full artifacts by default. Corpus schedulers may
 select output-only mode for independent pass/fail compiles whose assertions are
