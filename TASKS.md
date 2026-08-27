@@ -5441,9 +5441,9 @@ Owners:
   it distinct. Checked Omega bodies may explicitly attenuate an exclusive
   mutable whole place to `&write` for an unrestricted primitive scalar or fixed
   literal-length array whose element is either an unrestricted primitive scalar
-  or an eligible material nongeneric, invariant-free `[copy]` record, replace
-  the whole referent, and forward the loan only through an explicit `&write`
-  argument.
+  or an eligible material nongeneric, invariant-free `[copy]` record, or for a
+  closed material nongeneric, invariant-free `[copy]` sum, replace the whole
+  referent, and forward the loan only through an explicit `&write` argument.
   Such a checked fixed array additionally permits literal or dynamic element
   replacement after the ordinary range checker proves the index in bounds.
   Literal mutation and caller-visible write frames retain the exact
@@ -5459,11 +5459,13 @@ Owners:
   record with no authored default domain, every selected field is relevant and
   unconstrained, and the displaced leaf is an unrestricted primitive or a whole
   supported literal-length fixed array. An eligible path may
-  now also end in a whole nongeneric, invariant-free `[copy]` record leaf.
-  Replacement treats that leaf as one freely discardable value and retains one
-  final `Field` segment without decomposing or observing its members; affine or
-  linear, generic, qualified, invariant-bearing, quotient, sum, erased, and
-  other non-discardable record leaves remain fenced. The ordinary
+  now also end in a whole nongeneric, invariant-free `[copy]` record leaf or a
+  closed material `[copy]` sum leaf. Replacement treats either leaf as one
+  freely discardable value and retains one final `Field` segment without
+  decomposing or observing its members, case, or payload; the incoming sum
+  supplies the complete tag and payload. Affine or linear, generic, qualified,
+  invariant-bearing, quotient, erased, and other non-discardable leaves remain
+  fenced. Sum case/payload projection and sum arrays remain fenced. The ordinary
   mutation summary retains the complete exact, ordered field-symbol path;
   nested array replacement introduces no element or range segment. Such an
   eligible record path may additionally end in one in-bounds literal or
@@ -5501,7 +5503,8 @@ Owners:
   record fields named `len`, metadata reached through a record-held slice,
   elements reached through a record-held slice descriptor,
   whole-slice replacement, and slice ranges remain fenced.
-  Whole-record replacement still requires an unrestricted/discardable root.
+  Whole aggregate replacement still requires an unrestricted/discardable root
+  with an admitted closed shape.
   Referent observation, readable
   widening, implicit `&mut` attenuation, symbolic/open-ended ranges, sum
   projection, qualified fields, invariant-bearing records, and

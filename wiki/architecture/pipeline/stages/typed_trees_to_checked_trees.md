@@ -85,9 +85,13 @@ Must own:
   An eligible plain-record path may also replace one whole nongeneric,
   invariant-free `[copy]` record leaf as a single freely discardable value. Its
   mutation/frame place ends in exactly one `Field` segment and never decomposes
-  or observes child members. Affine/linear, generic, qualified,
-  invariant-bearing, quotient, sum, erased, and array-of-record leaves remain
-  fenced, as do member observation and read-modify-write.
+  or observes child members. A closed material nongeneric, invariant-free
+  `[copy]` sum may likewise be replaced atomically through a direct root or as
+  the final leaf of such a record path; the incoming value supplies the whole
+  tag and payload, and the retained place is only the root or final `Field`.
+  Affine/linear, generic, qualified, invariant-bearing, quotient, erased, and
+  array-of-record leaves remain fenced, as do sum arrays, case/payload
+  projection, member observation, matching, take, swap, and read-modify-write.
 - Reach summaries, invocation edges, and boundary contract facts that later stages must preserve.
 - Bounded installation-row facts keyed by exact boundary-requirement path,
   including the declared service upper bound, symbolic dependencies through

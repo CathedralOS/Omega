@@ -73,6 +73,38 @@ fn unrestricted_plain_record_leaves_are_wholly_replaceable() {
 }
 
 #[test]
+fn closed_material_copy_sums_are_wholly_replaceable() {
+    lower_typed_trees(typed(
+        r#"
+            data Choice [copy] {
+                case Empty;
+                case Value(value: u16);
+            }
+            data Holder { choice: Choice; sibling: u8; }
+
+            machine replace(
+                direct: &write Choice,
+                holder: &write Holder,
+                replacement: Choice
+            ) {
+                direct = replacement;
+                direct = Choice::Empty;
+                holder.choice = Choice::Value { value: 9 };
+            }
+
+            machine forward(direct: &write Choice, replacement: Choice) {
+                replace_direct(&write direct, replacement);
+            }
+
+            machine replace_direct(direct: &write Choice, replacement: Choice) {
+                direct = replacement;
+            }
+        "#,
+    ))
+    .expect("a closed material copy sum is one atomic whole-value store");
+}
+
+#[test]
 fn ineligible_record_leaves_remain_outside_whole_replacement() {
     for (name, source, expected) in [
         (
@@ -126,20 +158,6 @@ fn ineligible_record_leaves_remain_outside_whole_replacement() {
             "invariant-dependent",
         ),
         (
-            "sum",
-            r#"
-                data Leaf [copy] {
-                    case Value(value: u16);
-                    case Empty;
-                }
-                data Holder { leaf: Leaf; }
-                machine replace(holder: &write Holder, replacement: Leaf) {
-                    holder.leaf = replacement;
-                }
-            "#,
-            "sum-payload",
-        ),
-        (
             "qualified",
             r#"
                 data Leaf [copy] { value: u16; }
@@ -169,6 +187,182 @@ fn ineligible_record_leaves_remain_outside_whole_replacement() {
         assert!(
             rendered.contains(expected),
             "{name} leaf unexpectedly crossed the bounded record gate: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn ineligible_sum_shapes_remain_outside_whole_replacement() {
+    for (name, source, expected) in [
+        (
+            "affine",
+            r#"
+                data Choice { case Empty; case Value(value: u16); }
+                machine replace(choice: &write Choice, replacement: Choice) {
+                    choice = move replacement;
+                }
+            "#,
+            "freely discardable supported root",
+        ),
+        (
+            "linear",
+            r#"
+                data Choice [linear] { case Empty; case Value(value: u16); }
+                machine replace(choice: &write Choice, replacement: Choice) {
+                    choice = move replacement;
+                }
+            "#,
+            "freely discardable supported root",
+        ),
+        (
+            "generic",
+            r#"
+                data Choice<T [copy]> [copy] { case Empty; case Value(value: T); }
+                data Holder { choice: Choice<u16>; }
+                machine replace(holder: &write Holder, replacement: Choice<u16>) {
+                    holder.choice = replacement;
+                }
+            "#,
+            "unsupported write-only projection",
+        ),
+        (
+            "invariant and zero gate",
+            r#"
+                data Choice [copy]
+                where
+                    1 == 0,
+                {
+                    case Empty;
+                    case Value(value: u16);
+                }
+                machine replace(choice: &write Choice, replacement: Choice) {
+                    choice = replacement;
+                }
+            "#,
+            "freely discardable supported root",
+        ),
+        (
+            "qualified",
+            r#"
+                data Choice [copy] { case Empty; case Value(value: u16); }
+                domain Choice::Valid
+                requires
+                    self == Choice::Empty;
+                machine replace(
+                    choice: &write Choice in Valid,
+                    replacement: Choice in Valid
+                ) {
+                    choice = replacement;
+                }
+            "#,
+            "freely discardable supported root",
+        ),
+        (
+            "erased payload",
+            r#"
+                data Choice [copy] {
+                    case Empty;
+                    case Value(value: u16, proof [erased]: u16);
+                }
+                machine replace(choice: &write Choice, replacement: Choice) {
+                    choice = replacement;
+                }
+            "#,
+            "freely discardable supported root",
+        ),
+        (
+            "proof-only quotient",
+            r#"
+                data Carrier [copy] { case Unit; }
+                proposition same(left: Carrier, right: Carrier) = left == right;
+                data Choice = Carrier % same;
+                machine replace(choice: &write Choice, replacement: Choice) {
+                    choice = replacement;
+                }
+            "#,
+            "freely discardable supported root",
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains(expected),
+            "{name} sum unexpectedly crossed the bounded whole-value gate: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn zero_gate_independently_fences_copy_sum_replacement() {
+    let mut program = typed(
+        r#"
+            data Choice [copy]
+            where
+                1 == 0,
+            {
+                case Empty;
+                case Value(value: u16);
+            }
+            machine replace(choice: &write Choice, replacement: Choice) {
+                choice = replacement;
+            }
+        "#,
+    );
+    let mut found = false;
+    program
+        .tables
+        .data_definitions
+        .for_each_mut(|_, definition| {
+            if definition.name.as_str() == "Choice" {
+                assert!(definition.zero_gated, "source must establish the zero gate");
+                definition.where_facts = psi_arena::HandleSpan::empty();
+                found = true;
+            }
+        });
+    assert!(found, "Choice definition");
+
+    let rendered = lower_typed_trees(program)
+        .expect_err("the retained zero gate must reject after invariant rows are removed")
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("freely discardable supported root"),
+        "zero-gated sum unexpectedly crossed the whole-value gate: {rendered}"
+    );
+}
+
+#[test]
+fn copy_sum_observation_matching_and_swap_attempts_remain_rejected() {
+    for (name, body) in [
+        ("observation/take", "let prior: Choice = choice;"),
+        (
+            "matching/payload projection",
+            "transition choice { Choice::Value { value } -> value Choice::Empty -> 0 }",
+        ),
+        (
+            "swap",
+            "let prior: Choice = choice; choice = replacement; replacement = prior;",
+        ),
+    ] {
+        let source = format!(
+            r#"
+                data Choice [copy] {{
+                    case Empty;
+                    case Value(value: u16);
+                }}
+                machine inspect(choice: &write Choice, replacement: Choice) -> u16 {{
+                    {body}
+                    transition {{ _ -> 0 }}
+                }}
+            "#
+        );
+        let rendered = rendered_rejection(&source);
+        assert!(
+            rendered.contains("write-only parameter `choice`")
+                && (rendered.contains("never observation")
+                    || rendered.contains("never grants observation")),
+            "{name} unexpectedly observed a write-only sum: {rendered}"
         );
     }
 }
@@ -378,7 +572,7 @@ fn ineligible_fixed_array_element_shapes_remain_rejected() {
         (
             "sum",
             r#"
-                data Choice {
+                data Choice [copy] {
                     case First(value: u16);
                     case Second;
                 }
@@ -742,7 +936,7 @@ fn non_discardable_record_leaf_write_remains_rejected() {
     assert!(
         rendered.contains("unsupported write-only projection")
             && rendered.contains(
-                "leaf is an unrestricted primitive, a whole eligible unrestricted record, or a literal fixed array whose elements are unrestricted primitive scalars or eligible material plain `[copy]` records"
+                "leaf is an unrestricted primitive, a whole eligible unrestricted record or closed material `[copy]` sum, or a literal fixed array whose elements are unrestricted primitive scalars or eligible material plain `[copy]` records"
             ),
         "unexpected diagnostic: {rendered}"
     );
@@ -1131,8 +1325,8 @@ fn whole_write_only_byte_slice_replacement_remains_rejected() {
         "#,
     );
     assert!(
-        rendered.contains("replaces whole write-only record `bytes`")
-            && rendered.contains("whole-root replacement"),
+        rendered.contains("replaces whole write-only aggregate `bytes`")
+            && rendered.contains("freely discardable supported root"),
         "unexpected diagnostic: {rendered}"
     );
 }
@@ -1218,8 +1412,8 @@ fn whole_affine_record_replacement_remains_rejected() {
         "#,
     );
     assert!(
-        rendered.contains("replaces whole write-only record `pair`")
-            && rendered.contains("freely discardable root"),
+        rendered.contains("replaces whole write-only aggregate `pair`")
+            && rendered.contains("freely discardable supported root"),
         "unexpected diagnostic: {rendered}"
     );
 }
