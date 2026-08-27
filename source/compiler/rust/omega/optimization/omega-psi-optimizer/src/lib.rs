@@ -44,10 +44,11 @@ pub use rules::{
     RedundantBlockParameterRule, SaturatingIntegerAddConstantsRule,
     SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,
     SaturatingIntegerRemainderConstantsRule, SaturatingIntegerSubtractConstantsRule,
-    WrappingIntegerAddConstantsRule, WrappingIntegerDivideConstantsRule,
-    WrappingIntegerMultiplyConstantsRule, WrappingIntegerRemainderConstantsRule,
-    WrappingIntegerShiftLeftConstantsRule, WrappingIntegerShiftRightConstantsRule,
-    WrappingIntegerSubtractConstantsRule, built_in_psi_registries, built_in_psi_registry,
+    SharedTerminalJumpFusionRule, WrappingIntegerAddConstantsRule,
+    WrappingIntegerDivideConstantsRule, WrappingIntegerMultiplyConstantsRule,
+    WrappingIntegerRemainderConstantsRule, WrappingIntegerShiftLeftConstantsRule,
+    WrappingIntegerShiftRightConstantsRule, WrappingIntegerSubtractConstantsRule,
+    built_in_psi_registries, built_in_psi_registry,
 };
 
 #[cfg(test)]

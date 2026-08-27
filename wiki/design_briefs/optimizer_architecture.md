@@ -971,7 +971,32 @@ at the fused node, so return, cleanup, structural-return, crash, and fuel work
 are not classified as empty. Nonadjacent merges and native publication
 for inherited node-edge custody remain fail-closed.
 
-The fifth rule, `unreachable-private-machine-pruning.v1`, is a module-roster
+The fifth rule, `shared-terminal-jump-fusion.v1`, removes one unconditional
+jump into a shared terminal-only target without moving or deleting that target.
+The target is non-entry, has at least two incoming edges, and contains exactly
+one `Return`, `ReturnUnit`, `ReturnStructural`, or `Crash`. The chosen jump's
+typed bindings replace target parameters only in the cloned terminal; the
+retained target and its parameter declarations remain byte-for-byte unchanged.
+Ownership snapshots at incoming-edge entry, incoming-edge exit, and target
+entry must be identical.
+
+Custody is an exact one-to-many plus many-to-one relation. The incoming edge is
+realized at the cloned terminal, while the original terminal node is realized
+both at the clone and at its unchanged target site with identical source and
+fuel vectors. Total-unit validation permits duplicated edge provenance at node
+sites only when every occurrence is an exact no-successor terminal and their
+blocks are pairwise incomparable in the output CFG. Duplicate operation
+sources, node/edge cross-kind duplication, same-block duplication, and
+sequentially executable occurrences remain invalid. The rewrite preserves the
+jump node's effect link, rebuilds metadata/facts/places and identity, and
+strictly decreases successor count. Candidate v15, optimization-unit content
+identity v9, `ControlFlowCleanup` v10, prephysical manifest v9, and optimized-
+plan projection validation v10 bind the admitted fanout; ledger v4 already
+expresses it. Full artifact replay reaches two exact mutually exclusive
+terminal occurrences without classifying return, cleanup, crash, or fuel as
+empty work.
+
+The sixth rule, `unreachable-private-machine-pruning.v1`, is a module-roster
 rewrite rather than a node rewrite. Its candidate decision point is the exact
 canonical machine set, never a surrogate first node. The root set contains the
 module entry, every provider candidate, every nominally attached function, and

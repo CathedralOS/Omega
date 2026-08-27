@@ -444,6 +444,23 @@ These facts constrain the work below.
   v9 pass, prephysical manifest v8, and optimized-plan projection v9 bind this
   additional admission meaning; ledger v4 already represents both moves.
 - The fifth exact `ControlFlowCleanup` rule,
+  `shared-terminal-jump-fusion.v1`, removes one unconditional jump into a
+  shared terminal-only block without removing or mutating that target. The
+  target must have at least two incoming edges and contain exactly one
+  `Return`, `ReturnUnit`, `ReturnStructural`, or `Crash`. Typed parameters are
+  substituted only in the cloned terminal, while ownership snapshots must be
+  identical at incoming-edge entry, incoming-edge exit, and target entry. The
+  incoming edge is realized at the clone and the original terminal occurrence
+  fans out to the clone plus its retained source site with identical fuel.
+  Total-unit validation admits repeated edge provenance at node sites only for
+  exact no-successor terminals in pairwise CFG-antichain blocks; operation
+  provenance, mixed node/edge occurrences, and co-executable duplicates remain
+  rejected. A full verified artifact test replays the one-to-many terminal
+  custody into the pre-physical plan and projection. Candidate v15,
+  optimization-unit identity v9, the v10 pass, prephysical manifest v9, and
+  optimized-plan projection v10 bind this admission meaning; ledger v4 already
+  represents the fanout.
+- The sixth exact `ControlFlowCleanup` rule,
   `unreachable-private-machine-pruning.v1`, atomically removes the complete
   active function complement outside the executable root closure. Roots are
   the module entry, provider candidates, conservatively retained attached
@@ -900,7 +917,7 @@ dependency.
   location changes; and durably records the rejected edge plus every deleted
   node and its original scheduled fuel as independently proven unreachable and
   uncharged. Successor-edge custody and ledger v3 now distinguish the two
-  conditional arms directly. The v9 pass also includes exact linear empty-jump
+  conditional arms directly. The v10 pass also includes exact linear empty-jump
   threading plus `path-qualified-empty-block-thread.v1`: typed bindings are
   composed, ownership frontiers must be identical across each bypass, and the
   removed outgoing source is realized on every and only mutually exclusive
@@ -909,11 +926,15 @@ dependency.
   the block's sole conditional, or its exact return/crash terminal. It substitutes typed block parameters and
   realizes the removed edge at the first operation or across exactly the two
   mutually exclusive successor edges, without authorizing non-adjacent code
-  motion. Its fifth rule prunes the exact unreachable private-machine
+  motion. Its fifth rule fuses one selected unconditional path into a shared,
+  terminal-only return/crash block while retaining that block for its other
+  incoming paths. Terminal provenance and fuel fan out only across the exact
+  no-successor CFG antichain, and typed substitutions affect only the clone.
+  Its sixth rule prunes the exact unreachable private-machine
   complement, rooting entry, providers, attached functions, internal calls,
-  and nominal cleanup-machine references. Candidate v14, optimization-unit
-  identity v8, ledger v4, prephysical manifest v8, and projection v9 bind both
-  occurrence and function-roster replay. Non-adjacent redundant jumps and
+  and nominal cleanup-machine references. Candidate v15, optimization-unit
+  identity v9, ledger v4, prephysical manifest v9, and projection v10 bind both
+  occurrence and function-roster replay. General non-adjacent redundant jumps and
   unreachable cleanup not caused by the conditional fold
   remain open.
 

@@ -15,7 +15,7 @@ use omega_optimization_unit::{
     PathQualifiedEmptyBlockRewrite, ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody,
     PsiOptimizationUnit, PsiProvenance, PsiRealizationSite, PsiRewriteCandidate,
     RedundantBlockParameterRewrite, RedundantBlockParameterWitness, ScalarSubstitution,
-    UnreachablePrivateMachinesRewrite,
+    SharedTerminalJumpFusionRewrite, UnreachablePrivateMachinesRewrite,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{BlockId, IntegerValue, MachineId, OperationId, ValueId};
@@ -26,7 +26,7 @@ use crate::{
 };
 
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v1";
-const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v9";
+const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v10";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -581,6 +581,166 @@ impl PsiOptimizationRule for PathQualifiedEmptyBlockThreadRule {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct AdjacentBlockMergeRule;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SharedTerminalJumpFusionRule;
+
+impl SharedTerminalJumpFusionRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.shared-terminal-jump-fusion.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
+            1,
+            AnalysisSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::OwnershipFrontiers,
+            ]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::StructuralIdentity,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for SharedTerminalJumpFusionRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        if analyses.get(AnalysisKind::ControlFlowGraph).is_none() {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::ControlFlowGraph,
+            ));
+        }
+        let Some(AnalysisProduct::OwnershipFrontiers(frontiers)) =
+            analyses.get(AnalysisKind::OwnershipFrontiers)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::OwnershipFrontiers,
+            ));
+        };
+        let mut candidates = Vec::new();
+        for function in &unit.functions {
+            for predecessor in &function.blocks {
+                let Some((predecessor_index, predecessor_node)) = predecessor
+                    .nodes
+                    .len()
+                    .checked_sub(1)
+                    .map(|index| (index, &predecessor.nodes[index]))
+                else {
+                    continue;
+                };
+                let O::Jump {
+                    psi_edge: incoming_edge,
+                    target: target_id,
+                    bindings,
+                } = &predecessor_node.operation
+                else {
+                    continue;
+                };
+                let Some(target) = function.blocks.iter().find(|block| block.id == *target_id)
+                else {
+                    continue;
+                };
+                let [terminal] = target.nodes.as_slice() else {
+                    continue;
+                };
+                if target.id == function.entry
+                    || !terminal.successors.is_empty()
+                    || !matches!(terminal.provenance.first(), Some(PsiProvenance::Edge(_)))
+                    || !matches!(
+                        terminal.operation,
+                        O::Return { .. }
+                            | O::ReturnUnit { .. }
+                            | O::ReturnStructural { .. }
+                            | O::Crash { .. }
+                    )
+                {
+                    continue;
+                }
+                let incoming_count = function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.nodes)
+                    .flat_map(|node| &node.successors)
+                    .filter(|edge| edge.target == target.id)
+                    .count();
+                if incoming_count < 2
+                    || !adjacent_merge_ownership_is_identity(
+                        unit,
+                        function,
+                        frontiers,
+                        *incoming_edge,
+                        target.id,
+                    )
+                {
+                    continue;
+                }
+                let Some(mut substitutions) = target
+                    .parameters
+                    .iter()
+                    .zip(bindings)
+                    .map(|(parameter, binding)| {
+                        (binding.parameter == parameter.value
+                            && binding.scalar_type == parameter.scalar_type)
+                            .then_some(ScalarSubstitution {
+                                from: parameter.value,
+                                to: binding.argument,
+                                scalar_type: parameter.scalar_type,
+                            })
+                    })
+                    .collect::<Option<Vec<_>>>()
+                    .filter(|_| target.parameters.len() == bindings.len())
+                else {
+                    continue;
+                };
+                substitutions.sort();
+                let predecessor_location = NodeLocation {
+                    machine: function.machine,
+                    block: predecessor.id,
+                    node: u32::try_from(predecessor_index)
+                        .expect("optimization node index fits u32"),
+                };
+                let Some((affected_blocks, provenance)) = shared_terminal_fusion_accounting(
+                    function,
+                    predecessor_location,
+                    *incoming_edge,
+                    target.id,
+                ) else {
+                    continue;
+                };
+                candidates.push(
+                    PsiRewriteCandidate::new_shared_terminal_jump_fusion(
+                        unit.identity,
+                        Self::contract(),
+                        affected_blocks,
+                        substitutions,
+                        provenance,
+                        -1,
+                        SharedTerminalJumpFusionRewrite {
+                            predecessor: predecessor_location,
+                            incoming_edge: *incoming_edge,
+                            target: target.id,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+        Ok(candidates)
+    }
+}
 
 impl AdjacentBlockMergeRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -1330,6 +1490,69 @@ fn adjacent_merge_accounting(
         )
     });
     Some((affected.into_iter().collect(), realized))
+}
+
+fn shared_terminal_fusion_accounting(
+    function: &omega_optimization_unit::PsiOptimizationFunction,
+    predecessor: NodeLocation,
+    incoming_edge: psi_core::EdgeId,
+    target: BlockId,
+) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
+    let predecessor_block = function
+        .blocks
+        .iter()
+        .find(|block| block.id == predecessor.block)?;
+    let incoming = predecessor_block
+        .nodes
+        .get(usize::try_from(predecessor.node).ok()?)?
+        .successors
+        .iter()
+        .find(|edge| edge.psi_edge == incoming_edge)?;
+    let target_block = function.blocks.iter().find(|block| block.id == target)?;
+    let [terminal] = target_block.nodes.as_slice() else {
+        return None;
+    };
+    let input_edge = PsiRealizationSite::Edge {
+        machine: function.machine,
+        edge: incoming_edge,
+    };
+    let input_terminal = PsiRealizationSite::Node(NodeLocation {
+        machine: function.machine,
+        block: target,
+        node: 0,
+    });
+    let output_clone = PsiRealizationSite::Node(predecessor);
+    let mut provenance = vec![
+        ProvenanceRewrite {
+            input: input_edge,
+            disposition: ProvenanceDisposition::RealizedAt(output_clone),
+            sources: incoming.provenance.clone(),
+            fuel: incoming.fuel.clone(),
+        },
+        ProvenanceRewrite {
+            input: input_terminal,
+            disposition: ProvenanceDisposition::RealizedAt(output_clone),
+            sources: terminal.provenance.clone(),
+            fuel: terminal.fuel.clone(),
+        },
+        ProvenanceRewrite {
+            input: input_terminal,
+            disposition: ProvenanceDisposition::RealizedAt(input_terminal),
+            sources: terminal.provenance.clone(),
+            fuel: terminal.fuel.clone(),
+        },
+    ];
+    provenance.sort_by_key(|row| {
+        (
+            row.input,
+            row.disposition.canonical_tag(),
+            row.disposition.site(),
+        )
+    });
+    let mut affected = vec![predecessor.block, target];
+    affected.sort();
+    affected.dedup();
+    Some((affected, provenance))
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -2978,7 +3201,8 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
         register!(1, LinearEmptyBlockThreadRule);
         register!(2, PathQualifiedEmptyBlockThreadRule);
         register!(3, AdjacentBlockMergeRule);
-        register!(4, UnreachablePrivateMachinePruneRule);
+        register!(4, SharedTerminalJumpFusionRule);
+        register!(5, UnreachablePrivateMachinePruneRule);
     }
     if optimization == Optimization::CopyPropagation {
         register!(0, RedundantBlockParameterRule);
@@ -3018,6 +3242,7 @@ pub(crate) mod tests {
         validate_integer_evaluation_candidate, validate_linear_empty_block_candidate,
         validate_path_qualified_empty_block_candidate, validate_psi_optimization_unit,
         validate_redundant_block_parameter_candidate,
+        validate_shared_terminal_jump_fusion_candidate,
         validate_unreachable_private_machines_candidate,
     };
     use omega_terminal_abstract_operations::{
@@ -3483,6 +3708,93 @@ pub(crate) mod tests {
                         },
                         TerminalAbstractOperation::Jump {
                             psi_edge: id(935, EdgeId::new),
+                            target,
+                            bindings: Vec::new(),
+                        },
+                        TerminalAbstractOperation::ReturnUnit {
+                            psi_edge: id(936, EdgeId::new),
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    pub(crate) fn shared_terminal_unit() -> PsiOptimizationUnit {
+        let machine = id(921, MachineId::new);
+        let entry = id(922, BlockId::new);
+        let left_block = id(923, BlockId::new);
+        let right_block = id(924, BlockId::new);
+        let target = id(926, BlockId::new);
+        let condition = id(927, ValueId::new);
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([38; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry,
+                    parameters: vec![TerminalAbstractParameter {
+                        value: condition,
+                        scalar_type: ScalarType::Boolean,
+                    }],
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![
+                        TerminalAbstractBlockEntry {
+                            block: entry,
+                            parameters: Vec::new(),
+                            operation_offset: 0,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: left_block,
+                            parameters: Vec::new(),
+                            operation_offset: 1,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: right_block,
+                            parameters: Vec::new(),
+                            operation_offset: 2,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: target,
+                            parameters: Vec::new(),
+                            operation_offset: 3,
+                        },
+                    ],
+                    operations: vec![
+                        TerminalAbstractOperation::Conditional {
+                            condition,
+                            when_true: TerminalAbstractSuccessor {
+                                psi_edge: id(931, EdgeId::new),
+                                target: left_block,
+                                bindings: Vec::new(),
+                            },
+                            when_false: TerminalAbstractSuccessor {
+                                psi_edge: id(932, EdgeId::new),
+                                target: right_block,
+                                bindings: Vec::new(),
+                            },
+                        },
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(933, EdgeId::new),
+                            target,
+                            bindings: Vec::new(),
+                        },
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(934, EdgeId::new),
                             target,
                             bindings: Vec::new(),
                         },
@@ -4723,7 +5035,7 @@ pub(crate) mod tests {
             ))
         );
         let cleanup = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
-        assert_eq!(built_in_psi_registry(&cleanup).unwrap().len(), 5);
+        assert_eq!(built_in_psi_registry(&cleanup).unwrap().len(), 6);
         let copy = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
         assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
         let unsupported_combination = OptimizationSelections::new([
@@ -5284,6 +5596,122 @@ pub(crate) mod tests {
         .unwrap();
         assert_eq!(
             validate_adjacent_block_merge_candidate(&unit, &corrupted),
+            Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
+        );
+    }
+
+    #[test]
+    fn shared_terminal_jump_fusion_clones_one_path_and_retains_exact_custody() {
+        let threaded = shared_terminal_unit();
+        let contract = SharedTerminalJumpFusionRule::contract();
+        let mut manager = crate::AnalysisManager::new(&threaded);
+        let products = manager
+            .require_all(&threaded, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let candidates = SharedTerminalJumpFusionRule
+            .propose(&threaded, RuleAnalysisView::new(&products))
+            .unwrap();
+        assert_eq!(candidates.len(), 2);
+        let candidate = candidates
+            .iter()
+            .find(|candidate| {
+                matches!(
+                    candidate.patch(),
+                    PsiRewritePatch::FuseSharedTerminalJump(patch)
+                        if patch.predecessor.block == id(923, BlockId::new)
+                )
+            })
+            .expect("left incoming path has an exact fusion candidate");
+        let target_before = threaded.functions[0]
+            .blocks
+            .iter()
+            .find(|block| block.id == id(926, BlockId::new))
+            .unwrap()
+            .clone();
+        let accepted =
+            validate_shared_terminal_jump_fusion_candidate(&threaded, candidate).unwrap();
+        let output = accepted.unit();
+        let clone = &output.functions[0]
+            .blocks
+            .iter()
+            .find(|block| block.id == id(923, BlockId::new))
+            .unwrap()
+            .nodes[0];
+        assert!(matches!(clone.operation, O::ReturnUnit { .. }));
+        assert_eq!(
+            clone.provenance,
+            [
+                PsiProvenance::Edge(id(936, EdgeId::new)),
+                PsiProvenance::Edge(id(933, EdgeId::new)),
+            ]
+        );
+        assert_eq!(
+            output.functions[0]
+                .blocks
+                .iter()
+                .find(|block| block.id == id(926, BlockId::new))
+                .unwrap(),
+            &target_before
+        );
+        let terminal_input = PsiRealizationSite::Node(NodeLocation {
+            machine: id(921, MachineId::new),
+            block: id(926, BlockId::new),
+            node: 0,
+        });
+        assert_eq!(
+            accepted
+                .provenance()
+                .iter()
+                .filter(|row| row.input == terminal_input)
+                .count(),
+            2
+        );
+
+        let mut nonterminal_duplicate = output.clone();
+        let duplicated = PsiProvenance::Edge(id(936, EdgeId::new));
+        let nonterminal = &mut nonterminal_duplicate.functions[0]
+            .blocks
+            .iter_mut()
+            .find(|block| block.id == id(923, BlockId::new))
+            .unwrap()
+            .nodes[0];
+        nonterminal.provenance.push(duplicated);
+        nonterminal
+            .fuel
+            .push(omega_optimization_unit::FuelSettlement {
+                site: duplicated,
+                units: 1,
+            });
+        nonterminal_duplicate.identity =
+            recompute_psi_optimization_unit_identity(&nonterminal_duplicate);
+        assert_eq!(
+            validate_psi_optimization_unit(&nonterminal_duplicate),
+            Err(OptimizationUnitValidationError::DuplicateProvenance(
+                duplicated
+            ))
+        );
+
+        let PsiRewritePatch::FuseSharedTerminalJump(patch) = candidate.patch() else {
+            unreachable!()
+        };
+        let mut incomplete = candidate.provenance().to_vec();
+        incomplete
+            .retain(|row| row.input != terminal_input || row.disposition.site() != terminal_input);
+        let forged = PsiRewriteCandidate::new_shared_terminal_jump_fusion(
+            threaded.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            candidate.substitutions().to_vec(),
+            incomplete,
+            candidate.predicted_cost_delta(),
+            patch,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_shared_terminal_jump_fusion_candidate(&threaded, &forged),
             Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
         );
     }
