@@ -420,6 +420,15 @@ crash buckets are independent parts of an exported machine's semantic contract
 identity, requirement-binding identity, and component compatibility surface.
 Body inference only checks inclusion on each axis.
 
+Package review preserves the exact authored `suspends` and `blocks` keyword
+spans separately from those semantic ceilings. Syntax, resolved, and typed
+owners carry them through copying, specialization, and synthesized trait
+defaults; the review projection joins them to the checked interface and rejects
+missing or contradictory custody. Omission and inference have no authored
+location. Because an exported machine's operational fact is its public may-
+ceiling, review must not describe a permissive ceiling as an observation that
+the current body actually suspended or blocked.
+
 > **Published-identity law:** every published identity is owned by a small,
 > deterministic normalizer. The prover may gate legality, discharge an
 > obligation, or enable erasure/optimization; it may never redefine a

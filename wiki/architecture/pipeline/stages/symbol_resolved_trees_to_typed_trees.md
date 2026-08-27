@@ -52,6 +52,10 @@ Must own:
   normalized separately, allowing package projection to distinguish authored
   empty publication from omission and to verify source custody without
   reconstructing names.
+- Typed operational custody preserves every authored `suspends` and `blocks`
+  keyword on machines and structural signatures independently from the boolean
+  ceiling. Copies and generic specializations retain that custody so later
+  package explanation can join source to checked meaning without reparsing.
 - Typed call telescopes retain a nested conformance application's own
   lifetime/type/const/static-machine argument kinds. Every non-lifetime slot is
   present explicitly; ordinary lifetime constraints remain available for the

@@ -836,7 +836,9 @@ fn machine_from_signature(
         service_reaches: signature.service_reaches,
         invokes: signature.invokes,
         suspends: signature.suspends,
+        suspends_keyword_source_spans: signature.suspends_keyword_source_spans.clone(),
         blocks: signature.blocks,
+        blocks_keyword_source_spans: signature.blocks_keyword_source_spans.clone(),
         contracts: signature.contracts,
         states: HandleSpan::from_parts(state, 1),
     }

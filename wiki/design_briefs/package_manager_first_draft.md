@@ -458,8 +458,18 @@ rederives that row, joins it exactly to typed and checked facts, and carries
 each authored member span—or each keyword span for an empty row—under
 `service_reach`. It invents no coordinates for parent closure, inference, or
 invocation-only reach. Recovery envelope v6, conflict fingerprint v9, and
-renderer V8 bind the current source schema. Coordinates remain explanatory
-rather than semantic identity. Remaining per-fact spans are later rungs;
+renderer V8 bind that reach-source schema. Authored `suspends` and `blocks`
+keyword occurrences now follow the same custody rule through syntax,
+resolution, typing, trait-default synthesis, copying, and specialization.
+Callable, public-trait requirement, and recursively structural machine-
+parameter rows use distinct `suspension` and `blocking` roles. Projection
+requires the authored boolean, retained keywords, and exact checked interface
+to agree; omission and inference acquire no invented location. For public or
+otherwise contract-supplied machines, the checked operational fact is the
+published may-ceiling, not a claim that the current body exercised it. Review
+v73/row v31, recovery v7, conflict fingerprint v10, and renderer V9 bind the
+current source schema. Coordinates remain explanatory rather than semantic
+identity. Remaining per-fact spans are later rungs;
 missing spans must be retained before they are erased, never recovered by
 parsing source text in package orchestration.
 

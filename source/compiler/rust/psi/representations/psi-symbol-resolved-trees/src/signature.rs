@@ -45,6 +45,10 @@ pub struct StateSignatureStorage {
     /// The published row is an installation-selected upper bound rather than
     /// a fixed callable ceiling.
     pub service_reach_is_installation_bound: bool,
+    /// Exact authored operational-clause keyword occurrences. Requirements
+    /// publish the booleans below; these spans remain explanatory only.
+    pub suspends_keyword_source_spans: Vec<psi_source::SourceSpan>,
+    pub blocks_keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,

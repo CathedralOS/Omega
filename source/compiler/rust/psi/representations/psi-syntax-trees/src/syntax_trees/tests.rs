@@ -3,7 +3,9 @@ use crate::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableMemberExpression,
 };
 use crate::identifier::Identifier;
-use crate::item::{DataDefinition, Item, Machine, State, TraitDefinition, WireDataDefinition};
+use crate::item::{
+    DataDefinition, Item, Machine, State, StateSignature, TraitDefinition, WireDataDefinition,
+};
 use crate::snapshot::ItemSnapshot;
 use crate::statement::{
     StatementNode, TableAssignment, TableCall, TableTransition, TransitionGuardNode,
@@ -191,6 +193,8 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
         service_reach_keyword_source_spans: Vec::new(),
         service_reaches: HandleSpan::empty(),
         invokes: HandleSpan::empty(),
+        suspends_keyword_source_spans: Vec::new(),
+        blocks_keyword_source_spans: Vec::new(),
         suspends: false,
         blocks: false,
         contracts: HandleSpan::empty(),
@@ -208,6 +212,10 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
 #[test]
 fn syntax_trees_extend_from_preserves_root_payload_handles() {
     let mut file = SyntaxTrees::new(Default::default());
+    let suspends_keyword_source_span =
+        psi_source::SourceSpan::new(Default::default(), psi_source::Span::new(10, 18));
+    let blocks_keyword_source_span =
+        psi_source::SourceSpan::new(Default::default(), psi_source::Span::new(20, 26));
     let return_type = file
         .type_references
         .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
@@ -239,8 +247,10 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         service_reach_keyword_source_spans: Vec::new(),
         service_reaches: HandleSpan::empty(),
         invokes: HandleSpan::empty(),
-        suspends: false,
-        blocks: false,
+        suspends_keyword_source_spans: vec![suspends_keyword_source_span],
+        blocks_keyword_source_spans: vec![blocks_keyword_source_span],
+        suspends: true,
+        blocks: true,
         contracts: HandleSpan::empty(),
         states: HandleSpan::from_parts(state, 1),
     }));
@@ -252,6 +262,14 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         panic!("expected machine root item");
     };
     assert!(machine.is_public, "syntax assembly must retain visibility");
+    assert_eq!(
+        machine.suspends_keyword_source_spans,
+        [suspends_keyword_source_span]
+    );
+    assert_eq!(
+        machine.blocks_keyword_source_spans,
+        [blocks_keyword_source_span]
+    );
     let state_handle = assembled
         .items
         .state_handles(machine.states)
@@ -261,6 +279,50 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
     let state = assembled.items.state(state_handle);
     assert_eq!(state.name.as_str(), "entry");
     assert!(state.return_type.is_valid());
+}
+
+#[test]
+fn syntax_signature_copy_preserves_operational_keyword_sources() {
+    let mut source = SyntaxTrees::new(Default::default());
+    let suspends_keyword_source_span =
+        psi_source::SourceSpan::new(Default::default(), psi_source::Span::new(30, 38));
+    let blocks_keyword_source_span =
+        psi_source::SourceSpan::new(Default::default(), psi_source::Span::new(40, 46));
+    let signature = source.items.insert_state_signature(&StateSignature {
+        name: Identifier::generated("wait"),
+        spelling: None,
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        is_default: true,
+        parameters: HandleSpan::empty(),
+        return_type: TypeReferenceHandle::invalid(),
+        service_reach_is_installation_bound: false,
+        service_reach_keyword_source_spans: Vec::new(),
+        service_reaches: HandleSpan::empty(),
+        invokes: HandleSpan::empty(),
+        suspends_keyword_source_spans: vec![suspends_keyword_source_span],
+        blocks_keyword_source_spans: vec![blocks_keyword_source_span],
+        suspends: true,
+        blocks: true,
+        contracts: HandleSpan::empty(),
+        default_body: HandleSpan::empty(),
+        terminates_guarantee: false,
+    });
+
+    let mut copied_trees = SyntaxTrees::new(Default::default());
+    let copied = copied_trees
+        .copy_state_signature_node_from(&source, source.items.state_signature(signature));
+
+    assert_eq!(
+        copied.suspends_keyword_source_spans,
+        [suspends_keyword_source_span]
+    );
+    assert_eq!(
+        copied.blocks_keyword_source_spans,
+        [blocks_keyword_source_span]
+    );
+    assert!(copied.suspends);
+    assert!(copied.blocks);
 }
 
 #[test]
@@ -315,6 +377,8 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
         service_reach_keyword_source_spans: Vec::new(),
         service_reaches: HandleSpan::empty(),
         invokes: HandleSpan::empty(),
+        suspends_keyword_source_spans: Vec::new(),
+        blocks_keyword_source_spans: Vec::new(),
         suspends: false,
         blocks: false,
         contracts: HandleSpan::empty(),
@@ -441,6 +505,8 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
         service_reach_keyword_source_spans: Vec::new(),
         service_reaches: HandleSpan::empty(),
         invokes: HandleSpan::empty(),
+        suspends_keyword_source_spans: Vec::new(),
+        blocks_keyword_source_spans: Vec::new(),
         suspends: false,
         blocks: false,
         contracts: HandleSpan::empty(),
