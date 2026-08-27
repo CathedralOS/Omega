@@ -8125,6 +8125,170 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
+fn authored_synchronous_invocations_retain_exact_review_source_spans() {
+    let package = TempPackage::new();
+    let source = r#"pub boundary trait Host {
+    machine ping()
+    reaches Host
+    invokes Host;
+}
+
+pub machine dispatch(host: &mut Host)
+reaches Host
+invokes host;
+invokes Host;
+{
+    host.ping();
+    Host::ping();
+}
+"#;
+    package.write("main.omg", source);
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("invocation source fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("authored invocation spans should join exact checked targets");
+    let rows = review.canonical_rows().expect("invocation source rows");
+    let invocation_text = |row: &omega_compiler::PackageReviewCanonicalRow| {
+        let mut text = row
+            .source()
+            .authored_locations()
+            .expect("authored review locations")
+            .iter()
+            .filter(|location| {
+                location.role() == PackageReviewSourceLocationRole::SynchronousInvocation
+            })
+            .map(|location| {
+                let start = usize::try_from(location.start_byte()).unwrap();
+                let end = usize::try_from(location.end_byte()).unwrap();
+                source[start..end].to_owned()
+            })
+            .collect::<Vec<_>>();
+        text.sort();
+        text
+    };
+
+    let dispatch = rows
+        .iter()
+        .find(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::Callable
+                && row
+                    .key_bytes()
+                    .windows("dispatch".len())
+                    .any(|window| window == b"dispatch")
+        })
+        .expect("dispatch callable row");
+    assert_eq!(invocation_text(dispatch), ["Host", "host"]);
+
+    let host = rows
+        .iter()
+        .find(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::PublicTrait
+                && row
+                    .key_bytes()
+                    .windows("Host".len())
+                    .any(|window| window == b"Host")
+        })
+        .expect("Host trait row");
+    assert_eq!(invocation_text(host), ["Host"]);
+
+    let recovered = decode_package_review_canonical_row(
+        &encode_package_review_canonical_row(dispatch).expect("encode invocation source row"),
+    )
+    .expect("recover invocation source row");
+    assert!(
+        recovered
+            .source()
+            .authored_locations()
+            .is_some_and(|locations| {
+                locations.iter().any(|location| {
+                    location.role() == PackageReviewSourceLocationRole::SynchronousInvocation
+                })
+            })
+    );
+}
+
+#[test]
+fn invocation_review_rejects_target_or_source_provenance_tamper() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub boundary trait Host { machine ping() reaches Host; }
+pub boundary trait Other { machine ping() reaches Other; }
+pub machine dispatch()
+reaches Host
+invokes Host;
+{
+    Host::ping();
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("invocation tamper fixture should check");
+    let dispatch = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "dispatch")
+        .expect("dispatch machine")
+        .clone();
+    let other = checked
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Other")
+        .expect("Other service")
+        .symbol;
+
+    let mut target_tamper = checked.clone();
+    target_tamper
+        .typed
+        .signature_invokes
+        .span_mut_or_empty(dispatch.invokes)[0]
+        .target = psi_typed_trees::signature::AuthoredInvocationTarget::Service(other);
+    let diagnostics = project_checked_package_review(&target_tamper)
+        .expect_err("changed exact invocation target must not reuse stale checked evidence");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("do not equal its exact checked synchronous-invocation fact")
+    }));
+
+    let mut source_tamper = checked;
+    source_tamper
+        .typed
+        .signature_invokes
+        .span_mut_or_empty(dispatch.invokes)[0]
+        .source_span = psi_source::SourceSpan::default();
+    let diagnostics = project_checked_package_review(&source_tamper)
+        .expect_err("missing invocation source custody must reject review");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("source span is outside") }),
+        "unexpected source-tamper diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn review_rejects_target_free_and_standalone_checked_programs() {
     let package = TempPackage::new();
     package.write("main.omg", "machine local() { }\n");

@@ -8195,6 +8195,8 @@ fn complete_result_flow_accepts_exact_finite_state_forwarding() {
             },
             arguments: HandleSpan::empty(),
             evidence_arguments: Box::default(),
+            source_span: Default::default(),
+            authored_call_selection: None,
         },
     );
     let mut forwarding_state = State {
@@ -8242,6 +8244,8 @@ fn complete_result_flow_accepts_exact_finite_state_forwarding() {
             },
             arguments: HandleSpan::empty(),
             evidence_arguments: Box::default(),
+            source_span: Default::default(),
+            authored_call_selection: None,
         },
     );
     let forwarding_span = program.machine_states(&program.machines()[0])[0].statement_nodes;
@@ -8316,6 +8320,8 @@ fn complete_result_flow_accepts_exact_finite_state_forwarding() {
             },
             arguments: HandleSpan::empty(),
             evidence_arguments: Box::default(),
+            source_span: Default::default(),
+            authored_call_selection: None,
         },
     );
     let intermediate_span = program.machine_states(&program.machines()[0])[2].statement_nodes;

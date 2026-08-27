@@ -141,6 +141,22 @@ pub fn declared_signature_invocations(
     )
 }
 
+/// Exact normalized target set authored by one machine's `invokes` clauses.
+///
+/// This is the same resolver used by synchronous-invocation inference. Callers
+/// that retain per-occurrence provenance may compare its cardinality with the
+/// authored declaration list to reject unresolved or duplicate targets.
+pub fn declared_machine_invocations(
+    program: &TypedTrees,
+    machine: &Machine,
+) -> Vec<InvocationTarget> {
+    declared_targets(
+        program,
+        program.machine_invokes(machine),
+        &machine_entry_parameters(program, machine),
+    )
+}
+
 pub fn invocation_target_label(
     program: &TypedTrees,
     machine: &Machine,
@@ -189,8 +205,7 @@ pub fn has_self_forwarded_boundary_parameter(
 }
 
 fn build_machine_work(program: &TypedTrees, machine: &Machine) -> MachineWork {
-    let entry_parameters = machine_entry_parameters(program, machine);
-    let published = declared_targets(program, program.machine_invokes(machine), &entry_parameters);
+    let published = declared_machine_invocations(program, machine);
     let mut direct = Vec::new();
     let mut calls = Vec::new();
     for state in program.machine_states(machine) {
@@ -588,24 +603,30 @@ fn machine_symbol_for_state(program: &TypedTrees, state: SymbolHandle) -> Symbol
 
 fn declared_targets(
     program: &TypedTrees,
-    names: &[psi_typed_trees::name::Identifier],
+    declarations: &[psi_typed_trees::signature::AuthoredInvocation],
     parameters: &[&psi_typed_trees::signature::StateParameter],
 ) -> Vec<InvocationTarget> {
     let mut targets = Vec::new();
-    for name in names {
-        if let Some(index) = parameters
-            .iter()
-            .position(|parameter| parameter.name.as_str() == name.as_str())
-        {
-            insert_target(&mut targets, InvocationTarget::Parameter(index as u32));
-            continue;
-        }
-        if let Some(service) = program.traits().iter().find(|definition| {
-            definition.is_boundary
-                && (definition.name.as_str() == name.as_str()
-                    || definition.name.as_str().rsplit("::").next() == Some(name.as_str()))
-        }) {
-            insert_target(&mut targets, InvocationTarget::Service(service.symbol));
+    for declaration in declarations {
+        let target = match declaration.target {
+            psi_typed_trees::signature::AuthoredInvocationTarget::Unresolved => None,
+            psi_typed_trees::signature::AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
+                parameters
+                    .get(ordinal as usize)
+                    .filter(|parameter| parameter.symbol == symbol)
+                    .and_then(|parameter| {
+                        boundary_service_for_type(program, parameter.type_reference)
+                            .map(|_| InvocationTarget::Parameter(ordinal))
+                    })
+            }
+            psi_typed_trees::signature::AuthoredInvocationTarget::Service(symbol) => program
+                .traits()
+                .iter()
+                .any(|definition| definition.symbol == symbol && definition.is_boundary)
+                .then_some(InvocationTarget::Service(symbol)),
+        };
+        if let Some(target) = target {
+            insert_target(&mut targets, target);
         }
     }
     targets
