@@ -9466,8 +9466,17 @@ checked-result arithmetic decision listed below.
     accepting-envelope, disclosed-admission, and canonical installation
     evidence; decode is report-only, failed publication returns all custody,
     and restart reconciliation exposes rather than chooses rollback or
-    roll-forward policy. Add the Cathedral-selected durable storage/fsync
-    adapter and restart-to-runtime reconciliation around this checked core.
+    roll-forward policy. A generic checked durable-storage adapter now consumes
+    one canonical phase record and a caller-selected new path, stages and
+    synchronizes the exact bytes, atomically publishes through a same-directory
+    no-clobber hard link, removes the stage, and synchronizes the directory.
+    Success retains a non-clonable replay receipt; rejection returns the record
+    and path and distinguishes unpublished from visible-but-cleanup-or-sync-
+    incomplete state. Existing destinations are never replaced, restart load
+    independently decodes and re-encodes exact bytes, and the adapter selects no
+    rollback, roll-forward, path, retention, or cohort policy. Add Cathedral's
+    path/retention selection and restart-to-runtime reconciliation around this
+    checked core.
 - Replace the provider-switchboard fixture's transitional `clock: ClockHost`
   field with `Service<ClockHost> in Bound` once that carrier lands. Keep its
   provider as checked Omega code; `Binding::VtableSlot` remains only for real

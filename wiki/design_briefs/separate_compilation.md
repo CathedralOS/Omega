@@ -531,7 +531,15 @@ that protocol. Its typed phase transitions require the exact durable predecessor
 return candidate publication custody on rejection, and treat decoded bytes as
 report/replay evidence rather than reconstructed authority. Restart
 reconciliation reports the remaining rollback/roll-forward choices; the
-Cathedral-selected durable-storage adapter owns fsync ordering and policy.
+Cathedral-selected durable-storage path owns runtime policy. The generic Rust
+adapter writes one new canonical record through same-directory staged file
+synchronization, atomic no-clobber hard-link publication, staging-name removal,
+and directory synchronization. Its non-clonable receipt independently replays
+the path and exact canonical bytes. A post-publication cleanup or directory-
+sync failure is reported as possibly visible rather than rolled back, and no
+existing destination is replaced. Cathedral still selects paths, retention,
+cohorts, and rollback versus roll-forward, and owns restart-to-runtime
+reconciliation.
 
 ## Implementation work
 

@@ -22,8 +22,10 @@ use omega_external_roots::{InstalledComponentProgressClosure, InstalledRootLedge
 use omega_terminal_image_emission::InstalledTerminalArtifact;
 
 mod deployment_journal;
+mod deployment_journal_storage;
 
 pub use deployment_journal::*;
+pub use deployment_journal_storage::*;
 
 /// Installed terminal artifact plus the concrete accepted progress closure
 /// committed by its canonical installation record.
