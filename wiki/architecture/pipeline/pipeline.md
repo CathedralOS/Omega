@@ -99,6 +99,11 @@ consistency checks, trust-lock enforcement, and final executable-footprint
 certification still run. If output installation is requested, the primary
 object or executable and any installation records required by its semantics
 still exist; otherwise an output-only check need not create a build directory.
+Boundary reporting captures its ordered source target, contract, and policy
+rows once, writes that initial observation at the source boundary, and later
+consumes the same carrier when checked capability facts become available. It
+does not rebuild those rows from a retained syntax-tree clone, and checked
+capability settlement remains validating under report suppression.
 
 Production entry points retain full artifacts by default. Corpus schedulers may
 select output-only mode for independent pass/fail compiles whose assertions are

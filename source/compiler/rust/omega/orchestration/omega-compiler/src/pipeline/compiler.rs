@@ -5,9 +5,7 @@ use crate::pipeline::artifacts::{
     write_pipeline_index, write_resolved_snapshot, write_state_graph_snapshot,
     write_syntax_snapshot, write_typed_snapshot,
 };
-use crate::pipeline::boundary_report::{
-    write_boundary_report, write_boundary_report_with_capabilities,
-};
+use crate::pipeline::boundary_report::BoundaryReportObservation;
 use crate::pipeline::compile_options::{ArtifactEmissionPolicy, CompileOptions};
 use crate::pipeline::compile_policy::{
     ExecutableTcbBuildPolicy, settle_compiler_executable_tcb_installation,
@@ -299,12 +297,8 @@ impl Compiler {
             write_pipeline_index(&self.options)?;
             write_syntax_snapshot(&self.options, &syntax)?;
         }
-        write_boundary_report(
-            &self.options,
-            &syntax.syntax_trees,
-            emit_auxiliary_artifacts,
-        )?;
-        let syntax_trees = syntax.syntax_trees.clone();
+        let boundary_report = BoundaryReportObservation::capture(&syntax.syntax_trees);
+        boundary_report.write_initial(&self.options, emit_auxiliary_artifacts)?;
 
         let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
         if emit_auxiliary_artifacts {
@@ -555,9 +549,8 @@ impl Compiler {
                 checked.component_progress.as_deref(),
             )?;
         }
-        write_boundary_report_with_capabilities(
+        boundary_report.settle_with_capabilities(
             &self.options,
-            &syntax_trees,
             &checked.program,
             emit_auxiliary_artifacts,
         )?;
