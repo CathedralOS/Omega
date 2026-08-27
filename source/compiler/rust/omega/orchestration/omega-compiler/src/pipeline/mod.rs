@@ -51,6 +51,7 @@ mod task_plans;
 mod terminal_compile_driver;
 mod terminal_component_candidate;
 mod terminal_component_driver;
+mod terminal_native_artifact;
 mod timing;
 mod trust_lockfile;
 mod trust_report;
@@ -317,4 +318,8 @@ pub use terminal_component_candidate::{
 pub use terminal_component_driver::{
     TerminalComponentDriverError, TerminalComponentStagingInputBindingError,
     TerminalComponentStagingInputs, stage_acquire_and_deploy_terminal_component_output,
+};
+pub use terminal_native_artifact::{
+    TerminalNativeArtifact, TerminalNativeArtifactParts, TerminalNativeProviderExecution,
+    TerminalNativeProviderSettlement, realize_terminal_native_artifact,
 };

@@ -151,6 +151,7 @@ fn lower_trait_machine_signatures(
                 owner: crate::lowerer::PendingSignatureOwner::Trait(crate::name::lower_name(
                     trait_name,
                 )),
+                keyword_source_spans: lowered.service_reach_keyword_source_spans,
                 authored: lowered.service_reaches,
             },
         );

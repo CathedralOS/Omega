@@ -81,11 +81,10 @@ fn lower_syntax_trees_with_optional_sources(
 
 pub(crate) struct Lowerer {
     pub(crate) symbol_resolved_trees: SymbolResolvedTrees,
-    /// Authored machine `reaches` names retained only until symbol assignment
-    /// builds the canonical service rows. This vector is parallel to the root
-    /// machine arena and never enters the published symbol-resolved trees.
+    /// Authored machine `reaches` clauses retained until symbol assignment
+    /// binds every member occurrence to its exact boundary-trait identity.
     pub(crate) pending_machine_service_reaches:
-        Vec<Vec<psi_symbol_resolved_trees::name::DiagnosticName>>,
+        Vec<crate::service_reaches::PendingAuthoredServiceReach>,
     pub(crate) pending_signature_service_reaches: Vec<PendingSignatureServiceReach>,
     /// Authored expressions whose exact declaration selections are collected
     /// after symbol assignment. Expressions absent from this list are either
@@ -356,6 +355,7 @@ impl Lowerer {
                 crate::service_reaches::PendingSignatureServiceReach {
                     symbol,
                     owner: pending.owner.clone(),
+                    keyword_source_spans: pending.keyword_source_spans.clone(),
                     authored: pending.authored.clone(),
                 }
             })
@@ -386,6 +386,7 @@ impl Lowerer {
             symbols,
             service_reaches,
             service_reach_rows,
+            authored_service_reach_rows,
             semantic_domains,
             external_bindings,
             evidence_forwardings,
@@ -396,6 +397,7 @@ impl Lowerer {
         // the rebuild.
         trees.service_reaches = service_reaches;
         trees.service_reach_rows = service_reach_rows;
+        trees.authored_service_reach_rows = authored_service_reach_rows;
         trees.semantic_domains = semantic_domains;
         trees.external_bindings = external_bindings;
         trees.evidence_forwardings = evidence_forwardings;
@@ -482,6 +484,7 @@ pub(crate) enum PendingSignatureOwner {
 pub(crate) struct PendingSignatureServiceReach {
     pub(crate) location: PendingSignatureLocation,
     pub(crate) owner: PendingSignatureOwner,
+    pub(crate) keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub(crate) authored: Vec<psi_symbol_resolved_trees::name::DiagnosticName>,
 }
 

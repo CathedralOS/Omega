@@ -94,6 +94,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         let (
             (
                 service_reaches,
+                service_reach_keyword_source_spans,
                 service_reach_is_installation_bound,
                 invokes,
                 suspends,
@@ -112,6 +113,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             ));
         }
         signature.service_reach_is_installation_bound = service_reach_is_installation_bound;
+        signature.service_reach_keyword_source_spans = service_reach_keyword_source_spans;
         signature.service_reaches = service_reaches;
         signature.invokes = invokes;
         signature.suspends = suspends;
@@ -291,6 +293,7 @@ fn parse_trait_machine_signature<'tokens, 'source>(
             parameters,
             return_type,
             service_reach_is_installation_bound: false,
+            service_reach_keyword_source_spans: Vec::new(),
             service_reaches: HandleSpan::empty(),
             invokes: HandleSpan::empty(),
             suspends: false,
@@ -381,6 +384,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     (
         (
             HandleSpan<psi_syntax_trees::identifier::Identifier>,
+            Vec<psi_source::SourceSpan>,
             bool,
             HandleSpan<psi_syntax_trees::identifier::Identifier>,
             bool,
@@ -396,6 +400,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
 > {
     let mut service_start = Handle::invalid();
     let mut service_count = 0u32;
+    let mut service_reach_keyword_source_spans = Vec::new();
     let mut service_reach_is_installation_bound = false;
     let mut invokes_start = Handle::invalid();
     let mut invokes_count = 0u32;
@@ -425,6 +430,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("reaches") {
+            service_reach_keyword_source_spans.push(input.current_source_span());
             input = input.take_contextual("reaches")?;
             let service_count_before_clause = service_count;
             if input.at_punctuation(PunctuationKind::LessEqual) {
@@ -674,6 +680,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     Ok((
         (
             service_reaches,
+            service_reach_keyword_source_spans,
             service_reach_is_installation_bound,
             invokes,
             suspends,

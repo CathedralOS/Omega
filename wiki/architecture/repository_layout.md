@@ -407,4 +407,6 @@ hardcoded standard-library path. No compatibility symlink is introduced.
 
 - Public crate roots should explain exports, not hide implementation.
 - Tests should not live in giant `lib.rs` files.
+- Language canaries live only under `tests/canaries/`; a root-level `canaries/`
+  tree is relocation residue and must not be recreated.
 - `mod.rs` and `lib.rs` declare boundaries; they are not junk drawers.

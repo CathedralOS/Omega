@@ -126,6 +126,7 @@ pub(crate) fn lower_state_signature_node(
         signature.return_type,
         signature.is_default,
         signature.service_reach_is_installation_bound,
+        &signature.service_reach_keyword_source_spans,
         signature.service_reaches,
         signature.invokes,
         signature.suspends,
@@ -147,6 +148,7 @@ pub(crate) fn lower_state_signature_parts(
     return_type_handle: syntax::types::TypeReferenceHandle,
     is_default: bool,
     service_reach_is_installation_bound: bool,
+    service_reach_keyword_source_spans: &[psi_source::SourceSpan],
     service_reaches: HandleSpan<syntax::identifier::Identifier>,
     invokes: HandleSpan<syntax::identifier::Identifier>,
     suspends: bool,
@@ -188,12 +190,14 @@ pub(crate) fn lower_state_signature_parts(
                 terminates_guarantee,
             },
         },
+        service_reach_keyword_source_spans: service_reach_keyword_source_spans.to_vec(),
         service_reaches,
     })
 }
 
 pub(crate) struct LoweredStateSignature {
     pub(crate) signature: StateSignature,
+    pub(crate) service_reach_keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub(crate) service_reaches: Vec<DiagnosticName>,
 }
 

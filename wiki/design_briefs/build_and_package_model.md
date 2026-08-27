@@ -1193,10 +1193,18 @@ span. Invocation inference consumes that target rather than reselecting by
 spelling. Callable, public-trait requirement, and recursively structural
 machine-parameter review rows carry the span under `synchronous_invocation`,
 with top-level rows joined exactly to checked invocation facts. Recovery
-envelope v5 and conflict fingerprint v8/rendering V7 bind what review shows.
-Per-fact spans and `reaches` occurrences remain incremental; absent late-stage
-spans must be retained by their earlier owner, not reconstructed from source
-text.
+Authored `reaches` clauses retain every keyword and target occurrence through
+syntax, resolution, typed lowering, copying, and specialization. Resolution
+binds targets once to exact boundary-trait symbols. Projection rederives the
+parent-closed semantic row from those targets plus invocation-contributed
+services and joins it exactly to typed and checked facts. A private memberless
+authored clause is a published empty ceiling, not omitted private inference.
+Review carries authored member spans—or the keyword span for an empty row—under
+`service_reach`, without inventing locations for inferred, invocation-only, or
+parent-closure entries. Recovery envelope v6 and conflict fingerprint
+v9/rendering V8 bind what review shows. Remaining per-fact spans are
+incremental; absent late-stage spans must be retained by their earlier owner,
+not reconstructed from source text.
 
 Proposition and named-evidence projection is the concrete model for this
 cross-representation rule. Typed proposition applications own structural
