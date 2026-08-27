@@ -443,6 +443,20 @@ These facts constrain the work below.
   three-block projections. Candidate v13, optimization-unit identity v7, the
   v7 pass, prephysical manifest v6, and optimized-plan projection v7 bind this
   additional admission meaning; ledger v3 already represents both moves.
+- The fifth exact `ControlFlowCleanup` rule,
+  `unreachable-private-machine-pruning.v1`, atomically removes the complete
+  active function complement outside the executable root closure. Roots are
+  the module entry, provider candidates, conservatively retained attached
+  functions, and their transitive internal-call and nominal-cleanup-machine
+  references. The candidate names the exact canonical machine set rather than
+  inventing a node decision point; the independent validator reconstructs the
+  closure and exact complement without trusting `CallGraph`. Active plus pruned
+  machines must form an order-preserving partition of the verified source
+  roster. Accepted-obligation and ownership-frontier catalogs remain immutable
+  historical custody, while every source-bearing removed node and successor
+  edge is ledgered as proven unreachable with its original fuel. Candidate
+  v14, optimization-unit identity v8, ledger v4, the v8 pass, prephysical
+  manifest v7, and optimized-plan projection v8 bind machine-roster replay.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds its input
   revision, rule contract, decision point, affected region, required analyses
@@ -886,7 +900,7 @@ dependency.
   location changes; and durably records the rejected edge plus every deleted
   node and its original scheduled fuel as independently proven unreachable and
   uncharged. Successor-edge custody and ledger v3 now distinguish the two
-  conditional arms directly. The v7 pass also includes exact linear empty-jump
+  conditional arms directly. The v8 pass also includes exact linear empty-jump
   threading plus `path-qualified-empty-block-thread.v1`: typed bindings are
   composed, ownership frontiers must be identical across each bypass, and the
   removed outgoing source is realized on every and only mutually exclusive
@@ -895,11 +909,13 @@ dependency.
   or the block's sole conditional. It substitutes typed block parameters and
   realizes the removed edge at the first operation or across exactly the two
   mutually exclusive successor edges, without authorizing non-adjacent code
-  motion. Candidate v13, optimization-unit identity v7, prephysical manifest
-  v6, and projection v7 bind record-by-record one-to-one, many-to-one, and
-  one-to-many occurrence replay. Non-adjacent/direct-terminal redundant jumps,
-  unreachable cleanup
-  not caused by the conditional fold, and private-machine pruning remain open.
+  motion. Its fifth rule prunes the exact unreachable private-machine
+  complement, rooting entry, providers, attached functions, internal calls,
+  and nominal cleanup-machine references. Candidate v14, optimization-unit
+  identity v8, ledger v4, prephysical manifest v7, and projection v8 bind both
+  occurrence and function-roster replay. Non-adjacent/direct-terminal
+  redundant jumps and unreachable cleanup not caused by the conditional fold
+  remain open.
 
 - **OPT-SCCP.** Implement sparse conditional constant propagation over the
   closed integer and Boolean Terminal Psi operations.

@@ -426,7 +426,20 @@ pub struct AdjacentBlockMergeRewrite {
     pub target: BlockId,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// Remove the exact canonical complement of the independently reconstructed
+/// executable-machine root closure.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UnreachablePrivateMachinesRewrite {
+    pub machines: Vec<crate::PrunedMachineCustody>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PsiRewriteDecisionPoint {
+    Node(NodeLocation),
+    MachineSet(Vec<MachineId>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PsiRewritePatch {
     ReplaceIntegerOperationWithConstant(IntegerConstantRewrite),
     ReplaceBooleanOperationWithConstant(BooleanConstantRewrite),
@@ -435,6 +448,16 @@ pub enum PsiRewritePatch {
     ThreadLinearEmptyBlock(LinearEmptyBlockRewrite),
     ThreadPathQualifiedEmptyBlock(PathQualifiedEmptyBlockRewrite),
     MergeAdjacentBlock(AdjacentBlockMergeRewrite),
+    PruneUnreachablePrivateMachines(UnreachablePrivateMachinesRewrite),
+}
+
+impl PsiRewritePatch {
+    pub fn pruned_machine_custody(&self) -> &[crate::PrunedMachineCustody] {
+        match self {
+            Self::PruneUnreachablePrivateMachines(patch) => &patch.machines,
+            _ => &[],
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -449,7 +472,7 @@ pub struct PsiRewriteCandidate {
     identity: OptimizationCandidateIdentity,
     input: OptimizationUnitIdentity,
     rule: OptimizationRuleIdentity,
-    decision_point: NodeLocation,
+    decision_point: PsiRewriteDecisionPoint,
     affected_blocks: Vec<BlockId>,
     required_analyses: AnalysisSet,
     invalidated_analyses: AnalysisInvalidationSet,
@@ -655,6 +678,25 @@ impl PsiRewriteCandidate {
         )
     }
 
+    pub fn new_unreachable_private_machines(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        provenance: Vec<ProvenanceRewrite>,
+        predicted_cost_delta: i64,
+        patch: UnreachablePrivateMachinesRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            Vec::new(),
+            Vec::new(),
+            provenance,
+            PsiRewriteWitness::StructuralIdentity,
+            predicted_cost_delta,
+            PsiRewritePatch::PruneUnreachablePrivateMachines(patch),
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn new(
         input: OptimizationUnitIdentity,
@@ -666,26 +708,60 @@ impl PsiRewriteCandidate {
         predicted_cost_delta: i64,
         patch: PsiRewritePatch,
     ) -> Result<Self, PsiRewriteCandidateError> {
-        let location = match patch {
-            PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) => patch.location,
-            PsiRewritePatch::ReplaceBooleanOperationWithConstant(patch) => patch.location,
-            PsiRewritePatch::RemoveRedundantBlockParameter(patch) => NodeLocation {
-                machine: patch.machine,
-                block: patch.block,
-                node: 0,
-            },
-            PsiRewritePatch::FoldConstantConditional(patch) => patch.location,
-            PsiRewritePatch::ThreadLinearEmptyBlock(patch) => patch.predecessor,
-            PsiRewritePatch::ThreadPathQualifiedEmptyBlock(patch) => patch.empty,
-            PsiRewritePatch::MergeAdjacentBlock(patch) => patch.predecessor,
+        let decision_point = match &patch {
+            PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) => {
+                PsiRewriteDecisionPoint::Node(patch.location)
+            }
+            PsiRewritePatch::ReplaceBooleanOperationWithConstant(patch) => {
+                PsiRewriteDecisionPoint::Node(patch.location)
+            }
+            PsiRewritePatch::RemoveRedundantBlockParameter(patch) => {
+                PsiRewriteDecisionPoint::Node(NodeLocation {
+                    machine: patch.machine,
+                    block: patch.block,
+                    node: 0,
+                })
+            }
+            PsiRewritePatch::FoldConstantConditional(patch) => {
+                PsiRewriteDecisionPoint::Node(patch.location)
+            }
+            PsiRewritePatch::ThreadLinearEmptyBlock(patch) => {
+                PsiRewriteDecisionPoint::Node(patch.predecessor)
+            }
+            PsiRewritePatch::ThreadPathQualifiedEmptyBlock(patch) => {
+                PsiRewriteDecisionPoint::Node(patch.empty)
+            }
+            PsiRewritePatch::MergeAdjacentBlock(patch) => {
+                PsiRewriteDecisionPoint::Node(patch.predecessor)
+            }
+            PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
+                if patch.machines.is_empty()
+                    || patch.machines.windows(2).any(|pair| pair[0] >= pair[1])
+                {
+                    return Err(PsiRewriteCandidateError::NonCanonicalAffectedRegion);
+                }
+                let machines = patch
+                    .machines
+                    .iter()
+                    .map(|row| row.machine)
+                    .collect::<Vec<_>>();
+                if machines.windows(2).any(|pair| pair[0] >= pair[1]) {
+                    return Err(PsiRewriteCandidateError::NonCanonicalAffectedRegion);
+                }
+                PsiRewriteDecisionPoint::MachineSet(machines)
+            }
         };
-        if affected_blocks.is_empty() {
+        let location = match &decision_point {
+            PsiRewriteDecisionPoint::Node(location) => Some(*location),
+            PsiRewriteDecisionPoint::MachineSet(_) => None,
+        };
+        if affected_blocks.is_empty() && location.is_some() {
             return Err(PsiRewriteCandidateError::EmptyAffectedRegion);
         }
         if affected_blocks.windows(2).any(|pair| pair[0] >= pair[1]) {
             return Err(PsiRewriteCandidateError::NonCanonicalAffectedRegion);
         }
-        if !affected_blocks.contains(&location.block) {
+        if location.is_some_and(|location| !affected_blocks.contains(&location.block)) {
             return Err(PsiRewriteCandidateError::DecisionPointOutsideRegion);
         }
         if substitutions.windows(2).any(|pair| pair[0] >= pair[1]) {
@@ -751,13 +827,15 @@ impl PsiRewriteCandidate {
         ) {
             return Err(PsiRewriteCandidateError::ProofWitnessSafetyMismatch);
         }
-        match patch {
+        match &patch {
             PsiRewritePatch::ReplaceIntegerOperationWithConstant(_)
             | PsiRewritePatch::ReplaceBooleanOperationWithConstant(_) => {
                 if provenance.iter().any(|row| {
                     row.disposition
-                        != ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(location))
-                        || row.input != PsiRealizationSite::Node(location)
+                        != ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(
+                            location.unwrap(),
+                        ))
+                        || row.input != PsiRealizationSite::Node(location.unwrap())
                 }) {
                     return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
                 }
@@ -788,11 +866,11 @@ impl PsiRewriteCandidate {
             }
             PsiRewritePatch::FoldConstantConditional(patch) => {
                 let selected = PsiRealizationSite::Edge {
-                    machine: location.machine,
+                    machine: location.unwrap().machine,
                     edge: patch.selected_edge,
                 };
                 let rejected = PsiRealizationSite::Edge {
-                    machine: location.machine,
+                    machine: location.unwrap().machine,
                     edge: patch.rejected_edge,
                 };
                 if provenance
@@ -906,18 +984,34 @@ impl PsiRewriteCandidate {
                     return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
                 }
             }
+            PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
+                let pruned = patch
+                    .machines
+                    .iter()
+                    .map(|row| row.machine)
+                    .collect::<BTreeSet<_>>();
+                if !affected_blocks.is_empty()
+                    || !substitutions.is_empty()
+                    || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
+                    || provenance.iter().any(|row| {
+                        !pruned.contains(&row.input.machine())
+                            || !matches!(row.disposition, ProvenanceDisposition::ProvenUnreachableAt(site) if site == row.input)
+                    })
+                {
+                    return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
+                }
+            }
         }
-        let decision_point = location;
         let canonical = encode_candidate(
             input,
             contract,
-            decision_point,
+            &decision_point,
             &affected_blocks,
             &substitutions,
             &provenance,
             &witness,
             predicted_cost_delta,
-            patch,
+            &patch,
         );
         let identity = OptimizationCandidateIdentity::from_canonical_bytes(&canonical);
         Ok(Self {
@@ -949,8 +1043,22 @@ impl PsiRewriteCandidate {
         self.rule
     }
 
-    pub const fn decision_point(&self) -> NodeLocation {
-        self.decision_point
+    pub const fn decision_point(&self) -> &PsiRewriteDecisionPoint {
+        &self.decision_point
+    }
+
+    pub const fn node_decision_point(&self) -> Option<NodeLocation> {
+        match &self.decision_point {
+            PsiRewriteDecisionPoint::Node(location) => Some(*location),
+            PsiRewriteDecisionPoint::MachineSet(_) => None,
+        }
+    }
+
+    pub fn affected_machines(&self) -> &[MachineId] {
+        match &self.decision_point {
+            PsiRewriteDecisionPoint::Node(_) => &[],
+            PsiRewriteDecisionPoint::MachineSet(machines) => machines,
+        }
     }
 
     pub fn affected_blocks(&self) -> &[BlockId] {
@@ -1037,8 +1145,12 @@ impl PsiRewriteCandidate {
         self.predicted_cost_delta
     }
 
-    pub const fn patch(&self) -> PsiRewritePatch {
-        self.patch
+    pub fn patch(&self) -> PsiRewritePatch {
+        self.patch.clone()
+    }
+
+    pub const fn patch_ref(&self) -> &PsiRewritePatch {
+        &self.patch
     }
 }
 
@@ -1046,19 +1158,31 @@ impl PsiRewriteCandidate {
 fn encode_candidate(
     input: OptimizationUnitIdentity,
     contract: OptimizationRuleContract,
-    decision_point: NodeLocation,
+    decision_point: &PsiRewriteDecisionPoint,
     affected_blocks: &[BlockId],
     substitutions: &[ScalarSubstitution],
     provenance: &[ProvenanceRewrite],
     witness: &PsiRewriteWitness,
     predicted_cost_delta: i64,
-    patch: PsiRewritePatch,
+    patch: &PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v13\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v14\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
-    encode_location(&mut bytes, decision_point);
+    match decision_point {
+        PsiRewriteDecisionPoint::Node(location) => {
+            bytes.push(1);
+            encode_location(&mut bytes, *location);
+        }
+        PsiRewriteDecisionPoint::MachineSet(machines) => {
+            bytes.push(2);
+            encode_len(&mut bytes, machines.len());
+            for machine in machines {
+                bytes.extend_from_slice(&machine.get().to_le_bytes());
+            }
+        }
+    }
     encode_len(&mut bytes, affected_blocks.len());
     for block in affected_blocks {
         bytes.extend_from_slice(&block.get().to_le_bytes());
@@ -1205,6 +1329,14 @@ fn encode_candidate(
             encode_location(&mut bytes, patch.predecessor);
             bytes.extend_from_slice(&patch.incoming_edge.get().to_le_bytes());
             bytes.extend_from_slice(&patch.target.get().to_le_bytes());
+        }
+        PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
+            bytes.push(8);
+            encode_len(&mut bytes, patch.machines.len());
+            for custody in &patch.machines {
+                bytes.extend_from_slice(&custody.machine.get().to_le_bytes());
+                bytes.extend_from_slice(&custody.source_ordinal.to_le_bytes());
+            }
         }
     }
     bytes
