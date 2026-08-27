@@ -1832,7 +1832,15 @@ pub fn validate_adjacent_block_merge_candidate(
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
     let eligible_first = target.nodes.first().is_some_and(|node| {
         (node.successors.is_empty()
-            && matches!(node.provenance.first(), Some(PsiProvenance::Operation(_))))
+            && (matches!(node.provenance.first(), Some(PsiProvenance::Operation(_)))
+                || (matches!(node.provenance.first(), Some(PsiProvenance::Edge(_)))
+                    && matches!(
+                        node.operation,
+                        O::Return { .. }
+                            | O::ReturnUnit { .. }
+                            | O::ReturnStructural { .. }
+                            | O::Crash { .. }
+                    ))))
             || (matches!(node.operation, O::Conditional { .. })
                 && node.successors.len() == 2
                 && node.provenance.is_empty())
@@ -1987,7 +1995,7 @@ pub fn validate_adjacent_block_merge_candidate(
         unit: output,
         candidate: candidate.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.adjacent-single-predecessor-block-merge.v2",
+            b"omega.validator.adjacent-single-predecessor-block-merge.v3",
         ),
         provenance: accepted_provenance,
     })

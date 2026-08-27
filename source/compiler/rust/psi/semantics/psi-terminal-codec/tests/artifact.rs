@@ -17,8 +17,8 @@ use psi_terminal::{
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
-    ArtifactManifestError, ProofCodecError, build_artifact_manifest,
-    current_rust_operation_semantics_trust_identity, current_terminal_trust_graph,
+    ArtifactManifestError, CanonicalTerminalArtifact, ProofCodecError, build_artifact_manifest,
+    current_rust_operation_semantics_trust_identity, current_terminal_trust_graph, decode_module,
     decode_proof_bundle, encode_proof_bundle, proof_bundle_fingerprint,
     render_verified_proof_synopsis, terminal_psi_identity, validate_artifact_manifest,
 };
@@ -52,6 +52,28 @@ fn proof_bundle_uses_one_current_canonical_vocabulary() {
         decode_proof_bundle(&stale),
         Err(ProofCodecError::UnsupportedFormatMarker(1))
     );
+}
+
+#[test]
+fn canonical_terminal_artifact_owns_and_replays_exact_sections() {
+    let module = semantic_module();
+    let proof = kernel_bundle();
+    verify_module(&module, &proof, &AdmissionProfile::default())
+        .expect("representative Terminal module verifies");
+
+    let artifact = CanonicalTerminalArtifact::from_parts(&module, &proof, None)
+        .expect("canonical Terminal artifact");
+    artifact
+        .validate()
+        .expect("canonical artifact independently replays");
+    assert_eq!(
+        artifact.manifest().semantic(),
+        terminal_psi_identity(&module).expect("semantic identity")
+    );
+    assert_eq!(decode_module(artifact.semantic_bytes()), Ok(module));
+    assert_eq!(decode_proof_bundle(artifact.proof_bytes()), Ok(proof));
+    assert!(artifact.debug_bytes().is_none());
+    assert!(artifact.manifest().installation().is_none());
 }
 
 #[test]
