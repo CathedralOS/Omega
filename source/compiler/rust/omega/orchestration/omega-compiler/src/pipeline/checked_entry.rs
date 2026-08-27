@@ -693,18 +693,18 @@ fn compile_to_checked_inner_with_replay(
             &checked.program,
             &boundary_calling_plan_realizations,
         )?;
-    let checked_program = Arc::get_mut(&mut checked.program)
-        .expect("checked program must be uniquely owned before engine handoff");
-    let selected_provider_plan_facts =
+    let selected_provider_binding =
         crate::pipeline::provider_plans::bind_selected_provider_plan_facts(
-            checked_program,
+            &checked.program,
             &provider_plans,
             selected_provider_plan_facts,
             &build_config.grants,
         )?;
+    let (program, selected_provider_plan_facts) = selected_provider_binding.into_parts();
+    checked.program = program;
     let component_progress =
         crate::pipeline::component_progress::build_selected_component_progress_manifest(
-            checked_program,
+            &checked.program,
             &selected_provider_plan_facts,
             selected_program_entry_source_signature
                 .as_ref()

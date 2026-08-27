@@ -7,6 +7,7 @@
 
 use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use psi_typed_trees::TypedTrees;
+use std::sync::Arc;
 
 mod external_binding_rows;
 pub(super) use external_binding_rows::extract_external_binding_rows;
@@ -1134,16 +1135,86 @@ impl SelectedExternalRootProviderPlan {
     }
 }
 
+/// Exact checked-program and selected-plan candidate after every provider
+/// grant, receipt, operator-use, and installation-reach decision has replayed.
+/// The candidate owns any separated Arc privately until its caller commits it.
+#[derive(Debug)]
+pub(crate) struct SelectedProviderPlanBinding {
+    program: Arc<psi_checked_trees::CheckedTrees>,
+    selected: omega_effects::SelectedProviderPlanFacts,
+}
+
+impl SelectedProviderPlanBinding {
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        Arc<psi_checked_trees::CheckedTrees>,
+        omega_effects::SelectedProviderPlanFacts,
+    ) {
+        (self.program, self.selected)
+    }
+}
+
+#[derive(Default)]
+struct SelectedProviderProgramUpdates {
+    spelled_operator_uses: Vec<(
+        psi_arena::Handle<psi_checked_trees::CheckedOperatorUseFact>,
+        u64,
+    )>,
+    named_operator_uses: Vec<(
+        psi_arena::Handle<psi_checked_trees::CheckedNamedOperatorUseFact>,
+        u64,
+    )>,
+    admitted_receipts: Vec<(psi_facts::FactHandle, u64)>,
+}
+
+impl SelectedProviderProgramUpdates {
+    fn is_empty(&self) -> bool {
+        self.spelled_operator_uses.is_empty()
+            && self.named_operator_uses.is_empty()
+            && self.admitted_receipts.is_empty()
+    }
+
+    fn apply(self, checked: &mut psi_checked_trees::CheckedTrees) {
+        for (handle, identity) in self.spelled_operator_uses {
+            checked
+                .facts
+                .operators
+                .uses
+                .get_mut(handle)
+                .provider_plan_identity = identity;
+        }
+        for (handle, identity) in self.named_operator_uses {
+            checked
+                .facts
+                .operators
+                .named_uses
+                .get_mut(handle)
+                .provider_plan_identity = identity;
+        }
+        for (handle, identity) in self.admitted_receipts {
+            checked
+                .facts
+                .semantic
+                .facts
+                .get_mut(handle)
+                .evidence
+                .receipt_identity = identity;
+        }
+    }
+}
+
 /// Build the exact Omega-owned selection sidecar and bind its stable receipt
 /// identities into checked semantic evidence. Provider execution and
 /// compiler-generated helper machines consume the returned carrier; neither
 /// may reconstruct a plan by scanning authored `satisfies` rows.
 pub(crate) fn bind_selected_provider_plan_facts(
-    checked: &mut psi_checked_trees::CheckedTrees,
+    program: &Arc<psi_checked_trees::CheckedTrees>,
     candidates: &[ProviderPlan],
     facts: omega_effects::SelectedProviderPlanFacts,
     root_grants: &[String],
-) -> Result<omega_effects::SelectedProviderPlanFacts, Vec<psi_diagnostics::Diagnostic>> {
+) -> Result<SelectedProviderPlanBinding, Vec<psi_diagnostics::Diagnostic>> {
+    let checked = program.as_ref();
     let provider_grants = resolve_selected_provider_grants(candidates, &facts, root_grants)
         .map_err(|diagnostic| vec![diagnostic])?;
     let mut granted_plan_identities = Vec::new();
@@ -1267,21 +1338,26 @@ pub(crate) fn bind_selected_provider_plan_facts(
     if !receipt_diagnostics.is_empty() {
         return Err(receipt_diagnostics);
     }
-    retain_selected_operator_provider_evidence(checked, candidates, &facts)?;
-    for (fact, identity) in receipt_updates {
-        checked
-            .facts
-            .semantic
-            .facts
-            .get_mut(fact)
-            .evidence
-            .receipt_identity = identity;
-    }
+    let (spelled_operator_uses, named_operator_uses) =
+        plan_selected_operator_provider_evidence(checked, candidates, &facts)?;
     let installation_reach_resolutions =
         derive_selected_installation_reach_resolutions(checked, &facts)?;
-    facts
+    let selected = facts
         .with_installation_reach_resolutions(installation_reach_resolutions)
-        .map_err(|reason| vec![psi_diagnostics::Diagnostic::error(reason)])
+        .map_err(|reason| vec![psi_diagnostics::Diagnostic::error(reason)])?;
+    let updates = SelectedProviderProgramUpdates {
+        spelled_operator_uses,
+        named_operator_uses,
+        admitted_receipts: receipt_updates,
+    };
+    let mut bound_program = Arc::clone(program);
+    if !updates.is_empty() {
+        updates.apply(Arc::make_mut(&mut bound_program));
+    }
+    Ok(SelectedProviderPlanBinding {
+        program: bound_program,
+        selected,
+    })
 }
 
 fn derive_selected_installation_reach_resolutions(
@@ -1412,11 +1488,23 @@ fn derive_selected_installation_reach_resolutions(
     }
 }
 
-fn retain_selected_operator_provider_evidence(
-    checked: &mut psi_checked_trees::CheckedTrees,
+fn plan_selected_operator_provider_evidence(
+    checked: &psi_checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],
     selected: &omega_effects::SelectedProviderPlanFacts,
-) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+) -> Result<
+    (
+        Vec<(
+            psi_arena::Handle<psi_checked_trees::CheckedOperatorUseFact>,
+            u64,
+        )>,
+        Vec<(
+            psi_arena::Handle<psi_checked_trees::CheckedNamedOperatorUseFact>,
+            u64,
+        )>,
+    ),
+    Vec<psi_diagnostics::Diagnostic>,
+> {
     // Validate selected operator plans independently of use-site discovery.
     // A malformed realization is invalid policy even when dead code happens
     // not to mention its requirement, and later annotation may consume only
@@ -1457,37 +1545,25 @@ fn retain_selected_operator_provider_evidence(
         .iter()
         .map(|(handle, operator_use)| (handle, operator_use.selected_operator_symbol))
         .collect::<Vec<_>>();
+    let mut spelled_updates = Vec::new();
     for (handle, symbol) in spelled {
         match selected_operator_provider_identity(checked, candidates, selected, symbol) {
-            Ok(Some(identity)) => {
-                checked
-                    .facts
-                    .operators
-                    .uses
-                    .get_mut(handle)
-                    .provider_plan_identity = identity;
-            }
+            Ok(Some(identity)) => spelled_updates.push((handle, identity)),
             Ok(None) => {}
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
     }
+    let mut named_updates = Vec::new();
     for (handle, symbol) in named {
         match selected_operator_provider_identity(checked, candidates, selected, symbol) {
-            Ok(Some(identity)) => {
-                checked
-                    .facts
-                    .operators
-                    .named_uses
-                    .get_mut(handle)
-                    .provider_plan_identity = identity;
-            }
+            Ok(Some(identity)) => named_updates.push((handle, identity)),
             Ok(None) => {}
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
     }
 
     if diagnostics.is_empty() {
-        Ok(())
+        Ok((spelled_updates, named_updates))
     } else {
         Err(diagnostics)
     }
