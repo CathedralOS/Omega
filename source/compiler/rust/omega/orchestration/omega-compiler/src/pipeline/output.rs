@@ -761,6 +761,7 @@ impl WrittenOutput {
                 executable_publication.is_none() && app_bundle_publication.is_none()
             }
             super::CompileOutputKind::CheckOnly
+            | super::CompileOutputKind::TerminalArtifact
             | super::CompileOutputKind::RetainedNativeArtifact => false,
         };
         if !path_matches_kind {

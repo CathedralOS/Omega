@@ -180,21 +180,65 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         .validate()
         .expect("transferred native artifact custody must still replay");
 
-    let diagnostics = omega_compiler::compile(
+    let terminal_dir = unique_no_output_build_dir();
+    let terminal = omega_compiler::compile(
         CompileRequest::new(CompileOptions {
-            root_path: std::path::PathBuf::from("unread-unavailable-product.omg"),
+            root_path: pass_canary("terminal_psi/selected_empty_component").join("main.omg"),
+            build_dir: Some(terminal_dir.clone()),
+            target_name: Some("linux_x64".into()),
+            write_output: true,
+        })
+        .with_requested_product(omega_compiler::RequestedCompileProduct::TerminalArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+    )
+    .expect("terminal product should stop at the canonical Psi-owned artifact");
+    assert!(!terminal.wrote_output());
+    assert_eq!(
+        terminal.output_kind(),
+        omega_compiler::CompileOutputKind::TerminalArtifact
+    );
+    assert!(terminal.retained_native_artifact().is_none());
+    assert!(terminal.executable_publication().is_none());
+    assert!(terminal.terminal_component_deployment().is_none());
+    let artifact = terminal
+        .terminal_artifact()
+        .expect("terminal-artifact report must retain exactly one canonical payload");
+    artifact
+        .validate()
+        .expect("retained terminal payload must independently replay");
+    assert_eq!(
+        artifact.manifest().semantic(),
+        psi_terminal_codec::terminal_psi_identity(
+            &psi_terminal_codec::decode_module(artifact.semantic_bytes())
+                .expect("retained canonical semantics decode")
+        )
+        .expect("retained semantic identity")
+    );
+    assert!(
+        !terminal_dir.exists(),
+        "terminal artifact production must not create native or report output"
+    );
+    terminal
+        .into_terminal_artifact()
+        .expect("terminal artifact custody must leave the report only by value")
+        .validate()
+        .expect("transferred terminal artifact custody must still replay");
+
+    let unsupported = omega_compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
             build_dir: None,
-            target_name: None,
+            target_name: Some("windows_x64".into()),
             write_output: false,
         })
         .with_requested_product(omega_compiler::RequestedCompileProduct::TerminalArtifact),
     )
-    .expect_err("terminal artifact must remain unavailable before source acquisition");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("terminal-artifact requests"))
-    );
+    .expect_err("unsupported Terminal constructs must fail instead of selecting legacy lowering");
+    assert!(unsupported.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("terminal-artifact production failed")
+    }));
 }
 
 #[test]
