@@ -114,7 +114,12 @@ pub(crate) fn build_proof_facts_with_operators(
                 &mut evidence_terms,
             );
         }
-        append_inherited_trait_contract_facts(program, machine, &mut contract_facts);
+        append_inherited_trait_contract_facts(
+            program,
+            machine,
+            &mut contract_facts,
+            &evidence_terms,
+        );
         for (owner_symbol, _, contract) in
             machine_parameter_evidence_signatures(program, program.machine_type_parameters(machine))
         {

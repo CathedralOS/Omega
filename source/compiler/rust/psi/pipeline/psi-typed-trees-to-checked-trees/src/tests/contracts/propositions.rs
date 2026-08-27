@@ -1966,6 +1966,219 @@ fn named_state_requires_rejects_fact_only_evidence_binding() {
 }
 
 #[test]
+fn concrete_trait_named_witness_lanes_bind_inherited_facts_to_satisfier_terms() {
+    let source = r#"
+        trait Evidence {}
+        proposition left(value: i32) evidence Evidence;
+        proposition right(value: i32) evidence Evidence;
+
+        trait ForwardContract {
+            machine forward(value: i32)
+            requires public_left: left(value)
+            requires public_right: right(value)
+            ensures left_out: left(value)
+            ensures right_out: right(value);
+        }
+
+        machine forward(item: i32)
+        satisfies ForwardContract::forward
+        requires local_left: left(item)
+        requires local_right: right(item)
+        ensures left_out: left(item)
+        ensures right_out: right(item)
+        {
+            left_out = local_left;
+            right_out = local_right;
+        }
+    "#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("a concrete satisfier may rename inputs while retaining pinned outputs");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward")
+        .expect("concrete satisfier");
+    let state = checked
+        .machine_states(machine)
+        .first()
+        .expect("entry state");
+    let inherited = checked
+        .facts
+        .proof
+        .contract_facts
+        .iter()
+        .filter_map(|(_, fact)| {
+            (fact.owner
+                == psi_checked_trees::ContractProofFactOwner::MachineState {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                })
+            .then_some(fact)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(inherited.len(), 4);
+    let inherited_terms = inherited
+        .iter()
+        .map(|fact| {
+            checked.facts.proof.evidence_terms.get(
+                fact.evidence_term
+                    .expect("named inherited fact must retain term"),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        inherited_terms
+            .iter()
+            .map(|term| (term.kind, term.lane_position, term.name.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                psi_checked_trees::ContractProofFactKind::Requires,
+                0,
+                "local_left",
+            ),
+            (
+                psi_checked_trees::ContractProofFactKind::Requires,
+                1,
+                "local_right",
+            ),
+            (
+                psi_checked_trees::ContractProofFactKind::Ensures,
+                0,
+                "left_out",
+            ),
+            (
+                psi_checked_trees::ContractProofFactKind::Ensures,
+                1,
+                "right_out",
+            ),
+        ]
+    );
+}
+
+#[test]
+fn concrete_trait_named_witness_lane_rejects_order_or_interface_drift() {
+    let source = r#"
+        trait LeftEvidence {}
+        trait RightEvidence {}
+        proposition left(value: i32) evidence LeftEvidence;
+        proposition right(value: i32) evidence RightEvidence;
+
+        trait ForwardContract {
+            machine forward(value: i32)
+            requires public_left: left(value)
+            requires public_right: right(value);
+        }
+
+        machine forward(value: i32)
+        satisfies ForwardContract::forward
+        requires local_right: right(value)
+        requires local_left: left(value)
+        {}
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("named lanes cannot reorder proposition/interface identities");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "named requires lane 0 does not retain the requirement's exact proposition and evidence interface",
+        )
+    }));
+}
+
+#[test]
+fn concrete_trait_named_witness_lane_rejects_missing_or_renamed_output() {
+    let missing = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        trait Contract {
+            machine run() ensures selected: ready();
+        }
+        machine run() satisfies Contract::run {}
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(missing))
+        .expect_err("a satisfier cannot omit the requirement's output lane");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("named ensures lane has 0 row(s); the requirement owns at least 1")
+    }));
+
+    let renamed = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        trait Contract {
+            machine run()
+            requires incoming: ready()
+            ensures selected: ready();
+        }
+        machine run()
+        satisfies Contract::run
+        requires local: ready()
+        ensures renamed: ready()
+        { renamed = local; }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(renamed))
+        .expect_err("a satisfier cannot rename a public output selector");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("renames public selector `selected` to `renamed`")
+    }));
+}
+
+#[test]
+fn concrete_trait_named_witness_output_assignment_remains_exactly_once() {
+    let missing = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        trait Contract {
+            machine run()
+            requires incoming: ready()
+            ensures selected: ready();
+        }
+        machine run()
+        satisfies Contract::run
+        requires local: ready()
+        ensures selected: ready()
+        {}
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(missing))
+        .expect_err("the inherited public output still needs an assignment");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("named ensures evidence `selected` is not definitely assigned")
+    }));
+
+    let duplicate = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        trait Contract {
+            machine run()
+            requires incoming: ready()
+            ensures selected: ready();
+        }
+        machine run()
+        satisfies Contract::run
+        requires local: ready()
+        ensures selected: ready()
+        {
+            selected = local;
+            selected = local;
+        }
+    "#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(duplicate))
+        .expect_err("the inherited public output cannot be assigned twice");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("named ensures evidence `selected` is assigned more than once")
+    }));
+}
+
+#[test]
 fn named_requires_call_rejects_wrong_proposition_term() {
     let source = r#"
         trait Evidence {}

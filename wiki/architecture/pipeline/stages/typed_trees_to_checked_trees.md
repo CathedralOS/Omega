@@ -719,6 +719,14 @@ Current ownership is:
   the callable's post-specialization name. Each ensured
   terminal lane retains the public proof-output
   selector beside its exact term ID; required lanes have no output selector. A
+  concrete non-generic trait satisfier now checks its inherited named lanes
+  against the requirement before lowering. Incoming aliases remain local, but
+  lane cardinality/order, normalized proposition, and evidence interface stay
+  exact; outgoing selectors are pinned, with authored strengthening appended
+  after the inherited prefix. The inherited machine-state facts point to the
+  satisfier's exact checked terms and lane positions. Generic substitution,
+  defaults, requirement calls, dispatch, Terminal publication, and package
+  exposure remain conservative fences. A
   proof-static `term.member` binder argument resolves in its named-contract
   scope to the exact checked evidence-term handle and one unambiguous direct or
   inherited requirement row. The row retains the declaring trait's normalized

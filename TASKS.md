@@ -8523,8 +8523,16 @@ Remaining N6/N8 work:
   `named_witness_concrete_lane_compile` source canary now proves that the
   existing concrete lane can introduce a witness-bearing proposition, select
   its named output after `;`, pass it through a named input, and eliminate it
-  through its declared carrierless evidence interface. Next extend trait
-  requirement checking, conformance inheritance, defaults, static calls, and
+  through its declared carrierless evidence interface. The first concrete
+  non-generic conformance-inheritance rung is also live. A satisfier's named
+  inputs may use local aliases, while named outputs preserve the requirement's
+  exact public selectors; both lanes preserve cardinality/order, proposition,
+  and evidence-interface identity. Concrete output strengthening may append
+  rows only after that pinned prefix. Inherited checked facts now reuse the
+  exact satisfier evidence terms, including their lane positions, rather than
+  dropping term custody. Generic trait/requirement/satisfier or proposition
+  telescopes, defaults, requirement calls, dispatch, Terminal publication, and
+  package exposure remain fail closed. Next extend defaults, static calls, and
   runtime trait dispatch. A satisfying machine must assign every inherited
   output on each applicable ordinary exit and may not omit, rename, weaken, or
   replace it. Direct concrete calls may retain authored strengthening; calls
