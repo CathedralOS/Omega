@@ -1148,6 +1148,112 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn const_materializable_non_nan_float_leaves_bind_exact_format_bits() {
+    let main_path = write_program(
+        "const-materializable-floats",
+        r#"
+use omega::language::core::layout;
+
+data FloatLayout { entries: [FieldEntry; 64]; }
+machine FloatLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 8 },
+    };
+    self.entries[2] = FieldEntry {
+        key: schema.fields[2].key,
+        placement: FieldPlan::At { offset: 16 },
+    };
+    Plan { entries: self.entries, entry_count: 3,
+           size_fixed: 24, size_is_dynamic: false, align: 8 }
+}
+data Samples [copy] { narrow: f32; wide: f64; signed_zero: f64; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .expect("closed non-NaN float materialization fixture should check");
+    let layout = compute_layout_plan(&checked.typed, "FloatLayout::plan", "Samples")
+        .expect("fixture layout should validate");
+    let value = BuildTimeValue::Struct {
+        type_name: "Samples".into(),
+        fields: vec![
+            ("narrow".into(), BuildTimeValue::Float(1.5)),
+            ("wide".into(), BuildTimeValue::Float(f64::INFINITY)),
+            ("signed_zero".into(), BuildTimeValue::Float(-0.0)),
+        ],
+    };
+
+    let little = validate_const_materializable_typed_owned_layout(
+        &checked.typed,
+        "Samples",
+        &layout,
+        &value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("non-NaN float leaves should retain exact materialization evidence");
+    assert_eq!(
+        little.bytes(),
+        &[
+            0x00, 0x00, 0xc0, 0x3f, 0, 0, 0, 0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x7f,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80,
+        ]
+    );
+
+    let big = validate_const_materializable_typed_owned_layout(
+        &checked.typed,
+        "Samples",
+        &layout,
+        &value,
+        ByteOrder::BigEndian,
+    )
+    .expect("float custody should bind target byte order");
+    assert_eq!(
+        big.bytes(),
+        &[
+            0x3f, 0xc0, 0x00, 0x00, 0, 0, 0, 0, 0x7f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ]
+    );
+    assert_ne!(little.identity(), big.identity());
+
+    let mut nan = value.clone();
+    let BuildTimeValue::Struct { fields, .. } = &mut nan else {
+        unreachable!("fixture value is a record")
+    };
+    fields[1].1 = BuildTimeValue::Float(f64::NAN);
+    let error = validate_const_materializable_typed_owned_layout(
+        &checked.typed,
+        "Samples",
+        &layout,
+        &nan,
+        ByteOrder::LittleEndian,
+    )
+    .expect_err("NaN still requires exact raw-representation evidence");
+    assert!(error.0.contains("exact raw-NaN realization"), "{error:?}");
+
+    let mut rounded = value;
+    let BuildTimeValue::Struct { fields, .. } = &mut rounded else {
+        unreachable!("fixture value is a record")
+    };
+    fields[0].1 = BuildTimeValue::Float(0.1);
+    let error = validate_const_materializable_typed_owned_layout(
+        &checked.typed,
+        "Samples",
+        &layout,
+        &rounded,
+        ByteOrder::LittleEndian,
+    )
+    .expect_err("f64 custody cannot be rounded into a purported exact binary32 value");
+    assert!(error.0.contains("exact binary32 value"), "{error:?}");
+}
+
+#[test]
 fn source_machine_owned_fixed_array_materializes_through_the_typed_bridge() {
     let main_path = write_program(
         "source-owned-fixed-array",

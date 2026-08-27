@@ -836,6 +836,12 @@ explicit bits, or select an exact raw-NaN realization. This check occurs at
 materialization rather than at the const declaration, so proof-only constants
 do not acquire a representation obligation they never use.
 
+> **Implementation checkpoint (August 2026):** the bounded closed-copy-
+> aggregate materialization path accepts exact non-NaN binary32/binary64 values,
+> including signed zero and infinity, with target byte order retained. Binary32
+> values must already round-trip exactly through binary32. Canonical or selected
+> exact raw-NaN materialization remains pending.
+
 ### Two orders
 
 Arithmetic comparison is the partial order above — floats never pretend to
