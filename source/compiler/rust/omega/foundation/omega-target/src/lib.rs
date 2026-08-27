@@ -2,6 +2,7 @@ use psi_diagnostics::Diagnostic;
 
 mod elf_loader;
 mod foreign_locator;
+mod uefi_system_table;
 
 pub use elf_loader::{
     ElfInterpreterPlanValidationError, NormalizedElfInterpreterPlan, normalize_elf_interpreter_plan,
@@ -9,6 +10,11 @@ pub use elf_loader::{
 pub use foreign_locator::{
     ForeignLocatorCandidate, ForeignLocatorValidationError, NormalizedForeignLocator,
     normalize_foreign_locator,
+};
+pub use uefi_system_table::{
+    UefiSystemTableNativeField, UefiSystemTableNativeFieldKind, UefiSystemTableNativeFieldLayout,
+    UefiSystemTableNativeLayoutError, ValidatedUefiSystemTableNativeLayout,
+    plan_uefi_system_table_native_layout,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,7 +106,7 @@ pub struct ProgramEntrySlotDeclaration {
     pub physical_arrival_requirement: Option<&'static str>,
     /// Exact closed toolchain package that owns the physical requirement.
     pub physical_contract_package: Option<ProgramEntryPhysicalContractPackage>,
-    /// Source boundary schema whose evaluated Calling<C> plan owns the
+    /// Source boundary schema whose evaluated `Calling<C>` plan owns the
     /// physical entry contract. `None` marks a profile not yet migrated from
     /// its hosted compatibility bridge.
     pub boundary_schema: Option<&'static str>,
