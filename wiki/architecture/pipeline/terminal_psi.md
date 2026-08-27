@@ -2082,7 +2082,15 @@ provenance, era, claim, and receipt binding at every transition, and retains
 the claim and one caller-supplied occurrence through projection and primitive
 specialization. Resident-preserving retirement returns the same dormant grant;
 rejection returns every input or carrier unchanged. This is still below
-Terminal. A separate non-authorizing carrier now joins an already-specialized
+Terminal. Provider-backed Atomic resident content also supports shared and
+exclusive whole-range borrowed views. Each active carrier retains the lender's
+exact placement/profile/resource/admission and provider-content authority, the
+unchanged resident claim and receipts, one caller occurrence, and the exact
+loan polarity. Exclusivity adds no Atomic permission. Retirement replays that
+authority transactionally, returns the complete active carrier on drift, and
+releases only the loan without reminting custody. The borrowed carrier grants
+no attempt, result, provider operation, lowering, or Terminal authority. A
+separate non-authorizing carrier now joins an already-specialized
 provider-backed observing request to its exact checked Atomic resident/result
 contract. It independently replays the checked placed view and field plus the
 runtime request authority; compares the complete retained placement structure,

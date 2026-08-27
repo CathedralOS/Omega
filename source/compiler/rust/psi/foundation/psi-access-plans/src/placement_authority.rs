@@ -6,7 +6,8 @@ use super::owned_atomic_resident_custody::validate_owned_atomic_resident_authori
 use super::owned_resident_custody::validate_resident_observation;
 use super::{
     AccessPlanDiagnostic, AdmittedResourceProfile, AdmittedSchemaDeviceCorrespondence,
-    BorrowPolarity, EstablishedBorrowedResidentPlacement, EstablishedOwnedAtomicPlacement,
+    BorrowPolarity, EstablishedBorrowedAtomicResidentPlacement,
+    EstablishedBorrowedResidentPlacement, EstablishedOwnedAtomicPlacement,
     EstablishedOwnedPlacement, PlacedOccurrenceId, PlacedView, PlacementAdmissionId,
     PlacementResourceCompatibility, ResourceProfileReceiptId, ValidatedPlacementPlan,
     replay_owned_admission_resources, validate_owned_content_binding, validate_placement_admission,
@@ -22,6 +23,7 @@ pub(super) enum PlacementAuthorityRef<'view, 'extent> {
     Borrowed(&'view PlacedView<'extent>),
     CorrespondedBorrowed(&'view super::SchemaCorrespondedPlacedView<'extent>),
     BorrowedResident(&'view EstablishedBorrowedResidentPlacement<'extent>),
+    BorrowedAtomicResident(&'view EstablishedBorrowedAtomicResidentPlacement<'extent>),
     EstablishedOwned(&'view EstablishedOwnedPlacement),
     EstablishedOwnedAtomic(&'view EstablishedOwnedAtomicPlacement),
 }
@@ -32,6 +34,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
             Self::Borrowed(view) => view.loan.base(),
             Self::CorrespondedBorrowed(view) => view.view().loan.base(),
             Self::BorrowedResident(established) => established.base(),
+            Self::BorrowedAtomicResident(established) => established.base(),
             Self::EstablishedOwned(established) => established.extent().base(),
             Self::EstablishedOwnedAtomic(established) => established.extent().base(),
         }
@@ -42,6 +45,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
             Self::Borrowed(view) => &view.plan,
             Self::CorrespondedBorrowed(view) => &view.view().plan,
             Self::BorrowedResident(established) => established.placement_plan(),
+            Self::BorrowedAtomicResident(established) => established.placement_plan(),
             Self::EstablishedOwned(established) => established.placement_plan(),
             Self::EstablishedOwnedAtomic(established) => established.placement_plan(),
         }
@@ -52,6 +56,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
             Self::Borrowed(view) => view.profile_receipt,
             Self::CorrespondedBorrowed(view) => view.view().profile_receipt,
             Self::BorrowedResident(established) => established.profile_receipt(),
+            Self::BorrowedAtomicResident(established) => established.profile_receipt(),
             Self::EstablishedOwned(established) => established.profile_receipt(),
             Self::EstablishedOwnedAtomic(established) => established.profile_receipt(),
         }
@@ -62,6 +67,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
             Self::Borrowed(view) => &view.profile,
             Self::CorrespondedBorrowed(view) => &view.view().profile,
             Self::BorrowedResident(established) => established.profile(),
+            Self::BorrowedAtomicResident(established) => established.profile(),
             Self::EstablishedOwned(established) => &established.admission.profile,
             Self::EstablishedOwnedAtomic(established) => established.profile(),
         }
@@ -84,6 +90,14 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
                 established.placement_plan(),
                 established.profile(),
             ),
+            Self::BorrowedAtomicResident(established) => {
+                established.validate_lender_binding("borrowed Atomic resident resource replay")?;
+                validate_placement_admission(
+                    established.loan(),
+                    established.placement_plan(),
+                    established.profile(),
+                )
+            }
             Self::EstablishedOwned(established) => {
                 replay_owned_admission_resources(&established.admission)
             }
@@ -108,6 +122,18 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
                 validate_resident_observation(
                     established.placement_plan(),
                     super::ObservationModel::Stable,
+                    transition,
+                )
+            }),
+            Self::BorrowedAtomicResident(established) => validate_provider_content_binding(
+                established.placement_plan(),
+                established.loan(),
+                established.content(),
+            )
+            .and_then(|()| {
+                validate_resident_observation(
+                    established.placement_plan(),
+                    super::ObservationModel::Atomic,
                     transition,
                 )
             }),
@@ -162,6 +188,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
             Self::Borrowed(view) => &view.resources,
             Self::CorrespondedBorrowed(view) => &view.view().resources,
             Self::BorrowedResident(established) => established.resources(),
+            Self::BorrowedAtomicResident(established) => established.resources(),
             Self::EstablishedOwned(established) => established.resources(),
             Self::EstablishedOwnedAtomic(established) => established.resources(),
         }
@@ -172,6 +199,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
             Self::Borrowed(view) => view.admission,
             Self::CorrespondedBorrowed(view) => view.view().admission,
             Self::BorrowedResident(established) => established.admission(),
+            Self::BorrowedAtomicResident(established) => established.admission(),
             Self::EstablishedOwned(established) => established.admission(),
             Self::EstablishedOwnedAtomic(established) => established.admission(),
         }
@@ -182,6 +210,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
             Self::Borrowed(view) => view.loan.polarity(),
             Self::CorrespondedBorrowed(view) => view.view().loan.polarity(),
             Self::BorrowedResident(established) => established.loan_polarity(),
+            Self::BorrowedAtomicResident(established) => established.loan_polarity(),
             Self::EstablishedOwned(_) | Self::EstablishedOwnedAtomic(_) => LoanPolarity::Exclusive,
         };
         match polarity {
@@ -194,6 +223,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         match self {
             Self::Borrowed(_) | Self::CorrespondedBorrowed(_) => None,
             Self::BorrowedResident(established) => Some(established.resident_claim()),
+            Self::BorrowedAtomicResident(established) => Some(established.resident_claim()),
             Self::EstablishedOwned(established) => Some(established.resident_claim()),
             Self::EstablishedOwnedAtomic(established) => Some(established.resident_claim()),
         }
@@ -203,6 +233,7 @@ impl<'view, 'extent> PlacementAuthorityRef<'view, 'extent> {
         match self {
             Self::Borrowed(_) | Self::CorrespondedBorrowed(_) => None,
             Self::BorrowedResident(established) => Some(established.occurrence()),
+            Self::BorrowedAtomicResident(established) => Some(established.occurrence()),
             Self::EstablishedOwned(established) => Some(established.occurrence),
             Self::EstablishedOwnedAtomic(established) => Some(established.occurrence()),
         }

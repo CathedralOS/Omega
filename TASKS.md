@@ -1506,9 +1506,15 @@ Owners:
   identity. Stable borrowed resident views retain the lender's exact claim and
   provider receipts, one fresh placed occurrence, and a whole-range shared or
   exclusive `ExtentLoan`; ending the view releases only that loan and remints
-  nothing. Source-visible domain establishment, Atomic borrowed-resident
-  views, `Vacant` transitions, partial moves, Terminal propagation, and
-  installation remain.
+  nothing. Provider-backed Atomic resident content now supports the same
+  shared and exclusive whole-range borrowed views while retaining the lender's
+  exact full placement/profile/resource/admission and provider-content
+  authority, unchanged claim and receipts, caller occurrence, and loan
+  polarity. Exclusivity adds no Atomic permission; retirement replays the
+  retained authority transactionally, returns the complete active carrier on
+  drift, and releases only the loan. Source-visible domain establishment,
+  `Vacant` transitions, partial moves, Terminal propagation, and installation
+  remain.
 - Complete the atomic 2x2 compare-exchange family: existing observing strong
   and weak forms require copyable residents; new non-observing strong and weak
   forms return the proposal on failure and may transfer affine or linear

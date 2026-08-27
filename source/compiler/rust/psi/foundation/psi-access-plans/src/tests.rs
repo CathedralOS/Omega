@@ -1428,8 +1428,15 @@ const fn all_atomic_operations() -> AtomicPermissions {
 }
 
 fn atomic_word_placement() -> ValidatedPlacementPlan {
+    atomic_word_placement_with_operations(0xa70_1c, all_atomic_operations())
+}
+
+fn atomic_word_placement_with_operations(
+    schema_identity: u64,
+    operations: AtomicPermissions,
+) -> ValidatedPlacementPlan {
     let layout = LayoutPlanReport {
-        schema_identity: 0xa70_1c,
+        schema_identity,
         entries: vec![LayoutFieldEntryReport {
             field: "head".into(),
             member_identity: None,
@@ -1446,7 +1453,7 @@ fn atomic_word_placement() -> ValidatedPlacementPlan {
                 "head",
                 FieldAccess::Atomic {
                     transfer_width_bits: 32,
-                    operations: all_atomic_operations(),
+                    operations,
                     exposure: AccessExposure::Exported,
                 },
             )],
@@ -1454,7 +1461,7 @@ fn atomic_word_placement() -> ValidatedPlacementPlan {
         layout,
         reach: BoundaryReach::default(),
     })
-    .expect("all-family Atomic word placement")
+    .expect("Atomic word placement")
 }
 
 fn atomic_word_profile(loan: &ExtentLoan<'_>) -> AdmittedResourceProfile {
@@ -1484,6 +1491,28 @@ fn atomic_word_profile(loan: &ExtentLoan<'_>) -> AdmittedResourceProfile {
         }],
     })
     .expect("admitted all-family Atomic resource profile")
+}
+
+fn dormant_atomic_word(
+    plan: &ValidatedPlacementPlan,
+    base: u64,
+    lineage: u64,
+    validity: u64,
+    admission: u64,
+) -> DormantOwnedAtomicResident {
+    let (extent, content) = provider_existing_content(plan, base, 4, lineage, validity);
+    let profile = {
+        let loan = extent.loan(0, 4).expect("Atomic profile loan");
+        atomic_word_profile(&loan)
+    };
+    let admission = admit_owned_placement(
+        PlacementAdmissionId::from_normalized_identity(admission).expect("Atomic admission"),
+        extent,
+        plan,
+        &profile,
+    )
+    .expect("owned Atomic admission");
+    adopt_owned_atomic(admission, content).expect("provider-backed Atomic resident")
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -1524,6 +1553,10 @@ fn primitive_request_snapshot(
         ),
         PlacementAuthorityRef::BorrowedResident(established) => (
             "borrowed-resident",
+            std::ptr::from_ref(established).cast::<()>(),
+        ),
+        PlacementAuthorityRef::BorrowedAtomicResident(established) => (
+            "borrowed-atomic-resident",
             std::ptr::from_ref(established).cast::<()>(),
         ),
         PlacementAuthorityRef::EstablishedOwned(established) => (
@@ -2545,6 +2578,247 @@ fn atomic_resident_lifecycle_returns_complete_carriers_on_authority_drift() {
     assert_eq!(dormant.resident_claim(), claim);
     assert_eq!(dormant.validity_receipt(), validity);
     assert_eq!(dormant.custody_receipt(), custody);
+}
+
+#[test]
+fn borrowed_atomic_resident_views_preserve_lender_custody_and_exact_loan_polarity() {
+    let plan = atomic_word_placement();
+    let mut dormant = dormant_atomic_word(&plan, 0xa580, 340, 341, 344);
+    let claim = dormant.resident_claim();
+    let validity = dormant.validity_receipt();
+    let custody = dormant.custody_receipt();
+    let admission = dormant.admission();
+    let profile_receipt = dormant.profile_receipt();
+
+    let shared_occurrence =
+        PlacedOccurrenceId::from_normalized_identity(345).expect("shared Atomic occurrence");
+    {
+        let mut borrowed = dormant
+            .borrow_view(shared_occurrence)
+            .expect("shared borrowed Atomic resident view");
+        assert_eq!(borrowed.base(), 0xa580);
+        assert_eq!(borrowed.length(), 4);
+        assert_eq!(borrowed.loan_polarity(), LoanPolarity::Shared);
+        assert_eq!(borrowed.admission(), admission);
+        assert_eq!(borrowed.profile_receipt(), profile_receipt);
+        assert_eq!(borrowed.placement_plan(), &plan);
+        assert_eq!(borrowed.resident_claim(), claim);
+        assert_eq!(borrowed.occurrence(), shared_occurrence);
+        assert_eq!(borrowed.validity_receipt(), validity);
+        assert_eq!(borrowed.custody_receipt(), custody);
+
+        let projection = borrowed
+            .project(field_key(plan.access(), "head"))
+            .expect("shared borrowed Atomic projection");
+        let request = projection
+            .atomic_compare_exchange_once(MemoryOrdering::ReceivePublish, MemoryOrdering::Receive)
+            .expect("shared single-attempt Atomic access")
+            .into_primitive_request();
+        assert_eq!(request.source_loan(), BorrowPolarity::Shared);
+        assert_eq!(request.current_borrow(), BorrowPolarity::Shared);
+        assert_eq!(request.resident_claim(), Some(claim));
+        assert_eq!(request.placed_occurrence(), Some(shared_occurrence));
+        assert_eq!(
+            primitive_request_snapshot(&request).authority_kind,
+            "borrowed-atomic-resident"
+        );
+        request
+            .into_atomic_primitive_access()
+            .expect("shared borrowed Atomic specialization")
+            .validate_for_lowering()
+            .expect("shared borrowed Atomic authority replay");
+
+        let projection = borrowed
+            .project_mut(field_key(plan.access(), "head"))
+            .expect("exclusive current projection over shared Atomic loan");
+        let request = projection
+            .atomic_compare_exchange(MemoryOrdering::GlobalOrder, MemoryOrdering::Receive)
+            .expect("Atomic permission does not require exclusive source custody")
+            .into_primitive_request();
+        assert_eq!(request.current_borrow(), BorrowPolarity::Exclusive);
+        assert_eq!(request.source_loan(), BorrowPolarity::Shared);
+        request
+            .into_atomic_primitive_access()
+            .expect("decisive Atomic specialization")
+            .validate_for_lowering()
+            .expect("decisive shared-loan replay");
+
+        borrowed
+            .retire()
+            .expect("shared borrowed Atomic retirement");
+    }
+    assert_eq!(dormant.resident_claim(), claim);
+    assert_eq!(dormant.validity_receipt(), validity);
+    assert_eq!(dormant.custody_receipt(), custody);
+
+    let inert_occurrence =
+        PlacedOccurrenceId::from_normalized_identity(347).expect("inert borrowed occurrence");
+    let inert = dormant
+        .borrow_view(inert_occurrence)
+        .expect("borrowed Atomic view requires no operation or result carrier");
+    assert_eq!(inert.resident_claim(), claim);
+    assert_eq!(inert.occurrence(), inert_occurrence);
+    inert
+        .retire()
+        .expect("projection-free view retires without an Atomic attempt or result");
+    assert_eq!(dormant.resident_claim(), claim);
+
+    let exclusive_occurrence =
+        PlacedOccurrenceId::from_normalized_identity(346).expect("exclusive Atomic occurrence");
+    {
+        let borrowed = dormant
+            .borrow_view_mut(exclusive_occurrence)
+            .expect("exclusive borrowed Atomic resident view");
+        assert_eq!(borrowed.loan_polarity(), LoanPolarity::Exclusive);
+        let projection = borrowed
+            .project(field_key(plan.access(), "head"))
+            .expect("shared current projection over exclusive Atomic loan");
+        let request = projection
+            .atomic_compare_exchange_once(MemoryOrdering::ReceivePublish, MemoryOrdering::Receive)
+            .expect("exclusive source loan retains admitted single-attempt operation")
+            .into_primitive_request();
+        assert_eq!(request.current_borrow(), BorrowPolarity::Shared);
+        assert_eq!(request.source_loan(), BorrowPolarity::Exclusive);
+        assert_eq!(request.resident_claim(), Some(claim));
+        assert_eq!(request.placed_occurrence(), Some(exclusive_occurrence));
+        borrowed
+            .retire()
+            .expect("exclusive borrowed Atomic retirement");
+    }
+
+    assert_eq!(dormant.resident_claim(), claim);
+    assert_eq!(dormant.validity_receipt(), validity);
+    assert_eq!(dormant.custody_receipt(), custody);
+}
+
+#[test]
+fn borrowed_atomic_resident_formation_rejects_non_atomic_lender_observation() {
+    let stable = stable_word_placement();
+    let (extent, content) = provider_existing_content(&stable, 0xa5a0, 4, 361, 362);
+    let profile = stable_word_profile(&extent);
+    let admission = admit_owned_placement(
+        PlacementAdmissionId::from_normalized_identity(365).expect("Stable admission"),
+        extent,
+        &stable,
+        &profile,
+    )
+    .expect("owned Stable admission");
+
+    // This private corruption fixture bypasses the observation-specific
+    // adoption constructor. Borrowed Atomic formation must independently
+    // replay the complete lender and reject the Stable plan before issuing a
+    // loan-bearing carrier.
+    let corrupted = DormantOwnedAtomicResident { admission, content };
+    let occurrence = PlacedOccurrenceId::from_normalized_identity(366).expect("Atomic occurrence");
+    let diagnostic = corrupted
+        .borrow_view(occurrence)
+        .expect_err("Stable resident authority cannot form an Atomic borrowed view");
+    assert!(diagnostic.0.contains("Atomic"));
+    assert!(diagnostic.0.contains("Stable"));
+    assert_eq!(corrupted.extent().base(), 0xa5a0);
+}
+
+#[test]
+fn borrowed_atomic_resident_views_add_no_permissions_and_recover_from_authority_drift() {
+    let once_only = atomic_word_placement_with_operations(
+        0xa70_1d,
+        AtomicPermissions {
+            compare_exchange_once: true,
+            ..AtomicPermissions::default()
+        },
+    );
+    let mut dormant = dormant_atomic_word(&once_only, 0xa5c0, 350, 351, 354);
+    let claim = dormant.resident_claim();
+    let validity = dormant.validity_receipt();
+    let custody = dormant.custody_receipt();
+    let occurrence =
+        PlacedOccurrenceId::from_normalized_identity(355).expect("borrowed Atomic occurrence");
+
+    let (_, foreign_content) = provider_existing_content(&once_only, 0xa5c0, 4, 356, 357);
+    let coincident = uart_extent_with_lineage(0xa5c0, 4, 358);
+    let foreign_profile = {
+        let loan = coincident.loan(0, 4).expect("foreign Atomic profile loan");
+        atomic_word_profile(&loan)
+    };
+    let mut same_id_drift = once_only.clone();
+    same_id_drift.layout.size = Some(8);
+    assert_eq!(same_id_drift.identity(), once_only.identity());
+    assert_ne!(same_id_drift, once_only);
+
+    let exact_profile = std::mem::replace(&mut dormant.admission.profile, foreign_profile);
+    let diagnostic = dormant
+        .borrow_view_mut(occurrence)
+        .expect_err("borrowed Atomic formation must replay the exact lender profile");
+    assert!(diagnostic.0.contains("placement authority"));
+    assert_eq!(dormant.resident_claim(), claim);
+    assert_eq!(dormant.validity_receipt(), validity);
+    assert_eq!(dormant.custody_receipt(), custody);
+    dormant.admission.profile = exact_profile;
+
+    let mut borrowed = dormant
+        .borrow_view_mut(occurrence)
+        .expect("exclusive once-only Atomic borrowed view");
+    {
+        let projection = borrowed
+            .project_mut(field_key(once_only.access(), "head"))
+            .expect("exclusive once-only projection");
+        let diagnostic = projection
+            .atomic_compare_exchange(MemoryOrdering::GlobalOrder, MemoryOrdering::Receive)
+            .expect_err("exclusive polarity cannot add decisive permission");
+        assert!(diagnostic.0.contains("does not permit"));
+        projection
+            .atomic_compare_exchange_once(MemoryOrdering::ReceivePublish, MemoryOrdering::Receive)
+            .expect("admitted single-attempt permission remains available");
+    }
+
+    let exact_plan = borrowed.replace_plan_for_test(same_id_drift);
+    let diagnostic = borrowed
+        .project(field_key(once_only.access(), "head"))
+        .expect_err("same-ID full-plan drift must reject against the exact lender");
+    assert!(diagnostic.0.contains("differs from the exact lender"));
+    borrowed.replace_plan_for_test(exact_plan);
+
+    let exact_admission = borrowed.replace_admission_for_test(
+        PlacementAdmissionId::from_normalized_identity(360).expect("foreign admission"),
+    );
+    let rejection = borrowed
+        .retire()
+        .expect_err("admission substitution must preserve the full active carrier");
+    assert!(rejection.diagnostic().0.contains("exact lender"));
+    let (mut borrowed, diagnostic) = rejection.into_parts();
+    assert!(diagnostic.0.contains("exact lender"));
+    assert_eq!(borrowed.resident_claim(), claim);
+    assert_eq!(borrowed.occurrence(), occurrence);
+    assert_eq!(borrowed.validity_receipt(), validity);
+    assert_eq!(borrowed.custody_receipt(), custody);
+    borrowed.replace_admission_for_test(exact_admission);
+
+    let exact_content = borrowed.replace_content_for_test(&foreign_content);
+    let diagnostic = borrowed
+        .project(field_key(once_only.access(), "head"))
+        .expect_err("cross-root content authority cannot substitute at projection");
+    assert!(diagnostic.0.contains("resident content grant"));
+    let rejection = borrowed
+        .retire()
+        .expect_err("cross-root content rejection must return the full active carrier");
+    assert!(rejection.diagnostic().0.contains("provider content grant"));
+    let (mut borrowed, _) = rejection.into_parts();
+    borrowed.replace_content_for_test(exact_content);
+    assert_eq!(borrowed.resident_claim(), claim);
+    assert_eq!(borrowed.occurrence(), occurrence);
+    assert_eq!(borrowed.validity_receipt(), validity);
+    assert_eq!(borrowed.custody_receipt(), custody);
+    borrowed
+        .retire()
+        .expect("corrected active carrier supports exact retirement retry");
+
+    assert_eq!(dormant.resident_claim(), claim);
+    assert_eq!(dormant.validity_receipt(), validity);
+    assert_eq!(dormant.custody_receipt(), custody);
+    let owned = dormant
+        .view(PlacedOccurrenceId::from_normalized_identity(359).expect("owned occurrence"))
+        .expect("borrowed retirement leaves lender custody available");
+    assert_eq!(owned.resident_claim(), claim);
 }
 
 #[test]
