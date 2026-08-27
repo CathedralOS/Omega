@@ -644,6 +644,26 @@ fn block_parameter_count(unit: &PsiOptimizationUnit) -> u64 {
         .sum()
 }
 
+fn scalar_literal_count(unit: &PsiOptimizationUnit) -> u64 {
+    unit.functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.nodes)
+        .filter(|node| {
+            matches!(
+                node.operation,
+                omega_terminal_abstract_operations::TerminalAbstractOperation::IntegerConstant {
+                    ..
+                } | omega_terminal_abstract_operations::TerminalAbstractOperation::BooleanConstant {
+                    ..
+                }
+            )
+        })
+        .count()
+        .try_into()
+        .expect("literal count fits u64")
+}
+
 fn control_flow_structure_count(unit: &PsiOptimizationUnit) -> u64 {
     unit.functions
         .iter()
@@ -675,10 +695,15 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
     let cfg_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
         b"omega.psi-pass.control-flow-cleanup.v10",
     );
+    let dead_scalar_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
+        b"omega.psi-pass.dead-pure-scalar-elimination.v1",
+    );
     if registry.pass() == Some(cfg_pass) {
         control_flow_structure_count(unit)
     } else if registry.pass() == Some(copy_pass) {
         block_parameter_count(unit)
+    } else if registry.pass() == Some(dead_scalar_pass) {
+        scalar_literal_count(unit)
     } else {
         integer_evaluation_operation_count(unit)
     }
@@ -699,9 +724,10 @@ mod tests {
         AnalysisProduct, ExactIntegerAddConstantsRule, PsiOptimizationRule,
         built_in_psi_registries, built_in_psi_registry,
         rules::tests::{
-            boolean_unit, constant_conditional_same_target_unit, dependent_exact_chain_unit,
-            exact_add_unit, linear_empty_block_unit, propagated_block_parameter_unit,
-            randomized_sccp_registries, redundant_block_parameter_unit, wrapping_add_unit,
+            boolean_unit, constant_conditional_same_target_unit, dead_scalar_literals_unit,
+            dependent_exact_chain_unit, exact_add_unit, linear_empty_block_unit,
+            propagated_block_parameter_unit, randomized_sccp_registries,
+            redundant_block_parameter_unit, wrapping_add_unit,
         },
     };
 
@@ -1173,6 +1199,39 @@ mod tests {
         assert_eq!(manifest.ordered_rules().len(), 30);
         assert_eq!(manifest.decisions().len(), 2);
         assert_eq!(ledger.records().len(), 2);
+    }
+
+    #[test]
+    fn named_dead_scalar_literals_reaches_a_custody_preserving_fixed_point() {
+        let selections =
+            OptimizationSelections::new([Optimization::DeadPureScalarElimination]).unwrap();
+        let registry = built_in_psi_registry(&selections).unwrap();
+        let unit = dead_scalar_literals_unit();
+        let (output, commits, usage, _, manifest, ledger) =
+            run_unit(unit, &registry, budget(8)).unwrap();
+        assert_eq!(commits.len(), 2);
+        assert_eq!(usage.iterations, 3);
+        assert_eq!(output.functions[0].blocks[0].nodes.len(), 1);
+        assert_eq!(output.functions[0].blocks[0].nodes[0].provenance.len(), 3);
+        assert_eq!(ledger.records().len(), 2);
+        assert!(
+            ledger
+                .records()
+                .iter()
+                .flat_map(|record| &record.provenance)
+                .all(|row| matches!(
+                    row.disposition,
+                    omega_optimization_unit::ProvenanceDisposition::RealizedAt(_)
+                ))
+        );
+        assert_eq!(manifest.unwrap().ordered_rules().len(), 1);
+
+        let (second, second_commits, second_usage, _, _, second_ledger) =
+            run_unit(output.clone(), &registry, budget(8)).unwrap();
+        assert_eq!(second.identity, output.identity);
+        assert!(second_commits.is_empty());
+        assert_eq!(second_usage.iterations, 1);
+        assert!(second_ledger.records().is_empty());
     }
 
     #[test]
