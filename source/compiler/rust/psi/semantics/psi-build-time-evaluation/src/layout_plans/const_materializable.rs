@@ -161,7 +161,8 @@ impl ValidatedConstMaterialization {
 ///
 /// The admitted subset is intentionally smaller than legacy typed-owned
 /// materialization: closed non-generic unrestricted records containing only
-/// integer/Boolean values, literal fixed arrays, and records of those shapes.
+/// integer/Boolean values, non-NaN binary32/binary64 values, literal fixed
+/// arrays, and records of those shapes.
 pub fn validate_const_materializable_typed_owned_layout(
     typed: &TypedTrees,
     schema_name: &str,
@@ -461,10 +462,27 @@ fn validate_value(
                 | PrimitiveType::U64,
                 BuildTimeValue::Int(_),
             ) => Ok(()),
-            (PrimitiveType::F32 | PrimitiveType::F64, _) => {
-                Err(MaterializationDiagnostic(format!(
-                    "{path} is floating-point; this ConstMaterializable slice rejects all float and NaN representations"
-                )))
+            (PrimitiveType::F32, BuildTimeValue::Float(value)) => {
+                if value.is_nan() {
+                    return Err(MaterializationDiagnostic(format!(
+                        "{path} is NaN without an exact raw-NaN realization"
+                    )));
+                }
+                let round_trip = f64::from(*value as f32);
+                if round_trip.to_bits() != value.to_bits() {
+                    return Err(MaterializationDiagnostic(format!(
+                        "{path} does not retain one exact binary32 value"
+                    )));
+                }
+                Ok(())
+            }
+            (PrimitiveType::F64, BuildTimeValue::Float(value)) => {
+                if value.is_nan() {
+                    return Err(MaterializationDiagnostic(format!(
+                        "{path} is NaN without an exact raw-NaN realization"
+                    )));
+                }
+                Ok(())
             }
             (PrimitiveType::Addr, _) => Err(MaterializationDiagnostic(format!(
                 "{path} is an address and is not ConstMaterializable"
@@ -670,6 +688,13 @@ mod tests {
         data Inner [copy] { enabled: bool; code: u32; }
         data Sample [copy] { tag: u8; inner: Inner; words: [u16; 2]; }
         data Floating [copy] { value: f64; }
+        data Floating32 [copy] { value: f32; }
+        data FloatSample [copy] {
+            narrow: f32;
+            wide: f64;
+            signed_zero: f64;
+            infinite: f32;
+        }
         data Choice [copy] { case Number(value: u8); case Empty; }
         data Borrowed [copy] { value: &u8; }
     "#;
@@ -850,6 +875,63 @@ mod tests {
     }
 
     #[test]
+    fn non_nan_float_leaves_retain_exact_format_bits_and_byte_order() {
+        let typed = typed(SOURCE);
+        let layout = layout(&typed, "FloatSample", &[0, 8, 16, 24], 32, 8);
+        let value = BuildTimeValue::Struct {
+            type_name: "FloatSample".into(),
+            fields: vec![
+                ("narrow".into(), BuildTimeValue::Float(1.5)),
+                ("wide".into(), BuildTimeValue::Float(-3.25)),
+                ("signed_zero".into(), BuildTimeValue::Float(-0.0)),
+                ("infinite".into(), BuildTimeValue::Float(f64::INFINITY)),
+            ],
+        };
+
+        let little = validate_const_materializable_typed_owned_layout(
+            &typed,
+            "FloatSample",
+            &layout,
+            &value,
+            ByteOrder::LittleEndian,
+        )
+        .expect("non-NaN binary32/binary64 leaves should materialize");
+        assert_eq!(
+            little.bytes(),
+            &[
+                0x00, 0x00, 0xc0, 0x3f, 0, 0, 0, 0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0a, 0xc0,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x80, 0x7f, 0, 0, 0, 0,
+            ]
+        );
+
+        let big = validate_const_materializable_typed_owned_layout(
+            &typed,
+            "FloatSample",
+            &layout,
+            &value,
+            ByteOrder::BigEndian,
+        )
+        .expect("target byte order should remain explicit for float leaves");
+        assert_eq!(
+            big.bytes(),
+            &[
+                0x3f, 0xc0, 0x00, 0x00, 0, 0, 0, 0, 0xc0, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0x80, 0x00, 0x00, 0, 0, 0, 0,
+            ]
+        );
+        assert_ne!(little.identity(), big.identity());
+        little
+            .replay_against(
+                &typed,
+                "FloatSample",
+                &layout,
+                &value,
+                ByteOrder::LittleEndian,
+            )
+            .expect("exact float custody should replay");
+    }
+
+    #[test]
     fn unsupported_or_malformed_value_shapes_fail_closed() {
         let typed = typed(SOURCE);
 
@@ -865,8 +947,23 @@ mod tests {
             &float,
             ByteOrder::LittleEndian,
         )
-        .expect_err("NaN and all floats remain fenced");
-        assert!(error.0.contains("rejects all float and NaN"), "{error:?}");
+        .expect_err("NaN without exact raw representation evidence remains fenced");
+        assert!(error.0.contains("exact raw-NaN realization"), "{error:?}");
+
+        let narrow_layout = one_field_layout(&typed, "Floating32", 4, 4);
+        let rounded = BuildTimeValue::Struct {
+            type_name: "Floating32".into(),
+            fields: vec![("value".into(), BuildTimeValue::Float(0.1))],
+        };
+        let error = validate_const_materializable_typed_owned_layout(
+            &typed,
+            "Floating32",
+            &narrow_layout,
+            &rounded,
+            ByteOrder::LittleEndian,
+        )
+        .expect_err("a forged f64 value cannot acquire binary32 custody by rounding");
+        assert!(error.0.contains("exact binary32 value"), "{error:?}");
 
         let choice = BuildTimeValue::Case {
             variant: "Empty".into(),
