@@ -416,8 +416,9 @@ pub struct PathQualifiedEmptyBlockRewrite {
 
 /// Merge the immediately adjacent, single-predecessor target block into an
 /// unconditional predecessor. The target's block parameters are replaced by
-/// the exact incoming bindings and the removed edge is realized at the first
-/// moved node.
+/// the exact incoming bindings. The removed edge is realized at the first
+/// moved operation or, for a conditional-only target, on both mutually
+/// exclusive successor edges.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AdjacentBlockMergeRewrite {
     pub predecessor: NodeLocation,
@@ -1054,7 +1055,7 @@ fn encode_candidate(
     patch: PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v12\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v13\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     encode_location(&mut bytes, decision_point);

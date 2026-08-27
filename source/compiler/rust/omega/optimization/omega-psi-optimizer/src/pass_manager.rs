@@ -668,7 +668,7 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
         b"omega.psi-pass.copy-propagation.v1",
     );
     let cfg_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-        b"omega.psi-pass.control-flow-cleanup.v6",
+        b"omega.psi-pass.control-flow-cleanup.v7",
     );
     if registry.pass() == Some(cfg_pass) {
         control_flow_structure_count(unit)
