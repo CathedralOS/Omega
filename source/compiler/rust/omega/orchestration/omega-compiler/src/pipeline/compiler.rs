@@ -242,15 +242,14 @@ impl Compiler {
     }
 
     pub fn compile(self) -> Result<CompileReport, Vec<Diagnostic>> {
+        if self.requested_product == RequestedCompileProduct::TerminalArtifact {
+            return self.compile_terminal_artifact();
+        }
         match self.requested_product {
             RequestedCompileProduct::Check
             | RequestedCompileProduct::NativeArtifact
             | RequestedCompileProduct::InstalledOutput => {}
-            RequestedCompileProduct::TerminalArtifact => {
-                return Err(vec![Diagnostic::error(
-                    "terminal-artifact requests are unavailable through the legacy checked-tree compiler route",
-                )]);
-            }
+            RequestedCompileProduct::TerminalArtifact => unreachable!(),
         }
         let installs_output = self.requested_product.installs_output();
         let retains_native_artifact =
@@ -712,5 +711,40 @@ impl Compiler {
                 build_observation_summary,
             )
             .map_err(|message| vec![Diagnostic::error(message)])
+    }
+
+    /// Produce the canonical Psi-owned handoff artifact without entering any
+    /// legacy StateGraph, native emission, output, or installation stage.
+    fn compile_terminal_artifact(self) -> Result<CompileReport, Vec<Diagnostic>> {
+        let checked = crate::pipeline::checked_entry::compile_to_checked_for_terminal(
+            &self.options,
+            self.package_inputs.as_ref(),
+        )?;
+        let source_file_count = checked.source_file_count();
+        let entry_machine = checked
+            .selected_program_entry_machine()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "terminal-artifact production requires one exact selected program entry",
+                )]
+            })?
+            .to_owned();
+        let build_evaluation_usage = checked.build_evaluation_usage();
+        let build_observation_summary = checked.build_observation_summary().cloned();
+        let artifact =
+            psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, &entry_machine)
+                .map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "terminal-artifact production failed: {error}"
+                    ))]
+                })?;
+        CompileReport::from_terminal_artifact(
+            self.options.root_path,
+            source_file_count,
+            artifact,
+            build_evaluation_usage,
+            build_observation_summary,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])
     }
 }
