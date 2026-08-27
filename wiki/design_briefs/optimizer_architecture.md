@@ -823,7 +823,12 @@ and every scalar definition's lattice state. The validation crate owns a second
 fixed-point implementation and reconstructs this snapshot without depending on
 the optimizer crate. A digest supplied by the optimizer is therefore only a
 claim; it becomes rewrite evidence only when the validator independently
-derives the identical snapshot and fact identity.
+derives the identical snapshot and fact identity. The current thirty exact
+rules cover every evaluable Boolean and integer operation in the admitted
+verified-unit vocabulary. Structural-field and call results stay overdefined
+without immutable structural-version or call-summary facts. This is a
+current-vocabulary completion boundary, not permission to guess semantics for
+future float, trapping, or otherwise extended scalar operations.
 
 The initial pass-manager skeleton has a public entry only from
 `VerifiedPsiOptimizationUnit`; a bare reconstructible seed cannot start a run.
@@ -867,7 +872,27 @@ equivalence. Real memory traces, explicit suspension edges, arbitrary node-set
 regions, and path-derived current ownership facts remain future vocabulary.
 The pass has its own block-parameter-count convergence measure and its own
 explicit `CopyPropagation` selection; it is not a hidden prerequisite of SCCP
-or an optimization-level bundle.
+or an optimization-level bundle. Block parameters and their incoming bindings
+are the current Psi vocabulary's only scalar copy form: calls directly define
+their result `ValueId`, and there is no scalar `Copy`, `Move`, or debug-value
+operation. A verified call-result artifact therefore exercises the existing
+generic rule rather than adding a call-specific rewrite. It proves that the
+parameter and binding disappear, uses select the dominating call result, and
+the complete effectful call node, callee, effect link, provenance, logical
+fuel, and function roster remain exact.
+
+Terminal debug maps remain a separate identified input. They may name a block
+parameter with `DebugSubject::Value`, so executable-unit correctness does not
+by itself authorize publication of an optimized debug map after that parameter
+is removed. A debug-projection gate must replay each validated scalar
+substitution, retain every authored source span through a many-to-one
+alias/recovery relation, prove every surviving projected subject exists in the
+optimized module, and carry durable reconstruction custody in the ledger or a
+separately validated receipt. This cannot blindly rewrite both subjects to one
+debug-map key because the map permits only one primary span per subject. Until
+the recovery vocabulary exists, the optimizer may retain the original debug
+map as separate source custody but must not claim an optimized debug-map
+projection.
 
 The first `ControlFlowCleanup` rule has an equally narrow contract. A
 conditional whose Boolean condition has an independently reconstructible SCCP

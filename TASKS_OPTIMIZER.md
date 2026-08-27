@@ -382,11 +382,19 @@ These facts constrain the work below.
   conditional targeting the same block, differing arguments, incomplete
   witnesses, proof-obligation retention, semantic-accounting retention, the
   empty consumed-fact manifest projection, and a block-parameter-count fixed
-  point. `OPT-COPY-PROPAGATION` remains open for explicit scalar-copy forms and
-  wider call-result/debug-materialization coverage. SCCP and copy propagation
-  can now be selected together: orchestration derives the canonical SCCP then
-  copy-propagation schedule and retains one chained manifest per named pass,
-  including a manifest for a pass that commits no rewrite.
+  point. This completes `OPT-COPY-PROPAGATION` for the current verified-unit
+  vocabulary: block parameters plus incoming bindings are its only scalar
+  copy form, and call operations directly define their result values rather
+  than producing a separate materialization node. A verified call-result
+  fixture proves that the generic rule removes only the redundant parameter
+  and binding, substitutes the return use, and retains the complete call node,
+  callee, effect link, provenance, fuel, and function roster. The task reopens
+  when Psi gains an explicit scalar-copy operation. Optimized debug-map value
+  remapping is tracked separately because debug maps are not optimizer-unit
+  operations. SCCP and copy propagation can now be selected together:
+  orchestration derives the canonical SCCP then copy-propagation schedule and
+  retains one chained manifest per named pass, including a manifest for a pass
+  that commits no rewrite.
 - The separately named `ControlFlowCleanup` selection now registers an exact
   CFG rule: a Boolean-proven `Conditional` and every block made
   structurally unreachable by selecting its exact edge are rewritten in one
@@ -904,6 +912,18 @@ dependency.
   sites; an optimized native build cannot observe lower fuel merely because it
   uses fewer instructions.
 
+- **OPT-DEBUG-PROJECTION.** Project the separately identified Terminal debug
+  map through accepted scalar substitutions and structural rewrites.
+
+  Acceptance: a `DebugSubject::Value` naming a removed block parameter retains
+  every authored source span through a validated many-to-one alias/recovery
+  relation to the surviving replacement `ValueId`; this must not collapse two
+  primary spans into the debug map's one-primary-span-per-subject slot. Every
+  surviving optimized subject exists in the optimized module, and the durable
+  ledger or a separately validated receipt carries enough substitution custody
+  to reconstruct the relation without trusting an in-memory candidate. No
+  optimized debug projection may be published before this gate exists.
+
 - **OPT-PUBLICATION-GATE.** Require a complete accepted transformation ledger
   before optimized native output can be installed.
 
@@ -971,18 +991,39 @@ dependency.
   pre-verification or partially formed IR would require a separately designed
   admission boundary, not another rule over `PsiOptimizationUnit`.
 
-- **OPT-SCCP.** Implement sparse conditional constant propagation over the
-  closed integer and Boolean Terminal Psi operations.
+- **OPT-SCCP — complete for the current verified-unit vocabulary.** Implement
+  sparse conditional constant propagation over the closed integer and Boolean
+  Terminal Psi operations.
 
   Acceptance: folds honor width, signedness, `Exact`/`Wrapping`/`Saturating`/
   `Trapping` policy, exact casts, shifts, division/remainder obligations, and
   block parameters. Float support waits for complete per-operation exact
   semantics and must never use host arithmetic as a shortcut.
 
-- **OPT-COPY-PROPAGATION.** Remove redundant scalar copies and block parameters.
+  Current slice: thirty exact rules cover every currently evaluable Boolean
+  and integer leaf and consume literal or coupled-CFG propagated block-
+  parameter facts reconstructed by the independent validator. Structural-field
+  and call results remain overdefined because the input has no immutable
+  structural version or call-summary constant fact. Float and trapping-policy
+  wording is a future acceptance boundary, not an unimplemented current
+  operation. Reopen this task when the scalar vocabulary or admissible source
+  facts grow.
 
-  Acceptance: dominance, call-result materialization, effect chains, proof-term
-  identity, debug provenance, and fuel attribution remain valid.
+- **OPT-COPY-PROPAGATION — complete for the current verified-unit vocabulary.**
+  Remove redundant scalar copies and block parameters.
+
+  Acceptance: dominance, direct call-result definitions, effect chains,
+  proof-term identity, source-operation/edge provenance, and fuel attribution
+  remain valid.
+
+  Current slice: Terminal Psi has no scalar `Copy`, `Move`, or debug-value
+  operation. Its only scalar copy form is a typed block parameter plus incoming
+  bindings. The independently validated redundant-block-parameter rule removes
+  that form and globally substitutes its common dominating value. Verified
+  call-result coverage proves the original effectful call remains exact while
+  its result flows directly to the rewritten use. Reopen this task when an
+  explicit executable copy form is admitted. `OPT-DEBUG-PROJECTION` separately
+  owns remapping debug-map subjects that name removed values.
 
 - **OPT-GVN-CSE.** Add local CSE followed by dominator-based global value
   numbering for pure, total operations.
