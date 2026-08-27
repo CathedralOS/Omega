@@ -31,6 +31,13 @@ pub struct FlowCallFact {
     pub suspension: SuspensionSummary,
     pub blocking: BlockingSummary,
     pub operational_acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
+    /// Exact authored call location retained while the typed call identity is
+    /// still stable. Provider settlement may later rewrite the typed call.
+    pub authored_source_span: Option<psi_source::SourceSpan>,
+    /// Whether source custody was internally coherent at capture. Ordinary
+    /// compilation need not require package-review provenance, but package
+    /// projection rejects a false value.
+    pub authored_source_custody_valid: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

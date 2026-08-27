@@ -150,6 +150,8 @@ fn machine_contract_manifest_keeps_interface_and_witness_separate() {
     program.facts.synchronous_invocations.machines.push(
         psi_checked_trees::MachineSynchronousInvocationFact {
             machine: symbol,
+            published_targets: vec![psi_effects::InvocationTarget::Parameter(0)],
+            checked_inferred_targets: vec![psi_effects::InvocationTarget::Parameter(0)],
             plan: psi_language_semantics::SynchronousInvocationPlan {
                 interface: psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling,
                 published: vec!["parameter:0".to_owned()],

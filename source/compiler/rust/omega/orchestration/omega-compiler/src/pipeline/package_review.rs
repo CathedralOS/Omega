@@ -2676,7 +2676,6 @@ pub fn project_checked_package_review(
     let public_data = project_public_data(compilation, package)?;
     let representation_tcb = project_representation_tcb(compilation, package)?;
     let semantic_dependencies = project_semantic_dependencies(compilation, package)?;
-    let synchronous_invocations = psi_effects::infer_synchronous_invocations(&compilation.typed);
     let mut callables = Vec::new();
     let mut external_executable_supply = Vec::new();
     let mut projected_build_machine = false;
@@ -2709,13 +2708,11 @@ pub fn project_checked_package_review(
             }
         }
 
-        let (callable, executable_supply) =
-            project_callable(compilation, &synchronous_invocations, machine, role, owner)?;
+        let (callable, executable_supply) = project_callable(compilation, machine, role, owner)?;
         let mut contract_locations =
             project_contract_clause_source_locations(compilation.machine_contracts(machine));
         contract_locations.extend(project_machine_invocation_source_locations(
             compilation,
-            &synchronous_invocations,
             machine,
         )?);
         contract_locations.extend(project_machine_service_reach_source_locations(
@@ -7054,7 +7051,6 @@ fn reviewed_package_owns(
 
 fn project_callable(
     compilation: &CheckedCompilation,
-    synchronous_invocations: &psi_effects::InvocationInferencePlan,
     machine: &psi_typed_trees::machine::Machine,
     role: PackageReviewCallableRole,
     identity: PackageReviewNominalIdentity,
@@ -7145,13 +7141,19 @@ fn project_callable(
         subject,
         "synchronous-invocation",
     )?;
-    let invocation_summary = synchronous_invocations
-        .for_machine(machine.symbol)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "reviewed callable `{subject}` has no exact inferred synchronous-invocation row"
-            ))]
-        })?;
+    let canonical_published =
+        canonical_checked_invocation_targets(compilation, &checked_invocation.published_targets)?;
+    let canonical_checked_inferred = canonical_checked_invocation_targets(
+        compilation,
+        &checked_invocation.checked_inferred_targets,
+    )?;
+    if checked_invocation.plan.published != canonical_published
+        || checked_invocation.plan.checked_inferred != canonical_checked_inferred
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{subject}` has contradictory exact and rendered synchronous-invocation facts"
+        ))]);
+    }
     let suspension = compilation
         .facts
         .suspensions
@@ -7208,6 +7210,7 @@ fn project_callable(
     }
     if suspension.checked_may_suspend != realized.checked_may_suspend
         || blocking.checked_may_block != realized.checked_may_block
+        || checked_invocation.plan.checked_inferred != realized.effective_synchronous_invocations
     {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{subject}` operational facts do not equal its exact realized contract envelope"
@@ -7248,7 +7251,7 @@ fn project_callable(
     };
     let declared_synchronous_invocations = match checked_invocation.plan.interface {
         psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling => Some(
-            project_synchronous_invocations(compilation, &invocation_summary.published)?,
+            project_synchronous_invocations(compilation, &checked_invocation.published_targets)?,
         ),
         psi_language_semantics::SynchronousInvocationInterface::InternalInferred
             if role == PackageReviewCallableRole::Build =>
@@ -7262,7 +7265,7 @@ fn project_callable(
         }
     };
     let realized_synchronous_invocations =
-        project_synchronous_invocations(compilation, &invocation_summary.inferred_transitive)?;
+        project_synchronous_invocations(compilation, &checked_invocation.checked_inferred_targets)?;
     let mut capability_flows = realized
         .capabilities
         .iter()
@@ -7956,7 +7959,6 @@ fn project_operational_keyword_locations(
 
 fn project_machine_invocation_source_locations(
     compilation: &CheckedCompilation,
-    inference: &psi_effects::InvocationInferencePlan,
     machine: &psi_typed_trees::machine::Machine,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
     let declarations = compilation.machine_invokes(machine);
@@ -7967,19 +7969,6 @@ fn project_machine_invocation_source_locations(
             machine.name,
         ))]);
     }
-    let summary = inference.for_machine(machine.symbol).ok_or_else(|| {
-        vec![Diagnostic::error(format!(
-            "reviewed callable `{}` has no exact inferred synchronous-invocation row",
-            machine.name,
-        ))]
-    })?;
-    if summary.published != declared {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` authored invokes targets do not equal its inferred published ceiling",
-            machine.name,
-        ))]);
-    }
-
     let checked = exactly_one(
         compilation
             .facts
@@ -7990,14 +7979,20 @@ fn project_machine_invocation_source_locations(
         machine.name.as_str(),
         "synchronous-invocation",
     )?;
+    if checked.published_targets != declared {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` authored invokes targets do not equal its exact checked published ceiling",
+            machine.name,
+        ))]);
+    }
     let checked_published = canonical_checked_invocation_targets(compilation, &declared)?;
     let checked_inferred =
-        canonical_checked_invocation_targets(compilation, &summary.inferred_transitive)?;
+        canonical_checked_invocation_targets(compilation, &checked.checked_inferred_targets)?;
     if checked.plan.published != checked_published
         || checked.plan.checked_inferred != checked_inferred
     {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` authored/inferred invokes targets do not equal its exact checked synchronous-invocation fact",
+            "reviewed callable `{}` has contradictory exact and rendered synchronous-invocation facts",
             machine.name,
         ))]);
     }

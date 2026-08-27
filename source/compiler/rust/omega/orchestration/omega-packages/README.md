@@ -118,12 +118,15 @@ real package fixture demonstrates an irreducible external contract.
   under `contract_clause`; structural static-machine parameter contracts are
   walked recursively for every projected declaration family, and accepted
   claims reuse their callable locations. Checked-flow call coordinates are
-  also joined to exact typed statement, expression, and named-transition call
-  sites under `body_call`. Source calls must retain exactly one valid private
-  authored call-selection occurrence; checked target/receiver identity and
-  operational acknowledgement must agree with the typed site. Generated calls
-  retain neither occurrence nor location. Recovery envelope v4, conflict
-  fingerprint v7, and renderer V6 retain what review displays. Later nested
+  joined to exact typed statement, expression, and named-transition call sites
+  under `body_call` during checked lowering, before provider settlement can
+  rewrite typed call identity. Source calls must retain exactly one valid
+  private authored call-selection occurrence; checked target/receiver identity
+  and operational acknowledgement must agree at capture. Legitimate late-bound
+  targets do not invalidate location custody, which proves authorship location
+  rather than target finalization. Generated calls retain neither occurrence
+  nor location. Recovery envelope v7, conflict
+  fingerprint v10, and renderer V9 retain what review displays. Later nested
   carriers must come from existing compiler owners rather than package-layer
   source parsing.
 - Missing old source escalates code review but does not prevent comparison
@@ -1068,6 +1071,18 @@ commit/tree/content and transport provenance. A mismatched root request rejects.
 This is bounded resolver state, not compiler evidence, obligation-ledger data,
 accepted-lock encoding, admission, or a `PackageInstance` constructor.
 
+`CanonicalSourceClosureSubject` is the first bounded persistence-neutral form
+of that exact source-selection question. It stores the root request and every
+requester/ordinal dependency occurrence beside its resolved alias and exact
+selected package key, immutable resolution, and content identity. Strict decode
+reconstructs the closed graph and canonical ordering, but neither decode nor
+its domain-separated fingerprint grants authority. A consumer must resolve and
+snapshot the requested closure again, reconstruct the complete subject, and
+require exact equality. Cache/snapshot paths, source bytes, transport execution
+observations, compiler source-consumption and build observations, artifacts,
+certificates, decisions, and open obligations remain separate. The type has no
+accepted-lock or `PackageInstance` promotion API.
+
 ## Target command surface
 
 ```text
@@ -1213,7 +1228,10 @@ orchestration or invent locations for inference and closure. Public operational
 facts remain may-ceilings; the review does not mislabel a permissive public
 contract as an observation that its current body exercised the permission.
 Other nested clause/use-site coordinates remain unfinished engineering work;
-none independently motivates nominal Chi. Package review v73/row v31,
+none independently motivates nominal Chi. Checked invocation facts retain exact
+symbolic published and inferred targets before provider settlement, and package
+review consumes those facts rather than re-inferring from transformed typed
+calls. Package review v74/row v32,
 canonical recovery v7, conflict fingerprint v10, and conflict renderer V9 bind
 the current source-role vocabulary. The package layer
 does now validate a complete in-memory

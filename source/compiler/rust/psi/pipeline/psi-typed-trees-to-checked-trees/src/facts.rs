@@ -83,6 +83,7 @@ pub(crate) fn build_check_facts(
         &operational,
         &service_reach_inference,
     );
+    crate::review_sources::bind_checked_body_call_source_spans(program, &mut flow)?;
     let index_compatibility = index_compatibility::build_index_compatibility_facts(
         program, &operators, &semantic, &flow,
     )?;
@@ -414,16 +415,22 @@ fn build_synchronous_invocation_facts(
                     .map(|definition| format!("service:{}", definition.name))
                     .unwrap_or_else(|| format!("service:#{}", symbol.arena_index())),
             };
-            let mut published = invocation_summary
-                .into_iter()
-                .flat_map(|summary| summary.published.iter().copied())
+            let published_targets = invocation_summary
+                .map(|summary| summary.published.clone())
+                .unwrap_or_default();
+            let checked_inferred_targets = invocation_summary
+                .map(|summary| summary.inferred_transitive.clone())
+                .unwrap_or_default();
+            let mut published = published_targets
+                .iter()
+                .copied()
                 .map(canonical_invocation)
                 .collect::<Vec<_>>();
             published.sort_unstable();
             published.dedup();
-            let mut checked_inferred = invocation_summary
-                .into_iter()
-                .flat_map(|summary| summary.inferred_transitive.iter().copied())
+            let mut checked_inferred = checked_inferred_targets
+                .iter()
+                .copied()
                 .map(canonical_invocation)
                 .collect::<Vec<_>>();
             checked_inferred.sort_unstable();
@@ -435,6 +442,8 @@ fn build_synchronous_invocation_facts(
 
             psi_checked_trees::MachineSynchronousInvocationFact {
                 machine: machine.symbol,
+                published_targets,
+                checked_inferred_targets,
                 plan: psi_language_semantics::SynchronousInvocationPlan {
                     interface: if publishes_invocations {
                         psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling
