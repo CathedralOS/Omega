@@ -67,14 +67,14 @@ fn write_only_fixed_byte_range_call_retains_exact_window() {
 }
 
 #[test]
-fn write_only_fixed_byte_call_retains_exact_literal_index() {
+fn write_only_fixed_primitive_call_retains_exact_literal_index() {
     let source = r#"
-        machine fill(bytes: &write [u8; 4]) {
-            bytes[2] = 7;
+        machine fill(values: &write [u16; 4]) {
+            values[2] = 700;
         }
 
-        machine forward(bytes: &write [u8; 4]) {
-            fill(&write bytes);
+        machine forward(values: &write [u16; 4]) {
+            fill(&write values);
         }
     "#;
 
@@ -95,12 +95,12 @@ fn write_only_fixed_byte_call_retains_exact_literal_index() {
         .machine_states(forward)
         .first()
         .expect("forward entry state");
-    let bytes_symbol = program
+    let values_symbol = program
         .state_parameters(forward_state)
         .iter()
-        .find(|parameter| parameter.name.as_str() == "bytes")
+        .find(|parameter| parameter.name.as_str() == "values")
         .map(|parameter| parameter.symbol)
-        .expect("forward byte parameter");
+        .expect("forward primitive-array parameter");
 
     let facts = build_borrow_facts(&program);
     let borrow_state = facts
@@ -125,7 +125,7 @@ fn write_only_fixed_byte_call_retains_exact_literal_index() {
     );
 
     assert_eq!(places.len(), 1, "exact callee write: {places:?}");
-    assert_eq!(places[0].root, psi_facts::PlaceRoot::Symbol(bytes_symbol));
+    assert_eq!(places[0].root, psi_facts::PlaceRoot::Symbol(values_symbol));
     assert_eq!(
         places[0].segments,
         [psi_facts::PlaceSegment::FixedIndex { index: 2 }]
@@ -133,14 +133,14 @@ fn write_only_fixed_byte_call_retains_exact_literal_index() {
 }
 
 #[test]
-fn write_only_dynamic_byte_call_retains_collection_coarse_mutation() {
+fn write_only_dynamic_primitive_call_retains_collection_coarse_mutation() {
     let source = r#"
-        machine fill(bytes: &write [u8; 4], index: u64 [0..=3]) {
-            bytes[index] = 7;
+        machine fill(values: &write [u32; 4], index: u64 [0..=3]) {
+            values[index] = 70000;
         }
 
-        machine forward(bytes: &write [u8; 4], index: u64 [0..=3]) {
-            fill(&write bytes, index);
+        machine forward(values: &write [u32; 4], index: u64 [0..=3]) {
+            fill(&write values, index);
         }
     "#;
 
@@ -161,12 +161,12 @@ fn write_only_dynamic_byte_call_retains_collection_coarse_mutation() {
         .machine_states(forward)
         .first()
         .expect("forward entry state");
-    let bytes_symbol = program
+    let values_symbol = program
         .state_parameters(forward_state)
         .iter()
-        .find(|parameter| parameter.name.as_str() == "bytes")
+        .find(|parameter| parameter.name.as_str() == "values")
         .map(|parameter| parameter.symbol)
-        .expect("forward byte parameter");
+        .expect("forward primitive-array parameter");
 
     let facts = build_borrow_facts(&program);
     let borrow_state = facts
@@ -191,7 +191,7 @@ fn write_only_dynamic_byte_call_retains_collection_coarse_mutation() {
     );
 
     assert_eq!(places.len(), 1, "coarse callee write: {places:?}");
-    assert_eq!(places[0].root, psi_facts::PlaceRoot::Symbol(bytes_symbol));
+    assert_eq!(places[0].root, psi_facts::PlaceRoot::Symbol(values_symbol));
     assert!(
         matches!(
             places[0].segments.as_slice(),

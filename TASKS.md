@@ -5412,13 +5412,14 @@ Owners:
   snapshots, matching, normalized identity, loans, and call-access facts keep
   it distinct. Checked Omega bodies may explicitly attenuate an exclusive
   mutable whole place to `&write` for an unrestricted primitive scalar or fixed
-  byte array, replace the whole referent, and forward the loan only through an
-  explicit `&write` argument. A checked fixed byte array additionally permits
-  literal or dynamic element replacement after the ordinary range checker
-  proves the index in bounds. Literal mutation and caller-visible write frames
-  retain the exact `FixedIndex`; a dynamic index retains its runtime expression
-  internally and conservatively invalidates the whole collection in the
-  caller-visible frame. A fixed byte array also permits replacement of a
+  literal-length array of unrestricted primitive scalars, replace the whole
+  referent, and forward the loan only through an explicit `&write` argument.
+  Such a checked fixed array additionally permits literal or dynamic element
+  replacement after the ordinary range checker proves the index in bounds.
+  Literal mutation and caller-visible write frames retain the exact
+  `FixedIndex`; a dynamic index retains its runtime expression internally and
+  conservatively invalidates the whole collection in the caller-visible frame.
+  A fixed byte array also permits replacement of a
   statically normalized half-open range by a same-width array literal. The
   mutation and invalidation facts retain an exact `FixedRange`; half-open
   overlap preserves untouched siblings, while range loans and Terminal/native
@@ -5427,24 +5428,25 @@ Owners:
   provided every intermediate receiver is likewise a non-generic checked
   record with no authored default domain, every selected field is relevant and
   unconstrained, and the displaced leaf is an unrestricted primitive or a whole
-  fixed byte array. The ordinary mutation summary retains the complete exact,
-  ordered field-symbol path; nested array replacement introduces no element or
-  range segment. Such an eligible record path may additionally end in one
-  in-bounds literal or ordinarily proven-in-bounds dynamic element of a fixed
-  byte-array leaf. Its checked mutation and caller-visible write frame retain
-  the ordered field symbols followed by the exact `FixedIndex` for a literal or
-  runtime `Index` for a dynamic expression. Literal siblings remain distinct;
-  existing overlap and invalidation conservatively treat the runtime index as
-  the whole byte-array leaf without losing disjoint record siblings. The same
+  literal-length array of unrestricted primitive scalars. The ordinary
+  mutation summary retains the complete exact, ordered field-symbol path;
+  nested array replacement introduces no element or range segment. Such an
+  eligible record path may additionally end in one in-bounds literal or
+  ordinarily proven-in-bounds dynamic element of that fixed-array leaf. Its
+  checked mutation and caller-visible write frame retain the ordered field
+  symbols followed by the exact `FixedIndex` for a literal or runtime `Index`
+  for a dynamic expression. Literal siblings remain distinct; existing overlap
+  and invalidation conservatively treat the runtime index as the whole array
+  leaf without losing disjoint record siblings. The same
   eligible path may end in a statically normalized half-open byte range with a
   required known end and an exact-width array-literal replacement. Its checked
   mutation and caller-visible write frame retain the ordered field symbols and
   exact `FixedRange`; existing half-open overlap preserves adjacent windows
-  and record siblings. Symbolic or open-ended ranges remain fenced. Non-byte
-  arrays, constrained or erased fields, and non-discardable leaves still
-  reject.
+  and record siblings. Symbolic or open-ended ranges and all non-byte ranges
+  remain fenced. Atomic, qualified, constrained, generic, erased, and
+  non-discardable element forms still reject.
   A direct `&write [u8]` root may read its exact `.len` descriptor metadata,
-  and a direct literal fixed byte-array root may read `.len` as static type
+  and a direct supported literal fixed-array root may read `.len` as static type
   metadata; neither inspects the referenced bytes. The same static `.len`
   metadata is now readable for any literal-length fixed array reached through
   a finite eligible common-field path of plain invariant-free records. Generic,

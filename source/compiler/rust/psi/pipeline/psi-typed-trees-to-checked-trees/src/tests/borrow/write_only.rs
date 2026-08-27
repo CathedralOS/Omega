@@ -74,22 +74,128 @@ fn nested_unconstrained_fixed_byte_array_record_field_is_writable() {
 }
 
 #[test]
-fn nested_non_byte_array_record_field_write_remains_rejected() {
-    let rendered = rendered_rejection(
+fn direct_and_nested_unrestricted_primitive_fixed_arrays_are_writable() {
+    lower_typed_trees(typed(
         r#"
             data Inner { words: [u16; 2]; }
             data Outer { inner: Inner; }
 
-            machine fill(outer: &write Outer) {
+            machine fill(
+                direct: &write [u32; 3],
+                outer: &write Outer,
+                direct_index: u64 [0..=2],
+                nested_index: u64 [0..=1]
+            ) {
+                let direct_length: u64 = direct.len;
+                direct = [1, 2, 3];
+                direct[0] = 4;
+                direct[direct_index] = 5;
                 outer.inner.words = [1, 2];
+                outer.inner.words[0] = 3;
+                outer.inner.words[nested_index] = 4;
+            }
+        "#,
+    ))
+    .expect(
+        "literal fixed arrays of unrestricted primitive scalars support whole and element stores",
+    );
+}
+
+#[test]
+fn non_byte_fixed_array_ranges_remain_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            machine fill(words: &write [u16; 4]) {
+                words[1..3] = [7, 8];
             }
         "#,
     );
     assert!(
-        rendered.contains("unsupported write-only projection")
-            && rendered.contains("whole fixed byte array"),
+        rendered.contains("range projection is not implemented")
+            && rendered.contains("range replacement remains byte-array-only"),
         "unexpected diagnostic: {rendered}"
     );
+}
+
+#[test]
+fn non_unrestricted_primitive_fixed_array_roots_remain_rejected() {
+    for (name, source) in [
+        (
+            "atomic",
+            r#"machine fill(values: &write [AtomicU32; 2]) {}"#,
+        ),
+        (
+            "constrained",
+            r#"machine fill(values: &write [u16 [0..=10]; 2]) {}"#,
+        ),
+        ("generic", r#"machine fill<T>(values: &write [T; 2]) {}"#),
+        (
+            "noncopy",
+            r#"
+                data Receipt [linear] { code: u8; }
+                machine fill(values: &write [Receipt; 2]) {}
+            "#,
+        ),
+        (
+            "sum",
+            r#"
+                data Choice {
+                    case First(value: u16);
+                    case Second;
+                }
+                machine fill(values: &write [Choice; 2]) {}
+            "#,
+        ),
+        (
+            "qualified",
+            r#"
+                domain [u8; 4]::Utf8
+                requires
+                    valid_utf8(self);
+
+                machine fill(values: &write [u8; 4] in Utf8) {}
+            "#,
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains("literal fixed arrays of unrestricted primitive scalars"),
+            "{name} array unexpectedly reached the checked write-only slice: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn non_byte_fixed_array_indexes_still_require_an_ordinary_bounds_proof() {
+    for (name, source) in [
+        (
+            "literal out of bounds",
+            r#"
+                machine fill(values: &write [u16; 2]) {
+                    values[2] = 7;
+                }
+            "#,
+        ),
+        (
+            "unproved dynamic index",
+            r#"
+                machine fill(values: &write [u32; 2], index: u64) {
+                    values[index] = 7;
+                }
+            "#,
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        let expected = if name == "literal out of bounds" {
+            "the literal index is outside the fixed array"
+        } else {
+            "cannot prove index `index` is within length 2"
+        };
+        assert!(
+            rendered.contains(expected),
+            "{name} unexpectedly bypassed ordinary index checking: {rendered}"
+        );
+    }
 }
 
 #[test]
@@ -121,7 +227,7 @@ fn record_path_fixed_byte_array_out_of_bounds_literal_remains_rejected() {
     );
     assert!(
         rendered.contains("unsupported write-only projection")
-            && rendered.contains("proven-in-bounds element of a fixed byte array"),
+            && rendered.contains("proven-in-bounds element of such a fixed array"),
         "unexpected diagnostic: {rendered}"
     );
 }
@@ -344,7 +450,9 @@ fn non_discardable_record_leaf_write_remains_rejected() {
     );
     assert!(
         rendered.contains("unsupported write-only projection")
-            && rendered.contains("leaf is an unrestricted primitive or whole fixed byte array"),
+            && rendered.contains(
+                "leaf is an unrestricted primitive or a literal fixed array of unrestricted primitive scalars"
+            ),
         "unexpected diagnostic: {rendered}"
     );
 }
@@ -770,6 +878,22 @@ fn record_path_fixed_byte_element_rhs_observation_remains_rejected() {
     );
     assert!(
         rendered.contains("reads through index projection of write-only parameter `outer`")
+            && rendered.contains("never observation"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn non_byte_fixed_array_rhs_observation_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            machine copy(words: &write [u16; 2]) {
+                words[0] = words[1];
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("reads through index projection of write-only parameter `words`")
             && rendered.contains("never observation"),
         "unexpected diagnostic: {rendered}"
     );
