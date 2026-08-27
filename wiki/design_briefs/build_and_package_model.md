@@ -1171,10 +1171,16 @@ occurrences; expression sites reuse their existing attached occurrences. The
 join verifies checked target, receiver, receiver shape, and operational
 acknowledgement. Missing, duplicate, unknown, late-bound, or contradictory
 provenance rejects, while compiler-generated calls produce no invented source
-location. Recovery envelope v4 and conflict fingerprint v7/rendering V6 bind
-what review shows. Per-fact spans and `reaches`/`invokes` occurrences remain
-incremental; absent late-stage spans must be retained by their earlier owner,
-not reconstructed from source text.
+location. Authored `invokes` targets are retained as one typed record binding
+their exact parameter-symbol/ordinal or boundary-trait symbol to the target-name
+span. Invocation inference consumes that target rather than reselecting by
+spelling. Callable, public-trait requirement, and recursively structural
+machine-parameter review rows carry the span under `synchronous_invocation`,
+with top-level rows joined exactly to checked invocation facts. Recovery
+envelope v5 and conflict fingerprint v8/rendering V7 bind what review shows.
+Per-fact spans and `reaches` occurrences remain incremental; absent late-stage
+spans must be retained by their earlier owner, not reconstructed from source
+text.
 
 Proposition and named-evidence projection is the concrete model for this
 cross-representation rule. Typed proposition applications own structural

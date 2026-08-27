@@ -2225,6 +2225,27 @@ fn clone_specialized_machine(
     cloned.conformance_bounds.clear();
     cloned.owned_data = HandleSpan::empty();
     cloned.satisfies = HandleSpan::empty();
+    cloned.invokes = HandleSpan::empty();
+    for mut invocation in source.machine_invokes(source_machine).iter().cloned() {
+        invocation.target = match invocation.target {
+            psi_typed_trees::signature::AuthoredInvocationTarget::Unresolved => {
+                psi_typed_trees::signature::AuthoredInvocationTarget::Unresolved
+            }
+            psi_typed_trees::signature::AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
+                psi_typed_trees::signature::AuthoredInvocationTarget::Parameter {
+                    ordinal,
+                    symbol: remapped_symbol(symbol, &symbol_map),
+                }
+            }
+            psi_typed_trees::signature::AuthoredInvocationTarget::Service(symbol) => {
+                psi_typed_trees::signature::AuthoredInvocationTarget::Service(remapped_symbol(
+                    symbol,
+                    &symbol_map,
+                ))
+            }
+        };
+        program.push_machine_invoke(&mut cloned, invocation);
+    }
     if let Some(subjects) =
         psi_typed_trees::ranking::resolve_machine_witness_subjects(source, source_machine)
     {

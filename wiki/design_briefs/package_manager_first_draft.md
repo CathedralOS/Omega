@@ -441,11 +441,18 @@ sites carry explicit authored call-selection occurrences; expression sites
 reuse their existing attached occurrences. The join verifies target, receiver,
 receiver shape, and operational acknowledgement, rejects missing or
 contradictory provenance, and emits no source location for generated calls.
-Recovery envelope v4, conflict fingerprint v7, and renderer V6 bind the current
+Authored `invokes` targets now enter typed trees as one record binding the
+diagnostic name, exact parameter-symbol/ordinal or exact boundary-trait symbol,
+and exact target-name span. Invocation inference consumes the retained target,
+never a later same-spelled trait scan. Callable, public-trait requirement, and
+recursively structural machine-parameter rows carry those spans under
+`synchronous_invocation`; top-level projection joins them to the exact checked
+plan and rejects missing, malformed, duplicate, aliased, or stale custody.
+Recovery envelope v5, conflict fingerprint v8, and renderer V7 bind the current
 source schema. Coordinates remain explanatory rather than semantic identity.
-Per-fact spans and authored `reaches`/`invokes` members remain later rungs;
-missing spans must be retained before they are erased, never recovered by
-parsing source text in package orchestration.
+Per-fact spans and authored `reaches` members remain later rungs; missing spans
+must be retained before they are erased, never recovered by parsing source text
+in package orchestration.
 
 Proposition and named-evidence rows apply that rule as an explicit join. The
 typed application owns the structural proposition declaration, binder

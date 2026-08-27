@@ -324,7 +324,7 @@ fn count_type_parameter(
                     );
                 }
                 for binding in typed_trees.state_signature_invokes(contract) {
-                    count_declaration_name(binding, counts);
+                    count_declaration_name(&binding.name, counts);
                 }
                 for contract in typed_trees.state_signature_contracts(contract) {
                     for fact in typed_trees.tables.proof_facts.span_or_empty(contract.facts) {
