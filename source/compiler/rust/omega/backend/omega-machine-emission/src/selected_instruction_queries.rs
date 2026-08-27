@@ -105,6 +105,7 @@ mod tests {
         let kind = SelectedInstructionKind::HostOperation {
             operation_key,
             operands: HandleSpan::empty(),
+            provenance: None,
         };
 
         let operation = selected_host_operation(&kind).expect("host operation");

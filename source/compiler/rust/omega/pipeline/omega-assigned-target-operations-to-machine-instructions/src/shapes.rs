@@ -159,6 +159,9 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::WriteDataAddressToRuntimeFrame { .. } => {
             MachineInstructionKind::DataAddressToRuntimeFrameWrite
         }
+        SelectedInstructionKind::WriteFunctionAddressToRuntimeStorage { .. } => {
+            MachineInstructionKind::FunctionAddressToRuntimeStorageWrite
+        }
         SelectedInstructionKind::LeaveFunction => dispatch::return_kind(),
         SelectedInstructionKind::EnterFunction
         | SelectedInstructionKind::LeaveDispatchLoop

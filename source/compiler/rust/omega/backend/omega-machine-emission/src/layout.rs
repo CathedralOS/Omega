@@ -935,6 +935,15 @@ fn machine_instruction_width(
                 *target_offset,
             )?
         }
+        SelectedInstructionKind::WriteFunctionAddressToRuntimeStorage {
+            target_region,
+            target_offset,
+            ..
+        } => omega_instruction_selection::runtime_storage_function_address_write_width(
+            input.target.architecture,
+            *target_region,
+            *target_offset,
+        )?,
         SelectedInstructionKind::WritePlaceBinary {
             target,
             byte_size,

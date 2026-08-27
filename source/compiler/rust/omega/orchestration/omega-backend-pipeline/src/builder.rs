@@ -1,3 +1,4 @@
+use super::callback_private_address_stores::insert_callback_private_address_store_operations;
 use super::callback_private_object_stores::plan_callback_private_object_store_requests;
 use super::callback_private_relocations::plan_callback_private_relocations;
 use super::callback_registrar_arguments::plan_callback_registrar_arguments;
@@ -514,6 +515,56 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             )
         },
     )?;
+    if !backend_plan.callback_registrar_assigned_operands.is_empty() {
+        record_backend_phase(
+            &mut phase_timings,
+            "callback address store insertion",
+            || {
+                insert_callback_private_address_store_operations(
+                    &mut backend_plan.abstract_operations,
+                    &backend_plan.callback_registrar_assigned_operands,
+                    backend_plan.entry_boundary_plan.as_ref(),
+                )
+            },
+        )?;
+        backend_plan.target_operations = record_backend_phase(
+            &mut phase_timings,
+            "target operations after callback stores",
+            || {
+                build_target_operation_plan(
+                    backend_plan.target,
+                    &backend_plan.host_abi,
+                    &backend_plan.host_calls,
+                    &backend_plan.abstract_operations,
+                )
+            },
+        )?;
+        backend_plan.assigned_target_operations = record_backend_phase(
+            &mut phase_timings,
+            "assigned target operations after callback stores",
+            || build_assigned_target_operations(&backend_plan.target_operations),
+        );
+        backend_plan.callback_registrar_assigned_operands = record_backend_phase(
+            &mut phase_timings,
+            "callback registrar assigned operands after callback stores",
+            || {
+                plan_callback_registrar_assigned_operand_bindings(
+                    backend_plan.target,
+                    &backend_plan.callback_placements,
+                    &backend_plan.callback_thunks,
+                    &backend_plan.callback_private_relocations,
+                    &backend_plan.host_calls,
+                    &backend_plan.abstract_operations.semantics.boundaries,
+                    &backend_plan.callback_registrar_arguments,
+                    &backend_plan.layouts,
+                    &backend_plan.callback_registrar_destinations,
+                    &backend_plan.abstract_operations,
+                    &backend_plan.target_operations,
+                    &backend_plan.assigned_target_operations,
+                )
+            },
+        )?;
+    }
     backend_plan.machine_instructions =
         record_backend_phase(&mut phase_timings, "machine instructions", || {
             build_machine_instructions(&backend_plan.assigned_target_operations)

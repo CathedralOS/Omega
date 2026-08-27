@@ -137,6 +137,11 @@ pub(super) enum CompilerInstructionRelocationRecipe {
         data_symbol: std::sync::Arc<str>,
         target_offset: usize,
     },
+    FunctionAddressStore {
+        function: omega_control_flow::MachineFunctionIdentity,
+        target_region: omega_target_operations::RuntimeStorageRegion,
+        target_offset: usize,
+    },
     PlaceBoundedBufferWrite {
         target: omega_target_operations::Place,
         literal: std::sync::Arc<[u8]>,
@@ -1162,6 +1167,29 @@ pub(super) fn validate_compiler_instruction_relocation_recipe(
                 target,
                 &data_symbol,
                 0,
+            )?;
+            encoded_instruction_bytes == expected_bytes
+                && compiler_instruction_non_relocation_bits_match(
+                    architecture,
+                    &expected_bytes,
+                    final_instruction_bytes,
+                    &address_sites,
+                )
+        }
+        CompilerInstructionRelocationRecipe::FunctionAddressStore {
+            function,
+            target_region,
+            target_offset,
+        } => {
+            let address_sites = validate_compiler_function_address_store_relocations(
+                architecture,
+                object,
+                relocations,
+                selected_instruction_index,
+                instruction_byte_offset,
+                function,
+                target_region,
+                target_offset,
             )?;
             encoded_instruction_bytes == expected_bytes
                 && compiler_instruction_non_relocation_bits_match(

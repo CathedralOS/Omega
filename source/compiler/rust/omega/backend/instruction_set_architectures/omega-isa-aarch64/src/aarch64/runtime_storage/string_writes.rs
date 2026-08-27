@@ -52,6 +52,15 @@ pub fn encode_runtime_frame_string_write(
 /// Store one relocated immutable-data address into a direct runtime-frame
 /// pointer word without manufacturing an adjacent string length.
 pub fn encode_runtime_frame_data_address_write(byte_offset: usize) -> Result<Vec<u8>, Diagnostic> {
+    encode_runtime_storage_function_address_write(byte_offset)
+}
+
+/// Store one relocated compiler-private function address into a direct
+/// runtime-storage pointer word. Region selection changes only the destination
+/// relocation target, not this architecture-native instruction program.
+pub fn encode_runtime_storage_function_address_write(
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(20);
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
@@ -418,6 +427,19 @@ mod data_address_tests {
         assert_eq!(
             &bytes[8..16],
             &[0x10, 0x00, 0x00, 0x90, 0x10, 0x02, 0x00, 0x91]
+        );
+    }
+
+    #[test]
+    fn callback_function_address_store_has_two_unpatched_address_pairs() {
+        let bytes = encode_runtime_storage_function_address_write(40).unwrap();
+        assert_eq!(bytes.len(), 20);
+        assert_eq!(
+            &bytes[..16],
+            &[
+                0x11, 0x00, 0x00, 0x90, 0x31, 0x02, 0x00, 0x91, 0x10, 0x00, 0x00, 0x90, 0x10, 0x02,
+                0x00, 0x91,
+            ]
         );
     }
 }

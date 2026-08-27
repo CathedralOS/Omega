@@ -791,11 +791,20 @@ canonical BSS owner symbol snapshot, and the exact private callback text-symbol
 snapshot. Construction and replay rejoin every preceding catalog and reject
 missing/duplicate symbols, wrong section or kind, bounds/alignment drift,
 `DataAddress`, and the Q13-gated direct-parameter form. These symbols are
-identity evidence, not address authority: the row has no selected/assigned
-store operation, relocation record or kind, encoded byte site, runtime address,
-registration authority, or callback lifetime. A later exact callback-address
-store operation must first identify the instruction and patch site before
-object relocation emission can begin.
+identity evidence rather than resolved-address authority. The following closed
+compiler rung now inserts one exact `WriteFunctionAddressToRuntimeStorage`
+operation immediately before its registrar host call, preserving the registrar
+source coordinate and containing function. The operation survives
+abstract-to-target-to-assigned lowering, is encoded on both ISAs with symbolic
+function and BSS bases, and produces exactly two x86-64 `Absolute64` records or
+two AArch64 `Page21`/`PageOffset12` pairs. Final replay binds the source through
+`MachineFunctionIdentity`, the destination through the canonical BSS symbol,
+and rechecks record origin/cardinality plus all non-relocation bits. The root
+boundary certificate is extended with the complete compiler-body address-write
+footprint; missing or insufficient root authority rejects. This grants no
+resolved runtime address, registration, invocation, callback lifetime/lease,
+or publication authority. `DataAddress`, direct parameters, and multi-segment
+paths remain fenced.
 
 The checked identity spine is live. Admission records the exact statement or
 expression handle, argument ordinal, registration operation, selected machine

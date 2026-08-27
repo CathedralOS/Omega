@@ -237,6 +237,11 @@ pub enum CompilerInstructionValidationKind {
         data_symbol: Arc<str>,
         target_offset: usize,
     },
+    CompilerBodyFunctionAddressStore {
+        function: omega_control_flow::MachineFunctionIdentity,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+    },
     CompilerBodyConstantHostResult {
         result_region: RuntimeStorageRegion,
         result_offset: usize,

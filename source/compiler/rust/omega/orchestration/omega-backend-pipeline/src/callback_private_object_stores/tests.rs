@@ -1,6 +1,6 @@
 use super::*;
 use crate::callback_registrar_assigned_operands::tests::{
-    Fixture, fixture, parameter_fixture, plan as plan_assigned, shared_root_fixture,
+    Fixture, build_target, fixture, parameter_fixture, plan as plan_assigned, shared_root_fixture,
     with_formal_operand_kind,
 };
 use omega_abstract_operations::{InstructionOperandKind, RuntimeStorageRegion};
@@ -22,13 +22,37 @@ fn runtime_fixture(
     Arc<[CallbackRegistrarAssignedOperandBinding]>,
     ObjectPlan,
 ) {
-    let (fixture, bindings) = with_formal_operand_kind(
+    let (mut fixture, bindings) = with_formal_operand_kind(
         fixture,
         InstructionOperandKind::RuntimeStorageAddress {
             region,
             byte_offset,
         },
     );
+    let mut boundary = fixture.placements[0]
+        .private_materialization
+        .as_ref()
+        .unwrap()
+        .registrar_boundary_entry_plan
+        .clone();
+    boundary.call.callback_materializations.clear();
+    crate::callback_private_address_stores::insert_callback_private_address_store_operations(
+        &mut fixture.abstract_operations,
+        &bindings,
+        Some(&boundary),
+    )
+    .unwrap();
+    fixture.target_operations = build_target(
+        &fixture,
+        NativeTarget::windows_x64(),
+        &fixture.abstract_operations,
+    )
+    .unwrap();
+    fixture.assigned_operations =
+        omega_target_operations_to_assigned_target_operations::build_assigned_target_operations(
+            &fixture.target_operations,
+        );
+    let bindings = plan_assigned(&fixture);
     let mut object = ObjectPlan::with_capacities(
         NativeTarget::windows_x64(),
         0,
@@ -197,9 +221,28 @@ fn rejects_data_address_and_direct_parameter_shapes() {
     let (_, _, object) = runtime_fixture(fixture(1), RuntimeStorageRegion::Machine, 32);
     assert!(plan(&data_fixture, &data_bindings, &object).is_err());
 
-    let (parameter_fixture, parameter_bindings, parameter_object) =
-        runtime_fixture(parameter_fixture(), RuntimeStorageRegion::Machine, 32);
-    assert!(plan(&parameter_fixture, &parameter_bindings, &parameter_object).is_err());
+    let (mut parameter_fixture, parameter_bindings) = with_formal_operand_kind(
+        parameter_fixture(),
+        InstructionOperandKind::RuntimeStorageAddress {
+            region: RuntimeStorageRegion::Machine,
+            byte_offset: 32,
+        },
+    );
+    let mut boundary = parameter_fixture.placements[0]
+        .private_materialization
+        .as_ref()
+        .unwrap()
+        .registrar_boundary_entry_plan
+        .clone();
+    boundary.call.callback_materializations.clear();
+    assert!(
+        crate::callback_private_address_stores::insert_callback_private_address_store_operations(
+            &mut parameter_fixture.abstract_operations,
+            &parameter_bindings,
+            Some(&boundary),
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -260,6 +303,39 @@ fn replay_rejects_cardinality_identity_and_geometry_drift() {
 }
 
 #[test]
+fn replay_rejects_store_source_and_function_boundary_drift() {
+    let (mut source_drift, bindings, object) =
+        runtime_fixture(fixture(1), RuntimeStorageRegion::Machine, 32);
+    let requests = plan(&source_drift, &bindings, &object).unwrap();
+    source_drift
+        .abstract_operations
+        .code
+        .instructions
+        .get_mut(requests[0].abstract_store_instruction)
+        .source_statement += 1;
+    assert!(replay(&source_drift, &bindings, &object, &requests).is_err());
+
+    let (mut boundary_drift, bindings, object) =
+        runtime_fixture(fixture(1), RuntimeStorageRegion::Machine, 32);
+    let requests = plan(&boundary_drift, &bindings, &object).unwrap();
+    let function = boundary_drift
+        .abstract_operations
+        .code
+        .functions
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    boundary_drift
+        .abstract_operations
+        .code
+        .functions
+        .get_mut(function)
+        .instructions = psi_arena::HandleSpan::from_parts(bindings[0].abstract_instruction, 1);
+    assert!(replay(&boundary_drift, &bindings, &object, &requests).is_err());
+}
+
+#[test]
 fn planner_rejects_missing_duplicate_or_drifted_object_symbols() {
     let (fixture, bindings, object) =
         runtime_fixture(fixture(1), RuntimeStorageRegion::Machine, 32);
@@ -311,9 +387,28 @@ fn planner_rejects_missing_duplicate_or_drifted_object_symbols() {
 
 #[test]
 fn planner_rejects_overflow_and_misaligned_destinations() {
-    let (overflow_fixture, overflow_bindings, overflow_object) =
-        runtime_fixture(fixture(1), RuntimeStorageRegion::Machine, usize::MAX);
-    assert!(plan(&overflow_fixture, &overflow_bindings, &overflow_object).is_err());
+    let (mut overflow_fixture, overflow_bindings) = with_formal_operand_kind(
+        fixture(1),
+        InstructionOperandKind::RuntimeStorageAddress {
+            region: RuntimeStorageRegion::Machine,
+            byte_offset: usize::MAX,
+        },
+    );
+    let mut boundary = overflow_fixture.placements[0]
+        .private_materialization
+        .as_ref()
+        .unwrap()
+        .registrar_boundary_entry_plan
+        .clone();
+    boundary.call.callback_materializations.clear();
+    assert!(
+        crate::callback_private_address_stores::insert_callback_private_address_store_operations(
+            &mut overflow_fixture.abstract_operations,
+            &overflow_bindings,
+            Some(&boundary),
+        )
+        .is_err()
+    );
 
     let (misaligned_fixture, misaligned_bindings, misaligned_object) =
         runtime_fixture(fixture(1), RuntimeStorageRegion::Machine, 33);

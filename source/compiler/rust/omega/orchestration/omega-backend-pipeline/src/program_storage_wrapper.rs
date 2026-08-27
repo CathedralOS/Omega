@@ -1,6 +1,7 @@
 //! Exact second-pass insertion of the compiler-generated program-storage entry.
 
 use crate::callback_private_object_stores::plan_callback_private_object_store_requests;
+use crate::callback_registrar_assigned_operands::plan_callback_registrar_assigned_operand_bindings;
 use omega_abstract_operations::{
     AbstractFunctionPlan, AbstractOperation, AbstractOperationKind, BoundaryFootprintFragmentOrigin,
 };
@@ -87,6 +88,20 @@ pub fn insert_program_storage_entry_wrapper(
         omega_target_operations_to_assigned_target_operations::build_assigned_target_operations(
             &target_operations,
         );
+    let callback_registrar_assigned_operands = plan_callback_registrar_assigned_operand_bindings(
+        plan.target,
+        &plan.callback_placements,
+        &plan.callback_thunks,
+        &plan.callback_private_relocations,
+        &plan.host_calls,
+        &abstract_operations.semantics.boundaries,
+        &plan.callback_registrar_arguments,
+        &plan.layouts,
+        &plan.callback_registrar_destinations,
+        &abstract_operations,
+        &target_operations,
+        &assigned_target_operations,
+    )?;
     let machine_instructions =
         omega_assigned_target_operations_to_machine_instructions::build_machine_instructions(
             &assigned_target_operations,
@@ -124,7 +139,7 @@ pub fn insert_program_storage_entry_wrapper(
         &abstract_operations,
         &target_operations,
         &assigned_target_operations,
-        &plan.callback_registrar_assigned_operands,
+        &callback_registrar_assigned_operands,
         &object,
         plan.entry_machine_name(),
     )?;
@@ -142,6 +157,7 @@ pub fn insert_program_storage_entry_wrapper(
     plan.abstract_operations = abstract_operations;
     plan.target_operations = target_operations;
     plan.assigned_target_operations = assigned_target_operations;
+    plan.callback_registrar_assigned_operands = callback_registrar_assigned_operands;
     plan.machine_instructions = machine_instructions;
     plan.encoded_machine = encoded_machine;
     plan.object = object;

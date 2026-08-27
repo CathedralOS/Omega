@@ -494,7 +494,7 @@ fn target_lowering_rejects_duplicate_edge_call_ordinal_and_operand_handle_drift(
     assert!(build_target(&fixture, target, &operand).is_err());
 }
 
-fn build_target(
+pub(crate) fn build_target(
     fixture: &Fixture,
     target: NativeTarget,
     abstract_operations: &AbstractOperationPlan,

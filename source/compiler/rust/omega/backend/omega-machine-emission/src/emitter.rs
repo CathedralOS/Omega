@@ -109,6 +109,7 @@ mod tests {
                     source_kind: SelectedInstructionKind::HostOperation {
                         operation_key,
                         operands,
+                        provenance: None,
                     },
                     kind: MachineInstructionKind::HostCallSequence,
                 }]);

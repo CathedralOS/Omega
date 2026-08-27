@@ -695,6 +695,13 @@ pub enum AbstractOperationKind {
         data: AbstractDataObjectHandle,
         target_offset: usize,
     },
+    /// Materialize one exact compiler-private function address into an exact
+    /// runtime-storage pointer word immediately before its registrar call.
+    WriteFunctionAddressToRuntimeStorage {
+        function: omega_control_flow::MachineFunctionIdentity,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+    },
     SetDispatchState {
         dispatch_index: u32,
     },

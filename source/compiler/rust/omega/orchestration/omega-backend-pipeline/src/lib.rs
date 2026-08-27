@@ -7,6 +7,7 @@ use std::sync::Arc;
 use omega_control_flow::ControlFlowPlan;
 
 mod builder;
+mod callback_private_address_stores;
 mod callback_private_object_stores;
 mod callback_private_relocations;
 mod callback_registrar_arguments;
