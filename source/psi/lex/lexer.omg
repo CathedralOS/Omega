@@ -8,7 +8,7 @@ use psi::tokens::tokens;
 // whitespace, nested comments, all numeric metadata, cooked/raw strings, and
 // longest-match punctuation.
 
-data Lexer {
+pub data Lexer {
     unicode: UnicodeTables;
     source: SourceUnit;
     output: TokenStream;
@@ -53,18 +53,18 @@ data Lexer {
     candidate_cursor: u64 in Trapping;
 }
 
-machine Lexer::initialize(&mut self, source_id: u32 in Trapping) {
+pub machine Lexer::initialize(&mut self, source_id: u32 in Trapping) {
     self.unicode.initialize();
     self.source.clear(SourceId { value: source_id });
     self.output.clear(SourceId { value: source_id });
     self.cursor = 0;
 }
 
-machine Lexer::append_source_byte(&mut self, byte: u8) {
+pub machine Lexer::append_source_byte(&mut self, byte: u8) {
     self.source.append(byte);
 }
 
-machine Lexer::reject(
+pub machine Lexer::reject(
     &mut self,
     code: LexDiagnosticCode,
     start: u64 in Trapping,
@@ -1627,7 +1627,7 @@ machine Lexer::lex_next(&mut self) {
     state punctuation(&mut self) { self.lex_punctuation(); }
 }
 
-machine Lexer::tokenize(&mut self) {
+pub machine Lexer::tokenize(&mut self) {
     self.output.clear(self.source.id);
     self.validate_utf8();
     transition self.output.accepted {

@@ -57,7 +57,8 @@ pub(super) fn validate_authored_declaration_selections(
             AuthoredDeclarationSelectionTarget::LateBound(binding) => {
                 diagnostics.push(
                     Diagnostic::error(format!(
-                        "package-authored declaration selection remained unresolved after successful checking: {:?} ({binding:?})",
+                        "package-authored declaration selection `{}` remained unresolved after successful checking: {:?} ({binding:?})",
+                        program.symbols.source_text(source_span),
                         selection.kind(),
                     ))
                     .with_source_span(source_span),

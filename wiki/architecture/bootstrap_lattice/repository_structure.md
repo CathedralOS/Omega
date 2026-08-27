@@ -90,10 +90,9 @@ on-ramp owner rather than replacing or renaming those paths.
 - `source/omega/source-checkpoints/` owns exact deterministic product
   closures and provisional `Ωself` censuses.
 - `source/omega/{build.omg,main.omg}` owns the hosted product entrypoint. Its
-  declared `psi` dependency points at the sibling `source/psi/` owner; the
-  temporary `source/omega/psi` compatibility link exists only because the
-  standalone source-inspection path does not yet consume reconciled package
-  aliases.
+  declared `psi` dependency points at the sibling `source/psi/` owner.
+  Compilation and source-checkpoint inspection both reconcile that dependency
+  through `build.omg`; no nested compatibility path exists.
 - The Rust producer's `psi-proof-admission` crate checks product-local Psi
   judgments and has no bootstrap-lattice authority.
 - Shared corpora belong at the narrowest common owner. Cross-rung fixtures live

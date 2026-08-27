@@ -97,23 +97,7 @@ pub(crate) fn finalize_checked_authored_selections(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedMember,
                     ExpressionNode::Member(member),
-                ) => declaration_target(crate::flow::effective_member_symbol(
-                    program,
-                    member.receiver,
-                    member,
-                ))
-                .or_else(|| {
-                    let matching = facts
-                        .fact_call_projections
-                        .iter()
-                        .filter(|projection| projection.projection_expression == expression)
-                        .collect::<Vec<_>>();
-                    let [projection] = matching.as_slice() else {
-                        return None;
-                    };
-                    declaration_target(projection.field)
-                })
-                .or_else(|| contextual_domain_member_target(program, expression, member)),
+                ) => checked_member_target(program, facts, expression, member),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticPathSegment,
                     ExpressionNode::Name(path),
@@ -1071,6 +1055,198 @@ fn contextual_domain_member_target(
 ) -> Option<CheckedResolutionTarget> {
     let target_type = contextual_domain_target_type(program, containing_expression)?;
     contextual_self_member_symbol(program, member, target_type).and_then(declaration_target)
+}
+
+fn checked_member_target(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    member: &psi_typed_trees::expression::TableMemberExpression,
+) -> Option<CheckedResolutionTarget> {
+    declaration_target(crate::flow::effective_member_symbol(
+        program,
+        member.receiver,
+        member,
+    ))
+    .or_else(|| {
+        let matching = facts
+            .fact_call_projections
+            .iter()
+            .filter(|projection| projection.projection_expression == expression)
+            .collect::<Vec<_>>();
+        let [projection] = matching.as_slice() else {
+            return None;
+        };
+        declaration_target(projection.field)
+    })
+    .or_else(|| contextual_domain_member_target(program, expression, member))
+    .or_else(|| contextual_statement_member_target(program, expression, member))
+}
+
+fn contextual_statement_member_target(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    member: &psi_typed_trees::expression::TableMemberExpression,
+) -> Option<CheckedResolutionTarget> {
+    let mut resolved = None;
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                let mut expressions = Vec::new();
+                crate::monomorphization::collect_statement_expression_trees(
+                    program,
+                    statement,
+                    &mut expressions,
+                );
+                if !expressions.contains(&expression) {
+                    continue;
+                }
+
+                let receiver_type = crate::flow::expression_type_reference_in_state(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    member.receiver,
+                )
+                .or_else(|| {
+                    captured_entry_parameter_type_reference(program, state.symbol, member.receiver)
+                })?;
+                let target = member_symbol_from_type_reference(
+                    program,
+                    receiver_type,
+                    member.member.as_str(),
+                )
+                .and_then(declaration_target)
+                .or_else(|| {
+                    (member.member.as_str() == "len"
+                        && type_reference_is_collection(program, receiver_type))
+                    .then_some(CheckedResolutionTarget::Intrinsic(
+                        AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+                    ))
+                })?;
+                if resolved.is_some_and(|candidate| candidate != target) {
+                    return None;
+                }
+                resolved = Some(target);
+            }
+        }
+    }
+    resolved
+}
+
+fn captured_entry_parameter_type_reference(
+    program: &TypedTrees,
+    state_symbol: SymbolHandle,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
+    use psi_typed_trees::expression::ExpressionNode;
+
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let [name] = program
+        .expression_table
+        .name_path_members(path.members)
+    else {
+        return None;
+    };
+
+    // Nested states capture the callable entry telescope lexically without
+    // copying its parameters into each state's local telescope. Name checking
+    // has already established an unambiguous machine-local binding; recover
+    // that binding's authored type from the containing entry state.
+    program.machines().iter().find_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.symbol == state_symbol)
+            .then_some(machine)
+            .and_then(|machine| program.machine_states(machine).first())
+            .and_then(|entry| {
+                program
+                    .state_parameters(entry)
+                    .iter()
+                    .find(|parameter| parameter.name == *name)
+            })
+            .map(|parameter| parameter.type_reference)
+    })
+}
+
+fn member_symbol_from_type_reference(
+    program: &TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    member_name: &str,
+) -> Option<SymbolHandle> {
+    use psi_typed_trees::types::TypeReferenceNode;
+
+    let (symbol, name) = match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            return member_symbol_from_type_reference(program, *referee, member_name);
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            return member_symbol_from_type_reference(program, *base_type, member_name);
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            ..
+        } => (*base_symbol, base_name),
+        TypeReferenceNode::Named { symbol, name } => (*symbol, name),
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::Unit => return None,
+    };
+    let data = program.data_definitions().iter().find(|definition| {
+        (symbol.is_valid() && definition.symbol == symbol) || definition.name == *name
+    })?;
+    program
+        .data_members(data)
+        .iter()
+        .find_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field)
+                if field.name.as_str() == member_name =>
+            {
+                Some(field.symbol)
+            }
+            psi_typed_trees::data::DataMember::Variant(variant)
+                if variant.name.as_str() == member_name =>
+            {
+                Some(variant.symbol)
+            }
+            psi_typed_trees::data::DataMember::Variant(variant) => program
+                .data_payload_fields(variant)
+                .iter()
+                .find_map(|field| (field.name.as_str() == member_name).then_some(field.symbol)),
+            _ => None,
+        })
+}
+
+fn type_reference_is_collection(
+    program: &TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    use psi_typed_trees::types::TypeReferenceNode;
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_is_collection(program, *referee)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_is_collection(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => true,
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Generic { .. }
+        | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::Unit => false,
+    }
 }
 
 fn expression_is_contextual_domain_primitive(

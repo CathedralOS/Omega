@@ -89,7 +89,8 @@ pub use identity::{
 };
 pub use package_source::{
     ResolvePackageSourceError, ResolvedPackageSource, resolve_external_local_package_source,
-    resolve_git_package_source, resolve_workspace_member_package_source,
+    resolve_external_local_project_source, resolve_git_package_source,
+    resolve_workspace_member_package_source,
 };
 pub use resolver::{
     SourceCachePolicyRecord, SourceCachePolicyRecordParseError,
@@ -116,8 +117,9 @@ pub use source::{
 pub use source_adapter::{
     ResolveDependencySourceError, ResolveExternalLocalPackageClosureError,
     ResolveGitPackageClosureError, ResolveWorkspacePackageClosureError,
-    resolve_external_local_package_closure, resolve_git_package_closure,
-    resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
+    resolve_external_local_package_closure, resolve_external_local_project_closure,
+    resolve_git_package_closure, resolve_workspace_package_closure,
+    resolve_workspace_package_closure_in_context,
 };
 pub use source_closure_subject::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,

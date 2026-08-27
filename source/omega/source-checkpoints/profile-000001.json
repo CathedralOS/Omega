@@ -3,8 +3,8 @@
   "checkpoint": 1,
   "status": "provisional",
   "checkpoint_manifest": "source/omega/source-checkpoints/checkpoint-000001.json",
-  "checkpoint_closure_sha256": "c21ac36bda4437a0ee97fd7d21a2ec3a4a94e1b0b1918fb4f306cd9e6f679f22",
-  "checkpoint_content_set_sha256": "14c82d18d3d404969b983542b8723bb3515e13c61c0d27398c494b3ac5755137",
+  "checkpoint_closure_sha256": "cc194dde97c89889636b5067804813205943435f1379a5ef8bd4583b90e80b2d",
+  "checkpoint_content_set_sha256": "fd50b73c9fca3c8d528b827c30e10f262a74c334068841ed6d7931d63d8d4fba",
   "feature_catalog": "omega.omega-self-feature-catalog.v2",
   "census_schema": "omega.omega-source-feature-census.v2",
   "configuration_policy": {
@@ -332,7 +332,7 @@
       "unit": "bytes",
       "scope": "per_source_unit",
       "comparison": "lte",
-      "observed_max": 78952,
+      "observed_max": 78960,
       "limit": 131072
     },
     {
@@ -340,7 +340,7 @@
       "unit": "bytes",
       "scope": "per_compilation",
       "comparison": "lte",
-      "observed_max": 178985,
+      "observed_max": 179069,
       "limit": 262144
     },
     {
@@ -524,5 +524,5 @@
       "missing_evidence": "typed census facts beyond syntax-spelled data where, domain, generic, and inline aggregate forms"
     }
   ],
-  "profile_sha256": "c2f67d4da87764d6fd11a7d161d87cd29f972f8ed7a6f379a573fc6875cdd0ac"
+  "profile_sha256": "8bfe43dbf900a6ca11dcb49eeae2e5d810551ed2b83d448f314d7c3d8dc4c793"
 }

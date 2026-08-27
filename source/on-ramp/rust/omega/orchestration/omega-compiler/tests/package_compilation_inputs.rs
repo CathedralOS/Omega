@@ -188,6 +188,58 @@ fn aliases_are_requester_local_and_dependency_imports_are_package_local() {
 }
 
 #[test]
+fn dependency_data_members_and_collection_length_finalize_exactly() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let dependency = tree.package("dependency");
+
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use dep::observation;
+machine inspect(observation: Observation, bytes: &[u8]) -> u64 {
+    transition { _ -> nested() }
+
+    state nested() -> u64 {
+        let tag: u8 = observation.tag;
+        bytes.len
+    }
+}
+"#,
+    );
+    TempTree::write(
+        dependency.join("observation.omg"),
+        "pub data Observation { tag: u8; }\n",
+    );
+
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "dependency", dependency),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "dep",
+            identity(2),
+        )],
+    )
+    .expect("dependency graph should validate");
+
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("public dependency fields and intrinsic length should finalize");
+    let selections = checked.authored_declaration_selections();
+    assert!(selections.all_finalized(), "selections={selections:#?}");
+    assert!(selections.iter().any(|selection| {
+        selection.kind()
+            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::MemberAccess
+            && selection.target()
+                == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
+                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+                )
+    }));
+}
+
+#[test]
 fn authored_selection_requires_the_declaration_owner_as_a_direct_dependency() {
     let tree = TempTree::new();
     let root = tree.package("root");

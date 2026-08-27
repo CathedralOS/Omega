@@ -50,7 +50,7 @@ pub boundary trait Console {
 // Nominal owner of the complete selected Console provider closure. Checked
 // adapters and compiler-known native leaves attach to the same type so
 // provider selection never assembles rows from unrelated implementations.
-data ConsoleNativeProvider { }
+pub data ConsoleNativeProvider { }
 
 // Friendly output is checked Omega code over the byte-level boundary leaf.
 // The private writer walks a borrowed byte view as one measured state

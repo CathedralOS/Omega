@@ -4,21 +4,21 @@
 // source-unit boundary; the lexer never repairs invalid input or substitutes
 // host paths for authored source identity.
 
-data SourceId [copy] {
+pub data SourceId [copy] {
     value: u32 in Trapping;
 }
 
-data Span [copy] {
+pub data Span [copy] {
     start: u64 in Trapping;
     end: u64 in Trapping;
 }
 
-data SourceSpan [copy] {
+pub data SourceSpan [copy] {
     source: SourceId;
     span: Span;
 }
 
-data SourceUnit {
+pub data SourceUnit {
     id: SourceId;
     bytes: [u8; 65536] in Trapping;
     length: u64 [0..=65536];

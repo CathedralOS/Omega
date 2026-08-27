@@ -6,6 +6,7 @@ use psi_syntax_trees::SyntaxTreesSnapshot;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::path::Path;
+use std::path::PathBuf;
 
 pub const SOURCE_CLOSURE_SNAPSHOT_SCHEMA: &str = "omega.source-closure-snapshot.v3";
 
@@ -26,6 +27,25 @@ pub struct SourceClosureSnapshot {
     pub native_provider_substitution: bool,
     pub sources: Vec<SourceClosureSnapshotEntry>,
     pub syntax: SyntaxTreesSnapshot,
+}
+
+/// Map one immutable package snapshot back to the live repository location
+/// whose logical identity the checkpoint records. Compilation reads only the
+/// immutable root; this mapping affects diagnostic/checkpoint names, never
+/// source authority or bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceInspectionRoot {
+    physical_root: PathBuf,
+    logical_root: PathBuf,
+}
+
+impl SourceInspectionRoot {
+    pub fn new(physical_root: impl Into<PathBuf>, logical_root: impl Into<PathBuf>) -> Self {
+        Self {
+            physical_root: physical_root.into(),
+            logical_root: logical_root.into(),
+        }
+    }
 }
 
 impl SourceClosureSnapshot {
@@ -52,7 +72,37 @@ pub fn inspect_source_closure(
     let root_path = root_path.to_owned();
     let target_name = target_name.map(str::to_owned);
     super::compiler::run_on_compile_thread(move || {
-        inspect_source_closure_inner(&repository_root, &root_path, target_name.as_deref(), native)
+        inspect_source_closure_inner(
+            &repository_root,
+            &root_path,
+            target_name.as_deref(),
+            native,
+            None,
+            &[],
+        )
+    })
+}
+
+pub fn inspect_source_closure_with_packages(
+    repository_root: &Path,
+    root_path: &Path,
+    target_name: Option<&str>,
+    native: bool,
+    packages: super::PackageCompilationInputs,
+    identity_roots: Vec<SourceInspectionRoot>,
+) -> Result<SourceClosureSnapshot, Vec<Diagnostic>> {
+    let repository_root = repository_root.to_owned();
+    let root_path = root_path.to_owned();
+    let target_name = target_name.map(str::to_owned);
+    super::compiler::run_on_compile_thread(move || {
+        inspect_source_closure_inner(
+            &repository_root,
+            &root_path,
+            target_name.as_deref(),
+            native,
+            Some(&packages),
+            &identity_roots,
+        )
     })
 }
 
@@ -61,6 +111,8 @@ fn inspect_source_closure_inner(
     root_path: &Path,
     target_name: Option<&str>,
     native: bool,
+    packages: Option<&super::PackageCompilationInputs>,
+    identity_roots: &[SourceInspectionRoot],
 ) -> Result<SourceClosureSnapshot, Vec<Diagnostic>> {
     let repository_root = repository_root.canonicalize().map_err(|error| {
         vec![Diagnostic::error(format!(
@@ -68,13 +120,19 @@ fn inspect_source_closure_inner(
             repository_root.display()
         ))]
     })?;
-    let entry_source = logical_source_identity(&repository_root, root_path, SourceOrigin::User)?;
+    let identity_roots = canonical_identity_roots(identity_roots)?;
+    let entry_source = logical_source_identity(
+        &repository_root,
+        root_path,
+        SourceOrigin::User,
+        &identity_roots,
+    )?;
     let mut timings = CompileTimings::default();
     let (_, assembled) = source_files_to_syntax_trees_for_engine(
         root_path,
         target_name,
         native,
-        None,
+        packages,
         &mut timings,
     )?;
     let mut sources = Vec::with_capacity(assembled.files.len());
@@ -85,7 +143,12 @@ fn inspect_source_closure_inner(
                 parsed.source_id.0
             ))]);
         };
-        let identity = logical_source_identity(&repository_root, &source.path, source.origin)?;
+        let identity = logical_source_identity(
+            &repository_root,
+            &source.path,
+            source.origin,
+            &identity_roots,
+        )?;
         let bytes = source.source.as_bytes();
         sources.push(SourceClosureSnapshotEntry {
             source_id: source.source_id.0,
@@ -117,6 +180,7 @@ fn logical_source_identity(
     repository_root: &Path,
     path: &Path,
     origin: SourceOrigin,
+    identity_roots: &[SourceInspectionRoot],
 ) -> Result<String, Vec<Diagnostic>> {
     if origin == SourceOrigin::Toolchain && path.to_string_lossy().starts_with('<') {
         return Ok(path.to_string_lossy().into_owned());
@@ -127,10 +191,19 @@ fn logical_source_identity(
             path.display()
         ))]
     })?;
-    let relative = canonical.strip_prefix(repository_root).map_err(|_| {
+    let logical = identity_roots
+        .iter()
+        .find_map(|mapping| {
+            canonical
+                .strip_prefix(&mapping.physical_root)
+                .ok()
+                .map(|relative| mapping.logical_root.join(relative))
+        })
+        .unwrap_or(canonical);
+    let relative = logical.strip_prefix(repository_root).map_err(|_| {
         vec![Diagnostic::error(format!(
-            "inspected source {} escapes repository root {}",
-            canonical.display(),
+            "inspected source {} has no repository identity under {}",
+            logical.display(),
             repository_root.display()
         ))]
     })?;
@@ -146,6 +219,32 @@ fn logical_source_identity(
         .join("/"))
 }
 
+fn canonical_identity_roots(
+    identity_roots: &[SourceInspectionRoot],
+) -> Result<Vec<SourceInspectionRoot>, Vec<Diagnostic>> {
+    identity_roots
+        .iter()
+        .map(|mapping| {
+            let physical_root = mapping.physical_root.canonicalize().map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "failed to canonicalize inspected physical root {}: {error}",
+                    mapping.physical_root.display()
+                ))]
+            })?;
+            let logical_root = mapping.logical_root.canonicalize().map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "failed to canonicalize inspected logical root {}: {error}",
+                    mapping.logical_root.display()
+                ))]
+            })?;
+            Ok(SourceInspectionRoot {
+                physical_root,
+                logical_root,
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,6 +256,7 @@ mod tests {
                 Path::new("/irrelevant"),
                 Path::new("<build-prelude>"),
                 SourceOrigin::Toolchain,
+                &[],
             )
             .expect("virtual identity"),
             "<build-prelude>"
