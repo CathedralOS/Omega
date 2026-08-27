@@ -503,6 +503,27 @@ impl<'view, 'extent> AtomicPrimitiveAccessRequest<'view, 'extent> {
         Ok(())
     }
 
+    /// Replay this request's complete retained placement authority against an
+    /// independently checked placement plan.
+    ///
+    /// The compact [`PlacementPlanId`] remains useful artifact evidence, but
+    /// is never accepted as placement authority by itself. This comparison
+    /// therefore requires every sealed layout, access, and reach field to
+    /// match after the request's own authority has independently replayed.
+    pub fn validate_against_checked_placement(
+        &self,
+        checked: &ValidatedPlacementPlan,
+    ) -> Result<(), AccessPlanDiagnostic> {
+        self.validate_for_lowering()?;
+        if self.request._authority.placement_plan() != checked {
+            return Err(AccessPlanDiagnostic(
+                "Atomic primitive access retained placement structure differs from the independently checked placement"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
         self.request
     }

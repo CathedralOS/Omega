@@ -1529,12 +1529,18 @@ Owners:
   lifecycle now retains one exact runtime resident claim, provider receipts,
   admission, and placed occurrence through Atomic projection and primitive
   specialization, then returns the unchanged claim on resident-preserving
-  retirement. It is not joined to the checked contract and performs no atomic
-  attempt. Only the existing observing-decisive call is currently derivable.
-  Source calls for the other families, checked-contract/runtime-resident and
-  runtime-result custody joins, an atomic attempt or retry, the non-observing
-  comparison key/selected-encoding law, Terminal rows, provider binding,
-  backend operation identity, and lowering remain open.
+  retirement. A non-authorizing checked/runtime carrier now independently
+  replays the complete checked placed view, field, unrestricted resident/result
+  contract, and the provider-backed request authority, then joins only the
+  matching observing decisive or single-attempt operation. It compares the
+  full retained placement structure rather than treating its compact plan ID
+  as authority, requires the exact key, width, claim, occurrence, operation,
+  and closed result shape, and returns the unchanged non-Clone request on every
+  rejection. It performs no atomic attempt. Only the existing observing-
+  decisive call is currently derivable. Source calls for the other families,
+  runtime-result custody, an atomic attempt or retry, the non-observing
+  comparison key/selected-encoding law, Terminal rows, provider selection or
+  installation, backend operation identity, and lowering remain open.
 - Close generic `ResidentContentTransfer<P, T>` applications at final
   composition from concrete and symbolic artifact demand, verify one selected
   provider covers the reconstructed application set, and bind exact issuance

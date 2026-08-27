@@ -90,6 +90,10 @@ pub use machine_parameters::{
     ValidatedNominalMachineUse, ValidatedNominalMachineUseSite, validate_static_machine_selections,
     validate_static_machine_selections_with_facts,
 };
+pub use placed_views::{
+    CheckedAtomicResidentAccess, CheckedAtomicResidentAccessRejection,
+    bind_checked_atomic_resident_access,
+};
 pub use places::declared_place_type_raw;
 pub use places::unwrapped_type_reference;
 pub use properties::{

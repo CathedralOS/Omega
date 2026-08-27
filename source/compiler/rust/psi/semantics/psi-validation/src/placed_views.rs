@@ -18,7 +18,12 @@ use psi_typed_trees::statement::{
     StatementNode, TableAssignment, TransitionGuardNode, TransitionTargetNode,
 };
 
+mod checked_atomic_resident;
 mod plan_replay;
+pub use checked_atomic_resident::{
+    CheckedAtomicResidentAccess, CheckedAtomicResidentAccessRejection,
+    bind_checked_atomic_resident_access,
+};
 pub(crate) use plan_replay::validate_plans;
 
 pub(crate) fn validate_statement(
