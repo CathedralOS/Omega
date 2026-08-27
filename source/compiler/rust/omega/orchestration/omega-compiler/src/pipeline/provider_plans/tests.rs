@@ -1,5 +1,25 @@
 use super::*;
 
+fn bind_selected_provider_plan_facts_for_test(
+    checked: &mut psi_checked_trees::CheckedTrees,
+    candidates: &[ProviderPlan],
+    facts: omega_effects::SelectedProviderPlanFacts,
+    root_grants: &[String],
+) -> Result<omega_effects::SelectedProviderPlanFacts, Vec<psi_diagnostics::Diagnostic>> {
+    let original = Arc::new(std::mem::take(checked));
+    match bind_selected_provider_plan_facts(&original, candidates, facts, root_grants) {
+        Ok(binding) => {
+            let (program, selected) = binding.into_parts();
+            *checked = Arc::try_unwrap(program).unwrap_or_else(|shared| (*shared).clone());
+            Ok(selected)
+        }
+        Err(diagnostics) => {
+            *checked = Arc::try_unwrap(original).unwrap_or_else(|shared| (*shared).clone());
+            Err(diagnostics)
+        }
+    }
+}
+
 fn normalized_machine_identity(typed: &TypedTrees, name: &str) -> String {
     let machine = typed
         .machines()
@@ -167,9 +187,13 @@ fn selected_provider_binds_actual_reach_for_bounded_requirement() {
         std::slice::from_ref(&plan.name),
     )
     .expect("one selected PIC plan");
-    let selected =
-        bind_selected_provider_plan_facts(&mut checked, std::slice::from_ref(&plan), selected, &[])
-            .expect("selected PIC reach should resolve");
+    let selected = bind_selected_provider_plan_facts_for_test(
+        &mut checked,
+        std::slice::from_ref(&plan),
+        selected,
+        &[],
+    )
+    .expect("selected PIC reach should resolve");
     let requirement_identity = plan.rows[0].requirement_identity.as_str();
     let resolution = selected
         .installation_reach_resolution(requirement_identity)
@@ -204,11 +228,164 @@ fn selected_boundary_operator_does_not_enter_trait_installation_reach_resolution
         std::slice::from_ref(&plan.name),
     )
     .expect("one selected boundary operator plan");
-    let selected =
-        bind_selected_provider_plan_facts(&mut checked, std::slice::from_ref(&plan), selected, &[])
-            .expect("boundary operator selection must not require a trait installation row");
+    let selected = bind_selected_provider_plan_facts_for_test(
+        &mut checked,
+        std::slice::from_ref(&plan),
+        selected,
+        &[],
+    )
+    .expect("boundary operator selection must not require a trait installation row");
 
     assert!(selected.installation_reach_resolutions().is_empty());
+}
+
+fn selected_operator_binding_fixture() -> (psi_checked_trees::CheckedTrees, ProviderPlan) {
+    let source = r#"
+        data CheckedMath {}
+        boundary operator CheckedMath::offset_zero(value: i32) -> i32
+        requires value == value
+        ensures result == value + 0 && value == value;
+
+        data CheckedMathProvider {}
+        machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+        satisfies CheckedMath::offset_zero
+        requires input == input
+        ensures result == input + 0 && input == input
+        {
+            transition { _ -> (input + 0) }
+        }
+
+        machine run() -> i32 {
+            transition { _ -> (CheckedMath::offset_zero(70)) }
+        }
+    "#;
+    let tokens = psi_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize selected-operator binding fixture");
+    let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+        .expect("parse selected-operator binding fixture");
+    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+        .expect("resolve selected-operator binding fixture");
+    let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type selected-operator binding fixture");
+    let plans = derive_satisfies_plans(&typed, None);
+    let [plan] = plans.as_slice() else {
+        panic!("selected-operator fixture must derive one provider plan")
+    };
+    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("check selected-operator binding fixture");
+    (checked, plan.clone())
+}
+
+#[test]
+fn shared_provider_binding_publishes_exact_operator_identity_without_mutating_retained_custody() {
+    let (checked, plan) = selected_operator_binding_fixture();
+    let (use_handle, use_before) = checked
+        .facts
+        .operators
+        .named_uses
+        .iter()
+        .map(|(handle, operator_use)| (handle, *operator_use))
+        .next()
+        .expect("one named boundary-operator use");
+    assert_eq!(use_before.provider_plan_identity, 0);
+    let original_contents = checked.clone();
+    let original = Arc::new(checked);
+    let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+        std::slice::from_ref(&plan),
+        std::slice::from_ref(&plan.name),
+    )
+    .expect("select exact operator provider");
+
+    let binding =
+        bind_selected_provider_plan_facts(&original, std::slice::from_ref(&plan), selected, &[])
+            .expect("exact provider binding succeeds");
+    let (bound, selected) = binding.into_parts();
+
+    assert!(!Arc::ptr_eq(&bound, &original));
+    assert_eq!(original.as_ref(), &original_contents);
+    assert_eq!(
+        original
+            .facts
+            .operators
+            .named_uses
+            .get(use_handle)
+            .provider_plan_identity,
+        0
+    );
+    assert_eq!(
+        bound
+            .facts
+            .operators
+            .named_uses
+            .get(use_handle)
+            .provider_plan_identity,
+        plan.identity_fingerprint()
+    );
+    assert!(selected.installation_reach_resolutions().is_empty());
+}
+
+#[test]
+fn late_reach_rejection_publishes_no_staged_operator_updates() {
+    let (checked, operator_plan) = selected_operator_binding_fixture();
+    let use_handle = checked
+        .facts
+        .operators
+        .named_uses
+        .iter()
+        .map(|(handle, _)| handle)
+        .next()
+        .expect("one named boundary-operator use");
+    let missing_trait_plan = selection_plan("MissingProvider", &["missing"], &["missing"]);
+    let candidates = [operator_plan.clone(), missing_trait_plan.clone()];
+    let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+        &candidates,
+        &[operator_plan.name.clone(), missing_trait_plan.name.clone()],
+    )
+    .expect("select exact operator and missing-trait fixtures");
+    let original_contents = checked.clone();
+    let original = Arc::new(checked);
+
+    let diagnostics = bind_selected_provider_plan_facts(&original, &candidates, selected, &[])
+        .expect_err("missing typed requirement must reject after operator staging");
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "selected provider row `Pair::missing` resolves to 0 exact typed requirements",
+        )
+    }));
+    assert_eq!(original.as_ref(), &original_contents);
+    assert_eq!(
+        original
+            .facts
+            .operators
+            .named_uses
+            .get(use_handle)
+            .provider_plan_identity,
+        0
+    );
+}
+
+#[test]
+fn empty_provider_binding_preserves_exact_arc_identity_and_contents() {
+    let original = Arc::new(psi_checked_trees::CheckedTrees::default());
+    let original_contents = original.as_ref().clone();
+
+    let binding = bind_selected_provider_plan_facts(
+        &original,
+        &[],
+        omega_effects::SelectedProviderPlanFacts::default(),
+        &[],
+    )
+    .expect("empty provider binding is already settled");
+    let (bound, selected) = binding.into_parts();
+
+    assert!(Arc::ptr_eq(&bound, &original));
+    assert_eq!(bound.as_ref(), &original_contents);
+    assert_eq!(
+        selected,
+        omega_effects::SelectedProviderPlanFacts::default()
+    );
 }
 
 fn selection_plan(name: &str, methods: &[&str], rows: &[&str]) -> ProviderPlan {
@@ -1058,9 +1235,11 @@ fn granted_selected_plan_attaches_receipt_by_exact_inherited_requirement() {
         &requirement_identity,
     );
     let identity = selected.identity_fingerprint();
+    let original_contents = checked.clone();
+    let original = Arc::new(checked);
 
-    bind_selected_provider_plan_facts(
-        &mut checked,
+    let binding = bind_selected_provider_plan_facts(
+        &original,
         std::slice::from_ref(&selected),
         omega_effects::SelectedProviderPlanFacts::from_selection(
             std::slice::from_ref(&selected),
@@ -1070,7 +1249,20 @@ fn granted_selected_plan_attaches_receipt_by_exact_inherited_requirement() {
         &["PairChild".to_owned()],
     )
     .expect("exact inherited requirement binds the selected child-schema plan");
+    let (checked, _) = binding.into_parts();
 
+    assert!(!Arc::ptr_eq(&checked, &original));
+    assert_eq!(original.as_ref(), &original_contents);
+    assert_eq!(
+        original
+            .facts
+            .semantic
+            .facts
+            .get(fact)
+            .evidence
+            .receipt_identity,
+        0
+    );
     assert_eq!(
         checked
             .facts
@@ -1140,7 +1332,7 @@ fn granted_selected_plan_does_not_stamp_a_different_exact_requirement() {
         &requirement_identity,
     );
 
-    bind_selected_provider_plan_facts(
+    bind_selected_provider_plan_facts_for_test(
         &mut checked,
         std::slice::from_ref(&selected),
         omega_effects::SelectedProviderPlanFacts::from_selection(
@@ -1191,7 +1383,7 @@ fn admitted_receipt_rejects_a_requirement_outside_its_exact_owner() {
         &requirement_identity,
     );
 
-    let diagnostics = bind_selected_provider_plan_facts(
+    let diagnostics = bind_selected_provider_plan_facts_for_test(
         &mut checked,
         std::slice::from_ref(&selected),
         omega_effects::SelectedProviderPlanFacts::from_selection(
@@ -1243,7 +1435,7 @@ fn admitted_receipt_owner_and_signature_custody_is_exact_and_atomic() {
         &requirement_identity,
     );
 
-    let diagnostics = bind_selected_provider_plan_facts(
+    let diagnostics = bind_selected_provider_plan_facts_for_test(
         &mut checked,
         std::slice::from_ref(&selected),
         omega_effects::SelectedProviderPlanFacts::from_selection(
@@ -1280,7 +1472,7 @@ fn admitted_receipt_owner_and_signature_custody_is_exact_and_atomic() {
             ..Default::default()
         },
     );
-    let diagnostics = bind_selected_provider_plan_facts(
+    let diagnostics = bind_selected_provider_plan_facts_for_test(
         &mut duplicate_owner,
         std::slice::from_ref(&selected),
         omega_effects::SelectedProviderPlanFacts::from_selection(
@@ -1321,7 +1513,7 @@ fn admitted_receipt_owner_and_signature_custody_is_exact_and_atomic() {
         owner_symbol,
         other_requirement,
     );
-    let diagnostics = bind_selected_provider_plan_facts(
+    let diagnostics = bind_selected_provider_plan_facts_for_test(
         &mut cross_owned,
         std::slice::from_ref(&selected),
         omega_effects::SelectedProviderPlanFacts::from_selection(
@@ -1360,7 +1552,7 @@ fn admitted_receipt_owner_and_signature_custody_is_exact_and_atomic() {
         owner_symbol,
         requirement_symbol,
     );
-    let diagnostics = bind_selected_provider_plan_facts(
+    let diagnostics = bind_selected_provider_plan_facts_for_test(
         &mut duplicate_signature,
         std::slice::from_ref(&selected),
         omega_effects::SelectedProviderPlanFacts::from_selection(
@@ -1402,7 +1594,7 @@ fn admitted_receipt_rejects_duplicate_exact_granted_plan_matches() {
     let mut second = selection_plan("SecondProvider", &["first"], &["first"]);
     set_exact_requirement(&mut second, "PairChildB", "PairBase", &requirement_identity);
 
-    let diagnostics = bind_selected_provider_plan_facts(
+    let diagnostics = bind_selected_provider_plan_facts_for_test(
         &mut checked,
         &[first.clone(), second.clone()],
         omega_effects::SelectedProviderPlanFacts::from_selection(

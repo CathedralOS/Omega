@@ -61,22 +61,24 @@ pub(super) fn settle_compiler_executable_tcb_installation(
     root_grants: &[String],
     policy: &ExecutableTcbBuildPolicy,
 ) -> Result<ExecutableTcbInstallationAuthorization, Vec<Diagnostic>> {
-    let selected = super::provider_plans::bind_selected_provider_plan_facts(
-        Arc::get_mut(&mut checked.program)
-            .expect("checked program must be uniquely owned before backend fan-out"),
+    let binding = super::provider_plans::bind_selected_provider_plan_facts(
+        &checked.program,
         provider_candidates,
         selected,
         root_grants,
-    )?
-    .with_opaque_executable_admissions(policy.opaque_executable_admissions.iter().cloned())
-    .map_err(|reason| {
-        vec![Diagnostic::error(format!(
-            "executable TCB admission rejected: {reason}"
-        ))]
-    })?;
+    )?;
+    let (program, selected) = binding.into_parts();
+    let selected = selected
+        .with_opaque_executable_admissions(policy.opaque_executable_admissions.iter().cloned())
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "executable TCB admission rejected: {reason}"
+            ))]
+        })?;
     let authorization =
         ExecutableTcbInstallationAuthorization::bind(&selected, policy.profile.as_ref())?;
 
+    checked.program = program;
     checked.selected_provider_plans = Arc::new(selected);
     Ok(authorization)
 }
@@ -107,6 +109,55 @@ mod tests {
             task_activations: Arc::new(omega_task_plans::TaskActivationPlanSet::default()),
             callback_placements: Arc::from([]),
         }
+    }
+
+    fn checked_operator_surface() -> (
+        super::super::stages::CheckedProgramSurface,
+        Vec<omega_effects::provider_plan::ProviderPlan>,
+        omega_effects::SelectedProviderPlanFacts,
+    ) {
+        let source = r#"
+            data CheckedMath {}
+            boundary operator CheckedMath::offset_zero(value: i32) -> i32
+            requires value == value
+            ensures result == value + 0 && value == value;
+
+            data CheckedMathProvider {}
+            machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+            satisfies CheckedMath::offset_zero
+            requires input == input
+            ensures result == input + 0 && input == input
+            {
+                transition { _ -> (input + 0) }
+            }
+
+            machine run() -> i32 {
+                transition { _ -> (CheckedMath::offset_zero(70)) }
+            }
+        "#;
+        let tokens = psi_source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize executable-TCB provider fixture");
+        let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+            .expect("parse executable-TCB provider fixture");
+        let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+            .expect("resolve executable-TCB provider fixture");
+        let typed =
+            psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("type executable-TCB provider fixture");
+        let candidates = crate::pipeline::provider_plans::derive_satisfies_plans(&typed, None);
+        let selected_names = candidates
+            .iter()
+            .map(|plan| plan.name.clone())
+            .collect::<Vec<_>>();
+        let selected =
+            omega_effects::SelectedProviderPlanFacts::from_selection(&candidates, &selected_names)
+                .expect("select executable-TCB provider fixture");
+        let program = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+            .expect("check executable-TCB provider fixture");
+        let mut surface = checked_surface();
+        surface.program = Arc::new(program);
+        (surface, candidates, selected)
     }
 
     fn wrong_scope_admission() -> OpaqueExecutableAdmissionCandidate {
@@ -188,8 +239,11 @@ mod tests {
 
     #[test]
     fn invalid_opaque_admission_leaves_the_selected_sidecar_uncommitted() {
-        let mut checked = checked_surface();
+        let (mut checked, candidates, selected) = checked_operator_surface();
+        let original_program = Arc::clone(&checked.program);
+        let original_program_contents = checked.program.as_ref().clone();
         let original_sidecar = Arc::clone(&checked.selected_provider_plans);
+        let original_sidecar_contents = checked.selected_provider_plans.as_ref().clone();
         let policy = ExecutableTcbBuildPolicy {
             opaque_executable_admissions: vec![wrong_scope_admission()],
             profile: None,
@@ -197,8 +251,8 @@ mod tests {
 
         let diagnostics = settle_compiler_executable_tcb_installation(
             &mut checked,
-            &[],
-            omega_effects::SelectedProviderPlanFacts::default(),
+            &candidates,
+            selected,
             &[],
             &policy,
         )
@@ -213,12 +267,21 @@ mod tests {
             &original_sidecar,
             &checked.selected_provider_plans
         ));
+        assert_eq!(
+            checked.selected_provider_plans.as_ref(),
+            &original_sidecar_contents
+        );
+        assert!(Arc::ptr_eq(&original_program, &checked.program));
+        assert_eq!(checked.program.as_ref(), &original_program_contents);
     }
 
     #[test]
     fn invalid_profile_leaves_the_selected_sidecar_uncommitted() {
-        let mut checked = checked_surface();
+        let (mut checked, candidates, selected) = checked_operator_surface();
+        let original_program = Arc::clone(&checked.program);
+        let original_program_contents = checked.program.as_ref().clone();
         let original_sidecar = Arc::clone(&checked.selected_provider_plans);
+        let original_sidecar_contents = checked.selected_provider_plans.as_ref().clone();
         let policy = ExecutableTcbBuildPolicy {
             opaque_executable_admissions: Vec::new(),
             profile: Some(profile("")),
@@ -226,8 +289,8 @@ mod tests {
 
         let diagnostics = settle_compiler_executable_tcb_installation(
             &mut checked,
-            &[],
-            omega_effects::SelectedProviderPlanFacts::default(),
+            &candidates,
+            selected,
             &[],
             &policy,
         )
@@ -242,6 +305,12 @@ mod tests {
             &original_sidecar,
             &checked.selected_provider_plans
         ));
+        assert_eq!(
+            checked.selected_provider_plans.as_ref(),
+            &original_sidecar_contents
+        );
+        assert!(Arc::ptr_eq(&original_program, &checked.program));
+        assert_eq!(checked.program.as_ref(), &original_program_contents);
     }
 
     #[test]
