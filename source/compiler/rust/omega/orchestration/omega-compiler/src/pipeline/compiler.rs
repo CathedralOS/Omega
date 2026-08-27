@@ -453,18 +453,14 @@ impl Compiler {
             emit_auxiliary_artifacts,
         )?;
 
-        // Capture the selected provider's validated source calling plans
-        // before typed ownership moves into checked lowering. The rows carry
-        // them beside their mechanisms into the host-ABI/backend path.
-        let external_binding_rows = super::provider_plans::extract_external_binding_rows(
+        let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
+        super::provider_plans::settle_compiler_external_binding_rows(
+            &mut checked,
             self.options.target_name.as_deref(),
             selected_native_target,
             &selected_provider_plans,
             &boundary_calling_plan_realizations,
-            &typed,
         )?;
-
-        let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
         if let Some(package_inputs) = self.package_inputs.as_ref() {
             crate::pipeline::package_declaration_admission::validate_authored_declaration_selections(
                 &checked.program,
@@ -632,7 +628,6 @@ impl Compiler {
             program_entry_boundary_plan,
             self.options.target_name.as_deref(),
             freestanding,
-            &external_binding_rows,
             control_flow,
             workers.handle(),
             &mut timings,

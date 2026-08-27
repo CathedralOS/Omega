@@ -109,6 +109,7 @@ mod tests {
             component_progress: None,
             task_activations: Arc::new(omega_task_plans::TaskActivationPlanSet::default()),
             callback_placements: Arc::from([]),
+            external_binding_rows: Arc::from([]),
         }
     }
 

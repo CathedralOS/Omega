@@ -8,6 +8,10 @@
 //! values without allowing a failed step to discard the one-shot installation
 //! registry claim.
 
+mod callback_registration;
+
+pub use callback_registration::*;
+
 use omega_component_publication::{InstalledRunnableComponent, bind_installed_runnable_component};
 use omega_executable_installation::InstalledCode;
 use omega_external_roots::{

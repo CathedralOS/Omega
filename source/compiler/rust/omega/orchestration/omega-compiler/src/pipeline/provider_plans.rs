@@ -10,7 +10,7 @@ use psi_typed_trees::TypedTrees;
 use std::sync::Arc;
 
 mod external_binding_rows;
-pub(super) use external_binding_rows::extract_external_binding_rows;
+pub(super) use external_binding_rows::settle_compiler_external_binding_rows;
 
 /// Exact selected provider-plan input consumed by external-root construction.
 ///

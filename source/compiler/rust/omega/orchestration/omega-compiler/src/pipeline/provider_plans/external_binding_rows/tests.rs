@@ -1,4 +1,7 @@
-use super::{extract_external_binding_rows, selected_source_boundary_entry_plan};
+use super::{
+    extract_external_binding_rows, selected_source_boundary_entry_plan,
+    settle_compiler_external_binding_rows,
+};
 use crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization;
 use omega_calling_conventions::{
     BoundaryEntryPlan, CallSignature, CallingPolicy, evaluate_ordinary_boundary_entry_plan,
@@ -11,6 +14,7 @@ use psi_typed_trees::TypedTrees;
 use psi_typed_trees::name::Identifier;
 use psi_typed_trees::signature::StateSignature;
 use psi_typed_trees::trait_definition::TraitDefinition;
+use std::sync::Arc;
 
 const PLAN_NAME: &str = "selected::source::plan";
 const SCHEMA_NAME: &str = "platform::RootService";
@@ -175,9 +179,22 @@ fn resolve(fixture: &Fixture, schema_name: &str) -> Result<Option<BoundaryEntryP
     .map_err(|diagnostic| diagnostic.message)
 }
 
-#[test]
-fn external_abi_rows_derive_from_the_selected_provider_plan() {
-    let mut fixture = fixture(false);
+fn checked_surface(typed: TypedTrees) -> crate::pipeline::stages::CheckedProgramSurface {
+    crate::pipeline::stages::CheckedProgramSurface {
+        program: Arc::new(psi_checked_trees::CheckedTrees {
+            typed,
+            ..Default::default()
+        }),
+        accepted_template_classifications: Default::default(),
+        selected_provider_plans: Arc::new(omega_effects::SelectedProviderPlanFacts::default()),
+        component_progress: None,
+        task_activations: Arc::new(omega_task_plans::TaskActivationPlanSet::default()),
+        callback_placements: Arc::from([]),
+        external_binding_rows: Arc::from([]),
+    }
+}
+
+fn add_bootstrap_row(fixture: &mut Fixture) {
     fixture.plans[0].target = "retained-target".to_owned();
     fixture.plans[0].provider_type = "RetainedProvider".to_owned();
     fixture.plans[0].rows.push(ProviderPlanRow {
@@ -188,6 +205,103 @@ fn external_abi_rows_derive_from_the_selected_provider_plan() {
             symbol: "retained-symbol".to_owned(),
         },
     });
+}
+
+#[test]
+fn checked_surface_settlement_retains_exact_rows_and_preserves_equal_arc_identity() {
+    let mut fixture = fixture(false);
+    add_bootstrap_row(&mut fixture);
+    let expected = extract_external_binding_rows(
+        None,
+        omega_target::NativeTarget::host(),
+        &fixture.plans,
+        &fixture.realizations,
+        &fixture.typed,
+    )
+    .expect("pre-settlement reference projection");
+    let mut checked = checked_surface(fixture.typed);
+
+    settle_compiler_external_binding_rows(
+        &mut checked,
+        None,
+        omega_target::NativeTarget::host(),
+        &fixture.plans,
+        &fixture.realizations,
+    )
+    .expect("checked-retained typed projection");
+    assert_eq!(checked.external_binding_rows.as_ref(), expected.as_slice());
+
+    let retained = Arc::clone(&checked.external_binding_rows);
+    settle_compiler_external_binding_rows(
+        &mut checked,
+        None,
+        omega_target::NativeTarget::host(),
+        &fixture.plans,
+        &fixture.realizations,
+    )
+    .expect("identical settlement is a no-op");
+    assert!(Arc::ptr_eq(&retained, &checked.external_binding_rows));
+}
+
+#[test]
+fn empty_settlement_preserves_arc_identity() {
+    let fixture = fixture(false);
+    let mut checked = checked_surface(fixture.typed);
+    let retained = Arc::clone(&checked.external_binding_rows);
+
+    settle_compiler_external_binding_rows(
+        &mut checked,
+        None,
+        omega_target::NativeTarget::host(),
+        &fixture.plans,
+        &fixture.realizations,
+    )
+    .expect("empty selected binding projection");
+
+    assert!(Arc::ptr_eq(&retained, &checked.external_binding_rows));
+    assert!(checked.external_binding_rows.is_empty());
+}
+
+#[test]
+fn rejected_settlement_preserves_prior_arc_identity_and_contents() {
+    let mut fixture = fixture(false);
+    add_bootstrap_row(&mut fixture);
+    let mut checked = checked_surface(fixture.typed);
+    settle_compiler_external_binding_rows(
+        &mut checked,
+        None,
+        omega_target::NativeTarget::host(),
+        &fixture.plans,
+        &fixture.realizations,
+    )
+    .expect("initial exact settlement");
+    let retained = Arc::clone(&checked.external_binding_rows);
+    let retained_contents = retained.to_vec();
+
+    let duplicate = fixture.plans[0].schema.methods[0].clone();
+    fixture.plans[0].schema.methods.push(duplicate);
+    let diagnostics = settle_compiler_external_binding_rows(
+        &mut checked,
+        None,
+        omega_target::NativeTarget::host(),
+        &fixture.plans,
+        &fixture.realizations,
+    )
+    .expect_err("duplicate exact schema method must reject before publication");
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("binds 2 exact schema methods"))
+    );
+    assert!(Arc::ptr_eq(&retained, &checked.external_binding_rows));
+    assert_eq!(checked.external_binding_rows.as_ref(), retained_contents);
+}
+
+#[test]
+fn external_abi_rows_derive_from_the_selected_provider_plan() {
+    let mut fixture = fixture(false);
+    add_bootstrap_row(&mut fixture);
 
     let rows = extract_external_binding_rows(
         None,

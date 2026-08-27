@@ -279,6 +279,18 @@ This grants no runtime registration, invocation, callback lifetime/lease, or
 publication authority; `DataAddress`, direct parameters, and multi-segment
 paths remain fenced.
 
+Deployment now owns a separate two-phase reclaimable callback custody path. It
+installs an independently admitted root before the ordinary registrar call and
+retains the installed root plus exact ledger in a pending non-Clone carrier.
+The later provider result establishes live registration custody only when its
+receipt binds that exact root and reports success. Provider unregister and root
+quiescence then complete transactionally and return the original slot
+authority; every rejection retains the registration/root, ledger access, and
+receipts needed to retry, while a false registrar result supports explicit
+pending-root removal. This carrier does not link the emitted callback store or
+demand catalog to the installed callback entry, invoke the registrar, mint the
+source-level `Registration`, or supply live-registration capacity.
+
 Reference identities retain loan compatibility and permitted operations
 separately. `&write T` carries an exclusive loan over an existing valid `T`
 with mutation but no observation authority. Terminal production preserves that

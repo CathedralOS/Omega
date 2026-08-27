@@ -1044,6 +1044,19 @@ a different authority. Many live registrations may share one compatible
 statically emitted thunk, so capacity bounds runtime registration state rather
 than code size.
 
+The current deployment foundation closes the post-installation custody seam
+without pretending to execute that ordinary registrar call. It installs an
+independently admitted callback root into the deployment's exact root ledger
+and returns a non-Clone pending carrier owning both values. After the provider
+reports the registrar result, only an exact successful receipt may establish a
+reclaimable callback registration. The live carrier retains registration and
+ledger custody through provider unregister plus exact root quiescence, which
+alone returns the original slot authority. Rejection returns all retry inputs;
+a false registrar result leaves no registration and supports explicit pending-
+root cleanup. Emitted-thunk attribution, registrar invocation, the source-level
+linear `Registration`, and capacity accounting remain separate engineering
+joins.
+
 Callback materialization records only binder slot and destination. Whether the
 destination is a direct argument, call-scoped temporary, or part of retained
 stable storage is the ordinary native-parameter lifetime/custody disposition

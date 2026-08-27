@@ -1,4 +1,31 @@
 use psi_diagnostics::Diagnostic;
+use std::sync::Arc;
+
+/// Transactionally binds the selected provider projection to the checked
+/// phase result that carries it into backend planning. Complete projection is
+/// staged before the retained sidecar can change.
+pub(in crate::pipeline) fn settle_compiler_external_binding_rows(
+    checked: &mut crate::pipeline::stages::CheckedProgramSurface,
+    selected_target: Option<&str>,
+    native_target: omega_target::NativeTarget,
+    selected_plans: &[omega_effects::provider_plan::ProviderPlan],
+    boundary_calling_plan_realizations: &[
+        crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization
+    ],
+) -> Result<(), Vec<Diagnostic>> {
+    let rows = extract_external_binding_rows(
+        selected_target,
+        native_target,
+        selected_plans,
+        boundary_calling_plan_realizations,
+        &checked.program.typed,
+    )?;
+    if checked.external_binding_rows.as_ref() == rows.as_slice() {
+        return Ok(());
+    }
+    checked.external_binding_rows = Arc::from(rows);
+    Ok(())
+}
 
 /// Extract bodyless external leaves into the calling-convention rows consumed
 /// by the freestanding ABI builder.
