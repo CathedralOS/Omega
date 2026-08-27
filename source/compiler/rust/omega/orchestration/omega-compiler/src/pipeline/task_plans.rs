@@ -2408,6 +2408,7 @@ mod tests {
     ) -> super::super::stages::CheckedProgramSurface {
         super::super::stages::CheckedProgramSurface {
             program: Arc::new(checked),
+            accepted_template_classifications: Default::default(),
             selected_provider_plans: Arc::new(selected),
             component_progress: None,
             task_activations,

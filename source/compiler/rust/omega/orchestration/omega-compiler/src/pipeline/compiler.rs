@@ -452,8 +452,6 @@ impl Compiler {
             &selected_provider_plan_facts,
             self.package_inputs.is_some(),
         )?;
-        let generic_accepted_template_fingerprints =
-            crate::pipeline::trust_report::GenericAcceptedTemplateFingerprints::capture(&typed);
         crate::pipeline::wire_report::write_wire_protocol_report(
             &self.options,
             &typed,
@@ -525,7 +523,7 @@ impl Compiler {
             &build_config.grants,
             &provider_plans,
             &checked.selected_provider_plans,
-            &generic_accepted_template_fingerprints,
+            &checked.accepted_template_classifications,
             emit_auxiliary_artifacts,
         )?;
         crate::pipeline::operator_adapter_dispatch::settle_selected_operator_adapter_dispatch(

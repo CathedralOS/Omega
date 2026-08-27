@@ -104,6 +104,7 @@ mod tests {
     fn checked_surface() -> super::super::stages::CheckedProgramSurface {
         super::super::stages::CheckedProgramSurface {
             program: Arc::new(psi_checked_trees::CheckedTrees::default()),
+            accepted_template_classifications: Default::default(),
             selected_provider_plans: Arc::new(omega_effects::SelectedProviderPlanFacts::default()),
             component_progress: None,
             task_activations: Arc::new(omega_task_plans::TaskActivationPlanSet::default()),
