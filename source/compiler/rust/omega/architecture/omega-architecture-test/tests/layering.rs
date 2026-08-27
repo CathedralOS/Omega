@@ -1160,3 +1160,18 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
         }
     }
 }
+
+#[test]
+fn language_canaries_remain_under_tests() {
+    let root = workspace_root();
+    assert!(
+        !root.join("canaries").exists(),
+        "language canaries belong under tests/canaries; do not recreate a root-level canaries tree"
+    );
+    for lane in ["pass", "fail"] {
+        assert!(
+            root.join("tests/canaries").join(lane).is_dir(),
+            "tests/canaries/{lane} must remain the canonical {lane}-canary lane"
+        );
+    }
+}
