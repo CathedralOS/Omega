@@ -10,6 +10,8 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-component-publication = { path = "../omega-component-publication" }
+omega-backend-plan = { path = "../../representations/omega-backend-plan" }
+omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-terminal-component-candidate = { path = "../omega-terminal-component-candidate" }
 omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
 omega-effects = { path = "../../representations/omega-effects" }
@@ -17,3 +19,10 @@ omega-external-roots = { path = "../omega-external-roots" }
 omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-image-emission" }
 omega-terminal-installation-evidence = { path = "../../representations/omega-terminal-installation-evidence" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-layout-plans = { path = "../../../psi/foundation/psi-layout-plans" }
+
+[dev-dependencies]
+omega-backend-plan = { path = "../../representations/omega-backend-plan", features = ["test-support"] }
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+psi-extents = { path = "../../../psi/foundation/psi-extents" }
+omega-target = { path = "../../foundation/omega-target" }

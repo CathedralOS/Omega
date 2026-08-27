@@ -806,6 +806,18 @@ resolved runtime address, registration, invocation, callback lifetime/lease,
 or publication authority. `DataAddress`, direct parameters, and multi-segment
 paths remain fenced.
 
+One ordered non-Clone installation manifest now carries that closed evidence
+through retained native output. Each entry retains the full private object-store
+request and placement identity, a domain-separated callback entry identity, the
+exact Text interval and BSS symbol snapshot, encoded store, and target
+relocations. Deployment binds the complete entry to the exact installed-code
+occurrence, unrelocated/materialized bytes, architecture, and entry offset;
+root installation additionally requires the same entry and requirement. The
+attribution remains intact through pending registration, live registration,
+failure, cleanup, and quiescence. Compact entry IDs never substitute for the
+sealed manifest row, and no resolved address, invocation, capacity, lease, or
+publication authority is introduced.
+
 The checked identity spine is live. Admission records the exact statement or
 expression handle, argument ordinal, registration operation, selected machine
 and entry, unique satisfaction trait/requirement pair, and canonical overload
@@ -1053,9 +1065,11 @@ reclaimable callback registration. The live carrier retains registration and
 ledger custody through provider unregister plus exact root quiescence, which
 alone returns the original slot authority. Rejection returns all retry inputs;
 a false registrar result leaves no registration and supports explicit pending-
-root cleanup. Emitted-thunk attribution, registrar invocation, the source-level
-linear `Registration`, and capacity accounting remain separate engineering
-joins.
+root cleanup. Exact emitted-thunk/store attribution is now joined through the
+retained installation manifest to the installed bytes, entry, root, and
+requirement, and remains in every custody result. Registrar invocation, the
+source-level linear `Registration`, and capacity accounting remain separate
+engineering joins.
 
 Callback materialization records only binder slot and destination. Whether the
 destination is a direct argument, call-scoped temporary, or part of retained

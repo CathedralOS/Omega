@@ -25,8 +25,7 @@ use omega_compiler::{
 };
 use omega_component_deployment::{
     ComponentProgressAttestationBinding, DynamicNativeFuelRootDeployment,
-    ReclaimableCallbackRootDeployment, begin_terminal_component_deployment,
-    begin_terminal_component_deployment_with_claimed_registry,
+    begin_terminal_component_deployment, begin_terminal_component_deployment_with_claimed_registry,
     publish_terminal_component_flat_output,
 };
 use omega_component_publication::{RunnableComponentEraLedger, bind_installed_runnable_component};
@@ -53,9 +52,6 @@ use omega_external_roots::{
     NativeFuelContextLayout, NativeFuelExecutionEnvironment, NativeFuelMeterPlanId,
     NativeFuelRuntimeEntryIdentity, NativeFuelSavedValue, NativeFuelSponsorStackPlan,
     NativeFuelTargetPlanProjection, NativeFuelTransferRuntimePlanProjection, NestingRelationId,
-    OpaqueCallbackProviderId, OpaqueCallbackRegistrationId, OpaqueCallbackRegistrationReceipt,
-    OpaqueCallbackRegistrationReceiptId, OpaqueCallbackUnregistrationContractId,
-    OpaqueCallbackUnregistrationReceipt, OpaqueCallbackUnregistrationReceiptId,
     OpaqueProviderExitAssurance, ProgressProfileEstablishmentAttestation,
     ProgressProfileEstablishmentReceiptId, ProgressProfileGrantInvocationId, ProviderExecution,
     ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId,

@@ -56,6 +56,20 @@ impl RetainedNativeArtifact {
         self.emitted.callback_placement_identity_fingerprint
     }
 
+    pub const fn callback_installation_manifest(
+        &self,
+    ) -> &omega_backend_plan::CallbackInstallationManifest {
+        &self.emitted.callback_installation_manifest
+    }
+
+    /// Consume the retained artifact and recover its exact callback-entry
+    /// manifest. This grants no installation or runtime authority.
+    pub fn into_callback_installation_manifest(
+        self,
+    ) -> omega_backend_plan::CallbackInstallationManifest {
+        self.emitted.callback_installation_manifest
+    }
+
     pub const fn object(&self) -> &omega_object_file::ObjectPlan {
         &self.emitted.object
     }
@@ -93,6 +107,7 @@ pub(super) struct EmittedProgram {
     pub(super) subsystem: u16,
     pub(super) planned_text_bytes: usize,
     pub(super) callback_placement_identity_fingerprint: u64,
+    pub(super) callback_installation_manifest: omega_backend_plan::CallbackInstallationManifest,
     pub(super) object: omega_object_file::ObjectPlan,
     pub(super) relocations: omega_object_file::RelocationPlan,
     pub(super) encoded_machine_code: omega_machine_bytes::EncodedMachineCode,
@@ -146,6 +161,16 @@ fn validate_retained_native_artifact(
     if emitted.planned_text_bytes != object_text_bytes {
         return Err("retained native artifact text extent drifted from its object plan");
     }
+    emitted
+        .callback_installation_manifest
+        .replay_artifact(
+            emitted.target,
+            emitted.callback_placement_identity_fingerprint,
+            &emitted.object,
+            &emitted.relocations,
+            &emitted.encoded_machine_code,
+        )
+        .map_err(|_| "retained native artifact callback installation manifest drifted")?;
     Ok(())
 }
 
@@ -898,11 +923,15 @@ mod tests {
             relocations: 0,
             blockers: psi_arena::Arena::new(),
         };
+        let callback_installation_manifest =
+            omega_backend_plan::CallbackInstallationManifest::empty_for_target(target);
         let emitted = EmittedProgram {
             target,
             subsystem: 3,
             planned_text_bytes: 1,
-            callback_placement_identity_fingerprint: 7,
+            callback_placement_identity_fingerprint: callback_installation_manifest
+                .placement_identity_fingerprint(),
+            callback_installation_manifest,
             object,
             relocations: omega_object_file::RelocationPlan::with_target(target),
             encoded_machine_code: encoded.code,
@@ -936,6 +965,10 @@ mod tests {
 
         let (plan, mut emitted) = retained_native_parts();
         emitted.relocations.target = omega_target::NativeTarget::linux_x64();
+        assert!(RetainedNativeArtifact::checked(plan, emitted).is_err());
+
+        let (plan, mut emitted) = retained_native_parts();
+        emitted.callback_placement_identity_fingerprint ^= 1;
         assert!(RetainedNativeArtifact::checked(plan, emitted).is_err());
     }
 
