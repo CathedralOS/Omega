@@ -34,7 +34,8 @@ pub use registry::{
 };
 pub use rules::{
     AdjacentBlockMergeRule, BooleanEqualConstantsRule, BooleanNotConstantsRule,
-    ConstantConditionalFoldRule, DeadScalarLiteralEliminationRule, ExactIntegerAddConstantsRule,
+    ConstantConditionalFoldRule, DeadScalarLiteralEliminationRule,
+    DeadUnconditionallyTotalScalarEliminationRule, ExactIntegerAddConstantsRule,
     ExactIntegerCastConstantsRule, ExactIntegerDivideConstantsRule,
     ExactIntegerMultiplyConstantsRule, ExactIntegerRemainderConstantsRule,
     ExactIntegerShiftLeftConstantsRule, ExactIntegerShiftRightConstantsRule,

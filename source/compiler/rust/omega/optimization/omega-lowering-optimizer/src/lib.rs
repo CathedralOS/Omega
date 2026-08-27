@@ -637,6 +637,58 @@ mod tests {
         )
     }
 
+    fn dead_wrapping_add_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_091).unwrap();
+        let block = BlockId::new(1_092).unwrap();
+        let left = ValueId::new(1_093).unwrap();
+        let right = ValueId::new(1_094).unwrap();
+        let sum = ValueId::new(1_095).unwrap();
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let declaration = |id| {
+            OperationResult::Scalar(ValueDeclaration {
+                id,
+                scalar_type: ScalarType::Integer(integer),
+            })
+        };
+        verified(
+            module_with_blocks(
+                machine,
+                block,
+                TerminalMachineResult::Unit,
+                vec![Block {
+                    id: block,
+                    parameters: Vec::new(),
+                    operations: vec![
+                        Operation {
+                            id: OperationId::new(1_096).unwrap(),
+                            result: declaration(left),
+                            kind: OperationKind::IntegerConstant {
+                                value: IntegerValue::Unsigned(250),
+                            },
+                        },
+                        Operation {
+                            id: OperationId::new(1_097).unwrap(),
+                            result: declaration(right),
+                            kind: OperationKind::IntegerConstant {
+                                value: IntegerValue::Unsigned(10),
+                            },
+                        },
+                        Operation {
+                            id: OperationId::new(1_098).unwrap(),
+                            result: declaration(sum),
+                            kind: OperationKind::WrappingIntegerAdd { left, right },
+                        },
+                    ],
+                    terminator: Terminator::ReturnUnit {
+                        edge: EdgeId::new(1_099).unwrap(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+            ),
+            ProofBundle::default(),
+        )
+    }
+
     fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationUnit {
         let entry_machine = MachineId::new(1_041).unwrap();
         let entry_block = BlockId::new(1_042).unwrap();
@@ -1059,6 +1111,32 @@ mod tests {
         ));
         assert_eq!(terminal.provenance.len(), 3);
         assert_eq!(terminal.fuel.len(), 3);
+        assert!(
+            optimized
+                .transformation_ledger()
+                .records()
+                .iter()
+                .flat_map(|record| &record.provenance)
+                .all(|row| row.disposition.is_realized())
+        );
+    }
+
+    #[test]
+    fn dead_scalar_suite_removes_total_arithmetic_then_its_dead_operands() {
+        let selections =
+            OptimizationSelections::new([Optimization::DeadPureScalarElimination]).unwrap();
+        let optimized =
+            project_optimization_run(run(dead_wrapping_add_verified(), selections)).unwrap();
+        assert_eq!(optimized.commits().len(), 3);
+        assert_eq!(optimized.plan().functions[0].operations.len(), 1);
+        assert_eq!(optimized.unit().functions[0].facts.len(), 0);
+        let terminal = &optimized.unit().functions[0].blocks[0].nodes[0];
+        assert!(matches!(
+            terminal.operation,
+            TerminalAbstractOperation::ReturnUnit { .. }
+        ));
+        assert_eq!(terminal.provenance.len(), 4);
+        assert_eq!(terminal.fuel.len(), 4);
         assert!(
             optimized
                 .transformation_ledger()

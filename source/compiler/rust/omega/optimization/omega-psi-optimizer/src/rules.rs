@@ -29,7 +29,7 @@ use crate::{
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v1";
 const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v10";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
-const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v1";
+const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v2";
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ConstantConditionalFoldRule;
@@ -39,6 +39,15 @@ pub struct UnreachablePrivateMachinePruneRule;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DeadScalarLiteralEliminationRule;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DeadUnconditionallyTotalScalarEliminationRule;
+
+#[derive(Debug, Clone, Copy)]
+enum DeadScalarFamily {
+    Literal,
+    UnconditionallyTotal,
+}
 
 impl DeadScalarLiteralEliminationRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -69,102 +78,292 @@ impl PsiOptimizationRule for DeadScalarLiteralEliminationRule {
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
     ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        let Some(AnalysisProduct::ValueLiveness(liveness)) =
-            analyses.get(AnalysisKind::ValueLiveness)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::ValueLiveness,
-            ));
-        };
-        let Some(AnalysisProduct::EffectSummaries(effects)) =
-            analyses.get(AnalysisKind::EffectSummaries)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
+        propose_dead_scalar_nodes(unit, analyses, Self::contract(), DeadScalarFamily::Literal)
+    }
+}
+
+impl DeadUnconditionallyTotalScalarEliminationRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.dead-unused-unconditionally-total-scalar-elimination.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(DEAD_PURE_SCALAR_PASS_NAME),
+            1,
+            AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
                 AnalysisKind::EffectSummaries,
-            ));
-        };
-        let mut candidates = Vec::new();
-        for function in &unit.functions {
-            for block in &function.blocks {
-                for (node_index, node) in block.nodes.iter().enumerate() {
-                    let (source_operation, result, scalar_type) = match node.operation {
-                        O::IntegerConstant {
-                            psi_operation,
+            ]),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for DeadUnconditionallyTotalScalarEliminationRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        propose_dead_scalar_nodes(
+            unit,
+            analyses,
+            Self::contract(),
+            DeadScalarFamily::UnconditionallyTotal,
+        )
+    }
+}
+
+fn propose_dead_scalar_nodes(
+    unit: &PsiOptimizationUnit,
+    analyses: RuleAnalysisView<'_>,
+    contract: OptimizationRuleContract,
+    family: DeadScalarFamily,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+    let Some(AnalysisProduct::ValueLiveness(liveness)) = analyses.get(AnalysisKind::ValueLiveness)
+    else {
+        return Err(RuleProposalError::MissingAnalysis(
+            AnalysisKind::ValueLiveness,
+        ));
+    };
+    let Some(AnalysisProduct::EffectSummaries(effects)) =
+        analyses.get(AnalysisKind::EffectSummaries)
+    else {
+        return Err(RuleProposalError::MissingAnalysis(
+            AnalysisKind::EffectSummaries,
+        ));
+    };
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let Some((source_operation, result, scalar_type)) =
+                    dead_scalar_shape(&node.operation, family)
+                else {
+                    continue;
+                };
+                let Some(next) = block.nodes.get(node_index + 1) else {
+                    continue;
+                };
+                if next
+                    .provenance
+                    .iter()
+                    .any(|source| node.provenance.contains(source))
+                {
+                    continue;
+                }
+                let node_index =
+                    u32::try_from(node_index).expect("optimization node index fits u32");
+                let live = liveness
+                    .blocks
+                    .iter()
+                    .find(|row| row.machine == function.machine && row.block == block.id)
+                    .and_then(|row| row.nodes.iter().find(|row| row.node == node_index));
+                let effect = effects.nodes.iter().find(|row| {
+                    row.machine == function.machine
+                        && row.block == block.id
+                        && row.node == node_index
+                });
+                if live.is_none_or(|row| row.exit.contains(&result))
+                    || effect.is_none_or(|row| {
+                        row.revision != unit.identity
+                            || row.class != crate::EffectClass::PureScalar
+                            || row.observable != crate::EffectKnowledge::No
+                            || row.structural_state != crate::EffectKnowledge::No
+                            || row.crash != crate::EffectKnowledge::No
+                            || row.suspension != crate::EffectKnowledge::No
+                    })
+                {
+                    continue;
+                }
+                let location = NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: node_index,
+                };
+                let Some((affected_blocks, provenance)) =
+                    dead_scalar_node_accounting(function, location)
+                else {
+                    continue;
+                };
+                candidates.push(
+                    PsiRewriteCandidate::new_dead_scalar_node(
+                        unit.identity,
+                        contract,
+                        affected_blocks,
+                        provenance,
+                        -1,
+                        DeadScalarNodeRewrite {
+                            location,
+                            source_operation,
                             result,
                             scalar_type,
-                            ..
-                        } => (psi_operation, result, scalar_type),
-                        O::BooleanConstant {
-                            psi_operation,
-                            result,
-                            ..
-                        } => (psi_operation, result, psi_core::ScalarType::Boolean),
-                        _ => continue,
-                    };
-                    let Some(next) = block.nodes.get(node_index + 1) else {
-                        continue;
-                    };
-                    if next
-                        .provenance
-                        .iter()
-                        .any(|source| node.provenance.contains(source))
-                    {
-                        continue;
-                    }
-                    let node_index =
-                        u32::try_from(node_index).expect("optimization node index fits u32");
-                    let live = liveness
-                        .blocks
-                        .iter()
-                        .find(|row| row.machine == function.machine && row.block == block.id)
-                        .and_then(|row| row.nodes.iter().find(|row| row.node == node_index));
-                    let effect = effects.nodes.iter().find(|row| {
-                        row.machine == function.machine
-                            && row.block == block.id
-                            && row.node == node_index
-                    });
-                    if live.is_none_or(|row| row.exit.contains(&result))
-                        || effect.is_none_or(|row| {
-                            row.revision != unit.identity
-                                || row.class != crate::EffectClass::PureScalar
-                                || row.observable != crate::EffectKnowledge::No
-                                || row.structural_state != crate::EffectKnowledge::No
-                                || row.crash != crate::EffectKnowledge::No
-                                || row.suspension != crate::EffectKnowledge::No
-                        })
-                    {
-                        continue;
-                    }
-                    let location = NodeLocation {
-                        machine: function.machine,
-                        block: block.id,
-                        node: node_index,
-                    };
-                    let Some((affected_blocks, provenance)) =
-                        dead_scalar_node_accounting(function, location)
-                    else {
-                        continue;
-                    };
-                    candidates.push(
-                        PsiRewriteCandidate::new_dead_scalar_node(
-                            unit.identity,
-                            Self::contract(),
-                            affected_blocks,
-                            provenance,
-                            -1,
-                            DeadScalarNodeRewrite {
-                                location,
-                                source_operation,
-                                result,
-                                scalar_type,
-                            },
-                        )
-                        .map_err(RuleProposalError::InvalidCandidate)?,
-                    );
-                }
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
             }
         }
-        Ok(candidates)
+    }
+    Ok(candidates)
+}
+
+fn dead_scalar_shape(
+    operation: &O,
+    family: DeadScalarFamily,
+) -> Option<(OperationId, ValueId, psi_core::ScalarType)> {
+    match (family, operation) {
+        (
+            DeadScalarFamily::Literal,
+            O::IntegerConstant {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            },
+        ) => Some((*psi_operation, *result, *scalar_type)),
+        (
+            DeadScalarFamily::Literal,
+            O::BooleanConstant {
+                psi_operation,
+                result,
+                ..
+            },
+        ) => Some((*psi_operation, *result, psi_core::ScalarType::Boolean)),
+        (
+            DeadScalarFamily::UnconditionallyTotal,
+            O::BooleanNot {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::BooleanEqual {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::IntegerEqual {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::IntegerLessThan {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::IntegerLessOrEqual {
+                psi_operation,
+                result,
+                ..
+            },
+        ) => Some((*psi_operation, *result, psi_core::ScalarType::Boolean)),
+        (
+            DeadScalarFamily::UnconditionallyTotal,
+            O::IntegerBitwiseNot {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::IntegerBitwiseAnd {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::IntegerBitwiseOr {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::IntegerBitwiseXor {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::WrappingIntegerAdd {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::SaturatingIntegerAdd {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::WrappingIntegerSubtract {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::SaturatingIntegerSubtract {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::WrappingIntegerMultiply {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::SaturatingIntegerMultiply {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            },
+        ) => Some((
+            *psi_operation,
+            *result,
+            psi_core::ScalarType::Integer(*scalar_type),
+        )),
+        (
+            DeadScalarFamily::UnconditionallyTotal,
+            O::IntegerWiden {
+                psi_operation,
+                result,
+                target_type,
+                ..
+            },
+        ) => Some((
+            *psi_operation,
+            *result,
+            psi_core::ScalarType::Integer(*target_type),
+        )),
+        (
+            DeadScalarFamily::UnconditionallyTotal,
+            O::WrappingIntegerShiftLeft {
+                psi_operation,
+                result,
+                value_type,
+                ..
+            }
+            | O::WrappingIntegerShiftRight {
+                psi_operation,
+                result,
+                value_type,
+                ..
+            },
+        ) => Some((
+            *psi_operation,
+            *result,
+            psi_core::ScalarType::Integer(*value_type),
+        )),
+        _ => None,
     }
 }
 
@@ -3314,8 +3513,9 @@ pub fn built_in_psi_registry(
 /// Build the canonical pass-group schedule for an exact named selection set.
 ///
 /// Selection declaration order is not pass order. The explicit schedule below
-/// runs semantic constant propagation before CFG and structural copy cleanup, and each
-/// returned registry continues to own exactly one pass identity.
+/// runs semantic constant propagation before CFG cleanup, structural copy
+/// cleanup, and dead pure scalar elimination. Each returned registry continues
+/// to own exactly one pass identity.
 pub fn built_in_psi_registries(
     selections: &OptimizationSelections,
 ) -> Result<Vec<OrderedRuleRegistry>, RuleRegistryError> {
@@ -3418,6 +3618,7 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
     }
     if optimization == Optimization::DeadPureScalarElimination {
         register!(0, DeadScalarLiteralEliminationRule);
+        register!(1, DeadUnconditionallyTotalScalarEliminationRule);
     }
     registrations
 }
@@ -4066,6 +4267,69 @@ pub(crate) mod tests {
                         },
                         TerminalAbstractOperation::ReturnUnit {
                             psi_edge: id(1_207, EdgeId::new),
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    pub(crate) fn dead_wrapping_add_unit() -> PsiOptimizationUnit {
+        let machine = id(1_211, MachineId::new);
+        let block = id(1_212, BlockId::new);
+        let left = id(1_213, ValueId::new);
+        let right = id(1_214, ValueId::new);
+        let sum = id(1_215, ValueId::new);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([40; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry: block,
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        TerminalAbstractOperation::IntegerConstant {
+                            psi_operation: id(1_216, OperationId::new),
+                            result: left,
+                            scalar_type: ScalarType::Integer(integer),
+                            value: IntegerValue::Unsigned(250),
+                        },
+                        TerminalAbstractOperation::IntegerConstant {
+                            psi_operation: id(1_217, OperationId::new),
+                            result: right,
+                            scalar_type: ScalarType::Integer(integer),
+                            value: IntegerValue::Unsigned(10),
+                        },
+                        TerminalAbstractOperation::WrappingIntegerAdd {
+                            psi_operation: id(1_218, OperationId::new),
+                            result: sum,
+                            scalar_type: integer,
+                            left,
+                            right,
+                        },
+                        TerminalAbstractOperation::ReturnUnit {
+                            psi_edge: id(1_219, EdgeId::new),
                             cleanup_actions: Vec::new(),
                         },
                     ],
@@ -5305,7 +5569,7 @@ pub(crate) mod tests {
         let copy = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
         assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
         let dead = OptimizationSelections::new([Optimization::DeadPureScalarElimination]).unwrap();
-        assert_eq!(built_in_psi_registry(&dead).unwrap().len(), 1);
+        assert_eq!(built_in_psi_registry(&dead).unwrap().len(), 2);
         let unsupported_combination = OptimizationSelections::new([
             Optimization::SparseConditionalConstantPropagation,
             Optimization::CopyPropagation,
@@ -6073,6 +6337,77 @@ pub(crate) mod tests {
             .unwrap();
         assert_eq!(proposed.len(), 1);
         assert_eq!(proposed[0].node_decision_point().unwrap().node, 0);
+    }
+
+    #[test]
+    fn dead_total_scalar_rule_removes_wrapping_add_but_not_proof_bearing_exact_add() {
+        let unit = dead_wrapping_add_unit();
+        let contract = DeadUnconditionallyTotalScalarEliminationRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let [candidate] = DeadUnconditionallyTotalScalarEliminationRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .try_into()
+            .expect("only the unused wrapping add is in this rule family");
+        assert_eq!(candidate.node_decision_point().unwrap().node, 2);
+        let accepted = validate_dead_scalar_node_candidate(&unit, &candidate).unwrap();
+        assert_eq!(accepted.unit().functions[0].blocks[0].nodes.len(), 3);
+        assert_eq!(
+            accepted.unit().functions[0].blocks[0].nodes[2]
+                .provenance
+                .len(),
+            2
+        );
+
+        let PsiRewritePatch::RemoveDeadScalarNode(patch) = candidate.patch() else {
+            unreachable!()
+        };
+        let wrong_family = PsiRewriteCandidate::new_dead_scalar_node(
+            unit.identity,
+            DeadScalarLiteralEliminationRule::contract(),
+            candidate.affected_blocks().to_vec(),
+            candidate.provenance().to_vec(),
+            candidate.predicted_cost_delta(),
+            patch,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_dead_scalar_node_candidate(&unit, &wrong_family),
+            Err(OptimizationUnitValidationError::CandidatePatchMismatch)
+        );
+
+        let mut exact = exact_add_unit();
+        let return_node = &mut exact.functions[0].blocks[0].nodes[3];
+        let O::Return {
+            psi_edge,
+            cleanup_actions,
+            ..
+        } = &return_node.operation
+        else {
+            unreachable!()
+        };
+        return_node.operation = O::ReturnUnit {
+            psi_edge: *psi_edge,
+            cleanup_actions: cleanup_actions.clone(),
+        };
+        return_node.uses.clear();
+        exact.functions[0].result = TerminalAbstractFunctionResult::Unit;
+        exact.identity = recompute_psi_optimization_unit_identity(&exact);
+        validate_psi_optimization_unit(&exact).unwrap();
+        let liveness = compute_analysis(&exact, AnalysisKind::ValueLiveness).unwrap();
+        let effects = compute_analysis(&exact, AnalysisKind::EffectSummaries).unwrap();
+        assert!(
+            DeadUnconditionallyTotalScalarEliminationRule
+                .propose(&exact, RuleAnalysisView::new(&[liveness, effects]))
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

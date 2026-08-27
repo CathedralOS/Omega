@@ -964,21 +964,30 @@ dependency.
   charge a distinct semantic site, produce proof/runtime evidence, or carry an
   effect/cleanup/boundary event.
 
-  Current slice: the exact named `DeadPureScalarElimination` selection owns
-  `dead-unused-scalar-literal-elimination.v1`. It removes only unused
-  `BooleanConstant` and `IntegerConstant` nodes: the closed operations with no
-  operands, obligations, ownership, successors, crash/suspension, or
-  observation effects. The independent validator reconstructs liveness,
-  effect shape, exact definition/type, every use, and relocation accounting.
+  Current slice: the exact named `DeadPureScalarElimination` selection expands
+  to `dead-unused-scalar-literal-elimination.v1` and
+  `dead-unused-unconditionally-total-scalar-elimination.v1`. The first removes
+  only unused `BooleanConstant` and `IntegerConstant` nodes. The second has a
+  closed whitelist: Boolean not/equality; integer equality/order comparisons,
+  bitwise operations, and widening; wrapping shifts; and wrapping or saturating
+  add/subtract/multiply. Each admitted nonliteral operation is pure,
+  unconditionally total for verified typed operands, and obligation-free.
+  Exact casts/arithmetic/shifts, all divide/remainder policies, calls,
+  structural work, and boundary/service/control operations remain excluded.
+  The independent validator binds each exact rule identity to its own closed
+  shape vocabulary and reconstructs liveness, effect shape, exact
+  definition/type, absence of operation-obligation references, every use, and
+  relocation accounting.
   Removed work is never called unreachable: its operation provenance and fuel
   move to the next co-executed node, and every shifted later node is ledgered.
   Dense effects, definition/use sites, literal facts, places, and identity are
-  rebuilt. A verified artifact removes two adjacent literals over two
-  iterations and replays every source/fuel site into the return. Candidate
-  v16, optimization-unit identity v10, the v1 pass, prephysical manifest v10,
+  rebuilt. A verified wrapping-add artifact removes the unused arithmetic and
+  then its two newly dead literals at the suite fixed point, replaying every
+  source/fuel site into the return. Candidate v16, optimization-unit identity
+  v10, the v2 pass, prephysical manifest v10,
   and projection v11 bind this meaning; ledger v4 already represents the
   many-to-one moves. Other scalar operations remain open until their exact
-  totality contracts are admitted individually.
+  semantic and custody contracts are admitted individually.
 
 - **OPT-PROOF-CHECK-ELISION.** Omit redundant physical checks whose exact
   obligations were already verified and whose operation semantics permit
@@ -996,15 +1005,15 @@ dependency.
   neither unit nor ledger, and randomized rule-registration order cannot change
   output because registry order is canonical.
 
-  Current slice: the supported three-family subset has the canonical
+  Current slice: the supported four-family subset has the canonical
   `SparseConditionalConstantPropagation -> ControlFlowCleanup ->
-  CopyPropagation` schedule, distinct
+  CopyPropagation -> DeadPureScalarElimination` schedule, distinct
   ordered pass manifests, aggregate replay evidence, per-pass budgets, and
   deterministic artifact tests. Thirty-two shuffled built-in registration
-  orders produce identical full SCCP runs, and a direct second SCCP/CFG/copy sweep
-  changes neither final unit nor the composed transformation ledger. Remaining
-  to close: add canonical schedules and the same fixed-point evidence for each
-  newly implemented initial family.
+  orders produce identical full SCCP runs, and a direct second
+  SCCP/CFG/copy/dead-scalar sweep changes neither final unit nor the composed
+  transformation ledger. Remaining to close: add canonical schedules and the
+  same fixed-point evidence for each newly implemented initial family.
 
 - Named selections now declare a closed execution phase rather than being
   grouped into an optimization level. The full root-build suite remains the
