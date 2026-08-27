@@ -26,7 +26,7 @@ use crate::{
 };
 
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v1";
-const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v8";
+const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v9";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -586,10 +586,10 @@ impl AdjacentBlockMergeRule {
     pub fn contract() -> OptimizationRuleContract {
         OptimizationRuleContract::new(
             OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.adjacent-single-predecessor-block-merge.v2",
+                b"omega.psi-rule.adjacent-single-predecessor-block-merge.v3",
             ),
             OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-            2,
+            3,
             AnalysisSet::new([
                 AnalysisKind::ControlFlowGraph,
                 AnalysisKind::OwnershipFrontiers,
@@ -635,7 +635,15 @@ impl PsiOptimizationRule for AdjacentBlockMergeRule {
                 };
                 let eligible_first = target.nodes.first().is_some_and(|node| {
                     (node.successors.is_empty()
-                        && matches!(node.provenance.first(), Some(PsiProvenance::Operation(_))))
+                        && (matches!(node.provenance.first(), Some(PsiProvenance::Operation(_)))
+                            || (matches!(node.provenance.first(), Some(PsiProvenance::Edge(_)))
+                                && matches!(
+                                    node.operation,
+                                    O::Return { .. }
+                                        | O::ReturnUnit { .. }
+                                        | O::ReturnStructural { .. }
+                                        | O::Crash { .. }
+                                ))))
                         || (matches!(node.operation, O::Conditional { .. })
                             && node.successors.len() == 2
                             && node.provenance.is_empty())
@@ -5141,6 +5149,49 @@ pub(crate) mod tests {
             validate_adjacent_block_merge_candidate(&folded, &corrupted),
             Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
         );
+    }
+
+    #[test]
+    fn adjacent_block_merge_fuses_a_direct_terminal_exit_without_erasing_it() {
+        let unit = linear_empty_block_unit();
+        let contract = AdjacentBlockMergeRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let [candidate] = AdjacentBlockMergeRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .try_into()
+            .expect("the adjacent return target is the sole eligible merge");
+        let accepted = validate_adjacent_block_merge_candidate(&unit, &candidate).unwrap();
+        let output = accepted.unit();
+        assert_eq!(output.functions[0].blocks.len(), 2);
+        let terminal = &output.functions[0].blocks[1].nodes[0];
+        assert!(matches!(terminal.operation, O::ReturnUnit { .. }));
+        assert_eq!(
+            terminal.provenance,
+            [
+                PsiProvenance::Edge(id(913, EdgeId::new)),
+                PsiProvenance::Edge(id(912, EdgeId::new)),
+            ]
+        );
+        let incoming = PsiRealizationSite::Edge {
+            machine: id(901, MachineId::new),
+            edge: id(912, EdgeId::new),
+        };
+        assert!(accepted.provenance().iter().any(|row| {
+            row.input == incoming
+                && row.disposition
+                    == ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(NodeLocation {
+                        machine: id(901, MachineId::new),
+                        block: id(903, BlockId::new),
+                        node: 0,
+                    }))
+        }));
     }
 
     #[test]
