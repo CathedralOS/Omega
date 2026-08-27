@@ -2067,7 +2067,12 @@ Remaining:
   original diagnostic order, remain joined through component-progress and
   provider projection, and split only beside the backend/storage consumers.
   The test-harness entry-name override remains a name-only fallback outside
-  that authority carrier. The checked/terminal cutover, remaining post-check
+  that authority carrier. Target-scoped provider-default declarations now also
+  cross source filtering and typed construction in one owner-controlled
+  carrier; both frontend routes consume it for exact typed-machine rebinding
+  instead of couriering a raw machine-name vector, while authored row order and
+  `build override > target default > unique declaration default` precedence
+  remain unchanged. The checked/terminal cutover, remaining post-check
   fact couriers/mutations, and request-level output-destination policy remain
   open.
 

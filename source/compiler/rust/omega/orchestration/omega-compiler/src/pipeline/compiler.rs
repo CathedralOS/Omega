@@ -286,7 +286,7 @@ impl Compiler {
         // the SELECTED target's `<target> machine` implementations become
         // ordinary machines; every other target's stay inert. Loud edges:
         // duplicate / missing implementations for the selected target.
-        let target_default_machine_names =
+        let selected_target_machine_declarations =
             crate::pipeline::target_machines::filter_target_machines(
                 &mut syntax.syntax_trees,
                 self.options.target_name.as_deref(),
@@ -369,10 +369,7 @@ impl Compiler {
             .map(|selected| selected.machine_name().to_owned())
             .or(self.test_entry_machine_name.clone());
         let target_provider_defaults =
-            crate::pipeline::build_config::compute_target_provider_defaults(
-                &typed,
-                &target_default_machine_names,
-            )?;
+            selected_target_machine_declarations.settle_provider_defaults(&typed)?;
         let build_machine_present = typed.machines().iter().any(|machine| {
             crate::pipeline::build_config::is_build_machine(&typed, machine, build_source_id)
         });
