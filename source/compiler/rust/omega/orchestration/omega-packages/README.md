@@ -117,10 +117,15 @@ real package fixture demonstrates an irreducible external contract.
   trait-requirement, and operator contract keyword anchors similarly travel
   under `contract_clause`; structural static-machine parameter contracts are
   walked recursively for every projected declaration family, and accepted
-  claims reuse their callable locations.
-  Recovery envelope v3 and conflict renderer V5 retain what review displays.
-  Later nested carriers must come from existing compiler owners rather than
-  package-layer source parsing.
+  claims reuse their callable locations. Checked-flow call coordinates are
+  also joined to exact typed statement, expression, and named-transition call
+  sites under `body_call`. Source calls must retain exactly one valid private
+  authored call-selection occurrence; checked target/receiver identity and
+  operational acknowledgement must agree with the typed site. Generated calls
+  retain neither occurrence nor location. Recovery envelope v4, conflict
+  fingerprint v7, and renderer V6 retain what review displays. Later nested
+  carriers must come from existing compiler owners rather than package-layer
+  source parsing.
 - Missing old source escalates code review but does not prevent comparison
   against the lock baseline. Missing lock evidence causes fresh graph
   admission.

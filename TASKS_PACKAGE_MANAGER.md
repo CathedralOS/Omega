@@ -2486,12 +2486,19 @@ complete.
   applications, named evidence, and outcome groups without pretending an
   expression-node token is a complete fact span. Accepted-claim rows reuse the callable sidecar, so a bodyless
   trusted guarantee points at its `ensures` clause rather than only its
-  declaration. Current conflict fingerprint v6,
-  renderer V5, and canonical-row recovery envelope v3 bind the appended roles;
-  stale recovery envelopes reject rather than being reinterpreted.
-  Per-fact spans, body calls, and authored `reaches`/`invokes` clause occurrences
-  remain incremental engineering work and require deliberate span retention
-  before typed lowering, not later source-text reconstruction.
+  declaration. Checked body calls now join each checked-flow call coordinate to
+  the exact typed statement, expression, or named-transition call site. Source
+  statement and transition calls carry an explicit authored call-selection
+  occurrence through resolution and typed lowering; expression calls reuse
+  their existing attached occurrence. Projection verifies checked target,
+  receiver, receiver shape, and operational acknowledgement before emitting the
+  `body_call` anchor. Missing, duplicate, unknown, late-bound, or contradictory
+  provenance rejects; compiler-synthesized calls emit no invented location.
+  Current conflict fingerprint v7, renderer V6, and canonical-row recovery
+  envelope v4 bind the appended roles; stale envelopes reject rather than being
+  reinterpreted. Per-fact spans and authored `reaches`/`invokes` clause
+  occurrences remain incremental engineering work and require deliberate span
+  retention before typed lowering, not later source-text reconstruction.
   Canonical recovery and root-project file custody are recorded below; none of
   these concerns requires nominal Chi or a new owner decision.
 

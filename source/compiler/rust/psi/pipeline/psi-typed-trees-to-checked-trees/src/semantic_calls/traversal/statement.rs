@@ -17,7 +17,7 @@ pub(crate) fn find_call_site_in_statement<'program>(
                 traversal.machine,
                 traversal.state,
                 call,
-            ) || call.target_symbol.is_valid();
+            );
             if is_machine_call {
                 if traversal.is_target_call_site() {
                     return Some(CallSite::Statement(call));
@@ -76,12 +76,18 @@ fn find_call_site_in_transition_target<'program>(
         TransitionTargetNode::Named {
             arguments,
             evidence_arguments,
+            path,
+            source_span,
+            authored_call_selection,
             ..
         } => {
             if traversal.is_target_call_site() {
                 return Some(CallSite::TransitionNamed {
+                    path,
                     arguments: *arguments,
                     evidence_arguments,
+                    source_span: *source_span,
+                    authored_call_selection: *authored_call_selection,
                 });
             }
             traversal.advance_call_ordinal();

@@ -689,6 +689,7 @@ fn rewrite_terminal_tail_self_calls(
     let mut sites: Vec<(
         StatementHandle,
         Vec<psi_syntax_trees::expression::ExpressionHandle>,
+        psi_source::SourceSpan,
     )> = Vec::new();
     for state_handle in syntax_trees.items.state_handles(states).to_vec() {
         let state = syntax_trees.items.state(state_handle);
@@ -721,11 +722,11 @@ fn rewrite_terminal_tail_self_calls(
             .expressions
             .expression_handles(call.arguments)
             .to_vec();
-        sites.push((last, arguments));
+        sites.push((last, arguments, call.target.source_span()));
     }
 
     // Phase 2 (writes): mint the bare Named loop-back per site.
-    for (statement_handle, arguments) in sites {
+    for (statement_handle, arguments, source_span) in sites {
         let path_start = syntax_trees
             .statements
             .append_identifier_path_member(entry_callable.clone());
@@ -745,6 +746,7 @@ fn rewrite_terminal_tail_self_calls(
                     path_starts_at_self: false,
                     arguments: argument_span,
                     evidence_arguments: Box::default(),
+                    source_span,
                 });
         syntax_trees.statements.replace_statement(
             statement_handle,

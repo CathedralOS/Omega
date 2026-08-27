@@ -12,8 +12,13 @@ pub(crate) enum CallSite<'program> {
         call: &'program psi_typed_trees::expression::TableCallExpression,
     },
     TransitionNamed {
+        path: &'program psi_typed_trees::statement::TableNamePath,
         arguments: psi_arena::HandleSpan<ExpressionHandle>,
         evidence_arguments: &'program [Identifier],
+        source_span: psi_source::SourceSpan,
+        authored_call_selection: Option<
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+        >,
     },
 }
 

@@ -178,6 +178,7 @@ impl StatementTable {
                         operational_acknowledgement: call.operational_acknowledgement,
                         discards_result: call.discards_result,
                         source_span: call.source_span,
+                        authored_call_selection: call.authored_call_selection,
                     })
                 }
                 StatementNode::Expression(expression) => StatementNode::Expression(
@@ -260,6 +261,8 @@ impl StatementTable {
                 path,
                 arguments,
                 evidence_arguments,
+                source_span,
+                authored_call_selection,
             } => {
                 let members = self
                     .name_path_members
@@ -280,6 +283,8 @@ impl StatementTable {
                     },
                     arguments,
                     evidence_arguments: evidence_arguments.clone(),
+                    source_span: *source_span,
+                    authored_call_selection: *authored_call_selection,
                 }
             }
             TransitionTargetNode::Value(value) => TransitionTargetNode::Value(
@@ -510,6 +515,9 @@ pub struct TableCall {
     /// Exact authored call-target span. Compiler-generated calls retain the
     /// default span rather than inventing source provenance.
     pub source_span: SourceSpan,
+    pub authored_call_selection: Option<
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+    >,
 }
 
 impl Default for TableCall {
@@ -524,7 +532,8 @@ impl Default for TableCall {
             evidence_arguments: Box::default(),
             operational_acknowledgement: Default::default(),
             discards_result: false,
-            source_span: SourceSpan::default(),
+            source_span: Default::default(),
+            authored_call_selection: None,
         }
     }
 }
@@ -569,7 +578,7 @@ impl Default for TableTransition {
             guard: TransitionGuardNode::Always,
             proof_selectors: HandleSpan::empty(),
             exit: TransitionExit::Ordinary,
-            source_span: SourceSpan::default(),
+            source_span: Default::default(),
         }
     }
 }
@@ -599,6 +608,12 @@ pub enum TransitionTargetNode {
         path: TableNamePath,
         arguments: HandleSpan<crate::expression::ExpressionHandle>,
         evidence_arguments: Box<[Identifier]>,
+        /// Exact authored target-name span. Generated targets retain the
+        /// default span rather than inventing source provenance.
+        source_span: SourceSpan,
+        authored_call_selection: Option<
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+        >,
     },
     Value(crate::expression::ExpressionHandle),
     SelfTarget,
@@ -649,6 +664,8 @@ mod tests {
             },
             arguments,
             evidence_arguments: Box::default(),
+            source_span: Default::default(),
+            authored_call_selection: None,
         });
 
         let mut state_statements = psi_arena::HandleSpan::empty();
@@ -723,6 +740,8 @@ mod tests {
             },
             arguments,
             evidence_arguments: Box::default(),
+            source_span: Default::default(),
+            authored_call_selection: None,
         });
         source_statements.push_statement(
             &mut source_span,

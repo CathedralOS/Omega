@@ -3,7 +3,7 @@ use psi_diagnostics::Diagnostic;
 use psi_language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind,
     AuthoredDeclarationSelectionLateBinding as LateBinding,
-    AuthoredDeclarationSelectionRecordError,
+    AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError,
 };
 use psi_source::SourceSpan;
 use psi_symbol_resolved_trees::{
@@ -108,11 +108,190 @@ pub(crate) fn finalize_authored_expression_selections(
         record_unattached_candidate(program, candidate)?;
     }
 
+    finalize_authored_statement_call_selections(program)?;
+
     for candidate in statement_candidates(program) {
         record_unattached_candidate(program, candidate)?;
     }
 
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+enum AuthoredStatementCallSite {
+    Statement {
+        statements: psi_arena::HandleSpan<psi_symbol_resolved_trees::statement::Statement>,
+        offset: usize,
+    },
+    TransitionTarget {
+        statements: psi_arena::HandleSpan<psi_symbol_resolved_trees::statement::Statement>,
+        offset: usize,
+        continuation: bool,
+    },
+}
+
+#[derive(Debug, Clone, Copy)]
+struct AuthoredStatementCallCandidate {
+    site: AuthoredStatementCallSite,
+    source_span: SourceSpan,
+    target: CandidateTarget,
+}
+
+fn finalize_authored_statement_call_selections(
+    program: &mut SymbolResolvedTrees,
+) -> Result<(), Diagnostic> {
+    use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
+    use psi_symbol_resolved_trees::statement::Statement;
+
+    let mut candidates = Vec::new();
+    for machine in program.machines.iter() {
+        for state_handle in program.machine_state_handles(machine.states) {
+            let state = program.machine_state(*state_handle);
+            for (offset, statement) in program
+                .state_statements(state.statements)
+                .iter()
+                .enumerate()
+            {
+                match statement {
+                    Statement::Call(call)
+                        if call.operational_acknowledgement.origin
+                            == psi_language_semantics::CallOperationalAcknowledgementOrigin::Source
+                            && nonempty(call.target.source_span()) =>
+                    {
+                        candidates.push(AuthoredStatementCallCandidate {
+                            site: AuthoredStatementCallSite::Statement {
+                                statements: state.statements,
+                                offset,
+                            },
+                            source_span: call.target.source_span(),
+                            target: resolved_or_late(call.target_symbol, LateBinding::CheckedCall),
+                        });
+                    }
+                    Statement::Transition(transition) => {
+                        collect_authored_transition_call_candidate(
+                            state.statements,
+                            offset,
+                            false,
+                            &transition.target,
+                            &mut candidates,
+                        );
+                        if let Some(continuation) = &transition.continuation {
+                            collect_authored_transition_call_candidate(
+                                state.statements,
+                                offset,
+                                true,
+                                continuation,
+                                &mut candidates,
+                            );
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    for candidate in candidates {
+        let occurrence = match candidate.target {
+            CandidateTarget::Resolved(symbol) => program
+                .record_resolved_authored_declaration_selection(
+                    candidate.source_span,
+                    Exposure::PrivateImplementation,
+                    Kind::Call,
+                    symbol,
+                ),
+            CandidateTarget::LateBound(binding) => program
+                .record_late_bound_authored_declaration_selection(
+                    candidate.source_span,
+                    Exposure::PrivateImplementation,
+                    Kind::Call,
+                    binding,
+                ),
+        }
+        .map_err(record_diagnostic)?;
+        attach_statement_call_occurrence(program, candidate.site, occurrence)?;
+    }
+    Ok(())
+}
+
+fn collect_authored_transition_call_candidate(
+    statements: psi_arena::HandleSpan<psi_symbol_resolved_trees::statement::Statement>,
+    offset: usize,
+    continuation: bool,
+    target: &psi_symbol_resolved_trees::statement::TransitionTarget,
+    candidates: &mut Vec<AuthoredStatementCallCandidate>,
+) {
+    let psi_symbol_resolved_trees::statement::TransitionTarget::Named(target) = target else {
+        return;
+    };
+    if nonempty(target.source_span) {
+        candidates.push(AuthoredStatementCallCandidate {
+            site: AuthoredStatementCallSite::TransitionTarget {
+                statements,
+                offset,
+                continuation,
+            },
+            source_span: target.source_span,
+            target: resolved_or_late(target.symbol, LateBinding::CheckedCall),
+        });
+    }
+}
+
+fn attach_statement_call_occurrence(
+    program: &mut SymbolResolvedTrees,
+    site: AuthoredStatementCallSite,
+    occurrence: AuthoredDeclarationSelectionOccurrenceId,
+) -> Result<(), Diagnostic> {
+    use psi_symbol_resolved_trees::statement::{Statement, TransitionTarget};
+
+    let (statements, offset) = match site {
+        AuthoredStatementCallSite::Statement { statements, offset }
+        | AuthoredStatementCallSite::TransitionTarget {
+            statements, offset, ..
+        } => (statements, offset),
+    };
+    let Some(statement) = program
+        .tables
+        .declarations
+        .state_statements
+        .span_mut_or_empty(statements)
+        .get_mut(offset)
+    else {
+        return Err(Diagnostic::error(
+            "authored call-selection site no longer identifies a statement",
+        ));
+    };
+    match (site, statement) {
+        (AuthoredStatementCallSite::Statement { .. }, Statement::Call(call)) => {
+            call.authored_call_selection = Some(occurrence);
+        }
+        (
+            AuthoredStatementCallSite::TransitionTarget { continuation, .. },
+            Statement::Transition(transition),
+        ) => {
+            let target = if continuation {
+                transition.continuation.as_mut()
+            } else {
+                Some(&mut transition.target)
+            };
+            let Some(TransitionTarget::Named(target)) = target else {
+                return Err(Diagnostic::error(
+                    "authored call-selection site no longer identifies a named transition",
+                ));
+            };
+            target.authored_call_selection = Some(occurrence);
+        }
+        _ => {
+            return Err(Diagnostic::error(
+                "authored call-selection site changed kind during symbol resolution",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn nonempty(source_span: SourceSpan) -> bool {
+    source_span.span.start < source_span.span.end
 }
 
 /// Retain explicit realization-machine references only after closed
@@ -328,16 +507,6 @@ fn statement_candidates(program: &SymbolResolvedTrees) -> Vec<UnattachedCandidat
                 let psi_symbol_resolved_trees::statement::Statement::Call(call) = statement else {
                     continue;
                 };
-                if call.operational_acknowledgement.origin
-                    == psi_language_semantics::CallOperationalAcknowledgementOrigin::Source
-                {
-                    candidates.push(UnattachedCandidate {
-                        source_span: call.target.source_span(),
-                        exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-                        kind: Kind::Call,
-                        target: resolved_or_late(call.target_symbol, LateBinding::CheckedCall),
-                    });
-                }
                 collect_statement_static_argument_candidates(
                     program,
                     &call.machine_arguments,

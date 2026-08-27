@@ -46,6 +46,7 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
         .statement_table
         .insert(StatementNode::Call(TableCall {
             source_span: psi_source::SourceSpan::default(),
+            authored_call_selection: None,
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: callee_state_symbol,
             receiver: HandleSpan::empty(),
@@ -261,6 +262,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
         &mut caller_state.statement_nodes,
         StatementNode::Call(TableCall {
             source_span: psi_source::SourceSpan::default(),
+            authored_call_selection: None,
             receiver_symbol: caller_machine_symbol,
             target_symbol: callee_state_symbol,
             receiver: Default::default(),

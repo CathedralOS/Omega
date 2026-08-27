@@ -64,6 +64,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         &mut entry_state.statement_nodes,
         StatementNode::Call(TableCall {
             source_span: psi_source::SourceSpan::default(),
+            authored_call_selection: None,
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: outer_symbol,
             receiver: Default::default(),

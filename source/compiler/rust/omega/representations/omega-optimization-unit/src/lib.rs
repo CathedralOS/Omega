@@ -48,11 +48,12 @@ pub use observation::{
 pub use rewrite::{
     BlockParameterIncomingBinding, BooleanConstantRewrite, ConstantConditionalRewrite,
     IntegerConstantRewrite, IntegerEvaluationWitness, LinearEmptyBlockRewrite, NodeLocation,
-    ProvenanceDisposition, ProvenanceRewrite, PsiRewriteCandidate, PsiRewriteCandidateError,
-    PsiRewritePatch, RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
-    ScalarConstantValue, ScalarEvaluationWitness, ScalarSubstitution, SccpBlockRow, SccpEdgeRow,
-    SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState,
-    derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
+    PathQualifiedEmptyBlockRewrite, ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite,
+    PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch, RedundantBlockParameterRewrite,
+    RedundantBlockParameterWitness, ScalarConstantValue, ScalarEvaluationWitness,
+    ScalarSubstitution, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
+    SccpValueRow, SccpValueState, derived_sccp_scalar_constant_fact_identity,
+    literal_scalar_constant_fact_identity,
 };
 
 /// The exact immutable Terminal Psi semantic site realized by one unit node.
@@ -105,6 +106,12 @@ pub struct OptimizationEdge {
     pub psi_edge: EdgeId,
     pub target: BlockId,
     pub bindings: Vec<TerminalValueBinding>,
+    /// Ordered source custody charged only when this exact CFG edge is taken.
+    /// The edge's own Psi identity is first; independently validated rewrites
+    /// may append inherited edge sources that execute on the same path.
+    pub provenance: Vec<PsiProvenance>,
+    /// One ordered settlement per edge provenance source.
+    pub fuel: Vec<FuelSettlement>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -712,7 +719,7 @@ fn build_function(
         {
             let node = u32::try_from(local_index)
                 .map_err(|_| OptimizationUnitBuildError::NodeIndexOverflow(function.machine))?;
-            let provenance = operation_provenance(operation);
+            let provenance = operation_node_provenance(operation);
             let fuel = provenance
                 .iter()
                 .copied()
@@ -783,24 +790,14 @@ fn build_function(
     })
 }
 
-fn operation_provenance(operation: &TerminalAbstractOperation) -> Vec<PsiProvenance> {
+fn operation_node_provenance(operation: &TerminalAbstractOperation) -> Vec<PsiProvenance> {
     use TerminalAbstractOperation as O;
     let site = match operation {
-        O::Jump { psi_edge, .. }
-        | O::Return { psi_edge, .. }
+        O::Jump { .. } | O::Conditional { .. } => return Vec::new(),
+        O::Return { psi_edge, .. }
         | O::ReturnUnit { psi_edge, .. }
         | O::ReturnStructural { psi_edge, .. }
         | O::Crash { psi_edge, .. } => PsiProvenance::Edge(*psi_edge),
-        O::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => {
-            return vec![
-                PsiProvenance::Edge(when_true.psi_edge),
-                PsiProvenance::Edge(when_false.psi_edge),
-            ];
-        }
         O::EstablishByteSequenceLiteral { psi_operation, .. }
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
         | O::CallUnit { psi_operation, .. }
@@ -1053,6 +1050,11 @@ fn operation_edges(operation: &TerminalAbstractOperation) -> Vec<OptimizationEdg
             psi_edge: *psi_edge,
             target: *target,
             bindings: bindings.clone(),
+            provenance: vec![PsiProvenance::Edge(*psi_edge)],
+            fuel: vec![FuelSettlement {
+                site: PsiProvenance::Edge(*psi_edge),
+                units: 1,
+            }],
         }],
         O::Conditional {
             when_true,
@@ -1068,6 +1070,11 @@ fn successor_edge(successor: &TerminalAbstractSuccessor) -> OptimizationEdge {
         psi_edge: successor.psi_edge,
         target: successor.target,
         bindings: successor.bindings.clone(),
+        provenance: vec![PsiProvenance::Edge(successor.psi_edge)],
+        fuel: vec![FuelSettlement {
+            site: PsiProvenance::Edge(successor.psi_edge),
+            units: 1,
+        }],
     }
 }
 
@@ -1542,6 +1549,11 @@ mod tests {
                     parameter: id(102, ValueId::new),
                     argument: id(103, ValueId::new),
                     scalar_type,
+                }],
+                provenance: vec![PsiProvenance::Edge(id(101, EdgeId::new))],
+                fuel: vec![FuelSettlement {
+                    site: PsiProvenance::Edge(id(101, EdgeId::new)),
+                    units: 1,
                 }],
             });
         mutations.push(("successor", unit));

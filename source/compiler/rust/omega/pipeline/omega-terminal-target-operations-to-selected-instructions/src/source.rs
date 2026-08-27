@@ -317,17 +317,18 @@ fn derive_source_function(
         || entry_node.successors[1].psi_edge != abstract_false.psi_edge
         || entry_node.successors[1].target != abstract_false.target
         || !entry_node.successors[1].bindings.is_empty()
-        || entry_node.provenance
-            != vec![
-                PsiProvenance::Edge(abstract_true.psi_edge),
-                PsiProvenance::Edge(abstract_false.psi_edge),
-            ]
+        || !entry_node.provenance.is_empty()
+        || !entry_node.fuel.is_empty()
+        || entry_node.successors[0].provenance != vec![PsiProvenance::Edge(abstract_true.psi_edge)]
+        || entry_node.successors[1].provenance != vec![PsiProvenance::Edge(abstract_false.psi_edge)]
     {
         return Err(Error::UnsupportedSourceShape { function });
     }
     let branch_true_fuel = exact_edge_fuel(entry_node, abstract_true.psi_edge, function)?;
     let branch_false_fuel = exact_edge_fuel(entry_node, abstract_false.psi_edge, function)?;
-    if entry_node.fuel.len() != branch_true_fuel.len() + branch_false_fuel.len() {
+    if entry_node.successors[0].fuel.len() != branch_true_fuel.len()
+        || entry_node.successors[1].fuel.len() != branch_false_fuel.len()
+    {
         return Err(Error::UnsupportedSourceShape { function });
     }
 
@@ -744,13 +745,17 @@ fn exact_edge_fuel(
     edge: EdgeId,
     function: usize,
 ) -> Result<Vec<FuelSettlement>, SelectedInstructionError> {
-    let fuel = node
-        .fuel
+    let custody = node
+        .successors
+        .iter()
+        .find(|successor| successor.psi_edge == edge)
+        .map_or(node.fuel.as_slice(), |successor| successor.fuel.as_slice());
+    let fuel = custody
         .iter()
         .copied()
         .filter(|settlement| settlement.site == PsiProvenance::Edge(edge))
         .collect::<Vec<_>>();
-    if fuel.is_empty() {
+    if fuel.is_empty() || fuel.len() != custody.len() {
         return Err(Error::MissingFuelProvenance { function });
     }
     Ok(fuel)

@@ -1164,10 +1164,17 @@ anchor from structural static-machine parameter contracts. This uniformly covers
 named-evidence, and outcome-group forms. Accepted-claim rows share the callable
 source sidecar and therefore point to the trusted `ensures` clause. These
 coordinates remain outside semantic row bytes,
-while recovery envelope v3 and conflict fingerprint v6/rendering V5 bind what
-review shows. Per-fact spans, body sites, and `reaches`/`invokes` occurrences
-remain incremental; absent late-stage spans must be retained by their earlier
-owner, not reconstructed from source text.
+while checked body calls add exact `body_call` anchors by joining checked-flow
+coordinates to typed statement, expression, and named-transition sites.
+Statement and transition sites retain explicit authored call-selection
+occurrences; expression sites reuse their existing attached occurrences. The
+join verifies checked target, receiver, receiver shape, and operational
+acknowledgement. Missing, duplicate, unknown, late-bound, or contradictory
+provenance rejects, while compiler-generated calls produce no invented source
+location. Recovery envelope v4 and conflict fingerprint v7/rendering V6 bind
+what review shows. Per-fact spans and `reaches`/`invokes` occurrences remain
+incremental; absent late-stage spans must be retained by their earlier owner,
+not reconstructed from source text.
 
 Proposition and named-evidence projection is the concrete model for this
 cross-representation rule. Typed proposition applications own structural
