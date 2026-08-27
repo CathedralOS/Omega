@@ -1,127 +1,77 @@
 #![forbid(unsafe_code)]
 
-//! Authority-free handoff from terminal compilation to component deployment.
+//! Authority-free handoff from Terminal native realization to component
+//! deployment.
 //!
-//! This crate owns only the non-visible compiler candidate and its consuming
-//! decomposition. A candidate carries checked identities and artifact bytes,
-//! but grants no installation, provider-occurrence, progress-establishment,
-//! installed-code, filesystem, or publication authority. Keeping this carrier
-//! below both `omega-compiler` and `omega-component-deployment` lets the
-//! compiler hand it to the deployment owner without a dependency cycle.
+//! The universal native artifact lives in `omega-terminal-native-artifact`.
+//! This crate adds only component entry identity, the complete source-derived
+//! selected provider-plan facts needed by deployment, and any build-bound
+//! progress manifest.
 
-use omega_terminal_installation_evidence::TerminalProviderExecutionEvidence;
+pub use omega_terminal_native_artifact::{
+    TerminalNativeArtifact, TerminalNativeArtifactParts, TerminalNativeProviderExecution,
+    TerminalNativeSelectedProviderPlan,
+};
 
-/// One exact admitted provider execution selected for a staged terminal
-/// component. This is an owned identity projection, not a provider occurrence
-/// or an installation receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalComponentProviderExecution {
-    requirement_identity: String,
-    provider_plan: u64,
-    provider_execution_identity: u64,
-    provider_execution_fingerprint: u64,
-    normalized_root_identity: u64,
-    boundary_contract_fingerprint: u64,
-}
+pub type TerminalComponentProviderExecution = TerminalNativeProviderExecution;
 
-impl TerminalComponentProviderExecution {
-    /// Copy the authority-free identity projection from admitted provider
-    /// execution evidence. The evidence itself remains with its owner.
-    pub fn from_evidence(evidence: &dyn TerminalProviderExecutionEvidence) -> Self {
-        Self {
-            requirement_identity: evidence.requirement_identity().to_owned(),
-            provider_plan: evidence.provider_plan(),
-            provider_execution_identity: evidence.provider_execution_identity(),
-            provider_execution_fingerprint: evidence.provider_execution_fingerprint(),
-            normalized_root_identity: evidence.normalized_root_identity(),
-            boundary_contract_fingerprint: evidence.boundary_contract_fingerprint(),
-        }
-    }
-}
-
-impl TerminalProviderExecutionEvidence for TerminalComponentProviderExecution {
-    fn requirement_identity(&self) -> &str {
-        &self.requirement_identity
-    }
-
-    fn provider_plan(&self) -> u64 {
-        self.provider_plan
-    }
-
-    fn provider_execution_identity(&self) -> u64 {
-        self.provider_execution_identity
-    }
-
-    fn provider_execution_fingerprint(&self) -> u64 {
-        self.provider_execution_fingerprint
-    }
-
-    fn normalized_root_identity(&self) -> u64 {
-        self.normalized_root_identity
-    }
-
-    fn boundary_contract_fingerprint(&self) -> u64 {
-        self.boundary_contract_fingerprint
-    }
-}
-
-/// A source-independent, non-visible terminal component candidate.
-///
-/// The candidate retains everything compilation can honestly establish. It
-/// contains no output path, visibility receipt, installed-code claim, provider
-/// occurrence, or progress-establishment receipt; those belong to deployment.
 #[derive(Debug)]
 pub struct TerminalComponentCandidate {
-    target: omega_target::NativeTarget,
+    native_artifact: TerminalNativeArtifact,
     entry_machine: String,
-    semantic_bytes: Vec<u8>,
-    proof_bytes: Vec<u8>,
-    object: omega_terminal_image_emission::TerminalObjectArtifact,
-    image: omega_terminal_image_emission::TerminalExecutableImage,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
-    provider_executions: Vec<TerminalComponentProviderExecution>,
     component_progress: Option<omega_effects::ComponentProgressManifest>,
 }
 
-/// Complete owned compiler output transferred to deployment.
-///
-/// These parts grant no installation or publication authority. Deployment
-/// must still bind them to real provider occurrences and one exact
-/// installed-code occurrence.
 #[derive(Debug)]
 pub struct TerminalComponentCandidateParts {
-    pub target: omega_target::NativeTarget,
+    pub native_artifact: TerminalNativeArtifact,
     pub entry_machine: String,
-    pub semantic_bytes: Vec<u8>,
-    pub proof_bytes: Vec<u8>,
-    pub object: omega_terminal_image_emission::TerminalObjectArtifact,
-    pub image: omega_terminal_image_emission::TerminalExecutableImage,
     pub selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
-    pub provider_executions: Vec<TerminalComponentProviderExecution>,
     pub component_progress: Option<omega_effects::ComponentProgressManifest>,
 }
 
 impl TerminalComponentCandidate {
-    /// Seal one complete authority-free staging result into its consuming
-    /// handoff carrier. Semantic and artifact validation remains the staging
-    /// producer's responsibility; deployment independently replays the joins
-    /// before any registry claim or publication.
-    pub fn from_parts(parts: TerminalComponentCandidateParts) -> Self {
-        Self {
-            target: parts.target,
-            entry_machine: parts.entry_machine,
-            semantic_bytes: parts.semantic_bytes,
-            proof_bytes: parts.proof_bytes,
-            object: parts.object,
-            image: parts.image,
-            selected_provider_plans: parts.selected_provider_plans,
-            provider_executions: parts.provider_executions,
-            component_progress: parts.component_progress,
+    /// Rejoin component policy to one already replayed native artifact.
+    pub fn checked(parts: TerminalComponentCandidateParts) -> Result<Self, &'static str> {
+        parts.native_artifact.validate()?;
+        let mut projected = parts
+            .selected_provider_plans
+            .plans()
+            .iter()
+            .map(|plan| {
+                TerminalNativeSelectedProviderPlan::new(
+                    plan.identity_fingerprint(),
+                    plan.rows
+                        .iter()
+                        .map(|row| row.requirement_identity.clone())
+                        .collect(),
+                )
+            })
+            .collect::<Vec<_>>();
+        projected.sort_by_key(TerminalNativeSelectedProviderPlan::identity);
+        if projected != parts.native_artifact.selected_provider_plans() {
+            return Err(
+                "component candidate selected provider facts disagree with its native artifact",
+            );
         }
+        if parts
+            .component_progress
+            .as_ref()
+            .is_some_and(|manifest| manifest.pending().is_empty())
+        {
+            return Err("component candidate retained an empty progress manifest");
+        }
+        Ok(Self {
+            native_artifact: parts.native_artifact,
+            entry_machine: parts.entry_machine,
+            selected_provider_plans: parts.selected_provider_plans,
+            component_progress: parts.component_progress,
+        })
     }
 
     pub const fn target(&self) -> omega_target::NativeTarget {
-        self.target
+        self.native_artifact.target()
     }
 
     pub fn entry_machine(&self) -> &str {
@@ -129,44 +79,46 @@ impl TerminalComponentCandidate {
     }
 
     pub fn semantic_bytes(&self) -> &[u8] {
-        &self.semantic_bytes
+        self.native_artifact.semantic_bytes()
     }
 
     pub fn proof_bytes(&self) -> &[u8] {
-        &self.proof_bytes
+        self.native_artifact.proof_bytes()
+    }
+
+    pub const fn terminal_artifact(&self) -> &psi_terminal_codec::CanonicalTerminalArtifact {
+        self.native_artifact.terminal_artifact()
     }
 
     pub const fn object(&self) -> &omega_terminal_image_emission::TerminalObjectArtifact {
-        &self.object
+        self.native_artifact.object()
     }
 
     pub const fn image(&self) -> &omega_terminal_image_emission::TerminalExecutableImage {
-        &self.image
+        self.native_artifact.image()
     }
 
     pub const fn selected_provider_plans(&self) -> &omega_effects::SelectedProviderPlanFacts {
         &self.selected_provider_plans
     }
 
-    pub fn provider_executions(&self) -> &[TerminalComponentProviderExecution] {
-        &self.provider_executions
+    pub fn provider_executions(&self) -> &[TerminalNativeProviderExecution] {
+        self.native_artifact.provider_executions()
+    }
+
+    pub const fn native_artifact(&self) -> &TerminalNativeArtifact {
+        &self.native_artifact
     }
 
     pub const fn component_progress(&self) -> Option<&omega_effects::ComponentProgressManifest> {
         self.component_progress.as_ref()
     }
 
-    /// Transfer the complete non-visible compiler candidate into deployment.
     pub fn into_parts(self) -> TerminalComponentCandidateParts {
         TerminalComponentCandidateParts {
-            target: self.target,
+            native_artifact: self.native_artifact,
             entry_machine: self.entry_machine,
-            semantic_bytes: self.semantic_bytes,
-            proof_bytes: self.proof_bytes,
-            object: self.object,
-            image: self.image,
             selected_provider_plans: self.selected_provider_plans,
-            provider_executions: self.provider_executions,
             component_progress: self.component_progress,
         }
     }

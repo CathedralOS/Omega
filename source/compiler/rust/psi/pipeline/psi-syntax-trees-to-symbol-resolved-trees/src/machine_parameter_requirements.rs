@@ -108,11 +108,14 @@ pub(crate) fn normalize_trait_machine_requirement_arguments(
                         .iter()
                         .any(|requirement| requirement.symbol == *symbol)
                 }) {
-                Some(*symbol)
+                *symbol
             } else {
-                resolve_rendered_requirement(program, rendered).ok()
+                resolve_rendered_requirement(program, rendered).map_err(|reason| {
+                    Diagnostic::error(format!(
+                        "trait machine requirement argument `{rendered}` {reason}"
+                    ))
+                })?
             };
-            let Some(exact) = exact else { continue };
             let handle = psi_arena::Handle::from_parts(
                 conformance
                     .arguments

@@ -113,9 +113,12 @@ pub(crate) fn lower_machine_into(
             psi_language_semantics::MachineSupplyMode::CheckedBody
         }
     };
-    lowerer
-        .pending_machine_service_reaches
-        .push(service_reaches);
+    lowerer.pending_machine_service_reaches.push(
+        crate::service_reaches::PendingAuthoredServiceReach {
+            keyword_source_spans: machine.service_reach_keyword_source_spans.clone(),
+            authored: service_reaches,
+        },
+    );
     lowerer.symbol_resolved_trees.machines.push(Machine {
         symbol: SymbolHandle::invalid(),
         name: machine_name,

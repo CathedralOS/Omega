@@ -151,6 +151,16 @@ row there is empty; omitted `suspends` means never parks; omitted `blocks`
 means never blocks a worker; and an omitted crash cause is forbidden.
 Diagnostics name the violated axis.
 
+On a private body, an omitted `reaches` clause requests inference, while an
+authored memberless clause is an explicit published empty ceiling. Syntax
+retains each clause keyword and member occurrence; resolution binds every
+member once to its exact boundary-trait symbol. The normalized semantic row is
+the parent closure of those authored identities plus services contributed by
+the invocation ceiling. Duplicate authored members remain separate source
+occurrences but do not duplicate semantic set members. Package review uses the
+authored member spans, or the keyword span for an empty row, and invents no
+location for inference, invocation contribution, or parent closure.
+
 Authority possession and permission remain separate. Holding a Writable
 capability does not let a machine whose ceiling omits `Writable` exercise it.
 Conversely, listing `Writable` does not mint the capability required by the

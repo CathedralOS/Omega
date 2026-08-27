@@ -2012,27 +2012,40 @@ one exact source-derived `self.field` premise, source-selected provider plan,
 installed provider occurrence, authorized establishment route, and opaque
 acceptance; malformed closure input returns the claimed session for retry.
 
-The compiler now exposes one production staging boundary before that owner. It
-lowers an exact source-selected entry through canonical semantic/proof encoding,
-portable verification, target assignment, machine emission, and object/image
-construction into a non-visible terminal component candidate. The candidate
-retains the exact checked target, selected provider-plan closure, owned
-provider-execution identity projections, and any nonempty component-progress
-manifest. Target substitution, unresolved or duplicate boundary settlements,
-and provider executions outside the selected closure reject before a candidate
-exists. The candidate deliberately has no output path, visibility receipt,
-installed provider occurrence, progress-establishment receipt, or
-`InstalledCode` claim: compilation assembles evidence but cannot mint runtime
-or publication authority. The deployment owner consumes the candidate, joins
+Psi now owns one canonical source-free handoff carrier. The
+`CanonicalTerminalArtifact` retains exact semantic, proof, optional debug, and
+manifest identity bytes; construction independently decodes every section and
+rebuilds the manifest before custody crosses into Omega. The typed compiler
+`TerminalArtifact` product stops at this carrier without entering StateGraph,
+native emission, output, or installation. Unsupported Terminal vocabulary
+rejects there and cannot select the legacy backend as a fallback.
+
+The compiler exposes one production native-realization boundary after that
+owner. It consumes the complete canonical artifact by value, then performs
+portable verification, target assignment, machine emission, object/image
+construction, and exact final-image replay into a non-visible
+`TerminalNativeArtifact`. Its production signature accepts no checked, typed,
+syntax, or source representation and cannot lower or re-encode Terminal Psi.
+The ordinary retained-native product stops at this carrier. Component staging
+wraps the same carrier with the richer source-selected provider-plan facts and
+any nonempty component-progress manifest; it is not a second lowering path.
+Target substitution, unresolved or duplicate boundary settlements, provider
+executions outside the exact selected requirement closure, and object/image
+replay drift reject before either carrier exists. A direct native request also
+rejects pending component progress rather than discarding it. These carriers
+deliberately have no output path, visibility receipt, installed provider
+occurrence, progress-establishment receipt, or `InstalledCode` claim:
+compilation assembles evidence but cannot mint runtime or publication
+authority. The deployment owner consumes the component candidate, joins
 real installation occurrences and receipts under the live registry, acquires
 installed-code custody, and only then produces a runnable carrier.
-The authority-free candidate carrier now belongs to the neutral
-`omega-terminal-component-candidate` crate, on which both compiler and
-deployment depend. Deployment therefore no longer depends on compiler, so the
-production compiler can invoke the deployment owner without a crate cycle.
-Constructing the carrier grants no authority: deployment still independently
-replays the artifact, installation, provider, and progress joins before any
-registry claim or publication. The compiler output owner now accepts a
+The source-free native carrier belongs to the neutral
+`omega-terminal-native-artifact` crate. The component-specific wrapper remains
+in `omega-terminal-component-candidate`; compiler and deployment depend on
+those neutral owners without a cycle. Constructing either carrier grants no
+authority: deployment still independently replays the artifact, installation,
+provider, and progress joins before any registry claim or publication. The
+compiler output owner now accepts a
 deployment-finalized runnable at one explicit terminal-output seam. It derives
 the canonical build-directory destination from the image's sealed filename and
 delegates consuming publication to deployment; it does not accept selected
@@ -2088,10 +2101,10 @@ package inputs. The cutover adapter now binds staging target
 and report metadata only from the owning `CheckedCompilation`: targetless
 binding returns subsystem, admission profile, and provider settlements for
 retry, while successful driving projects build evaluation and observation
-metadata from that same owner. This does not establish an alternate checked-
-tree realization route;
-`stage_terminal_component` remains the sole operation that creates the terminal
-candidate consumed downstream. A concrete non-test installation/deployment
+metadata from that same owner. The connected driver invokes the same Psi-owned
+artifact producer as the typed compiler product, then passes only that artifact
+and explicit Omega realization facts into `stage_terminal_component`. A
+concrete non-test installation/deployment
 owner and an ordinary production caller supplying it remain prerequisites to
 replacing the legacy publication path; the compiler has no authority to stand
 in for that missing provider. This is platform/provider engineering rather than
