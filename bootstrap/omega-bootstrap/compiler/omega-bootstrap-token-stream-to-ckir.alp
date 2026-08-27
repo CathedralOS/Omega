@@ -1,0 +1,966 @@
+// Focused OMGLOWL21 (OMGCOMP1 + OMGRSWC12) -> CKIR20 lowerer.  The selected
+// semantic witness is validated and paired to its source spans before any
+// checked-IR byte is published.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+    machine read_byte() -> i32;
+    machine write_byte(byte: i32);
+}
+data Main {
+    console: Console;
+    status: i32; c: i32; n: i32; i: i32; j: i32; x: i32; y: i32;
+    decoded: i32; total: i32; comp_n: i32; witness_n: i32;
+    comp: i32; witness: i32; bundle: i32; bundle_length: i32;
+    string_length: i32; source_start: i32; source_length: i32;
+    buffer_n: i32; at: i32; row: i32; start: i32; count: i32; word: i32;
+    match_ok: i32; char_ok: i32;
+    input: [u8; 274833];
+    publication: [i32; 3422];
+}
+
+machine Main::reject(&mut self) {
+    transition self.status == 0 { true -> set_status() _ -> done() }
+    state set_status() { self.status=251; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::exhaust(&mut self) {
+    transition self.status == 0 { true -> set_status() _ -> done() }
+    state set_status() { self.status=252; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::slurp(&mut self) {
+    self.n=0; transition 0 { _ -> read_next() }
+    state read_next() { self.c=read_byte(); transition self.c < 0 { true -> done() _ -> room() } }
+    state room() { transition self.n < 274833 { true -> store() _ -> over() } }
+    state store() { self.input[self.n]=self.c; self.n=self.n+1; transition self.n > 274832 { true -> over() _ -> read_next() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::read_u32(&mut self, position: i32) {
+    self.decoded=0-1;
+    transition position >= 0 { true -> room() _ -> bad() }
+    state room() { transition position <= self.n-4 { true -> signed() _ -> bad() } }
+    state signed() { transition self.input[position+3] < 128 { true -> value() _ -> bad() } }
+    state value() {
+        self.decoded=self.input[position]+self.input[position+1]*256
+            +self.input[position+2]*65536+self.input[position+3]*16777216;
+        transition 0 { _ -> done() }
+    }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::expect_u32(&mut self, position: i32, value: i32) {
+    self.read_u32(position); transition self.status == 0 { true -> equal() _ -> done() }
+    state equal() { transition self.decoded == value { true -> done() _ -> bad() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::expect_byte(&mut self, position: i32, value: i32) {
+    transition position >= 0 { true -> room() _ -> bad() }
+    state room() { transition position < self.n { true -> equal() _ -> bad() } }
+    state equal() { transition self.input[position] == value { true -> done() _ -> bad() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::expect_no_id(&mut self, position: i32) {
+    self.expect_byte(position,255); self.expect_byte(position+1,255);
+    self.expect_byte(position+2,255); self.expect_byte(position+3,255);
+}
+
+machine Main::validate_outer(&mut self) {
+    transition self.n >= 32 { true -> magic() _ -> bad() }
+    state magic() {
+        self.expect_byte(0,79); self.expect_byte(1,77); self.expect_byte(2,71);
+        self.expect_byte(3,76); self.expect_byte(4,79); self.expect_byte(5,87);
+        self.expect_byte(6,75); self.expect_byte(7,0);
+        transition self.status == 0 { true -> fixed() _ -> done() }
+    }
+    state fixed() {
+        self.expect_byte(8,21); self.expect_byte(9,0); self.expect_byte(10,0);
+        self.expect_byte(11,0); self.expect_byte(12,0); self.expect_byte(13,0);
+        self.expect_byte(14,32); self.expect_byte(15,0); self.expect_u32(28,12);
+        transition self.status == 0 { true -> lengths() _ -> done() }
+    }
+    state lengths() {
+        self.read_u32(16); self.total=self.decoded;
+        self.read_u32(20); self.comp_n=self.decoded;
+        self.read_u32(24); self.witness_n=self.decoded;
+        transition self.status == 0 { true -> comp_limit() _ -> done() }
+    }
+    state comp_limit() { transition self.comp_n <= 267280 { true -> witness_exact() _ -> over() } }
+    state witness_exact() { transition self.witness_n == 7520 { true -> exact_sum() _ -> bad() } }
+    state exact_sum() { transition self.total == 32+self.comp_n+self.witness_n { true -> exact_input() _ -> bad() } }
+    state exact_input() { transition self.total == self.n { true -> save() _ -> bad() } }
+    state save() { self.comp=32; self.witness=32+self.comp_n; transition 0 { _ -> done() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_compilation(&mut self) {
+    transition self.comp_n >= 154 { true -> magic() _ -> bad() }
+    state magic() {
+        self.expect_byte(self.comp,79); self.expect_byte(self.comp+1,77); self.expect_byte(self.comp+2,71);
+        self.expect_byte(self.comp+3,67); self.expect_byte(self.comp+4,79); self.expect_byte(self.comp+5,77);
+        self.expect_byte(self.comp+6,80); self.expect_byte(self.comp+7,0);
+        self.expect_byte(self.comp+8,1); self.expect_byte(self.comp+9,0);
+        self.expect_byte(self.comp+10,0); self.expect_byte(self.comp+11,0);
+        self.expect_byte(self.comp+12,1); self.expect_byte(self.comp+13,0);
+        self.expect_byte(self.comp+14,0); self.expect_byte(self.comp+15,0);
+        self.expect_u32(self.comp+16,self.comp_n);
+        transition self.status == 0 { true -> header() _ -> done() }
+    }
+    state header() {
+        self.read_u32(self.comp+20); self.bundle_length=self.decoded;
+        self.read_u32(self.comp+24); self.string_length=self.decoded;
+        self.expect_u32(self.comp+32,1); self.expect_u32(self.comp+36,1);
+        self.expect_u32(self.comp+40,0); self.expect_u32(self.comp+44,0);
+        self.expect_u32(self.comp+48,0); self.expect_u32(self.comp+60,0);
+        transition self.status == 0 { true -> fixed_rows() _ -> done() }
+    }
+    state fixed_rows() {
+        self.expect_u32(self.comp+64,0); self.expect_u32(self.comp+100,0);
+        self.expect_u32(self.comp+104,1); self.expect_u32(self.comp+108,0);
+        self.expect_u32(self.comp+112,0); self.expect_u32(self.comp+116,0);
+        self.expect_u32(self.comp+120,0); self.read_u32(self.comp+124); self.x=self.decoded;
+        self.expect_u32(self.comp+128,0);
+        transition self.status == 0 { true -> string_range() _ -> done() }
+    }
+    state string_range() { self.read_u32(self.comp+28); transition self.x < self.decoded { true -> bundle_offset() _ -> bad() } }
+    state bundle_offset() { self.bundle=self.comp+132+self.string_length; transition self.bundle <= self.comp+self.comp_n { true -> bundle_extent() _ -> bad() } }
+    state bundle_extent() { transition self.bundle_length == self.comp+self.comp_n-self.bundle { true -> bundle_header() _ -> bad() } }
+    state bundle_header() {
+        self.expect_byte(self.bundle,79); self.expect_byte(self.bundle+1,77); self.expect_byte(self.bundle+2,71);
+        self.expect_byte(self.bundle+3,48); self.expect_byte(self.bundle+4,66); self.expect_byte(self.bundle+5,78);
+        self.expect_byte(self.bundle+6,68); self.expect_byte(self.bundle+7,76);
+        self.expect_u32(self.bundle+8,1); self.expect_u32(self.bundle+12,1);
+        self.read_u32(self.bundle+16); self.x=self.decoded;
+        self.read_u32(self.bundle+20); self.source_length=self.decoded;
+        transition self.status == 0 { true -> source_limit() _ -> done() }
+    }
+    state source_limit() { transition self.source_length <= 131072 { true -> source_extent() _ -> over() } }
+    state source_extent() { self.source_start=self.bundle+24+self.x; transition self.source_length == self.comp+self.comp_n-self.source_start { true -> done() _ -> bad() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::span_bounds(&mut self, relative: i32, length: i32) {
+    self.match_ok=0;
+    transition relative >= 0 { true -> length_nonnegative() _ -> done() }
+    state length_nonnegative() { transition length >= 0 { true -> room() _ -> done() } }
+    state room() { transition relative <= self.source_length-length { true -> yes() _ -> done() } }
+    state yes() { self.match_ok=1; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::is_ident_start(&mut self) {
+    self.char_ok=0; transition self.c == 95 { true -> yes() _ -> upper0() }
+    state upper0() { transition self.c >= 65 { true -> upper1() _ -> lower0() } }
+    state upper1() { transition self.c < 91 { true -> yes() _ -> lower0() } }
+    state lower0() { transition self.c >= 97 { true -> lower1() _ -> done() } }
+    state lower1() { transition self.c < 123 { true -> yes() _ -> done() } }
+    state yes() { self.char_ok=1; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::is_ident_continue(&mut self) {
+    self.is_ident_start(); transition self.char_ok == 1 { true -> done() _ -> digit0() }
+    state digit0() { transition self.c >= 48 { true -> digit1() _ -> done() } }
+    state digit1() { transition self.c < 58 { true -> yes() _ -> done() } }
+    state yes() { self.char_ok=1; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_identifier_span(&mut self, relative: i32, length: i32) {
+    self.span_bounds(relative,length); transition self.match_ok == 1 { true -> nonempty() _ -> bad() }
+    state nonempty() { transition length >= 1 { true -> ceiling() _ -> bad() } }
+    state ceiling() { transition length <= 64 { true -> first() _ -> over() } }
+    state first() { self.c=self.input[self.source_start+relative]; self.is_ident_start(); transition self.char_ok == 1 { true -> rest_begin() _ -> bad() } }
+    state rest_begin() { self.i=1; transition 0 { _ -> rest() } }
+    state rest() { transition self.i < length { true -> byte() _ -> done() } }
+    state byte() { self.c=self.input[self.source_start+relative+self.i]; self.is_ident_continue(); transition self.char_ok == 1 { true -> advance() _ -> bad() } }
+    state advance() { self.i=self.i+1; transition 0 { _ -> rest() } }
+    state over() { self.exhaust(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_body_span(&mut self, relative: i32, length: i32) {
+    self.span_bounds(relative,length); transition self.match_ok == 1 { true -> minimum() _ -> bad() }
+    state minimum() { transition length >= 2 { true -> open() _ -> bad() } }
+    state open() { transition self.input[self.source_start+relative] == 123 { true -> close() _ -> bad() } }
+    state close() { transition self.input[self.source_start+relative+length-1] == 125 { true -> done() _ -> bad() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::source_spans_equal(&mut self, left: i32, right: i32, length: i32) {
+    self.match_ok=0; self.i=0; transition 0 { _ -> loop() }
+    state loop() { transition self.i < length { true -> byte() _ -> yes() } }
+    state byte() { transition self.input[self.source_start+left+self.i] == self.input[self.source_start+right+self.i] { true -> advance() _ -> done() } }
+    state advance() { self.i=self.i+1; transition 0 { _ -> loop() } }
+    state yes() { self.match_ok=1; transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_v12_dense(&mut self, start: i32, rows: i32, width: i32) {
+    self.row=0; transition 0 { _ -> loop() }
+    state loop() { transition self.row < rows { true -> one() _ -> done() } }
+    state one() { self.expect_u32(self.witness+start+self.row*width,self.row); self.row=self.row+1; transition self.status == 0 { true -> loop() _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_v12_named_rows(&mut self) {
+    self.row=0; self.start=916; self.count=8; self.x=20; transition 0 { _ -> loop() }
+    state loop() { transition self.row < self.count { true -> one() _ -> next_table() } }
+    state one() { self.at=self.witness+self.start+self.row*self.y; self.read_u32(self.at+self.x); self.j=self.decoded; self.read_u32(self.at+self.x+4); self.validate_identifier_span(self.j,self.decoded); self.row=self.row+1; transition self.status == 0 { true -> loop() _ -> done() } }
+    state next_table() { transition self.start == 916 { true -> fields() _ -> sums_check() } }
+    state fields() { self.row=0; self.start=1172; self.count=29; self.x=16; self.y=24; transition 0 { _ -> loop() } }
+    state sums_check() { transition self.start == 1172 { true -> sums() _ -> cases_check() } }
+    state sums() { self.row=0; self.start=1868; self.count=5; self.x=20; self.y=32; transition 0 { _ -> loop() } }
+    state cases_check() { transition self.start == 1868 { true -> cases() _ -> payloads_check() } }
+    state cases() { self.row=0; self.start=2028; self.count=105; self.x=20; self.y=28; transition 0 { _ -> loop() } }
+    state payloads_check() { transition self.start == 2028 { true -> payloads() _ -> params_check() } }
+    state payloads() { self.row=0; self.start=4968; self.count=8; self.x=16; self.y=24; transition 0 { _ -> loop() } }
+    state params_check() { transition self.start == 4968 { true -> params() _ -> done() } }
+    state params() { self.row=0; self.start=5328; self.count=11; self.x=16; self.y=24; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::validate_v12_machines_blocks_calls(&mut self) {
+    self.row=0; transition 0 { _ -> machines() }
+    state machines() { transition self.row < 3 { true -> machine_one() _ -> blocks_begin() } }
+    state machine_one() { self.at=self.witness+5160+self.row*56; self.read_u32(self.at+32); self.x=self.decoded; self.read_u32(self.at+36); self.y=self.decoded; self.validate_identifier_span(self.x,self.y); self.read_u32(self.at+40); self.x=self.decoded; self.read_u32(self.at+44); self.y=self.decoded; self.validate_body_span(self.x,self.y); self.row=self.row+1; transition self.status == 0 { true -> machines() _ -> done() } }
+    state blocks_begin() { self.row=0; transition 0 { _ -> blocks() } }
+    state blocks() { transition self.row < 14 { true -> block_one() _ -> calls_begin() } }
+    state block_one() { self.at=self.witness+5592+self.row*40; self.read_u32(self.at+28); self.y=self.decoded; transition self.y > 0 { true -> block_named() _ -> block_next() } }
+    state block_named() { self.read_u32(self.at+24); self.x=self.decoded; self.validate_identifier_span(self.x,self.y); self.read_u32(self.at+32); self.x=self.decoded; self.read_u32(self.at+36); self.y=self.decoded; self.validate_body_span(self.x,self.y); transition self.status == 0 { true -> block_next() _ -> done() } }
+    state block_next() { self.row=self.row+1; transition 0 { _ -> blocks() } }
+    state calls_begin() { self.row=0; transition 0 { _ -> calls() } }
+    state calls() { transition self.row < 2 { true -> call_one() _ -> done() } }
+    state call_one() { self.at=self.witness+6416+self.row*36; self.expect_u32(self.at+12,self.row); self.read_u32(self.at+20); self.start=self.decoded; self.read_u32(self.at+24); self.count=self.decoded; self.span_bounds(self.start,self.count); transition self.match_ok == 1 { true -> target() _ -> bad() } }
+    state target() { self.at=self.witness+5160+self.row*56; self.read_u32(self.at+32); self.x=self.decoded; self.read_u32(self.at+36); self.y=self.decoded; transition self.count >= self.y { true -> compare() _ -> bad() } }
+    state compare() { self.source_spans_equal(self.start,self.x,self.y); transition self.match_ok == 1 { true -> call_next() _ -> bad() } }
+    state call_next() { self.row=self.row+1; transition 0 { _ -> calls() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_v12_facts(&mut self) {
+    self.row=0; transition 0 { _ -> record_flags() }
+    state record_flags() { transition self.row < 8 { true -> record_flag() _ -> sum_flags_begin() } }
+    state record_flag() { self.x=0; transition self.row < 6 { true -> copied_record() _ -> record_fixed() } }
+    state copied_record() { self.x=1; transition 0 { _ -> record_fixed() } }
+    state record_fixed() { self.expect_u32(self.witness+916+self.row*32+28,self.x); self.row=self.row+1; transition self.status == 0 { true -> record_flags() _ -> done() } }
+    state sum_flags_begin() { self.row=0; transition 0 { _ -> sum_flags() } }
+    state sum_flags() { transition self.row < 5 { true -> sum_flag() _ -> token_payloads() } }
+    state sum_flag() { self.expect_u32(self.witness+1868+self.row*32+28,1); self.row=self.row+1; transition self.status == 0 { true -> sum_flags() _ -> done() } }
+    state token_payloads() { self.expect_u32(self.witness+2028+77*28+12,0); self.expect_u32(self.witness+2028+77*28+16,3); self.expect_u32(self.witness+2028+78*28+12,3); self.expect_u32(self.witness+2028+78*28+16,3); self.expect_u32(self.witness+2028+80*28+12,6); self.expect_u32(self.witness+2028+80*28+16,1); self.expect_u32(self.witness+2028+81*28+12,7); self.expect_u32(self.witness+2028+81*28+16,1); transition self.status == 0 { true -> stores_begin() _ -> done() } }
+    state stores_begin() { self.row=0; transition 0 { _ -> stores() } }
+    state stores() { transition self.row < 15 { true -> store_one() _ -> args() } }
+    state store_one() { self.at=self.witness+6488+self.row*40; self.expect_u32(self.at+4,0); self.expect_u32(self.at+8,1); self.expect_u32(self.at+36,22); self.x=21; transition self.row < 6 { true -> token_owner() _ -> store_owner() } }
+    state token_owner() { self.x=20; transition 0 { _ -> store_owner() } }
+    state store_owner() { self.expect_u32(self.at+12,self.x); self.row=self.row+1; transition self.status == 0 { true -> stores() _ -> done() } }
+    state args() { self.at=self.witness+7168; self.expect_u32(self.at+12,0); self.expect_u32(self.at+16,1); self.expect_u32(self.at+20,4); self.at=self.witness+7168+32; self.expect_u32(self.at+12,11); self.expect_u32(self.at+16,2); self.expect_u32(self.at+20,78); self.expect_u32(self.at+24,5); self.at=self.witness+7168+6*32; self.expect_u32(self.at+12,13); self.expect_u32(self.at+20,70); self.at=self.witness+7168+10*32; self.expect_u32(self.at+4,1); self.expect_u32(self.at+8,0); self.expect_u32(self.at+12,16); self.expect_u32(self.at+20,0); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::validate_v12(&mut self) {
+    transition self.witness_n == 7520 { true -> magic() _ -> bad() }
+    state magic() { self.expect_byte(self.witness,79); self.expect_byte(self.witness+1,77); self.expect_byte(self.witness+2,71); self.expect_byte(self.witness+3,82); self.expect_byte(self.witness+4,83); self.expect_byte(self.witness+5,87); self.expect_byte(self.witness+6,67); self.expect_byte(self.witness+7,0); self.expect_byte(self.witness+8,12); self.expect_byte(self.witness+9,0); self.expect_byte(self.witness+10,0); self.expect_byte(self.witness+11,0); self.expect_byte(self.witness+12,0); self.expect_byte(self.witness+13,0); self.expect_byte(self.witness+14,192); self.expect_byte(self.witness+15,0); transition self.status == 0 { true -> header0() _ -> done() } }
+    state header0() { self.expect_u32(self.witness+16,7520); self.expect_u32(self.witness+20,self.comp_n); self.expect_u32(self.witness+24,1); self.expect_u32(self.witness+28,22); self.expect_u32(self.witness+32,8); self.expect_u32(self.witness+36,29); self.expect_u32(self.witness+40,5); self.expect_u32(self.witness+44,105); self.expect_u32(self.witness+48,8); transition self.status == 0 { true -> header1() _ -> done() } }
+    state header1() { self.expect_u32(self.witness+52,3); self.expect_u32(self.witness+56,11); self.expect_u32(self.witness+60,14); self.expect_u32(self.witness+64,11); self.expect_u32(self.witness+68,2); self.expect_u32(self.witness+72,15); self.expect_u32(self.witness+76,20); self.expect_u32(self.witness+80,11); self.expect_u32(self.witness+84,2); transition self.status == 0 { true -> header2() _ -> done() } }
+    state header2() { self.expect_u32(self.witness+88,0); self.expect_u32(self.witness+92,1); self.expect_u32(self.witness+96,2); self.expect_u32(self.witness+100,3); self.expect_u32(self.witness+104,4); self.expect_u32(self.witness+108,5); self.expect_u32(self.witness+112,6); self.expect_u32(self.witness+116,7); self.expect_u32(self.witness+120,0); self.expect_u32(self.witness+124,1); self.expect_u32(self.witness+128,2); self.expect_u32(self.witness+132,3); self.expect_u32(self.witness+136,4); transition self.status == 0 { true -> header3() _ -> done() } }
+    state header3() { self.expect_u32(self.witness+140,78); self.expect_u32(self.witness+144,0); self.expect_u32(self.witness+148,1); self.expect_u32(self.witness+152,16384); self.expect_u32(self.witness+156,65536); self.expect_u32(self.witness+160,1); self.expect_u32(self.witness+164,1638456); self.expect_u32(self.witness+168,0); self.expect_u32(self.witness+172,2097152); self.expect_u32(self.witness+176,0); self.expect_u32(self.witness+180,0); self.expect_u32(self.witness+184,0); self.expect_u32(self.witness+188,0); self.expect_u32(self.witness+192,0); self.expect_u32(self.witness+204,self.source_length); transition self.status == 0 { true -> dense() _ -> done() } }
+    state dense() { self.validate_v12_dense(212,22,32); self.validate_v12_dense(916,8,32); self.validate_v12_dense(1172,29,24); self.validate_v12_dense(1868,5,32); self.validate_v12_dense(2028,105,28); self.validate_v12_dense(4968,8,24); self.validate_v12_dense(5160,3,56); self.validate_v12_dense(5328,11,24); self.validate_v12_dense(5592,14,40); self.validate_v12_dense(6152,11,24); self.validate_v12_dense(6416,2,36); self.validate_v12_dense(6488,15,40); self.validate_v12_dense(7168,11,32); transition self.status == 0 { true -> facts() _ -> done() } }
+    state facts() { self.validate_v12_facts(); transition self.status == 0 { true -> names() _ -> done() } }
+    state names() { self.y=32; self.validate_v12_named_rows(); transition self.status == 0 { true -> bodies() _ -> done() } }
+    state bodies() { self.validate_v12_machines_blocks_calls(); transition 0 { _ -> done() } }
+    state bad() { self.reject(); transition 0 { _ -> done() } }
+    state done() { }
+}
+
+machine Main::clear_v20_publication(&mut self) {
+    self.i=0; transition 0 { _ -> loop() }
+    state loop() { transition self.i < 3422 { true -> one() _ -> done() } }
+    state one() { self.publication[self.i]=0; self.i=self.i+1; transition 0 { _ -> loop() } }
+    state done() { }
+}
+
+machine Main::init_v20_publication(&mut self) {
+    self.clear_v20_publication();
+    self.publication[0]=2; self.publication[1]=13704; self.publication[2]=24; self.publication[3]=8;
+    self.publication[4]=29; self.publication[5]=5; self.publication[6]=105; self.publication[7]=8;
+    self.publication[8]=3; self.publication[9]=11; self.publication[10]=14; self.publication[11]=11;
+    self.publication[14]=183; self.publication[15]=180; self.publication[16]=14; self.publication[17]=9;
+    self.publication[18]=8; self.publication[19]=67; self.publication[20]=118; self.publication[22]=4;
+    self.publication[27]=1; self.publication[28]=4; self.publication[29]=1; self.publication[33]=2;
+    self.publication[34]=4; self.publication[35]=2; self.publication[39]=3; self.publication[40]=4;
+    self.publication[41]=3; self.publication[45]=4; self.publication[46]=4; self.publication[47]=4;
+    self.publication[51]=5; self.publication[52]=4; self.publication[53]=5; self.publication[57]=6;
+    self.publication[58]=4; self.publication[59]=6; self.publication[63]=7; self.publication[64]=4;
+    self.publication[65]=7; self.publication[69]=8; self.publication[70]=6; self.publication[75]=9;
+    self.publication[76]=6; self.publication[77]=1; self.publication[81]=10; self.publication[82]=6;
+    self.publication[83]=2; self.publication[87]=11; self.publication[88]=6; self.publication[89]=3;
+    self.publication[93]=12; self.publication[94]=6; self.publication[95]=4; self.publication[99]=13;
+    self.publication[100]=1; self.publication[104]=255; self.publication[105]=14; self.publication[106]=258;
+    self.publication[110]=-1; self.publication[111]=15; self.publication[112]=3; self.publication[116]=1;
+    self.publication[117]=16; self.publication[118]=8; self.publication[121]=-1; self.publication[122]=-1;
+    self.publication[123]=17; self.publication[124]=8; self.publication[127]=16384; self.publication[129]=18;
+    self.publication[130]=8; self.publication[135]=19; self.publication[136]=8; self.publication[137]=1;
+    self.publication[139]=1; self.publication[141]=20; self.publication[142]=8; self.publication[143]=16384;
+    self.publication[145]=16384; self.publication[147]=21; self.publication[148]=261; self.publication[149]=3;
+    self.publication[150]=16384; self.publication[153]=22; self.publication[154]=261; self.publication[155]=5;
+    self.publication[156]=16384; self.publication[159]=23; self.publication[160]=261; self.publication[161]=13;
+    self.publication[162]=65536; self.publication[168]=1; self.publication[169]=1; self.publication[170]=1;
+    self.publication[171]=1; self.publication[172]=1; self.publication[173]=2; self.publication[174]=1;
+    self.publication[175]=2; self.publication[176]=2; self.publication[177]=3; self.publication[178]=2;
+    self.publication[179]=1; self.publication[180]=3; self.publication[181]=3; self.publication[182]=5;
+    self.publication[183]=4; self.publication[184]=1; self.publication[185]=4; self.publication[186]=4;
+    self.publication[187]=9; self.publication[188]=2; self.publication[189]=1; self.publication[190]=5;
+    self.publication[191]=5; self.publication[192]=11; self.publication[193]=9; self.publication[194]=1;
+    self.publication[195]=6; self.publication[196]=6; self.publication[197]=20; self.publication[198]=8;
+    self.publication[200]=7; self.publication[201]=7; self.publication[202]=28; self.publication[203]=1;
+    self.publication[208]=14; self.publication[209]=1; self.publication[210]=1; self.publication[212]=16;
+    self.publication[213]=2; self.publication[214]=1; self.publication[215]=1; self.publication[216]=16;
+    self.publication[217]=3; self.publication[218]=2; self.publication[221]=4; self.publication[222]=2;
+    self.publication[223]=1; self.publication[224]=1; self.publication[225]=5; self.publication[226]=3;
+    self.publication[228]=11; self.publication[229]=6; self.publication[230]=3; self.publication[231]=1;
+    self.publication[232]=2; self.publication[233]=7; self.publication[234]=3; self.publication[235]=2;
+    self.publication[236]=16; self.publication[237]=8; self.publication[238]=3; self.publication[239]=3;
+    self.publication[240]=16; self.publication[241]=9; self.publication[242]=4; self.publication[244]=12;
+    self.publication[245]=10; self.publication[246]=4; self.publication[247]=1; self.publication[248]=2;
+    self.publication[249]=11; self.publication[250]=5; self.publication[252]=13; self.publication[253]=12;
+    self.publication[254]=5; self.publication[255]=1; self.publication[256]=13; self.publication[257]=13;
+    self.publication[258]=5; self.publication[259]=2; self.publication[260]=13; self.publication[261]=14;
+    self.publication[262]=5; self.publication[263]=3; self.publication[264]=13; self.publication[265]=15;
+    self.publication[266]=5; self.publication[267]=4; self.publication[268]=14; self.publication[269]=16;
+    self.publication[270]=5; self.publication[271]=5; self.publication[272]=16; self.publication[273]=17;
+    self.publication[274]=5; self.publication[275]=6; self.publication[276]=16; self.publication[277]=18;
+    self.publication[278]=5; self.publication[279]=7; self.publication[280]=16; self.publication[281]=19;
+    self.publication[282]=5; self.publication[283]=8; self.publication[284]=16; self.publication[285]=20;
+    self.publication[286]=6; self.publication[288]=21; self.publication[289]=21; self.publication[290]=6;
+    self.publication[291]=1; self.publication[292]=22; self.publication[293]=22; self.publication[294]=6;
+    self.publication[295]=2; self.publication[296]=17; self.publication[297]=23; self.publication[298]=6;
+    self.publication[299]=3; self.publication[300]=23; self.publication[301]=24; self.publication[302]=6;
+    self.publication[303]=4; self.publication[304]=16; self.publication[305]=25; self.publication[306]=6;
+    self.publication[307]=5; self.publication[308]=4; self.publication[309]=26; self.publication[310]=6;
+    self.publication[311]=6; self.publication[312]=15; self.publication[313]=27; self.publication[314]=6;
+    self.publication[315]=7; self.publication[316]=15; self.publication[317]=28; self.publication[318]=7;
+    self.publication[320]=6; self.publication[322]=8; self.publication[324]=4; self.publication[325]=1;
+    self.publication[326]=1; self.publication[327]=9; self.publication[328]=4; self.publication[329]=30;
+    self.publication[330]=1; self.publication[331]=2; self.publication[332]=10; self.publication[333]=34;
+    self.publication[334]=42; self.publication[335]=1; self.publication[336]=3; self.publication[337]=11;
+    self.publication[338]=76; self.publication[339]=9; self.publication[340]=1; self.publication[341]=4;
+    self.publication[342]=12; self.publication[343]=85; self.publication[344]=20; self.publication[345]=1;
+    self.publication[351]=1; self.publication[353]=1; self.publication[356]=2; self.publication[358]=2;
+    self.publication[361]=3; self.publication[363]=3; self.publication[366]=4; self.publication[367]=1;
+    self.publication[371]=5; self.publication[372]=1; self.publication[373]=1; self.publication[376]=6;
+    self.publication[377]=1; self.publication[378]=2; self.publication[381]=7; self.publication[382]=1;
+    self.publication[383]=3; self.publication[386]=8; self.publication[387]=1; self.publication[388]=4;
+    self.publication[391]=9; self.publication[392]=1; self.publication[393]=5; self.publication[396]=10;
+    self.publication[397]=1; self.publication[398]=6; self.publication[401]=11; self.publication[402]=1;
+    self.publication[403]=7; self.publication[406]=12; self.publication[407]=1; self.publication[408]=8;
+    self.publication[411]=13; self.publication[412]=1; self.publication[413]=9; self.publication[416]=14;
+    self.publication[417]=1; self.publication[418]=10; self.publication[421]=15; self.publication[422]=1;
+    self.publication[423]=11; self.publication[426]=16; self.publication[427]=1; self.publication[428]=12;
+    self.publication[431]=17; self.publication[432]=1; self.publication[433]=13; self.publication[436]=18;
+    self.publication[437]=1; self.publication[438]=14; self.publication[441]=19; self.publication[442]=1;
+    self.publication[443]=15; self.publication[446]=20; self.publication[447]=1; self.publication[448]=16;
+    self.publication[451]=21; self.publication[452]=1; self.publication[453]=17; self.publication[456]=22;
+    self.publication[457]=1; self.publication[458]=18; self.publication[461]=23; self.publication[462]=1;
+    self.publication[463]=19; self.publication[466]=24; self.publication[467]=1; self.publication[468]=20;
+    self.publication[471]=25; self.publication[472]=1; self.publication[473]=21; self.publication[476]=26;
+    self.publication[477]=1; self.publication[478]=22; self.publication[481]=27; self.publication[482]=1;
+    self.publication[483]=23; self.publication[486]=28; self.publication[487]=1; self.publication[488]=24;
+    self.publication[491]=29; self.publication[492]=1; self.publication[493]=25; self.publication[496]=30;
+    self.publication[497]=1; self.publication[498]=26; self.publication[501]=31; self.publication[502]=1;
+    self.publication[503]=27; self.publication[506]=32; self.publication[507]=1; self.publication[508]=28;
+    self.publication[511]=33; self.publication[512]=1; self.publication[513]=29; self.publication[516]=34;
+    self.publication[517]=2; self.publication[521]=35; self.publication[522]=2; self.publication[523]=1;
+    self.publication[526]=36; self.publication[527]=2; self.publication[528]=2; self.publication[531]=37;
+    self.publication[532]=2; self.publication[533]=3; self.publication[536]=38; self.publication[537]=2;
+    self.publication[538]=4; self.publication[541]=39; self.publication[542]=2; self.publication[543]=5;
+    self.publication[546]=40; self.publication[547]=2; self.publication[548]=6; self.publication[551]=41;
+    self.publication[552]=2; self.publication[553]=7; self.publication[556]=42; self.publication[557]=2;
+    self.publication[558]=8; self.publication[561]=43; self.publication[562]=2; self.publication[563]=9;
+    self.publication[566]=44; self.publication[567]=2; self.publication[568]=10; self.publication[571]=45;
+    self.publication[572]=2; self.publication[573]=11; self.publication[576]=46; self.publication[577]=2;
+    self.publication[578]=12; self.publication[581]=47; self.publication[582]=2; self.publication[583]=13;
+    self.publication[586]=48; self.publication[587]=2; self.publication[588]=14; self.publication[591]=49;
+    self.publication[592]=2; self.publication[593]=15; self.publication[596]=50; self.publication[597]=2;
+    self.publication[598]=16; self.publication[601]=51; self.publication[602]=2; self.publication[603]=17;
+    self.publication[606]=52; self.publication[607]=2; self.publication[608]=18; self.publication[611]=53;
+    self.publication[612]=2; self.publication[613]=19; self.publication[616]=54; self.publication[617]=2;
+    self.publication[618]=20; self.publication[621]=55; self.publication[622]=2; self.publication[623]=21;
+    self.publication[626]=56; self.publication[627]=2; self.publication[628]=22; self.publication[631]=57;
+    self.publication[632]=2; self.publication[633]=23; self.publication[636]=58; self.publication[637]=2;
+    self.publication[638]=24; self.publication[641]=59; self.publication[642]=2; self.publication[643]=25;
+    self.publication[646]=60; self.publication[647]=2; self.publication[648]=26; self.publication[651]=61;
+    self.publication[652]=2; self.publication[653]=27; self.publication[656]=62; self.publication[657]=2;
+    self.publication[658]=28; self.publication[661]=63; self.publication[662]=2; self.publication[663]=29;
+    self.publication[666]=64; self.publication[667]=2; self.publication[668]=30; self.publication[671]=65;
+    self.publication[672]=2; self.publication[673]=31; self.publication[676]=66; self.publication[677]=2;
+    self.publication[678]=32; self.publication[681]=67; self.publication[682]=2; self.publication[683]=33;
+    self.publication[686]=68; self.publication[687]=2; self.publication[688]=34; self.publication[691]=69;
+    self.publication[692]=2; self.publication[693]=35; self.publication[696]=70; self.publication[697]=2;
+    self.publication[698]=36; self.publication[701]=71; self.publication[702]=2; self.publication[703]=37;
+    self.publication[706]=72; self.publication[707]=2; self.publication[708]=38; self.publication[711]=73;
+    self.publication[712]=2; self.publication[713]=39; self.publication[716]=74; self.publication[717]=2;
+    self.publication[718]=40; self.publication[721]=75; self.publication[722]=2; self.publication[723]=41;
+    self.publication[726]=76; self.publication[727]=3; self.publication[731]=77; self.publication[732]=3;
+    self.publication[733]=1; self.publication[735]=3; self.publication[736]=78; self.publication[737]=3;
+    self.publication[738]=2; self.publication[739]=3; self.publication[740]=3; self.publication[741]=79;
+    self.publication[742]=3; self.publication[743]=3; self.publication[744]=6; self.publication[746]=80;
+    self.publication[747]=3; self.publication[748]=4; self.publication[749]=6; self.publication[750]=1;
+    self.publication[751]=81; self.publication[752]=3; self.publication[753]=5; self.publication[754]=7;
+    self.publication[755]=1; self.publication[756]=82; self.publication[757]=3; self.publication[758]=6;
+    self.publication[759]=8; self.publication[761]=83; self.publication[762]=3; self.publication[763]=7;
+    self.publication[764]=8; self.publication[766]=84; self.publication[767]=3; self.publication[768]=8;
+    self.publication[769]=8; self.publication[771]=85; self.publication[772]=4; self.publication[774]=8;
+    self.publication[776]=86; self.publication[777]=4; self.publication[778]=1; self.publication[779]=8;
+    self.publication[781]=87; self.publication[782]=4; self.publication[783]=2; self.publication[784]=8;
+    self.publication[786]=88; self.publication[787]=4; self.publication[788]=3; self.publication[789]=8;
+    self.publication[791]=89; self.publication[792]=4; self.publication[793]=4; self.publication[794]=8;
+    self.publication[796]=90; self.publication[797]=4; self.publication[798]=5; self.publication[799]=8;
+    self.publication[801]=91; self.publication[802]=4; self.publication[803]=6; self.publication[804]=8;
+    self.publication[806]=92; self.publication[807]=4; self.publication[808]=7; self.publication[809]=8;
+    self.publication[811]=93; self.publication[812]=4; self.publication[813]=8; self.publication[814]=8;
+    self.publication[816]=94; self.publication[817]=4; self.publication[818]=9; self.publication[819]=8;
+    self.publication[821]=95; self.publication[822]=4; self.publication[823]=10; self.publication[824]=8;
+    self.publication[826]=96; self.publication[827]=4; self.publication[828]=11; self.publication[829]=8;
+    self.publication[831]=97; self.publication[832]=4; self.publication[833]=12; self.publication[834]=8;
+    self.publication[836]=98; self.publication[837]=4; self.publication[838]=13; self.publication[839]=8;
+    self.publication[841]=99; self.publication[842]=4; self.publication[843]=14; self.publication[844]=8;
+    self.publication[846]=100; self.publication[847]=4; self.publication[848]=15; self.publication[849]=8;
+    self.publication[851]=101; self.publication[852]=4; self.publication[853]=16; self.publication[854]=8;
+    self.publication[856]=102; self.publication[857]=4; self.publication[858]=17; self.publication[859]=8;
+    self.publication[861]=103; self.publication[862]=4; self.publication[863]=18; self.publication[864]=8;
+    self.publication[866]=104; self.publication[867]=4; self.publication[868]=19; self.publication[869]=8;
+    self.publication[872]=77; self.publication[874]=8; self.publication[875]=1; self.publication[876]=77;
+    self.publication[877]=1; self.publication[878]=15; self.publication[879]=2; self.publication[880]=77;
+    self.publication[881]=2; self.publication[882]=15; self.publication[883]=3; self.publication[884]=78;
+    self.publication[886]=15; self.publication[887]=4; self.publication[888]=78; self.publication[889]=1;
+    self.publication[890]=15; self.publication[891]=5; self.publication[892]=78; self.publication[893]=2;
+    self.publication[894]=15; self.publication[895]=6; self.publication[896]=80; self.publication[898]=9;
+    self.publication[899]=7; self.publication[900]=81; self.publication[902]=10; self.publication[904]=6;
+    self.publication[905]=2; self.publication[906]=-1; self.publication[908]=10; self.publication[910]=3;
+    self.publication[912]=1; self.publication[913]=6; self.publication[914]=1; self.publication[915]=13;
+    self.publication[916]=10; self.publication[917]=1; self.publication[918]=3; self.publication[919]=10;
+    self.publication[920]=3; self.publication[921]=2; self.publication[922]=7; self.publication[923]=2;
+    self.publication[924]=13; self.publication[925]=11; self.publication[927]=13; self.publication[928]=1;
+    self.publication[929]=13; self.publication[935]=1; self.publication[937]=1; self.publication[938]=11;
+    self.publication[939]=1; self.publication[940]=2; self.publication[942]=2; self.publication[943]=16;
+    self.publication[944]=2; self.publication[945]=3; self.publication[947]=3; self.publication[948]=16;
+    self.publication[949]=3; self.publication[950]=4; self.publication[952]=4; self.publication[953]=16;
+    self.publication[954]=4; self.publication[955]=5; self.publication[957]=5; self.publication[958]=16;
+    self.publication[959]=5; self.publication[960]=6; self.publication[962]=6; self.publication[963]=13;
+    self.publication[964]=6; self.publication[965]=7; self.publication[967]=7; self.publication[968]=13;
+    self.publication[969]=7; self.publication[970]=8; self.publication[972]=8; self.publication[973]=13;
+    self.publication[974]=8; self.publication[975]=9; self.publication[977]=9; self.publication[978]=13;
+    self.publication[979]=9; self.publication[980]=10; self.publication[981]=1; self.publication[983]=16;
+    self.publication[984]=10; self.publication[987]=2; self.publication[991]=9; self.publication[993]=1;
+    self.publication[995]=2; self.publication[998]=9; self.publication[999]=137; self.publication[1000]=1;
+    self.publication[1001]=2; self.publication[1003]=2; self.publication[1006]=146; self.publication[1007]=4;
+    self.publication[1008]=2; self.publication[1009]=3; self.publication[1010]=1; self.publication[1011]=1;
+    self.publication[1014]=150; self.publication[1015]=4; self.publication[1016]=3; self.publication[1017]=4;
+    self.publication[1018]=1; self.publication[1019]=1; self.publication[1022]=154; self.publication[1023]=4;
+    self.publication[1024]=4; self.publication[1025]=5; self.publication[1026]=1; self.publication[1027]=1;
+    self.publication[1029]=3; self.publication[1030]=158; self.publication[1032]=5; self.publication[1033]=6;
+    self.publication[1034]=1; self.publication[1035]=1; self.publication[1036]=3; self.publication[1037]=3;
+    self.publication[1038]=158; self.publication[1040]=6; self.publication[1041]=7; self.publication[1042]=1;
+    self.publication[1043]=1; self.publication[1044]=6; self.publication[1045]=1; self.publication[1046]=158;
+    self.publication[1048]=7; self.publication[1049]=8; self.publication[1050]=1; self.publication[1051]=1;
+    self.publication[1052]=7; self.publication[1053]=1; self.publication[1054]=158; self.publication[1056]=8;
+    self.publication[1057]=9; self.publication[1058]=1; self.publication[1059]=1; self.publication[1060]=8;
+    self.publication[1061]=2; self.publication[1062]=158; self.publication[1064]=9; self.publication[1065]=10;
+    self.publication[1066]=1; self.publication[1067]=1; self.publication[1068]=10; self.publication[1069]=1;
+    self.publication[1070]=158; self.publication[1072]=10; self.publication[1073]=11; self.publication[1074]=1;
+    self.publication[1075]=1; self.publication[1076]=11; self.publication[1078]=158; self.publication[1079]=5;
+    self.publication[1080]=11; self.publication[1081]=12; self.publication[1082]=1; self.publication[1083]=1;
+    self.publication[1084]=11; self.publication[1086]=163; self.publication[1087]=1; self.publication[1088]=12;
+    self.publication[1089]=13; self.publication[1090]=2; self.publication[1091]=2; self.publication[1092]=11;
+    self.publication[1094]=164; self.publication[1095]=19; self.publication[1096]=13; self.publication[1098]=5;
+    self.publication[1100]=8; self.publication[1101]=11; self.publication[1102]=1; self.publication[1103]=5;
+    self.publication[1104]=1; self.publication[1105]=15; self.publication[1106]=12; self.publication[1107]=2;
+    self.publication[1108]=5; self.publication[1109]=2; self.publication[1110]=15; self.publication[1111]=13;
+    self.publication[1112]=3; self.publication[1113]=6; self.publication[1115]=15; self.publication[1116]=14;
+    self.publication[1117]=4; self.publication[1118]=6; self.publication[1119]=1; self.publication[1120]=15;
+    self.publication[1121]=15; self.publication[1122]=5; self.publication[1123]=6; self.publication[1124]=2;
+    self.publication[1125]=15; self.publication[1126]=16; self.publication[1127]=6; self.publication[1128]=7;
+    self.publication[1130]=9; self.publication[1131]=17; self.publication[1132]=7; self.publication[1133]=8;
+    self.publication[1135]=10; self.publication[1136]=18; self.publication[1137]=8; self.publication[1138]=9;
+    self.publication[1140]=15; self.publication[1141]=19; self.publication[1142]=9; self.publication[1143]=9;
+    self.publication[1144]=1; self.publication[1145]=15; self.publication[1146]=20; self.publication[1147]=10;
+    self.publication[1148]=10; self.publication[1150]=15; self.publication[1151]=21; self.publication[1155]=514;
+    self.publication[1157]=6; self.publication[1162]=1; self.publication[1165]=515; self.publication[1166]=1;
+    self.publication[1167]=15; self.publication[1169]=1; self.publication[1170]=27; self.publication[1172]=2;
+    self.publication[1175]=257; self.publication[1176]=22; self.publication[1177]=15; self.publication[1178]=1;
+    self.publication[1182]=3; self.publication[1185]=6; self.publication[1186]=-1; self.publication[1187]=-1;
+    self.publication[1188]=1; self.publication[1189]=2; self.publication[1192]=4; self.publication[1195]=514;
+    self.publication[1196]=2; self.publication[1197]=6; self.publication[1198]=3; self.publication[1202]=5;
+    self.publication[1205]=515; self.publication[1206]=3; self.publication[1207]=17; self.publication[1208]=3;
+    self.publication[1209]=1; self.publication[1210]=22; self.publication[1212]=6; self.publication[1215]=261;
+    self.publication[1216]=23; self.publication[1217]=17; self.publication[1218]=4; self.publication[1219]=1;
+    self.publication[1222]=7; self.publication[1225]=257; self.publication[1226]=24; self.publication[1227]=20;
+    self.publication[1228]=5; self.publication[1230]=16384; self.publication[1232]=8; self.publication[1235]=265;
+    self.publication[1236]=25; self.publication[1237]=15; self.publication[1238]=5; self.publication[1239]=2;
+    self.publication[1242]=9; self.publication[1244]=1; self.publication[1245]=514; self.publication[1246]=4;
+    self.publication[1247]=6; self.publication[1248]=7; self.publication[1252]=10; self.publication[1254]=1;
+    self.publication[1255]=515; self.publication[1256]=5; self.publication[1257]=17; self.publication[1258]=7;
+    self.publication[1259]=1; self.publication[1260]=22; self.publication[1262]=11; self.publication[1264]=1;
+    self.publication[1265]=261; self.publication[1266]=26; self.publication[1267]=17; self.publication[1268]=8;
+    self.publication[1269]=1; self.publication[1272]=12; self.publication[1274]=1; self.publication[1275]=514;
+    self.publication[1276]=6; self.publication[1277]=6; self.publication[1278]=9; self.publication[1282]=13;
+    self.publication[1284]=1; self.publication[1285]=515; self.publication[1286]=7; self.publication[1287]=21;
+    self.publication[1288]=9; self.publication[1289]=1; self.publication[1290]=20; self.publication[1292]=14;
+    self.publication[1294]=1; self.publication[1295]=516; self.publication[1296]=8; self.publication[1297]=3;
+    self.publication[1298]=10; self.publication[1299]=2; self.publication[1302]=15; self.publication[1304]=1;
+    self.publication[1305]=515; self.publication[1306]=9; self.publication[1307]=11; self.publication[1308]=12;
+    self.publication[1309]=1; self.publication[1310]=5; self.publication[1312]=16; self.publication[1314]=1;
+    self.publication[1315]=7; self.publication[1316]=-1; self.publication[1317]=-1; self.publication[1318]=13;
+    self.publication[1319]=2; self.publication[1320]=1; self.publication[1322]=17; self.publication[1324]=1;
+    self.publication[1325]=514; self.publication[1326]=10; self.publication[1327]=6; self.publication[1328]=15;
+    self.publication[1332]=18; self.publication[1334]=1; self.publication[1335]=515; self.publication[1336]=11;
+    self.publication[1337]=17; self.publication[1338]=15; self.publication[1339]=1; self.publication[1340]=22;
+    self.publication[1342]=19; self.publication[1344]=1; self.publication[1345]=261; self.publication[1346]=27;
+    self.publication[1347]=17; self.publication[1348]=16; self.publication[1349]=1; self.publication[1352]=20;
+    self.publication[1354]=1; self.publication[1355]=514; self.publication[1356]=12; self.publication[1357]=6;
+    self.publication[1358]=17; self.publication[1362]=21; self.publication[1364]=1; self.publication[1365]=515;
+    self.publication[1366]=13; self.publication[1367]=21; self.publication[1368]=17; self.publication[1369]=1;
+    self.publication[1370]=20; self.publication[1372]=22; self.publication[1374]=1; self.publication[1375]=516;
+    self.publication[1376]=14; self.publication[1377]=3; self.publication[1378]=18; self.publication[1379]=2;
+    self.publication[1382]=23; self.publication[1384]=1; self.publication[1385]=515; self.publication[1386]=15;
+    self.publication[1387]=2; self.publication[1388]=20; self.publication[1389]=1; self.publication[1390]=6;
+    self.publication[1392]=24; self.publication[1394]=1; self.publication[1395]=515; self.publication[1396]=16;
+    self.publication[1398]=21; self.publication[1399]=1; self.publication[1400]=3; self.publication[1402]=25;
+    self.publication[1404]=1; self.publication[1405]=7; self.publication[1406]=-1; self.publication[1407]=-1;
+    self.publication[1408]=22; self.publication[1409]=2; self.publication[1410]=1; self.publication[1412]=26;
+    self.publication[1414]=1; self.publication[1415]=515; self.publication[1416]=17; self.publication[1417]=14;
+    self.publication[1418]=24; self.publication[1419]=1; self.publication[1422]=27; self.publication[1424]=1;
+    self.publication[1425]=261; self.publication[1426]=28; self.publication[1427]=14; self.publication[1428]=25;
+    self.publication[1429]=1; self.publication[1432]=28; self.publication[1434]=1; self.publication[1435]=514;
+    self.publication[1436]=18; self.publication[1437]=6; self.publication[1438]=26; self.publication[1442]=29;
+    self.publication[1444]=1; self.publication[1445]=515; self.publication[1446]=19; self.publication[1447]=17;
+    self.publication[1448]=26; self.publication[1449]=1; self.publication[1450]=22; self.publication[1452]=30;
+    self.publication[1454]=1; self.publication[1455]=261; self.publication[1456]=29; self.publication[1457]=17;
+    self.publication[1458]=27; self.publication[1459]=1; self.publication[1462]=31; self.publication[1464]=1;
+    self.publication[1465]=514; self.publication[1466]=20; self.publication[1467]=6; self.publication[1468]=28;
+    self.publication[1472]=32; self.publication[1474]=1; self.publication[1475]=515; self.publication[1476]=21;
+    self.publication[1477]=21; self.publication[1478]=28; self.publication[1479]=1; self.publication[1480]=20;
+    self.publication[1482]=33; self.publication[1484]=1; self.publication[1485]=516; self.publication[1486]=22;
+    self.publication[1487]=3; self.publication[1488]=29; self.publication[1489]=2; self.publication[1492]=34;
+    self.publication[1494]=1; self.publication[1495]=515; self.publication[1496]=23; self.publication[1497]=2;
+    self.publication[1498]=31; self.publication[1499]=1; self.publication[1500]=6; self.publication[1502]=35;
+    self.publication[1504]=1; self.publication[1505]=515; self.publication[1506]=24; self.publication[1507]=1;
+    self.publication[1508]=32; self.publication[1509]=1; self.publication[1510]=4; self.publication[1512]=36;
+    self.publication[1514]=1; self.publication[1515]=515; self.publication[1516]=25; self.publication[1517]=16;
+    self.publication[1518]=33; self.publication[1519]=1; self.publication[1520]=1; self.publication[1522]=37;
+    self.publication[1524]=1; self.publication[1525]=6; self.publication[1526]=-1; self.publication[1527]=-1;
+    self.publication[1528]=34; self.publication[1529]=2; self.publication[1532]=38; self.publication[1534]=1;
+    self.publication[1535]=514; self.publication[1536]=26; self.publication[1537]=6; self.publication[1538]=36;
+    self.publication[1542]=39; self.publication[1544]=1; self.publication[1545]=515; self.publication[1546]=27;
+    self.publication[1547]=17; self.publication[1548]=36; self.publication[1549]=1; self.publication[1550]=22;
+    self.publication[1552]=40; self.publication[1554]=1; self.publication[1555]=261; self.publication[1556]=30;
+    self.publication[1557]=17; self.publication[1558]=37; self.publication[1559]=1; self.publication[1562]=41;
+    self.publication[1564]=1; self.publication[1565]=514; self.publication[1566]=28; self.publication[1567]=6;
+    self.publication[1568]=38; self.publication[1572]=42; self.publication[1574]=1; self.publication[1575]=515;
+    self.publication[1576]=29; self.publication[1577]=21; self.publication[1578]=38; self.publication[1579]=1;
+    self.publication[1580]=20; self.publication[1582]=43; self.publication[1584]=1; self.publication[1585]=516;
+    self.publication[1586]=30; self.publication[1587]=3; self.publication[1588]=39; self.publication[1589]=2;
+    self.publication[1592]=44; self.publication[1594]=1; self.publication[1595]=515; self.publication[1596]=31;
+    self.publication[1597]=2; self.publication[1598]=41; self.publication[1599]=1; self.publication[1600]=6;
+    self.publication[1602]=45; self.publication[1604]=1; self.publication[1605]=515; self.publication[1606]=32;
+    self.publication[1607]=1; self.publication[1608]=42; self.publication[1609]=1; self.publication[1610]=4;
+    self.publication[1612]=46; self.publication[1614]=1; self.publication[1615]=515; self.publication[1616]=33;
+    self.publication[1617]=16; self.publication[1618]=43; self.publication[1619]=1; self.publication[1620]=2;
+    self.publication[1622]=47; self.publication[1624]=1; self.publication[1625]=6; self.publication[1626]=-1;
+    self.publication[1627]=-1; self.publication[1628]=44; self.publication[1629]=2; self.publication[1632]=48;
+    self.publication[1634]=1; self.publication[1635]=514; self.publication[1636]=34; self.publication[1637]=6;
+    self.publication[1638]=46; self.publication[1642]=49; self.publication[1644]=1; self.publication[1645]=515;
+    self.publication[1646]=35; self.publication[1647]=17; self.publication[1648]=46; self.publication[1649]=1;
+    self.publication[1650]=22; self.publication[1652]=50; self.publication[1654]=1; self.publication[1655]=261;
+    self.publication[1656]=31; self.publication[1657]=17; self.publication[1658]=47; self.publication[1659]=1;
+    self.publication[1662]=51; self.publication[1664]=1; self.publication[1665]=514; self.publication[1666]=36;
+    self.publication[1667]=6; self.publication[1668]=48; self.publication[1672]=52; self.publication[1674]=1;
+    self.publication[1675]=515; self.publication[1676]=37; self.publication[1677]=21; self.publication[1678]=48;
+    self.publication[1679]=1; self.publication[1680]=20; self.publication[1682]=53; self.publication[1684]=1;
+    self.publication[1685]=516; self.publication[1686]=38; self.publication[1687]=3; self.publication[1688]=49;
+    self.publication[1689]=2; self.publication[1692]=54; self.publication[1694]=1; self.publication[1695]=515;
+    self.publication[1696]=39; self.publication[1697]=16; self.publication[1698]=51; self.publication[1699]=1;
+    self.publication[1700]=7; self.publication[1702]=55; self.publication[1704]=1; self.publication[1705]=6;
+    self.publication[1706]=-1; self.publication[1707]=-1; self.publication[1708]=52; self.publication[1709]=2;
+    self.publication[1712]=56; self.publication[1714]=1; self.publication[1715]=514; self.publication[1716]=40;
+    self.publication[1717]=6; self.publication[1718]=54; self.publication[1722]=57; self.publication[1724]=1;
+    self.publication[1725]=515; self.publication[1726]=41; self.publication[1727]=17; self.publication[1728]=54;
+    self.publication[1729]=1; self.publication[1730]=22; self.publication[1732]=58; self.publication[1734]=1;
+    self.publication[1735]=261; self.publication[1736]=32; self.publication[1737]=17; self.publication[1738]=55;
+    self.publication[1739]=1; self.publication[1742]=59; self.publication[1744]=1; self.publication[1745]=514;
+    self.publication[1746]=42; self.publication[1747]=6; self.publication[1748]=56; self.publication[1752]=60;
+    self.publication[1754]=1; self.publication[1755]=515; self.publication[1756]=43; self.publication[1757]=21;
+    self.publication[1758]=56; self.publication[1759]=1; self.publication[1760]=20; self.publication[1762]=61;
+    self.publication[1764]=1; self.publication[1765]=516; self.publication[1766]=44; self.publication[1767]=3;
+    self.publication[1768]=57; self.publication[1769]=2; self.publication[1772]=62; self.publication[1774]=1;
+    self.publication[1775]=515; self.publication[1776]=45; self.publication[1777]=16; self.publication[1778]=59;
+    self.publication[1779]=1; self.publication[1780]=8; self.publication[1782]=63; self.publication[1784]=1;
+    self.publication[1785]=6; self.publication[1786]=-1; self.publication[1787]=-1; self.publication[1788]=60;
+    self.publication[1789]=2; self.publication[1792]=64; self.publication[1794]=1; self.publication[1795]=514;
+    self.publication[1796]=46; self.publication[1797]=6; self.publication[1798]=62; self.publication[1802]=65;
+    self.publication[1804]=1; self.publication[1805]=515; self.publication[1806]=47; self.publication[1807]=17;
+    self.publication[1808]=62; self.publication[1809]=1; self.publication[1810]=22; self.publication[1812]=66;
+    self.publication[1814]=1; self.publication[1815]=261; self.publication[1816]=33; self.publication[1817]=17;
+    self.publication[1818]=63; self.publication[1819]=1; self.publication[1822]=67; self.publication[1824]=1;
+    self.publication[1825]=514; self.publication[1826]=48; self.publication[1827]=6; self.publication[1828]=64;
+    self.publication[1832]=68; self.publication[1834]=1; self.publication[1835]=515; self.publication[1836]=49;
+    self.publication[1837]=22; self.publication[1838]=64; self.publication[1839]=1; self.publication[1840]=21;
+    self.publication[1842]=69; self.publication[1844]=1; self.publication[1845]=516; self.publication[1846]=50;
+    self.publication[1847]=5; self.publication[1848]=65; self.publication[1849]=2; self.publication[1852]=70;
+    self.publication[1854]=1; self.publication[1855]=515; self.publication[1856]=51; self.publication[1857]=13;
+    self.publication[1858]=67; self.publication[1859]=1; self.publication[1860]=11; self.publication[1862]=71;
+    self.publication[1864]=1; self.publication[1865]=6; self.publication[1866]=-1; self.publication[1867]=-1;
+    self.publication[1868]=68; self.publication[1869]=2; self.publication[1872]=72; self.publication[1874]=1;
+    self.publication[1875]=514; self.publication[1876]=52; self.publication[1877]=6; self.publication[1878]=70;
+    self.publication[1882]=73; self.publication[1884]=1; self.publication[1885]=515; self.publication[1886]=53;
+    self.publication[1887]=17; self.publication[1888]=70; self.publication[1889]=1; self.publication[1890]=22;
+    self.publication[1892]=74; self.publication[1894]=1; self.publication[1895]=261; self.publication[1896]=34;
+    self.publication[1897]=17; self.publication[1898]=71; self.publication[1899]=1; self.publication[1902]=75;
+    self.publication[1904]=1; self.publication[1905]=514; self.publication[1906]=54; self.publication[1907]=6;
+    self.publication[1908]=72; self.publication[1912]=76; self.publication[1914]=1; self.publication[1915]=515;
+    self.publication[1916]=55; self.publication[1917]=22; self.publication[1918]=72; self.publication[1919]=1;
+    self.publication[1920]=21; self.publication[1922]=77; self.publication[1924]=1; self.publication[1925]=516;
+    self.publication[1926]=56; self.publication[1927]=5; self.publication[1928]=73; self.publication[1929]=2;
+    self.publication[1932]=78; self.publication[1934]=1; self.publication[1935]=515; self.publication[1936]=57;
+    self.publication[1937]=13; self.publication[1938]=75; self.publication[1939]=1; self.publication[1940]=12;
+    self.publication[1942]=79; self.publication[1944]=1; self.publication[1945]=6; self.publication[1946]=-1;
+    self.publication[1947]=-1; self.publication[1948]=76; self.publication[1949]=2; self.publication[1952]=80;
+    self.publication[1954]=1; self.publication[1955]=514; self.publication[1956]=58; self.publication[1957]=6;
+    self.publication[1958]=78; self.publication[1962]=81; self.publication[1964]=1; self.publication[1965]=515;
+    self.publication[1966]=59; self.publication[1967]=17; self.publication[1968]=78; self.publication[1969]=1;
+    self.publication[1970]=22; self.publication[1972]=82; self.publication[1974]=1; self.publication[1975]=261;
+    self.publication[1976]=35; self.publication[1977]=17; self.publication[1978]=79; self.publication[1979]=1;
+    self.publication[1982]=83; self.publication[1984]=1; self.publication[1985]=514; self.publication[1986]=60;
+    self.publication[1987]=6; self.publication[1988]=80; self.publication[1992]=84; self.publication[1994]=1;
+    self.publication[1995]=515; self.publication[1996]=61; self.publication[1997]=22; self.publication[1998]=80;
+    self.publication[1999]=1; self.publication[2000]=21; self.publication[2002]=85; self.publication[2004]=1;
+    self.publication[2005]=516; self.publication[2006]=62; self.publication[2007]=5; self.publication[2008]=81;
+    self.publication[2009]=2; self.publication[2012]=86; self.publication[2014]=1; self.publication[2015]=515;
+    self.publication[2016]=63; self.publication[2017]=13; self.publication[2018]=83; self.publication[2019]=1;
+    self.publication[2020]=13; self.publication[2022]=87; self.publication[2024]=1; self.publication[2025]=6;
+    self.publication[2026]=-1; self.publication[2027]=-1; self.publication[2028]=84; self.publication[2029]=2;
+    self.publication[2032]=88; self.publication[2034]=1; self.publication[2035]=514; self.publication[2036]=64;
+    self.publication[2037]=6; self.publication[2038]=86; self.publication[2042]=89; self.publication[2044]=1;
+    self.publication[2045]=515; self.publication[2046]=65; self.publication[2047]=17; self.publication[2048]=86;
+    self.publication[2049]=1; self.publication[2050]=22; self.publication[2052]=90; self.publication[2054]=1;
+    self.publication[2055]=261; self.publication[2056]=36; self.publication[2057]=17; self.publication[2058]=87;
+    self.publication[2059]=1; self.publication[2062]=91; self.publication[2064]=1; self.publication[2065]=514;
+    self.publication[2066]=66; self.publication[2067]=6; self.publication[2068]=88; self.publication[2072]=92;
+    self.publication[2074]=1; self.publication[2075]=515; self.publication[2076]=67; self.publication[2077]=22;
+    self.publication[2078]=88; self.publication[2079]=1; self.publication[2080]=21; self.publication[2082]=93;
+    self.publication[2084]=1; self.publication[2085]=516; self.publication[2086]=68; self.publication[2087]=5;
+    self.publication[2088]=89; self.publication[2089]=2; self.publication[2092]=94; self.publication[2094]=1;
+    self.publication[2095]=515; self.publication[2096]=69; self.publication[2097]=13; self.publication[2098]=91;
+    self.publication[2099]=1; self.publication[2100]=14; self.publication[2102]=95; self.publication[2104]=1;
+    self.publication[2105]=6; self.publication[2106]=-1; self.publication[2107]=-1; self.publication[2108]=92;
+    self.publication[2109]=2; self.publication[2112]=96; self.publication[2114]=1; self.publication[2115]=514;
+    self.publication[2116]=70; self.publication[2117]=6; self.publication[2118]=94; self.publication[2122]=97;
+    self.publication[2124]=1; self.publication[2125]=515; self.publication[2126]=71; self.publication[2127]=17;
+    self.publication[2128]=94; self.publication[2129]=1; self.publication[2130]=22; self.publication[2132]=98;
+    self.publication[2134]=1; self.publication[2135]=261; self.publication[2136]=37; self.publication[2137]=17;
+    self.publication[2138]=95; self.publication[2139]=1; self.publication[2142]=99; self.publication[2144]=1;
+    self.publication[2145]=514; self.publication[2146]=72; self.publication[2147]=6; self.publication[2148]=96;
+    self.publication[2152]=100; self.publication[2154]=1; self.publication[2155]=515; self.publication[2156]=73;
+    self.publication[2157]=22; self.publication[2158]=96; self.publication[2159]=1; self.publication[2160]=21;
+    self.publication[2162]=101; self.publication[2164]=1; self.publication[2165]=516; self.publication[2166]=74;
+    self.publication[2167]=5; self.publication[2168]=97; self.publication[2169]=2; self.publication[2172]=102;
+    self.publication[2174]=1; self.publication[2175]=515; self.publication[2176]=75; self.publication[2177]=14;
+    self.publication[2178]=99; self.publication[2179]=1; self.publication[2180]=15; self.publication[2182]=103;
+    self.publication[2184]=1; self.publication[2185]=6; self.publication[2186]=-1; self.publication[2187]=-1;
+    self.publication[2188]=100; self.publication[2189]=2; self.publication[2192]=104; self.publication[2194]=1;
+    self.publication[2195]=514; self.publication[2196]=76; self.publication[2197]=6; self.publication[2198]=102;
+    self.publication[2202]=105; self.publication[2204]=1; self.publication[2205]=515; self.publication[2206]=77;
+    self.publication[2207]=17; self.publication[2208]=102; self.publication[2209]=1; self.publication[2210]=22;
+    self.publication[2212]=106; self.publication[2214]=1; self.publication[2215]=261; self.publication[2216]=38;
+    self.publication[2217]=17; self.publication[2218]=103; self.publication[2219]=1; self.publication[2222]=107;
+    self.publication[2224]=1; self.publication[2225]=514; self.publication[2226]=78; self.publication[2227]=6;
+    self.publication[2228]=104; self.publication[2232]=108; self.publication[2234]=1; self.publication[2235]=515;
+    self.publication[2236]=79; self.publication[2237]=22; self.publication[2238]=104; self.publication[2239]=1;
+    self.publication[2240]=21; self.publication[2242]=109; self.publication[2244]=1; self.publication[2245]=516;
+    self.publication[2246]=80; self.publication[2247]=5; self.publication[2248]=105; self.publication[2249]=2;
+    self.publication[2252]=110; self.publication[2254]=1; self.publication[2255]=515; self.publication[2256]=81;
+    self.publication[2257]=16; self.publication[2258]=107; self.publication[2259]=1; self.publication[2260]=16;
+    self.publication[2262]=111; self.publication[2264]=1; self.publication[2265]=6; self.publication[2266]=-1;
+    self.publication[2267]=-1; self.publication[2268]=108; self.publication[2269]=2; self.publication[2272]=112;
+    self.publication[2274]=1; self.publication[2275]=514; self.publication[2276]=82; self.publication[2277]=6;
+    self.publication[2278]=110; self.publication[2282]=113; self.publication[2284]=1; self.publication[2285]=515;
+    self.publication[2286]=83; self.publication[2287]=17; self.publication[2288]=110; self.publication[2289]=1;
+    self.publication[2290]=22; self.publication[2292]=114; self.publication[2294]=1; self.publication[2295]=261;
+    self.publication[2296]=39; self.publication[2297]=17; self.publication[2298]=111; self.publication[2299]=1;
+    self.publication[2302]=115; self.publication[2304]=1; self.publication[2305]=514; self.publication[2306]=84;
+    self.publication[2307]=6; self.publication[2308]=112; self.publication[2312]=116; self.publication[2314]=1;
+    self.publication[2315]=515; self.publication[2316]=85; self.publication[2317]=22; self.publication[2318]=112;
+    self.publication[2319]=1; self.publication[2320]=21; self.publication[2322]=117; self.publication[2324]=1;
+    self.publication[2325]=516; self.publication[2326]=86; self.publication[2327]=5; self.publication[2328]=113;
+    self.publication[2329]=2; self.publication[2332]=118; self.publication[2334]=1; self.publication[2335]=515;
+    self.publication[2336]=87; self.publication[2337]=16; self.publication[2338]=115; self.publication[2339]=1;
+    self.publication[2340]=17; self.publication[2342]=119; self.publication[2344]=1; self.publication[2345]=6;
+    self.publication[2346]=-1; self.publication[2347]=-1; self.publication[2348]=116; self.publication[2349]=2;
+    self.publication[2352]=120; self.publication[2354]=1; self.publication[2355]=514; self.publication[2356]=88;
+    self.publication[2357]=6; self.publication[2358]=118; self.publication[2362]=121; self.publication[2364]=1;
+    self.publication[2365]=515; self.publication[2366]=89; self.publication[2367]=17; self.publication[2368]=118;
+    self.publication[2369]=1; self.publication[2370]=22; self.publication[2372]=122; self.publication[2374]=1;
+    self.publication[2375]=261; self.publication[2376]=40; self.publication[2377]=17; self.publication[2378]=119;
+    self.publication[2379]=1; self.publication[2382]=123; self.publication[2384]=1; self.publication[2385]=514;
+    self.publication[2386]=90; self.publication[2387]=6; self.publication[2388]=120; self.publication[2392]=124;
+    self.publication[2394]=1; self.publication[2395]=515; self.publication[2396]=91; self.publication[2397]=22;
+    self.publication[2398]=120; self.publication[2399]=1; self.publication[2400]=21; self.publication[2402]=125;
+    self.publication[2404]=1; self.publication[2405]=516; self.publication[2406]=92; self.publication[2407]=5;
+    self.publication[2408]=121; self.publication[2409]=2; self.publication[2412]=126; self.publication[2414]=1;
+    self.publication[2415]=515; self.publication[2416]=93; self.publication[2417]=16; self.publication[2418]=123;
+    self.publication[2419]=1; self.publication[2420]=18; self.publication[2422]=127; self.publication[2424]=1;
+    self.publication[2425]=6; self.publication[2426]=-1; self.publication[2427]=-1; self.publication[2428]=124;
+    self.publication[2429]=2; self.publication[2432]=128; self.publication[2434]=1; self.publication[2435]=514;
+    self.publication[2436]=94; self.publication[2437]=6; self.publication[2438]=126; self.publication[2442]=129;
+    self.publication[2444]=1; self.publication[2445]=515; self.publication[2446]=95; self.publication[2447]=17;
+    self.publication[2448]=126; self.publication[2449]=1; self.publication[2450]=22; self.publication[2452]=130;
+    self.publication[2454]=1; self.publication[2455]=261; self.publication[2456]=41; self.publication[2457]=17;
+    self.publication[2458]=127; self.publication[2459]=1; self.publication[2462]=131; self.publication[2464]=1;
+    self.publication[2465]=514; self.publication[2466]=96; self.publication[2467]=6; self.publication[2468]=128;
+    self.publication[2472]=132; self.publication[2474]=1; self.publication[2475]=515; self.publication[2476]=97;
+    self.publication[2477]=22; self.publication[2478]=128; self.publication[2479]=1; self.publication[2480]=21;
+    self.publication[2482]=133; self.publication[2484]=1; self.publication[2485]=516; self.publication[2486]=98;
+    self.publication[2487]=5; self.publication[2488]=129; self.publication[2489]=2; self.publication[2492]=134;
+    self.publication[2494]=1; self.publication[2495]=515; self.publication[2496]=99; self.publication[2497]=16;
+    self.publication[2498]=131; self.publication[2499]=1; self.publication[2500]=19; self.publication[2502]=135;
+    self.publication[2504]=1; self.publication[2505]=6; self.publication[2506]=-1; self.publication[2507]=-1;
+    self.publication[2508]=132; self.publication[2509]=2; self.publication[2512]=136; self.publication[2514]=1;
+    self.publication[2515]=514; self.publication[2516]=100; self.publication[2517]=6; self.publication[2518]=134;
+    self.publication[2522]=137; self.publication[2524]=1; self.publication[2525]=515; self.publication[2526]=101;
+    self.publication[2527]=17; self.publication[2528]=134; self.publication[2529]=1; self.publication[2530]=22;
+    self.publication[2532]=138; self.publication[2534]=1; self.publication[2535]=261; self.publication[2536]=42;
+    self.publication[2537]=17; self.publication[2538]=135; self.publication[2539]=1; self.publication[2542]=139;
+    self.publication[2544]=1; self.publication[2545]=257; self.publication[2546]=43; self.publication[2547]=19;
+    self.publication[2548]=136; self.publication[2550]=1; self.publication[2552]=140; self.publication[2554]=1;
+    self.publication[2555]=264; self.publication[2556]=44; self.publication[2557]=17; self.publication[2558]=136;
+    self.publication[2559]=2; self.publication[2562]=141; self.publication[2564]=1; self.publication[2565]=6;
+    self.publication[2566]=-1; self.publication[2567]=-1; self.publication[2568]=138; self.publication[2569]=2;
+    self.publication[2572]=142; self.publication[2574]=1; self.publication[2575]=514; self.publication[2576]=102;
+    self.publication[2577]=6; self.publication[2578]=140; self.publication[2582]=143; self.publication[2584]=1;
+    self.publication[2585]=515; self.publication[2586]=103; self.publication[2587]=15; self.publication[2588]=140;
+    self.publication[2589]=1; self.publication[2590]=27; self.publication[2592]=144; self.publication[2594]=1;
+    self.publication[2595]=257; self.publication[2596]=45; self.publication[2597]=15; self.publication[2598]=141;
+    self.publication[2600]=1; self.publication[2602]=145; self.publication[2604]=1; self.publication[2605]=6;
+    self.publication[2606]=-1; self.publication[2607]=-1; self.publication[2608]=141; self.publication[2609]=2;
+    self.publication[2612]=146; self.publication[2614]=2; self.publication[2615]=514; self.publication[2616]=104;
+    self.publication[2617]=6; self.publication[2618]=143; self.publication[2622]=147; self.publication[2624]=2;
+    self.publication[2625]=515; self.publication[2626]=105; self.publication[2627]=15; self.publication[2628]=143;
+    self.publication[2629]=1; self.publication[2630]=27; self.publication[2632]=148; self.publication[2634]=2;
+    self.publication[2635]=257; self.publication[2636]=46; self.publication[2637]=15; self.publication[2638]=144;
+    self.publication[2642]=149; self.publication[2644]=2; self.publication[2645]=6; self.publication[2646]=-1;
+    self.publication[2647]=-1; self.publication[2648]=144; self.publication[2649]=2; self.publication[2652]=150;
+    self.publication[2653]=1; self.publication[2654]=3; self.publication[2655]=514; self.publication[2656]=106;
+    self.publication[2657]=6; self.publication[2658]=146; self.publication[2662]=151; self.publication[2663]=1;
+    self.publication[2664]=3; self.publication[2665]=515; self.publication[2666]=107; self.publication[2667]=17;
+    self.publication[2668]=146; self.publication[2669]=1; self.publication[2670]=22; self.publication[2672]=152;
+    self.publication[2673]=1; self.publication[2674]=3; self.publication[2675]=261; self.publication[2676]=47;
+    self.publication[2677]=17; self.publication[2678]=147; self.publication[2679]=1; self.publication[2682]=153;
+    self.publication[2683]=1; self.publication[2684]=3; self.publication[2685]=265; self.publication[2686]=48;
+    self.publication[2687]=15; self.publication[2688]=148; self.publication[2689]=2; self.publication[2692]=154;
+    self.publication[2693]=1; self.publication[2694]=4; self.publication[2695]=514; self.publication[2696]=108;
+    self.publication[2697]=6; self.publication[2698]=150; self.publication[2702]=155; self.publication[2703]=1;
+    self.publication[2704]=4; self.publication[2705]=515; self.publication[2706]=109; self.publication[2707]=21;
+    self.publication[2708]=150; self.publication[2709]=1; self.publication[2710]=20; self.publication[2712]=156;
+    self.publication[2713]=1; self.publication[2714]=4; self.publication[2715]=516; self.publication[2716]=110;
+    self.publication[2717]=3; self.publication[2718]=151; self.publication[2719]=2; self.publication[2722]=157;
+    self.publication[2723]=1; self.publication[2724]=4; self.publication[2725]=515; self.publication[2726]=111;
+    self.publication[2727]=11; self.publication[2728]=153; self.publication[2729]=1; self.publication[2730]=5;
+    self.publication[2732]=158; self.publication[2733]=1; self.publication[2734]=11; self.publication[2735]=514;
+    self.publication[2736]=112; self.publication[2737]=6; self.publication[2738]=154; self.publication[2742]=159;
+    self.publication[2743]=1; self.publication[2744]=11; self.publication[2745]=515; self.publication[2746]=113;
+    self.publication[2747]=22; self.publication[2748]=154; self.publication[2749]=1; self.publication[2750]=21;
+    self.publication[2752]=160; self.publication[2753]=1; self.publication[2754]=11; self.publication[2755]=516;
+    self.publication[2756]=114; self.publication[2757]=5; self.publication[2758]=155; self.publication[2759]=2;
+    self.publication[2762]=161; self.publication[2763]=1; self.publication[2764]=11; self.publication[2765]=515;
+    self.publication[2766]=115; self.publication[2767]=13; self.publication[2768]=157; self.publication[2769]=1;
+    self.publication[2770]=11; self.publication[2772]=162; self.publication[2773]=1; self.publication[2774]=11;
+    self.publication[2775]=261; self.publication[2776]=49; self.publication[2777]=13; self.publication[2778]=158;
+    self.publication[2779]=1; self.publication[2782]=163; self.publication[2783]=1; self.publication[2784]=12;
+    self.publication[2785]=257; self.publication[2786]=50; self.publication[2787]=13; self.publication[2788]=159;
+    self.publication[2792]=164; self.publication[2793]=2; self.publication[2794]=13; self.publication[2795]=514;
+    self.publication[2796]=116; self.publication[2797]=7; self.publication[2798]=159; self.publication[2802]=165;
+    self.publication[2803]=2; self.publication[2804]=13; self.publication[2805]=515; self.publication[2806]=117;
+    self.publication[2807]=6; self.publication[2808]=159; self.publication[2809]=1; self.publication[2810]=28;
+    self.publication[2812]=166; self.publication[2813]=2; self.publication[2814]=13; self.publication[2815]=257;
+    self.publication[2816]=51; self.publication[2817]=14; self.publication[2818]=160; self.publication[2820]=4;
+    self.publication[2822]=167; self.publication[2823]=2; self.publication[2824]=13; self.publication[2825]=269;
+    self.publication[2826]=52; self.publication[2828]=160; self.publication[2829]=1; self.publication[2832]=168;
+    self.publication[2833]=2; self.publication[2834]=13; self.publication[2835]=257; self.publication[2836]=53;
+    self.publication[2837]=15; self.publication[2838]=161; self.publication[2840]=1; self.publication[2842]=169;
+    self.publication[2843]=2; self.publication[2844]=13; self.publication[2845]=257; self.publication[2846]=54;
+    self.publication[2847]=15; self.publication[2848]=161; self.publication[2852]=170; self.publication[2853]=2;
+    self.publication[2854]=13; self.publication[2855]=257; self.publication[2856]=55; self.publication[2857]=15;
+    self.publication[2858]=161; self.publication[2860]=1; self.publication[2862]=171; self.publication[2863]=2;
+    self.publication[2864]=13; self.publication[2865]=270; self.publication[2866]=56; self.publication[2867]=11;
+    self.publication[2868]=161; self.publication[2869]=3; self.publication[2870]=78; self.publication[2872]=172;
+    self.publication[2873]=2; self.publication[2874]=13; self.publication[2875]=257; self.publication[2876]=57;
+    self.publication[2877]=16; self.publication[2878]=164; self.publication[2880]=5; self.publication[2882]=173;
+    self.publication[2883]=2; self.publication[2884]=13; self.publication[2885]=257; self.publication[2886]=58;
+    self.publication[2887]=16; self.publication[2888]=164; self.publication[2890]=6; self.publication[2892]=174;
+    self.publication[2893]=2; self.publication[2894]=13; self.publication[2895]=257; self.publication[2896]=59;
+    self.publication[2897]=16; self.publication[2898]=164; self.publication[2900]=7; self.publication[2902]=175;
+    self.publication[2903]=2; self.publication[2904]=13; self.publication[2905]=257; self.publication[2906]=60;
+    self.publication[2907]=16; self.publication[2908]=164; self.publication[2910]=8; self.publication[2912]=176;
+    self.publication[2913]=2; self.publication[2914]=13; self.publication[2915]=257; self.publication[2916]=61;
+    self.publication[2917]=13; self.publication[2918]=164; self.publication[2920]=70; self.publication[2922]=177;
+    self.publication[2923]=2; self.publication[2924]=13; self.publication[2925]=257; self.publication[2926]=62;
+    self.publication[2927]=13; self.publication[2928]=164; self.publication[2930]=1; self.publication[2932]=178;
+    self.publication[2933]=2; self.publication[2934]=13; self.publication[2935]=257; self.publication[2936]=63;
+    self.publication[2937]=13; self.publication[2938]=164; self.publication[2940]=2; self.publication[2942]=179;
+    self.publication[2943]=2; self.publication[2944]=13; self.publication[2945]=257; self.publication[2946]=64;
+    self.publication[2947]=13; self.publication[2948]=164; self.publication[2950]=3; self.publication[2952]=180;
+    self.publication[2953]=2; self.publication[2954]=13; self.publication[2955]=10; self.publication[2956]=-1;
+    self.publication[2957]=-1; self.publication[2958]=164; self.publication[2959]=11; self.publication[2962]=181;
+    self.publication[2963]=2; self.publication[2964]=13; self.publication[2965]=257; self.publication[2966]=65;
+    self.publication[2967]=16; self.publication[2968]=175; self.publication[2972]=182; self.publication[2973]=2;
+    self.publication[2974]=13; self.publication[2975]=266; self.publication[2976]=66; self.publication[2977]=13;
+    self.publication[2978]=175; self.publication[2979]=2; self.publication[2980]=1; self.publication[2983]=1;
+    self.publication[2984]=22; self.publication[2985]=2; self.publication[2986]=3; self.publication[2987]=23;
+    self.publication[2988]=24; self.publication[2989]=4; self.publication[2990]=5; self.publication[2991]=6;
+    self.publication[2992]=7; self.publication[2993]=26; self.publication[2994]=8; self.publication[2995]=9;
+    self.publication[2996]=1; self.publication[2997]=10; self.publication[2998]=11; self.publication[2999]=12;
+    self.publication[3000]=13; self.publication[3001]=27; self.publication[3002]=14; self.publication[3003]=15;
+    self.publication[3004]=16; self.publication[3006]=16; self.publication[3007]=17; self.publication[3008]=18;
+    self.publication[3009]=19; self.publication[3010]=20; self.publication[3011]=21; self.publication[3012]=29;
+    self.publication[3013]=22; self.publication[3014]=23; self.publication[3015]=24; self.publication[3016]=25;
+    self.publication[3017]=2; self.publication[3018]=26; self.publication[3019]=27; self.publication[3020]=28;
+    self.publication[3021]=29; self.publication[3022]=30; self.publication[3023]=30; self.publication[3024]=31;
+    self.publication[3025]=32; self.publication[3026]=33; self.publication[3027]=3; self.publication[3028]=34;
+    self.publication[3029]=35; self.publication[3030]=36; self.publication[3031]=37; self.publication[3032]=31;
+    self.publication[3033]=38; self.publication[3034]=39; self.publication[3035]=4; self.publication[3036]=40;
+    self.publication[3037]=41; self.publication[3038]=42; self.publication[3039]=43; self.publication[3040]=32;
+    self.publication[3041]=44; self.publication[3042]=45; self.publication[3043]=5; self.publication[3044]=46;
+    self.publication[3045]=47; self.publication[3046]=48; self.publication[3047]=49; self.publication[3048]=33;
+    self.publication[3049]=50; self.publication[3050]=51; self.publication[3051]=6; self.publication[3052]=52;
+    self.publication[3053]=53; self.publication[3054]=54; self.publication[3055]=55; self.publication[3056]=34;
+    self.publication[3057]=56; self.publication[3058]=57; self.publication[3059]=7; self.publication[3060]=58;
+    self.publication[3061]=59; self.publication[3062]=60; self.publication[3063]=61; self.publication[3064]=35;
+    self.publication[3065]=62; self.publication[3066]=63; self.publication[3067]=8; self.publication[3068]=64;
+    self.publication[3069]=65; self.publication[3070]=66; self.publication[3071]=67; self.publication[3072]=36;
+    self.publication[3073]=68; self.publication[3074]=69; self.publication[3075]=9; self.publication[3076]=70;
+    self.publication[3077]=71; self.publication[3078]=72; self.publication[3079]=73; self.publication[3080]=37;
+    self.publication[3081]=74; self.publication[3082]=75; self.publication[3083]=28; self.publication[3084]=76;
+    self.publication[3085]=77; self.publication[3086]=78; self.publication[3087]=79; self.publication[3088]=38;
+    self.publication[3089]=80; self.publication[3090]=81; self.publication[3091]=2; self.publication[3092]=82;
+    self.publication[3093]=83; self.publication[3094]=84; self.publication[3095]=85; self.publication[3096]=39;
+    self.publication[3097]=86; self.publication[3098]=87; self.publication[3099]=3; self.publication[3100]=88;
+    self.publication[3101]=89; self.publication[3102]=90; self.publication[3103]=91; self.publication[3104]=40;
+    self.publication[3105]=92; self.publication[3106]=93; self.publication[3107]=4; self.publication[3108]=94;
+    self.publication[3109]=95; self.publication[3110]=96; self.publication[3111]=97; self.publication[3112]=41;
+    self.publication[3113]=98; self.publication[3114]=99; self.publication[3115]=5; self.publication[3116]=100;
+    self.publication[3117]=101; self.publication[3118]=42; self.publication[3119]=43; self.publication[3120]=101;
+    self.publication[3121]=44; self.publication[3122]=102; self.publication[3123]=103; self.publication[3124]=45;
+    self.publication[3125]=104; self.publication[3126]=105; self.publication[3127]=46; self.publication[3128]=106;
+    self.publication[3129]=107; self.publication[3130]=10; self.publication[3131]=47; self.publication[3132]=108;
+    self.publication[3133]=109; self.publication[3134]=10; self.publication[3135]=110; self.publication[3136]=112;
+    self.publication[3137]=113; self.publication[3138]=10; self.publication[3139]=114; self.publication[3140]=115;
+    self.publication[3141]=116; self.publication[3142]=51; self.publication[3143]=53; self.publication[3144]=54;
+    self.publication[3145]=55; self.publication[3146]=117; self.publication[3147]=52; self.publication[3148]=56;
+    self.publication[3149]=57; self.publication[3150]=58; self.publication[3151]=59; self.publication[3152]=60;
+    self.publication[3153]=61; self.publication[3154]=62; self.publication[3155]=63; self.publication[3156]=64;
+    self.publication[3157]=117; self.publication[3158]=65; self.publication[3159]=15; self.publication[3160]=16;
+    self.publication[3161]=20; self.publication[3165]=2; self.publication[3166]=25; self.publication[3167]=1;
+    self.publication[3168]=177; self.publication[3170]=2; self.publication[3171]=177; self.publication[3175]=1;
+    self.publication[3177]=1; self.publication[3178]=3; self.publication[3179]=-1; self.publication[3180]=-1;
+    self.publication[3181]=177; self.publication[3183]=-1; self.publication[3184]=177; self.publication[3188]=2;
+    self.publication[3190]=2; self.publication[3191]=3; self.publication[3192]=-1; self.publication[3193]=-1;
+    self.publication[3194]=177; self.publication[3196]=-1; self.publication[3197]=177; self.publication[3201]=3;
+    self.publication[3202]=1; self.publication[3203]=3; self.publication[3204]=2; self.publication[3205]=48;
+    self.publication[3206]=4; self.publication[3207]=177; self.publication[3209]=12; self.publication[3210]=177;
+    self.publication[3214]=4; self.publication[3215]=1; self.publication[3216]=4; self.publication[3217]=517;
+    self.publication[3218]=111; self.publication[3219]=-1; self.publication[3220]=177; self.publication[3222]=-1;
+    self.publication[3223]=177; self.publication[3226]=9; self.publication[3227]=5; self.publication[3228]=1;
+    self.publication[3229]=5; self.publication[3230]=1; self.publication[3231]=-1; self.publication[3232]=12;
+    self.publication[3233]=177; self.publication[3235]=-1; self.publication[3236]=177; self.publication[3238]=9;
+    self.publication[3240]=6; self.publication[3241]=1; self.publication[3242]=6; self.publication[3243]=2;
+    self.publication[3244]=14; self.publication[3245]=9; self.publication[3246]=177; self.publication[3247]=2;
+    self.publication[3248]=12; self.publication[3249]=179; self.publication[3251]=9; self.publication[3253]=7;
+    self.publication[3254]=1; self.publication[3255]=7; self.publication[3256]=1; self.publication[3257]=-1;
+    self.publication[3258]=12; self.publication[3259]=179; self.publication[3261]=-1; self.publication[3262]=179;
+    self.publication[3264]=9; self.publication[3266]=8; self.publication[3267]=1; self.publication[3268]=8;
+    self.publication[3269]=1; self.publication[3270]=-1; self.publication[3271]=12; self.publication[3272]=179;
+    self.publication[3274]=-1; self.publication[3275]=179; self.publication[3277]=9; self.publication[3279]=9;
+    self.publication[3280]=1; self.publication[3281]=9; self.publication[3282]=2; self.publication[3283]=19;
+    self.publication[3284]=12; self.publication[3285]=179; self.publication[3287]=10; self.publication[3288]=179;
+    self.publication[3289]=1; self.publication[3290]=9; self.publication[3292]=10; self.publication[3293]=1;
+    self.publication[3294]=10; self.publication[3295]=2; self.publication[3296]=21; self.publication[3297]=11;
+    self.publication[3298]=180; self.publication[3300]=12; self.publication[3301]=180; self.publication[3303]=9;
+    self.publication[3305]=11; self.publication[3306]=1; self.publication[3307]=11; self.publication[3308]=4;
+    self.publication[3309]=49; self.publication[3310]=-1; self.publication[3311]=180; self.publication[3313]=-1;
+    self.publication[3314]=180; self.publication[3316]=9; self.publication[3318]=12; self.publication[3319]=1;
+    self.publication[3320]=12; self.publication[3321]=4; self.publication[3322]=50; self.publication[3323]=-1;
+    self.publication[3324]=180; self.publication[3326]=-1; self.publication[3327]=180; self.publication[3329]=9;
+    self.publication[3331]=13; self.publication[3332]=2; self.publication[3333]=13; self.publication[3334]=4;
+    self.publication[3335]=66; self.publication[3336]=-1; self.publication[3337]=180; self.publication[3339]=-1;
+    self.publication[3340]=180; self.publication[3342]=9; self.publication[3345]=4; self.publication[3346]=76;
+    self.publication[3347]=12; self.publication[3350]=1; self.publication[3351]=4; self.publication[3352]=77;
+    self.publication[3353]=5; self.publication[3355]=3; self.publication[3356]=2; self.publication[3357]=4;
+    self.publication[3358]=78; self.publication[3359]=6; self.publication[3360]=3; self.publication[3361]=3;
+    self.publication[3362]=3; self.publication[3363]=4; self.publication[3364]=79; self.publication[3365]=12;
+    self.publication[3366]=6; self.publication[3368]=4; self.publication[3369]=4; self.publication[3370]=80;
+    self.publication[3371]=7; self.publication[3372]=6; self.publication[3373]=1; self.publication[3374]=5;
+    self.publication[3375]=4; self.publication[3376]=81; self.publication[3377]=8; self.publication[3378]=7;
+    self.publication[3379]=1; self.publication[3380]=6; self.publication[3381]=4; self.publication[3382]=82;
+    self.publication[3383]=12; self.publication[3384]=8; self.publication[3386]=7; self.publication[3387]=4;
+    self.publication[3388]=83; self.publication[3389]=12; self.publication[3390]=8; self.publication[3392]=8;
+    self.publication[3393]=4; self.publication[3394]=84; self.publication[3395]=12; self.publication[3396]=8;
+    self.publication[3399]=2; self.publication[3401]=1; self.publication[3402]=2; self.publication[3403]=1;
+    self.publication[3404]=2; self.publication[3405]=2; self.publication[3406]=2; self.publication[3407]=3;
+    self.publication[3408]=2; self.publication[3409]=3; self.publication[3410]=4; self.publication[3411]=2;
+    self.publication[3412]=4; self.publication[3413]=5; self.publication[3414]=2; self.publication[3415]=5;
+    self.publication[3416]=6; self.publication[3417]=2; self.publication[3418]=6; self.publication[3419]=7;
+    self.publication[3420]=2; self.publication[3421]=7;
+}
+
+machine Main::emit_u32(&mut self, value: i32) {
+    transition value >= 0 { true -> positive() _ -> negative() }
+    state positive() {
+        write_byte(value & 255); write_byte((value >> 8) & 255);
+        write_byte((value >> 16) & 255); write_byte((value >> 24) & 255);
+        transition 0 { _ -> done() }
+    }
+    state negative() {
+        self.word = 0 - value - 1;
+        write_byte(255 - (self.word & 255)); self.word = self.word / 256;
+        write_byte(255 - (self.word & 255)); self.word = self.word / 256;
+        write_byte(255 - (self.word & 255)); self.word = self.word / 256;
+        write_byte(255 - (self.word & 255)); transition 0 { _ -> done() }
+    }
+    state done() { }
+}
+
+machine Main::publish(&mut self) {
+    self.init_v20_publication();
+    write_byte(79); write_byte(77); write_byte(71); write_byte(67);
+    write_byte(75); write_byte(73); write_byte(82); write_byte(0);
+    write_byte(20); write_byte(0); write_byte(0); write_byte(0);
+    write_byte(1); write_byte(0); write_byte(1); write_byte(0);
+    self.i=0; transition 0 { _ -> words() }
+    state words() { transition self.i < 3422 { true -> one() _ -> done() } }
+    state one() { self.emit_u32(self.publication[self.i]); self.i=self.i+1; transition 0 { _ -> words() } }
+    state done() { }
+}
+
+machine Main::main(&mut self) {
+    self.status=0; self.slurp(); transition self.status == 0 { true -> outer() _ -> done() }
+    state outer() { self.validate_outer(); transition self.status == 0 { true -> compilation() _ -> done() } }
+    state compilation() { self.validate_compilation(); transition self.status == 0 { true -> witness_check() _ -> done() } }
+    state witness_check() { self.validate_v12(); transition self.status == 0 { true -> output() _ -> done() } }
+    state output() { self.publish(); transition 0 { _ -> done() } }
+    state done() { self.console.exit_process(self.status); }
+}

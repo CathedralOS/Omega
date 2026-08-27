@@ -154,9 +154,9 @@ Current milestone-level evidence:
 | Responsibility | Current boundary | Detail owner |
 | --- | --- | --- |
 | source custody | generic bounded `OMGCOMP1`, target/provider/build-role and generated-source custody, raw-envelope SHA-256, and path-independent V1 snapshots for the canonical Delta compiler source plus a provisional three-root bridge action DAG | [`bootstrap/omega-bootstrap/compiler/`](bootstrap/omega-bootstrap/compiler/) and [`DELTA_SOURCE_CLOSURE_SNAPSHOT_V1.md`](bootstrap/delta/DELTA_SOURCE_CLOSURE_SNAPSHOT_V1.md) |
-| source resolution | compositional slices for selected data, calls, views, arithmetic, and static provider planning; OMGRSWB11 extends the guarded full-`u64` fixed-buffer relation to actual-capacity arrays of copyable records, nested scalar fields, and nine-argument calls | versioned `OMGRSW*` contracts beside the bridge |
-| checked lowering/artifacts | OMGLOWK20/CKIR19 close that record-array projection through exact meaning and a conservative Linux-x86-64 artifact; the separate CKIR17 line retains platform-neutral provider-adapter observations | versioned `OMGLOW*`/`CKIR*` contracts beside the bridge |
-| lower-rooted reconstruction | OMGRFN22 joins exact record-array source, resolution, checked IR, artifact, native/self producer variants, resources, and independent R1–R5 reconstruction | [`source/assurance/refinement/omega-bootstrap/`](source/assurance/refinement/omega-bootstrap/) |
+| source resolution | compositional slices for selected data, calls, views, arithmetic, and static provider planning; OMGRSWC12 now closes the actual `TokenStream::push` shape over eight records, five pure copyable sum families, two actual-capacity record arrays, semantic structural copies, fifteen data writes, a ten-argument call, and indexed payload dispatch | versioned `OMGRSW*` contracts beside the bridge |
+| checked lowering/artifacts | OMGLOWL21/CKIR20 close that TokenStream projection through exact modular meaning and a conservative Linux-x86-64 artifact; the separate CKIR17 line retains platform-neutral provider-adapter observations | versioned `OMGLOW*`/`CKIR*` contracts beside the bridge |
+| lower-rooted reconstruction | OMGRFN23 joins exact TokenStream source, resolution, checked IR, corrected artifact, native/self producer variants, resources, and independent responsibility-local R1–R5 reconstruction | [`source/assurance/refinement/omega-bootstrap/`](source/assurance/refinement/omega-bootstrap/) |
 | compilation authority | externally gated on the accepted-lock/source-closure projection | [external dependency](#external-contract-dependency) |
 
 Open work:
@@ -186,10 +186,35 @@ own output, implement the product optimizer, use production allocation, or host
 adjacent product tools. It compiles the ordinary `Ωself` modules that implement
 those product capabilities.
 
-### 3. Freeze Delta v1 and `Ωself` at one evidence join
+### 3. Prepare, then freeze Delta v1 and `Ωself` at one evidence join
 
 These publications are independently scoped and versioned, but neither can be
 frozen from a partial source closure or assumed costs in the other.
+
+Directionally clear Delta work does not have to wait for that final join:
+
+- [ ] Publish a machine-readable **provisional** feature census for the exact
+  canonical Delta-compiler and `omega-bootstrap` snapshots. For every observed
+  construct, record the source requirement or explicit coherence/robustness/
+  safety/maintainability justification, current semantic evidence, nearest
+  rejected form, and unresolved final disposition. Do not call this census the
+  Delta v1 manifest or infer a language contract from producer acceptance.
+- [ ] Make the current producer reject accidental surface area before the
+  freeze: ignored or malformed type declarations, unknown arithmetic domains,
+  skipped boundary declarations, and any source form for which parsing does
+  not lead to a complete checked meaning. Give every rejection a focused
+  phase-local negative gate.
+- [ ] Reconcile x86-64 and AArch64 arithmetic/domain behavior against one
+  explicit provisional table. Where the producers differ, fail closed until
+  the shared rule is implemented; do not let either backend silently define
+  Delta.
+- [ ] Generalize source-closure snapshot V1 into a path-independent manifest
+  capable of carrying both complete required Delta programs and the exact
+  native, self-built, and lower-rung artifact observations. Keep the
+  publication provisional until both closures and the ledger are complete.
+
+These tasks harden evidence and remove accidental behavior. They do not select
+the final Delta grammar, allocation model, ABI, or feature inventory early.
 
 `Ωself`:
 
