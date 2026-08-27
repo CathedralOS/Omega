@@ -728,6 +728,56 @@ mod tests {
         verified(module, ProofBundle::default())
     }
 
+    fn dominator_gvn_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_361).unwrap();
+        let child = BlockId::new(1_362).unwrap();
+        let entry = BlockId::new(1_363).unwrap();
+        let operand = ValueId::new(1_364).unwrap();
+        let leader = ValueId::new(1_365).unwrap();
+        let redundant = ValueId::new(1_366).unwrap();
+        let result = ValueId::new(1_367).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let declaration = |id| ValueDeclaration { id, scalar_type };
+        let mut module = module_with_blocks(
+            machine,
+            entry,
+            TerminalMachineResult::Scalar(declaration(result)),
+            vec![
+                Block {
+                    id: child,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(1_368).unwrap(),
+                        result: OperationResult::Scalar(declaration(redundant)),
+                        kind: OperationKind::IntegerBitwiseNot { operand },
+                    }],
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(1_369).unwrap(),
+                        value: redundant,
+                        cleanup_actions: Vec::new(),
+                    },
+                },
+                Block {
+                    id: entry,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(1_370).unwrap(),
+                        result: OperationResult::Scalar(declaration(leader)),
+                        kind: OperationKind::IntegerBitwiseNot { operand },
+                    }],
+                    terminator: Terminator::Jump {
+                        edge: EdgeId::new(1_371).unwrap(),
+                        target: child,
+                        arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+            ],
+        );
+        module.machines[0].parameters.push(declaration(operand));
+        verified(module, ProofBundle::default())
+    }
+
     fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationUnit {
         let entry_machine = MachineId::new(1_041).unwrap();
         let entry_block = BlockId::new(1_042).unwrap();
@@ -1225,6 +1275,31 @@ mod tests {
                 .provenance
                 .len(),
             2
+        );
+    }
+
+    #[test]
+    fn global_value_numbering_projects_a_non_roster_order_dominating_leader() {
+        let selections = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
+        let optimized =
+            project_optimization_run(run(dominator_gvn_verified(), selections)).unwrap();
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(
+            optimized.plan().functions[0].block_entries[0].block,
+            BlockId::new(1_362).unwrap()
+        );
+        assert!(
+            matches!(optimized.plan().functions[0].operations[0], TerminalAbstractOperation::Return { value, .. } if value == ValueId::new(1_365).unwrap())
+        );
+        assert!(
+            matches!(optimized.plan().functions[0].operations[1], TerminalAbstractOperation::IntegerBitwiseNot { result, .. } if result == ValueId::new(1_365).unwrap())
+        );
+        assert_eq!(optimized.transformation_ledger().records().len(), 1);
+        assert!(
+            optimized.transformation_ledger().records()[0]
+                .provenance
+                .iter()
+                .all(|row| row.disposition.is_realized())
         );
     }
 

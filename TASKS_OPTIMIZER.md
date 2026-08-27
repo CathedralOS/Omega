@@ -958,21 +958,26 @@ dependency.
   semantics; potentially trapping, effectful, placed, atomic, or observation-
   dependent work is excluded unless its exact contract proves equivalence.
 
-  Current slice: the exact named `GlobalValueNumbering` selection owns
-  `same-block-obligation-free-total-scalar-cse.v1`. It replaces a later result
+  Current slice: the exact named `GlobalValueNumbering` selection owns local
+  `same-block-obligation-free-total-scalar-cse.v1` followed by cross-block
+  `dominator-obligation-free-total-scalar-gvn.v1`. The first replaces a later result
   with the earliest equivalent same-block leader over the complete
   obligation-free total scalar vocabulary: literals, Boolean operations,
   integer comparisons/bitwise/widening, wrapping shifts, and wrapping or
   saturating add/subtract/multiply. Keys bind the exact policy, integer domains,
   literal payload, and operands. Only equality, bitwise and/or/xor, and
   wrapping or saturating add/multiply canonicalize swapped operands. The
-  independent validator rebuilds the key, definitions, uses, dense effects,
+  second selects the earliest outer expression in a strictly dominating block,
+  independently of canonical block-roster order, and proves that leader
+  dominates every rewritten use. The independent validators rebuild the key,
+  reachable CFG/dominators, definitions, uses, dense effects,
   fact/place indexes, substitution, and custody accounting. Redundant
   provenance/fuel moves forward to the next co-executed node, never backward
-  to the leader. Candidate v18, optimization-unit identity v10, the named v1
-  pass, prephysical manifest v12, and projection v13 bind this meaning; ledger
-  v4 already represents the relocation and substitution. Dominator-based
-  cross-block value numbering remains open as the second half of this family.
+  to the leader. Candidate v19, optimization-unit identity v10, the named v2
+  pass, prephysical manifest v13, and projection v14 bind this meaning; ledger
+  v4 already represents the relocation and substitution. Phi translation,
+  partial redundancy elimination, and cyclic-CFG GVN remain outside this rule;
+  current admitted optimization units reject control cycles.
 
 - **OPT-DEAD-SCALAR-WORK.** Remove unused pure and total scalar operations.
 
@@ -999,9 +1004,9 @@ dependency.
   Dense effects, definition/use sites, literal facts, places, and identity are
   rebuilt. A verified wrapping-add artifact removes the unused arithmetic and
   then its two newly dead literals at the suite fixed point, replaying every
-  source/fuel site into the return. Candidate v18, optimization-unit identity
-  v10, the v2 pass, prephysical manifest v12,
-  and projection v13 bind this meaning; ledger v4 already represents the
+  source/fuel site into the return. Candidate v19, optimization-unit identity
+  v10, the v2 pass, prephysical manifest v13,
+  and projection v14 bind this meaning; ledger v4 already represents the
   many-to-one moves. Other scalar operations remain open until their exact
   semantic and custody contracts are admitted individually.
 
@@ -1027,8 +1032,8 @@ dependency.
   verifier-owned accepted-obligation catalog remains byte-for-byte intact as
   historical proof custody. A verified Terminal artifact projects the removed
   exact add, its manifest evidence, and its source/fuel relocation through the
-  lowering boundary. Candidate v18, optimization-unit identity v10, the named
-  v1 pass, prephysical manifest v12, and projection v13 bind this meaning;
+  lowering boundary. Candidate v19, optimization-unit identity v10, the named
+  v1 pass, prephysical manifest v13, and projection v14 bind this meaning;
   ledger v4 already represents the relocation. General check elision whose
   result remains live, runtime policy events, and physical check recognition
   remain open.

@@ -461,6 +461,19 @@ pub struct LocalScalarCommonSubexpressionRewrite {
     pub scalar_type: ScalarType,
 }
 
+/// Replace every use of a scalar result with an equivalent result defined in
+/// a different block that independently dominates the redundant definition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DominatingScalarCommonSubexpressionRewrite {
+    pub leader: NodeLocation,
+    pub redundant: NodeLocation,
+    pub leader_operation: OperationId,
+    pub redundant_operation: OperationId,
+    pub leader_result: ValueId,
+    pub redundant_result: ValueId,
+    pub scalar_type: ScalarType,
+}
+
 /// Remove the exact canonical complement of the independently reconstructed
 /// executable-machine root closure.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -486,6 +499,7 @@ pub enum PsiRewritePatch {
     FuseSharedTerminalJump(SharedTerminalJumpFusionRewrite),
     RemoveDeadScalarNode(DeadScalarNodeRewrite),
     EliminateLocalScalarCommonSubexpression(LocalScalarCommonSubexpressionRewrite),
+    EliminateDominatedScalarCommonSubexpression(DominatingScalarCommonSubexpressionRewrite),
     PruneUnreachablePrivateMachines(UnreachablePrivateMachinesRewrite),
 }
 
@@ -804,6 +818,30 @@ impl PsiRewriteCandidate {
         )
     }
 
+    pub fn new_dominating_scalar_common_subexpression(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        provenance: Vec<ProvenanceRewrite>,
+        predicted_cost_delta: i64,
+        patch: DominatingScalarCommonSubexpressionRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            vec![ScalarSubstitution {
+                from: patch.redundant_result,
+                to: patch.leader_result,
+                scalar_type: patch.scalar_type,
+            }],
+            provenance,
+            PsiRewriteWitness::StructuralIdentity,
+            predicted_cost_delta,
+            PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(patch),
+        )
+    }
+
     pub fn new_unreachable_private_machines(
         input: OptimizationUnitIdentity,
         contract: OptimizationRuleContract,
@@ -867,6 +905,9 @@ impl PsiRewriteCandidate {
                 PsiRewriteDecisionPoint::Node(patch.location)
             }
             PsiRewritePatch::EliminateLocalScalarCommonSubexpression(patch) => {
+                PsiRewriteDecisionPoint::Node(patch.redundant)
+            }
+            PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(patch) => {
                 PsiRewriteDecisionPoint::Node(patch.redundant)
             }
             PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
@@ -1190,6 +1231,33 @@ impl PsiRewriteCandidate {
                     return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
                 }
             }
+            PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(patch) => {
+                let redundant_input = PsiRealizationSite::Node(patch.redundant);
+                if patch.leader.machine != patch.redundant.machine
+                    || patch.leader.block == patch.redundant.block
+                    || patch.leader_operation == patch.redundant_operation
+                    || patch.leader_result == patch.redundant_result
+                    || substitutions.as_slice()
+                        != [ScalarSubstitution {
+                            from: patch.redundant_result,
+                            to: patch.leader_result,
+                            scalar_type: patch.scalar_type,
+                        }]
+                    || !provenance.iter().any(|row| row.input == redundant_input)
+                    || provenance.iter().any(|row| {
+                        let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
+                            return true;
+                        };
+                        site.machine() != patch.redundant.machine
+                            || site
+                                .node()
+                                .is_some_and(|location| !affected_blocks.contains(&location.block))
+                    })
+                    || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
+                {
+                    return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
+                }
+            }
             PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
                 let pruned = patch
                     .machines
@@ -1387,7 +1455,7 @@ fn encode_candidate(
     patch: &PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v18\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v19\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     match decision_point {
@@ -1577,6 +1645,16 @@ fn encode_candidate(
         }
         PsiRewritePatch::EliminateLocalScalarCommonSubexpression(patch) => {
             bytes.push(11);
+            encode_location(&mut bytes, patch.leader);
+            encode_location(&mut bytes, patch.redundant);
+            bytes.extend_from_slice(&patch.leader_operation.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.redundant_operation.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.leader_result.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.redundant_result.get().to_le_bytes());
+            encode_scalar_type(&mut bytes, patch.scalar_type);
+        }
+        PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(patch) => {
+            bytes.push(12);
             encode_location(&mut bytes, patch.leader);
             encode_location(&mut bytes, patch.redundant);
             bytes.extend_from_slice(&patch.leader_operation.get().to_le_bytes());
