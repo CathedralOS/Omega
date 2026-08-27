@@ -2359,6 +2359,33 @@ fn rejects_authored_service_reach_on_external_realization_before_resolved_trees(
 }
 
 #[test]
+fn rejects_authored_empty_service_reach_on_external_realization_before_resolved_trees() {
+    let source = r#"
+        boundary trait Process {
+            machine exit(code: i32)
+            reaches Process;
+        }
+
+        machine exit_leaf(code: i32)
+        satisfies Process::exit
+        via Binding::Syscall(60)
+        reaches;
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostic = lower_syntax_trees(&syntax_trees)
+        .expect_err("an explicit empty external reach must not collapse into omission");
+
+    assert!(
+        diagnostic[0]
+            .message
+            .contains("repeats an authored `reaches` row")
+    );
+}
+
+#[test]
 fn retains_external_realization_mechanism_without_rendering_classification() {
     let source = r#"
         boundary trait Console {

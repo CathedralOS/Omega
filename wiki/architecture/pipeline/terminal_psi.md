@@ -2006,10 +2006,20 @@ one exact source-derived `self.field` premise, source-selected provider plan,
 installed provider occurrence, authorized establishment route, and opaque
 acceptance; malformed closure input returns the claimed session for retry.
 
-The compiler now exposes one production staging boundary before that owner. It
-lowers an exact source-selected entry through canonical semantic/proof encoding,
-portable verification, target assignment, machine emission, and object/image
-construction into a non-visible terminal component candidate. The candidate
+Psi now owns one canonical source-free handoff carrier. The
+`CanonicalTerminalArtifact` retains exact semantic, proof, optional debug, and
+manifest identity bytes; construction independently decodes every section and
+rebuilds the manifest before custody crosses into Omega. The typed compiler
+`TerminalArtifact` product stops at this carrier without entering StateGraph,
+native emission, output, or installation. Unsupported Terminal vocabulary
+rejects there and cannot select the legacy backend as a fallback.
+
+The compiler exposes one production staging boundary after that owner. It
+consumes the complete canonical artifact by value, then performs portable
+verification, target assignment, machine emission, and object/image
+construction into a non-visible terminal component candidate. Its production
+signature accepts no checked, typed, syntax, or source representation and
+cannot lower or re-encode Terminal Psi. The candidate
 retains the exact checked target, selected provider-plan closure, owned
 provider-execution identity projections, and any nonempty component-progress
 manifest. Target substitution, unresolved or duplicate boundary settlements,
@@ -2082,10 +2092,10 @@ package inputs. The cutover adapter now binds staging target
 and report metadata only from the owning `CheckedCompilation`: targetless
 binding returns subsystem, admission profile, and provider settlements for
 retry, while successful driving projects build evaluation and observation
-metadata from that same owner. This does not establish an alternate checked-
-tree realization route;
-`stage_terminal_component` remains the sole operation that creates the terminal
-candidate consumed downstream. A concrete non-test installation/deployment
+metadata from that same owner. The connected driver invokes the same Psi-owned
+artifact producer as the typed compiler product, then passes only that artifact
+and explicit Omega realization facts into `stage_terminal_component`. A
+concrete non-test installation/deployment
 owner and an ordinary production caller supplying it remain prerequisites to
 replacing the legacy publication path; the compiler has no authority to stand
 in for that missing provider. This is platform/provider engineering rather than

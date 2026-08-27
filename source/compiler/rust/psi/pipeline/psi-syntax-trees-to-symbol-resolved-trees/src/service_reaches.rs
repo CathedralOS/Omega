@@ -7,9 +7,16 @@ use psi_symbol_resolved_trees::name::DiagnosticName;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 use std::fmt;
 
+#[derive(Debug, Clone)]
+pub(crate) struct PendingAuthoredServiceReach {
+    pub(crate) keyword_source_spans: Vec<psi_source::SourceSpan>,
+    pub(crate) authored: Vec<DiagnosticName>,
+}
+
 pub(crate) struct PendingSignatureServiceReach {
     pub(crate) symbol: SymbolHandle,
     pub(crate) owner: crate::lowerer::PendingSignatureOwner,
+    pub(crate) keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub(crate) authored: Vec<DiagnosticName>,
 }
 
@@ -20,7 +27,7 @@ pub(crate) struct PendingSignatureServiceReach {
 /// retain a parallel spelling contract.
 pub(crate) fn normalize_service_reaches(
     program: &mut SymbolResolvedTrees,
-    machine_service_reaches: &[(psi_symbols::SymbolHandle, Vec<DiagnosticName>)],
+    machine_service_reaches: &[(psi_symbols::SymbolHandle, PendingAuthoredServiceReach)],
     signature_service_reaches: &[PendingSignatureServiceReach],
 ) -> Result<(), Diagnostic> {
     let mut boundary_traits = program
@@ -63,22 +70,38 @@ pub(crate) fn normalize_service_reaches(
         .machines
         .iter()
         .map(|machine| {
-            let authored = machine_service_reaches
+            let pending = machine_service_reaches
                 .iter()
                 .find(|(symbol, _)| *symbol == machine.symbol)
-                .map(|(_, reaches)| reaches.as_slice())
+                .map(|(_, reaches)| reaches)
                 .expect("surviving resolved machine retains its pending authored service row");
-            validate_machine_service_reaches(program, &services, machine, authored)?;
-            let mut names = authored
-                .iter()
-                .map(|name| name.as_str().to_owned())
+            validate_machine_service_reaches(
+                program,
+                &services,
+                machine,
+                &pending.authored,
+                !pending.keyword_source_spans.is_empty(),
+            )?;
+            let authored = resolve_authored_service_reach(
+                &program.symbols,
+                &services,
+                machine.symbol,
+                &pending.keyword_source_spans,
+                &pending.authored,
+                machine.service_reach_is_installation_bound,
+            )?;
+            let mut direct = authored
+                .as_ref()
+                .into_iter()
+                .flat_map(|row| &row.targets)
+                .filter_map(|target| services.id_for_symbol(target.service))
                 .collect::<Vec<_>>();
             let parameters = program
                 .machine_state_handles(machine.states)
                 .first()
                 .map(|state| program.state_parameters(program.machine_state(*state).parameters))
                 .unwrap_or_default();
-            names.extend(invoked_service_names(
+            direct.extend(invoked_service_ids(
                 program,
                 &services,
                 program.machine_invokes(machine),
@@ -86,12 +109,8 @@ pub(crate) fn normalize_service_reaches(
             ));
             Ok((
                 machine.symbol,
-                row_for_names(
-                    &program.symbols,
-                    &services,
-                    &mut rows,
-                    names.iter().map(String::as_str),
-                ),
+                row_for_service_ids(&services, &mut rows, direct),
+                authored,
             ))
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
@@ -104,12 +123,21 @@ pub(crate) fn normalize_service_reaches(
             let pending =
                 pending_signature_service_reach(signature_service_reaches, signature.symbol);
             validate_signature_service_reaches(program, &services, signature, pending)?;
-            let mut names = pending
-                .authored
-                .iter()
-                .map(|name| name.as_str().to_owned())
+            let authored = resolve_authored_service_reach(
+                &program.symbols,
+                &services,
+                signature.symbol,
+                &pending.keyword_source_spans,
+                &pending.authored,
+                signature.service_reach_is_installation_bound,
+            )?;
+            let mut direct = authored
+                .as_ref()
+                .into_iter()
+                .flat_map(|row| &row.targets)
+                .filter_map(|target| services.id_for_symbol(target.service))
                 .collect::<Vec<_>>();
-            names.extend(invoked_service_names(
+            direct.extend(invoked_service_ids(
                 program,
                 &services,
                 program.signature_invokes(signature.invokes),
@@ -117,12 +145,8 @@ pub(crate) fn normalize_service_reaches(
             ));
             Ok((
                 signature.symbol,
-                row_for_names(
-                    &program.symbols,
-                    &services,
-                    &mut rows,
-                    names.iter().map(String::as_str),
-                ),
+                row_for_service_ids(&services, &mut rows, direct),
+                authored,
             ))
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
@@ -130,8 +154,8 @@ pub(crate) fn normalize_service_reaches(
     program.machines.for_each_mut(|machine| {
         machine.service_reach_row = machine_rows
             .iter()
-            .find(|(symbol, _)| *symbol == machine.symbol)
-            .map(|(_, row)| *row)
+            .find(|(symbol, _, _)| *symbol == machine.symbol)
+            .map(|(_, row, _)| *row)
             .unwrap_or(ServiceReachRowTable::EMPTY_ROW);
     });
 
@@ -145,16 +169,23 @@ pub(crate) fn normalize_service_reaches(
         for signature in signature_arena.span_mut_or_empty(span) {
             signature.service_reach_row = signature_rows
                 .iter()
-                .find(|(symbol, _)| *symbol == signature.symbol)
-                .map(|(_, row)| *row)
+                .find(|(symbol, _, _)| *symbol == signature.symbol)
+                .map(|(_, row, _)| *row)
                 .unwrap_or(ServiceReachRowTable::EMPTY_ROW);
         }
     }
 
-    normalize_machine_parameter_rows(program, &services, &mut rows, signature_service_reaches)?;
+    let parameter_authored_rows =
+        normalize_machine_parameter_rows(program, &services, &mut rows, signature_service_reaches)?;
 
     program.service_reaches = services;
     program.service_reach_rows = rows;
+    program.authored_service_reach_rows = machine_rows
+        .into_iter()
+        .filter_map(|(_, _, row)| row)
+        .chain(signature_rows.into_iter().filter_map(|(_, _, row)| row))
+        .chain(parameter_authored_rows)
+        .collect();
     Ok(())
 }
 
@@ -206,6 +237,7 @@ fn validate_machine_service_reaches(
     services: &ServiceReachTable,
     machine: &psi_symbol_resolved_trees::machine::Machine,
     authored: &[DiagnosticName],
+    is_authored: bool,
 ) -> Result<(), Diagnostic> {
     for service in authored {
         if service_for_name(&program.symbols, services, service.as_str()).is_none() {
@@ -219,7 +251,7 @@ fn validate_machine_service_reaches(
     if matches!(
         machine.supply_mode,
         psi_language_semantics::MachineSupplyMode::ExternalRealization { .. }
-    ) && !authored.is_empty()
+    ) && is_authored
     {
         return Err(Diagnostic::error(format!(
             "external leaf `{}` repeats an authored `reaches` row, but `via` derives behavior from the satisfied requirement and admitted binding; remove the leaf's `reaches` clause",
@@ -230,13 +262,59 @@ fn validate_machine_service_reaches(
     Ok(())
 }
 
-fn invoked_service_names(
+fn resolve_authored_service_reach(
+    symbols: &SymbolTable,
+    services: &ServiceReachTable,
+    owner: SymbolHandle,
+    keyword_source_spans: &[psi_source::SourceSpan],
+    authored: &[DiagnosticName],
+    installation_bound: bool,
+) -> Result<Option<psi_symbol_resolved_trees::signature::AuthoredServiceReachRow>, Diagnostic> {
+    if keyword_source_spans.is_empty() {
+        if authored.is_empty() {
+            return Ok(None);
+        }
+        return Err(Diagnostic::error(
+            "authored service-reach members have no retained `reaches` clause occurrence",
+        ));
+    }
+
+    let targets = authored
+        .iter()
+        .map(|name| {
+            let service = service_for_name(symbols, services, name.as_str()).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "authored service-reach member `{name}` lost its exact boundary-service identity"
+                ))
+            })?;
+            let definition = services.definition(service).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "authored service-reach member `{name}` resolves outside the normalized service table"
+                ))
+            })?;
+            Ok(psi_symbol_resolved_trees::signature::AuthoredServiceReachTarget {
+                service: definition.symbol,
+                source_span: name.source_span(),
+            })
+        })
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
+    Ok(Some(
+        psi_symbol_resolved_trees::signature::AuthoredServiceReachRow {
+            owner,
+            keyword_source_spans: keyword_source_spans.to_vec(),
+            targets,
+            installation_bound,
+        },
+    ))
+}
+
+fn invoked_service_ids(
     program: &SymbolResolvedTrees,
     services: &ServiceReachTable,
     invokes: &[psi_symbol_resolved_trees::name::DiagnosticName],
     parameters: &[psi_symbol_resolved_trees::signature::StateParameter],
-) -> Vec<String> {
-    let mut names = Vec::new();
+) -> Vec<ServiceReachId> {
+    let mut service_ids = Vec::new();
     for invocation in invokes {
         let service = parameters
             .iter()
@@ -244,20 +322,15 @@ fn invoked_service_names(
             .find(|parameter| parameter.name.as_str() == invocation.as_str())
             .and_then(|parameter| type_symbol(program, &parameter.type_reference))
             .and_then(|symbol| services.id_for_symbol(symbol))
-            .and_then(|service| services.definition(service))
-            .map(|definition| definition.name.clone())
-            .or_else(|| {
-                service_for_name(&program.symbols, services, invocation.as_str())
-                    .and_then(|service| services.definition(service))
-                    .map(|definition| definition.name.clone())
-            });
+            .and_then(|service| services.definition(service).map(|_| service))
+            .or_else(|| service_for_name(&program.symbols, services, invocation.as_str()));
         if let Some(service) = service
-            && !names.contains(&service)
+            && !service_ids.contains(&service)
         {
-            names.push(service);
+            service_ids.push(service);
         }
     }
-    names
+    service_ids
 }
 
 fn type_symbol(
@@ -288,7 +361,7 @@ fn normalize_machine_parameter_rows(
     services: &ServiceReachTable,
     rows: &mut ServiceReachRowTable,
     signature_service_reaches: &[PendingSignatureServiceReach],
-) -> Result<(), Diagnostic> {
+) -> Result<Vec<psi_symbol_resolved_trees::signature::AuthoredServiceReachRow>, Diagnostic> {
     use psi_symbol_resolved_trees::data::TypeParameterKind;
 
     let mut roots = program
@@ -323,7 +396,7 @@ fn normalize_machine_parameter_rows(
         collect_parameter_spans(type_parameters, root, &mut spans);
     }
 
-    let mut service_reach_names = Vec::new();
+    let mut resolved_rows = Vec::new();
     for parameter in spans
         .iter()
         .flat_map(|span| type_parameters.span_or_empty(*span))
@@ -336,18 +409,31 @@ fn normalize_machine_parameter_rows(
         };
         let pending = pending_signature_service_reach(signature_service_reaches, contract.symbol);
         validate_signature_service_reaches(program, services, contract, pending)?;
-        let mut names = pending
-            .authored
-            .iter()
-            .map(|name| name.as_str().to_owned())
+        let authored = resolve_authored_service_reach(
+            &program.symbols,
+            services,
+            contract.symbol,
+            &pending.keyword_source_spans,
+            &pending.authored,
+            contract.service_reach_is_installation_bound,
+        )?;
+        let mut direct = authored
+            .as_ref()
+            .into_iter()
+            .flat_map(|row| &row.targets)
+            .filter_map(|target| services.id_for_symbol(target.service))
             .collect::<Vec<_>>();
-        names.extend(invoked_service_names(
+        direct.extend(invoked_service_ids(
             program,
             services,
             program.signature_invokes(contract.invokes),
             program.state_parameters(contract.parameters),
         ));
-        service_reach_names.push((parameter.symbol, names));
+        resolved_rows.push((
+            parameter.symbol,
+            row_for_service_ids(services, rows, direct),
+            authored,
+        ));
     }
 
     let type_parameters = &mut program.tables.declarations.data_type_parameters;
@@ -359,20 +445,18 @@ fn normalize_machine_parameter_rows(
             let Some(contract) = contract.structural_mut() else {
                 continue;
             };
-            let names = service_reach_names
+            let row = resolved_rows
                 .iter()
-                .find(|(symbol, _)| *symbol == parameter.symbol)
-                .map(|(_, names)| names.as_slice())
-                .unwrap_or(&[]);
-            contract.service_reach_row = row_for_names(
-                &program.symbols,
-                services,
-                rows,
-                names.iter().map(String::as_str),
-            );
+                .find(|(symbol, _, _)| *symbol == parameter.symbol)
+                .map(|(_, row, _)| *row)
+                .unwrap_or(ServiceReachRowTable::EMPTY_ROW);
+            contract.service_reach_row = row;
         }
     }
-    Ok(())
+    Ok(resolved_rows
+        .into_iter()
+        .filter_map(|(_, _, authored)| authored)
+        .collect())
 }
 
 fn collect_parameter_spans(
@@ -394,17 +478,14 @@ fn collect_parameter_spans(
     }
 }
 
-fn row_for_names<'a>(
-    symbols: &SymbolTable,
+fn row_for_service_ids(
     services: &ServiceReachTable,
     rows: &mut ServiceReachRowTable,
-    names: impl IntoIterator<Item = &'a str>,
+    service_ids: impl IntoIterator<Item = ServiceReachId>,
 ) -> ServiceReachRowId {
     let mut members = Vec::new();
-    for name in names {
-        if let Some(service) = service_for_name(symbols, services, name) {
-            services.extend_closure(service, &mut members);
-        }
+    for service in service_ids {
+        services.extend_closure(service, &mut members);
     }
     rows.intern(members)
 }

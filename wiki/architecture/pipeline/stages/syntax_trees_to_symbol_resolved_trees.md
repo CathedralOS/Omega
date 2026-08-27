@@ -122,6 +122,11 @@ task:
   pre-normalization overload-compatibility report. Declaration families are
   deduplicated by trait symbol and requirement name; use diagnostics retain
   their authored leaf spans rather than relying on rewritten paths.
+- `service_reaches.rs` resolves each authored `reaches` member occurrence once
+  to its exact boundary-trait symbol, retains keyword and target spans in a
+  compiler-private owner sidecar, and constructs the idempotent parent-closed
+  semantic row together with invocation-contributed services. An authored
+  memberless row remains distinguishable from omission.
 - `SymbolResolvedTrees::with_roots` and `SymbolResolvedRoots::with_roots` are
   the representation seams for joining resolved root arenas, resolved tables,
   and the published symbol table.

@@ -4,6 +4,24 @@ use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
 
+/// One exact authored member of a service-reach ceiling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuthoredServiceReachTarget {
+    pub service: SymbolHandle,
+    pub source_span: psi_source::SourceSpan,
+}
+
+/// Provenance-only source custody for one callable's authored `reaches`
+/// clauses. Clause keyword occurrences preserve an explicit empty ceiling;
+/// targets bind exact boundary-trait identity to exact member spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthoredServiceReachRow {
+    pub owner: SymbolHandle,
+    pub keyword_source_spans: Vec<psi_source::SourceSpan>,
+    pub targets: Vec<AuthoredServiceReachTarget>,
+    pub installation_bound: bool,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateSignature {
     pub symbol: SymbolHandle,

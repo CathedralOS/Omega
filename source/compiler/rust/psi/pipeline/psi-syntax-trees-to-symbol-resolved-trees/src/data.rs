@@ -224,6 +224,7 @@ pub(crate) fn lower_type_parameters(
                             contract.return_type,
                             contract.is_default,
                             false,
+                            &contract.service_reach_keyword_source_spans,
                             contract.service_reaches,
                             contract.invokes,
                             contract.suspends,
@@ -237,7 +238,10 @@ pub(crate) fn lower_type_parameters(
                                     lowered_contract.signature,
                                 ),
                             },
-                            Some(lowered_contract.service_reaches),
+                            Some((
+                                lowered_contract.service_reach_keyword_source_spans,
+                                lowered_contract.service_reaches,
+                            )),
                         )
                     }
                     syntax::item::MachineParameterContract::Nominal { requirement } => (
@@ -300,7 +304,7 @@ pub(crate) fn lower_type_parameters(
         .insert_many(parameters);
     if !span.is_empty() {
         for (index, authored) in pending_service_reaches.into_iter().enumerate() {
-            let Some(authored) = authored else {
+            let Some((keyword_source_spans, authored)) = authored else {
                 continue;
             };
             let arena_index = span
@@ -321,6 +325,7 @@ pub(crate) fn lower_type_parameters(
                 crate::lowerer::PendingSignatureServiceReach {
                     location: crate::lowerer::PendingSignatureLocation::MachineParameter(handle),
                     owner: crate::lowerer::PendingSignatureOwner::Requirement(owner),
+                    keyword_source_spans,
                     authored,
                 },
             );

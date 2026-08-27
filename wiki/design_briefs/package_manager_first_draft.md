@@ -448,11 +448,20 @@ never a later same-spelled trait scan. Callable, public-trait requirement, and
 recursively structural machine-parameter rows carry those spans under
 `synchronous_invocation`; top-level projection joins them to the exact checked
 plan and rejects missing, malformed, duplicate, aliased, or stale custody.
-Recovery envelope v5, conflict fingerprint v8, and renderer V7 bind the current
-source schema. Coordinates remain explanatory rather than semantic identity.
-Per-fact spans and authored `reaches` members remain later rungs; missing spans
-must be retained before they are erased, never recovered by parsing source text
-in package orchestration.
+Authored `reaches` clauses retain every keyword and member occurrence through
+syntax, resolution, typed lowering, copying, and specialization. Resolution
+binds each member once to its exact boundary-trait symbol; semantic
+normalization remains an idempotent parent-closed row over authored targets and
+invocation-contributed services. A private memberless authored clause is a
+published empty ceiling rather than omitted private inference. Projection
+rederives that row, joins it exactly to typed and checked facts, and carries
+each authored member span—or each keyword span for an empty row—under
+`service_reach`. It invents no coordinates for parent closure, inference, or
+invocation-only reach. Recovery envelope v6, conflict fingerprint v9, and
+renderer V8 bind the current source schema. Coordinates remain explanatory
+rather than semantic identity. Remaining per-fact spans are later rungs;
+missing spans must be retained before they are erased, never recovered by
+parsing source text in package orchestration.
 
 Proposition and named-evidence rows apply that rule as an explicit join. The
 typed application owns the structural proposition declaration, binder
