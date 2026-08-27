@@ -5438,7 +5438,12 @@ Owners:
   provided every intermediate receiver is likewise a non-generic checked
   record with no authored default domain, every selected field is relevant and
   unconstrained, and the displaced leaf is an unrestricted primitive or a whole
-  literal-length array of unrestricted primitive scalars. The ordinary
+  literal-length array of unrestricted primitive scalars. An eligible path may
+  now also end in a whole nongeneric, invariant-free `[copy]` record leaf.
+  Replacement treats that leaf as one freely discardable value and retains one
+  final `Field` segment without decomposing or observing its members; affine or
+  linear, generic, qualified, invariant-bearing, quotient, sum, erased, and
+  array-of-record leaves remain fenced. The ordinary
   mutation summary retains the complete exact, ordered field-symbol path;
   nested array replacement introduces no element or range segment. Such an
   eligible record path may additionally end in one in-bounds literal or
