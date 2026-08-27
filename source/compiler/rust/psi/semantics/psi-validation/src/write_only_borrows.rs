@@ -415,7 +415,7 @@ fn validate_statement(
         }
         StatementNode::Call(call) => {
             for argument in program.statement_table.expression_handles(call.arguments) {
-                validate_expression(program, machine, state, *argument, roots, diagnostics);
+                validate_call_argument(program, machine, state, *argument, roots, diagnostics);
             }
         }
         StatementNode::Expression(expression) => {
@@ -668,6 +668,26 @@ fn validate_transition_target(
     }
 }
 
+fn validate_call_argument(
+    program: &TypedTrees,
+    machine: &str,
+    state: &str,
+    expression: ExpressionHandle,
+    roots: &[WriteOnlyRoot],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
+        && borrow.access == ReferenceAccess::WriteOnly
+        && write_only_record_field_assignment(program, borrow.target, roots)
+    {
+        // This milestone admits the exact projected subloan only at the direct
+        // checked-call argument boundary. It does not create a reusable local
+        // reference or widen general expression formation.
+        return;
+    }
+    validate_expression(program, machine, state, expression, roots, diagnostics);
+}
+
 fn validate_expression(
     program: &TypedTrees,
     machine: &str,
@@ -689,7 +709,7 @@ fn validate_expression(
             ReferenceAccess::WriteOnly => {
                 if !is_direct_name(program, borrow.target) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine}` state `{state}` forms `&write` from a projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter only"
+                        "machine `{machine}` state `{state}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, plus one eligible content-independent common-field path only as a direct checked-call argument"
                     )));
                 }
             }
