@@ -973,6 +973,118 @@ mod tests {
         )
     }
 
+    fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
+        let machine = MachineId::new(4_271).unwrap();
+        let entry = BlockId::new(4_272).unwrap();
+        let decision = BlockId::new(4_273).unwrap();
+        let left = BlockId::new(4_274).unwrap();
+        let right = BlockId::new(4_275).unwrap();
+        let condition = ValueId::new(4_276).unwrap();
+        let forwarded = ValueId::new(4_277).unwrap();
+        let boolean = |id| ValueDeclaration {
+            id,
+            scalar_type: ScalarType::Boolean,
+        };
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                parameters: vec![boolean(condition)],
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Unit,
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry,
+                blocks: vec![
+                    Block {
+                        id: entry,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Jump {
+                            edge: EdgeId::new(4_278).unwrap(),
+                            target: decision,
+                            arguments: vec![condition],
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                    Block {
+                        id: decision,
+                        parameters: vec![boolean(forwarded)],
+                        operations: Vec::new(),
+                        terminator: Terminator::Conditional {
+                            condition: forwarded,
+                            when_true: SuccessorEdge {
+                                edge: EdgeId::new(4_279).unwrap(),
+                                target: left,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                            when_false: SuccessorEdge {
+                                edge: EdgeId::new(4_280).unwrap(),
+                                target: right,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                        },
+                    },
+                    Block {
+                        id: left,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::ReturnUnit {
+                            edge: EdgeId::new(4_281).unwrap(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                    Block {
+                        id: right,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::ReturnUnit {
+                            edge: EdgeId::new(4_282).unwrap(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                ],
+                contract: MachineContract {
+                    id: ContractId::new(4_283).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        };
+        let proof = ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: Vec::new(),
+        };
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        )
+    }
+
     fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
         let machine = MachineId::new(4_301).unwrap();
         let entry = BlockId::new(4_302).unwrap();
@@ -1621,6 +1733,51 @@ mod tests {
         let report = optimized.pre_physical_manifest().record().render_text();
         assert!(report.contains("source structure: functions=1, blocks=2, nodes=3"));
         assert!(report.contains("optimized structure: functions=1, blocks=1, nodes=2"));
+    }
+
+    #[test]
+    fn control_flow_cleanup_projects_adjacent_conditional_fanout() {
+        let (semantic, proof) = adjacent_conditional_merge_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap()),
+        )
+        .unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.plan().functions[0].block_entries.len(), 3);
+        assert_eq!(optimized.plan().functions[0].operations.len(), 3);
+        let node = &optimized.unit().functions[0].blocks[0].nodes[0];
+        assert!(matches!(
+            node.operation,
+            omega_terminal_abstract_operations::TerminalAbstractOperation::Conditional {
+                condition,
+                ..
+            } if condition == ValueId::new(4_276).unwrap()
+        ));
+        let inherited = omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(4_278).unwrap());
+        assert!(
+            node.successors
+                .iter()
+                .all(|edge| edge.provenance.last() == Some(&inherited))
+        );
+        let input = omega_optimization_unit::PsiRealizationSite::Edge {
+            machine: MachineId::new(4_271).unwrap(),
+            edge: EdgeId::new(4_278).unwrap(),
+        };
+        assert_eq!(
+            optimized.transformation_ledger().records()[0]
+                .provenance
+                .iter()
+                .filter(|row| row.input == input)
+                .count(),
+            2
+        );
+        let report = optimized.pre_physical_manifest().record().render_text();
+        assert!(report.contains("source structure: functions=1, blocks=4, nodes=4"));
+        assert!(report.contains("optimized structure: functions=1, blocks=3, nodes=3"));
     }
 
     #[test]

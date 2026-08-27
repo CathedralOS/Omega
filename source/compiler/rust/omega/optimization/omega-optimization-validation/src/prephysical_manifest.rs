@@ -18,7 +18,7 @@ use psi_terminal::TerminalPsiIdentity;
 use crate::ValidatedOptimizedAbstractPlanProjection;
 
 const PRE_PHYSICAL_MANIFEST_MAGIC: &[u8; 8] = b"OMGPPM\0\0";
-const PRE_PHYSICAL_MANIFEST_VERSION: u32 = 5;
+const PRE_PHYSICAL_MANIFEST_VERSION: u32 = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizationManifestStage {
@@ -722,7 +722,7 @@ fn pre_physical_manifest_identity(
     manifest: &PrePhysicalOptimizationManifest,
 ) -> PrePhysicalOptimizationManifestIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.pre-physical-optimization-manifest.v5\0");
+    canonical.extend_from_slice(b"omega.pre-physical-optimization-manifest.v6\0");
     canonical.extend_from_slice(&encode_manifest_content(manifest));
     PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(&canonical)
 }

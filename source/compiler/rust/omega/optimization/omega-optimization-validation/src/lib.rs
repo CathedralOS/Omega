@@ -1547,12 +1547,14 @@ pub fn validate_adjacent_block_merge_candidate(
     let target = &function.blocks[target_position];
     let predecessor_index = usize::try_from(patch.predecessor.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-    if predecessor_index + 1 != predecessor.nodes.len()
-        || target.nodes.first().is_none_or(|node| {
-            !node.successors.is_empty()
-                || !matches!(node.provenance.first(), Some(PsiProvenance::Operation(_)))
-        })
-    {
+    let eligible_first = target.nodes.first().is_some_and(|node| {
+        (node.successors.is_empty()
+            && matches!(node.provenance.first(), Some(PsiProvenance::Operation(_))))
+            || (matches!(node.operation, O::Conditional { .. })
+                && node.successors.len() == 2
+                && node.provenance.is_empty())
+    });
+    if predecessor_index + 1 != predecessor.nodes.len() || !eligible_first {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let predecessor_node = &predecessor.nodes[predecessor_index];
@@ -1644,8 +1646,17 @@ pub fn validate_adjacent_block_merge_candidate(
         .nodes
         .first_mut()
         .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
-    first.provenance.extend_from_slice(&removed_edge.provenance);
-    first.fuel.extend_from_slice(&removed_edge.fuel);
+    if first.successors.is_empty() {
+        first.provenance.extend_from_slice(&removed_edge.provenance);
+        first.fuel.extend_from_slice(&removed_edge.fuel);
+    } else {
+        for successor in &mut first.successors {
+            successor
+                .provenance
+                .extend_from_slice(&removed_edge.provenance);
+            successor.fuel.extend_from_slice(&removed_edge.fuel);
+        }
+    }
     output_predecessor.nodes.append(&mut moved.nodes);
     for (node_index, node) in output_predecessor.nodes.iter_mut().enumerate() {
         let node_index = u32::try_from(node_index)
@@ -1693,7 +1704,7 @@ pub fn validate_adjacent_block_merge_candidate(
         unit: output,
         candidate: candidate.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.adjacent-single-predecessor-block-merge.v1",
+            b"omega.validator.adjacent-single-predecessor-block-merge.v2",
         ),
         provenance: accepted_provenance,
     })
@@ -1794,22 +1805,40 @@ fn reconstruct_adjacent_merge_accounting(
         .iter()
         .find(|edge| edge.psi_edge == patch.incoming_edge)?;
     let target = &function.blocks[target_position];
-    let output_first = PsiRealizationSite::Node(NodeLocation {
-        machine: function.machine,
-        block: predecessor.id,
-        node: patch.predecessor.node,
-    });
     let incoming_site = PsiRealizationSite::Edge {
         machine: function.machine,
         edge: patch.incoming_edge,
     };
     let mut affected = BTreeSet::from([predecessor.id, target.id]);
-    let mut realized = vec![omega_optimization_unit::ProvenanceRewrite {
-        input: incoming_site,
-        disposition: ProvenanceDisposition::RealizedAt(output_first),
-        sources: incoming.provenance.clone(),
-        fuel: incoming.fuel.clone(),
-    }];
+    let first = target.nodes.first()?;
+    let mut realized = if first.successors.is_empty() {
+        vec![omega_optimization_unit::ProvenanceRewrite {
+            input: incoming_site,
+            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(
+                NodeLocation {
+                    machine: function.machine,
+                    block: predecessor.id,
+                    node: patch.predecessor.node,
+                },
+            )),
+            sources: incoming.provenance.clone(),
+            fuel: incoming.fuel.clone(),
+        }]
+    } else {
+        first
+            .successors
+            .iter()
+            .map(|successor| omega_optimization_unit::ProvenanceRewrite {
+                input: incoming_site,
+                disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Edge {
+                    machine: function.machine,
+                    edge: successor.psi_edge,
+                }),
+                sources: incoming.provenance.clone(),
+                fuel: incoming.fuel.clone(),
+            })
+            .collect()
+    };
     for (node_index, node) in target.nodes.iter().enumerate() {
         if node.provenance.is_empty() {
             continue;
