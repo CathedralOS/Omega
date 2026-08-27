@@ -175,6 +175,14 @@ parameter-symbol/ordinal or boundary-trait symbol. Effect inference consumes
 that exact target, and package projection joins it to checked machine facts;
 neither stage reselects a target from diagnostic spelling.
 
+Authored service reach follows the same seam. A typed private sidecar retains
+each exact target occurrence and each clause keyword, while the normalized row
+contains authored targets, invocation-contributed services, and parent closure.
+Checked effects settle whether the callable publishes that row or internally
+infers it. Package projection rederives and joins both facts; an authored empty
+ceiling cannot collapse into omission, and inferred or closure-only members do
+not acquire invented source coordinates.
+
 Must not own:
 
 - Machine instruction shape, ABI placement, final storage layout, relocation

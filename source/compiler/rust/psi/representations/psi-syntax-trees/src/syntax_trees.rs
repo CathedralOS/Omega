@@ -173,6 +173,7 @@ impl SyntaxTrees {
             parameters: copied.parameters,
             return_type: copied.return_type,
             service_reach_is_installation_bound: copied.service_reach_is_installation_bound,
+            service_reach_keyword_source_spans: copied.service_reach_keyword_source_spans,
             service_reaches: copied.service_reaches,
             invokes: copied.invokes,
             suspends: copied.suspends,
@@ -489,6 +490,7 @@ impl SyntaxTrees {
                 crate::expression::ExpressionHandle::invalid()
             },
             service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
+            service_reach_keyword_source_spans: machine.service_reach_keyword_source_spans.clone(),
             service_reaches: self.copy_item_identifier_span(other, machine.service_reaches),
             invokes: self.copy_item_identifier_span(other, machine.invokes),
             suspends: machine.suspends,
@@ -866,6 +868,9 @@ impl SyntaxTrees {
             parameters: self.copy_state_parameter_handle_span(other, signature.parameters),
             return_type: self.copy_type_reference_handle(other, signature.return_type),
             service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
+            service_reach_keyword_source_spans: signature
+                .service_reach_keyword_source_spans
+                .clone(),
             service_reaches: self.copy_item_identifier_span(other, signature.service_reaches),
             invokes: self.copy_item_identifier_span(other, signature.invokes),
             suspends: signature.suspends,
@@ -890,6 +895,9 @@ impl SyntaxTrees {
             parameters: self.copy_state_parameter_handle_span(other, signature.parameters),
             return_type: self.copy_type_reference_handle(other, signature.return_type),
             service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
+            service_reach_keyword_source_spans: signature
+                .service_reach_keyword_source_spans
+                .clone(),
             service_reaches: self.copy_item_identifier_span(other, signature.service_reaches),
             invokes: self.copy_item_identifier_span(other, signature.invokes),
             suspends: signature.suspends,

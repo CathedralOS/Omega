@@ -48,6 +48,7 @@ members = [
     "source/compiler/rust/omega/foundation/omega-executable-installation",
     "source/compiler/rust/omega/orchestration/omega-external-roots",
     "source/compiler/rust/omega/orchestration/omega-component-publication",
+    "source/compiler/rust/omega/orchestration/omega-terminal-native-artifact",
     "source/compiler/rust/omega/orchestration/omega-terminal-component-candidate",
     "source/compiler/rust/omega/orchestration/omega-component-deployment",
     "source/compiler/rust/omega/foundation/omega-task-plans",

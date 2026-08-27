@@ -348,19 +348,13 @@ pub(super) fn compile_to_checked_for_terminal(
     options: &super::CompileOptions,
     package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let root_path = options.root_path.clone();
-    let build_dir = options.build_dir();
-    let target_name = options.target_name.clone();
-    let package_inputs = package_inputs.cloned();
-    super::compiler::run_on_compile_thread(move || {
-        compile_to_checked_inner(
-            &root_path,
-            target_name.as_deref(),
-            package_inputs.as_ref(),
-            Some(&build_dir),
-            None,
-        )
-    })
+    compile_to_checked_inner(
+        &options.root_path,
+        options.target_name.as_deref(),
+        package_inputs,
+        Some(&options.build_dir()),
+        None,
+    )
 }
 
 struct CheckedFrontend {

@@ -1152,10 +1152,12 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         "terminal fuel evidence must reject a stub at the wrong function offset"
     );
 
-    let deployment_semantic_bytes =
-        encode_module(&semantic_module).expect("deployment component semantics");
-    let deployment_proof_bytes =
-        encode_proof_bundle(&proof_bundle).expect("deployment component proof");
+    let deployment_terminal_artifact = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+        &semantic_module,
+        &proof_bundle,
+        None,
+    )
+    .expect("deployment component artifact");
     drop(machine_code);
     drop(target_operations);
     drop(abstract_operations);
@@ -1516,17 +1518,23 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     let attribution_fingerprint = installed_attribution.fingerprint();
     let runtime_fingerprint = transfer_runtime.fingerprint();
     let component_candidate =
-        TerminalComponentCandidate::from_parts(TerminalComponentCandidateParts {
-            target: object_artifact.target(),
+        TerminalComponentCandidate::checked(TerminalComponentCandidateParts {
+            native_artifact: TerminalNativeArtifact::from_replayed_parts(
+                TerminalNativeArtifactParts {
+                    target: object_artifact.target(),
+                    terminal_artifact: deployment_terminal_artifact,
+                    object: object_artifact,
+                    image: image.clone(),
+                    selected_provider_plans: Vec::new(),
+                    provider_executions: Vec::new(),
+                },
+            )
+            .expect("deployment fixture retains one exact Terminal-native artifact"),
             entry_machine: "terminal_constant".into(),
-            semantic_bytes: deployment_semantic_bytes,
-            proof_bytes: deployment_proof_bytes,
-            object: object_artifact,
-            image: image.clone(),
             selected_provider_plans: omega_effects::SelectedProviderPlanFacts::default(),
-            provider_executions: Vec::new(),
             component_progress: None,
-        });
+        })
+        .expect("deployment fixture retains matching component policy");
     let mut deployment_session = begin_terminal_component_deployment_with_claimed_registry(
         component_candidate,
         installed_code,

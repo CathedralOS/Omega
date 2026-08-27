@@ -511,6 +511,12 @@ precise_step "omega-bootstrap OMGRSWA10/OMGLOWJ19 meaning (RUST-FREE) — exact 
 precise_step "omega-bootstrap CKIR18 backend — exact full-u64 bounds/Add templates and native/self ELF identity" omega-bootstrap-gates delta-checked-ir-v18-backend.sh omega-bootstrap-ckir18
 precise_step "omega-bootstrap OMGRFN21 refinement — modular fixed-buffer owners and representative persisted-Beta projections" omega-bootstrap-refinement omgrfn21-reference.sh omega-bootstrap-omgrfn21-reference
 precise_step "omega-bootstrap OMGRFN21 producer refinement — actual native/self OMGRSWA10 to CKIR18 to ELF bytes satisfy R1-R5" omega-bootstrap-refinement omgrfn21-same-frame-composite.sh omega-bootstrap-omgrfn21
+precise_step "omega-bootstrap CKIR19 independent reference — full-u64 record-array indexing, nested fields, wide calls, and runtime traps" omega-bootstrap-gates delta-checked-ir-v19-reference.sh omega-bootstrap-ckir19-reference
+precise_step "omega-bootstrap OMGRSWB11/OMGLOWK20 producer — record-array source to CKIR19" omega-bootstrap-gates delta-record-array-to-ckir19.sh omega-bootstrap-omglowk20
+precise_step "omega-bootstrap OMGRSWB11/OMGLOWK20 meaning (RUST-FREE) — exact publication plus semantic/resource refusal through Gamma" omega-bootstrap-gates delta-record-array-to-ckir19-meaning.sh omega-bootstrap-omglowk20
+precise_step "omega-bootstrap CKIR19 backend — exact record stride/fields, full-u64 bounds/Add, calls, and native/self ELF identity" omega-bootstrap-gates delta-checked-ir-v19-backend.sh omega-bootstrap-ckir19
+precise_step "omega-bootstrap OMGRFN22 refinement — modular record-array owners and representative persisted-Beta projections" omega-bootstrap-refinement omgrfn22-reference.sh omega-bootstrap-omgrfn22-reference
+precise_step "omega-bootstrap OMGRFN22 producer refinement — actual native/self OMGRSWB11 to CKIR19 to ELF bytes satisfy R1-R5" omega-bootstrap-refinement omgrfn22-same-frame-composite.sh omega-bootstrap-omgrfn22
 precise_step "delta source closure — path-independent canonical compiler root and provisional fixed-u64 bridge action DAG" delta source-closure-snapshot-v1.sh delta-source-closure-v1
 step "product compiler checkpoint — exact resolver closure plus provisional Ωself admission" source-checkpoints verify.sh omega-rust psi
 step "omega-bootstrap source-custody frontend probe — exhaustive native plus representative Delta-self-built checking" omega-bootstrap-gates delta-source-custody-frontend.sh delta-rust psi source-checkpoints
