@@ -426,6 +426,17 @@ pub struct AdjacentBlockMergeRewrite {
     pub target: BlockId,
 }
 
+/// Merge a non-adjacent, single-predecessor target block into its
+/// unconditional predecessor. Unlike the adjacent form, this patch explicitly
+/// authorizes movement across intervening source-roster blocks; execution
+/// legality is still established from CFG dominance rather than roster order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NonAdjacentBlockMergeRewrite {
+    pub predecessor: NodeLocation,
+    pub incoming_edge: EdgeId,
+    pub target: BlockId,
+}
+
 /// Fuse one unconditional jump into a shared, terminal-only target without
 /// removing that target. The terminal occurrence is cloned onto the selected
 /// incoming path and remains at the target for every other incoming path.
@@ -496,6 +507,7 @@ pub enum PsiRewritePatch {
     ThreadLinearEmptyBlock(LinearEmptyBlockRewrite),
     ThreadPathQualifiedEmptyBlock(PathQualifiedEmptyBlockRewrite),
     MergeAdjacentBlock(AdjacentBlockMergeRewrite),
+    MergeNonAdjacentBlock(NonAdjacentBlockMergeRewrite),
     FuseSharedTerminalJump(SharedTerminalJumpFusionRewrite),
     RemoveDeadScalarNode(DeadScalarNodeRewrite),
     EliminateLocalScalarCommonSubexpression(LocalScalarCommonSubexpressionRewrite),
@@ -732,6 +744,28 @@ impl PsiRewriteCandidate {
     }
 
     #[allow(clippy::too_many_arguments)]
+    pub fn new_non_adjacent_block_merge(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        substitutions: Vec<ScalarSubstitution>,
+        provenance: Vec<ProvenanceRewrite>,
+        predicted_cost_delta: i64,
+        patch: NonAdjacentBlockMergeRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            substitutions,
+            provenance,
+            PsiRewriteWitness::StructuralIdentity,
+            predicted_cost_delta,
+            PsiRewritePatch::MergeNonAdjacentBlock(patch),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn new_shared_terminal_jump_fusion(
         input: OptimizationUnitIdentity,
         contract: OptimizationRuleContract,
@@ -896,6 +930,9 @@ impl PsiRewriteCandidate {
                 PsiRewriteDecisionPoint::Node(patch.empty)
             }
             PsiRewritePatch::MergeAdjacentBlock(patch) => {
+                PsiRewriteDecisionPoint::Node(patch.predecessor)
+            }
+            PsiRewritePatch::MergeNonAdjacentBlock(patch) => {
                 PsiRewriteDecisionPoint::Node(patch.predecessor)
             }
             PsiRewritePatch::FuseSharedTerminalJump(patch) => {
@@ -1140,6 +1177,27 @@ impl PsiRewriteCandidate {
                 }
             }
             PsiRewritePatch::MergeAdjacentBlock(patch) => {
+                let incoming = PsiRealizationSite::Edge {
+                    machine: patch.predecessor.machine,
+                    edge: patch.incoming_edge,
+                };
+                if !affected_blocks.contains(&patch.target)
+                    || !provenance.iter().any(|row| row.input == incoming)
+                    || provenance.iter().any(|row| {
+                        let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
+                            return true;
+                        };
+                        site.machine() != patch.predecessor.machine
+                            || site
+                                .node()
+                                .is_some_and(|location| !affected_blocks.contains(&location.block))
+                    })
+                    || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
+                {
+                    return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
+                }
+            }
+            PsiRewritePatch::MergeNonAdjacentBlock(patch) => {
                 let incoming = PsiRealizationSite::Edge {
                     machine: patch.predecessor.machine,
                     edge: patch.incoming_edge,
@@ -1455,7 +1513,7 @@ fn encode_candidate(
     patch: &PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v19\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v20\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     match decision_point {
@@ -1662,6 +1720,12 @@ fn encode_candidate(
             bytes.extend_from_slice(&patch.leader_result.get().to_le_bytes());
             bytes.extend_from_slice(&patch.redundant_result.get().to_le_bytes());
             encode_scalar_type(&mut bytes, patch.scalar_type);
+        }
+        PsiRewritePatch::MergeNonAdjacentBlock(patch) => {
+            bytes.push(13);
+            encode_location(&mut bytes, patch.predecessor);
+            bytes.extend_from_slice(&patch.incoming_edge.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.target.get().to_le_bytes());
         }
     }
     bytes

@@ -735,7 +735,7 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
         b"omega.psi-pass.copy-propagation.v1",
     );
     let cfg_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-        b"omega.psi-pass.control-flow-cleanup.v10",
+        b"omega.psi-pass.control-flow-cleanup.v11",
     );
     let dead_scalar_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
         b"omega.psi-pass.dead-pure-scalar-elimination.v2",
@@ -785,7 +785,7 @@ mod tests {
             boolean_unit, constant_conditional_same_target_unit, dead_exact_add_unit,
             dead_wrapping_add_unit, dependent_exact_chain_unit, diamond_dominator_gvn_unit,
             dominator_gvn_unit, exact_add_unit, linear_empty_block_unit, local_cse_unit,
-            propagated_block_parameter_unit, randomized_sccp_registries,
+            non_adjacent_merge_unit, propagated_block_parameter_unit, randomized_sccp_registries,
             redundant_block_parameter_unit, wrapping_add_unit,
         },
     };
@@ -1142,7 +1142,7 @@ mod tests {
             omega_optimization_unit::ProvenanceDisposition::ProvenUnreachableAt(_)
         ));
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 6);
+        assert_eq!(manifest.ordered_rules().len(), 7);
         assert_eq!(manifest.decisions().len(), 2);
         assert_eq!(manifest.decisions()[0].consumed_facts().len(), 1);
 
@@ -1208,7 +1208,7 @@ mod tests {
         assert_eq!(commits.len(), 2);
         assert_eq!(usage.commits, 2);
         assert_eq!(usage.iterations, 3);
-        assert_eq!(usage.rule_evaluations, 12);
+        assert_eq!(usage.rule_evaluations, 13);
         assert_eq!(output.functions[0].blocks.len(), 1);
         assert_eq!(ledger.records().len(), 2);
         assert_eq!(ledger.records()[0].provenance.len(), 3);
@@ -1218,7 +1218,7 @@ mod tests {
                 .iter()
                 .all(|row| row.disposition.is_realized())
         );
-        assert_eq!(manifest.unwrap().ordered_rules().len(), 6);
+        assert_eq!(manifest.unwrap().ordered_rules().len(), 7);
 
         let (second, second_commits, second_usage, _, _, second_ledger) =
             run_unit(output.clone(), &registry, budget(8)).unwrap();
@@ -1226,6 +1226,42 @@ mod tests {
         assert!(second_commits.is_empty());
         assert_eq!(second_usage.iterations, 1);
         assert!(second_ledger.records().is_empty());
+    }
+
+    #[test]
+    fn named_control_flow_cleanup_merges_non_adjacent_blocks_to_fixed_point() {
+        let selections = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        let registry = built_in_psi_registry(&selections).unwrap();
+        for target_before_predecessor in [false, true] {
+            let unit = non_adjacent_merge_unit(target_before_predecessor);
+            let (output, commits, usage, _, manifest, ledger) =
+                run_unit(unit, &registry, budget(8)).unwrap();
+
+            assert_eq!(commits.len(), 2);
+            assert_eq!(usage.commits, 2);
+            assert_eq!(usage.iterations, 3);
+            assert_eq!(
+                usage.rule_evaluations,
+                if target_before_predecessor { 21 } else { 18 }
+            );
+            assert_eq!(output.functions[0].blocks.len(), 3);
+            assert_eq!(ledger.records().len(), 2);
+            assert!(ledger.records().iter().all(|record| {
+                record
+                    .provenance
+                    .iter()
+                    .all(|row| row.disposition.is_realized())
+            }));
+            assert_eq!(manifest.unwrap().ordered_rules().len(), 7);
+
+            let (second, second_commits, second_usage, _, _, second_ledger) =
+                run_unit(output.clone(), &registry, budget(8)).unwrap();
+            assert_eq!(second, output);
+            assert!(second_commits.is_empty());
+            assert_eq!(second_usage.iterations, 1);
+            assert_eq!(second_usage.rule_evaluations, 7);
+            assert!(second_ledger.records().is_empty());
+        }
     }
 
     #[test]

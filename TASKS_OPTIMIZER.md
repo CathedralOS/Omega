@@ -427,13 +427,15 @@ These facts constrain the work below.
   this admission meaning. General native publication of these broader CFG
   shapes remains unavailable until their physical lowering vocabulary exists.
 - The fourth exact `ControlFlowCleanup` rule,
-  `adjacent-single-predecessor-block-merge.v3`, removes a genuinely redundant
+  `adjacent-single-predecessor-block-merge.v4`, removes a genuinely redundant
   jump and block boundary without treating the target as empty. Admission is
   limited to an immediately adjacent target with exactly one incoming edge.
   The target must begin with either a real operation having no successor arms,
   its sole conditional terminator, or an exact return/crash terminal carrying
   edge provenance; non-adjacent block motion remains outside the rule. Typed target parameters are
-  replaced by the exact incoming bindings, ownership snapshots must agree
+  replaced by the exact incoming bindings across the complete dominated use
+  set, including successor blocks serialized elsewhere in the roster.
+  `Dominators` and `UseDefinition` are explicit prerequisites, and ownership snapshots must agree
   at edge entry, edge exit, and target entry, and every moved node occurrence
   is replayed. The removed jump-edge source/fuel is fused behind the first
   operation's direct provenance at its new node. For a conditional-first
@@ -474,6 +476,25 @@ These facts constrain the work below.
   edge is ledgered as proven unreachable with its original fuel. Candidate
   v14, optimization-unit identity v8, ledger v4, the v9 pass, prephysical
   manifest v8, and optimized-plan projection v9 bind machine-roster replay.
+- The seventh exact `ControlFlowCleanup` rule,
+  `non-adjacent-unique-predecessor-block-merge.v1`, removes a redundant jump
+  and its target boundary when the target is outside the older immediately-
+  following roster relation. Source-roster order is never treated as execution
+  order: CFG dominance and the sole exact incoming edge establish legality,
+  and targets serialized before or after the predecessor are both admitted.
+  Every typed target-parameter use is substituted across the whole function;
+  moved target definitions retain their `ValueId`s and receive exact new node
+  sites before dominance is total-validated again. The candidate accounts for
+  the predecessor and removed target, every globally changed use block, every
+  block whose dense effect links shift, all moved node occurrences, and the
+  incoming edge realized at the first moved node or its exact successor-edge
+  fanout. The independent validator reconstructs all of those facts without
+  using roster order as a dominance proxy. Verified non-topological artifacts
+  replay two successive merges to a three-block fixed point and lower on both
+  x64 and arm64. Candidate v20, `ControlFlowCleanup` v11, prephysical manifest
+  v14, and optimized-plan projection validator v15 bind this admission;
+  optimization-unit identity v10 and ledger v4 already encode the output and
+  occurrence relation.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds its input
   revision, rule contract, decision point, affected region, required analyses
@@ -900,7 +921,7 @@ dependency.
 
 ## P3 — Initial exact Psi optimizer
 
-- **OPT-CFG-CLEANUP.** Add unreachable-block elimination, empty-block
+- **OPT-CFG-CLEANUP — complete for the current verified-unit vocabulary.** Add unreachable-block elimination, empty-block
   threading, constant conditional folding, redundant jump elimination, and
   unreachable private-machine pruning.
 
@@ -917,7 +938,7 @@ dependency.
   location changes; and durably records the rejected edge plus every deleted
   node and its original scheduled fuel as independently proven unreachable and
   uncharged. Successor-edge custody and ledger v3 now distinguish the two
-  conditional arms directly. The v10 pass also includes exact linear empty-jump
+  conditional arms directly. The v11 pass also includes exact linear empty-jump
   threading plus `path-qualified-empty-block-thread.v1`: typed bindings are
   composed, ownership frontiers must be identical across each bypass, and the
   removed outgoing source is realized on every and only mutually exclusive
@@ -926,17 +947,29 @@ dependency.
   the block's sole conditional, or its exact return/crash terminal. It substitutes typed block parameters and
   realizes the removed edge at the first operation or across exactly the two
   mutually exclusive successor edges, without authorizing non-adjacent code
-  motion. Its fifth rule fuses one selected unconditional path into a shared,
+  motion. Its v4 contract now proves replacements dominate every parameter use
+  and rewrites dominated successor blocks globally. Its fifth rule fuses one selected unconditional path into a shared,
   terminal-only return/crash block while retaining that block for its other
   incoming paths. Terminal provenance and fuel fan out only across the exact
   no-successor CFG antichain, and typed substitutions affect only the clone.
   Its sixth rule prunes the exact unreachable private-machine
   complement, rooting entry, providers, attached functions, internal calls,
-  and nominal cleanup-machine references. Candidate v15, optimization-unit
-  identity v9, ledger v4, prephysical manifest v9, and projection v10 bind both
-  occurrence and function-roster replay. General non-adjacent redundant jumps and
-  unreachable cleanup not caused by the conditional fold
-  remain open.
+  and nominal cleanup-machine references. Its seventh rule performs general
+  non-adjacent unique-predecessor block merging in either roster direction,
+  with explicit dominance/use-definition evidence, global typed substitution,
+  moved-definition reconstruction, dense-effect accounting, and independent
+  replay. Candidate v20, optimization-unit identity v10, ledger v4,
+  prephysical manifest v14, and projection validator v15 bind the current
+  occurrence and function-roster replay.
+
+  A standalone pass over blocks that are already unreachable has no admitted
+  input in this layer: Terminal verification and total optimization-unit
+  validation both reject `UnreachableBlock` before rule proposal. Unreachable
+  block removal therefore remains atomic with the exact reachability-changing
+  rewrite that creates the dead region (currently constant-conditional fold),
+  rather than introducing an unreachable intermediate revision. A future
+  pre-verification or partially formed IR would require a separately designed
+  admission boundary, not another rule over `PsiOptimizationUnit`.
 
 - **OPT-SCCP.** Implement sparse conditional constant propagation over the
   closed integer and Boolean Terminal Psi operations.

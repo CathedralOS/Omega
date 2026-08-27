@@ -947,15 +947,16 @@ validation v7 bind this admission meaning. Marking a reachable outgoing source
 CFG shapes still fails closed until target/selected/native custody supports the
 shape.
 
-The fourth rule, `adjacent-single-predecessor-block-merge.v3`, is the first
+The fourth rule, `adjacent-single-predecessor-block-merge.v4`, is the first
 nonempty redundant-jump elimination contract. It merges only the immediately
 following target block and only when the jump is its sole incoming edge. The
 target must begin with a real operation having no successor arms, consist of
 its conditional terminator, or consist of an exact return/crash terminal with
 edge provenance. These restrictions make the transformation block-
 boundary erasure rather than non-adjacent code motion. The validator
-independently reconstructs
-typed target-parameter substitutions and requires identical ownership snapshots
+independently reconstructs typed target-parameter substitutions, requires each
+replacement definition to dominate every use (including uses in dominated
+successor blocks), rewrites that complete use set, and requires identical ownership snapshots
 at incoming-edge entry, incoming-edge exit, and target-block entry. Every moved
 node occurrence is renamed to its new block/node location; the removed edge's
 source and fuel are additionally realized behind the first operation's direct
@@ -965,8 +966,8 @@ unit antichain check rejects any sequentially executable duplicate. Later nodes
 whose dense effects shift are also accounted for. Corruption tests reject
 forged node and fanout realization sites, and full artifact tests replay the
 ledger to exact one-block and three-block prephysical projections. Candidate
-v14, optimization-unit content identity v8, `ControlFlowCleanup` v9,
-prephysical manifest v8, and optimized-plan projection validation v9 bind this
+v20, optimization-unit content identity v10, `ControlFlowCleanup` v11,
+prephysical manifest v14, and optimized-plan projection validation v15 bind this
 admission meaning; ledger v4 expresses both the many-to-one move and one-to-many
 fanout. Direct terminal fusion retains the terminal edge and removed jump edge
 at the fused node, so return, cleanup, structural-return, crash, and fuel work
@@ -1020,6 +1021,56 @@ duplicated, reordered, resurrected, provider-root, attachment-root, call-root,
 or cleanup-root machine. Candidate v14, optimization-unit content identity v8,
 `ControlFlowCleanup` v9, prephysical manifest v8, and optimized-plan projection
 validation v9 bind this admission meaning.
+
+The seventh rule,
+`non-adjacent-unique-predecessor-block-merge.v1`, owns the code-motion contract
+that the adjacent rule intentionally excludes. The target must be a non-entry,
+nonempty block with one exact incoming edge, and the predecessor must end in
+that edge's unconditional jump. A target consisting only of an empty jump is
+left to the earlier empty-block rules. “Non-adjacent” means outside the
+immediately-following roster relation admitted by the fourth rule; a target
+serialized before the predecessor is necessarily handled here even when their
+roster slots happen to touch.
+
+Source-roster order is never execution authority. The producer explicitly
+requires CFG, dominators, use-definition, and ownership-frontier products. It
+proves the predecessor dominates the target, reconstructs the sole incoming
+edge and exact typed parameter bindings, and proves each replacement dominates
+every parameter use. Those uses are rewritten across the complete function,
+including calls, scalar operations, return values, conditional operands, and
+successor bindings in dominated blocks. Values defined by the moved target
+keep their `ValueId`s; their definition sites move to the predecessor and total
+validation re-proves every downstream use.
+
+The typed patch separately names the predecessor location, incoming `EdgeId`,
+and removed target. Candidate accounting includes the predecessor and target,
+every block changed by global substitution, and every block whose dense effect
+links shift when target nodes cross the serialized roster. Each sourced target
+node moves from `target:i` to `predecessor:(jump-index+i)`. Incoming-edge
+custody is appended to the first moved direct node, or is realized on every
+exact successor edge when that first node is a source-less control terminator.
+No reachable target work is tombstoned. The validator independently rebuilds
+dominators, substitutions, affected blocks, provenance/fuel rows, the roster
+mutation in either direction, node metadata, dense effects, facts, declared
+places, and content identity before total validation.
+
+A verified non-topological Boolean artifact exercises two consecutive merges,
+global parameter substitution into a descendant serialized before its
+definition, a moved definition still used by that descendant, exact ledger and
+prephysical projection replay, and successful x64/arm64 lowering. Candidate
+v20, `ControlFlowCleanup` v11, prephysical manifest v14, and optimized-plan
+projection validator v15 bind the new admission. Optimization-unit identity
+v10 and ledger v4 require no schema bump because they already encode block
+removal, moved definition sites, one-to-one occurrence moves, fusion, and
+fanout.
+
+There is deliberately no standalone “prune blocks already unreachable from
+entry” rule over `PsiOptimizationUnit`. Terminal verification and independent
+total-unit validation reject `UnreachableBlock`, including disconnected SCCs,
+before any optimizer rule can propose a candidate. Dead-region pruning must
+therefore remain atomic with the reachability-changing rewrite that proves the
+region dead. Admitting a partially reachable pre-verification IR would be a
+new layer and a separately versioned design, not an omitted cleanup rule here.
 
 ### Dead pure scalar work
 
