@@ -96,49 +96,65 @@ pub fn callback_thunk_placement_identity_fingerprint(thunks: &[CallbackThunkPlan
     fingerprint_into(&mut fingerprint, b"omega.callback-placement-identity.v1");
     fingerprint_into(&mut fingerprint, &(thunks.len() as u64).to_le_bytes());
     for thunk in thunks {
-        fingerprint_into(
+        fingerprint_placement_identity(
             &mut fingerprint,
-            &(thunk.placement_index as u64).to_le_bytes(),
-        );
-        let identity = &thunk.placement_identity;
-        let (site_tag, site_index, site_generation) = match identity.site {
-            NominalMachineUseSite::Statement(handle) => {
-                (1u8, handle.arena_index(), handle.generation())
-            }
-            NominalMachineUseSite::Expression(handle) => {
-                (2u8, handle.arena_index(), handle.generation())
-            }
-        };
-        fingerprint_into(&mut fingerprint, &[site_tag]);
-        fingerprint_into(&mut fingerprint, &u64::from(site_index).to_le_bytes());
-        fingerprint_into(&mut fingerprint, &u64::from(site_generation).to_le_bytes());
-        fingerprint_symbol(&mut fingerprint, identity.registration_operation);
-        fingerprint_into(
-            &mut fingerprint,
-            &u64::from(identity.static_machine_ordinal).to_le_bytes(),
-        );
-        fingerprint_symbol(&mut fingerprint, identity.selected_machine);
-        fingerprint_symbol(&mut fingerprint, identity.selected_entry);
-        fingerprint_symbol(&mut fingerprint, identity.satisfaction_trait);
-        fingerprint_symbol(&mut fingerprint, identity.satisfaction_requirement);
-        fingerprint_into(
-            &mut fingerprint,
-            &(identity.canonical_requirement_overload.len() as u64).to_le_bytes(),
-        );
-        fingerprint_into(
-            &mut fingerprint,
-            identity.canonical_requirement_overload.as_bytes(),
-        );
-        fingerprint_into(
-            &mut fingerprint,
-            &identity.boundary_calling_plan_fingerprint.to_le_bytes(),
-        );
-        fingerprint_private_materialization(
-            &mut fingerprint,
-            identity.private_materialization.as_ref(),
+            thunk.placement_index,
+            &thunk.placement_identity,
         );
     }
     fingerprint
+}
+
+pub(crate) fn callback_placement_identity_row_fingerprint(
+    domain: &[u8],
+    placement_index: usize,
+    identity: &CallbackPlacementBindingIdentity,
+) -> u64 {
+    let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    fingerprint_into(&mut fingerprint, domain);
+    fingerprint_placement_identity(&mut fingerprint, placement_index, identity);
+    fingerprint
+}
+
+fn fingerprint_placement_identity(
+    fingerprint: &mut u64,
+    placement_index: usize,
+    identity: &CallbackPlacementBindingIdentity,
+) {
+    fingerprint_into(fingerprint, &(placement_index as u64).to_le_bytes());
+    let (site_tag, site_index, site_generation) = match identity.site {
+        NominalMachineUseSite::Statement(handle) => {
+            (1u8, handle.arena_index(), handle.generation())
+        }
+        NominalMachineUseSite::Expression(handle) => {
+            (2u8, handle.arena_index(), handle.generation())
+        }
+    };
+    fingerprint_into(fingerprint, &[site_tag]);
+    fingerprint_into(fingerprint, &u64::from(site_index).to_le_bytes());
+    fingerprint_into(fingerprint, &u64::from(site_generation).to_le_bytes());
+    fingerprint_symbol(fingerprint, identity.registration_operation);
+    fingerprint_into(
+        fingerprint,
+        &u64::from(identity.static_machine_ordinal).to_le_bytes(),
+    );
+    fingerprint_symbol(fingerprint, identity.selected_machine);
+    fingerprint_symbol(fingerprint, identity.selected_entry);
+    fingerprint_symbol(fingerprint, identity.satisfaction_trait);
+    fingerprint_symbol(fingerprint, identity.satisfaction_requirement);
+    fingerprint_into(
+        fingerprint,
+        &(identity.canonical_requirement_overload.len() as u64).to_le_bytes(),
+    );
+    fingerprint_into(
+        fingerprint,
+        identity.canonical_requirement_overload.as_bytes(),
+    );
+    fingerprint_into(
+        fingerprint,
+        &identity.boundary_calling_plan_fingerprint.to_le_bytes(),
+    );
+    fingerprint_private_materialization(fingerprint, identity.private_materialization.as_ref());
 }
 
 fn fingerprint_private_materialization(

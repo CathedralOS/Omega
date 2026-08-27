@@ -70,18 +70,20 @@ Must own:
   of every loan. Write-only checking admits only content-independent
   projection and non-observing writes, composes the restriction through calls,
   and retains exact outcome write footprints for dependent-fact invalidation.
-  Literal fixed arrays whose elements are unrestricted primitive scalars or
-  eligible material nongeneric, invariant-free `[copy]` records admit whole
-  replacement, static length metadata, and literal or ordinarily proven
-  dynamic element stores through direct roots and eligible plain-record paths.
-  Record elements remain atomic array positions: mutation and caller-visible
+  Recursively literal fixed arrays whose ultimate elements are unrestricted
+  primitive scalars or eligible material nongeneric, invariant-free `[copy]`
+  records or sums admit whole replacement, static length metadata, and literal
+  or ordinarily proven dynamic element stores through direct roots and eligible
+  plain-record paths.
+  Aggregate elements remain atomic array positions: mutation and caller-visible
   frames retain exact `FixedIndex` or conservative runtime `Index` identity
-  without child fields. Statically normalized closed ranges over the same
-  arrays admit exact-width array-literal replacement and retain the normalized
-  half-open element-ordinal `FixedRange`. Atomic, qualified, constrained,
-  generic, noncopy, erased, sum, nested-array, symbolic/open range, slice-range,
-  and nonliteral forms remain fenced; this creates no executable Terminal write
-  authority.
+  without child fields, cases, or payloads. Statically normalized closed ranges
+  over the same arrays admit exact-width array-literal replacement and retain
+  the normalized half-open element-ordinal `FixedRange`. Atomic, qualified,
+  constrained, generic, noncopy, erased, symbolic/open range, slice-range, and
+  nonliteral forms remain fenced, as do matching, sum projection, and indexing
+  inside an already selected nested-array element. Each nested array is one
+  atomic outer element; this creates no executable Terminal write authority.
   An eligible plain-record path may also replace one whole nongeneric,
   invariant-free `[copy]` record leaf as a single freely discardable value. Its
   mutation/frame place ends in exactly one `Field` segment and never decomposes
@@ -168,6 +170,14 @@ rule. Typed lowering binds each target-name span directly to its exact
 parameter-symbol/ordinal or boundary-trait symbol. Effect inference consumes
 that exact target, and package projection joins it to checked machine facts;
 neither stage reselects a target from diagnostic spelling.
+
+Authored service reach follows the same seam. A typed private sidecar retains
+each exact target occurrence and each clause keyword, while the normalized row
+contains authored targets, invocation-contributed services, and parent closure.
+Checked effects settle whether the callable publishes that row or internally
+infers it. Package projection rederives and joins both facts; an authored empty
+ceiling cannot collapse into omission, and inferred or closure-only members do
+not acquire invented source coordinates.
 
 Must not own:
 
@@ -738,7 +748,9 @@ Current ownership is:
   `flow/statements.rs` owns statement entry facts, call fact sequencing, loan
   activation, mutation invalidation, and transfer propagation,
   `flow/transfers.rs` owns statement fact transfers and emits the narrow
-  checked-only parameter-rooted structural qualification-correspondence ledger,
+  checked-only parameter-rooted structural qualification-correspondence ledger;
+  its producer requires every source/source-occurrence/destination root to
+  belong to the formation machine or exact formation state,
   `flow/calls.rs` owns call
   fact assembly, `flow/call_phases.rs` owns call entry/requires/invalidation/exit
   context phase routing, `flow/call_phases/invalidation.rs` owns call mutation
@@ -843,7 +855,8 @@ Current ownership is:
   `checks/termination/ranking/slice/arguments.rs` owns slice-tail next-argument
   rewrite predicates. `checks/termination/progress.rs` independently replays
   retained qualification correspondence before deriving checked progress
-  summaries; malformed or label-only correspondence fails closed.
+  summaries; malformed, label-only, foreign-machine, or sibling-state-rooted
+  correspondence fails closed.
 - The checked-lowering regression root `tests/termination.rs` is orchestration
   only. Its subordinate modules separately own ranking witnesses, operational
   contract publication, exclusive-cycle write frames, indexed-call write

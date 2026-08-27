@@ -261,8 +261,11 @@ payload/domain, and evidence. Checked progress independently replays exact
 structural place equality, construction order, statement-transfer origin and
 point, formation ownership, and unchanged payload/evidence. Label-only,
 unknown, expression, type, indexed/ranged, local, generic, and invalid-member
-relations produce no certificate. The ledger changes neither premise admission
-nor Terminal authority.
+relations produce no certificate. Each retained structural place root must
+belong to the formation machine or exact formation state; same-shaped foreign-
+machine and sibling-state parameter substitution rejects independently for the
+source fact, contextual source occurrence, and destination. The ledger changes
+neither premise admission nor Terminal authority.
 
 Durable provider-requirement artifacts retain those public schemas
 structurally: profile identity, provider-receiver or caller-parameter subject,

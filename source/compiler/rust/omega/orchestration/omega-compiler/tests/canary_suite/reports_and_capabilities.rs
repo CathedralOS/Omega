@@ -643,12 +643,12 @@ fn backend_report_renders_ownership_summary_events() {
         .expect("backend report should be written");
     assert_toolchain_build_source_drops(&report);
     assert!(
-        report.contains("permissions: 12"),
+        report.contains("permissions: 13"),
         "spine should retain the complete permission ledger\n{}",
         report
     );
     assert!(
-        report.contains("permission realizations: 12 (complete)"),
+        report.contains("permission realizations: 13 (complete)"),
         "every permission event should have a normalized realization\n{}",
         report
     );

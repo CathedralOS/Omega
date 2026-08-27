@@ -2501,12 +2501,25 @@ complete.
   requirement, and recursively structural machine-parameter rows carry the
   span under `synchronous_invocation`; top-level projection requires exact
   equality with the inferred and checked invocation plans. Missing, malformed,
-  duplicated, aliased, stale-target, or source-less custody rejects. Current
-  conflict fingerprint v8, renderer V7, and canonical-row recovery envelope v5
-  bind the appended roles; stale envelopes reject rather than being
-  reinterpreted. Per-fact spans and authored `reaches` occurrences remain
-  incremental engineering work and require deliberate retention before typed
-  lowering, not later source-text reconstruction.
+  duplicated, aliased, stale-target, or source-less custody rejects. Authored
+  `reaches` clauses now retain every keyword occurrence and every member target
+  occurrence through syntax, resolution, typed lowering, copying, and generic
+  specialization. Resolution binds each member once to its exact boundary-trait
+  symbol; duplicate authored members remain distinct explanatory occurrences
+  while the semantic row remains idempotent. The normalized row is rederived as
+  the parent closure of authored targets plus invocation-contributed services
+  and joined exactly to typed and checked facts. A private memberless authored
+  clause is therefore a published empty ceiling, distinct from omitted private
+  reach inference. Callable, public-trait requirement, and recursively
+  structural machine-parameter rows carry target spans—or the keyword span for
+  an authored empty row—under `service_reach`. Parent closure, inference, and
+  invocation-only reach receive no invented source location. Missing,
+  duplicated carrier rows, stale targets, malformed spans, installation-bound
+  disagreement, or semantic disagreement reject. Current conflict fingerprint
+  v9, renderer V8, and canonical-row recovery envelope v6 bind the appended
+  roles; stale envelopes reject rather than being reinterpreted. Remaining
+  per-fact spans are incremental engineering work and require deliberate
+  retention before typed lowering, not later source-text reconstruction.
   Canonical recovery and root-project file custody are recorded below; none of
   these concerns requires nominal Chi or a new owner decision.
 

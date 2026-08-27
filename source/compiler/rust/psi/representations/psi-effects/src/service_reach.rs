@@ -168,6 +168,10 @@ pub fn infer_service_reaches(
             uses_published: machine.supply_mode
                 != psi_language_semantics::MachineSupplyMode::CheckedBody
                 || machine.is_public
+                || program
+                    .authored_service_reach_rows_for(machine.symbol)
+                    .next()
+                    .is_some()
                 || !program
                     .service_reach_rows
                     .services(machine.service_reach_row)
