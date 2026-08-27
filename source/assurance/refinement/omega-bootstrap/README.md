@@ -1,5 +1,17 @@
 # Bridge refinement reconstruction
 
+The active entry-bearing artifact successor is
+[`OMGRFN21`](OMGCOMP_REFINEMENT_WITNESS_V21.md): `OMGRFNL\0` / version 21
+binds exact OMGCOMP1 and OMGRSWA10 to CKIR18's guarded full-`u64` fixed-buffer
+load/store indexing, authored Exact `length + 1`, defensive carry/range traps,
+and exact conservative Linux-x86-64 artifact. Modular Python owners and five
+persisted-Beta projections close R1–R5 below the tape ceiling. A separate
+same-frame composite checks actual native/self resolver, lowerer, and backend
+bytes across renamed, reordered, inert-field, cross-pair, resource, and
+artifact-mutation cases. The relation is capability-shaped rather than a
+whole-product `SourceUnit` allowlist and grants no product, package, provider,
+compilation, or final-profile authority.
+
 The active platform-neutral execution successor is
 [`OMGRFN20`](OMGCOMP_REFINEMENT_WITNESS_V20.md): `OMGRFNK\0` / version 20 binds
 exact OMGCOMP3 and OMGRSW9 to CKIR17's receiverless checked `Console` adapters,

@@ -390,7 +390,7 @@ These facts constrain the work below.
 - The separately named `ControlFlowCleanup` selection now registers an exact
   CFG rule: a Boolean-proven `Conditional` and every block made
   structurally unreachable by selecting its exact edge are rewritten in one
-  atomic candidate. The v5 rule/pass and v4 validator independently derive the
+  atomic candidate. The v5 rule and v4 validator independently derive the
   fresh reachability complement, retain shared/reconverged blocks, densely rebase
   later surviving effect links, and rebuild the operation fact and declared-
   place indexes before total validation. Candidate accounting binds the
@@ -422,10 +422,25 @@ These facts constrain the work below.
   applies the occurrence relation record by record, so later threading cannot
   resurrect, lose, or double-charge a source. A verified artifact test carries
   one source through fanout and two later rewrites to the final pre-physical
-  projection. Candidate v11, optimization-unit identity v6, ledger v3,
-  prephysical manifest v4, the v5 pass, and optimized-plan projection v5 bind
+  projection. Candidate v12, optimization-unit identity v7, ledger v3,
+  prephysical manifest v5, the v6 pass, and optimized-plan projection v6 bind
   this admission meaning. General native publication of these broader CFG
   shapes remains unavailable until their physical lowering vocabulary exists.
+- The fourth exact `ControlFlowCleanup` rule,
+  `adjacent-single-predecessor-block-merge.v1`, removes a genuinely redundant
+  jump and block boundary without treating the target as empty. Admission is
+  limited to an immediately adjacent target with exactly one incoming edge and
+  a first real operation with no successor arms; non-adjacent block motion and
+  conditional-first targets remain outside the rule. Typed target parameters
+  are replaced by the exact incoming bindings, ownership snapshots must agree
+  at edge entry, edge exit, and target entry, and every moved node occurrence
+  is replayed. The removed jump-edge source/fuel is fused behind the first
+  operation's direct provenance at its new node. A validator corruption test
+  rejects a forged output occurrence, while a verified artifact test reaches
+  the exact one-block projection. Candidate v12, optimization-unit identity
+  v7, the v6 pass, prephysical manifest v5, and optimized-plan projection v6
+  bind this additional admission meaning; ledger v3 already represents its
+  many-to-one occurrence move.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds its input
   revision, rule contract, decision point, affected region, required analyses
@@ -861,7 +876,7 @@ dependency.
   empty.
 
   Current slice: exact constant-conditional folding is available under only
-  the explicit `ControlFlowCleanup` selection. Its v5 rule/pass and v4 validator
+  the explicit `ControlFlowCleanup` selection. Its v5 rule and v4 validator
   atomically replaces the conditional and removes exactly the blocks made
   unreachable by that selected edge, while retaining shared successors. It
   rebuilds dense effects, current operation facts, and declared places;
@@ -869,14 +884,18 @@ dependency.
   location changes; and durably records the rejected edge plus every deleted
   node and its original scheduled fuel as independently proven unreachable and
   uncharged. Successor-edge custody and ledger v3 now distinguish the two
-  conditional arms directly. The v5 pass also includes exact linear empty-jump
+  conditional arms directly. The v6 pass also includes exact linear empty-jump
   threading plus `path-qualified-empty-block-thread.v1`: typed bindings are
   composed, ownership frontiers must be identical across each bypass, and the
   removed outgoing source is realized on every and only mutually exclusive
-  incoming edge. Candidate v11, optimization-unit identity v6, prephysical
-  manifest v4, and projection v5 bind record-by-record one-to-one, many-to-one,
-  and one-to-many occurrence replay. Redundant jumps, unreachable cleanup not
-  caused by the conditional fold, and private-machine pruning remain open.
+  incoming edge. Its fourth rule removes an adjacent jump into a unique-
+  predecessor block whose first node is a real non-branching operation. It
+  substitutes typed block parameters and realizes the removed edge at that
+  first operation without authorizing non-adjacent code motion. Candidate v12,
+  optimization-unit identity v7, prephysical manifest v5, and projection v6
+  bind record-by-record one-to-one, many-to-one, and one-to-many occurrence
+  replay. Non-adjacent/conditional-first redundant jumps, unreachable cleanup
+  not caused by the conditional fold, and private-machine pruning remain open.
 
 - **OPT-SCCP.** Implement sparse conditional constant propagation over the
   closed integer and Boolean Terminal Psi operations.

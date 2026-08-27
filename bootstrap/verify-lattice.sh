@@ -505,6 +505,13 @@ precise_step "omega-bootstrap CKIR17 independent reference — receiverless Cons
 precise_step "omega-bootstrap OMGLOWI18 producer — exact OMGCOMP3/OMGRSW9 native/self lowering to platform-neutral CKIR17" omega-bootstrap-gates delta-provider-plan-to-ckir17.sh omega-bootstrap-omglowi18
 precise_step "omega-bootstrap OMGRFN20 refinement — modular checked-adapter owners and representative persisted-Beta projections" omega-bootstrap-refinement omgrfn20-reference.sh omega-bootstrap-omgrfn20-reference
 precise_step "omega-bootstrap OMGRFN20 producer refinement — actual native/self OMGCOMP3 to OMGRSW9 to CKIR17 bytes satisfy R1-R5" omega-bootstrap-refinement omgrfn20-same-frame-composite.sh omega-bootstrap-omgrfn20
+precise_step "omega-bootstrap CKIR18 independent reference — guarded full-u64 fixed-buffer indexing, Exact Add, and runtime traps" omega-bootstrap-gates delta-checked-ir-v18-reference.sh omega-bootstrap-ckir18-reference
+precise_step "omega-bootstrap OMGRSWA10/OMGLOWJ19 producer — guarded full-u64 fixed-buffer source to CKIR18" omega-bootstrap-gates delta-u64-buffer-to-ckir18.sh omega-bootstrap-omglowj19
+precise_step "omega-bootstrap OMGRSWA10/OMGLOWJ19 meaning (RUST-FREE) — exact publication plus semantic/resource refusal through Gamma" omega-bootstrap-gates delta-u64-buffer-to-ckir18-meaning.sh omega-bootstrap-omglowj19
+precise_step "omega-bootstrap CKIR18 backend — exact full-u64 bounds/Add templates and native/self ELF identity" omega-bootstrap-gates delta-checked-ir-v18-backend.sh omega-bootstrap-ckir18
+precise_step "omega-bootstrap OMGRFN21 refinement — modular fixed-buffer owners and representative persisted-Beta projections" omega-bootstrap-refinement omgrfn21-reference.sh omega-bootstrap-omgrfn21-reference
+precise_step "omega-bootstrap OMGRFN21 producer refinement — actual native/self OMGRSWA10 to CKIR18 to ELF bytes satisfy R1-R5" omega-bootstrap-refinement omgrfn21-same-frame-composite.sh omega-bootstrap-omgrfn21
+precise_step "delta source closure — path-independent canonical compiler root and provisional fixed-u64 bridge action DAG" delta source-closure-snapshot-v1.sh delta-source-closure-v1
 step "product compiler checkpoint — exact resolver closure plus provisional Ωself admission" source-checkpoints verify.sh omega-rust psi
 step "omega-bootstrap source-custody frontend probe — exhaustive native plus representative Delta-self-built checking" omega-bootstrap-gates delta-source-custody-frontend.sh delta-rust psi source-checkpoints
 step "omega-bootstrap source-custody meaning (RUST-FREE) — exact product unit plus semantic rejection and exhaustion through Gamma" omega-bootstrap-gates delta-source-custody-meaning.sh omega-bootstrap-meaning gamma psi source-checkpoints
