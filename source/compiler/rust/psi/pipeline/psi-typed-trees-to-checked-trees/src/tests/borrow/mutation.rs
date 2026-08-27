@@ -1,14 +1,14 @@
 use super::super::*;
 
 #[test]
-fn write_only_fixed_byte_range_call_retains_exact_window() {
+fn write_only_fixed_primitive_range_call_retains_exact_element_window() {
     let source = r#"
-        machine fill(bytes: &write [u8; 4]) {
-            bytes[1..3] = [7, 8];
+        machine fill(values: &write [u32; 4]) {
+            values[1..3] = [70000, 80000];
         }
 
-        machine forward(bytes: &write [u8; 4]) {
-            fill(&write bytes);
+        machine forward(values: &write [u32; 4]) {
+            fill(&write values);
         }
     "#;
 
@@ -29,12 +29,12 @@ fn write_only_fixed_byte_range_call_retains_exact_window() {
         .machine_states(forward)
         .first()
         .expect("forward entry state");
-    let bytes_symbol = program
+    let values_symbol = program
         .state_parameters(forward_state)
         .iter()
-        .find(|parameter| parameter.name.as_str() == "bytes")
+        .find(|parameter| parameter.name.as_str() == "values")
         .map(|parameter| parameter.symbol)
-        .expect("forward byte parameter");
+        .expect("forward primitive-array parameter");
 
     let facts = build_borrow_facts(&program);
     let borrow_state = facts
@@ -59,7 +59,7 @@ fn write_only_fixed_byte_range_call_retains_exact_window() {
     );
 
     assert_eq!(places.len(), 1, "exact callee write: {places:?}");
-    assert_eq!(places[0].root, psi_facts::PlaceRoot::Symbol(bytes_symbol));
+    assert_eq!(places[0].root, psi_facts::PlaceRoot::Symbol(values_symbol));
     assert_eq!(
         places[0].segments,
         [psi_facts::PlaceSegment::FixedRange { start: 1, end: 3 }]

@@ -102,19 +102,67 @@ fn direct_and_nested_unrestricted_primitive_fixed_arrays_are_writable() {
 }
 
 #[test]
-fn non_byte_fixed_array_ranges_remain_rejected() {
-    let rendered = rendered_rejection(
+fn direct_and_nested_primitive_fixed_array_ranges_are_writable() {
+    lower_typed_trees(typed(
         r#"
-            machine fill(words: &write [u16; 4]) {
-                words[1..3] = [7, 8];
+            data Inner { words: [u32; 4]; }
+            data Outer { inner: Inner; }
+
+            machine fill(direct: &write [u16; 4], outer: &write Outer) {
+                direct[1..3] = [7, 8];
+                outer.inner.words[1..=2] = [70000, 80000];
             }
         "#,
-    );
-    assert!(
-        rendered.contains("range projection is not implemented")
-            && rendered.contains("range replacement remains byte-array-only"),
-        "unexpected diagnostic: {rendered}"
-    );
+    ))
+    .expect("closed primitive-array ranges are content-independent exact stores");
+}
+
+#[test]
+fn non_byte_fixed_array_range_shape_fences_remain_closed() {
+    for (name, source, expected) in [
+        (
+            "symbolic bound",
+            r#"
+                machine fill(values: &write [u16; 4], start: u64 [0..=2]) {
+                    values[start..3] = [1, 2, 3];
+                }
+            "#,
+            "bounds are not statically known",
+        ),
+        (
+            "open end",
+            r#"
+                machine fill(values: &write [u32; 4]) {
+                    values[1..] = [1, 2, 3];
+                }
+            "#,
+            "omitted end",
+        ),
+        (
+            "nonliteral replacement",
+            r#"
+                machine fill(values: &write [u16; 4], replacement: [u16; 2]) {
+                    values[1..3] = replacement;
+                }
+            "#,
+            "from a non-literal value",
+        ),
+        (
+            "wrong-width literal",
+            r#"
+                machine fill(values: &write [u16; 4]) {
+                    values[1..3] = [7];
+                }
+            "#,
+            "must supply exactly 2 element(s)",
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains(expected),
+            "{name} unexpectedly crossed the closed range gate: {rendered}"
+        );
+    }
 }
 
 #[test]
@@ -227,7 +275,9 @@ fn record_path_fixed_byte_array_out_of_bounds_literal_remains_rejected() {
     );
     assert!(
         rendered.contains("unsupported write-only projection")
-            && rendered.contains("proven-in-bounds element of such a fixed array"),
+            && rendered.contains(
+                "proven-in-bounds element or statically normalized closed range of such a fixed array"
+            ),
         "unexpected diagnostic: {rendered}"
     );
 }
@@ -353,7 +403,7 @@ fn record_path_fixed_byte_array_range_nonliteral_rhs_remains_rejected() {
     );
     assert!(
         rendered.contains("from a non-literal value")
-            && rendered.contains("array literal of 2 byte(s)"),
+            && rendered.contains("array literal of 2 element(s)"),
         "unexpected diagnostic: {rendered}"
     );
 }
@@ -889,6 +939,22 @@ fn non_byte_fixed_array_rhs_observation_remains_rejected() {
         r#"
             machine copy(words: &write [u16; 2]) {
                 words[0] = words[1];
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("reads through index projection of write-only parameter `words`")
+            && rendered.contains("never observation"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn non_byte_fixed_array_range_rhs_observation_remains_rejected() {
+    let rendered = rendered_rejection(
+        r#"
+            machine copy(words: &write [u16; 4]) {
+                words[1..3] = [words[0], 7];
             }
         "#,
     );
