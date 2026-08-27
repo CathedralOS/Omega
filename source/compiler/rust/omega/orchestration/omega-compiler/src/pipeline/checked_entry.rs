@@ -365,7 +365,8 @@ pub(super) fn compile_to_checked_for_terminal(
 
 struct CheckedFrontend {
     typed: psi_typed_trees::TypedTrees,
-    target_default_machine_names: Vec<String>,
+    selected_target_machine_declarations:
+        crate::pipeline::target_machines::SelectedTargetMachineDeclarations,
     build_source_id: Option<psi_source::SourceId>,
     boundary_calling_plan_realizations:
         Vec<crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization>,
@@ -391,10 +392,11 @@ fn lower_checked_frontend(
         ),
     }?;
     syntax.syntax_trees = evaluated.syntax_trees;
-    let target_default_machine_names = crate::pipeline::target_machines::filter_target_machines(
-        &mut syntax.syntax_trees,
-        target_name,
-    )?;
+    let selected_target_machine_declarations =
+        crate::pipeline::target_machines::filter_target_machines(
+            &mut syntax.syntax_trees,
+            target_name,
+        )?;
     let build_source_id = syntax.build_source_id;
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, timings)?;
     let mut typed = symbol_resolved_trees_to_typed_trees(resolved, timings)?;
@@ -423,7 +425,7 @@ fn lower_checked_frontend(
         )?;
     Ok(CheckedFrontend {
         typed,
-        target_default_machine_names,
+        selected_target_machine_declarations,
         build_source_id,
         boundary_calling_plan_realizations,
     })
@@ -584,7 +586,7 @@ fn compile_to_checked_inner_with_replay(
     };
     let CheckedFrontend {
         typed,
-        target_default_machine_names,
+        selected_target_machine_declarations,
         mut boundary_calling_plan_realizations,
         ..
     } = frontend;
@@ -613,10 +615,8 @@ fn compile_to_checked_inner_with_replay(
     let selected_program_entry_machine = selected_program_entry_source_signature
         .as_ref()
         .map(|source| source.machine_name().to_owned());
-    let target_provider_defaults = crate::pipeline::build_config::compute_target_provider_defaults(
-        &typed,
-        &target_default_machine_names,
-    )?;
+    let target_provider_defaults =
+        selected_target_machine_declarations.settle_provider_defaults(&typed)?;
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.

@@ -3226,7 +3226,7 @@ fn harvest_wire_compatibility_demands(
 /// PRV4c: collect `b.select_provider<BoundaryTrait, ProviderType>();` from
 /// the one authoritative build machine. Merely spelling either type elsewhere
 /// grants nothing; selection authority comes from this file-scoped root.
-fn harvest_provider_selections(
+pub(super) fn harvest_provider_selections(
     typed: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
@@ -3329,40 +3329,6 @@ fn harvest_provider_selections(
     }
     if diagnostics.is_empty() {
         Ok(selections)
-    } else {
-        Err(diagnostics)
-    }
-}
-
-/// PRV4c: collect the defaults declared by the selected target package(s).
-/// `target_machines` records the authoritative machine names before erasing
-/// their target markers. The declarations use the same type-per-slot marker as
-/// build overrides, but retain distinct provenance so selection can apply the
-/// precedence `build override > target default > unique declaration default`.
-pub(crate) fn compute_target_provider_defaults(
-    typed: &TypedTrees,
-    target_default_machine_names: &[String],
-) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
-    let mut defaults = Vec::new();
-    let mut diagnostics = Vec::new();
-    for machine_name in target_default_machine_names {
-        let Some(machine) = typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == machine_name)
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "selected target provider-default machine `{machine_name}` did not survive lowering"
-            )));
-            continue;
-        };
-        match harvest_provider_selections(typed, machine) {
-            Ok(mut machine_defaults) => defaults.append(&mut machine_defaults),
-            Err(mut errors) => diagnostics.append(&mut errors),
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(defaults)
     } else {
         Err(diagnostics)
     }

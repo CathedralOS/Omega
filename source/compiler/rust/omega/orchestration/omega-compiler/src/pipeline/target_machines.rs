@@ -25,12 +25,64 @@ use omega_target::NativeTarget;
 use psi_diagnostics::Diagnostic;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::item::Item;
+use psi_typed_trees::TypedTrees;
 use std::collections::BTreeMap;
+
+/// Exact target-scoped declarations retained across source filtering and
+/// typed-tree construction.
+///
+/// Typed machines intentionally lose their target marker after filtering, so
+/// the selected provider-default declarations must be retained before that
+/// mutation. This carrier owns their deterministic full-name roster and
+/// consumes it exactly once when rebinding the corresponding typed machines.
+pub(crate) struct SelectedTargetMachineDeclarations {
+    provider_default_machine_names: Vec<String>,
+}
+
+impl SelectedTargetMachineDeclarations {
+    fn new(mut provider_default_machine_names: Vec<String>) -> Self {
+        provider_default_machine_names.sort();
+        Self {
+            provider_default_machine_names,
+        }
+    }
+
+    /// Resolve the retained target-owned provider-default producers and
+    /// preserve each producer's exact authored row order and identity.
+    pub(crate) fn settle_provider_defaults(
+        self,
+        typed: &TypedTrees,
+    ) -> Result<Vec<super::build_config::ProviderSelection>, Vec<Diagnostic>> {
+        let mut defaults = Vec::new();
+        let mut diagnostics = Vec::new();
+        for machine_name in self.provider_default_machine_names {
+            let Some(machine) = typed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == machine_name)
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "selected target provider-default machine `{machine_name}` did not survive lowering"
+                )));
+                continue;
+            };
+            match super::build_config::harvest_provider_selections(typed, machine) {
+                Ok(mut machine_defaults) => defaults.append(&mut machine_defaults),
+                Err(mut errors) => diagnostics.append(&mut errors),
+            }
+        }
+        if diagnostics.is_empty() {
+            Ok(defaults)
+        } else {
+            Err(diagnostics)
+        }
+    }
+}
 
 pub(crate) fn filter_target_machines(
     syntax: &mut SyntaxTrees,
     target_name: Option<&str>,
-) -> Result<Vec<String>, Vec<Diagnostic>> {
+) -> Result<SelectedTargetMachineDeclarations, Vec<Diagnostic>> {
     let selected =
         NativeTarget::from_omega_target_name(target_name).map_err(|diagnostic| vec![diagnostic])?;
 
@@ -100,8 +152,6 @@ pub(crate) fn filter_target_machines(
             provider_default_machines.push(full_name.clone());
         }
     }
-    provider_default_machines.sort();
-
     // Clear the selected machines' markers LAST, after the loud edges passed:
     // from here on they are ordinary machines.
     for (_, (selected_handles, _)) in rows {
@@ -115,5 +165,44 @@ pub(crate) fn filter_target_machines(
         }
     }
 
-    Ok(provider_default_machines)
+    Ok(SelectedTargetMachineDeclarations::new(
+        provider_default_machines,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SelectedTargetMachineDeclarations;
+
+    #[test]
+    fn empty_target_declarations_settle_to_canonical_empty_defaults() {
+        let defaults = SelectedTargetMachineDeclarations::new(Vec::new())
+            .settle_provider_defaults(&psi_typed_trees::TypedTrees::default())
+            .expect("empty target declaration custody has no typed dependency");
+
+        assert!(defaults.is_empty());
+    }
+
+    #[test]
+    fn missing_typed_provider_default_machines_report_sorted_full_names() {
+        let declarations = SelectedTargetMachineDeclarations::new(vec![
+            "Zed::provider_defaults".into(),
+            "Alpha::provider_defaults".into(),
+        ]);
+        let Err(diagnostics) =
+            declarations.settle_provider_defaults(&psi_typed_trees::TypedTrees::default())
+        else {
+            panic!("retained target declarations must rebind exactly after typing")
+        };
+
+        assert_eq!(diagnostics.len(), 2);
+        assert_eq!(
+            diagnostics[0].to_string(),
+            "error: selected target provider-default machine `Alpha::provider_defaults` did not survive lowering"
+        );
+        assert_eq!(
+            diagnostics[1].to_string(),
+            "error: selected target provider-default machine `Zed::provider_defaults` did not survive lowering"
+        );
+    }
 }

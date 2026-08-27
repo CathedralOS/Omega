@@ -503,6 +503,13 @@ final admission. Changing a typed foreign locator, evaluated plan, or sealed
 compiler-catalog entry changes artifact identity and triggers fresh admission;
 `build.omg` cannot rewrite any of them while selecting a provider.
 
+The compiler retains the selected target's provider-default producer roster in
+one consuming carrier while target markers are erased and typed trees are
+constructed. That owner rebinds the exact typed machines before provider
+selection; frontend drivers do not transport a raw machine-name side channel.
+Producer names are deterministic, authored selection rows retain their source
+order and identity, and build overrides continue to outrank target defaults.
+
 `Build::select_provider<Service, Provider>()` is ordinary typed API vocabulary.
 It performs a type-per-slot override; users do not repeat every default and
 cannot append or mutate derived plan rows.
