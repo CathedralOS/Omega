@@ -43,7 +43,7 @@ pub use rules::{
     IntegerBitwiseNotConstantsRule, IntegerBitwiseOrConstantsRule, IntegerBitwiseXorConstantsRule,
     IntegerEqualConstantsRule, IntegerLessOrEqualConstantsRule, IntegerLessThanConstantsRule,
     IntegerWidenConstantsRule, LinearEmptyBlockThreadRule, ProofCertifiedDeadScalarEliminationRule,
-    RedundantBlockParameterRule, SaturatingIntegerAddConstantsRule,
+    RedundantBlockParameterRule, SameBlockTotalScalarCseRule, SaturatingIntegerAddConstantsRule,
     SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,
     SaturatingIntegerRemainderConstantsRule, SaturatingIntegerSubtractConstantsRule,
     SharedTerminalJumpFusionRule, WrappingIntegerAddConstantsRule,

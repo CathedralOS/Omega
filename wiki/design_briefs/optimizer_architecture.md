@@ -1059,10 +1059,47 @@ successor edges. Global uniqueness, fuel equality, and terminal-antichain rules
 still reject duplicated or co-executable occurrences. A verified wrapping-add
 artifact first removes the unused total arithmetic node, then revisits the
 earlier rule and removes both newly dead literals; artifact replay leaves the
-return with all original source/fuel sites. Candidate v17, optimization-unit
-content identity v10, the named v2 pass, prephysical manifest v11, and
-optimized-plan projection validation v12 bind this meaning; ledger v4 already
+return with all original source/fuel sites. Candidate v18, optimization-unit
+content identity v10, the named v2 pass, prephysical manifest v12, and
+optimized-plan projection validation v13 bind this meaning; ledger v4 already
 represents the many-to-one moves.
+
+### Same-block common-subexpression elimination
+
+The first exact `GlobalValueNumbering` rule is
+`same-block-obligation-free-total-scalar-cse.v1`. It scans each block in node
+order and replaces every later equivalent result with the earliest leader.
+The closed vocabulary is the complete obligation-free total scalar set:
+literals, Boolean operations, integer comparisons/bitwise/widening, wrapping
+shifts, and wrapping or saturating add/subtract/multiply. Exact and other
+proof-bearing operations, divide/remainder, calls, structural work,
+boundary/service work, and control operations are excluded.
+
+An expression key binds the exact operation family and policy, all literal
+payload, complete source/result/count integer domains, and operand identities.
+Only operations whose exact semantics are commutative canonicalize their two
+operands: Boolean and integer equality, bitwise and/or/xor, and wrapping or
+saturating add/multiply. Ordered comparisons, shifts, widening, and subtraction
+retain operand order. The rule requires use-definition and effect summaries;
+the validator independently reconstructs the key, exact typed definitions,
+the redundant result's uses, absence of obligation references, and the one
+redundant-to-leader substitution.
+
+The redundant node's provenance and fuel move forward to the next co-executed
+node, never backward to the leader. Rebuilding rewrites scalar operands,
+call/boundary arguments, successor binding arguments, branch conditions, and
+return values without removing bindings; successor edge custody is preserved
+by edge identity. Definitions, uses, dense effects, fact/place indexes, unit
+identity, and affected-region custody are reconstructed independently. A
+parameter-fed wrapping-add fixture admits swapped commutative operands, removes
+one add, rewrites its integer comparison consumer, and reaches a ledger fixed
+point. A separately verified Terminal artifact proves return-use substitution
+and optimized-plan projection for duplicate integer bitwise-not work. Candidate
+v18, optimization-unit content identity v10, the named v1 pass, prephysical
+manifest v12, and optimized-plan projection validation v13 bind this meaning;
+ledger v4 already represents the relocation and substitution. Cross-block
+dominator value numbering remains a separate, still-open rule in the same exact
+named family.
 
 ### Proof-certified dead scalar work
 
@@ -1087,8 +1124,8 @@ rebuild as obligation-free dead scalar work. The active
 owner, but the verifier-owned accepted-obligation catalog remains byte-for-byte
 intact as historical proof custody. A verified artifact carries the exact
 accepted fact through projection after removing an unused exact add. Candidate
-v17, optimization-unit content identity v10, the named v1 pass, prephysical
-manifest v11, and optimized-plan projection validation v12 bind this meaning;
+v18, optimization-unit content identity v10, the named v1 pass, prephysical
+manifest v12, and optimized-plan projection validation v13 bind this meaning;
 ledger v4 already represents the relocation. This first slice does not remove
 live computations, runtime policy events, or physical checks not represented
 by this exact Psi contract.

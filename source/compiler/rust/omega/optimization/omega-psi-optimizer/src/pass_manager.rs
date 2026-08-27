@@ -744,6 +744,10 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
         omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
             b"omega.psi-pass.proof-check-elision.v1",
         );
+    let global_value_numbering_pass =
+        omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
+            b"omega.psi-pass.global-value-numbering.v1",
+        );
     if registry.pass() == Some(cfg_pass) {
         control_flow_structure_count(unit)
     } else if registry.pass() == Some(copy_pass) {
@@ -752,6 +756,12 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
         dead_total_scalar_operation_count(unit)
     } else if registry.pass() == Some(proof_elision_pass) {
         proof_certified_scalar_operation_count(unit)
+    } else if registry.pass() == Some(global_value_numbering_pass) {
+        unit.functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .map(|block| block.nodes.len() as u64)
+            .sum()
     } else {
         integer_evaluation_operation_count(unit)
     }
@@ -774,8 +784,8 @@ mod tests {
         rules::tests::{
             boolean_unit, constant_conditional_same_target_unit, dead_exact_add_unit,
             dead_wrapping_add_unit, dependent_exact_chain_unit, exact_add_unit,
-            linear_empty_block_unit, propagated_block_parameter_unit, randomized_sccp_registries,
-            redundant_block_parameter_unit, wrapping_add_unit,
+            linear_empty_block_unit, local_cse_unit, propagated_block_parameter_unit,
+            randomized_sccp_registries, redundant_block_parameter_unit, wrapping_add_unit,
         },
     };
 
@@ -1331,11 +1341,12 @@ mod tests {
     }
 
     #[test]
-    fn full_sccp_cfg_copy_proof_dead_scalar_second_sweep_is_a_composed_ledger_fixed_point() {
+    fn full_sccp_cfg_copy_gvn_proof_dead_scalar_second_sweep_is_a_composed_ledger_fixed_point() {
         let selections = OptimizationSelections::new([
             Optimization::SparseConditionalConstantPropagation,
             Optimization::ControlFlowCleanup,
             Optimization::CopyPropagation,
+            Optimization::GlobalValueNumbering,
             Optimization::ProofCheckElision,
             Optimization::DeadPureScalarElimination,
         ])
@@ -1347,22 +1358,24 @@ mod tests {
             redundant_block_parameter_unit(true),
             dead_wrapping_add_unit(),
             dead_exact_add_unit(),
+            local_cse_unit(),
         ] {
             let (first_output, first_manifests, first_ledger) =
                 run_test_pipeline(initial, &registries);
-            assert_eq!(first_manifests.len(), 5);
+            assert_eq!(first_manifests.len(), 6);
             assert_eq!(first_manifests[0].input(), first_ledger.input());
             assert_eq!(first_manifests[0].output(), first_manifests[1].input());
             assert_eq!(first_manifests[1].output(), first_manifests[2].input());
             assert_eq!(first_manifests[2].output(), first_manifests[3].input());
             assert_eq!(first_manifests[3].output(), first_manifests[4].input());
-            assert_eq!(first_manifests[4].output(), first_ledger.output());
+            assert_eq!(first_manifests[4].output(), first_manifests[5].input());
+            assert_eq!(first_manifests[5].output(), first_ledger.output());
             assert!(!first_ledger.records().is_empty());
 
             let (second_output, second_manifests, second_delta) =
                 run_test_pipeline(first_output.clone(), &registries);
             assert_eq!(second_output, first_output);
-            assert_eq!(second_manifests.len(), 5);
+            assert_eq!(second_manifests.len(), 6);
             assert!(second_delta.records().is_empty());
             assert_eq!(second_delta.input(), second_delta.output());
             assert!(second_manifests.iter().all(|manifest| {

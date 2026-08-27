@@ -689,6 +689,45 @@ mod tests {
         )
     }
 
+    fn local_cse_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_321).unwrap();
+        let block = BlockId::new(1_322).unwrap();
+        let operand = ValueId::new(1_323).unwrap();
+        let leader = ValueId::new(1_324).unwrap();
+        let redundant = ValueId::new(1_325).unwrap();
+        let result = ValueId::new(1_326).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let declaration = |id| ValueDeclaration { id, scalar_type };
+        let mut module = module_with_blocks(
+            machine,
+            block,
+            TerminalMachineResult::Scalar(declaration(result)),
+            vec![Block {
+                id: block,
+                parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        id: OperationId::new(1_327).unwrap(),
+                        result: OperationResult::Scalar(declaration(leader)),
+                        kind: OperationKind::IntegerBitwiseNot { operand },
+                    },
+                    Operation {
+                        id: OperationId::new(1_328).unwrap(),
+                        result: OperationResult::Scalar(declaration(redundant)),
+                        kind: OperationKind::IntegerBitwiseNot { operand },
+                    },
+                ],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(1_329).unwrap(),
+                    value: redundant,
+                    cleanup_actions: Vec::new(),
+                },
+            }],
+        );
+        module.machines[0].parameters.push(declaration(operand));
+        verified(module, ProofBundle::default())
+    }
+
     fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationUnit {
         let entry_machine = MachineId::new(1_041).unwrap();
         let entry_block = BlockId::new(1_042).unwrap();
@@ -1165,6 +1204,27 @@ mod tests {
                 .iter()
                 .flat_map(|record| &record.provenance)
                 .all(|row| row.disposition.is_realized())
+        );
+    }
+
+    #[test]
+    fn global_value_numbering_projects_local_cse_and_return_substitution() {
+        let selections = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
+        let optimized = project_optimization_run(run(local_cse_verified(), selections)).unwrap();
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.plan().functions[0].operations.len(), 2);
+        assert!(
+            matches!(optimized.plan().functions[0].operations[0], TerminalAbstractOperation::IntegerBitwiseNot { result, .. } if result == ValueId::new(1_324).unwrap())
+        );
+        assert!(
+            matches!(optimized.plan().functions[0].operations[1], TerminalAbstractOperation::Return { value, .. } if value == ValueId::new(1_324).unwrap())
+        );
+        assert_eq!(optimized.transformation_ledger().records().len(), 1);
+        assert_eq!(
+            optimized.transformation_ledger().records()[0]
+                .provenance
+                .len(),
+            2
         );
     }
 
