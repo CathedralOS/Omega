@@ -11,7 +11,7 @@ use omega_calling_conventions::{
     validate_entry_stack_realization,
 };
 use omega_compiler::{
-    CompileOptions, CompileReport, OwnedTerminalComponentDeploymentError,
+    CheckedCompilation, CompileOptions, CompileReport, OwnedTerminalComponentDeploymentError,
     SuppliedTerminalComponentDeploymentError, TerminalComponentCandidate,
     TerminalComponentCandidateParts, TerminalComponentCompileError,
     TerminalComponentCompileRequest, TerminalComponentDeploymentInputOwner,
@@ -21,7 +21,7 @@ use omega_compiler::{
     TerminalComponentStagingInputs, acquire_and_deploy_terminal_component_output,
     compile_terminal_component_output, compile_to_checked,
     deploy_and_write_terminal_component_output, stage_acquire_and_deploy_terminal_component_output,
-    stage_terminal_component, write_finalized_terminal_component_output,
+    stage_terminal_component as stage_terminal_artifact, write_finalized_terminal_component_output,
 };
 use omega_component_deployment::{
     ComponentProgressAttestationBinding, DynamicNativeFuelRootDeployment,
@@ -258,6 +258,47 @@ fn selected_optimizer_source_canary() -> PathBuf {
 
 fn selected_lowering_optimizer_source_canary() -> PathBuf {
     terminal_source_canary("selected_lowering_optimizer_component")
+}
+
+fn stage_terminal_component(
+    checked: &CheckedCompilation,
+    target: NativeTarget,
+    subsystem: u16,
+    profile: &AdmissionProfile,
+    settlements: &[TerminalComponentProviderSettlement<'_>],
+) -> Result<TerminalComponentCandidate, Vec<psi_diagnostics::Diagnostic>> {
+    let selected_target = checked.selected_native_target().ok_or_else(|| {
+        vec![psi_diagnostics::Diagnostic::error(
+            "terminal component staging requires one exact selected native target",
+        )]
+    })?;
+    if selected_target != target {
+        return Err(vec![psi_diagnostics::Diagnostic::error(format!(
+            "terminal component staging target {target:?} does not match checked target {selected_target:?}"
+        ))]);
+    }
+    let entry_machine = checked.selected_program_entry_machine().ok_or_else(|| {
+        vec![psi_diagnostics::Diagnostic::error(
+            "terminal component staging requires one exact selected program entry",
+        )]
+    })?;
+    let artifact = psi_checked_trees_to_terminal::produce_terminal_artifact(checked, entry_machine)
+        .map_err(|error| {
+            vec![psi_diagnostics::Diagnostic::error(format!(
+                "terminal component artifact production failed: {error}"
+            ))]
+        })?;
+    stage_terminal_artifact(
+        artifact,
+        entry_machine,
+        target,
+        subsystem,
+        profile,
+        checked.optimization_selections(),
+        checked.selected_provider_plans(),
+        checked.component_progress(),
+        settlements,
+    )
 }
 
 fn unsupported_optimizer_source_canary() -> PathBuf {
