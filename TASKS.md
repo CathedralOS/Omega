@@ -2054,7 +2054,12 @@ Remaining:
   reporting likewise captures its source rows once in a consuming observation,
   preserves the initial report write, and settles checked capability rows from
   that same carrier without cloning or couriering the syntax tree. Capability
-  validation still runs when auxiliary output is suppressed. Selected external-
+  validation still runs when auxiliary output is suppressed. Backend reporting
+  now owns a consuming checked-surface observation as well: only full native
+  compilation captures it, suppression and non-native products retain canonical
+  absence, and the owner consumes it after backend planning at the unchanged
+  report boundary. The driver no longer builds, couriers, or conditionally
+  unwraps that raw report surface. Selected external-
   binding projection now also settles transactionally onto the checked phase
   result from its retained typed, selected-plan, and evaluated calling-plan
   evidence. Complete rows publish in original selected-plan order only after
