@@ -8,6 +8,9 @@ version.workspace = true
 name = "omega_backend_plan"
 path = "src/lib.rs"
 
+[features]
+test-support = []
+
 [dependencies]
 omega-abstract-operations = { path = "../omega-abstract-operations" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
@@ -15,6 +18,7 @@ omega-control-flow = { path = "../omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+psi-layout-plans = { path = "../../../psi/foundation/psi-layout-plans" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 omega-layout = { path = "../../backend/omega-layout" }
 omega-assigned-target-operations = { path = "../omega-assigned-target-operations" }

@@ -2078,7 +2078,12 @@ Remaining:
   reporting likewise captures its source rows once in a consuming observation,
   preserves the initial report write, and settles checked capability rows from
   that same carrier without cloning or couriering the syntax tree. Capability
-  validation still runs when auxiliary output is suppressed. Selected external-
+  validation still runs when auxiliary output is suppressed. Backend reporting
+  now owns a consuming checked-surface observation as well: only full native
+  compilation captures it, suppression and non-native products retain canonical
+  absence, and the owner consumes it after backend planning at the unchanged
+  report boundary. The driver no longer builds, couriers, or conditionally
+  unwraps that raw report surface. Selected external-
   binding projection now also settles transactionally onto the checked phase
   result from its retained typed, selected-plan, and evaluated calling-plan
   evidence. Complete rows publish in original selected-plan order only after
@@ -5267,7 +5272,15 @@ Remaining:
   exact installed-code receipt. This is the sole constructor for installed
   dynamic attribution; missing/reordered rows, source drift, overlapping or
   out-of-range charge intervals, target/profile drift, and either side of an
-  installed byte mismatch reject. Linux x86-64 now also has a separately
+  installed byte mismatch reject. Installed dynamic-meter attribution now
+  retains the exact source-basis fingerprint beside its source-text identity
+  and exposes an independent replay boundary. Replay rederives the admitted
+  target-profile plan and ordered semantic site rows, checks source, metered,
+  and final bytes plus hot/cold intervals against the exact installed-code
+  occurrence, and reconstructs both basis and installed fingerprints. Source,
+  policy, site/order, charge, final-text, or occurrence drift rejects. This
+  remains attribution equality only and grants no meter insertion, transfer,
+  root, lease, or publication authority. Linux x86-64 now also has a separately
   replayed transfer-runtime artifact: the target encoder emits the exact
   opaque-state save/restore, sponsor-stack switch/call, and `.text`-relative
   retry jump; the image owner appends exactly two compiler-function symbols and
@@ -5464,10 +5477,11 @@ Owners:
   snapshots, matching, normalized identity, loans, and call-access facts keep
   it distinct. Checked Omega bodies may explicitly attenuate an exclusive
   mutable whole place to `&write` for an unrestricted primitive scalar or fixed
-  literal-length array whose element is either an unrestricted primitive scalar
-  or an eligible material nongeneric, invariant-free `[copy]` record, or for a
-  closed material nongeneric, invariant-free `[copy]` sum, replace the whole
-  referent, and forward the loan only through an explicit `&write` argument.
+  recursively literal-length array whose ultimate element is either an
+  unrestricted primitive scalar or an eligible material nongeneric,
+  invariant-free `[copy]` record or sum, or for a closed material nongeneric,
+  invariant-free `[copy]` sum, replace the whole referent, and forward the loan
+  only through an explicit `&write` argument.
   Such a checked fixed array additionally permits literal or dynamic element
   replacement after the ordinary range checker proves the index in bounds.
   Literal mutation and caller-visible write frames retain the exact
@@ -5505,14 +5519,18 @@ Owners:
   exact `FixedRange`; existing half-open overlap preserves adjacent windows
   and record siblings. The same statically normalized closed-range replacement
   now applies to every supported literal fixed array, directly or through an
-  eligible record path. Primitive and eligible `[copy]` record elements each
-  remain one atomic array position: bounds normalize to one exact half-open
+  eligible record path. Primitive and eligible `[copy]` record or sum elements
+  each remain one atomic array position: bounds normalize to one exact half-open
   element-ordinal `FixedRange`, and the replacement remains an array literal of
   exactly the same element count. Fixed/runtime element frames likewise retain
-  only `FixedIndex`/`Index` and never decompose record members. Symbolic or open-
-  ended ranges, slices, nested arrays, and nonliteral replacements remain
-  fenced. Atomic, qualified, constrained, generic, erased, sum, and non-
-  discardable element forms still reject.
+  only `FixedIndex`/`Index` and never decompose record members or sum tags and
+  payloads. Recursively literal fixed arrays now participate in that same
+  operation set, but each selected inner array remains one atomic outer element
+  or range position; a second inner index is not an admitted place. Symbolic or
+  open-ended ranges, slices, and nonliteral replacements remain fenced. Atomic,
+  qualified, constrained, generic, erased, noncopy, and other non-discardable
+  ultimate element forms still reject; matching and case/payload projection
+  remain observations rather than array operations.
   A direct `&write [u8]` root may read its exact `.len` descriptor metadata,
   and a direct supported literal fixed-array root may read `.len` as static type
   metadata; neither inspects the referenced bytes. The same static `.len`
@@ -7603,8 +7621,23 @@ Owners:
   sites, kinds, addends, origin, cardinality, and unchanged instruction bits.
   `DataAddress`, direct parameters, multi-segment paths, registration,
   invocation, callback lifetime/lease, and publication authority remain
-  fenced. Runtime registration and lifetime custody are the next engineering
-  rungs.
+  fenced. The installation-entry manifest rung is now complete. Each ordered
+  non-Clone row retains the full private object-store request, complete checked
+  placement identity and requirement, domain-separated callback `EntryStubId`,
+  exact Text function interval, canonical BSS snapshot, encoded address store,
+  and architecture-specific relocation records; retained native artifacts
+  independently replay that manifest. Deployment projects the sealed entries
+  into artifact entry rows, binds one complete manifest entry to the exact
+  unrelocated/materialized installed bytes, architecture, entry offset, and
+  installed-code occurrence, and requires that attribution to match the root's
+  entry and requirement before installation. Pending, live, failure, cleanup,
+  and successful-quiescence carriers preserve the complete attribution rather
+  than a compact report key. Missing, duplicate, reordered, symbol/geometry,
+  instruction-kind, relocation, byte, entry, requirement, architecture, or
+  installed-occurrence drift rejects with retry custody. This still grants no
+  resolved address, registrar invocation, source-level `Registration`, live-
+  registration capacity, lease, or publication authority; `DataAddress`, Q13
+  direct parameters, and multi-segment physical paths remain fenced.
 
   The first source canary cohort is live: the exact target-selected registrar
   closes two explicitly named, nonoverlapping nested private slots for two
@@ -7652,10 +7685,12 @@ Owners:
   unregister and root quiescence return the original slot authority. Every
   installation, receipt, unsuccessful-unregister, and nonquiescent rejection
   returns complete retry custody; a false registrar result can explicitly
-  remove the still-unregistered pending root. This does not yet join the
-  emitted callback store/demand catalog to the installed callback entry, invoke
-  the registrar, create the source-level linear `Registration`, or bind live-
-  registration capacity. Those remain engineering rungs.
+  remove the still-unregistered pending root. The emitted callback store/demand
+  catalog is now joined through one sealed installation manifest entry to the
+  exact installed bytes, entry offset, root entry, and requirement, and that
+  complete attribution survives every pending/live/terminal result. Invoking
+  the registrar, creating the source-level linear `Registration`, and binding
+  live-registration capacity remain engineering rungs.
 - **FOREIGN-RETAINED-ARGUMENT-BACKING — generalize outside callbacks.** Keep
   argument backing and retention off callback-materialization rows. Specify the
   ordinary outbound-plan dispositions for call-scoped storage, public
@@ -8066,10 +8101,14 @@ compiler concept is introduced.
   selected image subsystem; `TerminalComponentCompileRequest` owns compile
   options, optional package inputs, the externally borrowed admission profile
   and provider settlements, and the external deployment-input owner. Frontend
-  rejection returns that complete request. Targetless staging-input binding
-  returns both the exact checked result and the reconstructed request, while
-  later rejection uses the established staging/deployment custody and retains
-  options and package inputs beside it. The successful source canary proves the
+  rejection returns that complete request. The request now transactionally owns
+  checked staging-input settlement: targetless rejection returns both the exact
+  checked result and original complete request, while success yields one bound
+  owner retaining options, package inputs, checked/staging evidence, and the
+  deployment owner. The free driver no longer decomposes a five-part request
+  tuple or reconstructs its custody; later rejection uses the established
+  staging/deployment custody and retains options and package inputs beside it.
+  The successful source canary proves the
   checked-owned three-file count reaches report custody rather than the former
   fixture-restated count of one. This handoff never calls legacy
   `Compiler::compile` or `write_output` and cannot manufacture installation,
@@ -8093,8 +8132,12 @@ compiler concept is introduced.
   Emission and checked-progress replay independently require structural place
   equality rather than label fallback, source-before-destination construction,
   exact statement-transfer origin/point, valid formation ownership, and
-  identical payload/evidence. Unknown, expression, type, indexed/ranged, local,
-  generic, invalid-member, or mismatched source occurrences remain fail closed.
+  identical payload/evidence. Every retained source, contextual source
+  occurrence, and destination parameter root must belong to the formation
+  machine or exact formation state; same-shaped foreign-machine and sibling-
+  state parameter substitution rejects independently at production and replay.
+  Unknown, expression, type, indexed/ranged, local, generic, invalid-member, or
+  mismatched source occurrences remain fail closed.
   This carrier grants no admission or Terminal authority. Broader authored
   qualification-preserving transitions outside this narrow existing flow shape
   remain engineering work.

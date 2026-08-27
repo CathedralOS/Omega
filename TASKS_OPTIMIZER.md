@@ -444,6 +444,23 @@ These facts constrain the work below.
   v9 pass, prephysical manifest v8, and optimized-plan projection v9 bind this
   additional admission meaning; ledger v4 already represents both moves.
 - The fifth exact `ControlFlowCleanup` rule,
+  `shared-terminal-jump-fusion.v1`, removes one unconditional jump into a
+  shared terminal-only block without removing or mutating that target. The
+  target must have at least two incoming edges and contain exactly one
+  `Return`, `ReturnUnit`, `ReturnStructural`, or `Crash`. Typed parameters are
+  substituted only in the cloned terminal, while ownership snapshots must be
+  identical at incoming-edge entry, incoming-edge exit, and target entry. The
+  incoming edge is realized at the clone and the original terminal occurrence
+  fans out to the clone plus its retained source site with identical fuel.
+  Total-unit validation admits repeated edge provenance at node sites only for
+  exact no-successor terminals in pairwise CFG-antichain blocks; operation
+  provenance, mixed node/edge occurrences, and co-executable duplicates remain
+  rejected. A full verified artifact test replays the one-to-many terminal
+  custody into the pre-physical plan and projection. Candidate v15,
+  optimization-unit identity v9, the v10 pass, prephysical manifest v9, and
+  optimized-plan projection v10 bind this admission meaning; ledger v4 already
+  represents the fanout.
+- The sixth exact `ControlFlowCleanup` rule,
   `unreachable-private-machine-pruning.v1`, atomically removes the complete
   active function complement outside the executable root closure. Roots are
   the module entry, provider candidates, conservatively retained attached
@@ -900,7 +917,7 @@ dependency.
   location changes; and durably records the rejected edge plus every deleted
   node and its original scheduled fuel as independently proven unreachable and
   uncharged. Successor-edge custody and ledger v3 now distinguish the two
-  conditional arms directly. The v9 pass also includes exact linear empty-jump
+  conditional arms directly. The v10 pass also includes exact linear empty-jump
   threading plus `path-qualified-empty-block-thread.v1`: typed bindings are
   composed, ownership frontiers must be identical across each bypass, and the
   removed outgoing source is realized on every and only mutually exclusive
@@ -909,11 +926,15 @@ dependency.
   the block's sole conditional, or its exact return/crash terminal. It substitutes typed block parameters and
   realizes the removed edge at the first operation or across exactly the two
   mutually exclusive successor edges, without authorizing non-adjacent code
-  motion. Its fifth rule prunes the exact unreachable private-machine
+  motion. Its fifth rule fuses one selected unconditional path into a shared,
+  terminal-only return/crash block while retaining that block for its other
+  incoming paths. Terminal provenance and fuel fan out only across the exact
+  no-successor CFG antichain, and typed substitutions affect only the clone.
+  Its sixth rule prunes the exact unreachable private-machine
   complement, rooting entry, providers, attached functions, internal calls,
-  and nominal cleanup-machine references. Candidate v14, optimization-unit
-  identity v8, ledger v4, prephysical manifest v8, and projection v9 bind both
-  occurrence and function-roster replay. Non-adjacent redundant jumps and
+  and nominal cleanup-machine references. Candidate v15, optimization-unit
+  identity v9, ledger v4, prephysical manifest v9, and projection v10 bind both
+  occurrence and function-roster replay. General non-adjacent redundant jumps and
   unreachable cleanup not caused by the conditional fold
   remain open.
 
@@ -943,6 +964,31 @@ dependency.
   charge a distinct semantic site, produce proof/runtime evidence, or carry an
   effect/cleanup/boundary event.
 
+  Current slice: the exact named `DeadPureScalarElimination` selection expands
+  to `dead-unused-scalar-literal-elimination.v1` and
+  `dead-unused-unconditionally-total-scalar-elimination.v1`. The first removes
+  only unused `BooleanConstant` and `IntegerConstant` nodes. The second has a
+  closed whitelist: Boolean not/equality; integer equality/order comparisons,
+  bitwise operations, and widening; wrapping shifts; and wrapping or saturating
+  add/subtract/multiply. Each admitted nonliteral operation is pure,
+  unconditionally total for verified typed operands, and obligation-free.
+  Exact casts/arithmetic/shifts, all divide/remainder policies, calls,
+  structural work, and boundary/service/control operations remain excluded.
+  The independent validator binds each exact rule identity to its own closed
+  shape vocabulary and reconstructs liveness, effect shape, exact
+  definition/type, absence of operation-obligation references, every use, and
+  relocation accounting.
+  Removed work is never called unreachable: its operation provenance and fuel
+  move to the next co-executed node, and every shifted later node is ledgered.
+  Dense effects, definition/use sites, literal facts, places, and identity are
+  rebuilt. A verified wrapping-add artifact removes the unused arithmetic and
+  then its two newly dead literals at the suite fixed point, replaying every
+  source/fuel site into the return. Candidate v16, optimization-unit identity
+  v10, the v2 pass, prephysical manifest v10,
+  and projection v11 bind this meaning; ledger v4 already represents the
+  many-to-one moves. Other scalar operations remain open until their exact
+  semantic and custody contracts are admitted individually.
+
 - **OPT-PROOF-CHECK-ELISION.** Omit redundant physical checks whose exact
   obligations were already verified and whose operation semantics permit
   no-code realization.
@@ -959,15 +1005,15 @@ dependency.
   neither unit nor ledger, and randomized rule-registration order cannot change
   output because registry order is canonical.
 
-  Current slice: the supported three-family subset has the canonical
+  Current slice: the supported four-family subset has the canonical
   `SparseConditionalConstantPropagation -> ControlFlowCleanup ->
-  CopyPropagation` schedule, distinct
+  CopyPropagation -> DeadPureScalarElimination` schedule, distinct
   ordered pass manifests, aggregate replay evidence, per-pass budgets, and
   deterministic artifact tests. Thirty-two shuffled built-in registration
-  orders produce identical full SCCP runs, and a direct second SCCP/CFG/copy sweep
-  changes neither final unit nor the composed transformation ledger. Remaining
-  to close: add canonical schedules and the same fixed-point evidence for each
-  newly implemented initial family.
+  orders produce identical full SCCP runs, and a direct second
+  SCCP/CFG/copy/dead-scalar sweep changes neither final unit nor the composed
+  transformation ledger. Remaining to close: add canonical schedules and the
+  same fixed-point evidence for each newly implemented initial family.
 
 - Named selections now declare a closed execution phase rather than being
   grouped into an optimization level. The full root-build suite remains the

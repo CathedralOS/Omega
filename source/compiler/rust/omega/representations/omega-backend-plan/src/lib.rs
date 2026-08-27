@@ -1,4 +1,5 @@
 mod artifacts;
+mod callback_installation;
 mod callback_placements;
 mod callback_private_relocations;
 mod callback_root_schedule;
@@ -6,6 +7,11 @@ mod plan;
 mod timing;
 
 pub use artifacts::BackendArtifactRoots;
+#[cfg(feature = "test-support")]
+pub use callback_installation::test_support::callback_installation_test_fixture;
+pub use callback_installation::{
+    CallbackInstallationEntry, CallbackInstallationManifest, build_callback_installation_manifest,
+};
 pub use callback_placements::{
     BoundCallbackPrivateMaterialization, BoundNominalCallbackPlacement,
     CallbackPlacementBindingIdentity, CallbackThunkPlan, callback_placement_binding_identity,

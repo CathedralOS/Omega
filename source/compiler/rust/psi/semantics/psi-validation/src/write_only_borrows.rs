@@ -60,7 +60,7 @@ pub(crate) fn validate_checked_write_only_slice(
             for root in &roots {
                 if !is_supported_checked_referee(program, root.referee) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, literal fixed arrays whose elements are unrestricted primitive scalars or eligible material plain `[copy]` records, forwarding-only byte slices, non-generic invariant-free checked records, and closed material `[copy]` sums as atomic whole values",
+                        "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, recursively literal fixed arrays whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, forwarding-only byte slices, non-generic invariant-free checked records, and closed material `[copy]` sums as atomic whole values",
                         machine.name,
                         state.name,
                         root.name,
@@ -232,14 +232,17 @@ fn is_unrestricted_write_only_sum(
 }
 
 /// Fixed-array aggregate elements stay a closed runtime shape: the existing
-/// primitive scalars plus eligible unrestricted records whose direct fields
-/// are all material. Arrays, sums, generic/qualified shells, and records with
-/// erased occurrences do not enter through this judgment.
+/// primitive scalars plus eligible unrestricted records or sums whose direct
+/// runtime occurrences are all material. A recursively literal fixed array of
+/// the same eligible elements is also one atomic element of its enclosing
+/// array. Generic/qualified shells do not enter through this judgment, and
+/// aggregate elements remain atomic.
 fn is_unrestricted_write_only_array_element(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
     is_unrestricted_scalar(program, type_reference)
+        || fixed_unrestricted_write_only_array_shape(program, type_reference).is_some()
         || write_only_record(program, type_reference).is_some_and(|definition| {
             definition.properties.multiplicity
                 == psi_language_semantics::Multiplicity::Unrestricted
@@ -247,6 +250,7 @@ fn is_unrestricted_write_only_array_element(
                     matches!(member, DataMember::Field(field) if !field.relevance.is_erased())
                 })
         })
+        || is_unrestricted_write_only_sum(program, type_reference)
 }
 
 fn whole_root_replacement_is_supported(program: &TypedTrees, root: &WriteOnlyRoot) -> bool {
@@ -639,7 +643,7 @@ fn diagnose_unsupported_write_only_assignment_target(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a whole eligible unrestricted record or closed material `[copy]` sum, or a literal fixed array whose elements are unrestricted primitive scalars or eligible material plain `[copy]` records, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; sum case/payload projection, qualified, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
+        "machine `{machine}` state `{state}` writes through an unsupported write-only projection; accepted partial stores are a content-independent common-field path through non-generic invariant-free records when every field is relevant and unconstrained and the displaced leaf is an unrestricted primitive, a whole eligible unrestricted record or closed material `[copy]` sum, or a recursively literal fixed array whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, a proven-in-bounds element or statically normalized closed range of such a fixed array, or a proven-in-bounds element of a direct byte slice; nested array projection, sum case/payload projection, qualified, invariant-dependent, symbolic or open range, take, swap, and read-modify-write operations remain rejected"
     )));
 }
 

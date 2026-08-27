@@ -182,6 +182,15 @@ evidence, not execution authority. Plain images require the section to be
 absent; metered installation rejects any source, target-policy, function-map,
 charge-catalog, or final-image drift.
 
+Installed dynamic attribution retains the exact source-basis fingerprint beside
+the source-text identity and exposes an independent replay boundary. Replay
+rederives the target-profile plan and ordered semantic sites, checks the source,
+metered, and final images plus hot/cold intervals against the exact installed
+occurrence, and reconstructs both basis and installed fingerprints. It is
+attribution equality only: inserted native metering must still consume these
+rows, and replay grants no insertion, transfer, root, lease, or publication
+authority.
+
 Fixed provision proves that its region cannot exhaust. It does not imply that
 the complete activation is free from fuel suspension when a reachable call
 crosses into a separately sponsored dynamic region. Installation derives the

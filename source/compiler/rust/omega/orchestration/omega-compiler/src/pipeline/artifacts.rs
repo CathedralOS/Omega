@@ -5,6 +5,39 @@ use omega_backend_report::{BackendReportInput, BackendReportPhaseTiming, backend
 use psi_diagnostics::Diagnostic;
 use std::path::Path;
 
+/// Checked-source observation retained until the corresponding backend plan is
+/// available. Report suppression and non-native compilation produce canonical
+/// absence; a captured surface is consumed exactly once at the unchanged
+/// post-backend reporting point.
+pub(super) struct BackendReportObservation {
+    surface: Option<omega_artifacts::BackendSurfaceReport>,
+}
+
+impl BackendReportObservation {
+    pub(super) fn capture(
+        program: &psi_checked_trees::CheckedTrees,
+        selected_entry_machine: Option<&str>,
+        policy: ArtifactEmissionPolicy,
+        requires_native_backend: bool,
+    ) -> Self {
+        let surface = (policy.emits_auxiliary_artifacts() && requires_native_backend).then(|| {
+            omega_artifacts::build_backend_surface_report(program, selected_entry_machine)
+        });
+        Self { surface }
+    }
+
+    pub(super) fn write(
+        self,
+        options: &CompileOptions,
+        plan: &omega_backend_plan::BackendPlan,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Some(surface) = self.surface else {
+            return Ok(());
+        };
+        write_backend_report(options, &surface, plan)
+    }
+}
+
 pub(super) enum FinalPipelineObservation<'a> {
     CheckedOnly,
     InstalledOutput {
@@ -391,7 +424,7 @@ pub(super) fn write_control_flow_snapshot(
     )
 }
 
-pub(super) fn write_backend_report(
+fn write_backend_report(
     options: &CompileOptions,
     backend_surface: &omega_artifacts::BackendSurfaceReport,
     plan: &omega_backend_plan::BackendPlan,
@@ -1164,6 +1197,28 @@ fn json_diagnostic(error: impl std::fmt::Display) -> Vec<Diagnostic> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn backend_report_observation_captures_only_full_native_compilations_exactly() {
+        let program = psi_checked_trees::CheckedTrees::default();
+        let expected = omega_artifacts::build_backend_surface_report(&program, None);
+
+        let captured =
+            BackendReportObservation::capture(&program, None, ArtifactEmissionPolicy::Full, true);
+        assert_eq!(captured.surface, Some(expected));
+
+        for (policy, requires_native_backend) in [
+            (ArtifactEmissionPolicy::OutputOnly, true),
+            (ArtifactEmissionPolicy::Full, false),
+            (ArtifactEmissionPolicy::OutputOnly, false),
+        ] {
+            assert!(
+                BackendReportObservation::capture(&program, None, policy, requires_native_backend,)
+                    .surface
+                    .is_none()
+            );
+        }
+    }
 
     #[test]
     fn output_only_suppresses_every_final_observation_roster() {

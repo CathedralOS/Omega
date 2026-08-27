@@ -279,6 +279,20 @@ This grants no runtime registration, invocation, callback lifetime/lease, or
 publication authority; `DataAddress`, direct parameters, and multi-segment
 paths remain fenced.
 
+Retained native artifacts now carry one ordered non-Clone callback installation
+manifest. Each entry preserves the complete private object-store request and
+checked placement identity, a domain-separated callback entry identity, exact
+Text interval and BSS snapshot, encoded address store, and target relocation
+rows; retained-artifact validation independently replays the full snapshot.
+Deployment projects those entries into the artifact entry catalog, then binds
+the complete sealed entry to the exact installed occurrence, architecture,
+unrelocated/materialized bytes, and entry offset. Root installation requires
+the same installed occurrence, entry, and requirement, and pending/live/error/
+cleanup/quiescence custody never drops that attribution. The manifest exposes
+no resolved address and grants no registrar invocation, source `Registration`,
+capacity, lease, or publication authority. `DataAddress`, Q13 direct parameters,
+and multi-segment physical paths remain fenced.
+
 Deployment now owns a separate two-phase reclaimable callback custody path. It
 installs an independently admitted root before the ordinary registrar call and
 retains the installed root plus exact ledger in a pending non-Clone carrier.
@@ -287,9 +301,11 @@ receipt binds that exact root and reports success. Provider unregister and root
 quiescence then complete transactionally and return the original slot
 authority; every rejection retains the registration/root, ledger access, and
 receipts needed to retry, while a false registrar result supports explicit
-pending-root removal. This carrier does not link the emitted callback store or
-demand catalog to the installed callback entry, invoke the registrar, mint the
-source-level `Registration`, or supply live-registration capacity.
+pending-root removal. The carrier now retains the exact installed callback-entry
+attribution derived from the emitted store/demand manifest through pending,
+live, rejection, cleanup, and quiescence results. It still does not invoke the
+registrar, mint the source-level `Registration`, or supply live-registration
+capacity.
 
 Reference identities retain loan compatibility and permitted operations
 separately. `&write T` carries an exclusive loan over an existing valid `T`
@@ -2069,9 +2085,13 @@ without entering the legacy backend coordinator. The checked result retains its
 exact consumed source count and build-selected image subsystem. The request
 retains compile options, optional package inputs, externally borrowed admission
 and settlement evidence, and the external deployment-input owner: frontend
-failure returns that request unchanged, targetless binding returns it beside
-the exact checked result, and later failure preserves established driver custody
-with options and package inputs. The cutover adapter now binds staging target
+failure returns that request unchanged. The request itself now owns the
+transactional checked-to-staging-input settlement: targetless binding returns
+the original complete request beside the exact checked result, while success
+produces one bound owner retaining checked/staging evidence and all external
+custody. The driver no longer decomposes and reconstructs a loose request-parts
+tuple, and later failure preserves established driver custody with options and
+package inputs. The cutover adapter now binds staging target
 and report metadata only from the owning `CheckedCompilation`: targetless
 binding returns subsystem, admission profile, and provider settlements for
 retry, while successful driving projects build evaluation and observation

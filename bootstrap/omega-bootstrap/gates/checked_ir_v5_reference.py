@@ -91,6 +91,10 @@ class SchemaCapabilities:
     require_generalized_nonempty_edges: bool = False
     full_width_u64_less: bool = False
     full_width_u64_index_add: bool = False
+    full_width_u64_record_index: bool = False
+    entry_layout_ceiling: int = 131_072
+    machine_parameter_ceiling: int = 7
+    entry_layout_exhaustion_is_resource: bool = False
 
 
 _BASE_OPCODES = frozenset(range(1, 15))
@@ -145,6 +149,8 @@ def _u64_type_bounds(row: tuple[int, ...]) -> tuple[int, int]:
 def _project_declarations(
     entry: int, flags: int, tables: dict[str, list[tuple[int, ...]]],
     *, full_width_u32: bool = False, full_width_u64: bool = False,
+    machine_parameter_ceiling: int = 7,
+    entry_layout_ceiling: int = 131_072,
 ) -> None:
     """Ask CKIR4's frozen projection to recheck inherited declarations.
 
@@ -201,7 +207,18 @@ def _project_declarations(
         else:
             rewritten.append(row)
     projected["types"] = rewritten
-    v4._declaration_projection(entry, flags, projected)
+    if machine_parameter_ceiling > 7:
+        # CKIR2's frozen declaration checker has a seven-parameter ceiling.
+        # Wider successor profiles independently validate every original
+        # parameter below, so omit only those rows from this legacy projection.
+        projected["machine_params"] = []
+        projected["machines"] = [
+            (*machine[:6], 0, 0, *machine[8:])
+            for machine in projected["machines"]
+        ]
+    projection_entry = NO_ID if entry_layout_ceiling > 131_072 else entry
+    projection_flags = 0 if projection_entry == NO_ID else flags
+    v4._declaration_projection(projection_entry, projection_flags, projected)
 
 
 def decode(contents: bytes, *, expected_major: int = 5,
@@ -492,6 +509,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
         entry, flags, tables,
         full_width_u32=capabilities.full_width_u32,
         full_width_u64=capabilities.full_width_u64_less,
+        machine_parameter_ceiling=capabilities.machine_parameter_ceiling,
+        entry_layout_ceiling=capabilities.entry_layout_ceiling,
     )
 
     def contains_sum(type_id: int, active: set[int] | None = None) -> bool:
@@ -589,7 +608,8 @@ def decode(contents: bytes, *, expected_major: int = 5,
                                          if capabilities.full_width_u64_less
                                          else (1, 2, 3)),
                 "machine result")
-        require(machine[6] == next_machine_param and machine[7] <= 7,
+        require(machine[6] == next_machine_param
+                and machine[7] <= capabilities.machine_parameter_ceiling,
                 "machine parameter partition")
         require(machine[8] == next_block and 1 <= machine[9] <= 128
                 and machine[10] == machine[8], "machine block partition")
@@ -756,11 +776,14 @@ def decode(contents: bytes, *, expected_major: int = 5,
             require(types[base_type][1] == 5 and result_type == types[base_type][4],
                     "index type")
             index_kind = types[value_types[op_values[1]]][1]
+            element_type = types[base_type][4]
             require(index_kind in (1, 2) or (
                     capabilities.full_width_u64_index_add
                     and index_kind == 8
-                    and types[types[base_type][4]] ==
-                        (types[base_type][4], 1, 0, 0, 0, 0, 0, 255)),
+                    and (types[element_type] ==
+                         (element_type, 1, 0, 0, 0, 0, 0, 255)
+                         or (capabilities.full_width_u64_record_index
+                             and types[element_type][1] == 4))),
                     "index scalar")
             place_mutable[result_id] = place_mutable[op_values[0]]
         elif opcode == 5:
@@ -1292,7 +1315,10 @@ def decode(contents: bytes, *, expected_major: int = 5,
         require(types[machines[entry][5]][1] in (1, 2, 3),
                 "selected entry scalar ABI")
         owner_type = records[machines[entry][1]][1]
-        require(layouts[owner_type][0] <= 131_072, "entry layout ceiling")
+        if layouts[owner_type][0] > capabilities.entry_layout_ceiling:
+            if capabilities.entry_layout_exhaustion_is_resource:
+                raise Ckir5ResourceError("entry layout exhaustion")
+            raise Ckir5Error("entry layout ceiling")
 
     return Module(entry, tables, layouts, tuple(field_offsets), tuple(payload_offsets),
                   tuple(sum_payload_offsets), tuple(value_types), tuple(place_types))

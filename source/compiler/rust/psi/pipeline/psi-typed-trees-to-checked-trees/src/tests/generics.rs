@@ -1518,12 +1518,14 @@ fn public_visibility_survives_value_type_specialization() {
 #[test]
 fn distinct_static_machine_specializations_clone_the_template() {
     let source = r#"
+        boundary trait Clock {}
         data Card {}
         data Main {}
         machine Card::power(value: &Card) {}
         machine Card::rank(value: &Card) {}
         machine apply<T, machine F>(value: &T)
-        where machine F(item: &T)
+        where machine F(item: &T);
+        reaches Clock
         { F(value); }
         machine caller(card: &Card) {
             apply<Card::power>(card);
@@ -1537,6 +1539,18 @@ fn distinct_static_machine_specializations_clone_the_template() {
     let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed_apply = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "apply")
+        .expect("typed apply template");
+    assert_eq!(
+        typed
+            .authored_service_reach_rows_for(typed_apply.symbol)
+            .count(),
+        1,
+        "typed template retains authored reach before specialization"
+    );
     let checked = lower_typed_trees(typed)
         .expect("each concrete machine tuple should receive its own specialization");
     let apply_specializations: Vec<_> = checked
@@ -1564,6 +1578,29 @@ fn distinct_static_machine_specializations_clone_the_template() {
             .count(),
         2
     );
+    let clock = checked
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Clock")
+        .expect("Clock boundary trait");
+    for specialization in apply_specializations {
+        let rows = checked
+            .authored_service_reach_rows_for(specialization.instance)
+            .collect::<Vec<_>>();
+        let [row] = rows.as_slice() else {
+            panic!(
+                "specialization {:?} from {:?} retains {} authored reach rows",
+                specialization.instance,
+                specialization.template,
+                rows.len()
+            )
+        };
+        let [target] = row.targets.as_slice() else {
+            panic!("each concrete specialization retains the authored Clock occurrence")
+        };
+        assert_eq!(target.service, clock.symbol);
+        assert!(target.source_span.span.end > target.source_span.span.start);
+    }
 }
 
 #[test]
