@@ -5530,6 +5530,16 @@ Owners:
   parser, semantic pass/fail, exact-place/frame, checked-loan, and
   checked-to-state-to-control remap tests pin the live slices.
 
+  A bounded direct-call subloan rung now also admits
+  `&write root.field...leaf` only at the immediate checked-call argument when
+  every segment is an eligible common field and the leaf satisfies the existing
+  non-observing replacement referee. Reusable local aliases, case/payload,
+  index/range, qualified/generic/invariant/constrained paths, multi-parameter
+  structural calls, and provider boundaries remain fenced. One exact
+  unrestricted structural `[copy]` record-leaf canary crosses checked Unit
+  planning, Terminal codec replay, and verification with its ordered `Field`
+  path and write-only access unchanged. This creates no Terminal write event.
+
   The first forwarding-only Terminal rung is also live. Checked and Terminal
   structural parameter and call-argument rows carry a closed
   owned/shared/mutable/write-only access value independently of structural type
