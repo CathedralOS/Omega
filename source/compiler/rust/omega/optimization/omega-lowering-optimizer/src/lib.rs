@@ -493,8 +493,9 @@ mod tests {
     };
     use psi_proof_admission::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
     use psi_terminal::{
-        Block, MachineContract, Operation, OperationKind, OperationResult, TerminalMachine,
-        TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+        Block, MachineContract, Operation, OperationKind, OperationResult, SuccessorEdge,
+        TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+        VocabularyMarker,
     };
     use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 
@@ -591,6 +592,51 @@ mod tests {
         )
     }
 
+    fn dead_scalar_literals_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_081).unwrap();
+        let block = BlockId::new(1_082).unwrap();
+        let boolean = ValueId::new(1_083).unwrap();
+        let integer = ValueId::new(1_084).unwrap();
+        verified(
+            module_with_blocks(
+                machine,
+                block,
+                TerminalMachineResult::Unit,
+                vec![Block {
+                    id: block,
+                    parameters: Vec::new(),
+                    operations: vec![
+                        Operation {
+                            id: OperationId::new(1_085).unwrap(),
+                            result: OperationResult::Scalar(ValueDeclaration {
+                                id: boolean,
+                                scalar_type: ScalarType::Boolean,
+                            }),
+                            kind: OperationKind::BooleanConstant { value: true },
+                        },
+                        Operation {
+                            id: OperationId::new(1_086).unwrap(),
+                            result: OperationResult::Scalar(ValueDeclaration {
+                                id: integer,
+                                scalar_type: ScalarType::Integer(
+                                    IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                                ),
+                            }),
+                            kind: OperationKind::IntegerConstant {
+                                value: IntegerValue::Unsigned(7),
+                            },
+                        },
+                    ],
+                    terminator: Terminator::ReturnUnit {
+                        edge: EdgeId::new(1_087).unwrap(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+            ),
+            ProofBundle::default(),
+        )
+    }
+
     fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationUnit {
         let entry_machine = MachineId::new(1_041).unwrap();
         let entry_block = BlockId::new(1_042).unwrap();
@@ -640,6 +686,125 @@ mod tests {
                 outcome_specific_ensures: Vec::new(),
             },
         });
+        verified(module, ProofBundle::default())
+    }
+
+    fn adjacent_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_051).unwrap();
+        let entry = BlockId::new(1_052).unwrap();
+        let target = BlockId::new(1_053).unwrap();
+        verified(
+            module_with_blocks(
+                machine,
+                entry,
+                TerminalMachineResult::Unit,
+                vec![
+                    Block {
+                        id: entry,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Jump {
+                            edge: EdgeId::new(1_054).unwrap(),
+                            target,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                    Block {
+                        id: target,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::ReturnUnit {
+                            edge: EdgeId::new(1_055).unwrap(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                ],
+            ),
+            ProofBundle::default(),
+        )
+    }
+
+    fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_061).unwrap();
+        let entry = BlockId::new(1_062).unwrap();
+        let left = BlockId::new(1_063).unwrap();
+        let right = BlockId::new(1_064).unwrap();
+        let target = BlockId::new(1_065).unwrap();
+        let condition = ValueId::new(1_066).unwrap();
+        let left_value = ValueId::new(1_067).unwrap();
+        let right_value = ValueId::new(1_068).unwrap();
+        let boolean = |id| ValueDeclaration {
+            id,
+            scalar_type: ScalarType::Boolean,
+        };
+        let mut module = module_with_blocks(
+            machine,
+            entry,
+            TerminalMachineResult::Unit,
+            vec![
+                Block {
+                    id: entry,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Conditional {
+                        condition,
+                        when_true: SuccessorEdge {
+                            edge: EdgeId::new(1_069).unwrap(),
+                            target: left,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                        when_false: SuccessorEdge {
+                            edge: EdgeId::new(1_070).unwrap(),
+                            target: right,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                },
+                Block {
+                    id: left,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(1_071).unwrap(),
+                        result: OperationResult::Scalar(boolean(left_value)),
+                        kind: OperationKind::BooleanConstant { value: true },
+                    }],
+                    terminator: Terminator::Jump {
+                        edge: EdgeId::new(1_072).unwrap(),
+                        target,
+                        arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    id: right,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(1_073).unwrap(),
+                        result: OperationResult::Scalar(boolean(right_value)),
+                        kind: OperationKind::BooleanConstant { value: false },
+                    }],
+                    terminator: Terminator::Jump {
+                        edge: EdgeId::new(1_074).unwrap(),
+                        target,
+                        arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    id: target,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: EdgeId::new(1_075).unwrap(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+            ],
+        );
+        module.machines[0].parameters.push(boolean(condition));
         verified(module, ProofBundle::default())
     }
 
@@ -817,6 +982,90 @@ mod tests {
                 &wrong_ordinal,
             ),
             Err(OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)
+        );
+    }
+
+    #[test]
+    fn adjacent_terminal_jump_fusion_reaches_verified_one_block_projection() {
+        let selections = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        let optimized =
+            project_optimization_run(run(adjacent_terminal_jump_verified(), selections)).unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.plan().functions[0].block_entries.len(), 1);
+        assert_eq!(optimized.unit().functions[0].blocks.len(), 1);
+        assert_eq!(
+            optimized.unit().functions[0].blocks[0].nodes[0].provenance,
+            [
+                omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(1_055).unwrap()),
+                omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(1_054).unwrap()),
+            ]
+        );
+    }
+
+    #[test]
+    fn shared_terminal_jump_fusion_replays_to_two_exact_terminal_occurrences() {
+        let selections = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        let optimized =
+            project_optimization_run(run(shared_terminal_jump_verified(), selections)).unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.plan().functions[0].block_entries.len(), 4);
+        assert_eq!(optimized.unit().functions[0].blocks.len(), 4);
+        let terminal_source =
+            omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(1_075).unwrap());
+        let terminal_nodes = optimized.unit().functions[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .filter(|node| node.provenance.contains(&terminal_source))
+            .collect::<Vec<_>>();
+        assert_eq!(terminal_nodes.len(), 2);
+        assert!(
+            terminal_nodes
+                .iter()
+                .all(|node| matches!(node.operation, TerminalAbstractOperation::ReturnUnit { .. }))
+        );
+        let source_site = omega_optimization_unit::PsiRealizationSite::Node(
+            omega_optimization_unit::NodeLocation {
+                machine: MachineId::new(1_061).unwrap(),
+                block: BlockId::new(1_065).unwrap(),
+                node: 0,
+            },
+        );
+        assert_eq!(
+            optimized.transformation_ledger().records()[0]
+                .provenance
+                .iter()
+                .filter(|row| row.input == source_site)
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn dead_scalar_literal_elimination_replays_transitive_fuel_to_the_terminal() {
+        let selections =
+            OptimizationSelections::new([Optimization::DeadPureScalarElimination]).unwrap();
+        let optimized =
+            project_optimization_run(run(dead_scalar_literals_verified(), selections)).unwrap();
+        assert_eq!(optimized.commits().len(), 2);
+        assert_eq!(optimized.plan().functions[0].operations.len(), 1);
+        assert_eq!(optimized.unit().functions[0].facts.len(), 0);
+        let terminal = &optimized.unit().functions[0].blocks[0].nodes[0];
+        assert!(matches!(
+            terminal.operation,
+            TerminalAbstractOperation::ReturnUnit { .. }
+        ));
+        assert_eq!(terminal.provenance.len(), 3);
+        assert_eq!(terminal.fuel.len(), 3);
+        assert!(
+            optimized
+                .transformation_ledger()
+                .records()
+                .iter()
+                .flat_map(|record| &record.provenance)
+                .all(|row| row.disposition.is_realized())
         );
     }
 

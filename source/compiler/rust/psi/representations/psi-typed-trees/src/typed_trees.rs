@@ -16,6 +16,9 @@ pub struct TypedTrees {
     /// symbol-resolved trees. All durable service consumers migrate here.
     pub service_reaches: psi_language_semantics::ServiceReachTable,
     pub service_reach_rows: psi_language_semantics::ServiceReachRowTable,
+    /// Exact source-backed `reaches` occurrences, retained separately from
+    /// normalized semantic rows so explicit empty ceilings survive.
+    pub authored_service_reach_rows: Vec<signature::AuthoredServiceReachRow>,
     /// STR4 checked plans, slice 1: the semantic-domain interner, copied
     /// verbatim from the resolved trees.
     pub semantic_domains: psi_language_semantics::SemanticDomainTable,
@@ -451,6 +454,15 @@ impl TypedTreeRoots {
 }
 
 impl TypedTrees {
+    pub fn authored_service_reach_rows_for(
+        &self,
+        owner: psi_symbols::SymbolHandle,
+    ) -> impl Iterator<Item = &signature::AuthoredServiceReachRow> {
+        self.authored_service_reach_rows
+            .iter()
+            .filter(move |row| row.owner == owner)
+    }
+
     pub fn with_roots(
         roots: TypedTreeRoots,
         tables: TypedTreeTables,
@@ -462,6 +474,7 @@ impl TypedTrees {
             symbols,
             service_reaches: psi_language_semantics::ServiceReachTable::default(),
             service_reach_rows: psi_language_semantics::ServiceReachRowTable::default(),
+            authored_service_reach_rows: Vec::new(),
             semantic_domains: psi_language_semantics::SemanticDomainTable::default(),
             external_bindings: psi_language_semantics::ExternalBindingTable::default(),
             plan_laid_layouts: Vec::new(),
