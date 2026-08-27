@@ -468,6 +468,65 @@ fn fixed_arrays_of_material_copy_records_support_the_closed_operation_set() {
 }
 
 #[test]
+fn fixed_arrays_of_material_copy_sums_support_the_closed_operation_set() {
+    lower_typed_trees(typed(
+        r#"
+            data Choice [copy] {
+                case Empty;
+                case Value(value: u16);
+            }
+            data Holder { choices: [Choice; 4]; sibling: u8; }
+
+            machine fill(
+                direct: &write [Choice; 4],
+                holder: &write Holder,
+                whole: [Choice; 4],
+                first: Choice,
+                second: Choice,
+                index: u64 [0..=3]
+            ) {
+                let direct_length: u64 = direct.len;
+                direct = whole;
+                direct[0] = first;
+                direct[index] = second;
+                direct[1..3] = [first, second];
+
+                let nested_length: u64 = holder.choices.len;
+                holder.choices = whole;
+                holder.choices[0] = first;
+                holder.choices[index] = second;
+                holder.choices[1..=2] = [first, second];
+            }
+        "#,
+    ))
+    .expect("material copy sums stay atomic across the closed fixed-array operations");
+}
+
+#[test]
+fn fixed_array_sum_elements_do_not_expose_case_or_payload_places() {
+    let rendered = rendered_rejection(
+        r#"
+            data Choice [copy] {
+                case Empty;
+                case Value(value: u16);
+            }
+
+            machine inspect(values: &write [Choice; 2]) -> u16 {
+                transition values[0] {
+                    Choice::Value { value } -> value
+                    Choice::Empty -> 0
+                }
+            }
+        "#,
+    );
+    assert!(
+        rendered.contains("reads through index projection of write-only parameter `values`")
+            && rendered.contains("never observation"),
+        "sum-array matching unexpectedly exposed a case or payload place: {rendered}"
+    );
+}
+
+#[test]
 fn fixed_array_record_elements_do_not_expose_child_places() {
     let rendered = rendered_rejection(
         r#"
@@ -570,11 +629,21 @@ fn ineligible_fixed_array_element_shapes_remain_rejected() {
             "#,
         ),
         (
-            "sum",
+            "affine sum",
             r#"
-                data Choice [copy] {
+                data Choice {
                     case First(value: u16);
                     case Second;
+                }
+                machine fill(values: &write [Choice; 2]) {}
+            "#,
+        ),
+        (
+            "erased copy sum shape",
+            r#"
+                data Choice [copy] {
+                    case Empty;
+                    case Value(value: u16, proof [erased]: u16);
                 }
                 machine fill(values: &write [Choice; 2]) {}
             "#,
@@ -641,7 +710,7 @@ fn ineligible_fixed_array_element_shapes_remain_rejected() {
         let rendered = rendered_rejection(source);
         assert!(
             rendered.contains(
-                "literal fixed arrays whose elements are unrestricted primitive scalars or eligible material plain `[copy]` records"
+                "literal fixed arrays whose elements are unrestricted primitive scalars or eligible material `[copy]` records or sums"
             ),
             "{name} array unexpectedly reached the checked write-only slice: {rendered}"
         );
@@ -936,7 +1005,7 @@ fn non_discardable_record_leaf_write_remains_rejected() {
     assert!(
         rendered.contains("unsupported write-only projection")
             && rendered.contains(
-                "leaf is an unrestricted primitive, a whole eligible unrestricted record or closed material `[copy]` sum, or a literal fixed array whose elements are unrestricted primitive scalars or eligible material plain `[copy]` records"
+                "leaf is an unrestricted primitive, a whole eligible unrestricted record or closed material `[copy]` sum, or a literal fixed array whose elements are unrestricted primitive scalars or eligible material `[copy]` records or sums"
             ),
         "unexpected diagnostic: {rendered}"
     );
