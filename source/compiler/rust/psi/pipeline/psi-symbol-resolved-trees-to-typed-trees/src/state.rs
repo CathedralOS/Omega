@@ -223,6 +223,40 @@ fn proof_output_runtime_call(
             "proof-output binding requires a direct call",
         ));
     };
+    let mut call_occurrences = Vec::new();
+    for occurrence in lowerer
+        .typed_trees
+        .expression_table
+        .authored_selection_occurrences(call_handle)
+    {
+        let Some(selection) = lowerer
+            .typed_trees
+            .authored_declaration_selections()
+            .get(occurrence)
+        else {
+            return Err(Diagnostic::error(format!(
+                "proof-output call retains unknown authored selection occurrence {}",
+                occurrence.ordinal(),
+            )));
+        };
+        if selection.kind()
+            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
+        {
+            call_occurrences.push(occurrence);
+        }
+    }
+    let authored_call_selection = match call.operational_acknowledgement.origin {
+        psi_language_semantics::CallOperationalAcknowledgementOrigin::Source => {
+            let [occurrence] = call_occurrences.as_slice() else {
+                return Err(Diagnostic::error(format!(
+                    "proof-output call retains {} authored call selections; expected one",
+                    call_occurrences.len(),
+                )));
+            };
+            Some(*occurrence)
+        }
+        psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized => None,
+    };
     let (receiver_symbol, receiver_members) =
         proof_output_receiver_parts(&lowerer.typed_trees, call.receiver)
             .ok_or_else(|| Diagnostic::error("proof-output call receiver must be a name path"))?;
@@ -244,6 +278,7 @@ fn proof_output_runtime_call(
         operational_acknowledgement: call.operational_acknowledgement,
         discards_result: false,
         source_span,
+        authored_call_selection,
     })
 }
 

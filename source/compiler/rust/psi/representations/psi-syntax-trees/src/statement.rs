@@ -261,6 +261,9 @@ pub enum TransitionTargetNode {
         path_starts_at_self: bool,
         arguments: HandleSpan<crate::expression::ExpressionHandle>,
         evidence_arguments: Box<[Identifier]>,
+        /// Exact authored target-name span retained even when the parser
+        /// rewrites a terminal tail call into a named transition.
+        source_span: SourceSpan,
     },
     Value(crate::expression::ExpressionHandle),
     SelfTarget,

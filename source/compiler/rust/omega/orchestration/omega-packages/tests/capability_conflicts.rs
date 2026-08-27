@@ -820,7 +820,7 @@ end_root_policy_resolution\n",
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render bounded conflict evidence");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V5\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V6\n"));
     assert!(rendered.contains("change added\nkind public_proposition\nrisk blocking\n"));
     assert!(rendered.contains("candidate_location declaration package "));
     assert!(rendered.contains(" \"main.omg\"\n"));
@@ -1353,6 +1353,77 @@ fn public_operator_changes_render_as_blocking_review_conflicts() {
         .expect("render public operator conflict");
     assert!(rendered.contains("change changed\nkind public_operator\nrisk blocking\n"));
     assert!(rendered.contains("candidate_location contract_clause package "));
+
+    let _ = std::fs::remove_dir_all(live);
+    let _ = std::fs::remove_dir_all(baseline_cache);
+    let _ = std::fs::remove_dir_all(candidate_cache);
+    let _ = std::fs::remove_dir_all(build_root);
+}
+
+#[test]
+fn callable_changes_render_exact_checked_body_call_locations() {
+    let live = temp_root("body-call-live");
+    let baseline_cache = temp_root("body-call-baseline");
+    let candidate_cache = temp_root("body-call-candidate");
+    let build_root = temp_root("body-call-build");
+    let context = ExternalSourceContext::derive(b"body-call-conflict-test");
+    let source = |target: &str| {
+        format!(
+            "machine first() {{ }}\nmachine second() {{ }}\npub machine run() {{ {target}(); }}\n"
+        )
+    };
+
+    write_package(&live, &source("first"));
+    let baseline_sources = resolve_external_local_package_closure(
+        &live,
+        context.clone(),
+        &baseline_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve body-call baseline");
+    let baseline_reviews =
+        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+            .expect("compile body-call baseline");
+
+    write_package(&live, &source("second"));
+    let candidate_sources = resolve_external_local_package_closure(
+        &live,
+        context,
+        &candidate_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve body-call candidate");
+    let candidate_reviews =
+        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+            .expect("compile body-call candidate");
+
+    let conflicts = compare_review_only_capabilities(
+        &baseline_reviews,
+        &candidate_reviews,
+        &candidate_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare changed checked body call");
+    let conflict = conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| package.conflicts())
+        .find(|conflict| {
+            conflict.kind() == PackageReviewCanonicalRowKind::Callable
+                && conflict
+                    .row_key()
+                    .windows("run".len())
+                    .any(|window| window == b"run")
+        })
+        .expect("changed run callable row");
+    assert_eq!(conflict.risk(), PackageReviewCanonicalRowRisk::Blocking);
+    let rendered = conflicts
+        .render_bounded(1024 * 1024)
+        .expect("render checked body-call conflict");
+    assert!(rendered.contains("baseline_location body_call package "));
+    assert!(rendered.contains("candidate_location body_call package "));
 
     let _ = std::fs::remove_dir_all(live);
     let _ = std::fs::remove_dir_all(baseline_cache);

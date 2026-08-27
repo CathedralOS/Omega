@@ -244,6 +244,7 @@ fn classify_call_target_handle(
             path_starts_at_self,
             arguments,
             evidence_arguments: call.evidence_arguments,
+            source_span: call.target.source_span(),
         })
     }
 }

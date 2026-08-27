@@ -1031,11 +1031,13 @@ impl SyntaxTrees {
                 path_starts_at_self,
                 arguments,
                 evidence_arguments,
+                source_span,
             } => TransitionTargetNode::Named {
                 path: self.copy_statement_identifier_span(other, *path),
                 path_starts_at_self: *path_starts_at_self,
                 arguments: self.copy_statement_expression_span(other, *arguments),
                 evidence_arguments: evidence_arguments.clone(),
+                source_span: *source_span,
             },
             TransitionTargetNode::Value(value) => {
                 TransitionTargetNode::Value(self.copy_expression_handle(other, *value))

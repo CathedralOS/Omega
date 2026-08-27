@@ -1836,6 +1836,7 @@ fn transition_target_snapshot(
             path,
             arguments,
             evidence_arguments,
+            ..
         } => TransitionTargetSnapshot::Named {
             path: path_snapshot(program.statement_table.name_path_members(path.members)),
             arguments: statement_expression_span_snapshot(program, *arguments),

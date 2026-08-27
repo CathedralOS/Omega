@@ -1815,6 +1815,7 @@ fn snapshot_transition_target(
             path_starts_at_self,
             arguments,
             evidence_arguments,
+            ..
         } => TransitionTargetSnapshot::Named {
             path: snapshot_identifier_slice(syntax_trees.statements.identifier_path_members(*path)),
             path_starts_at_self: *path_starts_at_self,

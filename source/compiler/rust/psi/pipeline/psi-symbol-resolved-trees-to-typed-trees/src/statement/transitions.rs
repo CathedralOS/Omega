@@ -82,6 +82,8 @@ fn lower_transition_target(
             path,
             arguments,
             evidence_arguments,
+            source_span,
+            authored_call_selection,
         } => {
             let lowered_arguments = lower_statement_argument_span(lowerer, *arguments)?;
 
@@ -97,6 +99,8 @@ fn lower_transition_target(
                     .map(crate::name::lower_name)
                     .collect::<Vec<_>>()
                     .into_boxed_slice(),
+                source_span: *source_span,
+                authored_call_selection: *authored_call_selection,
             }
         }
         resolved::statement::TransitionTargetNode::Value(expression) => {

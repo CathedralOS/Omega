@@ -2734,12 +2734,22 @@ fn lowers_statement_argument_spans_from_statement_table() {
     let psi_typed_trees::statement::StatementNode::Transition(transition) = &statements[0] else {
         panic!("entry should lower to transition statement");
     };
-    let psi_typed_trees::statement::TransitionTargetNode::Named { arguments, .. } = typed_trees
+    let psi_typed_trees::statement::TransitionTargetNode::Named {
+        arguments,
+        source_span,
+        authored_call_selection,
+        ..
+    } = typed_trees
         .statement_table
         .transition_target(transition.target)
     else {
         panic!("transition target should be named");
     };
+    assert_eq!(
+        &source[source_span.span.start..source_span.span.end],
+        "resolve_exit"
+    );
+    assert!(authored_call_selection.is_some());
     let arguments = typed_trees.statement_table.expression_handles(*arguments);
     let argument_names = arguments
         .iter()
