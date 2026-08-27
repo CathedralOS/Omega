@@ -1,0 +1,73 @@
+{
+  "artifact_edges": [],
+  "artifacts": [],
+  "build_units": [
+    {
+      "build_host_profile": "profile.host.macos-arm64",
+      "compiler_tool": "none",
+      "final_target_profile": "profile.target.darwin-arm64-assembly",
+      "id": "build.delta.compiler.source-image",
+      "input_id": "input.delta.compiler.translation-unit",
+      "input_kind": "generated_input",
+      "output_artifacts": [],
+      "roles": [
+        "canonical_compiler_root",
+        "source_image_only"
+      ]
+    }
+  ],
+  "claim": "exact current canonical Delta compiler source image; no executable artifact or compiler authority",
+  "closure_sha256": "31324d8342f1e3c2da95553418245e4bd981985558256fcc012eb8e6a804ff32",
+  "content_set_sha256": "9559bdee641d8dfcb4452d1eb9d9510c0534a031df86737258d370d3e08d3c42",
+  "generated_inputs": [
+    {
+      "byte_length": 168560,
+      "id": "input.delta.compiler.translation-unit",
+      "inputs": [
+        {
+          "id": "delta.compiler.lowermachine",
+          "kind": "source",
+          "ordinal": 0
+        }
+      ],
+      "recipe": "ordered-source-bytes-plus-lf-v1",
+      "role": "translation_unit",
+      "sha256": "a0ecad14670247857e300b5539e0058d8f72054f92fabd1645fc4457b0ac53c9"
+    }
+  ],
+  "profiles": [
+    {
+      "abi": "delta.sealed-stream-compiler-v1",
+      "configuration": "source-snapshot",
+      "id": "profile.host.macos-arm64",
+      "kind": "build_host",
+      "resource": "delta.lowermachine.current-v1",
+      "target": "macos_arm64"
+    },
+    {
+      "abi": "darwin-arm64-assembly-v1",
+      "configuration": "conservative",
+      "id": "profile.target.darwin-arm64-assembly",
+      "kind": "final_target",
+      "resource": "delta.lowermachine.current-v1",
+      "target": "darwin_arm64"
+    }
+  ],
+  "schema": "omega.delta-source-closure-snapshot.v1",
+  "snapshot_id": "delta.compiler.current.v1",
+  "source_edges": [],
+  "sources": [
+    {
+      "byte_length": 168559,
+      "id": "delta.compiler.lowermachine",
+      "roles": [
+        "canonical_compiler_root",
+        "delta_source",
+        "entry"
+      ],
+      "sha256": "f8707580616021bce1d75a4ee6e349bf70aad54312f66033133cb5c180fcc90c"
+    }
+  ],
+  "status": "canonical_compiler_root",
+  "tool_artifacts": []
+}

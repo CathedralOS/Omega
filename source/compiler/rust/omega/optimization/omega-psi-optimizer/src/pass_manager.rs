@@ -668,7 +668,7 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
         b"omega.psi-pass.copy-propagation.v1",
     );
     let cfg_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-        b"omega.psi-pass.control-flow-cleanup.v5",
+        b"omega.psi-pass.control-flow-cleanup.v6",
     );
     if registry.pass() == Some(cfg_pass) {
         control_flow_structure_count(unit)
@@ -1052,7 +1052,7 @@ mod tests {
             omega_optimization_unit::ProvenanceDisposition::ProvenUnreachableAt(_)
         ));
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 3);
+        assert_eq!(manifest.ordered_rules().len(), 4);
         assert_eq!(manifest.decisions().len(), 1);
         assert_eq!(manifest.decisions()[0].consumed_facts().len(), 1);
 
@@ -1071,12 +1071,12 @@ mod tests {
         let (output, commits, usage, _, manifest, ledger) =
             run_unit(unit.clone(), &registry, budget(8)).unwrap();
 
-        assert_eq!(commits.len(), 1);
-        assert_eq!(usage.commits, 1);
-        assert_eq!(usage.iterations, 2);
+        assert_eq!(commits.len(), 3);
+        assert_eq!(usage.commits, 3);
+        assert_eq!(usage.iterations, 4);
         assert_eq!(unit.functions[0].blocks.len(), 4);
-        assert_eq!(output.functions[0].blocks.len(), 3);
-        assert_eq!(ledger.records().len(), 1);
+        assert_eq!(output.functions[0].blocks.len(), 1);
+        assert_eq!(ledger.records().len(), 3);
         assert_eq!(ledger.records()[0].provenance.len(), 6);
         assert_eq!(
             ledger.records()[0]
@@ -1095,9 +1095,9 @@ mod tests {
             3
         );
         assert_eq!(output.functions[0].facts.len(), 2);
-        assert_eq!(output.functions[0].blocks[2].nodes[0].effect.input, 4);
-        assert_eq!(output.functions[0].blocks[2].nodes[1].effect.output, 6);
-        assert_eq!(manifest.unwrap().decisions().len(), 1);
+        assert_eq!(output.functions[0].blocks[0].nodes[0].effect.input, 0);
+        assert_eq!(output.functions[0].blocks[0].nodes[3].effect.output, 4);
+        assert_eq!(manifest.unwrap().decisions().len(), 4);
 
         let (second, second_commits, second_usage, _, _, second_ledger) =
             run_unit(output.clone(), &registry, budget(8)).unwrap();
@@ -1118,7 +1118,7 @@ mod tests {
         assert_eq!(commits.len(), 1);
         assert_eq!(usage.commits, 1);
         assert_eq!(usage.iterations, 2);
-        assert_eq!(usage.rule_evaluations, 5);
+        assert_eq!(usage.rule_evaluations, 6);
         assert_eq!(output.functions[0].blocks.len(), 2);
         assert_eq!(ledger.records().len(), 1);
         assert_eq!(ledger.records()[0].provenance.len(), 3);
@@ -1128,7 +1128,7 @@ mod tests {
                 .iter()
                 .all(|row| row.disposition.is_realized())
         );
-        assert_eq!(manifest.unwrap().ordered_rules().len(), 3);
+        assert_eq!(manifest.unwrap().ordered_rules().len(), 4);
 
         let (second, second_commits, second_usage, _, _, second_ledger) =
             run_unit(output.clone(), &registry, budget(8)).unwrap();

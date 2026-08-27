@@ -9,11 +9,12 @@ use omega_optimization_core::{
     OptimizationSafetyClass, OptimizationSelections, ScalarConstantFactIdentity,
 };
 use omega_optimization_unit::{
-    BlockParameterIncomingBinding, BooleanConstantRewrite, ConstantConditionalRewrite,
-    IntegerConstantRewrite, IntegerEvaluationWitness, LinearEmptyBlockRewrite, NodeLocation,
-    OptimizationFact, OwnershipFrontierSite, PathQualifiedEmptyBlockRewrite, ProvenanceDisposition,
-    ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
-    RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
+    AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
+    ConstantConditionalRewrite, IntegerConstantRewrite, IntegerEvaluationWitness,
+    LinearEmptyBlockRewrite, NodeLocation, OptimizationFact, OwnershipFrontierSite,
+    PathQualifiedEmptyBlockRewrite, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit,
+    PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, RedundantBlockParameterRewrite,
+    RedundantBlockParameterWitness, ScalarSubstitution,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{BlockId, IntegerValue, MachineId, OperationId, ValueId};
@@ -24,7 +25,7 @@ use crate::{
 };
 
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v1";
-const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v5";
+const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v6";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -363,6 +364,155 @@ impl PsiOptimizationRule for PathQualifiedEmptyBlockThreadRule {
                             empty: empty_location,
                             outgoing_edge: *outgoing_edge,
                             target: *target,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+        Ok(candidates)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct AdjacentBlockMergeRule;
+
+impl AdjacentBlockMergeRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.adjacent-single-predecessor-block-merge.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
+            1,
+            AnalysisSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::OwnershipFrontiers,
+            ]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::StructuralIdentity,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for AdjacentBlockMergeRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        if analyses.get(AnalysisKind::ControlFlowGraph).is_none() {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::ControlFlowGraph,
+            ));
+        }
+        let Some(AnalysisProduct::OwnershipFrontiers(frontiers)) =
+            analyses.get(AnalysisKind::OwnershipFrontiers)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::OwnershipFrontiers,
+            ));
+        };
+        let mut candidates = Vec::new();
+        for function in &unit.functions {
+            for adjacent in function.blocks.windows(2) {
+                let [predecessor, target] = adjacent else {
+                    unreachable!("two-block window")
+                };
+                if target.id == function.entry
+                    || target.nodes.first().is_none_or(|node| {
+                        !node.successors.is_empty()
+                            || !matches!(node.provenance.first(), Some(PsiProvenance::Operation(_)))
+                    })
+                {
+                    continue;
+                }
+                let Some((predecessor_index, predecessor_node)) = predecessor
+                    .nodes
+                    .len()
+                    .checked_sub(1)
+                    .map(|index| (index, &predecessor.nodes[index]))
+                else {
+                    continue;
+                };
+                let O::Jump {
+                    psi_edge: incoming_edge,
+                    target: jump_target,
+                    bindings,
+                } = &predecessor_node.operation
+                else {
+                    continue;
+                };
+                if *jump_target != target.id
+                    || function
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.nodes)
+                        .flat_map(|node| &node.successors)
+                        .filter(|edge| edge.target == target.id)
+                        .count()
+                        != 1
+                    || !adjacent_merge_ownership_is_identity(
+                        unit,
+                        function,
+                        frontiers,
+                        *incoming_edge,
+                        target.id,
+                    )
+                {
+                    continue;
+                }
+                let Some(mut substitutions) = target
+                    .parameters
+                    .iter()
+                    .zip(bindings)
+                    .map(|(parameter, binding)| {
+                        (binding.parameter == parameter.value
+                            && binding.scalar_type == parameter.scalar_type)
+                            .then_some(ScalarSubstitution {
+                                from: parameter.value,
+                                to: binding.argument,
+                                scalar_type: parameter.scalar_type,
+                            })
+                    })
+                    .collect::<Option<Vec<_>>>()
+                    .filter(|_| target.parameters.len() == bindings.len())
+                else {
+                    continue;
+                };
+                substitutions.sort();
+                let predecessor_location = NodeLocation {
+                    machine: function.machine,
+                    block: predecessor.id,
+                    node: u32::try_from(predecessor_index)
+                        .expect("optimization node index fits u32"),
+                };
+                let Some((affected_blocks, provenance)) =
+                    adjacent_merge_accounting(function, predecessor_location, target.id)
+                else {
+                    continue;
+                };
+                candidates.push(
+                    PsiRewriteCandidate::new_adjacent_block_merge(
+                        unit.identity,
+                        Self::contract(),
+                        affected_blocks,
+                        substitutions,
+                        provenance,
+                        -2,
+                        AdjacentBlockMergeRewrite {
+                            predecessor: predecessor_location,
+                            incoming_edge: *incoming_edge,
+                            target: target.id,
                         },
                     )
                     .map_err(RuleProposalError::InvalidCandidate)?,
@@ -823,6 +973,120 @@ fn path_thread_accounting(
                 }
             }
             expected_effect = expected_effect.checked_add(1)?;
+        }
+    }
+    realized.sort_by_key(|row| {
+        (
+            row.input,
+            row.disposition.canonical_tag(),
+            row.disposition.site(),
+        )
+    });
+    Some((affected.into_iter().collect(), realized))
+}
+
+fn adjacent_merge_ownership_is_identity(
+    unit: &PsiOptimizationUnit,
+    function: &omega_optimization_unit::PsiOptimizationFunction,
+    frontiers: &crate::OwnershipFrontierAnalysis,
+    incoming: psi_core::EdgeId,
+    target: BlockId,
+) -> bool {
+    let sites = [
+        OwnershipFrontierSite::EdgeEntry(incoming),
+        OwnershipFrontierSite::EdgeExit(incoming),
+        OwnershipFrontierSite::BlockEntry(target),
+    ];
+    let facts = sites.map(|site| frontiers.fact(function.machine, site));
+    if facts.iter().all(Option::is_none) {
+        return function.structural_parameters.is_empty()
+            && function.entry_claim_declarations.is_empty()
+            && function.declared_places.is_empty();
+    }
+    facts.iter().all(|fact| {
+        fact.is_some_and(|fact| fact.revision == unit.identity && fact.machine == function.machine)
+    }) && facts
+        .windows(2)
+        .all(|pair| pair[0].unwrap().snapshot == pair[1].unwrap().snapshot)
+}
+
+fn adjacent_merge_accounting(
+    function: &omega_optimization_unit::PsiOptimizationFunction,
+    predecessor: NodeLocation,
+    target: BlockId,
+) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
+    let predecessor_position = function
+        .blocks
+        .iter()
+        .position(|block| block.id == predecessor.block)?;
+    let target_position = function
+        .blocks
+        .iter()
+        .position(|block| block.id == target)?;
+    if target_position != predecessor_position.checked_add(1)? {
+        return None;
+    }
+    let predecessor_node = function.blocks[predecessor_position]
+        .nodes
+        .get(usize::try_from(predecessor.node).ok()?)?;
+    let incoming = predecessor_node.successors.first()?;
+    let target_block = &function.blocks[target_position];
+    let first_output = PsiRealizationSite::Node(NodeLocation {
+        machine: function.machine,
+        block: predecessor.block,
+        node: predecessor.node,
+    });
+    let incoming_site = PsiRealizationSite::Edge {
+        machine: function.machine,
+        edge: incoming.psi_edge,
+    };
+    let mut affected = BTreeSet::from([predecessor.block, target]);
+    let mut realized = vec![ProvenanceRewrite {
+        input: incoming_site,
+        disposition: ProvenanceDisposition::RealizedAt(first_output),
+        sources: incoming.provenance.clone(),
+        fuel: incoming.fuel.clone(),
+    }];
+    for (node_index, node) in target_block.nodes.iter().enumerate() {
+        if node.provenance.is_empty() {
+            continue;
+        }
+        let input = PsiRealizationSite::Node(NodeLocation {
+            machine: function.machine,
+            block: target,
+            node: u32::try_from(node_index).ok()?,
+        });
+        let output = PsiRealizationSite::Node(NodeLocation {
+            machine: function.machine,
+            block: predecessor.block,
+            node: predecessor
+                .node
+                .checked_add(u32::try_from(node_index).ok()?)?,
+        });
+        realized.push(ProvenanceRewrite {
+            input,
+            disposition: ProvenanceDisposition::RealizedAt(output),
+            sources: node.provenance.clone(),
+            fuel: node.fuel.clone(),
+        });
+    }
+    for block in function.blocks.iter().skip(target_position + 1) {
+        affected.insert(block.id);
+        for (node_index, node) in block.nodes.iter().enumerate() {
+            if node.provenance.is_empty() {
+                continue;
+            }
+            let site = PsiRealizationSite::Node(NodeLocation {
+                machine: function.machine,
+                block: block.id,
+                node: u32::try_from(node_index).ok()?,
+            });
+            realized.push(ProvenanceRewrite {
+                input: site,
+                disposition: ProvenanceDisposition::RealizedAt(site),
+                sources: node.provenance.clone(),
+                fuel: node.fuel.clone(),
+            });
         }
     }
     realized.sort_by_key(|row| {
@@ -2480,6 +2744,7 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
         register!(0, ConstantConditionalFoldRule);
         register!(1, LinearEmptyBlockThreadRule);
         register!(2, PathQualifiedEmptyBlockThreadRule);
+        register!(3, AdjacentBlockMergeRule);
     }
     if optimization == Optimization::CopyPropagation {
         register!(0, RedundantBlockParameterRule);
@@ -2514,9 +2779,10 @@ pub(crate) mod tests {
         reconstruct_psi_optimization_unit_seed,
     };
     use omega_optimization_validation::{
-        OptimizationUnitValidationError, validate_boolean_evaluation_candidate,
-        validate_constant_conditional_candidate, validate_integer_evaluation_candidate,
-        validate_linear_empty_block_candidate, validate_path_qualified_empty_block_candidate,
+        OptimizationUnitValidationError, validate_adjacent_block_merge_candidate,
+        validate_boolean_evaluation_candidate, validate_constant_conditional_candidate,
+        validate_integer_evaluation_candidate, validate_linear_empty_block_candidate,
+        validate_path_qualified_empty_block_candidate,
         validate_redundant_block_parameter_candidate,
     };
     use omega_terminal_abstract_operations::{
@@ -4128,7 +4394,7 @@ pub(crate) mod tests {
             ))
         );
         let cleanup = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
-        assert_eq!(built_in_psi_registry(&cleanup).unwrap().len(), 3);
+        assert_eq!(built_in_psi_registry(&cleanup).unwrap().len(), 4);
         let copy = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
         assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
         let unsupported_combination = OptimizationSelections::new([
@@ -4316,6 +4582,108 @@ pub(crate) mod tests {
         assert_eq!(output.functions[0].blocks[2].nodes[0].effect.input, 4);
         assert_eq!(output.functions[0].blocks[2].nodes[1].effect.output, 6);
         assert_eq!(accepted.provenance(), candidate.provenance());
+    }
+
+    #[test]
+    fn adjacent_block_merge_substitutes_parameters_and_rehomes_edge_custody() {
+        let unit = propagated_block_parameter_unit(true);
+        let fold_contract = ConstantConditionalFoldRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, fold_contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let fold = ConstantConditionalFoldRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .pop()
+            .unwrap();
+        let folded = validate_constant_conditional_candidate(&unit, &fold)
+            .unwrap()
+            .into_unit();
+
+        let contract = AdjacentBlockMergeRule::contract();
+        let mut manager = crate::AnalysisManager::new(&folded);
+        let products = manager
+            .require_all(&folded, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let candidates = AdjacentBlockMergeRule
+            .propose(&folded, RuleAnalysisView::new(&products))
+            .unwrap();
+        let candidate = candidates
+            .iter()
+            .find(|candidate| {
+                matches!(
+                    candidate.patch(),
+                    PsiRewritePatch::MergeAdjacentBlock(patch)
+                        if patch.predecessor.block == id(603, BlockId::new)
+                            && patch.target == id(605, BlockId::new)
+                )
+            })
+            .expect("selected arm can merge with its unique adjacent target");
+        assert_eq!(candidate.substitutions().len(), 1);
+        let accepted = validate_adjacent_block_merge_candidate(&folded, candidate).unwrap();
+        let output = accepted.unit();
+        assert_eq!(output.functions[0].blocks.len(), 2);
+        let merged = &output.functions[0].blocks[1];
+        assert_eq!(merged.nodes.len(), 3);
+        assert!(matches!(
+            merged.nodes[1].operation,
+            TerminalAbstractOperation::IntegerBitwiseNot { operand, .. }
+                if operand == id(607, ValueId::new)
+        ));
+        assert_eq!(
+            merged.nodes[1].provenance,
+            [
+                PsiProvenance::Operation(id(618, OperationId::new)),
+                PsiProvenance::Edge(id(615, EdgeId::new)),
+            ]
+        );
+
+        let PsiRewritePatch::MergeAdjacentBlock(patch) = candidate.patch() else {
+            unreachable!()
+        };
+        let mut corrupted_provenance = candidate.provenance().to_vec();
+        let incoming = PsiRealizationSite::Edge {
+            machine: patch.predecessor.machine,
+            edge: patch.incoming_edge,
+        };
+        let row = corrupted_provenance
+            .iter_mut()
+            .find(|row| row.input == incoming)
+            .unwrap();
+        row.disposition =
+            ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(NodeLocation {
+                machine: patch.predecessor.machine,
+                block: patch.target,
+                node: 0,
+            }));
+        corrupted_provenance.sort_by_key(|row| {
+            (
+                row.input,
+                row.disposition.canonical_tag(),
+                row.disposition.site(),
+            )
+        });
+        let corrupted = PsiRewriteCandidate::new_adjacent_block_merge(
+            folded.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            candidate.substitutions().to_vec(),
+            corrupted_provenance,
+            candidate.predicted_cost_delta(),
+            patch,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_adjacent_block_merge_candidate(&folded, &corrupted),
+            Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
+        );
     }
 
     #[test]

@@ -885,6 +885,94 @@ mod tests {
         )
     }
 
+    fn adjacent_block_merge_artifact() -> (Vec<u8>, Vec<u8>) {
+        let machine = MachineId::new(4_251).unwrap();
+        let entry = BlockId::new(4_252).unwrap();
+        let target = BlockId::new(4_253).unwrap();
+        let input = ValueId::new(4_254).unwrap();
+        let forwarded = ValueId::new(4_255).unwrap();
+        let result = ValueId::new(4_256).unwrap();
+        let computed = ValueId::new(4_261).unwrap();
+        let boolean = |id| ValueDeclaration {
+            id,
+            scalar_type: ScalarType::Boolean,
+        };
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                parameters: vec![boolean(input)],
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Scalar(boolean(result)),
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry,
+                blocks: vec![
+                    Block {
+                        id: entry,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Jump {
+                            edge: EdgeId::new(4_257).unwrap(),
+                            target,
+                            arguments: vec![input],
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                    Block {
+                        id: target,
+                        parameters: vec![boolean(forwarded)],
+                        operations: vec![Operation {
+                            id: OperationId::new(4_258).unwrap(),
+                            result: OperationResult::Scalar(boolean(computed)),
+                            kind: OperationKind::BooleanNot { operand: forwarded },
+                        }],
+                        terminator: Terminator::Return {
+                            edge: EdgeId::new(4_259).unwrap(),
+                            value: computed,
+                            cleanup_actions: Vec::new(),
+                        },
+                    },
+                ],
+                contract: MachineContract {
+                    id: ContractId::new(4_260).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        };
+        let proof = ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: Vec::new(),
+        };
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        )
+    }
+
     fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
         let machine = MachineId::new(4_301).unwrap();
         let entry = BlockId::new(4_302).unwrap();
@@ -1491,6 +1579,48 @@ mod tests {
                 .render_text()
                 .contains("optimized structure: functions=1, blocks=2, nodes=2")
         );
+    }
+
+    #[test]
+    fn control_flow_cleanup_projects_adjacent_block_merge_occurrences() {
+        let (semantic, proof) = adjacent_block_merge_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap()),
+        )
+        .unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.plan().functions[0].block_entries.len(), 1);
+        assert_eq!(optimized.plan().functions[0].operations.len(), 2);
+        let first = &optimized.unit().functions[0].blocks[0].nodes[0];
+        assert!(matches!(
+            first.operation,
+            omega_terminal_abstract_operations::TerminalAbstractOperation::BooleanNot {
+                operand,
+                ..
+            } if operand == ValueId::new(4_254).unwrap()
+        ));
+        assert_eq!(
+            first.provenance,
+            [
+                omega_optimization_unit::PsiProvenance::Operation(OperationId::new(4_258).unwrap()),
+                omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(4_257).unwrap()),
+            ]
+        );
+        assert_eq!(first.fuel.len(), 2);
+        assert_eq!(optimized.transformation_ledger().records().len(), 1);
+        assert_eq!(
+            optimized.transformation_ledger().records()[0]
+                .provenance
+                .len(),
+            3
+        );
+        let report = optimized.pre_physical_manifest().record().render_text();
+        assert!(report.contains("source structure: functions=1, blocks=2, nodes=3"));
+        assert!(report.contains("optimized structure: functions=1, blocks=1, nodes=2"));
     }
 
     #[test]
