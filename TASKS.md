@@ -602,6 +602,21 @@ Remaining:
   receiver-free wrapper evidence only under their exact checked receiver/
   activation-loan predicate.
 
+  The target-owned UEFI x64 layout rung now seals the complete known 120-byte
+  `EFI_SYSTEM_TABLE` prefix beneath that exact package, entry slot, and
+  Microsoft-x64 target selection. Eighteen ordered rows retain the flattened
+  24-byte table header, explicit four-byte ABI padding, every console/service
+  handle or pointer, native entry count, and configuration-table pointer.
+  Independent replay checks target/package/entry identity, row order and
+  cardinality, offsets, widths, alignments, exact prefix coverage, and
+  deterministic layout identity. This proves `ConOut` at byte 64 and
+  `BootServices` at byte 96 but inspects no occurrence, signature, revision,
+  CRC, or runtime `HeaderSize`, and grants no pointer, provider, lifecycle,
+  root, shell, or execution authority. A later lifecycle-scoped provider must
+  validate the runtime header, including a `HeaderSize` covering the retained
+  prefix, plus occurrence provenance and firmware phase before projecting
+  services.
+
   **Design-blocked at the next composition edge:** the target declaration does
   not yet fix the exact source-level bootstrap-adapter callable/signature and
   selection form or the physical-result map that converts adapter/application
@@ -609,10 +624,11 @@ Remaining:
   once those two owner-level shapes are settled, argument/result marshalling,
   shell emission, and relocation are engineering work.
 
-  Remaining: keep `EfiSystemTable` as a private
-  validated native layout beneath lifecycle-scoped providers and
-  `EfiImageHandle` as an opaque provenance-bearing input; neither is an
-  `Extent`. Emit the physical ABI shell, call the exact target-authored
+  Remaining: keep `EfiSystemTable` private beneath lifecycle-scoped providers
+  and `EfiImageHandle` as an opaque provenance-bearing input; neither is an
+  `Extent`. Validate an exact runtime table occurrence against the retained
+  native prefix before exposing provider projections. Emit the physical ABI
+  shell, call the exact target-authored
   bootstrap adapter, and join physical invocation, provider evidence, semantic
   root positions, continuation, and one installation receipt. Implement a
   target-bounded `GetMemoryMap`/`ExitBootServices` state cycle whose decreasing

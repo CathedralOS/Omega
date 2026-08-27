@@ -53,6 +53,19 @@ firmware provider realizations over that exact table occurrence instead.
 authority; only admitted bootstrap operations accepting that occurrence can
 derive correspondence facts from it.
 
+The target-owned UEFI x64 layout plan retains the complete known 120-byte
+`EFI_SYSTEM_TABLE` prefix as eighteen ordered rows: the flattened 24-byte
+`EFI_TABLE_HEADER`, explicit four-byte ABI padding after `FirmwareRevision`,
+and every console, service, table-count, and configuration-table field. Exact
+target-package, entry-slot, Microsoft-x64 calling-plan, order, offset, width,
+alignment, coverage, and layout identity replay independently. In particular,
+the plan proves `ConOut` at byte 64 and `BootServices` at byte 96. It does not
+inspect a runtime occurrence, header signature, revision, CRC, or `HeaderSize`,
+and grants no pointer, provider, lifecycle, root, shell, or execution authority.
+A lifecycle-scoped provider must separately validate the occurrence and require
+that its runtime header covers this retained prefix before projecting any
+service.
+
 ```omega
 machine Application::start(
     image: Extent in Granted,
