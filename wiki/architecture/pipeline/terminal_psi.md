@@ -2072,9 +2072,13 @@ without entering the legacy backend coordinator. The checked result retains its
 exact consumed source count and build-selected image subsystem. The request
 retains compile options, optional package inputs, externally borrowed admission
 and settlement evidence, and the external deployment-input owner: frontend
-failure returns that request unchanged, targetless binding returns it beside
-the exact checked result, and later failure preserves established driver custody
-with options and package inputs. The cutover adapter now binds staging target
+failure returns that request unchanged. The request itself now owns the
+transactional checked-to-staging-input settlement: targetless binding returns
+the original complete request beside the exact checked result, while success
+produces one bound owner retaining checked/staging evidence and all external
+custody. The driver no longer decomposes and reconstructs a loose request-parts
+tuple, and later failure preserves established driver custody with options and
+package inputs. The cutover adapter now binds staging target
 and report metadata only from the owning `CheckedCompilation`: targetless
 binding returns subsystem, admission profile, and provider settlements for
 retry, while successful driving projects build evaluation and observation

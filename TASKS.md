@@ -8069,10 +8069,14 @@ compiler concept is introduced.
   selected image subsystem; `TerminalComponentCompileRequest` owns compile
   options, optional package inputs, the externally borrowed admission profile
   and provider settlements, and the external deployment-input owner. Frontend
-  rejection returns that complete request. Targetless staging-input binding
-  returns both the exact checked result and the reconstructed request, while
-  later rejection uses the established staging/deployment custody and retains
-  options and package inputs beside it. The successful source canary proves the
+  rejection returns that complete request. The request now transactionally owns
+  checked staging-input settlement: targetless rejection returns both the exact
+  checked result and original complete request, while success yields one bound
+  owner retaining options, package inputs, checked/staging evidence, and the
+  deployment owner. The free driver no longer decomposes a five-part request
+  tuple or reconstructs its custody; later rejection uses the established
+  staging/deployment custody and retains options and package inputs beside it.
+  The successful source canary proves the
   checked-owned three-file count reaches report custody rather than the former
   fixture-restated count of one. This handoff never calls legacy
   `Compiler::compile` or `write_output` and cannot manufacture installation,
