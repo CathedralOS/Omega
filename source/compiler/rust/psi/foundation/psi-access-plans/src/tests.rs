@@ -4394,6 +4394,48 @@ fn provider_atomic_preflight_requires_and_retains_exact_correspondence() {
 }
 
 #[test]
+fn atomic_specialization_rejects_same_identity_different_checked_placement_structure() {
+    let plan = atomic_word_placement();
+    let extent = uart_extent_with_lineage(0xc0f0, 4, 274);
+    let loan = extent.loan(0, 4).expect("shared Atomic loan");
+    let resources = atomic_word_profile(&loan);
+    let admission = admit_placement(
+        PlacementAdmissionId::from_normalized_identity(275).expect("admission"),
+        loan,
+        &plan,
+        &resources,
+    )
+    .expect("Atomic admission");
+    let view = place(admission).expect("Atomic placed-view establishment");
+    let projection = view
+        .project(field_key(plan.access(), "head"))
+        .expect("Atomic projection");
+    let atomic = projection
+        .atomic_load(MemoryOrdering::Receive)
+        .expect("Atomic load")
+        .into_primitive_request()
+        .into_atomic_primitive_access()
+        .expect("Atomic specialization");
+
+    atomic
+        .validate_against_checked_placement(&plan)
+        .expect("exact retained and checked placement structures match");
+
+    // Compact normalized identities are evidence rather than authority. This
+    // internal corruption model deliberately retains the same identity while
+    // drifting one structural field, and the public replay boundary must not
+    // accept that substitution.
+    let mut substituted = plan.clone();
+    substituted.layout.size = Some(8);
+    assert_eq!(substituted.identity(), plan.identity());
+    assert_ne!(substituted, plan);
+    let diagnostic = atomic
+        .validate_against_checked_placement(&substituted)
+        .expect_err("same-ID placement structure substitution must reject");
+    assert!(diagnostic.0.contains("placement structure differs"));
+}
+
+#[test]
 fn atomic_specialization_fails_closed_and_returns_exact_request() {
     let plan = atomic_word_placement();
     let extent = uart_extent_with_lineage(0xc100, 4, 158);

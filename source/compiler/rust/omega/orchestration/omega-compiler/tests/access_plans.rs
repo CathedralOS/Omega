@@ -15,11 +15,11 @@ use omega_target::NativeTarget;
 use psi_access_plans::{
     AccessExposure, AtomicCapability, AtomicPermissions, AtomicTransferRule, BoundaryReach,
     EffectiveSupplyKind, ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess,
-    ObservationModel, PlacementAdmissionId, ResourceProfile, ResourceProfileGrant,
-    ResourceProfileReceiptId, ResourceRegion, SchemaCorrespondenceProviderId,
+    ObservationModel, PlacedOccurrenceId, PlacementAdmissionId, ResourceProfile,
+    ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion, SchemaCorrespondenceProviderId,
     SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant, StableCapability,
     StableDeviceInstanceId, TransferRule, admit_owned_placement, admit_placement,
-    adopt_owned_stable, bind_schema_correspondence_to_placement,
+    adopt_owned_atomic, adopt_owned_stable, bind_schema_correspondence_to_placement, place,
 };
 use psi_core::PackageKeyIdentity;
 use psi_extents::{
@@ -1585,6 +1585,459 @@ fn checked_atomic_resident_contract_replays_observing_axes_and_result_shapes() {
             .message
             .contains("changed its checked Atomic resident/result contract")
     }));
+}
+
+#[test]
+fn checked_atomic_resident_contract_joins_provider_backed_runtime_custody() {
+    let source = r#"
+use omega::language::core::layout;
+
+pub data Counter {
+    value: u64;
+}
+
+pub data AtomicPlacement {
+    entries: [FieldEntry; 64];
+    services: [u64; 32];
+}
+
+machine AtomicPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let access: AccessPlan = AccessPlan::inaccessible(schema);
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 }
+    };
+    PlacementPlan {
+        layout: Plan {
+            entries: self.entries,
+            entry_count: 1,
+            size_fixed: 8,
+            size_is_dynamic: false,
+            align: 8
+        },
+        access: access.with(
+            schema.fields[0].key,
+            FieldAccess::Atomic {
+                operations: AtomicOperations {
+                    load: true,
+                    store: false,
+                    fetch_add: false,
+                    fetch_sub: false,
+                    fetch_xor: false,
+                    fetch_or: false,
+                    fetch_and: false,
+                    swap: false,
+                    compare_exchange: true,
+                    compare_exchange_once: true,
+                    try_exchange: false,
+                    try_exchange_once: false
+                },
+                exposure: Exposure::Exported
+            }
+        ),
+        reach: BoundaryReach {
+            services: self.services,
+            service_count: 0
+        }
+    }
+}
+
+machine retain_source_plan(counter: &Placed<AtomicPlacement, Counter>) {}
+
+data Main {}
+machine Main::main(&mut self) {}
+"#;
+    let main = write_program("checked-atomic-runtime-resident-join", source);
+    let checked = compile_to_checked(&main, None)
+        .expect("observing Atomic contract should reach checked custody");
+    let view = checked
+        .typed
+        .placed_view_plans
+        .iter()
+        .find(|view| view.policy_name == "AtomicPlacement")
+        .expect("checked Atomic placement");
+    let field = view
+        .fields
+        .iter()
+        .find(|field| field.field_name == "value")
+        .expect("checked Atomic field");
+    let entry = view
+        .placement
+        .access()
+        .plan()
+        .entries()
+        .iter()
+        .find(|entry| !matches!(entry.access(), FieldAccess::Inaccessible))
+        .expect("canonical Atomic access entry");
+    let operations = match entry.access() {
+        FieldAccess::Atomic { operations, .. } => *operations,
+        other => panic!("expected Atomic access, got {other:?}"),
+    };
+
+    let rights = ExtentRights::from_normalized_identities([extent_identity(
+        451,
+        ExtentRightId::from_normalized_identity,
+    )]);
+    let (extent, content) = ExtentRootGrant::from_admitted_provider(
+        provider_issuance(29),
+        extent_identity(452, ExtentLineageId::from_normalized_identity),
+        extent_identity(453, AddressSpaceId::from_normalized_identity),
+        rights.clone(),
+        extent_identity(454, ExtentProvenanceId::from_normalized_identity),
+        extent_identity(455, MappingEraId::from_normalized_identity),
+    )
+    .mint_provider_existing_content(
+        0xb000,
+        8,
+        extent_identity(
+            view.placement.identity().normalized_identity(),
+            ExtentContentInterpretationId::from_normalized_identity,
+        ),
+        extent_identity(456, ResidentClaimId::from_normalized_identity),
+        extent_identity(
+            457,
+            ExtentContentValidityReceiptId::from_normalized_identity,
+        ),
+        extent_identity(458, ExtentContentCustodyReceiptId::from_normalized_identity),
+    )
+    .expect("provider-backed Atomic content");
+    let profile = ResourceProfileGrant::from_admitted_provider(
+        ResourceProfileReceiptId::from_normalized_identity(459).expect("profile receipt"),
+        &extent,
+        rights.clone(),
+        BoundaryReach::default(),
+    )
+    .expect("Atomic profile grant")
+    .admit(ResourceProfile {
+        regions: vec![ResourceRegion {
+            offset: 0,
+            length: 8,
+            stable: StableCapability::None,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::Access {
+                transfers: vec![AtomicTransferRule {
+                    transfer: TransferRule {
+                        width_bits: 64,
+                        alignment_bytes: 8,
+                    },
+                    operations,
+                }],
+            },
+            reach: BoundaryReach::default(),
+        }],
+    })
+    .expect("admitted Atomic profile");
+    let admission_id =
+        PlacementAdmissionId::from_normalized_identity(460).expect("placement admission");
+    let admission = admit_owned_placement(admission_id, extent, &view.placement, &profile)
+        .expect("owned Atomic placement admission");
+    let dormant = adopt_owned_atomic(admission, content).expect("Atomic resident adoption");
+    let resident_claim = dormant.resident_claim();
+    let occurrence = PlacedOccurrenceId::from_normalized_identity(461).expect("placed occurrence");
+    let established = dormant.view(occurrence).expect("Atomic resident view");
+
+    let request_snapshot = |access: &psi_access_plans::AtomicPrimitiveAccessRequest<'_, '_>| {
+        let request = access.primitive_request();
+        (
+            access.operation(),
+            request.plan(),
+            request.admission(),
+            request.effective_supply().key(),
+            request.transfer_width_bits(),
+            request.resident_claim(),
+            request.placed_occurrence(),
+        )
+    };
+
+    let projection = established
+        .project(entry.key())
+        .expect("provider-backed Atomic projection");
+    let access = projection
+        .atomic_compare_exchange_once(
+            psi_language_core::atomic::MemoryOrdering::ReceivePublish,
+            psi_language_core::atomic::MemoryOrdering::Receive,
+        )
+        .expect("single-attempt observing access")
+        .into_primitive_request()
+        .into_atomic_primitive_access()
+        .expect("Atomic specialization");
+    let snapshot = request_snapshot(&access);
+
+    let rejection = psi_validation::bind_checked_atomic_resident_access(
+        &checked.typed,
+        view.policy_symbol,
+        field.field_symbol,
+        access,
+    )
+    .expect_err("a policy symbol cannot substitute the exact placed-view identity");
+    assert!(
+        rejection
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("no exact placed-view identity"))
+    );
+    let (access, diagnostics) = rejection.into_parts();
+    assert!(!diagnostics.is_empty());
+    assert_eq!(request_snapshot(&access), snapshot);
+
+    let rejection = psi_validation::bind_checked_atomic_resident_access(
+        &checked.typed,
+        view.data_symbol,
+        view.policy_symbol,
+        access,
+    )
+    .expect_err("a policy symbol cannot substitute the exact checked field identity");
+    assert!(rejection.diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("no exact checked Atomic field identity")
+    }));
+    let (access, _) = rejection.into_parts();
+    assert_eq!(request_snapshot(&access), snapshot);
+
+    let joined = psi_validation::bind_checked_atomic_resident_access(
+        &checked.typed,
+        view.data_symbol,
+        field.field_symbol,
+        access,
+    )
+    .expect("exact checked/runtime resident join");
+    assert_eq!(
+        joined.resident_contract(),
+        field.atomic_resident.as_ref().expect("resident contract")
+    );
+    assert_eq!(
+        joined.observing_result().operation,
+        AtomicObservingCompareExchangeOperation::SingleAttempt
+    );
+    assert_eq!(
+        joined.observing_result().result_shape,
+        AtomicObservingCompareExchangeResultShape::ExchangedOrMismatchedOrUncommittedObserved
+    );
+    assert_eq!(
+        joined.atomic_access().primitive_request().resident_claim(),
+        Some(resident_claim)
+    );
+    assert_eq!(
+        joined
+            .atomic_access()
+            .primitive_request()
+            .placed_occurrence(),
+        Some(occurrence)
+    );
+    joined
+        .validate_for_result_custody()
+        .expect("post-construction replay preserves both authorities");
+    let access = joined.into_atomic_access();
+    assert_eq!(request_snapshot(&access), snapshot);
+
+    let mut drifted = checked.clone();
+    let drifted_view_symbol = view.data_symbol;
+    let drifted_field_symbol = field.field_symbol;
+    {
+        let drifted_view = drifted
+            .typed
+            .placed_view_plans
+            .iter_mut()
+            .find(|candidate| candidate.data_symbol == drifted_view_symbol)
+            .expect("drifted checked view");
+        let drifted_field = drifted_view
+            .fields
+            .iter_mut()
+            .find(|candidate| candidate.field_symbol == drifted_field_symbol)
+            .expect("drifted checked field");
+        drifted_field
+            .atomic_resident
+            .as_mut()
+            .expect("drifted resident contract")
+            .observing_results[1]
+            .result_shape =
+            AtomicObservingCompareExchangeResultShape::ExchangedOrMismatchedObserved;
+    }
+    let rejection = psi_validation::bind_checked_atomic_resident_access(
+        &drifted.typed,
+        drifted_view_symbol,
+        drifted_field_symbol,
+        access,
+    )
+    .expect_err("result-shape drift must reject before runtime custody handoff");
+    assert!(rejection.diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("changed its checked Atomic resident/result contract")
+    }));
+    let (access, _) = rejection.into_parts();
+    assert_eq!(request_snapshot(&access), snapshot);
+    let joined = psi_validation::bind_checked_atomic_resident_access(
+        &checked.typed,
+        view.data_symbol,
+        field.field_symbol,
+        access,
+    )
+    .expect("unchanged request supports corrected checked-contract retry");
+    let _access = joined.into_atomic_access();
+
+    let projection = established
+        .project(entry.key())
+        .expect("provider-backed Atomic load projection");
+    let load = projection
+        .atomic_load(psi_language_core::atomic::MemoryOrdering::Receive)
+        .expect("resident Atomic load")
+        .into_primitive_request()
+        .into_atomic_primitive_access()
+        .expect("Atomic load specialization");
+    let rejection = psi_validation::bind_checked_atomic_resident_access(
+        &checked.typed,
+        view.data_symbol,
+        field.field_symbol,
+        load,
+    )
+    .expect_err("non-observing Atomic operations cannot consume the result-shape contract");
+    assert!(rejection.diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("accepts only observing decisive or single-attempt")
+    }));
+    let (load, _) = rejection.into_parts();
+    load.validate_for_lowering()
+        .expect("rejection returns the unchanged non-observing request");
+
+    let shifted_source = source
+        .replace(
+            "placement: FieldPlan::At { offset: 0 }",
+            "placement: FieldPlan::At { offset: 8 }",
+        )
+        .replace("size_fixed: 8", "size_fixed: 16");
+    let shifted_main = write_program("checked-atomic-runtime-resident-shifted", &shifted_source);
+    let shifted = compile_to_checked(&shifted_main, None).expect("shifted checked Atomic plan");
+    let shifted_view = shifted
+        .typed
+        .placed_view_plans
+        .iter()
+        .find(|candidate| candidate.policy_name == "AtomicPlacement")
+        .expect("shifted checked view");
+    let shifted_field = shifted_view
+        .fields
+        .iter()
+        .find(|candidate| candidate.field_name == "value")
+        .expect("shifted checked field");
+    let projection = established
+        .project(entry.key())
+        .expect("provider-backed decisive projection");
+    let decisive = projection
+        .atomic_compare_exchange(
+            psi_language_core::atomic::MemoryOrdering::ReceivePublish,
+            psi_language_core::atomic::MemoryOrdering::Receive,
+        )
+        .expect("decisive observing access")
+        .into_primitive_request()
+        .into_atomic_primitive_access()
+        .expect("decisive Atomic specialization");
+    let decisive_snapshot = request_snapshot(&decisive);
+    let rejection = psi_validation::bind_checked_atomic_resident_access(
+        &shifted.typed,
+        shifted_view.data_symbol,
+        shifted_field.field_symbol,
+        decisive,
+    )
+    .expect_err("a distinct checked placement cannot substitute for runtime custody");
+    assert!(rejection.diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("placement structure differs from the independently checked placement")
+    }));
+    let (decisive, _) = rejection.into_parts();
+    assert_eq!(request_snapshot(&decisive), decisive_snapshot);
+    let joined = psi_validation::bind_checked_atomic_resident_access(
+        &checked.typed,
+        view.data_symbol,
+        field.field_symbol,
+        decisive,
+    )
+    .expect("decisive observing contract joins exact resident custody");
+    assert_eq!(
+        joined.observing_result().operation,
+        AtomicObservingCompareExchangeOperation::Decisive
+    );
+    let _decisive = joined.into_atomic_access();
+
+    let ordinary_extent = ExtentRootGrant::from_admitted_provider(
+        provider_issuance(30),
+        extent_identity(462, ExtentLineageId::from_normalized_identity),
+        extent_identity(463, AddressSpaceId::from_normalized_identity),
+        rights.clone(),
+        extent_identity(464, ExtentProvenanceId::from_normalized_identity),
+        extent_identity(465, MappingEraId::from_normalized_identity),
+    )
+    .mint(0xb100, 8)
+    .expect("ordinary Atomic extent");
+    let ordinary_profile = ResourceProfileGrant::from_admitted_provider(
+        ResourceProfileReceiptId::from_normalized_identity(466).expect("ordinary receipt"),
+        &ordinary_extent,
+        rights,
+        BoundaryReach::default(),
+    )
+    .expect("ordinary Atomic profile grant")
+    .admit(ResourceProfile {
+        regions: vec![ResourceRegion {
+            offset: 0,
+            length: 8,
+            stable: StableCapability::None,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::Access {
+                transfers: vec![AtomicTransferRule {
+                    transfer: TransferRule {
+                        width_bits: 64,
+                        alignment_bytes: 8,
+                    },
+                    operations,
+                }],
+            },
+            reach: BoundaryReach::default(),
+        }],
+    })
+    .expect("ordinary Atomic profile");
+    let ordinary_loan = ordinary_extent.loan(0, 8).expect("ordinary Atomic loan");
+    let ordinary_view = place(
+        admit_placement(
+            PlacementAdmissionId::from_normalized_identity(467).expect("ordinary admission"),
+            ordinary_loan,
+            &view.placement,
+            &ordinary_profile,
+        )
+        .expect("ordinary Atomic placement admission"),
+    )
+    .expect("ordinary Atomic placed view");
+    let ordinary_projection = ordinary_view
+        .project(entry.key())
+        .expect("ordinary Atomic projection");
+    let ordinary = ordinary_projection
+        .atomic_compare_exchange_once(
+            psi_language_core::atomic::MemoryOrdering::ReceivePublish,
+            psi_language_core::atomic::MemoryOrdering::Receive,
+        )
+        .expect("ordinary observing request")
+        .into_primitive_request()
+        .into_atomic_primitive_access()
+        .expect("ordinary Atomic specialization");
+    let ordinary_snapshot = request_snapshot(&ordinary);
+    let rejection = psi_validation::bind_checked_atomic_resident_access(
+        &checked.typed,
+        view.data_symbol,
+        field.field_symbol,
+        ordinary,
+    )
+    .expect_err("correspondence-free ordinary Atomic storage has no resident custody");
+    assert!(rejection.diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("lacks runtime resident custody")
+    }));
+    let (ordinary, _) = rejection.into_parts();
+    assert_eq!(request_snapshot(&ordinary), ordinary_snapshot);
+    ordinary
+        .validate_for_lowering()
+        .expect("missing-custody rejection returns the exact Atomic request");
 }
 
 #[test]

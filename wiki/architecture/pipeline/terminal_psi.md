@@ -2075,8 +2075,16 @@ provenance, era, claim, and receipt binding at every transition, and retains
 the claim and one caller-supplied occurrence through projection and primitive
 specialization. Resident-preserving retirement returns the same dormant grant;
 rejection returns every input or carrier unchanged. This is still below
-Terminal and is not joined to the checked Atomic result contract, a source
-call, an attempted operation, provider selection, or target lowering.
+Terminal. A separate non-authorizing carrier now joins an already-specialized
+provider-backed observing request to its exact checked Atomic resident/result
+contract. It independently replays the checked placed view and field plus the
+runtime request authority; compares the complete retained placement structure,
+not only its compact plan identity; requires the exact canonical field key,
+width, claim, occurrence, decisive/single-attempt operation, and closed result
+shape; and returns the unchanged non-Clone request on every rejection. The join
+does not supply a source call or runtime result, attempt an operation, select or
+install a provider, choose a comparison key or encoding law, create Terminal
+authority, or lower to a target.
 
 Each projected event retains the placed occurrence, normalized `P` and `T`,
 canonical field key, already-normalized displacement and width, logical field
@@ -2126,9 +2134,10 @@ multiplicity, transfer width, permission identity, and the distinct decisive or
 single-attempt closed result shape are independently replayed. Affine or linear
 observing residents reject. A `try_exchange*`-only field retains no such row and
 gains no observing or selected-encoding authority. This contract is not a
-Terminal row and carries no source call, runtime result or resident custody,
-atomic attempt or retry, key/encoding law, provider operation, backend identity,
-or lowering authority. The independent non-observing pair,
+Terminal row. The checked/runtime join may retain its matching provider-backed
+resident request beside this row, but still carries no source call or runtime
+result custody, atomic attempt or retry, key/encoding law, provider operation,
+backend identity, or lowering authority. The independent non-observing pair,
 `AtomicTryExchange<T, Key>` and
 `AtomicTryExchangeOnce<T, Key>`, returns the proposed value on mismatch or an
 uncommitted attempt and can transfer affine or linear residents. The copyable

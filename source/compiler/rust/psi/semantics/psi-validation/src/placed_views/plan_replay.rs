@@ -1,4 +1,4 @@
-use psi_access_plans::FieldAccess;
+use psi_access_plans::{AccessFieldEntry, FieldAccess};
 use psi_diagnostics::Diagnostic;
 use psi_language_core::atomic::AtomicObservingCompareExchangeOperation;
 use psi_language_semantics::Multiplicity;
@@ -15,6 +15,34 @@ fn retained_field_identity(name: &str, identity: Option<u64>) -> RetainedFieldId
         Some(identity) => RetainedFieldIdentity::Numbered(identity),
         None => RetainedFieldIdentity::Positional(name.to_owned()),
     }
+}
+
+pub(super) fn exact_access_entry_for_field<'view>(
+    view: &'view psi_typed_trees::typed_trees::PlacedViewPlan,
+    field: &psi_typed_trees::typed_trees::PlacedFieldPlan,
+) -> Option<&'view AccessFieldEntry> {
+    let field_identity = retained_field_identity(&field.field_name, field.member_identity);
+    let mut canonical_layout_identities = view
+        .placement
+        .layout()
+        .entries
+        .iter()
+        .map(|entry| retained_field_identity(&entry.field, entry.member_identity))
+        .collect::<Vec<_>>();
+    canonical_layout_identities.sort();
+    canonical_layout_identities.dedup();
+    canonical_layout_identities
+        .iter()
+        .position(|identity| identity == &field_identity)
+        .and_then(|slot| u32::try_from(slot).ok())
+        .and_then(|slot| {
+            view.placement
+                .access()
+                .plan()
+                .entries()
+                .iter()
+                .find(|entry| entry.key().slot() == slot)
+        })
 }
 
 fn expected_accessor_operations(access: &FieldAccess) -> Vec<&'static str> {
@@ -180,27 +208,7 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
                 continue;
             }
 
-            let mut canonical_layout_identities = view
-                .placement
-                .layout()
-                .entries
-                .iter()
-                .map(|entry| retained_field_identity(&entry.field, entry.member_identity))
-                .collect::<Vec<_>>();
-            canonical_layout_identities.sort();
-            canonical_layout_identities.dedup();
-            let exact_access = canonical_layout_identities
-                .iter()
-                .position(|identity| identity == &field_identity)
-                .and_then(|slot| u32::try_from(slot).ok())
-                .and_then(|slot| {
-                    view.placement
-                        .access()
-                        .plan()
-                        .entries()
-                        .iter()
-                        .find(|entry| entry.key().slot() == slot)
-                });
+            let exact_access = exact_access_entry_for_field(view, field);
             if !exact_access.is_some_and(|entry| entry.access() == &field.access) {
                 diagnostics.push(Diagnostic::error(format!(
                     "placed view `{}` field `{}` changed its admitted access decision",
