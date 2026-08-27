@@ -983,9 +983,9 @@ dependency.
   Dense effects, definition/use sites, literal facts, places, and identity are
   rebuilt. A verified wrapping-add artifact removes the unused arithmetic and
   then its two newly dead literals at the suite fixed point, replaying every
-  source/fuel site into the return. Candidate v16, optimization-unit identity
-  v10, the v2 pass, prephysical manifest v10,
-  and projection v11 bind this meaning; ledger v4 already represents the
+  source/fuel site into the return. Candidate v17, optimization-unit identity
+  v10, the v2 pass, prephysical manifest v11,
+  and projection v12 bind this meaning; ledger v4 already represents the
   many-to-one moves. Other scalar operations remain open until their exact
   semantic and custody contracts are admitted individually.
 
@@ -997,6 +997,26 @@ dependency.
   ledger/report. Elision never converts a `Trapping` operation into an `Exact`
   one or removes a required runtime policy event.
 
+  Current slice: the exact named `ProofCheckElision` selection owns
+  `dead-unused-proof-certified-scalar-elimination.v1`. It removes an unused
+  proof-bearing scalar node only from this closed vocabulary: exact integer
+  cast; exact left/right shift; exact add/subtract/multiply/divide/remainder;
+  and wrapping or saturating divide/remainder. Each candidate carries the
+  exact `AcceptedObligationFactIdentity` as a dedicated proof witness and the
+  pass manifest records that accepted obligation as its consumed fact. The
+  independent validator reconstructs the operation's obligation, result type,
+  operation-reference fact, and accepted row by identity, machine, operation,
+  and obligation before applying the shared dead-node custody rewrite. The
+  active operation-reference index disappears with the operation, while the
+  verifier-owned accepted-obligation catalog remains byte-for-byte intact as
+  historical proof custody. A verified Terminal artifact projects the removed
+  exact add, its manifest evidence, and its source/fuel relocation through the
+  lowering boundary. Candidate v17, optimization-unit identity v10, the named
+  v1 pass, prephysical manifest v11, and projection v12 bind this meaning;
+  ledger v4 already represents the relocation. General check elision whose
+  result remains live, runtime policy events, and physical check recognition
+  remain open.
+
 - **OPT-INITIAL-PIPELINE.** Define the canonical target-neutral schedule for
   each subset of the initial named optimizations and its bounded repetition
   rules.
@@ -1005,15 +1025,17 @@ dependency.
   neither unit nor ledger, and randomized rule-registration order cannot change
   output because registry order is canonical.
 
-  Current slice: the supported four-family subset has the canonical
+  Current slice: the supported five-family subset has the canonical
   `SparseConditionalConstantPropagation -> ControlFlowCleanup ->
-  CopyPropagation -> DeadPureScalarElimination` schedule, distinct
-  ordered pass manifests, aggregate replay evidence, per-pass budgets, and
-  deterministic artifact tests. Thirty-two shuffled built-in registration
+  CopyPropagation -> ProofCheckElision -> DeadPureScalarElimination` schedule,
+  with proof-enabled deletion before dead-scalar cleanup so newly dead
+  obligation-free operands can disappear in the same pipeline sweep. It has
+  distinct ordered pass manifests, aggregate replay evidence, per-pass budgets,
+  and deterministic artifact tests. Thirty-two shuffled built-in registration
   orders produce identical full SCCP runs, and a direct second
-  SCCP/CFG/copy/dead-scalar sweep changes neither final unit nor the composed
-  transformation ledger. Remaining to close: add canonical schedules and the
-  same fixed-point evidence for each newly implemented initial family.
+  SCCP/CFG/copy/proof/dead-scalar sweep changes neither final unit nor the
+  composed transformation ledger. Remaining to close: add canonical schedules
+  and the same fixed-point evidence for each newly implemented initial family.
 
 - Named selections now declare a closed execution phase rather than being
   grouped into an optimization level. The full root-build suite remains the

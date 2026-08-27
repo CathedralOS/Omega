@@ -30,6 +30,7 @@ const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propa
 const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v10";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v2";
+const PROOF_CHECK_ELISION_PASS_NAME: &[u8] = b"omega.psi-pass.proof-check-elision.v1";
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ConstantConditionalFoldRule;
@@ -43,10 +44,14 @@ pub struct DeadScalarLiteralEliminationRule;
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DeadUnconditionallyTotalScalarEliminationRule;
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ProofCertifiedDeadScalarEliminationRule;
+
 #[derive(Debug, Clone, Copy)]
 enum DeadScalarFamily {
     Literal,
     UnconditionallyTotal,
+    ProofCertified,
 }
 
 impl DeadScalarLiteralEliminationRule {
@@ -116,6 +121,44 @@ impl PsiOptimizationRule for DeadUnconditionallyTotalScalarEliminationRule {
             analyses,
             Self::contract(),
             DeadScalarFamily::UnconditionallyTotal,
+        )
+    }
+}
+
+impl ProofCertifiedDeadScalarEliminationRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.dead-unused-proof-certified-scalar-elimination.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(PROOF_CHECK_ELISION_PASS_NAME),
+            1,
+            AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::ProofCertified,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for ProofCertifiedDeadScalarEliminationRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        propose_dead_scalar_nodes(
+            unit,
+            analyses,
+            Self::contract(),
+            DeadScalarFamily::ProofCertified,
         )
     }
 }
@@ -192,22 +235,33 @@ fn propose_dead_scalar_nodes(
                 else {
                     continue;
                 };
-                candidates.push(
+                let patch = DeadScalarNodeRewrite {
+                    location,
+                    source_operation,
+                    result,
+                    scalar_type,
+                };
+                let candidate = if matches!(family, DeadScalarFamily::ProofCertified) {
+                    PsiRewriteCandidate::new_proof_certified_dead_scalar_node(
+                        unit.identity,
+                        contract,
+                        affected_blocks,
+                        provenance,
+                        accepted_obligation_fact(unit, function.machine, source_operation)?,
+                        -1,
+                        patch,
+                    )
+                } else {
                     PsiRewriteCandidate::new_dead_scalar_node(
                         unit.identity,
                         contract,
                         affected_blocks,
                         provenance,
                         -1,
-                        DeadScalarNodeRewrite {
-                            location,
-                            source_operation,
-                            result,
-                            scalar_type,
-                        },
+                        patch,
                     )
-                    .map_err(RuleProposalError::InvalidCandidate)?,
-                );
+                };
+                candidates.push(candidate.map_err(RuleProposalError::InvalidCandidate)?);
             }
         }
     }
@@ -362,6 +416,99 @@ fn dead_scalar_shape(
             *psi_operation,
             *result,
             psi_core::ScalarType::Integer(*value_type),
+        )),
+        (
+            DeadScalarFamily::ProofCertified,
+            O::IntegerExactCast {
+                psi_operation,
+                result,
+                target_type,
+                ..
+            },
+        ) => Some((
+            *psi_operation,
+            *result,
+            psi_core::ScalarType::Integer(*target_type),
+        )),
+        (
+            DeadScalarFamily::ProofCertified,
+            O::ExactIntegerShiftLeft {
+                psi_operation,
+                result,
+                value_type,
+                ..
+            }
+            | O::ExactIntegerShiftRight {
+                psi_operation,
+                result,
+                value_type,
+                ..
+            },
+        ) => Some((
+            *psi_operation,
+            *result,
+            psi_core::ScalarType::Integer(*value_type),
+        )),
+        (
+            DeadScalarFamily::ProofCertified,
+            O::ExactIntegerAdd {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::ExactIntegerSubtract {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::ExactIntegerMultiply {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::ExactIntegerDivide {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::ExactIntegerRemainder {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::WrappingIntegerDivide {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::WrappingIntegerRemainder {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::SaturatingIntegerDivide {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::SaturatingIntegerRemainder {
+                psi_operation,
+                result,
+                scalar_type,
+                ..
+            },
+        ) => Some((
+            *psi_operation,
+            *result,
+            psi_core::ScalarType::Integer(*scalar_type),
         )),
         _ => None,
     }
@@ -3514,8 +3661,9 @@ pub fn built_in_psi_registry(
 ///
 /// Selection declaration order is not pass order. The explicit schedule below
 /// runs semantic constant propagation before CFG cleanup, structural copy
-/// cleanup, and dead pure scalar elimination. Each returned registry continues
-/// to own exactly one pass identity.
+/// cleanup, proof-certified check/work elision, and dead pure scalar
+/// elimination. Each returned registry continues to own exactly one pass
+/// identity.
 pub fn built_in_psi_registries(
     selections: &OptimizationSelections,
 ) -> Result<Vec<OrderedRuleRegistry>, RuleRegistryError> {
@@ -3527,6 +3675,7 @@ pub fn built_in_psi_registries(
                 | Optimization::ControlFlowCleanup
                 | Optimization::CopyPropagation
                 | Optimization::DeadPureScalarElimination
+                | Optimization::ProofCheckElision
         )
     }) {
         return Err(RuleRegistryError::UnsupportedOptimization(*unsupported));
@@ -3542,6 +3691,9 @@ pub fn built_in_psi_registries(
     }
     if psi_selections.contains(Optimization::CopyPropagation) {
         registries.push(registry_for_optimization(Optimization::CopyPropagation)?);
+    }
+    if psi_selections.contains(Optimization::ProofCheckElision) {
+        registries.push(registry_for_optimization(Optimization::ProofCheckElision)?);
     }
     if psi_selections.contains(Optimization::DeadPureScalarElimination) {
         registries.push(registry_for_optimization(
@@ -3619,6 +3771,9 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
     if optimization == Optimization::DeadPureScalarElimination {
         register!(0, DeadScalarLiteralEliminationRule);
         register!(1, DeadUnconditionallyTotalScalarEliminationRule);
+    }
+    if optimization == Optimization::ProofCheckElision {
+        register!(0, ProofCertifiedDeadScalarEliminationRule);
     }
     registrations
 }
@@ -4338,6 +4493,33 @@ pub(crate) mod tests {
             FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap()
+    }
+
+    pub(crate) fn dead_exact_add_unit() -> PsiOptimizationUnit {
+        discard_scalar_function_result(exact_add_unit())
+    }
+
+    fn discard_scalar_function_result(mut unit: PsiOptimizationUnit) -> PsiOptimizationUnit {
+        let return_node = unit.functions[0].blocks[0]
+            .nodes
+            .last_mut()
+            .expect("fixture has a return node");
+        let O::Return {
+            psi_edge,
+            cleanup_actions,
+            ..
+        } = &return_node.operation
+        else {
+            unreachable!()
+        };
+        return_node.operation = O::ReturnUnit {
+            psi_edge: *psi_edge,
+            cleanup_actions: cleanup_actions.clone(),
+        };
+        return_node.uses.clear();
+        unit.functions[0].result = TerminalAbstractFunctionResult::Unit;
+        unit.identity = recompute_psi_optimization_unit_identity(&unit);
+        unit
     }
 
     fn adjacent_conditional_merge_unit() -> PsiOptimizationUnit {
@@ -5570,6 +5752,8 @@ pub(crate) mod tests {
         assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
         let dead = OptimizationSelections::new([Optimization::DeadPureScalarElimination]).unwrap();
         assert_eq!(built_in_psi_registry(&dead).unwrap().len(), 2);
+        let proof = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
+        assert_eq!(built_in_psi_registry(&proof).unwrap().len(), 1);
         let unsupported_combination = OptimizationSelections::new([
             Optimization::SparseConditionalConstantPropagation,
             Optimization::CopyPropagation,
@@ -6382,23 +6566,7 @@ pub(crate) mod tests {
             Err(OptimizationUnitValidationError::CandidatePatchMismatch)
         );
 
-        let mut exact = exact_add_unit();
-        let return_node = &mut exact.functions[0].blocks[0].nodes[3];
-        let O::Return {
-            psi_edge,
-            cleanup_actions,
-            ..
-        } = &return_node.operation
-        else {
-            unreachable!()
-        };
-        return_node.operation = O::ReturnUnit {
-            psi_edge: *psi_edge,
-            cleanup_actions: cleanup_actions.clone(),
-        };
-        return_node.uses.clear();
-        exact.functions[0].result = TerminalAbstractFunctionResult::Unit;
-        exact.identity = recompute_psi_optimization_unit_identity(&exact);
+        let exact = dead_exact_add_unit();
         validate_psi_optimization_unit(&exact).unwrap();
         let liveness = compute_analysis(&exact, AnalysisKind::ValueLiveness).unwrap();
         let effects = compute_analysis(&exact, AnalysisKind::EffectSummaries).unwrap();
@@ -6408,6 +6576,221 @@ pub(crate) mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn proof_check_elision_binds_accepted_evidence_and_retains_its_catalog() {
+        let unit = dead_exact_add_unit();
+        validate_psi_optimization_unit(&unit).unwrap();
+        let contract = ProofCertifiedDeadScalarEliminationRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let [candidate] = ProofCertifiedDeadScalarEliminationRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .try_into()
+            .expect("the unused proof-certified exact add is the sole candidate");
+        assert_eq!(candidate.node_decision_point().unwrap().node, 2);
+        assert_eq!(
+            candidate.accepted_obligation_witness(),
+            Some(unit.accepted_obligation_facts[0].identity)
+        );
+        assert_eq!(
+            candidate.consumed_facts(),
+            [
+                omega_optimization_core::OptimizationFactReference::AcceptedObligation(
+                    unit.accepted_obligation_facts[0].identity,
+                )
+            ]
+        );
+        let accepted = validate_dead_scalar_node_candidate(&unit, &candidate).unwrap();
+        assert_eq!(accepted.unit().functions[0].blocks[0].nodes.len(), 3);
+        assert_eq!(
+            accepted.unit().accepted_obligation_facts,
+            unit.accepted_obligation_facts
+        );
+        assert!(
+            accepted.unit().functions[0]
+                .facts
+                .iter()
+                .all(|fact| !matches!(fact, OptimizationFact::OperationObligationReference { .. }))
+        );
+
+        let PsiRewritePatch::RemoveDeadScalarNode(patch) = candidate.patch() else {
+            unreachable!()
+        };
+        let forged = PsiRewriteCandidate::new_proof_certified_dead_scalar_node(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            candidate.provenance().to_vec(),
+            omega_optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(
+                b"foreign accepted obligation",
+            ),
+            candidate.predicted_cost_delta(),
+            patch,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_dead_scalar_node_candidate(&unit, &forged),
+            Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)
+        );
+
+        let mut bare = unit.clone();
+        bare.accepted_obligation_facts.clear();
+        bare.identity = recompute_psi_optimization_unit_identity(&bare);
+        let liveness = compute_analysis(&bare, AnalysisKind::ValueLiveness).unwrap();
+        let effects = compute_analysis(&bare, AnalysisKind::EffectSummaries).unwrap();
+        assert!(matches!(
+            ProofCertifiedDeadScalarEliminationRule
+                .propose(&bare, RuleAnalysisView::new(&[liveness, effects])),
+            Err(RuleProposalError::MissingAcceptedObligation { .. })
+        ));
+    }
+
+    #[test]
+    fn proof_check_elision_covers_the_closed_proof_bearing_scalar_vocabulary() {
+        let seed = dead_exact_add_unit();
+        let O::ExactIntegerAdd {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } = seed.functions[0].blocks[0].nodes[2].operation
+        else {
+            unreachable!()
+        };
+        let operations = vec![
+            O::ExactIntegerAdd {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            O::ExactIntegerSubtract {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            O::ExactIntegerMultiply {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            O::ExactIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            O::ExactIntegerRemainder {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            O::WrappingIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            O::WrappingIntegerRemainder {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            O::SaturatingIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            O::SaturatingIntegerRemainder {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            O::ExactIntegerShiftLeft {
+                psi_operation,
+                obligation,
+                result,
+                value_type: scalar_type,
+                count_type: scalar_type,
+                value: left,
+                count: right,
+            },
+            O::ExactIntegerShiftRight {
+                psi_operation,
+                obligation,
+                result,
+                value_type: scalar_type,
+                count_type: scalar_type,
+                value: left,
+                count: right,
+            },
+        ];
+        for operation in operations {
+            let mut unit = seed.clone();
+            unit.functions[0].blocks[0].nodes[2].operation = operation;
+            unit.identity = recompute_psi_optimization_unit_identity(&unit);
+            validate_psi_optimization_unit(&unit).unwrap();
+            let liveness = compute_analysis(&unit, AnalysisKind::ValueLiveness).unwrap();
+            let effects = compute_analysis(&unit, AnalysisKind::EffectSummaries).unwrap();
+            let [candidate] = ProofCertifiedDeadScalarEliminationRule
+                .propose(&unit, RuleAnalysisView::new(&[liveness, effects]))
+                .unwrap()
+                .try_into()
+                .expect("each exact binary proof shape proposes once");
+            validate_dead_scalar_node_candidate(&unit, &candidate).unwrap();
+        }
+
+        let cast = discard_scalar_function_result(exact_cast_unit(7));
+        validate_psi_optimization_unit(&cast).unwrap();
+        let liveness = compute_analysis(&cast, AnalysisKind::ValueLiveness).unwrap();
+        let effects = compute_analysis(&cast, AnalysisKind::EffectSummaries).unwrap();
+        let [candidate] = ProofCertifiedDeadScalarEliminationRule
+            .propose(&cast, RuleAnalysisView::new(&[liveness, effects]))
+            .unwrap()
+            .try_into()
+            .expect("the exact cast proposes once");
+        let PsiRewritePatch::RemoveDeadScalarNode(patch) = candidate.patch() else {
+            unreachable!()
+        };
+        assert_eq!(
+            patch.scalar_type,
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap())
+        );
+        validate_dead_scalar_node_candidate(&cast, &candidate).unwrap();
     }
 
     #[test]

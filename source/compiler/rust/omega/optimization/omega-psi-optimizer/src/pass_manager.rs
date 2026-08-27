@@ -679,6 +679,33 @@ fn dead_total_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
         .expect("dead-total scalar operation count fits u64")
 }
 
+fn proof_certified_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
+    unit.functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.nodes)
+        .filter(|node| {
+            matches!(
+                node.operation,
+                omega_terminal_abstract_operations::TerminalAbstractOperation::IntegerExactCast { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::ExactIntegerShiftLeft { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::ExactIntegerShiftRight { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::ExactIntegerAdd { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::ExactIntegerSubtract { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::ExactIntegerMultiply { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::ExactIntegerDivide { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::ExactIntegerRemainder { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::WrappingIntegerDivide { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::WrappingIntegerRemainder { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::SaturatingIntegerDivide { .. }
+                    | omega_terminal_abstract_operations::TerminalAbstractOperation::SaturatingIntegerRemainder { .. }
+            )
+        })
+        .count()
+        .try_into()
+        .expect("proof-certified scalar operation count fits u64")
+}
+
 fn control_flow_structure_count(unit: &PsiOptimizationUnit) -> u64 {
     unit.functions
         .iter()
@@ -713,12 +740,18 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
     let dead_scalar_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
         b"omega.psi-pass.dead-pure-scalar-elimination.v2",
     );
+    let proof_elision_pass =
+        omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
+            b"omega.psi-pass.proof-check-elision.v1",
+        );
     if registry.pass() == Some(cfg_pass) {
         control_flow_structure_count(unit)
     } else if registry.pass() == Some(copy_pass) {
         block_parameter_count(unit)
     } else if registry.pass() == Some(dead_scalar_pass) {
         dead_total_scalar_operation_count(unit)
+    } else if registry.pass() == Some(proof_elision_pass) {
+        proof_certified_scalar_operation_count(unit)
     } else {
         integer_evaluation_operation_count(unit)
     }
@@ -739,9 +772,9 @@ mod tests {
         AnalysisProduct, ExactIntegerAddConstantsRule, PsiOptimizationRule,
         built_in_psi_registries, built_in_psi_registry,
         rules::tests::{
-            boolean_unit, constant_conditional_same_target_unit, dead_wrapping_add_unit,
-            dependent_exact_chain_unit, exact_add_unit, linear_empty_block_unit,
-            propagated_block_parameter_unit, randomized_sccp_registries,
+            boolean_unit, constant_conditional_same_target_unit, dead_exact_add_unit,
+            dead_wrapping_add_unit, dependent_exact_chain_unit, exact_add_unit,
+            linear_empty_block_unit, propagated_block_parameter_unit, randomized_sccp_registries,
             redundant_block_parameter_unit, wrapping_add_unit,
         },
     };
@@ -1250,6 +1283,34 @@ mod tests {
     }
 
     #[test]
+    fn named_proof_check_elision_reaches_an_evidence_preserving_fixed_point() {
+        let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
+        let registry = built_in_psi_registry(&selections).unwrap();
+        let unit = dead_exact_add_unit();
+        let accepted_fact = unit.accepted_obligation_facts[0].identity;
+        let (output, commits, usage, _, manifest, ledger) =
+            run_unit(unit, &registry, budget(8)).unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(usage.iterations, 2);
+        assert_eq!(output.functions[0].blocks[0].nodes.len(), 3);
+        assert_eq!(output.accepted_obligation_facts.len(), 1);
+        assert_eq!(ledger.records().len(), 1);
+        let manifest = manifest.unwrap();
+        assert_eq!(manifest.ordered_rules().len(), 1);
+        assert_eq!(
+            manifest.decisions()[0].consumed_facts(),
+            [OptimizationFactReference::AcceptedObligation(accepted_fact)]
+        );
+
+        let (second, second_commits, second_usage, _, _, second_ledger) =
+            run_unit(output.clone(), &registry, budget(8)).unwrap();
+        assert_eq!(second.identity, output.identity);
+        assert!(second_commits.is_empty());
+        assert_eq!(second_usage.iterations, 1);
+        assert!(second_ledger.records().is_empty());
+    }
+
+    #[test]
     fn shuffled_builtin_registration_constructs_identical_sccp_runs() {
         let selections =
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
@@ -1270,11 +1331,12 @@ mod tests {
     }
 
     #[test]
-    fn full_sccp_cfg_copy_dead_scalar_second_sweep_is_a_composed_ledger_fixed_point() {
+    fn full_sccp_cfg_copy_proof_dead_scalar_second_sweep_is_a_composed_ledger_fixed_point() {
         let selections = OptimizationSelections::new([
             Optimization::SparseConditionalConstantPropagation,
             Optimization::ControlFlowCleanup,
             Optimization::CopyPropagation,
+            Optimization::ProofCheckElision,
             Optimization::DeadPureScalarElimination,
         ])
         .unwrap();
@@ -1284,21 +1346,23 @@ mod tests {
             dependent_exact_chain_unit(),
             redundant_block_parameter_unit(true),
             dead_wrapping_add_unit(),
+            dead_exact_add_unit(),
         ] {
             let (first_output, first_manifests, first_ledger) =
                 run_test_pipeline(initial, &registries);
-            assert_eq!(first_manifests.len(), 4);
+            assert_eq!(first_manifests.len(), 5);
             assert_eq!(first_manifests[0].input(), first_ledger.input());
             assert_eq!(first_manifests[0].output(), first_manifests[1].input());
             assert_eq!(first_manifests[1].output(), first_manifests[2].input());
             assert_eq!(first_manifests[2].output(), first_manifests[3].input());
-            assert_eq!(first_manifests[3].output(), first_ledger.output());
+            assert_eq!(first_manifests[3].output(), first_manifests[4].input());
+            assert_eq!(first_manifests[4].output(), first_ledger.output());
             assert!(!first_ledger.records().is_empty());
 
             let (second_output, second_manifests, second_delta) =
                 run_test_pipeline(first_output.clone(), &registries);
             assert_eq!(second_output, first_output);
-            assert_eq!(second_manifests.len(), 4);
+            assert_eq!(second_manifests.len(), 5);
             assert!(second_delta.records().is_empty());
             assert_eq!(second_delta.input(), second_delta.output());
             assert!(second_manifests.iter().all(|manifest| {

@@ -2234,6 +2234,14 @@ pub fn validate_dead_scalar_node_candidate(
     if candidate.input() != input.identity {
         return Err(OptimizationUnitValidationError::CandidateInputMismatch);
     }
+    let proof_rule = OptimizationRuleIdentity::from_canonical_bytes(
+        b"omega.psi-rule.dead-unused-proof-certified-scalar-elimination.v1",
+    );
+    let expected_safety = if candidate.rule() == proof_rule {
+        OptimizationSafetyClass::ProofCertified
+    } else {
+        OptimizationSafetyClass::ExactOperationSemantics
+    };
     if !candidate
         .required_analyses()
         .contains(AnalysisKind::ValueLiveness)
@@ -2246,7 +2254,7 @@ pub fn validate_dead_scalar_node_candidate(
         || !candidate
             .invalidated_analyses()
             .contains(AnalysisKind::EffectSummaries)
-        || candidate.safety_class() != OptimizationSafetyClass::ExactOperationSemantics
+        || candidate.safety_class() != expected_safety
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
@@ -2274,7 +2282,7 @@ pub fn validate_dead_scalar_node_candidate(
         .nodes
         .get(node_index)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let (source_operation, result, scalar_type) =
+    let (source_operation, result, scalar_type, obligation) =
         independently_validated_dead_scalar_shape(candidate.rule(), &node.operation)
             .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     if source_operation != patch.source_operation
@@ -2304,15 +2312,46 @@ pub fn validate_dead_scalar_node_candidate(
             .flat_map(|block| &block.nodes)
             .flat_map(|node| &node.uses)
             .any(|use_site| use_site.value == result)
-        || function.facts.iter().any(|fact| {
-            matches!(
-                fact,
-                OptimizationFact::OperationObligationReference { support, .. }
-                    if *support == source_operation
-            )
-        })
     {
         return Err(OptimizationUnitValidationError::CandidateLiveBoundaryMismatch);
+    }
+    match (obligation, candidate.accepted_obligation_witness()) {
+        (Some(obligation), Some(identity)) => {
+            if !function.facts.iter().any(|fact| {
+                matches!(
+                    fact,
+                    OptimizationFact::OperationObligationReference {
+                        obligation: reference,
+                        support,
+                    } if *support == source_operation && *reference == obligation
+                )
+            }) || !input.accepted_obligation_facts.iter().any(|fact| {
+                fact.identity == identity
+                    && fact.machine == function.machine
+                    && fact.operation == source_operation
+                    && fact.obligation == obligation
+            }) {
+                return Err(
+                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
+                );
+            }
+        }
+        (None, None) => {
+            if function.facts.iter().any(|fact| {
+                matches!(
+                    fact,
+                    OptimizationFact::OperationObligationReference { support, .. }
+                        if *support == source_operation
+                )
+            }) {
+                return Err(
+                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
+                );
+            }
+        }
+        _ => {
+            return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
+        }
     }
     let receiver = &block.nodes[node_index + 1];
     if receiver
@@ -2392,9 +2431,11 @@ pub fn validate_dead_scalar_node_candidate(
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.dead-unused-total-scalar-node.v1",
-        ),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(if obligation.is_some() {
+            b"omega.validator.dead-unused-proof-certified-scalar-node.v1"
+        } else {
+            b"omega.validator.dead-unused-total-scalar-node.v1"
+        }),
         provenance: accepted_provenance,
     })
 }
@@ -2402,12 +2443,20 @@ pub fn validate_dead_scalar_node_candidate(
 fn independently_validated_dead_scalar_shape(
     rule: OptimizationRuleIdentity,
     operation: &O,
-) -> Option<(psi_core::OperationId, ValueId, ScalarType)> {
+) -> Option<(
+    psi_core::OperationId,
+    ValueId,
+    ScalarType,
+    Option<psi_core::ObligationId>,
+)> {
     let literal_rule = OptimizationRuleIdentity::from_canonical_bytes(
         b"omega.psi-rule.dead-unused-scalar-literal-elimination.v1",
     );
     let total_rule = OptimizationRuleIdentity::from_canonical_bytes(
         b"omega.psi-rule.dead-unused-unconditionally-total-scalar-elimination.v1",
+    );
+    let proof_rule = OptimizationRuleIdentity::from_canonical_bytes(
+        b"omega.psi-rule.dead-unused-proof-certified-scalar-elimination.v1",
     );
     match (rule, operation) {
         (
@@ -2418,7 +2467,7 @@ fn independently_validated_dead_scalar_shape(
                 scalar_type,
                 ..
             },
-        ) if rule == literal_rule => Some((*psi_operation, *result, *scalar_type)),
+        ) if rule == literal_rule => Some((*psi_operation, *result, *scalar_type, None)),
         (
             rule,
             O::BooleanConstant {
@@ -2426,7 +2475,7 @@ fn independently_validated_dead_scalar_shape(
                 result,
                 ..
             },
-        ) if rule == literal_rule => Some((*psi_operation, *result, ScalarType::Boolean)),
+        ) if rule == literal_rule => Some((*psi_operation, *result, ScalarType::Boolean, None)),
         (
             rule,
             O::BooleanNot {
@@ -2454,7 +2503,7 @@ fn independently_validated_dead_scalar_shape(
                 result,
                 ..
             },
-        ) if rule == total_rule => Some((*psi_operation, *result, ScalarType::Boolean)),
+        ) if rule == total_rule => Some((*psi_operation, *result, ScalarType::Boolean, None)),
         (
             rule,
             O::IntegerBitwiseNot {
@@ -2517,9 +2566,12 @@ fn independently_validated_dead_scalar_shape(
                 scalar_type,
                 ..
             },
-        ) if rule == total_rule => {
-            Some((*psi_operation, *result, ScalarType::Integer(*scalar_type)))
-        }
+        ) if rule == total_rule => Some((
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+            None,
+        )),
         (
             rule,
             O::IntegerWiden {
@@ -2528,9 +2580,12 @@ fn independently_validated_dead_scalar_shape(
                 target_type,
                 ..
             },
-        ) if rule == total_rule => {
-            Some((*psi_operation, *result, ScalarType::Integer(*target_type)))
-        }
+        ) if rule == total_rule => Some((
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*target_type),
+            None,
+        )),
         (
             rule,
             O::WrappingIntegerShiftLeft {
@@ -2545,9 +2600,120 @@ fn independently_validated_dead_scalar_shape(
                 value_type,
                 ..
             },
-        ) if rule == total_rule => {
-            Some((*psi_operation, *result, ScalarType::Integer(*value_type)))
-        }
+        ) if rule == total_rule => Some((
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*value_type),
+            None,
+        )),
+        (
+            rule,
+            O::IntegerExactCast {
+                psi_operation,
+                obligation,
+                result,
+                target_type,
+                ..
+            },
+        ) if rule == proof_rule => Some((
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*target_type),
+            Some(*obligation),
+        )),
+        (
+            rule,
+            O::ExactIntegerShiftLeft {
+                psi_operation,
+                obligation,
+                result,
+                value_type,
+                ..
+            }
+            | O::ExactIntegerShiftRight {
+                psi_operation,
+                obligation,
+                result,
+                value_type,
+                ..
+            },
+        ) if rule == proof_rule => Some((
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*value_type),
+            Some(*obligation),
+        )),
+        (
+            rule,
+            O::ExactIntegerAdd {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::ExactIntegerSubtract {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::ExactIntegerMultiply {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::ExactIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::ExactIntegerRemainder {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::WrappingIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::WrappingIntegerRemainder {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::SaturatingIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                ..
+            }
+            | O::SaturatingIntegerRemainder {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                ..
+            },
+        ) if rule == proof_rule => Some((
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+            Some(*obligation),
+        )),
         _ => None,
     }
 }

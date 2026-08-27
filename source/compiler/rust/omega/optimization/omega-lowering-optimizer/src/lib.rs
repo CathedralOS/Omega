@@ -861,6 +861,14 @@ mod tests {
     }
 
     fn exact_add_verified() -> VerifiedPsiOptimizationUnit {
+        exact_add_verified_with_result(true)
+    }
+
+    fn dead_exact_add_verified() -> VerifiedPsiOptimizationUnit {
+        exact_add_verified_with_result(false)
+    }
+
+    fn exact_add_verified_with_result(return_result: bool) -> VerifiedPsiOptimizationUnit {
         let machine = MachineId::new(1_011).unwrap();
         let block = BlockId::new(1_012).unwrap();
         let left = ValueId::new(1_013).unwrap();
@@ -870,11 +878,28 @@ mod tests {
         let obligation = ObligationId::new(1_017).unwrap();
         let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
         let declaration = |id| ValueDeclaration { id, scalar_type };
+        let machine_result = if return_result {
+            TerminalMachineResult::Scalar(declaration(result))
+        } else {
+            TerminalMachineResult::Unit
+        };
+        let terminator = if return_result {
+            Terminator::Return {
+                cleanup_actions: Vec::new(),
+                edge: EdgeId::new(1_021).unwrap(),
+                value: computed,
+            }
+        } else {
+            Terminator::ReturnUnit {
+                edge: EdgeId::new(1_021).unwrap(),
+                trivial_affine_discards: Vec::new(),
+            }
+        };
         verified(
             module_with_blocks(
                 machine,
                 block,
-                TerminalMachineResult::Scalar(declaration(result)),
+                machine_result,
                 vec![Block {
                     id: block,
                     parameters: Vec::new(),
@@ -903,11 +928,7 @@ mod tests {
                             },
                         },
                     ],
-                    terminator: Terminator::Return {
-                        cleanup_actions: Vec::new(),
-                        edge: EdgeId::new(1_021).unwrap(),
-                        value: computed,
-                    },
+                    terminator,
                 }],
             ),
             ProofBundle {
@@ -1240,6 +1261,32 @@ mod tests {
         assert_eq!(target.target(), NativeTarget::linux_x64());
         assert_eq!(target.optimized().commits().len(), 1);
         assert_eq!(target.target_operations().functions.len(), 1);
+    }
+
+    #[test]
+    fn proof_check_elision_projects_dead_exact_work_and_retains_evidence() {
+        let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
+        let optimized =
+            project_optimization_run(run(dead_exact_add_verified(), selections)).unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.transformation_ledger().records().len(), 1);
+        assert_eq!(optimized.pass_manifests().len(), 1);
+        assert_eq!(optimized.plan().functions[0].operations.len(), 3);
+        assert_eq!(optimized.unit().accepted_obligation_facts.len(), 1);
+        assert_eq!(
+            optimized.pass_manifests()[0].decisions()[0]
+                .consumed_facts()
+                .len(),
+            1
+        );
+        let terminal = &optimized.unit().functions[0].blocks[0].nodes[2];
+        assert!(matches!(
+            terminal.operation,
+            TerminalAbstractOperation::ReturnUnit { .. }
+        ));
+        assert_eq!(terminal.provenance.len(), 2);
+        assert_eq!(terminal.fuel.len(), 2);
     }
 
     #[test]
