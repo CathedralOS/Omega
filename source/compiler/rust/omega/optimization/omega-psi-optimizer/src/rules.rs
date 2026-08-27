@@ -11,15 +11,15 @@ use omega_optimization_core::{
 use omega_optimization_unit::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
     ConstantConditionalRewrite, DeadScalarNodeRewrite, IntegerConstantRewrite,
-    IntegerEvaluationWitness, LinearEmptyBlockRewrite, NodeLocation, OptimizationFact,
-    OwnershipFrontierSite, PathQualifiedEmptyBlockRewrite, ProvenanceDisposition,
-    ProvenanceRewrite, PrunedMachineCustody, PsiOptimizationUnit, PsiProvenance,
-    PsiRealizationSite, PsiRewriteCandidate, RedundantBlockParameterRewrite,
+    IntegerEvaluationWitness, LinearEmptyBlockRewrite, LocalScalarCommonSubexpressionRewrite,
+    NodeLocation, OptimizationFact, OwnershipFrontierSite, PathQualifiedEmptyBlockRewrite,
+    ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody, PsiOptimizationUnit,
+    PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, RedundantBlockParameterRewrite,
     RedundantBlockParameterWitness, ScalarSubstitution, SharedTerminalJumpFusionRewrite,
     UnreachablePrivateMachinesRewrite,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
-use psi_core::{BlockId, IntegerValue, MachineId, OperationId, ValueId};
+use psi_core::{BlockId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId};
 
 use crate::{
     AnalysisProduct, OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
@@ -31,6 +31,7 @@ const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-clea
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v2";
 const PROOF_CHECK_ELISION_PASS_NAME: &[u8] = b"omega.psi-pass.proof-check-elision.v1";
+const GLOBAL_VALUE_NUMBERING_PASS_NAME: &[u8] = b"omega.psi-pass.global-value-numbering.v1";
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ConstantConditionalFoldRule;
@@ -46,6 +47,483 @@ pub struct DeadUnconditionallyTotalScalarEliminationRule;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ProofCertifiedDeadScalarEliminationRule;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SameBlockTotalScalarCseRule;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum TotalScalarExpressionKey {
+    BooleanConstant(bool),
+    IntegerConstant(ScalarType, IntegerValue),
+    BooleanNot(ValueId),
+    BooleanEqual(ValueId, ValueId),
+    IntegerEqual(IntegerType, ValueId, ValueId),
+    IntegerLessThan(IntegerType, ValueId, ValueId),
+    IntegerLessOrEqual(IntegerType, ValueId, ValueId),
+    IntegerBitwiseNot(IntegerType, ValueId),
+    IntegerWiden(IntegerType, IntegerType, ValueId),
+    IntegerBitwiseAnd(IntegerType, ValueId, ValueId),
+    IntegerBitwiseOr(IntegerType, ValueId, ValueId),
+    IntegerBitwiseXor(IntegerType, ValueId, ValueId),
+    WrappingShiftLeft(IntegerType, IntegerType, ValueId, ValueId),
+    WrappingShiftRight(IntegerType, IntegerType, ValueId, ValueId),
+    WrappingAdd(IntegerType, ValueId, ValueId),
+    WrappingSubtract(IntegerType, ValueId, ValueId),
+    WrappingMultiply(IntegerType, ValueId, ValueId),
+    SaturatingAdd(IntegerType, ValueId, ValueId),
+    SaturatingSubtract(IntegerType, ValueId, ValueId),
+    SaturatingMultiply(IntegerType, ValueId, ValueId),
+}
+
+fn canonical_pair(left: ValueId, right: ValueId) -> (ValueId, ValueId) {
+    if left <= right {
+        (left, right)
+    } else {
+        (right, left)
+    }
+}
+
+fn total_scalar_expression(
+    operation: &O,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+) -> Option<(TotalScalarExpressionKey, OperationId, ValueId, ScalarType)> {
+    let boolean = ScalarType::Boolean;
+    let integer_operand_type = |value: ValueId| match value_types.get(&value) {
+        Some(ScalarType::Integer(scalar_type)) => Some(*scalar_type),
+        _ => None,
+    };
+    let row = match operation {
+        O::BooleanConstant {
+            psi_operation,
+            result,
+            value,
+        } => (
+            TotalScalarExpressionKey::BooleanConstant(*value),
+            *psi_operation,
+            *result,
+            boolean,
+        ),
+        O::IntegerConstant {
+            psi_operation,
+            result,
+            scalar_type,
+            value,
+        } => (
+            TotalScalarExpressionKey::IntegerConstant(*scalar_type, *value),
+            *psi_operation,
+            *result,
+            *scalar_type,
+        ),
+        O::BooleanNot {
+            psi_operation,
+            result,
+            operand,
+        } => (
+            TotalScalarExpressionKey::BooleanNot(*operand),
+            *psi_operation,
+            *result,
+            boolean,
+        ),
+        O::BooleanEqual {
+            psi_operation,
+            result,
+            left,
+            right,
+        } => {
+            let (left, right) = canonical_pair(*left, *right);
+            (
+                TotalScalarExpressionKey::BooleanEqual(left, right),
+                *psi_operation,
+                *result,
+                boolean,
+            )
+        }
+        O::IntegerEqual {
+            psi_operation,
+            result,
+            left,
+            right,
+        } => {
+            let scalar_type = integer_operand_type(*left)?;
+            if integer_operand_type(*right)? != scalar_type {
+                return None;
+            }
+            let (left, right) = canonical_pair(*left, *right);
+            (
+                TotalScalarExpressionKey::IntegerEqual(scalar_type, left, right),
+                *psi_operation,
+                *result,
+                boolean,
+            )
+        }
+        O::IntegerLessThan {
+            psi_operation,
+            result,
+            left,
+            right,
+        } => {
+            let scalar_type = integer_operand_type(*left)?;
+            if integer_operand_type(*right)? != scalar_type {
+                return None;
+            }
+            (
+                TotalScalarExpressionKey::IntegerLessThan(scalar_type, *left, *right),
+                *psi_operation,
+                *result,
+                boolean,
+            )
+        }
+        O::IntegerLessOrEqual {
+            psi_operation,
+            result,
+            left,
+            right,
+        } => {
+            let scalar_type = integer_operand_type(*left)?;
+            if integer_operand_type(*right)? != scalar_type {
+                return None;
+            }
+            (
+                TotalScalarExpressionKey::IntegerLessOrEqual(scalar_type, *left, *right),
+                *psi_operation,
+                *result,
+                boolean,
+            )
+        }
+        O::IntegerBitwiseNot {
+            psi_operation,
+            result,
+            scalar_type,
+            operand,
+        } => (
+            TotalScalarExpressionKey::IntegerBitwiseNot(*scalar_type, *operand),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+        ),
+        O::IntegerWiden {
+            psi_operation,
+            result,
+            source_type,
+            target_type,
+            operand,
+        } => (
+            TotalScalarExpressionKey::IntegerWiden(*source_type, *target_type, *operand),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*target_type),
+        ),
+        O::IntegerBitwiseAnd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = canonical_pair(*left, *right);
+            (
+                TotalScalarExpressionKey::IntegerBitwiseAnd(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+            )
+        }
+        O::IntegerBitwiseOr {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = canonical_pair(*left, *right);
+            (
+                TotalScalarExpressionKey::IntegerBitwiseOr(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+            )
+        }
+        O::IntegerBitwiseXor {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = canonical_pair(*left, *right);
+            (
+                TotalScalarExpressionKey::IntegerBitwiseXor(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+            )
+        }
+        O::WrappingIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => (
+            TotalScalarExpressionKey::WrappingShiftLeft(*value_type, *count_type, *value, *count),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*value_type),
+        ),
+        O::WrappingIntegerShiftRight {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => (
+            TotalScalarExpressionKey::WrappingShiftRight(*value_type, *count_type, *value, *count),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*value_type),
+        ),
+        O::WrappingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = canonical_pair(*left, *right);
+            (
+                TotalScalarExpressionKey::WrappingAdd(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+            )
+        }
+        O::WrappingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            TotalScalarExpressionKey::WrappingSubtract(*scalar_type, *left, *right),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+        ),
+        O::WrappingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = canonical_pair(*left, *right);
+            (
+                TotalScalarExpressionKey::WrappingMultiply(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+            )
+        }
+        O::SaturatingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = canonical_pair(*left, *right);
+            (
+                TotalScalarExpressionKey::SaturatingAdd(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+            )
+        }
+        O::SaturatingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            TotalScalarExpressionKey::SaturatingSubtract(*scalar_type, *left, *right),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+        ),
+        O::SaturatingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = canonical_pair(*left, *right);
+            (
+                TotalScalarExpressionKey::SaturatingMultiply(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+            )
+        }
+        _ => return None,
+    };
+    Some(row)
+}
+
+impl SameBlockTotalScalarCseRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.same-block-obligation-free-total-scalar-cse.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(GLOBAL_VALUE_NUMBERING_PASS_NAME),
+            1,
+            AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for SameBlockTotalScalarCseRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
+            analyses.get(AnalysisKind::UseDefinition)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::UseDefinition,
+            ));
+        };
+        let Some(AnalysisProduct::EffectSummaries(effects)) =
+            analyses.get(AnalysisKind::EffectSummaries)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::EffectSummaries,
+            ));
+        };
+        let mut candidates = Vec::new();
+        for function in &unit.functions {
+            let value_types = function
+                .parameters
+                .iter()
+                .map(|row| (row.value, row.scalar_type))
+                .chain(function.blocks.iter().flat_map(|block| {
+                    block
+                        .parameters
+                        .iter()
+                        .map(|row| (row.value, row.scalar_type))
+                }))
+                .chain(function.blocks.iter().flat_map(|block| {
+                    block.nodes.iter().flat_map(|node| {
+                        node.definitions
+                            .iter()
+                            .map(|row| (row.value, row.scalar_type))
+                    })
+                }))
+                .collect::<BTreeMap<_, _>>();
+            for block in &function.blocks {
+                let mut leaders = BTreeMap::new();
+                for (index, node) in block.nodes.iter().enumerate() {
+                    let Some((key, operation, result, scalar_type)) =
+                        total_scalar_expression(&node.operation, &value_types)
+                    else {
+                        continue;
+                    };
+                    let node_index =
+                        u32::try_from(index).expect("optimization node index fits u32");
+                    let pure = effects.nodes.iter().any(|row| {
+                        row.revision == unit.identity
+                            && row.machine == function.machine
+                            && row.block == block.id
+                            && row.node == node_index
+                            && row.class == crate::EffectClass::PureScalar
+                            && row.observable == crate::EffectKnowledge::No
+                            && row.structural_state == crate::EffectKnowledge::No
+                            && row.crash == crate::EffectKnowledge::No
+                            && row.suspension == crate::EffectKnowledge::No
+                    });
+                    if !pure {
+                        continue;
+                    }
+                    let Some((leader, leader_operation, leader_result, leader_type)) =
+                        leaders.get(&key).copied()
+                    else {
+                        leaders.insert(key, (node_index, operation, result, scalar_type));
+                        continue;
+                    };
+                    if leader_type != scalar_type
+                        || !use_definitions.uses.iter().any(|(machine, use_site)| {
+                            *machine == function.machine && use_site.value == result
+                        })
+                    {
+                        continue;
+                    }
+                    let Some(receiver) = block.nodes.get(index + 1) else {
+                        continue;
+                    };
+                    if receiver
+                        .provenance
+                        .iter()
+                        .any(|source| node.provenance.contains(source))
+                    {
+                        continue;
+                    }
+                    let leader_location = NodeLocation {
+                        machine: function.machine,
+                        block: block.id,
+                        node: leader,
+                    };
+                    let redundant_location = NodeLocation {
+                        machine: function.machine,
+                        block: block.id,
+                        node: node_index,
+                    };
+                    let Some((affected_blocks, provenance)) =
+                        local_cse_accounting(function, redundant_location, result)
+                    else {
+                        continue;
+                    };
+                    let patch = LocalScalarCommonSubexpressionRewrite {
+                        leader: leader_location,
+                        redundant: redundant_location,
+                        leader_operation,
+                        redundant_operation: operation,
+                        leader_result,
+                        redundant_result: result,
+                        scalar_type,
+                    };
+                    candidates.push(
+                        PsiRewriteCandidate::new_local_scalar_common_subexpression(
+                            unit.identity,
+                            Self::contract(),
+                            affected_blocks,
+                            provenance,
+                            -1,
+                            patch,
+                        )
+                        .map_err(RuleProposalError::InvalidCandidate)?,
+                    );
+                }
+            }
+        }
+        Ok(candidates)
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 enum DeadScalarFamily {
@@ -2104,6 +2582,104 @@ fn dead_scalar_node_accounting(
     Some((affected, provenance))
 }
 
+fn local_cse_accounting(
+    function: &omega_optimization_unit::PsiOptimizationFunction,
+    redundant: NodeLocation,
+    redundant_result: ValueId,
+) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
+    let block_position = function
+        .blocks
+        .iter()
+        .position(|block| block.id == redundant.block)?;
+    let node_position = usize::try_from(redundant.node).ok()?;
+    let block = &function.blocks[block_position];
+    let removed = block.nodes.get(node_position)?;
+    block.nodes.get(node_position.checked_add(1)?)?;
+    let mut provenance = vec![ProvenanceRewrite {
+        input: PsiRealizationSite::Node(redundant),
+        disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(redundant)),
+        sources: removed.provenance.clone(),
+        fuel: removed.fuel.clone(),
+    }];
+    for (index, node) in block.nodes.iter().enumerate().skip(node_position + 1) {
+        if node.provenance.is_empty() {
+            continue;
+        }
+        let old = NodeLocation {
+            machine: function.machine,
+            block: block.id,
+            node: u32::try_from(index).ok()?,
+        };
+        let new = NodeLocation {
+            node: old.node.checked_sub(1)?,
+            ..old
+        };
+        provenance.push(ProvenanceRewrite {
+            input: PsiRealizationSite::Node(old),
+            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(new)),
+            sources: node.provenance.clone(),
+            fuel: node.fuel.clone(),
+        });
+    }
+    let mut affected = vec![block.id];
+    for later in function.blocks.iter().skip(block_position + 1) {
+        affected.push(later.id);
+        for (index, node) in later.nodes.iter().enumerate() {
+            if node.provenance.is_empty() {
+                continue;
+            }
+            let site = PsiRealizationSite::Node(NodeLocation {
+                machine: function.machine,
+                block: later.id,
+                node: u32::try_from(index).ok()?,
+            });
+            provenance.push(ProvenanceRewrite {
+                input: site,
+                disposition: ProvenanceDisposition::RealizedAt(site),
+                sources: node.provenance.clone(),
+                fuel: node.fuel.clone(),
+            });
+        }
+    }
+    for use_block in &function.blocks {
+        if affected.contains(&use_block.id)
+            || !use_block
+                .nodes
+                .iter()
+                .flat_map(|node| &node.uses)
+                .any(|row| row.value == redundant_result)
+        {
+            continue;
+        }
+        affected.push(use_block.id);
+        for (index, node) in use_block.nodes.iter().enumerate() {
+            if node.provenance.is_empty() {
+                continue;
+            }
+            let site = PsiRealizationSite::Node(NodeLocation {
+                machine: function.machine,
+                block: use_block.id,
+                node: u32::try_from(index).ok()?,
+            });
+            provenance.push(ProvenanceRewrite {
+                input: site,
+                disposition: ProvenanceDisposition::RealizedAt(site),
+                sources: node.provenance.clone(),
+                fuel: node.fuel.clone(),
+            });
+        }
+    }
+    affected.sort();
+    provenance.sort_by_key(|row| {
+        (
+            row.input,
+            row.disposition.canonical_tag(),
+            row.disposition.site(),
+        )
+    });
+    Some((affected, provenance))
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct RedundantBlockParameterRule;
 
@@ -3661,7 +4237,8 @@ pub fn built_in_psi_registry(
 ///
 /// Selection declaration order is not pass order. The explicit schedule below
 /// runs semantic constant propagation before CFG cleanup, structural copy
-/// cleanup, proof-certified check/work elision, and dead pure scalar
+/// cleanup, local/global value numbering,
+/// proof-certified check/work elision, and dead pure scalar
 /// elimination. Each returned registry continues to own exactly one pass
 /// identity.
 pub fn built_in_psi_registries(
@@ -3674,6 +4251,7 @@ pub fn built_in_psi_registries(
             Optimization::SparseConditionalConstantPropagation
                 | Optimization::ControlFlowCleanup
                 | Optimization::CopyPropagation
+                | Optimization::GlobalValueNumbering
                 | Optimization::DeadPureScalarElimination
                 | Optimization::ProofCheckElision
         )
@@ -3691,6 +4269,11 @@ pub fn built_in_psi_registries(
     }
     if psi_selections.contains(Optimization::CopyPropagation) {
         registries.push(registry_for_optimization(Optimization::CopyPropagation)?);
+    }
+    if psi_selections.contains(Optimization::GlobalValueNumbering) {
+        registries.push(registry_for_optimization(
+            Optimization::GlobalValueNumbering,
+        )?);
     }
     if psi_selections.contains(Optimization::ProofCheckElision) {
         registries.push(registry_for_optimization(Optimization::ProofCheckElision)?);
@@ -3768,6 +4351,9 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
     if optimization == Optimization::CopyPropagation {
         register!(0, RedundantBlockParameterRule);
     }
+    if optimization == Optimization::GlobalValueNumbering {
+        register!(0, SameBlockTotalScalarCseRule);
+    }
     if optimization == Optimization::DeadPureScalarElimination {
         register!(0, DeadScalarLiteralEliminationRule);
         register!(1, DeadUnconditionallyTotalScalarEliminationRule);
@@ -3808,8 +4394,10 @@ pub(crate) mod tests {
         OptimizationUnitValidationError, validate_adjacent_block_merge_candidate,
         validate_boolean_evaluation_candidate, validate_constant_conditional_candidate,
         validate_dead_scalar_node_candidate, validate_integer_evaluation_candidate,
-        validate_linear_empty_block_candidate, validate_path_qualified_empty_block_candidate,
-        validate_psi_optimization_unit, validate_redundant_block_parameter_candidate,
+        validate_linear_empty_block_candidate,
+        validate_local_scalar_common_subexpression_candidate,
+        validate_path_qualified_empty_block_candidate, validate_psi_optimization_unit,
+        validate_redundant_block_parameter_candidate,
         validate_shared_terminal_jump_fusion_candidate,
         validate_unreachable_private_machines_candidate,
     };
@@ -4422,6 +5010,87 @@ pub(crate) mod tests {
                         },
                         TerminalAbstractOperation::ReturnUnit {
                             psi_edge: id(1_207, EdgeId::new),
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    pub(crate) fn local_cse_unit() -> PsiOptimizationUnit {
+        let machine = id(1_301, MachineId::new);
+        let block = id(1_302, BlockId::new);
+        let left = id(1_303, ValueId::new);
+        let right = id(1_304, ValueId::new);
+        let leader = id(1_305, ValueId::new);
+        let redundant = id(1_306, ValueId::new);
+        let equal = id(1_307, ValueId::new);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([41; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry: block,
+                    parameters: vec![
+                        TerminalAbstractParameter {
+                            value: left,
+                            scalar_type: ScalarType::Integer(integer),
+                        },
+                        TerminalAbstractParameter {
+                            value: right,
+                            scalar_type: ScalarType::Integer(integer),
+                        },
+                    ],
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: equal,
+                        scalar_type: ScalarType::Boolean,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        TerminalAbstractOperation::WrappingIntegerAdd {
+                            psi_operation: id(1_308, OperationId::new),
+                            result: leader,
+                            scalar_type: integer,
+                            left,
+                            right,
+                        },
+                        TerminalAbstractOperation::WrappingIntegerAdd {
+                            psi_operation: id(1_309, OperationId::new),
+                            result: redundant,
+                            scalar_type: integer,
+                            left: right,
+                            right: left,
+                        },
+                        TerminalAbstractOperation::IntegerEqual {
+                            psi_operation: id(1_310, OperationId::new),
+                            result: equal,
+                            left: leader,
+                            right: redundant,
+                        },
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(1_311, EdgeId::new),
+                            result: equal,
+                            value: equal,
+                            scalar_type: ScalarType::Boolean,
                             cleanup_actions: Vec::new(),
                         },
                     ],
@@ -5750,6 +6419,8 @@ pub(crate) mod tests {
         assert_eq!(built_in_psi_registry(&cleanup).unwrap().len(), 6);
         let copy = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
         assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
+        let gvn = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
+        assert_eq!(built_in_psi_registry(&gvn).unwrap().len(), 1);
         let dead = OptimizationSelections::new([Optimization::DeadPureScalarElimination]).unwrap();
         assert_eq!(built_in_psi_registry(&dead).unwrap().len(), 2);
         let proof = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
@@ -6428,6 +7099,103 @@ pub(crate) mod tests {
         .unwrap();
         assert_eq!(
             validate_shared_terminal_jump_fusion_candidate(&threaded, &forged),
+            Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
+        );
+    }
+
+    #[test]
+    fn same_block_cse_uses_earliest_typed_leader_and_moves_custody_forward() {
+        let unit = local_cse_unit();
+        let contract = SameBlockTotalScalarCseRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let [candidate] = SameBlockTotalScalarCseRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .try_into()
+            .expect("swapped commutative operands have one exact CSE candidate");
+        assert!(matches!(
+            candidate.patch(),
+            PsiRewritePatch::EliminateLocalScalarCommonSubexpression(_)
+        ));
+        assert_eq!(
+            candidate.substitutions(),
+            [ScalarSubstitution {
+                from: id(1_306, ValueId::new),
+                to: id(1_305, ValueId::new),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 8).unwrap()
+                )
+            }]
+        );
+        let accepted =
+            validate_local_scalar_common_subexpression_candidate(&unit, &candidate).unwrap();
+        let output = accepted.unit();
+        let nodes = &output.functions[0].blocks[0].nodes;
+        assert_eq!(nodes.len(), 3);
+        assert!(
+            matches!(nodes[1].operation, O::IntegerEqual { left, right, .. } if left == id(1_305, ValueId::new) && right == left)
+        );
+        assert_eq!(
+            nodes[1].provenance,
+            [
+                PsiProvenance::Operation(id(1_310, OperationId::new)),
+                PsiProvenance::Operation(id(1_309, OperationId::new))
+            ]
+        );
+        assert_eq!(accepted.provenance().len(), 3);
+        assert!(
+            output.functions[0].blocks[0]
+                .nodes
+                .iter()
+                .flat_map(|node| &node.uses)
+                .all(|row| row.value != id(1_306, ValueId::new))
+        );
+
+        let mut manager = crate::AnalysisManager::new(output);
+        let products = manager
+            .require_all(output, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert!(
+            SameBlockTotalScalarCseRule
+                .propose(output, RuleAnalysisView::new(&products))
+                .unwrap()
+                .is_empty()
+        );
+
+        let PsiRewritePatch::EliminateLocalScalarCommonSubexpression(patch) = candidate.patch()
+        else {
+            unreachable!()
+        };
+        let mut provenance = candidate.provenance().to_vec();
+        provenance[0].disposition =
+            ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(patch.leader));
+        provenance.sort_by_key(|row| {
+            (
+                row.input,
+                row.disposition.canonical_tag(),
+                row.disposition.site(),
+            )
+        });
+        let forged = PsiRewriteCandidate::new_local_scalar_common_subexpression(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            provenance,
+            -1,
+            patch,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_local_scalar_common_subexpression_candidate(&unit, &forged),
             Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
         );
     }
