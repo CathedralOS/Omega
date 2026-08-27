@@ -412,6 +412,7 @@ dependencies = [
  "omega-target-operations",
  "psi-arena",
  "psi-checked-trees",
+ "psi-layout-plans",
  "psi-symbols",
 ]
 
@@ -609,14 +610,20 @@ dependencies = [
 name = "omega-component-deployment"
 version = "0.1.0"
 dependencies = [
+ "omega-backend-plan",
+ "omega-calling-conventions",
  "omega-component-publication",
+ "omega-control-flow",
  "omega-effects",
  "omega-executable-installation",
  "omega-external-roots",
+ "omega-target",
  "omega-terminal-component-candidate",
  "omega-terminal-image-emission",
  "omega-terminal-installation-evidence",
  "psi-core",
+ "psi-extents",
+ "psi-layout-plans",
 ]
 
 [[package]]

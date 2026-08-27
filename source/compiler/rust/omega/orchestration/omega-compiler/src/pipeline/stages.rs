@@ -1337,6 +1337,13 @@ pub(super) fn backend_plan_to_native_image_payload(
         let emission_plan = plan_emission(&backend.plan);
         ensure_emission_ready(&emission_plan)?;
         let plan = &backend.plan;
+        let callback_installation_manifest =
+            omega_backend_plan::build_callback_installation_manifest(plan).map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "callback installation manifest replay failed: {}",
+                    error.0
+                ))]
+            })?;
         let text_bytes = plan.encoded_machine.code.bytes.storage_slice().to_vec();
         let emitted = super::compile_report::EmittedProgram {
             target: plan.target,
@@ -1346,6 +1353,7 @@ pub(super) fn backend_plan_to_native_image_payload(
                 omega_backend_plan::callback_thunk_placement_identity_fingerprint(
                     &plan.callback_thunks,
                 ),
+            callback_installation_manifest,
             object: plan.object.clone(),
             relocations: plan.relocations.clone(),
             encoded_machine_code: plan.encoded_machine.code.clone(),

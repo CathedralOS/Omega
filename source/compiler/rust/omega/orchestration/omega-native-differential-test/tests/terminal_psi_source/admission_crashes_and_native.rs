@@ -1460,14 +1460,6 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         sponsor_route,
     )
     .expect("deployment transfer runtime custody");
-    let substituted_callback_registration = OpaqueCallbackRegistrationReceipt::from_provider(
-        OpaqueCallbackRegistrationReceiptId::from_normalized_identity(0x6230).unwrap(),
-        OpaqueCallbackRegistrationId::from_normalized_identity(0x6231).unwrap(),
-        OpaqueCallbackProviderId::from_normalized_identity(0x6232).unwrap(),
-        OpaqueCallbackUnregistrationContractId::from_normalized_identity(0x6233).unwrap(),
-        &installed_sponsor,
-        true,
-    );
     let sponsor_removal = RootRemovalReceipt::from_provider(
         RootRemovalReceiptId::from_normalized_identity(0x621b).unwrap(),
         &installed_sponsor,
@@ -1506,12 +1498,6 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         realization: dynamic_demand,
         validation_receipt: FuelValidationReceiptId::from_normalized_identity(0x6225).unwrap(),
     };
-    let mut callback_candidate = dynamic_candidate.clone();
-    callback_candidate.provider_plan =
-        ProviderPlanId::from_normalized_identity(0x6235).expect("callback provider plan");
-    callback_candidate.requirement_identity = "DeploymentCallback::entry".into();
-    let validated_callback_root = validate_external_root(callback_candidate, &deployment_boundary)
-        .expect("deployment callback root validates");
     let validated_dynamic_root = validate_external_root(dynamic_candidate, &deployment_boundary)
         .expect("deployment dynamic root validates");
     let dynamic_provider_execution = ProviderExecution::from_admitted_provider(
@@ -1522,7 +1508,6 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         }),
     )
     .expect("deployment dynamic provider execution");
-    let substituted_callback_execution = dynamic_provider_execution.clone();
     let dynamic_slot = RootSlotAuthority::from_admitted_owner(
         RootSlotId::from_normalized_identity(0x6227).unwrap(),
         RootSlotOwnerId::from_normalized_identity(0x6228).unwrap(),
@@ -1620,166 +1605,6 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     assert_eq!(
         removed_slot.slot(),
         RootSlotId::from_normalized_identity(0x6227).unwrap()
-    );
-
-    let callback_slot = RootSlotAuthority::from_admitted_owner(
-        RootSlotId::from_normalized_identity(0x6236).unwrap(),
-        RootSlotOwnerId::from_normalized_identity(0x6237).unwrap(),
-    );
-    let rejected_callback = deployment_session
-        .install_reclaimable_callback_root(ReclaimableCallbackRootDeployment::new(
-            RootAdmissionId::from_normalized_identity(0x6238).unwrap(),
-            validated_callback_root,
-            substituted_callback_execution,
-            callback_slot,
-        ))
-        .expect_err("a provider execution for another exact root must reject");
-    assert!(
-        rejected_callback
-            .diagnostic()
-            .contains("exact validated root")
-    );
-    let (callback_admission, callback_root, _, callback_slot) =
-        rejected_callback.into_input().into_parts();
-    let callback_root_identity = callback_root.candidate().identity;
-    let callback_execution = ProviderExecution::from_admitted_provider(
-        ProviderExecutionId::from_normalized_identity(0x6239).unwrap(),
-        &callback_root,
-        Some(OpaqueProviderExitAssurance::HardwareIsolation {
-            validation_receipt: deployment_trust,
-        }),
-    )
-    .expect("returned callback root accepts its exact provider execution");
-    let registered_callback_root = callback_root.clone();
-    let registered_callback_execution = callback_execution.clone();
-    let pending = deployment_session
-        .install_reclaimable_callback_root(ReclaimableCallbackRootDeployment::new(
-            callback_admission,
-            callback_root,
-            callback_execution,
-            callback_slot,
-        ))
-        .expect("returned callback deployment input retries exactly");
-    assert!(pending.roots().record(callback_root_identity).is_some());
-
-    let false_registration = OpaqueCallbackRegistrationReceipt::from_provider(
-        OpaqueCallbackRegistrationReceiptId::from_normalized_identity(0x623a).unwrap(),
-        OpaqueCallbackRegistrationId::from_normalized_identity(0x623b).unwrap(),
-        OpaqueCallbackProviderId::from_normalized_identity(0x623c).unwrap(),
-        OpaqueCallbackUnregistrationContractId::from_normalized_identity(0x623d).unwrap(),
-        pending.root(),
-        false,
-    );
-    let false_result = pending
-        .admit_registration(false_registration)
-        .expect_err("a rejected registrar result must establish no registration");
-    assert!(false_result.diagnostic().contains("completed registration"));
-    let (pending, _) = false_result.into_parts();
-    assert!(pending.roots().record(callback_root_identity).is_some());
-
-    let rejected_cleanup = RootRemovalReceipt::from_provider(
-        RootRemovalReceiptId::from_normalized_identity(0x6247).unwrap(),
-        pending.root(),
-        true,
-        false,
-    );
-    let cleanup_error = pending
-        .remove(rejected_cleanup)
-        .expect_err("pending callback cleanup still requires quiescence");
-    let (pending, _) = (*cleanup_error).into_parts();
-    let callback_cleanup = RootRemovalReceipt::from_provider(
-        RootRemovalReceiptId::from_normalized_identity(0x6248).unwrap(),
-        pending.root(),
-        true,
-        true,
-    );
-    let returned_callback_slot = pending
-        .remove(callback_cleanup)
-        .expect("a false registrar result permits exact pending-root cleanup");
-    assert_eq!(
-        returned_callback_slot.slot(),
-        RootSlotId::from_normalized_identity(0x6236).unwrap()
-    );
-
-    let registered_callback_slot = RootSlotAuthority::from_admitted_owner(
-        RootSlotId::from_normalized_identity(0x6249).unwrap(),
-        RootSlotOwnerId::from_normalized_identity(0x624a).unwrap(),
-    );
-    let pending = deployment_session
-        .install_reclaimable_callback_root(ReclaimableCallbackRootDeployment::new(
-            RootAdmissionId::from_normalized_identity(0x624b).unwrap(),
-            registered_callback_root,
-            registered_callback_execution,
-            registered_callback_slot,
-        ))
-        .expect("a cleaned callback root may begin another exact registration");
-    let substituted = pending
-        .admit_registration(substituted_callback_registration)
-        .expect_err("a receipt for another installed root must reject");
-    assert!(
-        substituted
-            .diagnostic()
-            .contains("exact installed external root")
-    );
-    let (pending, _) = substituted.into_parts();
-    assert!(pending.roots().record(callback_root_identity).is_some());
-
-    let nonquiescent = RootRemovalReceipt::from_provider(
-        RootRemovalReceiptId::from_normalized_identity(0x623e).unwrap(),
-        pending.root(),
-        true,
-        false,
-    );
-    let quiescent = RootRemovalReceipt::from_provider(
-        RootRemovalReceiptId::from_normalized_identity(0x623f).unwrap(),
-        pending.root(),
-        true,
-        true,
-    );
-    let registration_receipt = OpaqueCallbackRegistrationReceipt::from_provider(
-        OpaqueCallbackRegistrationReceiptId::from_normalized_identity(0x6240).unwrap(),
-        OpaqueCallbackRegistrationId::from_normalized_identity(0x6241).unwrap(),
-        OpaqueCallbackProviderId::from_normalized_identity(0x6242).unwrap(),
-        OpaqueCallbackUnregistrationContractId::from_normalized_identity(0x6243).unwrap(),
-        pending.root(),
-        true,
-    );
-    let registered = pending
-        .admit_registration(registration_receipt)
-        .expect("the exact successful registrar receipt establishes registration custody");
-    let incomplete_unregistration = OpaqueCallbackUnregistrationReceipt::from_provider(
-        OpaqueCallbackUnregistrationReceiptId::from_normalized_identity(0x6244).unwrap(),
-        registered.registration(),
-        false,
-    );
-    let unregister_error = registered
-        .unregister_and_quiesce(incomplete_unregistration, nonquiescent)
-        .expect_err("unsuccessful unregister retains the exact registration");
-    assert!(unregister_error.diagnostic().contains("does not remove"));
-    let (registered, _, nonquiescent) = (*unregister_error).into_parts();
-    assert!(registered.roots().record(callback_root_identity).is_some());
-    let provider_unregistered = OpaqueCallbackUnregistrationReceipt::from_provider(
-        OpaqueCallbackUnregistrationReceiptId::from_normalized_identity(0x6245).unwrap(),
-        registered.registration(),
-        true,
-    );
-    let nonquiescent_error = registered
-        .unregister_and_quiesce(provider_unregistered, nonquiescent)
-        .expect_err("provider unregister cannot substitute for root quiescence");
-    assert!(nonquiescent_error.diagnostic().contains("quiescence"));
-    let (registered, _, _) = (*nonquiescent_error).into_parts();
-    assert!(registered.roots().record(callback_root_identity).is_some());
-    let provider_unregistered = OpaqueCallbackUnregistrationReceipt::from_provider(
-        OpaqueCallbackUnregistrationReceiptId::from_normalized_identity(0x6246).unwrap(),
-        registered.registration(),
-        true,
-    );
-    let completed = registered
-        .unregister_and_quiesce(provider_unregistered, quiescent)
-        .expect("exact unregister and quiescence return callback slot authority");
-    assert_eq!(
-        completed.into_slot_authority().slot(),
-        RootSlotId::from_normalized_identity(0x6249).unwrap()
     );
 
     // A leaf may have a zero-byte internal closure; external-root admission

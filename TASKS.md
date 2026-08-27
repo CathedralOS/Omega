@@ -7589,8 +7589,23 @@ Owners:
   sites, kinds, addends, origin, cardinality, and unchanged instruction bits.
   `DataAddress`, direct parameters, multi-segment paths, registration,
   invocation, callback lifetime/lease, and publication authority remain
-  fenced. Runtime registration and lifetime custody are the next engineering
-  rungs.
+  fenced. The installation-entry manifest rung is now complete. Each ordered
+  non-Clone row retains the full private object-store request, complete checked
+  placement identity and requirement, domain-separated callback `EntryStubId`,
+  exact Text function interval, canonical BSS snapshot, encoded address store,
+  and architecture-specific relocation records; retained native artifacts
+  independently replay that manifest. Deployment projects the sealed entries
+  into artifact entry rows, binds one complete manifest entry to the exact
+  unrelocated/materialized installed bytes, architecture, entry offset, and
+  installed-code occurrence, and requires that attribution to match the root's
+  entry and requirement before installation. Pending, live, failure, cleanup,
+  and successful-quiescence carriers preserve the complete attribution rather
+  than a compact report key. Missing, duplicate, reordered, symbol/geometry,
+  instruction-kind, relocation, byte, entry, requirement, architecture, or
+  installed-occurrence drift rejects with retry custody. This still grants no
+  resolved address, registrar invocation, source-level `Registration`, live-
+  registration capacity, lease, or publication authority; `DataAddress`, Q13
+  direct parameters, and multi-segment physical paths remain fenced.
 
   The first source canary cohort is live: the exact target-selected registrar
   closes two explicitly named, nonoverlapping nested private slots for two
@@ -7638,10 +7653,12 @@ Owners:
   unregister and root quiescence return the original slot authority. Every
   installation, receipt, unsuccessful-unregister, and nonquiescent rejection
   returns complete retry custody; a false registrar result can explicitly
-  remove the still-unregistered pending root. This does not yet join the
-  emitted callback store/demand catalog to the installed callback entry, invoke
-  the registrar, create the source-level linear `Registration`, or bind live-
-  registration capacity. Those remain engineering rungs.
+  remove the still-unregistered pending root. The emitted callback store/demand
+  catalog is now joined through one sealed installation manifest entry to the
+  exact installed bytes, entry offset, root entry, and requirement, and that
+  complete attribution survives every pending/live/terminal result. Invoking
+  the registrar, creating the source-level linear `Registration`, and binding
+  live-registration capacity remain engineering rungs.
 - **FOREIGN-RETAINED-ARGUMENT-BACKING — generalize outside callbacks.** Keep
   argument backing and retention off callback-materialization rows. Specify the
   ordinary outbound-plan dispositions for call-scoped storage, public
