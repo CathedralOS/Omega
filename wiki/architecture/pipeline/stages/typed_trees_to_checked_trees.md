@@ -12,6 +12,13 @@ Output: `CheckedTrees`.
 
 Primary responsibility: validate semantic obligations and build checked facts.
 
+The current compiler orchestration wraps that checked program in one
+`CheckedProgramSurface`. At the ownership-moving boundary it retains the exact
+Accepted-only machine order and each machine's optional normalized generic-
+template fingerprint. Trust reporting consumes this retained phase result; the
+driver does not keep a separate typed-tree snapshot or rediscover the
+classification after lowering. Missing or duplicate machine rows reject.
+
 ## Semantic Ownership
 
 This stage is the first durable semantic fact owner. It should be the place

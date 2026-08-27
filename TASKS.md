@@ -2041,8 +2041,12 @@ Remaining:
   report construction, deriving output kind, receipt cardinality, and the
   exact program-storage binding instead of returning a loose tuple to the
   driver. Both compiler routes call those owners at their original settlement
-  points. The checked/terminal cutover, remaining post-check fact courier/
-  mutations, and request-level output-destination policy remain open.
+  points. The typed-to-checked phase result now also retains the Accepted-only
+  pre-lowering generic-template classification and fingerprint rows in exact
+  typed order; trust reporting consumes that carrier, so the driver no longer
+  captures typed facts before lowering as an out-of-band courier. The checked/
+  terminal cutover, remaining post-check fact couriers/mutations, and request-
+  level output-destination policy remain open.
 
   Restore the driver contract:
 
