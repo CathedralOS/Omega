@@ -2044,7 +2044,11 @@ Remaining:
   points. The typed-to-checked phase result now also retains the Accepted-only
   pre-lowering generic-template classification and fingerprint rows in exact
   typed order; trust reporting consumes that carrier, so the driver no longer
-  captures typed facts before lowering as an out-of-band courier. The checked/
+  captures typed facts before lowering as an out-of-band courier. Boundary
+  reporting likewise captures its source rows once in a consuming observation,
+  preserves the initial report write, and settles checked capability rows from
+  that same carrier without cloning or couriering the syntax tree. Capability
+  validation still runs when auxiliary output is suppressed. The checked/
   terminal cutover, remaining post-check fact couriers/mutations, and request-
   level output-destination policy remain open.
 
