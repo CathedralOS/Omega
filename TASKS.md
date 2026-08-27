@@ -2061,8 +2061,15 @@ Remaining:
   full success; equal/empty settlement preserves sidecar identity, rejection
   preserves its prior identity and contents, and backend planning consumes only
   that retained sidecar instead of a driver-couriered pre-lowering vector. The
-  checked/terminal cutover, remaining post-check fact couriers/mutations, and
-  request-level output-destination policy remain open.
+  selected `ProgramEntry` now travels through one build-owned typed settlement
+  carrier as well: exact target-slot resolution, source-signature validation,
+  and optional physical/semantic/storage calling-plan settlement occur in their
+  original diagnostic order, remain joined through component-progress and
+  provider projection, and split only beside the backend/storage consumers.
+  The test-harness entry-name override remains a name-only fallback outside
+  that authority carrier. The checked/terminal cutover, remaining post-check
+  fact couriers/mutations, and request-level output-destination policy remain
+  open.
 
   Restore the driver contract:
 
