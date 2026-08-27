@@ -736,6 +736,72 @@ fn deployment_journal_rejects_tamper_and_failed_activation_returns_custody() {
     );
 }
 
+#[test]
+fn durable_deployment_journal_storage_is_no_clobber_and_replays_exact_bytes() {
+    let fixture = runnable_fixture(55_000);
+    let ledger = lifecycle();
+    let candidate = candidate(35, fixture.installed_code);
+    let receipt = ComponentEraPublicationReceipt::from_runtime(
+        550,
+        ledger.lifecycle(),
+        &candidate,
+        true,
+        false,
+    );
+    let prepared = prepare_component_deployment(
+        955,
+        &ledger,
+        candidate,
+        receipt,
+        fixture.runnable,
+        journal_acceptance(),
+    )
+    .expect("prepared journal fixture");
+    let record = prepared.record().clone();
+    let root = std::env::temp_dir().join(format!(
+        "omega-component-journal-storage-{}-{}",
+        std::process::id(),
+        record.journal_identity(),
+    ));
+    std::fs::create_dir(&root).expect("fresh journal storage directory");
+    let path = root.join("prepared.journal");
+    let stored = durably_store_component_deployment_journal(record.clone(), path.clone())
+        .expect("canonical record stores durably");
+    assert_eq!(stored.record(), &record);
+    assert_eq!(stored.path(), path);
+    assert_ne!(stored.byte_fingerprint(), 0);
+    stored.validate().expect("stored record replays exactly");
+    let loaded = load_durable_component_deployment_journal(path.clone())
+        .expect("restart loads canonical durable record");
+    assert_eq!(loaded.record(), &record);
+    assert_eq!(loaded.byte_count(), stored.byte_count());
+    assert_eq!(loaded.byte_fingerprint(), stored.byte_fingerprint());
+
+    let occupied = root.join("occupied.journal");
+    std::fs::write(&occupied, b"caller-owned sentinel").expect("occupied destination fixture");
+    let error = durably_store_component_deployment_journal(record.clone(), occupied.clone())
+        .expect_err("an existing destination must never be replaced");
+    assert_eq!(
+        error.state(),
+        ComponentDeploymentJournalStorageState::Unpublished
+    );
+    assert_eq!(error.record(), &record);
+    assert_eq!(error.path(), occupied);
+    assert_eq!(
+        std::fs::read(&occupied).expect("read preserved destination"),
+        b"caller-owned sentinel"
+    );
+
+    let mut corrupted = std::fs::read(&path).expect("read durable bytes");
+    let last = corrupted.len() - 1;
+    corrupted[last] ^= 1;
+    std::fs::write(&path, corrupted).expect("mutate journal after publication");
+    assert!(stored.validate().is_err());
+    assert!(load_durable_component_deployment_journal(path.clone()).is_err());
+
+    std::fs::remove_dir_all(&root).expect("remove owned journal storage fixture");
+}
+
 fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
     constructor(identity).expect("normalized external-root identity")
 }
