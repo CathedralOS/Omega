@@ -1956,6 +1956,18 @@ Remaining:
   failed cutover that duplicates semantic lowering and lets the production
   compiler bypass the architecture's named Psi/Omega boundary.
 
+  The first seam milestone is live. Psi now owns one
+  `CanonicalTerminalArtifact` containing canonical semantic, proof, optional
+  debug, and manifest identity; the exact checked-to-Terminal producer creates
+  it and independently replays every section. The typed `TerminalArtifact`
+  compiler product stops at that carrier without entering StateGraph, native
+  emission, output, or installation. Component staging consumes the same
+  carrier by value and its production signature can no longer accept checked,
+  typed, or source trees or invoke Terminal lowering/encoding. An architecture
+  test fences that ownership boundary. The ordinary native and installed-output
+  products still use the legacy checked-tree backend, so the universal cutover,
+  behavior port, legacy deletion, and dependency-graph closure remain open.
+
   Restore the original mechanical split before doing further redesign:
 
   1. Establish one canonical handoff artifact at the settled ownership seam.
@@ -2025,11 +2037,14 @@ Remaining:
   one explicitly test-only `CompileHarnessRequest` and `compile_harness`
   operation; its entry override and worker ceiling cannot enter the production
   request. `RequestedCompileProduct` now makes `Check`, terminal artifact,
-  retained native artifact, and installed output explicit. The legacy route
-  now executes `Check`, retained `NativeArtifact`, and `InstalledOutput`; it
-  honors the typed request over the compatibility Boolean seed and still
-  rejects terminal-artifact requests before source acquisition rather than
-  falling back. The retained-native route runs the existing validated backend
+  retained native artifact, and installed output explicit. `TerminalArtifact`
+  now runs the Psi-owned checked frontend and exact canonical producer, returns
+  the complete report-owned artifact, and never enters StateGraph, native
+  emission, output, or installation; unsupported Terminal vocabulary rejects
+  instead of selecting the legacy backend. The legacy route still executes
+  `Check`, retained `NativeArtifact`, and `InstalledOutput` and honors the typed
+  request over the compatibility Boolean seed. The retained-native route runs
+  the existing validated backend
   through emission planning, then returns one non-clonable report-owned payload
   before image writing, publication, installation, or runtime custody. Exact
   target, subsystem, object and relocation plans, encoded semantics/code,
