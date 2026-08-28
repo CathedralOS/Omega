@@ -141,6 +141,7 @@ members = [
     "source/omega-rust/omega/orchestration/omega-compiler",
     "source/omega-rust/omega/orchestration/omega-package-review",
     "source/omega-rust/omega/orchestration/omega-package-compilation",
+    "source/omega-rust/omega/orchestration/omega-resolver-execution",
     "source/omega-rust/omega/orchestration/omega-packages",
     "source/omega-rust/omega/orchestration/omega-native-differential-test",
     "source/omega-rust/omega/orchestration/omega-visualizations",

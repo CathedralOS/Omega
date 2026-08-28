@@ -258,22 +258,27 @@ complete.
   - on Unix the selected Git executable now has resolver/root ownership,
     non-writable/non-set-id executable mode, and safe owned ancestry checks;
     Windows executable ownership/DACL custody, provenance, the already loaded
-    image, and executable components Git may launch other than the separately
-    observed HTTPS transport helper and SSH client remain;
-  - the Git subprocess has no OS sandbox or CPU/memory/process/transfer
-    ceilings; process-container cleanup contains ordinary descendants but not a
-    hostile Unix process that deliberately changes session; cleanup has its own
-    two-second allowance, so neither the per-command nor whole-resolution
-    deadline is a strict wall-clock guarantee; the launch ceiling is not a CPU,
-    memory, during-write object-store, or transfer-work budget; the post-helper
-    logical resident ceiling can reject an oversized cache but cannot prevent
-    temporary disk exhaustion while Git is running;
+    image, and any platform-specific executable chain not admitted by the
+    closed backend remain;
+  - macOS Git launches now have a concrete Seatbelt and inherited-resource-limit
+    floor, but file reads remain broad, network is phase-limited rather than
+    endpoint-limited, and the deprecated host launcher is not a portable or
+    future-stable backend contract. Linux currently receives inherited rlimits
+    without filesystem/network/exec confinement, and Windows retains only the
+    existing process container. No backend yet enforces process-count,
+    aggregate descendant CPU/memory, during-write object-store, or transferred-
+    byte ceilings. Process-container cleanup contains ordinary descendants but
+    not a hostile Unix process that deliberately changes session; its separate
+    two-second allowance means neither command nor whole-resolution timeout is
+    a strict wall-clock guarantee. Post-helper logical resident ceilings can
+    reject oversized custody but cannot prevent temporary disk exhaustion;
   - SSH uses a content-observed absolute client with Unix custody checks, user
     configuration disabled, batch mode, zero password prompts, and strict
     host-key checking, but still consumes the user's default known-host and key
     files without explicit credential custody;
-  - resolver process/network/filesystem authority is not yet represented by a
-    hardened execution boundary and receipt.
+  - native enforcement is not yet represented by the opaque resolver receipt;
+    the macOS backend therefore remains an engineering floor, not accepted
+    package-source evidence.
 
   Milestone 2026-08-24: parent-owned Git object authentication recomputes
   commit/blob identities, proves the commit-to-root-tree edge, reconstructs the
@@ -630,6 +635,32 @@ complete.
   directory pathname and active same-user replacement remain isolation-backend
   work rather than a property claimed by these capability-relative files.
 
+  Milestone 2026-08-27: `omega-resolver-execution` now owns one closed native
+  launch vocabulary: transport discovery, repository initialization, fetch,
+  and repository inspection. On macOS it verifies and content-binds the
+  root-owned `/usr/bin/sandbox-exec` launcher, including mode, ancestry, and
+  extended-ACL custody, and rechecks it around command construction. Its fixed
+  Seatbelt profile admits outbound network only for discovery/fetch, mutation
+  only beneath the selected quarantine for initialization/fetch, and execution
+  only of the already observed Git/transport/helper chain. Git, HTTPS, SSH, and
+  the macOS shell chain needed by fixed SSH command execution retain file
+  identity, content hash, Unix custody, and ACL checks; local Git helpers exist
+  only in the test adapter. Every Unix child also inherits zero core dumps,
+  at most 120 CPU seconds, a 1 GiB single-file ceiling, and at most 256 open
+  files; Linux and Android additionally inherit an 8 GiB address-space ceiling.
+  Native canaries
+  prove write denial outside quarantine, descendant-exec denial outside the
+  closed tool set, network denial during inspection, and network availability
+  during discovery. Hermetic loopback canaries additionally prove the selected
+  production HTTPS helper and fixed shell/SSH executable chains can launch
+  through that allowlist. All 153 source-resolver tests pass through the new
+  backend.
+  This is a real macOS enforcement floor, not completion of strict isolation:
+  Seatbelt still permits broad reads, network destinations are not brokered,
+  the launcher is deprecated, rlimits are per-process/inherited rather than
+  aggregate, Linux and Windows strict backends remain, and no opaque receipt
+  carries these facts yet.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the
@@ -673,11 +704,11 @@ complete.
   malformed locators, and refspec-shaped revisions; persists only sanitized
   lineage; and applies compiler-owned locator, revision, entry, byte, and depth
   ceilings. The local-repository route is explicitly test-only. Remaining P0
-  work is native fetch/materialization confinement, effective endpoint and SSH
-  credential custody, during-operation resource quotas, remaining
-  native-Git mutation confinement, remaining path-based symlink ACL
-  observations, and a locally reconstructed opaque strict
-  receipt. Public requests now admit only HTTPS and
+  work is strict Linux/Windows native backends, narrowing the macOS read and
+  endpoint grants, effective endpoint and SSH credential custody, aggregate
+  during-operation resource quotas, hostile same-user mutation confinement,
+  remaining path-based symlink ACL observations, and a locally reconstructed
+  opaque strict receipt. Public requests now admit only HTTPS and
   SSH transports; the sealed executor grants only the request's selected
   `https` or `ssh` protocol, disables HTTP, unauthenticated `git://`, every
   unselected protocol, and HTTP redirects, and permits file transport only

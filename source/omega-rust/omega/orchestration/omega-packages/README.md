@@ -238,6 +238,13 @@ The production source-custody and typed graph paths have received focused
 review; the hardened native resolver boundary, sealed admission projection, and
 accepted-lock path remain incomplete.
 
+The sibling `omega-resolver-execution` crate now supplies the concrete macOS
+engineering floor: closed discovery/initialization/fetch/inspection phases,
+Seatbelt write/network/exec policy, and inherited Unix rlimits. Broad reads,
+unbrokered endpoints, aggregate quotas, Linux/Windows strict backends, and the
+opaque resolver receipt remain open, so this does not promote diagnostic source
+commands into admission.
+
 The crate now contains reviewed building blocks for immutable Git/local
 snapshots, hermetic package-name extraction, and typed package/source identity.
 Legacy source-cache policy files remain diagnostics rather than receipts, but

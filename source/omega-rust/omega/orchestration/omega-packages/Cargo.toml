@@ -18,6 +18,7 @@ omega-build-provenance = { path = "../omega-build-provenance" }
 omega-compiler = { path = "../omega-compiler" }
 omega-package-review = { path = "../omega-package-review" }
 omega-package-compilation = { path = "../omega-package-compilation" }
+omega-resolver-execution = { path = "../omega-resolver-execution" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-checked-interpreter = { path = "../../../psi/semantics/psi-checked-interpreter" }
 psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }

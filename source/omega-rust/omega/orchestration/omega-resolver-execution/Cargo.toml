@@ -1,0 +1,16 @@
+[package]
+name = "omega-resolver-execution"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_resolver_execution"
+path = "src/lib.rs"
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.1.4", features = ["process"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+omega-platform-custody = { path = "../../foundation/omega-platform-custody" }
+sha2 = "0.10.9"
