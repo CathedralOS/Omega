@@ -5291,6 +5291,47 @@ fn assert_source_structural_return(
         ))
     );
 
+    let optimizer_input = lower_artifact_sections_for_optimization(
+        &semantic_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+    )
+    .expect("source structural return verifies for optimizer admission");
+    let verified_unit = build_verified_psi_optimization_unit(
+        optimizer_input,
+        TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("source structural return retains its optimizer unit");
+    validate_verified_psi_optimization_unit(&verified_unit)
+        .expect("source structural return satisfies optimizer local custody");
+    let optimizer_function = verified_unit
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine.id)
+        .expect("optimizer unit retains the structural-return machine");
+    let optimizer_return = optimizer_function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            TerminalAbstractOperation::ReturnStructural {
+                trivial_affine_locals,
+                trivial_affine_discards,
+                ..
+            } => Some((trivial_affine_locals, trivial_affine_discards)),
+            _ => None,
+        })
+        .expect("optimizer unit retains the compressed structural return");
+    assert_eq!(optimizer_return.0, &trivial_affine_locals);
+    assert_eq!(optimizer_return.1, &expected_cleanup);
+    assert!(
+        optimizer_return
+            .0
+            .iter()
+            .all(|(_, local, _)| { !optimizer_function.declared_places.contains(&local.id) })
+    );
+
     let structural_parameters = machine.structural_parameters.clone();
     let structural_parameter = structural_parameters[0].clone();
     let structural_result = result.clone();

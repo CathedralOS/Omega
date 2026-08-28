@@ -96,6 +96,27 @@ pub enum OptimizationUnitValidationError {
     DuplicateStructuralDomain(StructuralDomainId),
     NonCanonicalStructuralDomainOrder,
     InvalidStructuralDomainIdentity(StructuralDomainId),
+    NonCanonicalTrivialAffineLocals(MachineId),
+    TrivialAffineLocalDeclarationRequiresEmptyRecord {
+        machine: MachineId,
+        place: PlaceId,
+    },
+    TrivialAffineLocalEstablishmentMismatch(MachineId),
+    StructuralReturnTrivialAffineLocalsMismatch {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+    },
+    StructuralReturnTrivialAffineShapeMismatch {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+    },
+    StructuralReturnAffineDiscardsMismatch {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+    },
     StructuralCatalogMismatch {
         machine: Option<MachineId>,
     },
@@ -10042,7 +10063,13 @@ fn validate_function_structural_catalog(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
     domains: &BTreeMap<StructuralDomainId, &psi_terminal::StructuralDomainDeclaration>,
-) -> Result<(), OptimizationUnitValidationError> {
+) -> Result<
+    Vec<(
+        psi_terminal::StructuralPlaceDeclaration,
+        psi_terminal::StructuralTypeDeclaration,
+    )>,
+    OptimizationUnitValidationError,
+> {
     let mismatch = || OptimizationUnitValidationError::StructuralCatalogMismatch {
         machine: Some(function.machine),
     };
@@ -10099,16 +10126,7 @@ fn validate_function_structural_catalog(
                             if operation_place == place && operation_type.id == structural_type
                     )
                 }),
-            StructuralPlaceKind::TrivialAffineLocal {
-                structural_type, ..
-            } => types.contains_key(&structural_type)
-                && function.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
-                    matches!(
-                        &node.operation,
-                        O::EstablishTrivialAffineLocal { place: operation_place, structural_type: operation_type, .. }
-                            if operation_place == place && operation_type.id == structural_type
-                    )
-                }),
+            StructuralPlaceKind::TrivialAffineLocal { .. } => true,
             StructuralPlaceKind::ProviderAttachment {
                 attachment,
                 ..
@@ -10151,8 +10169,12 @@ fn validate_function_structural_catalog(
     }
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
         let expected = match &node.operation {
-            O::EstablishByteSequenceLiteral { place, .. }
-            | O::EstablishTrivialAffineLocal { place, .. } => Some((place.id, place.kind)),
+            O::EstablishByteSequenceLiteral { place, .. } => Some((place.id, place.kind)),
+            // Trivial affine locals have two faithful representations: an
+            // executable establishment in Unit lowering, or an exact typed
+            // tuple compressed into ReturnStructural. Their one-to-one
+            // recognition is validated together below.
+            O::EstablishTrivialAffineLocal { .. } => None,
             O::CallStructural {
                 psi_operation,
                 result,
@@ -10240,6 +10262,229 @@ fn validate_function_structural_catalog(
     {
         return Err(mismatch());
     }
+    let mut trivial_affine_locals = function
+        .structural_places
+        .iter()
+        .filter_map(|place| match place.kind {
+            StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal,
+                structural_type,
+            } => Some((*place, declaration_ordinal, structural_type)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    trivial_affine_locals.sort_by_key(|(_, declaration_ordinal, _)| *declaration_ordinal);
+    if trivial_affine_locals
+        .iter()
+        .enumerate()
+        .any(|(expected, (_, declaration_ordinal, _))| {
+            u32::try_from(expected).ok() != Some(*declaration_ordinal)
+        })
+    {
+        return Err(
+            OptimizationUnitValidationError::NonCanonicalTrivialAffineLocals(function.machine),
+        );
+    }
+    trivial_affine_locals
+        .into_iter()
+        .map(|(place, _, structural_type)| {
+            let declaration = types.get(&structural_type).ok_or(
+                OptimizationUnitValidationError::UnknownStructuralType(structural_type),
+            )?;
+            if !matches!(
+                declaration.shape,
+                psi_terminal::StructuralTypeShape::Record { ref fields } if fields.is_empty()
+            ) {
+                return Err(
+                    OptimizationUnitValidationError::TrivialAffineLocalDeclarationRequiresEmptyRecord {
+                        machine: function.machine,
+                        place: place.id,
+                    },
+                );
+            }
+            Ok((place, (*declaration).clone()))
+        })
+        .collect()
+}
+
+fn validate_trivial_affine_local_witnesses(
+    function: &PsiOptimizationFunction,
+    expected_locals: &[(
+        psi_terminal::StructuralPlaceDeclaration,
+        psi_terminal::StructuralTypeDeclaration,
+    )],
+) -> Result<(), OptimizationUnitValidationError> {
+    let explicit = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| match &node.operation {
+            O::EstablishTrivialAffineLocal {
+                psi_operation,
+                place,
+                structural_type,
+            } => Some((*psi_operation, *place, structural_type)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let structural_returns = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| match &node.operation {
+            O::ReturnStructural {
+                trivial_affine_locals,
+                trivial_affine_discards,
+                ..
+            } => Some((trivial_affine_locals, trivial_affine_discards)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    if !explicit.is_empty() {
+        let exact = structural_returns.is_empty()
+            && explicit.len() == expected_locals.len()
+            && explicit.iter().zip(expected_locals).all(
+                |((_, actual_place, actual_type), (expected_place, expected_type))| {
+                    actual_place == expected_place && *actual_type == expected_type
+                },
+            );
+        if !exact {
+            return Err(
+                OptimizationUnitValidationError::TrivialAffineLocalEstablishmentMismatch(
+                    function.machine,
+                ),
+            );
+        }
+        return Ok(());
+    }
+
+    if !expected_locals.is_empty() && structural_returns.len() != 1 {
+        return Err(
+            OptimizationUnitValidationError::TrivialAffineLocalEstablishmentMismatch(
+                function.machine,
+            ),
+        );
+    }
+
+    let executable_operations = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| expected_provenance(&node.operation))
+        .filter_map(|site| match site {
+            PsiProvenance::Operation(operation) => Some(operation),
+            PsiProvenance::Edge(_) => None,
+        })
+        .collect::<BTreeSet<_>>();
+
+    for block in &function.blocks {
+        for (node_index, node) in block.nodes.iter().enumerate() {
+            let O::ReturnStructural {
+                source,
+                trivial_affine_locals,
+                trivial_affine_discards,
+                ..
+            } = &node.operation
+            else {
+                continue;
+            };
+            if trivial_affine_locals.is_empty()
+                && trivial_affine_discards.is_empty()
+                && expected_locals.is_empty()
+            {
+                continue;
+            }
+            let node_index = u32::try_from(node_index).expect("unit node index fits u32");
+            let mut hidden_operations = BTreeSet::new();
+            if trivial_affine_locals.len() != expected_locals.len()
+                || trivial_affine_locals.iter().zip(expected_locals).any(
+                    |((operation, actual_place, actual_type), (expected_place, expected_type))| {
+                        actual_place != expected_place
+                            || actual_type != expected_type
+                            || !hidden_operations.insert(*operation)
+                            || executable_operations.contains(operation)
+                    },
+                )
+            {
+                return Err(
+                    OptimizationUnitValidationError::StructuralReturnTrivialAffineLocalsMismatch {
+                        machine: function.machine,
+                        block: block.id,
+                        node: node_index,
+                    },
+                );
+            }
+
+            let Some(returned_parameter) = function.structural_parameters.first() else {
+                return Err(
+                    OptimizationUnitValidationError::StructuralReturnTrivialAffineShapeMismatch {
+                        machine: function.machine,
+                        block: block.id,
+                        node: node_index,
+                    },
+                );
+            };
+            let Some(result) = function.result.structural() else {
+                return Err(
+                    OptimizationUnitValidationError::StructuralReturnTrivialAffineShapeMismatch {
+                        machine: function.machine,
+                        block: block.id,
+                        node: node_index,
+                    },
+                );
+            };
+            if !function.parameters.is_empty()
+                || returned_parameter.place != *source
+                || returned_parameter.is_self
+                || returned_parameter.multiplicity != psi_terminal::StructuralMultiplicity::Linear
+                || result.multiplicity != psi_terminal::StructuralMultiplicity::Linear
+                || returned_parameter.structural_type != result.structural_type
+                || returned_parameter.qualifications != result.qualifications
+                || returned_parameter.place == result.place
+                || function
+                    .structural_parameters
+                    .iter()
+                    .skip(1)
+                    .any(|parameter| {
+                        parameter.is_self
+                            || parameter.multiplicity
+                                != psi_terminal::StructuralMultiplicity::Affine
+                            || !parameter.qualifications.is_empty()
+                    })
+            {
+                return Err(
+                    OptimizationUnitValidationError::StructuralReturnTrivialAffineShapeMismatch {
+                        machine: function.machine,
+                        block: block.id,
+                        node: node_index,
+                    },
+                );
+            }
+            let expected_discards = trivial_affine_locals
+                .iter()
+                .rev()
+                .map(|(_, local, _)| local.id)
+                .chain(
+                    function
+                        .structural_parameters
+                        .iter()
+                        .skip(1)
+                        .rev()
+                        .map(|parameter| parameter.place),
+                )
+                .collect::<Vec<_>>();
+            if *trivial_affine_discards != expected_discards {
+                return Err(
+                    OptimizationUnitValidationError::StructuralReturnAffineDiscardsMismatch {
+                        machine: function.machine,
+                        block: block.id,
+                        node: node_index,
+                    },
+                );
+            }
+        }
+    }
     Ok(())
 }
 
@@ -10294,7 +10539,8 @@ fn validate_function(
     structural_types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &psi_terminal::StructuralDomainDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    validate_function_structural_catalog(function, structural_types, structural_domains)?;
+    let trivial_affine_locals =
+        validate_function_structural_catalog(function, structural_types, structural_domains)?;
     let indexed_entry_claims = function
         .entry_claim_declarations
         .iter()
@@ -10449,6 +10695,7 @@ fn validate_function(
         }
     }
 
+    validate_trivial_affine_local_witnesses(function, &trivial_affine_locals)?;
     validate_operation_result_availability(function, &blocks, &predecessor)?;
 
     validate_provenance_fuel_effects(function)?;
@@ -13314,6 +13561,208 @@ mod tests {
             .unwrap()
     }
 
+    fn compressed_trivial_affine_return_unit_with_prefix(
+        executable_collision: bool,
+        explicit_witnesses: bool,
+    ) -> PsiOptimizationUnit {
+        let machine = id(360, MachineId::new);
+        let block = id(361, BlockId::new);
+        let structural_type = id(362, StructuralTypeId::new);
+        let source = id(363, PlaceId::new);
+        let first_tail = id(364, PlaceId::new);
+        let second_tail = id(365, PlaceId::new);
+        let result = id(366, PlaceId::new);
+        let first_local = id(367, PlaceId::new);
+        let second_local = id(368, PlaceId::new);
+        let claim = id(1, ClaimId::new);
+        let local_type = psi_terminal::StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "validation::trivial-affine-empty-record".into(),
+            shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+        };
+        let parameter =
+            |place, position, multiplicity| psi_terminal::StructuralParameterDeclaration {
+                place,
+                position,
+                is_self: false,
+                structural_type,
+                multiplicity,
+                access: psi_terminal::StructuralAccess::Owned,
+                qualifications: Vec::new(),
+            };
+        let local = |place, declaration_ordinal| psi_terminal::StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal,
+                structural_type,
+            },
+        };
+        let first_declaration = local(first_local, 0);
+        let second_declaration = local(second_local, 1);
+        let mut operations = Vec::new();
+        if executable_collision {
+            operations.push(TerminalAbstractOperation::BooleanConstant {
+                psi_operation: id(371, OperationId::new),
+                result: id(389, ValueId::new),
+                value: false,
+            });
+        }
+        if explicit_witnesses {
+            operations.extend([
+                TerminalAbstractOperation::EstablishTrivialAffineLocal {
+                    psi_operation: id(373, OperationId::new),
+                    place: first_declaration,
+                    structural_type: local_type.clone(),
+                },
+                TerminalAbstractOperation::EstablishTrivialAffineLocal {
+                    psi_operation: id(374, OperationId::new),
+                    place: second_declaration,
+                    structural_type: local_type.clone(),
+                },
+            ]);
+        }
+        operations.push(TerminalAbstractOperation::ReturnStructural {
+            psi_edge: id(370, EdgeId::new),
+            source,
+            returned_claims: vec![claim],
+            trivial_affine_locals: vec![
+                (
+                    id(371, OperationId::new),
+                    first_declaration,
+                    local_type.clone(),
+                ),
+                (
+                    id(372, OperationId::new),
+                    second_declaration,
+                    local_type.clone(),
+                ),
+            ],
+            trivial_affine_discards: vec![second_local, first_local, second_tail, first_tail],
+        });
+        let plan = TerminalAbstractOperationPlan {
+            terminal_psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([18; 32]),
+            },
+            entry: machine,
+            structural_types: vec![local_type.clone()],
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            functions: vec![TerminalAbstractFunction {
+                machine,
+                attachment: None,
+                entry: block,
+                parameters: Vec::new(),
+                structural_parameters: vec![
+                    parameter(source, 0, psi_terminal::StructuralMultiplicity::Linear),
+                    parameter(first_tail, 1, psi_terminal::StructuralMultiplicity::Affine),
+                    parameter(second_tail, 2, psi_terminal::StructuralMultiplicity::Affine),
+                ],
+                result: TerminalAbstractFunctionResult::Structural(
+                    psi_terminal::StructuralResultDeclaration {
+                        place: result,
+                        structural_type,
+                        multiplicity: psi_terminal::StructuralMultiplicity::Linear,
+                        qualifications: Vec::new(),
+                    },
+                ),
+                entry_claims: vec![psi_terminal::EntryClaim {
+                    claim,
+                    input: source,
+                    path: Vec::new(),
+                }],
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![TerminalAbstractBlockEntry {
+                    block,
+                    parameters: Vec::new(),
+                    operation_offset: 0,
+                }],
+                operations,
+            }],
+        };
+        let mut unit = reconstruct_psi_optimization_unit_seed(
+            &plan,
+            FuelScheduleIdentity::new(1).expect("nonzero schedule"),
+        )
+        .expect("compressed structural return unit");
+        for declaration in [first_declaration, second_declaration] {
+            if !unit.functions[0]
+                .structural_places
+                .iter()
+                .any(|place| place.id == declaration.id)
+            {
+                unit.functions[0].structural_places.push(declaration);
+            }
+        }
+        refresh_identity(&mut unit);
+        unit
+    }
+
+    fn compressed_trivial_affine_return_unit() -> PsiOptimizationUnit {
+        compressed_trivial_affine_return_unit_with_prefix(false, false)
+    }
+
+    fn explicit_trivial_affine_return_unit() -> PsiOptimizationUnit {
+        let machine = id(390, MachineId::new);
+        let block = id(391, BlockId::new);
+        let structural_type = id(392, StructuralTypeId::new);
+        let place = id(393, PlaceId::new);
+        let structural_type_declaration = psi_terminal::StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "validation::explicit-trivial-affine-empty-record".into(),
+            shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+        };
+        let place_declaration = psi_terminal::StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal: 0,
+                structural_type,
+            },
+        };
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([19; 32]),
+                },
+                entry: machine,
+                structural_types: vec![structural_type_declaration.clone()],
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry: block,
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        TerminalAbstractOperation::EstablishTrivialAffineLocal {
+                            psi_operation: id(394, OperationId::new),
+                            place: place_declaration,
+                            structural_type: structural_type_declaration,
+                        },
+                        TerminalAbstractOperation::ReturnUnit {
+                            psi_edge: id(395, EdgeId::new),
+                            cleanup_actions: vec![
+                                psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place),
+                            ],
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).expect("nonzero schedule"),
+        )
+        .expect("explicit affine local unit")
+    }
+
     #[derive(Clone, Copy)]
     enum OperationResultCfgShape {
         DominatingNonTopological,
@@ -13778,6 +14227,283 @@ mod tests {
         );
         validate_psi_optimization_unit(&candidate)
             .expect("CallStructural result dominates the structural return through the CFG");
+    }
+
+    #[test]
+    fn trivial_affine_locals_accept_explicit_and_exact_compressed_witnesses() {
+        let compressed = compressed_trivial_affine_return_unit();
+        let local_places = compressed.functions[0]
+            .structural_places
+            .iter()
+            .filter_map(|place| {
+                matches!(place.kind, StructuralPlaceKind::TrivialAffineLocal { .. })
+                    .then_some(place.id)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(local_places.len(), 2);
+        assert!(
+            local_places
+                .iter()
+                .all(|place| !compressed.functions[0].declared_places.contains(place)),
+            "compressed no-ABI locals are not executable place roots"
+        );
+        validate_psi_optimization_unit(&compressed)
+            .expect("exact compressed local declarations and reverse cleanup validate");
+        validate_psi_optimization_unit(&explicit_trivial_affine_return_unit())
+            .expect("an exact executable establishment remains a valid local witness");
+    }
+
+    #[test]
+    fn trivial_affine_local_catalog_requires_dense_empty_record_declarations() {
+        let machine = id(360, MachineId::new);
+        let second_local = id(368, PlaceId::new);
+
+        let mut ordinal_gap = compressed_trivial_affine_return_unit();
+        let second = ordinal_gap.functions[0]
+            .structural_places
+            .iter_mut()
+            .find(|place| place.id == second_local)
+            .expect("second local catalog row");
+        let StructuralPlaceKind::TrivialAffineLocal {
+            declaration_ordinal,
+            ..
+        } = &mut second.kind
+        else {
+            panic!("fixture local has a local kind")
+        };
+        *declaration_ordinal = 2;
+        refresh_identity(&mut ordinal_gap);
+        assert_eq!(
+            validate_psi_optimization_unit(&ordinal_gap),
+            Err(OptimizationUnitValidationError::NonCanonicalTrivialAffineLocals(machine))
+        );
+
+        let mut nonempty_carrier = compressed_trivial_affine_return_unit();
+        nonempty_carrier.structural_types[0].shape =
+            psi_terminal::StructuralTypeShape::ByteSequence(
+                psi_terminal::ByteSequenceCarrier::BorrowedView,
+            );
+        refresh_identity(&mut nonempty_carrier);
+        assert_eq!(
+            validate_psi_optimization_unit(&nonempty_carrier),
+            Err(
+                OptimizationUnitValidationError::TrivialAffineLocalDeclarationRequiresEmptyRecord {
+                    machine,
+                    place: id(367, PlaceId::new),
+                }
+            )
+        );
+
+        let mut forged_explicit = explicit_trivial_affine_return_unit();
+        let TerminalAbstractOperation::EstablishTrivialAffineLocal {
+            structural_type, ..
+        } = &mut forged_explicit.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture begins with an explicit local establishment")
+        };
+        structural_type.identity.push_str("::forged");
+        refresh_node_derivatives(&mut forged_explicit, 0, 0, 0);
+        assert_eq!(
+            validate_psi_optimization_unit(&forged_explicit),
+            Err(
+                OptimizationUnitValidationError::TrivialAffineLocalEstablishmentMismatch(id(
+                    390,
+                    MachineId::new
+                ))
+            )
+        );
+    }
+
+    #[test]
+    fn compressed_trivial_affine_tuple_is_exact_and_hidden_operations_are_unique() {
+        let expected =
+            OptimizationUnitValidationError::StructuralReturnTrivialAffineLocalsMismatch {
+                machine: id(360, MachineId::new),
+                block: id(361, BlockId::new),
+                node: 0,
+            };
+
+        let mut missing = compressed_trivial_affine_return_unit();
+        let TerminalAbstractOperation::ReturnStructural {
+            trivial_affine_locals,
+            ..
+        } = &mut missing.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture is a structural return")
+        };
+        trivial_affine_locals.pop();
+        refresh_node_derivatives(&mut missing, 0, 0, 0);
+        assert_eq!(
+            validate_psi_optimization_unit(&missing),
+            Err(expected.clone())
+        );
+
+        let mut extra = compressed_trivial_affine_return_unit();
+        let TerminalAbstractOperation::ReturnStructural {
+            trivial_affine_locals,
+            ..
+        } = &mut extra.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture is a structural return")
+        };
+        trivial_affine_locals.push(trivial_affine_locals[0].clone());
+        refresh_node_derivatives(&mut extra, 0, 0, 0);
+        assert_eq!(
+            validate_psi_optimization_unit(&extra),
+            Err(expected.clone())
+        );
+
+        let mut reordered = compressed_trivial_affine_return_unit();
+        let TerminalAbstractOperation::ReturnStructural {
+            trivial_affine_locals,
+            ..
+        } = &mut reordered.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture is a structural return")
+        };
+        trivial_affine_locals.swap(0, 1);
+        refresh_node_derivatives(&mut reordered, 0, 0, 0);
+        assert_eq!(
+            validate_psi_optimization_unit(&reordered),
+            Err(expected.clone())
+        );
+
+        let mut forged_place = compressed_trivial_affine_return_unit();
+        let TerminalAbstractOperation::ReturnStructural {
+            trivial_affine_locals,
+            ..
+        } = &mut forged_place.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture is a structural return")
+        };
+        trivial_affine_locals[0].1.id = id(389, PlaceId::new);
+        refresh_node_derivatives(&mut forged_place, 0, 0, 0);
+        assert_eq!(
+            validate_psi_optimization_unit(&forged_place),
+            Err(expected.clone())
+        );
+
+        let mut forged_type = compressed_trivial_affine_return_unit();
+        let TerminalAbstractOperation::ReturnStructural {
+            trivial_affine_locals,
+            ..
+        } = &mut forged_type.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture is a structural return")
+        };
+        trivial_affine_locals[0].2.identity.push_str("::forged");
+        refresh_node_derivatives(&mut forged_type, 0, 0, 0);
+        assert_eq!(
+            validate_psi_optimization_unit(&forged_type),
+            Err(expected.clone())
+        );
+
+        let mut duplicate_operation = compressed_trivial_affine_return_unit();
+        let TerminalAbstractOperation::ReturnStructural {
+            trivial_affine_locals,
+            ..
+        } = &mut duplicate_operation.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture is a structural return")
+        };
+        trivial_affine_locals[1].0 = trivial_affine_locals[0].0;
+        refresh_node_derivatives(&mut duplicate_operation, 0, 0, 0);
+        assert_eq!(
+            validate_psi_optimization_unit(&duplicate_operation),
+            Err(expected.clone())
+        );
+
+        let executable_collision = compressed_trivial_affine_return_unit_with_prefix(true, false);
+        assert_eq!(
+            validate_psi_optimization_unit(&executable_collision),
+            Err(
+                OptimizationUnitValidationError::StructuralReturnTrivialAffineLocalsMismatch {
+                    machine: id(360, MachineId::new),
+                    block: id(361, BlockId::new),
+                    node: 1,
+                }
+            )
+        );
+
+        let mixed_witnesses = compressed_trivial_affine_return_unit_with_prefix(false, true);
+        assert_eq!(
+            validate_psi_optimization_unit(&mixed_witnesses),
+            Err(
+                OptimizationUnitValidationError::TrivialAffineLocalEstablishmentMismatch(id(
+                    360,
+                    MachineId::new
+                ))
+            )
+        );
+    }
+
+    #[test]
+    fn compressed_trivial_affine_return_requires_exact_shape_and_reverse_discards() {
+        let mut wrong_shape = compressed_trivial_affine_return_unit();
+        wrong_shape.functions[0].structural_parameters[1].multiplicity =
+            psi_terminal::StructuralMultiplicity::Unrestricted;
+        refresh_identity(&mut wrong_shape);
+        assert_eq!(
+            validate_psi_optimization_unit(&wrong_shape),
+            Err(
+                OptimizationUnitValidationError::StructuralReturnTrivialAffineShapeMismatch {
+                    machine: id(360, MachineId::new),
+                    block: id(361, BlockId::new),
+                    node: 0,
+                }
+            )
+        );
+
+        let mut wrong_discards = compressed_trivial_affine_return_unit();
+        let TerminalAbstractOperation::ReturnStructural {
+            trivial_affine_discards,
+            ..
+        } = &mut wrong_discards.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture is a structural return")
+        };
+        trivial_affine_discards.swap(0, 1);
+        refresh_node_derivatives(&mut wrong_discards, 0, 0, 0);
+        assert_eq!(
+            validate_psi_optimization_unit(&wrong_discards),
+            Err(
+                OptimizationUnitValidationError::StructuralReturnAffineDiscardsMismatch {
+                    machine: id(360, MachineId::new),
+                    block: id(361, BlockId::new),
+                    node: 0,
+                }
+            )
+        );
+
+        let mut missing_discard = compressed_trivial_affine_return_unit();
+        let TerminalAbstractOperation::ReturnStructural {
+            trivial_affine_discards,
+            ..
+        } = &mut missing_discard.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture is a structural return")
+        };
+        trivial_affine_discards.pop();
+        refresh_node_derivatives(&mut missing_discard, 0, 0, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&missing_discard),
+            Err(OptimizationUnitValidationError::StructuralReturnAffineDiscardsMismatch { .. })
+        ));
+
+        let mut extra_discard = compressed_trivial_affine_return_unit();
+        let TerminalAbstractOperation::ReturnStructural {
+            trivial_affine_discards,
+            ..
+        } = &mut extra_discard.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture is a structural return")
+        };
+        trivial_affine_discards.push(id(388, PlaceId::new));
+        refresh_node_derivatives(&mut extra_discard, 0, 0, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&extra_discard),
+            Err(OptimizationUnitValidationError::StructuralReturnAffineDiscardsMismatch { .. })
+        ));
     }
 
     #[test]
