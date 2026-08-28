@@ -1897,8 +1897,8 @@ fn expected_cbnz_manifest(
     {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
-    let baseline_bytes = statistics(baseline_layout)?.bytes;
-    let final_statistics = statistics(layout)?;
+    let baseline_bytes = function_relative_statistics(baseline_layout)?.bytes;
+    let final_statistics = function_relative_statistics(layout)?;
     let expected_shrink = u64::try_from(fusion.custody().action_count())
         .ok()
         .and_then(|count| count.checked_mul(4))
@@ -1999,7 +1999,7 @@ fn expected_manifest(
     }
     validate_relaxation_manifest_roots(baseline_layout, relaxation, selections)?;
     let final_layout = final_layout(baseline_layout, relaxation);
-    let statistics = statistics(final_layout)?;
+    let statistics = function_relative_statistics(final_layout)?;
     let unavailable = FunctionRelativeOptimizationUnavailableData::Unavailable;
     let mut record = FunctionRelativeOptimizationRealizationManifest {
         identity: FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(
@@ -2126,7 +2126,7 @@ fn expected_direct_manifest(
         target: baseline_layout.target(),
         layout_policy: baseline_layout.policy(),
         scope: FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
-        statistics: statistics(relaxation.layout())?,
+        statistics: function_relative_statistics(relaxation.layout())?,
         frame: unavailable,
         machine_emission: unavailable,
         section_placement: unavailable,
@@ -2140,7 +2140,7 @@ fn expected_direct_manifest(
     Ok(ValidatedFunctionRelativeOptimizationRealizationManifest { record })
 }
 
-fn statistics(
+pub(crate) fn function_relative_statistics(
     layout: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<
     FunctionRelativeOptimizationRealizationStatistics,
@@ -2194,6 +2194,13 @@ fn statistics(
         bytes,
         resolved_conditional_branches,
     })
+}
+
+pub(crate) fn seal_function_relative_manifest(
+    mut record: FunctionRelativeOptimizationRealizationManifest,
+) -> ValidatedFunctionRelativeOptimizationRealizationManifest {
+    record.identity = record.recomputed_identity();
+    ValidatedFunctionRelativeOptimizationRealizationManifest { record }
 }
 
 fn custody_receipt(
