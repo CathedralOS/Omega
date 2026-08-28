@@ -16,10 +16,12 @@ use cap_std::{
     },
 };
 use command_group::{CommandGroup, GroupChild};
-use omega_resolver_execution::{ResolverExecutionBackend, ResolverExecutionPhase};
+use omega_resolver_execution::{
+    ResolverExecutionBackend, ResolverExecutionPhase, ResolverExecutionPolicyObservation,
+};
 use sha1_checked::Sha1 as CheckedSha1;
 use sha2::{Digest, Sha256};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::{OsStr, OsString};
 use std::fmt;
@@ -422,6 +424,16 @@ pub struct ResolvedGitSource {
     /// Exact transport executable observed for HTTPS or SSH resolution.
     /// The test-only file adapter retains no transport executable here.
     pub transport_executable: Option<GitTransportExecutableIdentity>,
+    /// Locally reconstructed native policy observations for every command
+    /// configured during this resolution. These rows are provenance, not accepted source
+    /// authority; strict admission must reject any unavailable required row.
+    pub(crate) execution_policy_observations: Vec<ResolverExecutionPolicyObservation>,
+}
+
+impl ResolvedGitSource {
+    pub fn execution_policy_observations(&self) -> &[ResolverExecutionPolicyObservation] {
+        &self.execution_policy_observations
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -484,6 +496,7 @@ struct GitExecutor {
     started: Instant,
     timeout: Duration,
     launches: Cell<usize>,
+    execution_policy_observations: RefCell<Vec<ResolverExecutionPolicyObservation>>,
     maximum_launches: usize,
     execution_backend: ResolverExecutionBackend,
 }
@@ -1066,6 +1079,7 @@ fn resolve_verified_git_cache_entry(
             .transport_executable
             .as_ref()
             .map(|executable| executable.identity.clone()),
+        execution_policy_observations: executor.execution_policy_observations.borrow().clone(),
     })
 }
 
@@ -6462,6 +6476,7 @@ impl GitExecutor {
             started,
             timeout,
             launches: Cell::new(0),
+            execution_policy_observations: RefCell::new(Vec::new()),
             maximum_launches,
             execution_backend,
         })
@@ -7633,9 +7648,9 @@ fn sealed_git_command(
         ResolverExecutionPhase::TransportDiscovery
         | ResolverExecutionPhase::RepositoryInspection => None,
     };
-    let mut command = executor
+    let (mut command, execution_policy_observation) = executor
         .execution_backend
-        .command(
+        .command_with_observation(
             &executor.identity.path,
             &helper_executables,
             phase,
@@ -7644,6 +7659,10 @@ fn sealed_git_command(
         .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
             message: error.to_string(),
         })?;
+    executor
+        .execution_policy_observations
+        .borrow_mut()
+        .push(execution_policy_observation);
     command
         .env_clear()
         .current_dir(working_directory)
@@ -9630,6 +9649,37 @@ mod tests {
         assert_eq!(resolved.commit, commit);
         assert_eq!(resolved.local.file_count, 1);
         assert!(!resolved.tree.is_empty());
+        assert!(!resolved.execution_policy_observations().is_empty());
+        assert!(
+            resolved
+                .execution_policy_observations()
+                .iter()
+                .all(|observation| observation.executable() == resolved.git_executable.path())
+        );
+        assert!(
+            resolved
+                .execution_policy_observations()
+                .iter()
+                .all(|observation| observation.require_strict().is_err()),
+            "the current native backend must not overstate strict resolution"
+        );
+        assert!(
+            resolved
+                .execution_policy_observations()
+                .iter()
+                .any(
+                    |observation| observation.phase() == ResolverExecutionPhase::Fetch
+                        && observation.mutable_root().is_some()
+                )
+        );
+        assert!(
+            resolved
+                .execution_policy_observations()
+                .iter()
+                .any(|observation| observation.phase()
+                    == ResolverExecutionPhase::RepositoryInspection
+                    && observation.mutable_root().is_none())
+        );
 
         let _ = std::fs::remove_dir_all(&repo);
         let _ = std::fs::remove_dir_all(&cache);

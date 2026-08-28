@@ -240,10 +240,15 @@ accepted-lock path remain incomplete.
 
 The sibling `omega-resolver-execution` crate now supplies the concrete macOS
 engineering floor: closed discovery/initialization/fetch/inspection phases,
-Seatbelt write/network/exec policy, and inherited Unix rlimits. Broad reads,
-unbrokered endpoints, aggregate quotas, Linux/Windows strict backends, and the
-opaque resolver receipt remain open, so this does not promote diagnostic source
-commands into admission.
+Seatbelt write/network/exec canaries, inherited Unix rlimits, and opaque bounded
+policy observations issued from the same inputs as each native command.
+Successful Git resolutions retain every configured-command row, including the
+generated policy hash, exact numeric ceilings, normalized executable path set,
+and mutable root. Apple's imported system profile is not transitively bound, so
+filesystem/network/exec rows remain unavailable rather than overstated; strict
+checking rejects them. Linux/Windows strict backends and the complete
+execution-bound source receipt remain open, so this does not promote diagnostic
+source commands into admission.
 
 The crate now contains reviewed building blocks for immutable Git/local
 snapshots, hermetic package-name extraction, and typed package/source identity.

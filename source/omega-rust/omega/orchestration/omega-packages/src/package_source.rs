@@ -819,6 +819,7 @@ mod tests {
                 "11".repeat(32),
             ),
             transport_executable: None,
+            execution_policy_observations: Vec::new(),
         };
 
         let https_lineage =
