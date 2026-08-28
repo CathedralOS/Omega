@@ -1,5 +1,5 @@
-use super::build_staged_output::PackageGeneratedSource;
 use super::package_source_consumption::PackageSourceConsumptionCommitment;
+use omega_build_output::PackageGeneratedSource;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
 use std::collections::{BTreeMap, BTreeSet};
@@ -1112,6 +1112,15 @@ mod tests {
         )
     }
 
+    fn generated_source(relative_path: &[u8], bytes: &[u8]) -> PackageGeneratedSource {
+        let tree = omega_build_output::replayed_single_ordinary_file(relative_path, bytes)
+            .expect("test source must form a canonical retained output tree");
+        omega_build_output::select_included_sources(&tree, &[relative_path.to_vec()])
+            .expect("test source must be explicitly included")
+            .pop()
+            .expect("one included test source must be retained")
+    }
+
     fn three_package_generated_inputs(tree: &TempTree) -> PackageCompilationInputs {
         PackageCompilationInputs::new(
             identity(1),
@@ -1289,7 +1298,7 @@ mod tests {
     fn complete_generated_source_bundles_bind_owner_closure_target_and_bytes() {
         let tree = TempTree::new();
         let inputs = three_package_generated_inputs(&tree);
-        let generated = PackageGeneratedSource::for_test(
+        let generated = generated_source(
             b"generated_api.omg",
             b"pub machine generated_value() -> u64 { 17 }\n",
         );
@@ -1386,7 +1395,7 @@ pub machine consume_generated_value() -> u64 {
             identity(2),
             omega_target::TargetProfile::WindowsX64,
             12,
-            vec![PackageGeneratedSource::for_test(
+            vec![generated_source(
                 b"generated_api.omg",
                 b"pub machine generated_value() -> u64 { 17 }\n",
             )],

@@ -41,7 +41,7 @@ pub(super) struct AssembledSyntax {
     pub(super) source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
     pub(super) generated_source_custody: Vec<(
         psi_source::SourceId,
-        crate::pipeline::build_staged_output::PackageGeneratedSource,
+        omega_build_output::PackageGeneratedSource,
     )>,
 }
 
@@ -49,11 +49,11 @@ pub(super) fn append_retained_generated_sources(
     assembled: &mut AssembledSyntax,
     package_root: &Path,
     package_identity: Option<psi_core::PackageKeyIdentity>,
-    generated_sources: &[crate::pipeline::build_staged_output::PackageGeneratedSource],
+    generated_sources: &[omega_build_output::PackageGeneratedSource],
 ) -> Result<
     Vec<(
         psi_source::SourceId,
-        crate::pipeline::build_staged_output::PackageGeneratedSource,
+        omega_build_output::PackageGeneratedSource,
     )>,
     Vec<Diagnostic>,
 > {
@@ -346,7 +346,7 @@ fn append_dependency_generated_sources_to_storage(
 ) -> Result<
     Vec<(
         psi_source::SourceId,
-        crate::pipeline::build_staged_output::PackageGeneratedSource,
+        omega_build_output::PackageGeneratedSource,
     )>,
     Vec<Diagnostic>,
 > {
@@ -421,7 +421,7 @@ fn append_dependency_generated_sources_to_storage(
 
 fn generated_source_logical_path(
     package_root: &Path,
-    source: &crate::pipeline::build_staged_output::PackageGeneratedSource,
+    source: &omega_build_output::PackageGeneratedSource,
 ) -> Result<PathBuf, Vec<Diagnostic>> {
     let mut logical_path = package_root.join(".omega/generated");
     for component in source.relative_path().split(|byte| *byte == b'/') {
@@ -1068,7 +1068,7 @@ fn assemble_syntax(
     source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
     generated_source_custody: Vec<(
         psi_source::SourceId,
-        crate::pipeline::build_staged_output::PackageGeneratedSource,
+        omega_build_output::PackageGeneratedSource,
     )>,
 ) -> Result<AssembledSyntax, Vec<Diagnostic>> {
     let files = sources.files.storage_slice().to_vec();

@@ -6,8 +6,6 @@ mod boundary_report;
 mod build_config;
 #[path = "build/replay_record.rs"]
 mod build_replay_record;
-#[path = "build/staged_output.rs"]
-mod build_staged_output;
 #[path = "provider/calling_policy_plans.rs"]
 mod calling_policy_plans;
 mod checked_entry;
@@ -121,10 +119,6 @@ pub use build_replay_record::{
     BuildFilesystemReplayRecordError, BuildFilesystemReplayRecordLimits,
     ReviewOnlyBuildFilesystemReplayRecord, capture_verified_build_filesystem_replay_record,
     recover_review_only_build_filesystem_replay_record,
-};
-pub use build_staged_output::{
-    BuildStagedOutputMaterializationError, BuildStagedOutputTree, BuildStagedOutputTreeCommitment,
-    PackageGeneratedSource,
 };
 pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub(crate) use checked_entry::compile_to_checked_for_terminal;

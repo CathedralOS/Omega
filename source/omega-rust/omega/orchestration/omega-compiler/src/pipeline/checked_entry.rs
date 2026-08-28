@@ -23,9 +23,9 @@ pub struct CheckedCompilation {
     exact_toolchain_sources: Vec<(psi_source::SourceId, [u8; 32])>,
     generated_source_custody: Vec<(
         psi_source::SourceId,
-        super::build_staged_output::PackageGeneratedSource,
+        omega_build_output::PackageGeneratedSource,
     )>,
-    own_generated_sources: Vec<super::build_staged_output::PackageGeneratedSource>,
+    own_generated_sources: Vec<omega_build_output::PackageGeneratedSource>,
     selected_target_profile: Option<omega_target::TargetProfile>,
     selected_native_target: Option<omega_target::NativeTarget>,
     selected_program_entry_machine: Option<String>,

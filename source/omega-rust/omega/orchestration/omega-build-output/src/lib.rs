@@ -1,3 +1,7 @@
+#![forbid(unsafe_code)]
+
+//! Retained build-output custody, canonical identity, and materialization.
+
 use psi_checked_interpreter::{FilesystemSponsor, FilesystemSponsorNamespaceEntryKind};
 use psi_diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
@@ -68,15 +72,6 @@ pub struct PackageGeneratedSource {
 }
 
 impl PackageGeneratedSource {
-    #[cfg(test)]
-    pub(super) fn for_test(relative_path: &[u8], bytes: &[u8]) -> Self {
-        Self {
-            relative_path: relative_path.to_vec(),
-            bytes: Arc::from(bytes),
-            digest: Sha256::digest(bytes).into(),
-        }
-    }
-
     pub fn relative_path(&self) -> &[u8] {
         &self.relative_path
     }
@@ -194,7 +189,7 @@ struct HostFileIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct HostFileIdentity;
 
-pub(super) fn empty() -> BuildStagedOutputTree {
+pub fn empty() -> BuildStagedOutputTree {
     finish_commitment(Vec::new())
 }
 
@@ -202,7 +197,7 @@ pub(super) fn empty() -> BuildStagedOutputTree {
 /// canonical replay operands. The initial grammar admits exactly one ordinary
 /// direct-child file; broader namespace effects require their own replay
 /// semantics rather than being inferred from a final digest.
-pub(super) fn replayed_single_ordinary_file(
+pub fn replayed_single_ordinary_file(
     relative_path: &[u8],
     bytes: &[u8],
 ) -> Result<BuildStagedOutputTree, Vec<Diagnostic>> {
@@ -249,7 +244,7 @@ pub(super) fn replayed_single_ordinary_file(
     Ok(tree)
 }
 
-pub(super) fn select_included_sources(
+pub fn select_included_sources(
     tree: &BuildStagedOutputTree,
     relative_paths: &[Vec<u8>],
 ) -> Result<Vec<PackageGeneratedSource>, Vec<Diagnostic>> {
@@ -323,7 +318,7 @@ pub(super) fn select_included_sources(
     Ok(selected)
 }
 
-pub(super) fn capture(
+pub fn capture(
     root: &Path,
     sponsor: &FilesystemSponsor,
 ) -> Result<BuildStagedOutputTree, Vec<Diagnostic>> {
