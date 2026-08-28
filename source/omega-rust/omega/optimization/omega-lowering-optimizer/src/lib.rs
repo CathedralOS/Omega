@@ -941,14 +941,21 @@ mod tests {
     }
 
     fn phi_translated_gvn_verified() -> VerifiedPsiOptimizationUnit {
-        phi_translated_gvn_verified_fixture(false)
+        phi_translated_gvn_verified_fixture(false, false)
     }
 
     fn proof_certified_phi_translated_gvn_verified() -> VerifiedPsiOptimizationUnit {
-        phi_translated_gvn_verified_fixture(true)
+        phi_translated_gvn_verified_fixture(true, false)
     }
 
-    fn phi_translated_gvn_verified_fixture(proof_certified: bool) -> VerifiedPsiOptimizationUnit {
+    fn compatible_policy_phi_translated_gvn_verified() -> VerifiedPsiOptimizationUnit {
+        phi_translated_gvn_verified_fixture(false, true)
+    }
+
+    fn phi_translated_gvn_verified_fixture(
+        proof_certified: bool,
+        compatible_policy: bool,
+    ) -> VerifiedPsiOptimizationUnit {
         let machine = MachineId::new(1_451).unwrap();
         let join = BlockId::new(1_452).unwrap();
         let left = BlockId::new(1_453).unwrap();
@@ -980,7 +987,7 @@ mod tests {
                     operations: vec![Operation {
                         id: OperationId::new(1_463).unwrap(),
                         result: OperationResult::Scalar(declaration(redundant, result_integer)),
-                        kind: if proof_certified {
+                        kind: if proof_certified || compatible_policy {
                             OperationKind::ExactIntegerShiftLeft {
                                 value: join_input,
                                 count: zero,
@@ -1010,6 +1017,11 @@ mod tests {
                                 count: zero,
                                 obligation: left_obligation,
                             }
+                        } else if compatible_policy {
+                            OperationKind::WrappingIntegerShiftLeft {
+                                value: left_input,
+                                count: zero,
+                            }
                         } else {
                             OperationKind::IntegerBitwiseNot {
                                 operand: left_input,
@@ -1026,7 +1038,7 @@ mod tests {
                 Block {
                     id: entry,
                     parameters: Vec::new(),
-                    operations: if proof_certified {
+                    operations: if proof_certified || compatible_policy {
                         vec![Operation {
                             id: OperationId::new(1_476).unwrap(),
                             result: OperationResult::Scalar(declaration(zero, integer)),
@@ -1065,6 +1077,11 @@ mod tests {
                                 count: zero,
                                 obligation: right_obligation,
                             }
+                        } else if compatible_policy {
+                            OperationKind::WrappingIntegerShiftLeft {
+                                value: right_input,
+                                count: zero,
+                            }
                         } else {
                             OperationKind::IntegerBitwiseNot {
                                 operand: right_input,
@@ -1095,6 +1112,14 @@ mod tests {
                         route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
                     })
                     .collect(),
+            }
+        } else if compatible_policy {
+            ProofBundle {
+                evidence_producers: Vec::new(),
+                evidence: vec![ObligationEvidence {
+                    obligation: redundant_obligation,
+                    route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+                }],
             }
         } else {
             ProofBundle::default()
@@ -2564,6 +2589,52 @@ mod tests {
             BTreeSet::from([ValueId::new(1_460).unwrap(), ValueId::new(1_461).unwrap(),])
         );
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
+    }
+
+    #[test]
+    fn compatible_policy_phi_gvn_projects_and_lowers_in_both_target_families() {
+        let selections = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let optimized = project_optimization_run(run(
+                compatible_policy_phi_translated_gvn_verified(),
+                selections.clone(),
+            ))
+            .unwrap();
+            let join = BlockId::new(1_452).unwrap();
+            let redundant = ValueId::new(1_462).unwrap();
+            let redundant_operation = OperationId::new(1_463).unwrap();
+            let function = &optimized.unit().functions[0];
+            let join_block = function
+                .blocks
+                .iter()
+                .find(|block| block.id == join)
+                .unwrap();
+            assert_eq!(optimized.commits().len(), 1);
+            assert_eq!(join_block.parameters[1].value, redundant);
+            assert_eq!(join_block.nodes.len(), 1);
+            assert_eq!(optimized.unit().accepted_obligation_facts.len(), 1);
+            assert!(function.facts.iter().all(|fact| {
+                !matches!(fact, omega_optimization_unit::OptimizationFact::OperationObligationReference { support, .. }
+                    if *support == redundant_operation)
+            }));
+            assert_eq!(
+                function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.nodes)
+                    .flat_map(|node| &node.successors)
+                    .filter(|edge| edge.target == join)
+                    .map(|edge| edge.bindings[1].argument)
+                    .collect::<BTreeSet<_>>(),
+                BTreeSet::from([ValueId::new(1_460).unwrap(), ValueId::new(1_461).unwrap(),])
+            );
+            let lowered = lower_optimized_to_target_operations(optimized, target).unwrap();
+            assert_eq!(lowered.target(), target);
+            assert_eq!(
+                lowered.optimized().transformation_ledger().records().len(),
+                1
+            );
+        }
     }
 
     #[test]

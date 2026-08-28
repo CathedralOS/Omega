@@ -33,7 +33,7 @@ const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-clea
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v2";
 const PROOF_CHECK_ELISION_PASS_NAME: &[u8] = b"omega.psi-pass.proof-check-elision.v8";
-const GLOBAL_VALUE_NUMBERING_PASS_NAME: &[u8] = b"omega.psi-pass.global-value-numbering.v6";
+const GLOBAL_VALUE_NUMBERING_PASS_NAME: &[u8] = b"omega.psi-pass.global-value-numbering.v7";
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ConstantConditionalFoldRule;
@@ -95,6 +95,9 @@ pub struct PhiTranslatedObligationFreeScalarGvnRule;
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PhiTranslatedProofCertifiedScalarGvnRule;
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum TotalScalarExpressionKey {
     BooleanConstant(bool),
@@ -126,6 +129,41 @@ enum CompatiblePolicyScalarExpressionKey {
     Add(IntegerType, ValueId, ValueId),
     Subtract(IntegerType, ValueId, ValueId),
     Multiply(IntegerType, ValueId, ValueId),
+}
+
+impl CompatiblePolicyScalarExpressionKey {
+    fn references_any(self, values: &BTreeSet<ValueId>) -> bool {
+        match self {
+            Self::ShiftLeft(_, _, left, right)
+            | Self::ShiftRight(_, _, left, right)
+            | Self::Add(_, left, right)
+            | Self::Subtract(_, left, right)
+            | Self::Multiply(_, left, right) => values.contains(&left) || values.contains(&right),
+        }
+    }
+
+    fn translate(self, values: &BTreeMap<ValueId, ValueId>) -> Self {
+        let value = |operand: ValueId| values.get(&operand).copied().unwrap_or(operand);
+        match self {
+            Self::ShiftLeft(value_type, count_type, operand, count) => {
+                Self::ShiftLeft(value_type, count_type, value(operand), value(count))
+            }
+            Self::ShiftRight(value_type, count_type, operand, count) => {
+                Self::ShiftRight(value_type, count_type, value(operand), value(count))
+            }
+            Self::Add(scalar_type, left, right) => {
+                let (left, right) = canonical_pair(value(left), value(right));
+                Self::Add(scalar_type, left, right)
+            }
+            Self::Subtract(scalar_type, left, right) => {
+                Self::Subtract(scalar_type, value(left), value(right))
+            }
+            Self::Multiply(scalar_type, left, right) => {
+                let (left, right) = canonical_pair(value(left), value(right));
+                Self::Multiply(scalar_type, left, right)
+            }
+        }
+    }
 }
 
 impl TotalScalarExpressionKey {
@@ -2609,6 +2647,289 @@ impl PsiOptimizationRule for PhiTranslatedProofCertifiedScalarGvnRule {
                             redundant_operation: *redundant_operation,
                             redundant_result: *redundant_result,
                             scalar_type: *scalar_type,
+                            parameter_position,
+                            incoming,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+        Ok(candidates)
+    }
+}
+
+impl PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.phi-translated-proof-certified-compatible-policy-scalar-gvn.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(GLOBAL_VALUE_NUMBERING_PASS_NAME),
+            1,
+            AnalysisSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::Dominators,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::ProofCertified,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        if analyses.get(AnalysisKind::ControlFlowGraph).is_none() {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::ControlFlowGraph,
+            ));
+        }
+        let Some(AnalysisProduct::Dominators(dominators)) = analyses.get(AnalysisKind::Dominators)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(AnalysisKind::Dominators));
+        };
+        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
+            analyses.get(AnalysisKind::UseDefinition)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::UseDefinition,
+            ));
+        };
+        let Some(AnalysisProduct::EffectSummaries(effects)) =
+            analyses.get(AnalysisKind::EffectSummaries)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::EffectSummaries,
+            ));
+        };
+
+        let mut candidates = Vec::new();
+        for function in &unit.functions {
+            let machine_dominators = dominators
+                .functions
+                .iter()
+                .find(|(machine, _)| *machine == function.machine)
+                .map(|(_, rows)| rows.as_slice())
+                .unwrap_or_default();
+            let value_types = function
+                .parameters
+                .iter()
+                .map(|row| (row.value, row.scalar_type))
+                .chain(function.blocks.iter().flat_map(|block| {
+                    block
+                        .parameters
+                        .iter()
+                        .map(|row| (row.value, row.scalar_type))
+                }))
+                .chain(function.blocks.iter().flat_map(|block| {
+                    block.nodes.iter().flat_map(|node| {
+                        node.definitions
+                            .iter()
+                            .map(|row| (row.value, row.scalar_type))
+                    })
+                }))
+                .collect::<BTreeMap<_, _>>();
+            let mut leaders = Vec::new();
+            let mut redundants = Vec::new();
+            for block in &function.blocks {
+                for (index, node) in block.nodes.iter().enumerate() {
+                    let node_index =
+                        u32::try_from(index).expect("optimization node index fits u32");
+                    let location = NodeLocation {
+                        machine: function.machine,
+                        block: block.id,
+                        node: node_index,
+                    };
+                    if let Some((key, operation, result, scalar_type)) =
+                        compatible_policy_scalar_leader(&node.operation)
+                        && exact_pure_scalar_effect(
+                            unit,
+                            effects,
+                            function.machine,
+                            block.id,
+                            node_index,
+                        )
+                        && !function.facts.iter().any(|fact| {
+                            matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
+                                if *support == operation)
+                        })
+                    {
+                        leaders.push((key, location, operation, result, scalar_type));
+                    }
+                    if let Some((key, operation, result, scalar_type)) =
+                        compatible_policy_scalar_redundant(&node.operation)
+                        && let Ok(obligation_fact) =
+                            accepted_obligation_fact(unit, function.machine, operation)
+                        && exact_pure_scalar_effect(
+                            unit,
+                            effects,
+                            function.machine,
+                            block.id,
+                            node_index,
+                        )
+                    {
+                        redundants.push((
+                            key,
+                            location,
+                            operation,
+                            result,
+                            scalar_type,
+                            obligation_fact,
+                        ));
+                    }
+                }
+            }
+
+            for (
+                key,
+                redundant,
+                redundant_operation,
+                redundant_result,
+                scalar_type,
+                obligation_fact,
+            ) in redundants
+            {
+                let Some(join) = function
+                    .blocks
+                    .iter()
+                    .find(|block| block.id == redundant.block)
+                else {
+                    continue;
+                };
+                let parameter_values = join
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.value)
+                    .collect::<BTreeSet<_>>();
+                if join.id == function.entry
+                    || parameter_values.is_empty()
+                    || !key.references_any(&parameter_values)
+                    || !use_definitions.uses.iter().any(|(machine, use_site)| {
+                        *machine == function.machine && use_site.value == redundant_result
+                    })
+                {
+                    continue;
+                }
+                let redundant_index = usize::try_from(redundant.node).expect("u32 fits usize");
+                let Some(redundant_node) = join.nodes.get(redundant_index) else {
+                    continue;
+                };
+                let Some(receiver) = join.nodes.get(redundant_index + 1) else {
+                    continue;
+                };
+                if receiver
+                    .provenance
+                    .iter()
+                    .any(|source| redundant_node.provenance.contains(source))
+                {
+                    continue;
+                }
+
+                let mut incoming = Vec::new();
+                let mut complete = true;
+                for source in &function.blocks {
+                    for (owner_index, owner) in source.nodes.iter().enumerate() {
+                        let owner_index =
+                            u32::try_from(owner_index).expect("optimization node index fits u32");
+                        for edge in owner
+                            .successors
+                            .iter()
+                            .filter(|edge| edge.target == join.id)
+                        {
+                            if edge.bindings.len() != join.parameters.len() {
+                                complete = false;
+                                continue;
+                            }
+                            let mut translation = BTreeMap::new();
+                            for (parameter, binding) in join.parameters.iter().zip(&edge.bindings) {
+                                if binding.parameter != parameter.value
+                                    || binding.scalar_type != parameter.scalar_type
+                                    || value_types.get(&binding.argument)
+                                        != Some(&binding.scalar_type)
+                                {
+                                    complete = false;
+                                    break;
+                                }
+                                translation.insert(parameter.value, binding.argument);
+                            }
+                            if !complete {
+                                continue;
+                            }
+                            let translated_key = key.translate(&translation);
+                            let leader = leaders
+                                .iter()
+                                .filter(|(candidate_key, location, _, _, candidate_type)| {
+                                    candidate_key == &translated_key
+                                        && candidate_type == &scalar_type
+                                        && ((location.block == source.id
+                                            && location.node < owner_index)
+                                            || (location.block != source.id
+                                                && block_dominates(
+                                                    machine_dominators,
+                                                    location.block,
+                                                    source.id,
+                                                )))
+                                })
+                                .min_by_key(|(_, location, _, _, _)| {
+                                    let depth = machine_dominators
+                                        .iter()
+                                        .find(|(candidate, _)| *candidate == location.block)
+                                        .map_or(usize::MAX, |(_, rows)| rows.len());
+                                    (depth, *location)
+                                });
+                            let Some((_, leader, leader_operation, leader_result, _)) = leader
+                            else {
+                                complete = false;
+                                continue;
+                            };
+                            incoming.push(PhiTranslatedScalarIncoming {
+                                source: source.id,
+                                edge: edge.psi_edge,
+                                leader: *leader,
+                                leader_operation: *leader_operation,
+                                leader_result: *leader_result,
+                            });
+                        }
+                    }
+                }
+                if !complete || incoming.len() < 2 {
+                    continue;
+                }
+                incoming.sort_by_key(|row| (row.edge, row.source));
+                let Some((affected_blocks, provenance)) =
+                    phi_translated_cse_accounting(function, redundant, &incoming)
+                else {
+                    continue;
+                };
+                let parameter_position = u32::try_from(join.parameters.len())
+                    .expect("optimization block parameter count fits u32");
+                candidates.push(
+                    PsiRewriteCandidate::new_proof_certified_phi_translated_scalar_common_subexpression(
+                        unit.identity,
+                        Self::contract(),
+                        affected_blocks,
+                        provenance,
+                        obligation_fact,
+                        -1,
+                        PhiTranslatedScalarGvnRewrite {
+                            redundant,
+                            redundant_operation,
+                            redundant_result,
+                            scalar_type,
                             parameter_position,
                             incoming,
                         },
@@ -7975,6 +8296,7 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
         register!(5, PhiTranslatedProofCertifiedScalarGvnRule);
         register!(6, SameBlockProofCertifiedCompatiblePolicyScalarCseRule);
         register!(7, DominatorProofCertifiedCompatiblePolicyScalarGvnRule);
+        register!(8, PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule);
     }
     if optimization == Optimization::DeadPureScalarElimination {
         register!(0, DeadScalarLiteralEliminationRule);
@@ -9563,16 +9885,21 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn phi_translated_gvn_unit() -> PsiOptimizationUnit {
-        phi_translated_gvn_fixture(PhiTranslatedRightArm::Matching, false)
+        phi_translated_gvn_fixture(PhiTranslatedRightArm::Matching, false, false)
     }
 
     pub(crate) fn proof_certified_phi_translated_gvn_unit() -> PsiOptimizationUnit {
-        phi_translated_gvn_fixture(PhiTranslatedRightArm::Matching, true)
+        phi_translated_gvn_fixture(PhiTranslatedRightArm::Matching, true, false)
+    }
+
+    pub(crate) fn compatible_policy_phi_translated_gvn_unit() -> PsiOptimizationUnit {
+        phi_translated_gvn_fixture(PhiTranslatedRightArm::Matching, false, true)
     }
 
     fn phi_translated_gvn_fixture(
         right_arm: PhiTranslatedRightArm,
         proof_certified: bool,
+        compatible_policy: bool,
     ) -> PsiOptimizationUnit {
         let machine = id(1_701, MachineId::new);
         let join = id(1_702, BlockId::new);
@@ -9588,7 +9915,7 @@ pub(crate) mod tests {
         let right_leader = id(1_712, ValueId::new);
         let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
         let wide = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
-        let redundant_expression = if proof_certified {
+        let redundant_expression = if proof_certified || compatible_policy {
             TerminalAbstractOperation::ExactIntegerAdd {
                 psi_operation: id(1_713, OperationId::new),
                 obligation: id(1_721, ObligationId::new),
@@ -9614,6 +9941,14 @@ pub(crate) mod tests {
                 left: left_input,
                 right: left_input,
             }
+        } else if compatible_policy {
+            TerminalAbstractOperation::WrappingIntegerAdd {
+                psi_operation: id(1_715, OperationId::new),
+                result: left_leader,
+                scalar_type: integer,
+                left: left_input,
+                right: left_input,
+            }
         } else {
             TerminalAbstractOperation::IntegerBitwiseNot {
                 psi_operation: id(1_715, OperationId::new),
@@ -9630,6 +9965,34 @@ pub(crate) mod tests {
                 scalar_type: integer,
                 left: right_input,
                 right: right_input,
+            }
+        } else if compatible_policy {
+            match right_arm {
+                PhiTranslatedRightArm::Matching => {
+                    TerminalAbstractOperation::SaturatingIntegerAdd {
+                        psi_operation: id(1_716, OperationId::new),
+                        result: right_leader,
+                        scalar_type: integer,
+                        left: right_input,
+                        right: right_input,
+                    }
+                }
+                PhiTranslatedRightArm::Missing => {
+                    TerminalAbstractOperation::WrappingIntegerSubtract {
+                        psi_operation: id(1_716, OperationId::new),
+                        result: right_leader,
+                        scalar_type: integer,
+                        left: right_input,
+                        right: right_input,
+                    }
+                }
+                PhiTranslatedRightArm::MismatchedType => TerminalAbstractOperation::IntegerWiden {
+                    psi_operation: id(1_716, OperationId::new),
+                    result: right_leader,
+                    source_type: integer,
+                    target_type: wide,
+                    operand: right_input,
+                },
             }
         } else {
             match right_arm {
@@ -9763,7 +10126,7 @@ pub(crate) mod tests {
             FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap();
-        if proof_certified {
+        if proof_certified || compatible_policy {
             with_synthetic_accepted_obligations(unit)
         } else {
             unit
@@ -11251,7 +11614,7 @@ pub(crate) mod tests {
         assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
         let gvn = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
         let gvn = built_in_psi_registry(&gvn).unwrap();
-        assert_eq!(gvn.len(), 8);
+        assert_eq!(gvn.len(), 9);
         assert_eq!(
             gvn.contracts()
                 .map(|contract| contract.identity())
@@ -11265,6 +11628,7 @@ pub(crate) mod tests {
                 PhiTranslatedProofCertifiedScalarGvnRule::contract().identity(),
                 SameBlockProofCertifiedCompatiblePolicyScalarCseRule::contract().identity(),
                 DominatorProofCertifiedCompatiblePolicyScalarGvnRule::contract().identity(),
+                PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract().identity(),
             ]
         );
         assert!(gvn.contracts().all(|contract| {
@@ -12783,6 +13147,243 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn compatible_policy_key_matrix_binds_sign_width_family_policy_and_operand_order() {
+        #[derive(Clone, Copy)]
+        enum ArithmeticFamily {
+            Add,
+            Subtract,
+            Multiply,
+        }
+        #[derive(Clone, Copy)]
+        enum LeaderPolicy {
+            Wrapping,
+            Saturating,
+        }
+
+        let operation = id(20_101, OperationId::new);
+        let result = id(20_102, ValueId::new);
+        let obligation = id(20_103, ObligationId::new);
+        let left = id(20_104, ValueId::new);
+        let right = id(20_105, ValueId::new);
+        for sign in [IntegerSign::Unsigned, IntegerSign::Signed] {
+            for bits in [8, 32, 128] {
+                let scalar_type = IntegerType::new(sign, bits).unwrap();
+                let foreign_domain = IntegerType::new(sign, bits / 2 + 1).unwrap();
+                for family in [
+                    ArithmeticFamily::Add,
+                    ArithmeticFamily::Subtract,
+                    ArithmeticFamily::Multiply,
+                ] {
+                    let redundant = match family {
+                        ArithmeticFamily::Add => O::ExactIntegerAdd {
+                            psi_operation: operation,
+                            obligation,
+                            result,
+                            scalar_type,
+                            left,
+                            right,
+                        },
+                        ArithmeticFamily::Subtract => O::ExactIntegerSubtract {
+                            psi_operation: operation,
+                            obligation,
+                            result,
+                            scalar_type,
+                            left,
+                            right,
+                        },
+                        ArithmeticFamily::Multiply => O::ExactIntegerMultiply {
+                            psi_operation: operation,
+                            obligation,
+                            result,
+                            scalar_type,
+                            left,
+                            right,
+                        },
+                    };
+                    let redundant_key = compatible_policy_scalar_redundant(&redundant).unwrap().0;
+                    for policy in [LeaderPolicy::Wrapping, LeaderPolicy::Saturating] {
+                        let leader = match (family, policy) {
+                            (ArithmeticFamily::Add, LeaderPolicy::Wrapping) => {
+                                O::WrappingIntegerAdd {
+                                    psi_operation: operation,
+                                    result,
+                                    scalar_type,
+                                    left,
+                                    right,
+                                }
+                            }
+                            (ArithmeticFamily::Add, LeaderPolicy::Saturating) => {
+                                O::SaturatingIntegerAdd {
+                                    psi_operation: operation,
+                                    result,
+                                    scalar_type,
+                                    left,
+                                    right,
+                                }
+                            }
+                            (ArithmeticFamily::Subtract, LeaderPolicy::Wrapping) => {
+                                O::WrappingIntegerSubtract {
+                                    psi_operation: operation,
+                                    result,
+                                    scalar_type,
+                                    left,
+                                    right,
+                                }
+                            }
+                            (ArithmeticFamily::Subtract, LeaderPolicy::Saturating) => {
+                                O::SaturatingIntegerSubtract {
+                                    psi_operation: operation,
+                                    result,
+                                    scalar_type,
+                                    left,
+                                    right,
+                                }
+                            }
+                            (ArithmeticFamily::Multiply, LeaderPolicy::Wrapping) => {
+                                O::WrappingIntegerMultiply {
+                                    psi_operation: operation,
+                                    result,
+                                    scalar_type,
+                                    left,
+                                    right,
+                                }
+                            }
+                            (ArithmeticFamily::Multiply, LeaderPolicy::Saturating) => {
+                                O::SaturatingIntegerMultiply {
+                                    psi_operation: operation,
+                                    result,
+                                    scalar_type,
+                                    left,
+                                    right,
+                                }
+                            }
+                        };
+                        assert_eq!(
+                            compatible_policy_scalar_leader(&leader).unwrap().0,
+                            redundant_key
+                        );
+                    }
+                    let swapped = match family {
+                        ArithmeticFamily::Add => O::ExactIntegerAdd {
+                            psi_operation: operation,
+                            obligation,
+                            result,
+                            scalar_type,
+                            left: right,
+                            right: left,
+                        },
+                        ArithmeticFamily::Subtract => O::ExactIntegerSubtract {
+                            psi_operation: operation,
+                            obligation,
+                            result,
+                            scalar_type,
+                            left: right,
+                            right: left,
+                        },
+                        ArithmeticFamily::Multiply => O::ExactIntegerMultiply {
+                            psi_operation: operation,
+                            obligation,
+                            result,
+                            scalar_type,
+                            left: right,
+                            right: left,
+                        },
+                    };
+                    let swapped_key = compatible_policy_scalar_redundant(&swapped).unwrap().0;
+                    assert_eq!(
+                        redundant_key == swapped_key,
+                        !matches!(family, ArithmeticFamily::Subtract)
+                    );
+                    let foreign = O::WrappingIntegerAdd {
+                        psi_operation: operation,
+                        result,
+                        scalar_type: foreign_domain,
+                        left,
+                        right,
+                    };
+                    assert_ne!(
+                        compatible_policy_scalar_leader(&foreign).unwrap().0,
+                        redundant_key
+                    );
+                }
+
+                for shift_left in [true, false] {
+                    let count_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+                    let leader = if shift_left {
+                        O::WrappingIntegerShiftLeft {
+                            psi_operation: operation,
+                            result,
+                            value_type: scalar_type,
+                            count_type,
+                            value: left,
+                            count: right,
+                        }
+                    } else {
+                        O::WrappingIntegerShiftRight {
+                            psi_operation: operation,
+                            result,
+                            value_type: scalar_type,
+                            count_type,
+                            value: left,
+                            count: right,
+                        }
+                    };
+                    let redundant = if shift_left {
+                        O::ExactIntegerShiftLeft {
+                            psi_operation: operation,
+                            obligation,
+                            result,
+                            value_type: scalar_type,
+                            count_type,
+                            value: left,
+                            count: right,
+                        }
+                    } else {
+                        O::ExactIntegerShiftRight {
+                            psi_operation: operation,
+                            obligation,
+                            result,
+                            value_type: scalar_type,
+                            count_type,
+                            value: left,
+                            count: right,
+                        }
+                    };
+                    assert_eq!(
+                        compatible_policy_scalar_leader(&leader).unwrap().0,
+                        compatible_policy_scalar_redundant(&redundant).unwrap().0
+                    );
+                    let reversed = if shift_left {
+                        O::ExactIntegerShiftLeft {
+                            psi_operation: operation,
+                            obligation,
+                            result,
+                            value_type: scalar_type,
+                            count_type,
+                            value: right,
+                            count: left,
+                        }
+                    } else {
+                        O::ExactIntegerShiftRight {
+                            psi_operation: operation,
+                            obligation,
+                            result,
+                            value_type: scalar_type,
+                            count_type,
+                            value: right,
+                            count: left,
+                        }
+                    };
+                    assert_ne!(
+                        compatible_policy_scalar_leader(&leader).unwrap().0,
+                        compatible_policy_scalar_redundant(&reversed).unwrap().0
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn compatible_policy_local_and_dominator_gvn_consume_only_redundant_proof_custody() {
         let cases: [(
             PsiOptimizationUnit,
@@ -13189,6 +13790,22 @@ pub(crate) mod tests {
             .unwrap()
     }
 
+    fn compatible_policy_phi_translated_candidates(
+        unit: &PsiOptimizationUnit,
+    ) -> Vec<PsiRewriteCandidate> {
+        let contract = PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract();
+        let mut manager = crate::AnalysisManager::new(unit);
+        let products = manager
+            .require_all(unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule
+            .propose(unit, RuleAnalysisView::new(&products))
+            .unwrap()
+    }
+
     #[test]
     fn phi_translated_gvn_preserves_result_identity_and_reaches_fixed_point() {
         let unit = phi_translated_gvn_unit();
@@ -13279,7 +13896,7 @@ pub(crate) mod tests {
             PhiTranslatedRightArm::Missing,
             PhiTranslatedRightArm::MismatchedType,
         ] {
-            let unit = phi_translated_gvn_fixture(right_arm, false);
+            let unit = phi_translated_gvn_fixture(right_arm, false, false);
             assert!(phi_translated_candidates(&unit).is_empty());
         }
     }
@@ -13414,6 +14031,143 @@ pub(crate) mod tests {
         assert_eq!(
             validate_phi_translated_scalar_common_subexpression_candidate(&unit, &detached_leader,),
             Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)
+        );
+    }
+
+    #[test]
+    fn compatible_policy_phi_translation_preserves_result_and_consumes_only_redundant_evidence() {
+        let unit = compatible_policy_phi_translated_gvn_unit();
+        let [candidate] = compatible_policy_phi_translated_candidates(&unit)
+            .try_into()
+            .expect("wrapping and saturating arm leaders are compatible");
+        assert!(phi_translated_candidates(&unit).is_empty());
+        assert!(proof_certified_phi_translated_candidates(&unit).is_empty());
+        let redundant_fact = unit.accepted_obligation_facts[0].identity;
+        assert_eq!(
+            candidate.accepted_obligation_witness(),
+            Some(redundant_fact)
+        );
+        assert_eq!(candidate.substitutions(), []);
+        assert_eq!(candidate.consumed_facts().len(), 1);
+        let accepted =
+            validate_phi_translated_scalar_common_subexpression_candidate(&unit, &candidate)
+                .unwrap();
+        assert_eq!(
+            accepted.validator(),
+            omega_optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
+                b"omega.validator.phi-translated-proof-certified-compatible-policy-scalar-gvn.v1",
+            )
+        );
+        assert_eq!(
+            accepted.unit().accepted_obligation_facts,
+            unit.accepted_obligation_facts
+        );
+        assert!(accepted.unit().functions[0].facts.iter().all(|fact| {
+            !matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
+                if *support == id(1_713, OperationId::new))
+        }));
+        let join = &accepted.unit().functions[0].blocks[0];
+        assert_eq!(
+            join.parameters.last().unwrap().value,
+            id(1_710, ValueId::new)
+        );
+        assert_eq!(join.nodes.len(), 1);
+        assert!(compatible_policy_phi_translated_candidates(accepted.unit()).is_empty());
+    }
+
+    #[test]
+    fn compatible_policy_phi_translation_declines_incomplete_arms_and_rejects_corruption() {
+        for right_arm in [
+            PhiTranslatedRightArm::Missing,
+            PhiTranslatedRightArm::MismatchedType,
+        ] {
+            let unit = phi_translated_gvn_fixture(right_arm, false, true);
+            assert!(compatible_policy_phi_translated_candidates(&unit).is_empty());
+        }
+
+        let original = compatible_policy_phi_translated_gvn_unit();
+        let [candidate] = compatible_policy_phi_translated_candidates(&original)
+            .try_into()
+            .unwrap();
+        let PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch) =
+            candidate.patch()
+        else {
+            unreachable!()
+        };
+
+        let mut missing_fact = original.clone();
+        missing_fact.accepted_obligation_facts.clear();
+        missing_fact.identity = recompute_psi_optimization_unit_identity(&missing_fact);
+        assert!(compatible_policy_phi_translated_candidates(&missing_fact).is_empty());
+
+        let foreign_fact =
+            PsiRewriteCandidate::new_proof_certified_phi_translated_scalar_common_subexpression(
+                original.identity,
+                PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract(),
+                candidate.affected_blocks().to_vec(),
+                candidate.provenance().to_vec(),
+                omega_optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(
+                    b"foreign compatible phi fact",
+                ),
+                candidate.predicted_cost_delta(),
+                patch.clone(),
+            )
+            .unwrap();
+        assert_eq!(
+            validate_phi_translated_scalar_common_subexpression_candidate(&original, &foreign_fact,),
+            Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)
+        );
+
+        let mut unavailable_patch = patch.clone();
+        unavailable_patch.incoming[0].leader.node = 1;
+        let unavailable =
+            PsiRewriteCandidate::new_proof_certified_phi_translated_scalar_common_subexpression(
+                original.identity,
+                PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract(),
+                candidate.affected_blocks().to_vec(),
+                candidate.provenance().to_vec(),
+                candidate.accepted_obligation_witness().unwrap(),
+                candidate.predicted_cost_delta(),
+                unavailable_patch,
+            )
+            .unwrap();
+        assert_eq!(
+            validate_phi_translated_scalar_common_subexpression_candidate(&original, &unavailable),
+            Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch)
+        );
+
+        let mut detached_patch = patch.clone();
+        detached_patch.incoming[0].leader_operation = id(20_201, OperationId::new);
+        detached_patch.incoming[0].leader_result = id(20_202, ValueId::new);
+        let detached =
+            PsiRewriteCandidate::new_proof_certified_phi_translated_scalar_common_subexpression(
+                original.identity,
+                PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract(),
+                candidate.affected_blocks().to_vec(),
+                candidate.provenance().to_vec(),
+                candidate.accepted_obligation_witness().unwrap(),
+                candidate.predicted_cost_delta(),
+                detached_patch,
+            )
+            .unwrap();
+        assert_eq!(
+            validate_phi_translated_scalar_common_subexpression_candidate(&original, &detached),
+            Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch)
+        );
+
+        let mut reordered_patch = patch;
+        reordered_patch.incoming.reverse();
+        assert_eq!(
+            PsiRewriteCandidate::new_proof_certified_phi_translated_scalar_common_subexpression(
+                original.identity,
+                PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract(),
+                candidate.affected_blocks().to_vec(),
+                candidate.provenance().to_vec(),
+                candidate.accepted_obligation_witness().unwrap(),
+                candidate.predicted_cost_delta(),
+                reordered_patch,
+            ),
+            Err(omega_optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch)
         );
     }
 

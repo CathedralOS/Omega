@@ -1144,7 +1144,7 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
         );
     let global_value_numbering_pass =
         omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.global-value-numbering.v6",
+            b"omega.psi-pass.global-value-numbering.v7",
         );
     if registry.pass() == Some(cfg_pass) {
         control_flow_structure_count(unit)
@@ -1181,12 +1181,13 @@ mod tests {
         built_in_psi_registries, built_in_psi_registry,
         rules::tests::{
             SelfRemainderPolicy, boolean_unit, compatible_policy_local_cse_unit,
-            constant_conditional_same_target_unit, dead_exact_add_unit, dead_wrapping_add_unit,
-            dependent_exact_chain_unit, diamond_dominator_gvn_unit, dominator_gvn_unit,
-            exact_add_unit, linear_empty_block_unit, live_divide_by_one_unit,
-            live_exact_multiply_by_zero_unit, live_exact_self_subtract_unit,
-            live_exact_zero_value_shift_unit, live_self_remainder_unit, local_cse_unit,
-            non_adjacent_merge_unit, phi_translated_gvn_unit, proof_certified_dominator_gvn_unit,
+            compatible_policy_phi_translated_gvn_unit, constant_conditional_same_target_unit,
+            dead_exact_add_unit, dead_wrapping_add_unit, dependent_exact_chain_unit,
+            diamond_dominator_gvn_unit, dominator_gvn_unit, exact_add_unit,
+            linear_empty_block_unit, live_divide_by_one_unit, live_exact_multiply_by_zero_unit,
+            live_exact_self_subtract_unit, live_exact_zero_value_shift_unit,
+            live_self_remainder_unit, local_cse_unit, non_adjacent_merge_unit,
+            phi_translated_gvn_unit, proof_certified_dominator_gvn_unit,
             proof_certified_local_cse_unit, proof_certified_phi_translated_gvn_unit,
             propagated_block_parameter_unit, randomized_built_in_registries,
             redundant_block_parameter_unit, wrapping_add_unit,
@@ -1470,6 +1471,193 @@ mod tests {
                 }],
                 contract: MachineContract {
                     id: ContractId::new(461).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        };
+        let proof = ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+            }],
+        };
+        let semantic = psi_terminal_codec::encode_module(&module).unwrap();
+        let proof = psi_terminal_codec::encode_proof_bundle(&proof).unwrap();
+        let input =
+            omega_terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+                &semantic,
+                &proof,
+                &psi_proof_admission::AdmissionProfile::default(),
+            )
+            .unwrap();
+        omega_terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+            input,
+            psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        )
+        .unwrap()
+    }
+
+    fn verified_compatible_policy_phi_gvn_unit() -> VerifiedPsiOptimizationUnit {
+        use psi_core::{
+            BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
+            ObligationId, OperationId, ScalarType, ValueId,
+        };
+        use psi_proof_admission::{EvidenceRoute, PrimitiveJudgment};
+        use psi_terminal::{
+            Block, MachineContract, Operation, OperationKind, OperationResult, SuccessorEdge,
+            TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+            VocabularyMarker,
+        };
+        use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
+
+        let machine = MachineId::new(501).unwrap();
+        let join = BlockId::new(502).unwrap();
+        let left_block = BlockId::new(503).unwrap();
+        let entry = BlockId::new(504).unwrap();
+        let right_block = BlockId::new(505).unwrap();
+        let condition = ValueId::new(506).unwrap();
+        let left_a = ValueId::new(507).unwrap();
+        let left_b = ValueId::new(508).unwrap();
+        let right_a = ValueId::new(509).unwrap();
+        let right_b = ValueId::new(510).unwrap();
+        let join_a = ValueId::new(511).unwrap();
+        let join_b = ValueId::new(512).unwrap();
+        let left_leader = ValueId::new(513).unwrap();
+        let right_leader = ValueId::new(514).unwrap();
+        let redundant = ValueId::new(515).unwrap();
+        let result = ValueId::new(516).unwrap();
+        let obligation = ObligationId::new(517).unwrap();
+        let zero = ValueId::new(527).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+        let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                parameters: vec![
+                    declaration(condition, ScalarType::Boolean),
+                    declaration(left_a, scalar_type),
+                    declaration(left_b, scalar_type),
+                    declaration(right_a, scalar_type),
+                    declaration(right_b, scalar_type),
+                ],
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Scalar(declaration(result, scalar_type)),
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry,
+                blocks: vec![
+                    Block {
+                        id: join,
+                        parameters: vec![
+                            declaration(join_a, scalar_type),
+                            declaration(join_b, scalar_type),
+                        ],
+                        operations: vec![Operation {
+                            id: OperationId::new(518).unwrap(),
+                            result: OperationResult::Scalar(declaration(redundant, scalar_type)),
+                            kind: OperationKind::ExactIntegerShiftLeft {
+                                value: join_a,
+                                count: join_b,
+                                obligation,
+                            },
+                        }],
+                        terminator: Terminator::Return {
+                            cleanup_actions: Vec::new(),
+                            edge: EdgeId::new(519).unwrap(),
+                            value: redundant,
+                        },
+                    },
+                    Block {
+                        id: left_block,
+                        parameters: Vec::new(),
+                        operations: vec![Operation {
+                            id: OperationId::new(520).unwrap(),
+                            result: OperationResult::Scalar(declaration(left_leader, scalar_type)),
+                            kind: OperationKind::WrappingIntegerShiftLeft {
+                                value: left_a,
+                                count: zero,
+                            },
+                        }],
+                        terminator: Terminator::Jump {
+                            edge: EdgeId::new(521).unwrap(),
+                            target: join,
+                            arguments: vec![left_a, zero],
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                    Block {
+                        id: entry,
+                        parameters: Vec::new(),
+                        operations: vec![Operation {
+                            id: OperationId::new(528).unwrap(),
+                            result: OperationResult::Scalar(declaration(zero, scalar_type)),
+                            kind: OperationKind::IntegerConstant {
+                                value: IntegerValue::Signed(0),
+                            },
+                        }],
+                        terminator: Terminator::Conditional {
+                            condition,
+                            when_true: SuccessorEdge {
+                                edge: EdgeId::new(522).unwrap(),
+                                target: left_block,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                            when_false: SuccessorEdge {
+                                edge: EdgeId::new(523).unwrap(),
+                                target: right_block,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                        },
+                    },
+                    Block {
+                        id: right_block,
+                        parameters: Vec::new(),
+                        operations: vec![Operation {
+                            id: OperationId::new(524).unwrap(),
+                            result: OperationResult::Scalar(declaration(right_leader, scalar_type)),
+                            kind: OperationKind::WrappingIntegerShiftLeft {
+                                value: right_a,
+                                count: zero,
+                            },
+                        }],
+                        terminator: Terminator::Jump {
+                            edge: EdgeId::new(525).unwrap(),
+                            target: join,
+                            arguments: vec![right_a, zero],
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                ],
+                contract: MachineContract {
+                    id: ContractId::new(526).unwrap(),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
                     ensures: Vec::new(),
@@ -2151,10 +2339,10 @@ mod tests {
             run_unit(diamond_dominator_gvn_unit(), &registry, budget(8)).unwrap();
         assert_eq!(commits.len(), 2);
         assert_eq!(usage.iterations, 3);
-        assert_eq!(usage.rule_evaluations, 14);
+        assert_eq!(usage.rule_evaluations, 15);
         assert_eq!(usage.candidates, 2);
         assert_eq!(usage.validation_steps, 2);
-        assert_eq!(manifest.unwrap().ordered_rules().len(), 8);
+        assert_eq!(manifest.unwrap().ordered_rules().len(), 9);
         assert_eq!(ledger.records().len(), 2);
         assert_eq!(ledger.records()[0].provenance.len(), 5);
         assert_eq!(ledger.records()[1].provenance.len(), 4);
@@ -2164,7 +2352,7 @@ mod tests {
         assert_eq!(second.identity, output.identity);
         assert!(second_commits.is_empty());
         assert_eq!(second_usage.iterations, 1);
-        assert_eq!(second_usage.rule_evaluations, 8);
+        assert_eq!(second_usage.rule_evaluations, 9);
         assert!(second_ledger.records().is_empty());
         assert_eq!(second_ledger.input(), second_ledger.output());
     }
@@ -2177,10 +2365,10 @@ mod tests {
             run_unit(phi_translated_gvn_unit(), &registry, budget(8)).unwrap();
         assert_eq!(commits.len(), 1);
         assert_eq!(usage.iterations, 2);
-        assert_eq!(usage.rule_evaluations, 13);
+        assert_eq!(usage.rule_evaluations, 14);
         assert_eq!(usage.candidates, 1);
         assert_eq!(usage.validation_steps, 1);
-        assert_eq!(manifest.unwrap().ordered_rules().len(), 8);
+        assert_eq!(manifest.unwrap().ordered_rules().len(), 9);
         assert_eq!(ledger.records().len(), 1);
         let join = &output.functions[0].blocks[0];
         assert_eq!(join.parameters.len(), 2);
@@ -2191,7 +2379,7 @@ mod tests {
         assert_eq!(second.identity, output.identity);
         assert!(second_commits.is_empty());
         assert_eq!(second_usage.iterations, 1);
-        assert_eq!(second_usage.rule_evaluations, 8);
+        assert_eq!(second_usage.rule_evaluations, 9);
         assert!(second_ledger.records().is_empty());
     }
 
@@ -2210,11 +2398,11 @@ mod tests {
             run_unit(unit, &registry, budget(8)).unwrap();
         assert_eq!(commits.len(), 1);
         assert_eq!(usage.iterations, 2);
-        assert_eq!(usage.rule_evaluations, 14);
+        assert_eq!(usage.rule_evaluations, 15);
         assert_eq!(usage.candidates, 1);
         assert_eq!(ledger.records().len(), 1);
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 8);
+        assert_eq!(manifest.ordered_rules().len(), 9);
         assert_eq!(
             manifest.decisions()[0].consumed_facts(),
             [OptimizationFactReference::AcceptedObligation(
@@ -2227,7 +2415,7 @@ mod tests {
         let (_, second_commits, second_usage, _, _, second_ledger) =
             run_unit(output, &registry, budget(8)).unwrap();
         assert!(second_commits.is_empty());
-        assert_eq!(second_usage.rule_evaluations, 8);
+        assert_eq!(second_usage.rule_evaluations, 9);
         assert!(second_ledger.records().is_empty());
     }
 
@@ -2250,7 +2438,7 @@ mod tests {
         assert_eq!(output.functions[0].blocks[0].nodes.len(), 3);
         assert_eq!(ledger.records().len(), 1);
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 8);
+        assert_eq!(manifest.ordered_rules().len(), 9);
         assert_eq!(
             manifest.decisions()[0].consumed_facts(),
             [OptimizationFactReference::AcceptedObligation(
@@ -2277,7 +2465,7 @@ mod tests {
         assert_eq!(commits.len(), 1);
         assert_eq!(usage.iterations, 2);
         assert_eq!(usage.validation_steps, 1);
-        assert_eq!(manifest.unwrap().ordered_rules().len(), 8);
+        assert_eq!(manifest.unwrap().ordered_rules().len(), 9);
         assert_eq!(ledger.records().len(), 1);
         assert_eq!(output.accepted_obligation_facts, accepted_catalog);
         assert_eq!(output.functions[0].blocks[0].nodes.len(), 3);
@@ -2286,7 +2474,32 @@ mod tests {
             run_unit(output.clone(), &registry, budget(8)).unwrap();
         assert_eq!(second, output);
         assert!(commits.is_empty());
-        assert_eq!(usage.rule_evaluations, 8);
+        assert_eq!(usage.rule_evaluations, 9);
+        assert!(ledger.records().is_empty());
+    }
+
+    #[test]
+    fn named_global_value_numbering_reaches_compatible_policy_phi_fixed_point() {
+        let selections = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
+        let registry = built_in_psi_registry(&selections).unwrap();
+        let unit = compatible_policy_phi_translated_gvn_unit();
+        let accepted_catalog = unit.accepted_obligation_facts.clone();
+        let (output, commits, usage, _, manifest, ledger) =
+            run_unit(unit, &registry, budget(8)).unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(usage.iterations, 2);
+        assert_eq!(usage.rule_evaluations, 18);
+        assert_eq!(usage.validation_steps, 1);
+        assert_eq!(manifest.unwrap().ordered_rules().len(), 9);
+        assert_eq!(ledger.records().len(), 1);
+        assert_eq!(output.accepted_obligation_facts, accepted_catalog);
+        assert_eq!(output.functions[0].blocks[0].parameters.len(), 2);
+
+        let (second, commits, usage, _, _, ledger) =
+            run_unit(output.clone(), &registry, budget(8)).unwrap();
+        assert_eq!(second, output);
+        assert!(commits.is_empty());
+        assert_eq!(usage.rule_evaluations, 9);
         assert!(ledger.records().is_empty());
     }
 
@@ -2797,6 +3010,43 @@ mod tests {
 
         let replayed = replay_psi_pipeline(
             verified_compatible_policy_cse_unit(),
+            &selections,
+            budget(8),
+            &baseline.external_decisions().encode(),
+        )
+        .unwrap();
+        assert_eq!(replayed.session().unit(), baseline.session().unit());
+        assert_eq!(replayed.commits(), baseline.commits());
+        assert_eq!(replayed.decisions(), baseline.decisions());
+        assert_eq!(replayed.external_decisions(), baseline.external_decisions());
+        assert_eq!(replayed.pass_manifests(), baseline.pass_manifests());
+        assert_eq!(
+            replayed.transformation_ledger(),
+            baseline.transformation_ledger()
+        );
+        validate_external_decision_recording(&replayed).unwrap();
+    }
+
+    #[test]
+    fn external_decision_record_and_replay_preserve_compatible_policy_phi_gvn() {
+        let selections = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
+        let baseline = run_psi_pipeline(
+            verified_compatible_policy_phi_gvn_unit(),
+            &selections,
+            budget(8),
+        )
+        .unwrap();
+        let [point] = baseline.external_decisions().points() else {
+            panic!("compatible-policy phi fixture has one external decision point");
+        };
+        assert_eq!(
+            point.rule(),
+            crate::PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract().identity()
+        );
+        assert!(matches!(point.action(), ExternalDecisionAction::Choose(_)));
+
+        let replayed = replay_psi_pipeline(
+            verified_compatible_policy_phi_gvn_unit(),
             &selections,
             budget(8),
             &baseline.external_decisions().encode(),
