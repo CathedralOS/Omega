@@ -257,16 +257,34 @@ fn build_nominal_machine_use_facts(
                 "admitted nominal machine use retained an empty contract-envelope identity",
             )]);
         }
-        let callback_placement = program
-            .boundary_calling_plan_fingerprint(
-                nominal_use.satisfaction_trait,
-                nominal_use.satisfaction_requirement,
-            )
-            .map(|boundary_calling_plan_fingerprint| {
-                psi_checked_trees::CheckedCallbackPlacementIdentity {
+        let callback_placement = match program.boundary_calling_plan_fingerprint(
+            nominal_use.satisfaction_trait,
+            nominal_use.satisfaction_requirement,
+        ) {
+            Some(boundary_calling_plan_fingerprint) => {
+                let Some(resource_envelope) = contract_plans
+                    .resource_envelope(nominal_use.selected_machine, nominal_use.selected_entry)
+                else {
+                    return Err(vec![psi_diagnostics::Diagnostic::error(
+                        "admitted nominal callback use is missing its exact checked entry resource envelope",
+                    )]);
+                };
+                let resource_receipt =
+                    psi_checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
+                        resource_envelope,
+                    )
+                    .map_err(|error| {
+                        vec![psi_diagnostics::Diagnostic::error(format!(
+                            "admitted nominal callback resource receipt failed checked replay: {error}"
+                        ))]
+                    })?;
+                Some(psi_checked_trees::CheckedCallbackPlacementIdentity {
                     boundary_calling_plan_fingerprint,
-                }
-            });
+                    resource_receipt,
+                })
+            }
+            None => None,
+        };
         if callback_placement
             .is_some_and(|placement| placement.boundary_calling_plan_fingerprint == 0)
         {

@@ -1428,9 +1428,12 @@ Checked callback selection does not own these installed triples. Its narrower
 realized-machine envelope retains one exact per-entry derivation anchor naming
 all three required axes, while numeric stack demand, scheduled logical work,
 and emitted machine-state footprint remain absent until their respective
-Terminal, target, and backend derivations exist. A later callback-placement
-receipt must bind that exact entry anchor to those independent results; neither
-the anchor nor `BoundaryEntryPlan` grants resource or installation authority.
+Terminal, target, and backend derivations exist. The callback-placement spine
+now retains and independently rejoins one exact checked receipt over that
+entry anchor, then carries it through backend placement identity. This closes
+identity custody only: each axis must still bind its own downstream derivation,
+and neither the anchor, its receipt, nor `BoundaryEntryPlan` grants resource or
+installation authority.
 Sharing this record shape does not fuse the three algebras or their identity
 rules: the evaluated `StatePlan` is published boundary identity, while stack and
 fuel figures normally belong to candidate admission and current provisioning.

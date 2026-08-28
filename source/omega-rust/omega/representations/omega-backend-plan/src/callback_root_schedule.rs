@@ -282,6 +282,18 @@ mod tests {
         SymbolHandle::from_arena_index(index)
     }
 
+    fn resource_receipt(
+        machine: SymbolHandle,
+        entry: SymbolHandle,
+    ) -> psi_checked_trees::CheckedCallbackResourceReceipt {
+        psi_checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
+            &psi_checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
+                machine, entry, 0xfeed,
+            ),
+        )
+        .expect("canonical checked callback resource receipt")
+    }
+
     fn placement() -> BoundNominalCallbackPlacement {
         let signature = CallSignature {
             parameters: vec![ValueShape::integer(8, 8)],
@@ -292,18 +304,21 @@ mod tests {
             &signature,
         )
         .expect("callback plan");
+        let selected_machine = symbol(4);
+        let selected_entry = symbol(5);
         BoundNominalCallbackPlacement {
             site: NominalMachineUseSite::Expression(
                 psi_checked_trees::expression::ExpressionHandle::from_arena_index(9),
             ),
             registration_operation: symbol(3),
             static_machine_ordinal: 0,
-            selected_machine: symbol(4),
-            selected_entry: symbol(5),
+            selected_machine,
+            selected_entry,
             satisfaction_trait: symbol(1),
             satisfaction_requirement: symbol(2),
             canonical_requirement_overload: "Handler::call".to_owned(),
             boundary_calling_plan_fingerprint: validated.contract_fingerprint(),
+            resource_receipt: resource_receipt(selected_machine, selected_entry),
             boundary_entry_plan: validated.plan().clone(),
             private_materialization: None,
         }

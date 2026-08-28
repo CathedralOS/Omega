@@ -602,11 +602,12 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
         panic!("one nominal callback use")
     };
 
+    let callback_placement = nominal_use
+        .callback_placement
+        .expect("nominal callback placement identity");
     assert_eq!(
-        nominal_use.callback_placement,
-        Some(psi_checked_trees::CheckedCallbackPlacementIdentity {
-            boundary_calling_plan_fingerprint: expected_fingerprint,
-        })
+        callback_placement.boundary_calling_plan_fingerprint,
+        expected_fingerprint
     );
     let published = checked
         .facts
@@ -668,6 +669,10 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
         resources.machine_state().derivation_obligation(),
         psi_checked_trees::CheckedResourceDerivationObligation::SelectedInstructionMachineStateFootprint
     );
+    callback_placement
+        .resource_receipt
+        .validate_against(resources)
+        .expect("callback placement must retain the exact selected entry resource anchor");
     checked
         .facts
         .contract_plans
