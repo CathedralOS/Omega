@@ -193,7 +193,8 @@ canonical Terminal Psi semantic + proof sections
           -> atomic Unit-call selection + pre-allocation effects/liveness
           -> zero-VReg ranges/legality/empty homes + post-allocation effects
           -> typed internal-call fixup encoding
-          -> function-relative custody and whole-section resolution (next)
+          -> function-relative custody and balanced whole-function exit
+          -> fixup-preserving fragments and whole-section resolution (next)
           -> object/private-symbol join
           -> semantic ProgramStorage wrapper object
        (physical process entry, native image, install, and publication closed)
@@ -2450,11 +2451,16 @@ internal-Machine fixup at opcode offset 80/field 81/next-IP 85; it is not
 executable-byte authority. Layout-independent selected-form encoding v5 now
 retains a parallel structural-function roster with that exact template,
 decoded footprint, typed fixup, separately encoded `C3` return, and exact
-ordinary/structural counts under independent replay. The next implementation
-boundary carries the unresolved fixup through resolved and function-relative
-layout, resolves the signed rel32 only at whole-text placement where both
-MachineId offsets are known, and then joins the resulting object/private
-continuation symbol with the settlement, semantic contract, and wrapper plan.
+ordinary/structural counts under independent replay. Resolved-layout v5 retains
+the exact caller call/return spans `[0, 89)`/`[89, 90)` and leaf return span
+`[0, 1)` without resolving the fixup. Whole-function-exit v5 validates a
+distinct balanced Microsoft-x64 structural-call policy, and a separate owning
+function-relative carrier publishes `OMGFRM` v7 statistics with zero ordinary
+rows, structural `2/2/3/91`, and one unresolved internal-Machine fixup. The next
+implementation boundary carries that fixup through machine-code fragments,
+resolves the signed rel32 only at whole-text placement where both `MachineId`
+offsets are known, and then joins the resulting object/private continuation
+symbol with the settlement, semantic contract, and wrapper plan.
 The wrapper identity remains distinct from every Terminal `MachineId`; only
 the internal continuation is MachineId-rooted. The checked-source
 ProgramStorage regression also establishes that the existing generic source

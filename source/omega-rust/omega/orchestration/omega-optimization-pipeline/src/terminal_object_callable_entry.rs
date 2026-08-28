@@ -33,7 +33,7 @@ use crate::{
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGOER\0\0";
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGOEM\0\0";
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedTerminalOrdinaryCallableEntryStage {
@@ -122,7 +122,7 @@ impl OptimizedTerminalOrdinaryCallableEntryRecord {
         OptimizedTerminalOrdinaryCallableEntryIdentity,
         OptimizedTerminalOrdinaryCallableEntryError,
     > {
-        let mut canonical = b"omega.optimized-terminal-ordinary-callable-entry.v1\0".to_vec();
+        let mut canonical = b"omega.optimized-terminal-ordinary-callable-entry.v2\0".to_vec();
         encode_record_content(&mut canonical, self)?;
         Ok(OptimizedTerminalOrdinaryCallableEntryIdentity::from_canonical_bytes(&canonical))
     }
@@ -190,7 +190,7 @@ pub struct OptimizedTerminalOrdinaryCallableEntryManifest {
 
 impl OptimizedTerminalOrdinaryCallableEntryManifest {
     pub fn recomputed_identity(&self) -> OptimizedTerminalOrdinaryCallableEntryManifestIdentity {
-        let mut bytes = b"omega.optimized-terminal-ordinary-callable-entry-manifest.v1\0".to_vec();
+        let mut bytes = b"omega.optimized-terminal-ordinary-callable-entry-manifest.v2\0".to_vec();
         encode_manifest_content(&mut bytes, self);
         OptimizedTerminalOrdinaryCallableEntryManifestIdentity::from_canonical_bytes(&bytes)
     }
@@ -1173,6 +1173,7 @@ fn exit_policy_tag(policy: TerminalWholeFunctionExitPolicy) -> u8 {
         TerminalWholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1 => 2,
         TerminalWholeFunctionExitPolicy::Aapcs64FramelessLeafV1 => 3,
         TerminalWholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1 => 4,
+        TerminalWholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1 => 5,
     }
 }
 fn decode_exit_policy(
@@ -1183,6 +1184,7 @@ fn decode_exit_policy(
         2 => Ok(TerminalWholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1),
         3 => Ok(TerminalWholeFunctionExitPolicy::Aapcs64FramelessLeafV1),
         4 => Ok(TerminalWholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1),
+        5 => Ok(TerminalWholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1),
         tag => Err(OptimizedTerminalOrdinaryCallableEntryDecodeError::UnknownExitPolicy(tag)),
     }
 }
