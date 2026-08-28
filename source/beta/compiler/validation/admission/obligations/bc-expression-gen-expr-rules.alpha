@@ -152,10 +152,9 @@ expression_gen_expr_require_counter_flow:
         ; Snapshot D and signed guard D<64.
         imm r20, 57
         imm r21, 303
-        imm r22, 1
-        imm r23, 8
-        imm r24, 43176
-        call transfer_require_memory
+        imm r25, 673
+        imm r26, 2097080
+        call exact_memory_load_pc
         imm r20, 192
         imm r21, 303
         imm r22, 2
@@ -182,10 +181,7 @@ expression_gen_expr_require_counter_flow:
         ; Accepted entry stores D+1 exactly once.
         imm r20, 59
         imm r21, 305
-        imm r22, 2
-        imm r23, 8
-        imm r24, 43515
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r20, 681
         imm r21, 305
         imm r22, 1
@@ -206,10 +202,7 @@ expression_gen_expr_require_counter_flow:
         ; Both terminal branches subtract one and store D exactly once.
         imm r20, 60
         imm r21, 306
-        imm r22, 2
-        imm r23, 8
-        imm r24, 43799
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r20, 687
         imm r21, 306
         imm r22, 1
@@ -228,10 +221,7 @@ expression_gen_expr_require_counter_flow:
         call exact_require_binary_push
         imm r20, 62
         imm r21, 307
-        imm r22, 2
-        imm r23, 8
-        imm r24, 44013
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r20, 692
         imm r21, 307
         imm r22, 1
