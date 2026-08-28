@@ -60,7 +60,12 @@ These facts constrain the work below.
   suffix. Both retain the authored materialization and fuel, add only one fresh
   zero-fuel/value-lineage reconstruction, and require full replay plus fresh
   liveness/range/legality/home evidence. They are bounded transformations, not
-  general spill, frame, or loop authority.
+  general spill, frame, or loop authority. The multi-use policy is now
+  production-reachable from one closed exact-add-chain selection recipe on both
+  supported ISAs. An opaque one-step carrier pins the complete schedule and
+  shared budget, requires a real action, discards all pre-mutation analyses,
+  independently rebuilds homes, and records a distinct typed
+  pressure-rematerialization row in post-allocation manifest v5.
   A separate validated allocator-availability artifact now narrows only
   unconstrained allocator candidates under either the named
   `AllEnvironmentAllocatableViewsV1` baseline or an explicit canonical view
@@ -673,10 +678,11 @@ These facts constrain the work below.
   state that spills were not required for that validated home plan, but marks
   frame, emission, and publication unavailable. Its human renderer is again a
   projection of the content-identified record. The transformation ledger
-  distinguishes fixed-view-copy and literal-fold identities in application
-  order and rejects exact duplicates. A separate optional selected-lowering
-  completion identity proves named-suite execution without pretending a
-  zero-change result transformed the CFG. The v4 canonical codec round-trips
+  distinguishes fixed-view-copy, literal-fold, and pressure-rematerialization
+  identities in application order and rejects exact duplicates. A separate
+  optional selected-lowering completion identity proves named-suite execution
+  without pretending a
+  zero-change result transformed the CFG. The v5 canonical codec round-trips
   direct and transformed forms, reconstructs typed target and stage fields,
   and rejects identity tampering, unknown tags, truncation, and trailing bytes.
   Decoding remains non-authoritative. The function-relative v4 realization
@@ -1426,7 +1432,7 @@ dependency.
   freely recombine raw target operations, an abstract plan, and an optimization
   unit. The separate
   `omega-terminal-target-operations-to-selected-instructions` stage produces
-  and validates six deliberately bounded production shapes
+  and validates seven deliberately bounded production shapes
   over one runtime Boolean parameter and a three-block conditional: leaf-local
   unsigned-i64 constants, one shared returned entry parameter, or two
   leaf-local constants followed by one proof-bearing exact add or exact
@@ -1434,7 +1440,13 @@ dependency.
   overflow-proven unsigned-u8 exact addition or underflow-proven unsigned-u8
   exact subtraction followed by u8-to-u64 widening into the existing i64
   materialize/add/subtract vocabulary, with explicit legalization-temporary
-  origins and ordered arithmetic/widen custody. Both exact selected kinds
+  origins and ordered arithmetic/widen custody. The seventh shape makes the
+  existing active-resident recovery policy production-reachable: one leaf
+  materializes three u64 literals, computes a three-add proof-bearing dependency
+  chain in which the first literal has two later uses, and returns the result;
+  the sibling leaf returns one immediate. It adds no selected instruction kind
+  or target constraint; selected-plan identity advances to v7 for the new
+  closed recipe. Both exact selected kinds
   retain their obligation and verifier-owned accepted-fact identity. Addition
   consumes the target-owned flag-transparent `add_i64` row. AArch64 subtraction
   consumes a flag-transparent three-address `SUB` row; x86-64 subtraction
@@ -1459,12 +1471,12 @@ dependency.
 
   Current slice: `omega-terminal-legalized-operations` is a data-only,
   target-bound representation below target operations and above instruction
-  selection. Its V3 identity commits to Terminal-Psi, optimization-unit and
+  selection. Its V4 identity commits to Terminal-Psi, optimization-unit and
   fuel-schedule identities, exact `NativeTarget`, entry/function roster,
   attachments, target provenance, one closed legality recipe per function,
   source blocks/values/definition sites, branch/return edges and bindings,
   accepted exact-operation facts, and every operation/edge fuel settlement.
-  A mandatory checked canonicalizer admits six bounded
+  A mandatory checked canonicalizer admits seven bounded
   cleanup-free unsigned-u64 three-block conditional families: constants,
   one shared entry parameter, two-immediate exact add, and two-immediate exact
   subtract, plus overflow-proven unsigned-u8 exact add or underflow-proven
@@ -1476,11 +1488,13 @@ dependency.
   authored operand order because it is not commutative. Their selected i64
   operations retain arithmetic-then-widen operation and fuel custody;
   selected virtual registers distinguish legalization temporaries from Psi
-  values rather than pretending the u8 definitions changed type. Both x86-64
+  values rather than pretending the u8 definitions changed type. The seventh
+  identity recipe retains the heterogeneous active-resident exact-add chain
+  described above without decomposition. Both x86-64
   and AArch64 reach effects, liveness, allocation, deterministic homes, and
   post-allocation custody through this boundary. Non-u64 returns and general
   shapes fail there rather than later in selection. A separately implemented,
-  plan-driven validator now replays every admitted V3 field directly from the
+  plan-driven validator now replays every admitted V4 field directly from the
   raw target, abstract-plan, and verified optimization-unit custody without
   calling the canonicalizer or constructing an expected legal plan. Its
   domain-separated validator identity is retained by the legal receipt,
@@ -1661,8 +1675,9 @@ dependency.
   Both direct and post-copy home carriers now retain an independently
   reconstructed post-allocation manifest identity. The record binds the final
   selected-plan identity plus an ordered typed transformation ledger; fixed-
-  view-copy and literal-fold identities cannot masquerade as each other or as
-  an untransformed home plan.
+  view-copy, literal-fold, and pressure-rematerialization identities cannot
+  masquerade as each other or as an untransformed home plan. Its canonical
+  identity and codec are v5 after adding the distinct rematerialization tag.
   The record exposes exact assignment/view/interference statistics and marks
   frame, emission, and publication unavailable rather than inventing them.
   The exact named `LeafLocalBeforeFixedUseV1` artifact now closes the admitted
@@ -1773,10 +1788,26 @@ dependency.
   admits at least two ordered future flexible uses, places one equivalent
   reconstruction before the first future-use instruction, and rewrites the
   entire classified suffix to one fresh VReg. Both policies share a v2 ordered
-  rewrite-row recipe and remain independently replayed. The separately
-  validated allocator-availability
-  boundary now supplies that production pressure vertical without misusing
-  reservation overlays: retaining only `rax` on x86-64 or `x0` on AArch64 makes a leaf RHS
+  rewrite-row recipe and remain independently replayed. A seventh closed
+  legalization/selection recipe now supplies a real active-resident case: one
+  leaf materializes `resident`, `left`, and `right`, computes exact `inner`,
+  `middle`, and `result` additions so `resident` has two later flexible uses,
+  and returns the result. With exactly two validated flexible views, pressure
+  occurs as `right` enters and the farther-ending resident is the canonical
+  victim on both x86-64 and AArch64.
+
+  The opaque `StagedOptimizedActiveResidentRematerialization` carrier performs
+  exactly one such multi-use sweep. It fixes all three named policies, requires
+  one shared work budget and at least one action, and independently replays
+  source custody, choice, classification, rewrite, wholly fresh liveness,
+  ranges, interference, availability-bound legality, homes, and its typed
+  post-allocation manifest row. Its dedicated receipt binds every identity,
+  policy, usage, final root, and count. No stale source analysis crosses the
+  selected-CFG mutation; the carrier grants no implicit loop or build hook.
+
+  The separately validated allocator-availability boundary also supplies the
+  incoming-literal production pressure vertical without misusing reservation
+  overlays: retaining only `rax` on x86-64 or `x0` on AArch64 makes a leaf RHS
   literal the deterministic incoming victim on both targets, while fixed views
   outside the flexible allowlist remain exact and legal. The separate add and
   subtract policies consume only matching incoming, single-use, immediately

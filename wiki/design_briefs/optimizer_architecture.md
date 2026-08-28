@@ -376,6 +376,29 @@ admitted two-view pressure point closes. The bounded API performs no implicit
 loop and grants no memory spill, stack, frame, emission, or general
 rematerialization authority.
 
+That multi-use policy now has one production-reachable vertical rather than
+only hand-built allocator fixtures. The seventh closed legalization recipe has
+one leaf materialize `resident`, `left`, and `right`, compute
+`inner = exact(left + right)`, `middle = exact(resident + inner)`, and
+`result = exact(resident + middle)`, then return `result`; the other leaf is a
+single immediate return. With an explicitly validated two-view availability,
+materializing `right` creates pressure before the first exact addition while
+`resident` is active, and its farther exclusive end makes it the canonical
+victim. Its two later flexible uses are therefore the exact multi-use suffix
+admitted by the rule.
+
+`stage_optimized_active_resident_rematerialization` is a deliberately one-step
+opaque carrier over that case. It fixes the spill-choice, recovery-
+classification, and multi-use rematerialization policies, requires one shared
+work budget and at least one applied action, and performs no hidden fixed-point
+loop. After the selected CFG changes it recomputes liveness, ranges,
+interference, availability-bound legality, and homes from scratch, then emits
+one typed pressure-rematerialization manifest row. Independent replay starts
+from the retained source legality custody and reconstructs every decision,
+rewrite, fresh analysis, home, manifest, policy, budget, and count before
+returning its dedicated full-vertical custody receipt. No source analysis fact
+crosses the selected-CFG mutation.
+
 Other exact transformations consuming that evidence are the separately named
 `SelectedIncomingU12ExactAddImmediateV1` and
 `SelectedIncomingU12ExactSubtractImmediateV1` policies. They are intentionally
@@ -511,9 +534,10 @@ post-allocation manifest. It extends, rather than replaces, the validated
 pre-physical manifest identity and binds the target, selected CFG, liveness,
 range, allocation-legality, register-environment, and register-home identities.
 Transformed routes additionally bind an ordered typed selected-transformation
-ledger. Its current variants distinguish fixed-view-copy identities from
-literal-fold identities; order, kind, and identity are all canonical inputs,
-and exact duplicate identities reject rather than being silently collapsed. A
+ledger. Its current variants distinguish fixed-view-copy, literal-fold, and
+pressure-rematerialization identities; order, kind, and identity are all
+canonical inputs, and exact duplicate identities reject rather than being
+silently collapsed. A
 separate optional selected-lowering completion identity proves execution of a
 named suite even when that ledger is empty; it is not itself a transformation.
 The selected root is always the final transformed CFG. Exact function,
@@ -524,8 +548,8 @@ record may truthfully say no spill was required for the admitted plan. Frame
 layout, machine emission, and publication remain explicitly unavailable, so
 the record grants none of those authorities.
 
-The post-allocation record also has a versioned canonical codec (v4 after the
-selected-lowering completion join). It reconstructs
+The post-allocation record also has a versioned canonical codec (v5 after the
+pressure-rematerialization transformation join). It reconstructs
 the typed target, ordered transformation roster, every upstream identity,
 availability status, and statistic, then recomputes the stored manifest
 identity. Unknown stage, target, transformation, spill, or availability tags,
@@ -1538,7 +1562,7 @@ registers in ways that hide interference from the allocator.
 The first production slice makes that boundary concrete without claiming a
 general selector. `omega-terminal-legalized-operations` is a data-only,
 target-bound representation below raw target operations. A mandatory checked
-canonicalizer reconstructs one exact V3 projection from the target plan,
+canonicalizer reconstructs one exact V4 projection from the target plan,
 optimized abstract plan, and verified optimization unit. Its canonical identity
 binds Terminal-Psi, optimization-unit and fuel-schedule roots, exact native
 target, entry/function roster, attachments, one closed recipe, source
@@ -1565,7 +1589,7 @@ existing `omega-terminal-target-operations-to-selected-instructions` pipeline
 currently owns both checked legalization and selection mechanics, but the type
 boundary is mandatory and explicit.
 
-The closed V3 has six exact three-block runtime conditional forms. The first
+The closed V4 has seven exact three-block runtime conditional forms. The first
 has leaves that materialize unsigned 64-bit constants and return. The second
 carries a shared unsigned 64-bit entry parameter across both branch edges and
 returns it directly, exposing genuine virtual interference and different
@@ -1586,6 +1610,13 @@ operation/two-fuel custody. Its promoted operands receive dense function-local
 legalization-temporary identities, and selected virtual-register origins
 preserve those identities instead of attributing a u64 value directly to a u8
 Psi definition.
+The seventh is the heterogeneous active-resident pressure recipe described
+above: one leaf retains three literal definitions and three proof-bearing exact
+adds in dependency order, while the sibling leaf returns one immediate. It is
+an identity legalization whose purpose is to make the already validated
+multi-use allocation-recovery policy reachable from ordinary selected custody;
+it adds no selected instruction kind or target constraint. The selected-plan
+identity advances to v7 because its closed recipe vocabulary changes.
 The receipt therefore reports two non-identity legalization groups for either
 two-arm recipe. Source-derived virtual registers retain their exact Psi value
 and definition site; legalized temporaries retain their function-local identity
