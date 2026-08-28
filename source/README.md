@@ -9,8 +9,8 @@ beta/           Beta language, compiler, compiler validation, and reference mean
 gamma/          Gamma language, interpreter, and type checker
 delta/          Delta language, compiler source, and canonical samples
 library/        core, allocation, and standard library source
-psi/            Omega-written target-neutral product compiler
-omega/          Omega-written target realization and product entrypoint
+omega/          complete Omega-written product compiler
+  psi/          target-neutral phases through terminal Psi
 omega-rust/     replaceable Rust development implementation and comparator
 ```
 

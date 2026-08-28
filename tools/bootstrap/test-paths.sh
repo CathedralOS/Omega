@@ -24,11 +24,14 @@ expect_role beta-compiler "$OMEGA_REPO_ROOT/source/beta/compiler"
 expect_role beta-validation "$OMEGA_REPO_ROOT/source/beta/compiler/validation"
 expect_role gamma "$OMEGA_REPO_ROOT/source/gamma"
 expect_role delta "$OMEGA_REPO_ROOT/source/delta"
+expect_role omega "$OMEGA_REPO_ROOT/source/omega"
+expect_role omega-psi "$OMEGA_REPO_ROOT/source/omega/psi"
 expect_role bootstrap-tools "$OMEGA_REPO_ROOT/tools/bootstrap"
 
 for required in \
   "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" \
   "$OMEGA_PATH_DELTA" "$OMEGA_PATH_DELTA_MEANING" \
+  "$OMEGA_PATH_OMEGA" "$OMEGA_PATH_OMEGA_PSI" \
   "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_BETA_VALIDATION" \
   "$OMEGA_PATH_PROOF_KERNEL"
 do
@@ -36,6 +39,7 @@ do
 done
 
 [ ! -e "$OMEGA_REPO_ROOT/source/on-ramp" ] || fail "retired source/on-ramp directory remains"
+[ ! -e "$OMEGA_REPO_ROOT/source/psi" ] || fail "orphan product Psi owner remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/proof-kernel" ] || fail "orphan proof-kernel owner remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/refinement" ] || fail "generic refinement owner remains"
 

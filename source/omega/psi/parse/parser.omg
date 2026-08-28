@@ -1,0 +1,931 @@
+use psi::source::source;
+use psi::syntax::syntax;
+
+// First target-neutral parser slices: exact whole-file sequencing of ordinary
+// `use path::member;` roots and basic `[pub] data` records with bare named
+// field types. Unsupported forms reject rather than becoming an opaque token
+// tree. Resolution of package aliases and names belongs later.
+
+pub data Parser {
+    output: SyntaxTrees;
+    token_tags: [u8; 16384] in Trapping;
+    token_first: [u8; 16384] in Trapping;
+    token_starts: [u64 in Trapping; 16384] in Trapping;
+    token_ends: [u64 in Trapping; 16384] in Trapping;
+    token_count: u64 [0..=16384];
+    source: SourceId;
+    source_length: u64 in Trapping;
+    last_retained: bool;
+    cursor: u64 in Trapping;
+    item_start: u64 in Trapping;
+    use_first_member: u64 in Trapping;
+    data_first_field: u64 in Trapping;
+    data_name_start: u64 in Trapping;
+    data_name_end: u64 in Trapping;
+    data_is_public: bool;
+    field_start: u64 in Trapping;
+    field_name_start: u64 in Trapping;
+    field_name_end: u64 in Trapping;
+    type_name_start: u64 in Trapping;
+    type_name_end: u64 in Trapping;
+    current_tag: u8;
+    current_first: u8;
+    current_start: u64 in Trapping;
+    current_end: u64 in Trapping;
+}
+
+pub machine Parser::initialize(
+    &mut self,
+    source: SourceId,
+    source_length: u64 in Trapping
+) {
+    self.output.clear(source);
+    self.token_count = 0;
+    self.source = source;
+    self.source_length = source_length;
+    self.last_retained = true;
+}
+
+pub machine Parser::append_token(
+    &mut self,
+    tag: u8,
+    first: u8,
+    start: u64 in Trapping,
+    end: u64 in Trapping
+) {
+    self.last_retained = false;
+    transition self.token_count < 16384 {
+        true -> retain()
+        _ -> full()
+    }
+
+    state retain(&mut self) {
+        self.token_tags[self.token_count] = tag;
+        self.token_first[self.token_count] = first;
+        self.token_starts[self.token_count] = start;
+        self.token_ends[self.token_count] = end;
+        self.token_count = self.token_count + 1;
+        self.last_retained = true;
+    }
+
+    state full(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::TokenInputCapacityExceeded,
+            self.source,
+            start,
+            end
+        );
+    }
+}
+
+pub machine Parser::parse(&mut self) {
+    self.output.clear(self.source);
+    self.cursor = 0;
+    transition { _ -> next_root() }
+
+    state next_root(&mut self) {
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> classify_root()
+            _ -> done()
+        }
+    }
+
+    state classify_root(&mut self) {
+        self.load_current();
+        transition { _ -> classify_root_loaded() }
+    }
+
+    state classify_root_loaded(&mut self) {
+        self.item_start = self.current_start;
+        transition self.current_tag == 5 && self.current_first == 27 {
+            true -> prepare_use()
+            _ -> classify_data_root()
+        }
+    }
+
+    state classify_data_root(&mut self) {
+        transition self.current_tag == 5 && self.current_first == 4 {
+            true -> prepare_data(false)
+            _ -> classify_public_data_root()
+        }
+    }
+
+    state classify_public_data_root(&mut self) {
+        transition self.current_tag == 5 && self.current_first == 18 {
+            true -> public_data_root()
+            _ -> unsupported_root(self.current_start, self.current_end)
+        }
+    }
+
+    state public_data_root(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> public_data_keyword()
+            _ -> expected_data_after_public_at_end()
+        }
+    }
+
+    state public_data_keyword(&mut self) {
+        self.load_current();
+        transition { _ -> public_data_keyword_loaded() }
+    }
+
+    state public_data_keyword_loaded(&mut self) {
+        transition self.current_tag == 5 && self.current_first == 4 {
+            true -> prepare_data(true)
+            _ -> expected_data_after_public(self.current_start, self.current_end)
+        }
+    }
+
+    state unsupported_root(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(
+            ParseDiagnosticCode::UnsupportedRootItem,
+            self.source,
+            start,
+            end
+        );
+    }
+
+    state prepare_use(&mut self) {
+        transition self.output.root_count < 256 {
+            true -> use_capacity()
+            _ -> root_full()
+        }
+    }
+
+    state root_full(&mut self) {
+        self.load_current();
+        transition { _ -> root_full_loaded() }
+    }
+
+    state root_full_loaded(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::RootCapacityExceeded,
+            self.source,
+            self.current_start,
+            self.current_end
+        );
+    }
+
+    state use_capacity(&mut self) {
+        transition self.output.use_count < 256 {
+            true -> use_start()
+            _ -> use_full()
+        }
+    }
+
+    state use_full(&mut self) {
+        self.load_current();
+        transition { _ -> use_full_loaded() }
+    }
+
+    state use_full_loaded(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::UseCapacityExceeded,
+            self.source,
+            self.current_start,
+            self.current_end
+        );
+    }
+
+    state use_start(&mut self) {
+        self.use_first_member = self.output.member_count;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> first_member()
+            _ -> expected_member_at_end()
+        }
+    }
+
+    state first_member(&mut self) {
+        self.load_current();
+        transition { _ -> first_member_loaded() }
+    }
+
+    state first_member_loaded(&mut self) {
+        transition self.current_tag == 1 || (
+            self.current_tag == 5 &&
+            self.current_first != 20 &&
+            self.current_first != 21
+        ) {
+            true -> retain_member(self.current_start, self.current_end)
+            _ -> expected_member(self.current_start, self.current_end)
+        }
+    }
+
+    state retain_member(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition self.output.member_count < 1024 {
+            true -> retain_member_bounded(start, end)
+            _ -> member_full(start, end)
+        }
+    }
+
+    state retain_member_bounded(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.members[self.output.member_count] = IdentifierSpan {
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: start, end: end }
+            }
+        };
+        self.output.member_count = self.output.member_count + 1;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> path_tail()
+            _ -> expected_separator_at_end()
+        }
+    }
+
+    state path_tail(&mut self) {
+        self.load_current();
+        transition { _ -> path_tail_loaded() }
+    }
+
+    state path_tail_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 7 {
+            true -> separator()
+            _ -> semicolon(
+                self.current_tag,
+                self.current_first,
+                self.current_start,
+                self.current_end
+            )
+        }
+    }
+
+    state separator(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> next_member()
+            _ -> expected_member_at_end()
+        }
+    }
+
+    state next_member(&mut self) {
+        self.load_current();
+        transition { _ -> next_member_loaded() }
+    }
+
+    state next_member_loaded(&mut self) {
+        transition self.current_tag == 1 || (
+            self.current_tag == 5 &&
+            self.current_first != 20 &&
+            self.current_first != 21
+        ) {
+            true -> retain_member(self.current_start, self.current_end)
+            _ -> expected_member(self.current_start, self.current_end)
+        }
+    }
+
+    state semicolon(
+        &mut self,
+        tag: u8,
+        first: u8,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition tag == 6 && first == 39 {
+            true -> retain_use(end)
+            _ -> expected_separator(start, end)
+        }
+    }
+
+    state retain_use(&mut self, item_end: u64 in Trapping) {
+        transition self.output.use_count < 256 {
+            true -> retain_use_bounded(item_end)
+            _ -> retained_capacity_lost()
+        }
+    }
+
+    state retain_use_bounded(&mut self, item_end: u64 in Trapping) {
+        let use_index: u64 in Trapping = self.output.use_count;
+        self.output.uses[self.output.use_count] = UseItem {
+            first_member: self.use_first_member,
+            member_count: self.output.member_count - self.use_first_member,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.item_start, end: item_end }
+            }
+        };
+        self.output.use_count = self.output.use_count + 1;
+        transition { _ -> retain_root(item_end, use_index) }
+    }
+
+    state retain_root(
+        &mut self,
+        item_end: u64 in Trapping,
+        use_index: u64 in Trapping
+    ) {
+        transition self.output.root_count < 256 {
+            true -> retain_root_bounded(item_end, use_index)
+            _ -> retained_capacity_lost()
+        }
+    }
+
+    state retain_root_bounded(
+        &mut self,
+        item_end: u64 in Trapping,
+        use_index: u64 in Trapping
+    ) {
+        self.output.roots[self.output.root_count] = RootItem {
+            kind: RootItemKind::Use,
+            item_index: use_index,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.item_start, end: item_end }
+            }
+        };
+        self.output.root_count = self.output.root_count + 1;
+        self.cursor = self.cursor + 1;
+        transition { _ -> next_root() }
+    }
+
+    state prepare_data(&mut self, is_public: bool) {
+        self.data_is_public = is_public;
+        transition self.output.root_count < 256 {
+            true -> data_capacity()
+            _ -> root_full()
+        }
+    }
+
+    state data_capacity(&mut self) {
+        transition self.output.data_count < 256 {
+            true -> data_start()
+            _ -> data_full()
+        }
+    }
+
+    state data_start(&mut self) {
+        self.data_first_field = self.output.field_count;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_name()
+            _ -> expected_data_name_at_end()
+        }
+    }
+
+    state data_name(&mut self) {
+        self.load_current();
+        transition { _ -> data_name_loaded() }
+    }
+
+    state data_name_loaded(&mut self) {
+        transition self.current_tag == 1 || (
+            self.current_tag == 5 &&
+            self.current_first != 20 &&
+            self.current_first != 21
+        ) {
+            true -> retain_data_name(self.current_start, self.current_end)
+            _ -> expected_data_name(self.current_start, self.current_end)
+        }
+    }
+
+    state retain_data_name(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.data_name_start = start;
+        self.data_name_end = end;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_body()
+            _ -> expected_data_body_at_end()
+        }
+    }
+
+    state data_body(&mut self) {
+        self.load_current();
+        transition { _ -> data_body_loaded() }
+    }
+
+    state data_body_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 20 {
+            true -> data_body_start()
+            _ -> expected_data_body(self.current_start, self.current_end)
+        }
+    }
+
+    state data_body_start(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_member()
+            _ -> expected_data_body_at_end()
+        }
+    }
+
+    state data_member(&mut self) {
+        self.load_current();
+        transition { _ -> data_member_loaded() }
+    }
+
+    state data_member_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 36 {
+            true -> retain_data(self.current_end)
+            _ -> field_capacity()
+        }
+    }
+
+    state field_capacity(&mut self) {
+        transition self.output.field_count < 1024 {
+            true -> field_name()
+            _ -> field_full()
+        }
+    }
+
+    state field_name(&mut self) {
+        transition self.current_tag == 1 || (
+            self.current_tag == 5 &&
+            self.current_first != 20 &&
+            self.current_first != 21
+        ) {
+            true -> retain_field_name(self.current_start, self.current_end)
+            _ -> expected_field_colon(self.current_start, self.current_end)
+        }
+    }
+
+    state retain_field_name(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.field_start = start;
+        self.field_name_start = start;
+        self.field_name_end = end;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> field_colon()
+            _ -> expected_field_colon_at_end()
+        }
+    }
+
+    state field_colon(&mut self) {
+        self.load_current();
+        transition { _ -> field_colon_loaded() }
+    }
+
+    state field_colon_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 6 {
+            true -> field_type_start()
+            _ -> expected_field_colon(self.current_start, self.current_end)
+        }
+    }
+
+    state field_type_start(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> field_type()
+            _ -> expected_field_type_at_end()
+        }
+    }
+
+    state field_type(&mut self) {
+        self.load_current();
+        transition { _ -> field_type_loaded() }
+    }
+
+    state field_type_loaded(&mut self) {
+        transition self.current_tag == 1 || (
+            self.current_tag == 5 &&
+            self.current_first != 20 &&
+            self.current_first != 21
+        ) {
+            true -> type_reference_capacity()
+            _ -> expected_field_type(self.current_start, self.current_end)
+        }
+    }
+
+    state type_reference_capacity(&mut self) {
+        transition self.output.type_reference_count < 1024 {
+            true -> retain_type_name(self.current_start, self.current_end)
+            _ -> type_reference_full()
+        }
+    }
+
+    state retain_type_name(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.type_name_start = start;
+        self.type_name_end = end;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> field_end()
+            _ -> expected_field_end_at_end()
+        }
+    }
+
+    state field_end(&mut self) {
+        self.load_current();
+        transition { _ -> field_end_loaded() }
+    }
+
+    state field_end_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 39 {
+            true -> retain_type_reference(self.current_end)
+            _ -> expected_field_end(self.current_start, self.current_end)
+        }
+    }
+
+    state retain_type_reference(&mut self, field_end: u64 in Trapping) {
+        transition self.output.type_reference_count < 1024 {
+            true -> retain_type_reference_bounded(field_end)
+            _ -> type_reference_full()
+        }
+    }
+
+    state retain_type_reference_bounded(&mut self, field_end: u64 in Trapping) {
+        let type_index: u64 in Trapping = self.output.type_reference_count;
+        self.output.type_references[self.output.type_reference_count] = TypeReference {
+            kind: TypeReferenceKind::Named,
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.type_name_start, end: self.type_name_end }
+                }
+            },
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.type_name_start, end: self.type_name_end }
+            }
+        };
+        self.output.type_reference_count = self.output.type_reference_count + 1;
+        transition { _ -> retain_field(field_end, type_index) }
+    }
+
+    state retain_field(
+        &mut self,
+        field_end: u64 in Trapping,
+        type_index: u64 in Trapping
+    ) {
+        transition self.output.field_count < 1024 {
+            true -> retain_field_bounded(field_end, type_index)
+            _ -> field_full()
+        }
+    }
+
+    state retain_field_bounded(
+        &mut self,
+        field_end: u64 in Trapping,
+        type_index: u64 in Trapping
+    ) {
+        self.output.fields[self.output.field_count] = DataField {
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.field_name_start, end: self.field_name_end }
+                }
+            },
+            type_reference: type_index,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.field_start, end: field_end }
+            }
+        };
+        self.output.field_count = self.output.field_count + 1;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_member()
+            _ -> expected_data_body_at_end()
+        }
+    }
+
+    state retain_data(&mut self, item_end: u64 in Trapping) {
+        transition self.output.data_count < 256 {
+            true -> retain_data_bounded(item_end)
+            _ -> data_full()
+        }
+    }
+
+    state retain_data_bounded(&mut self, item_end: u64 in Trapping) {
+        let data_index: u64 in Trapping = self.output.data_count;
+        self.output.data_items[self.output.data_count] = DataItem {
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.data_name_start, end: self.data_name_end }
+                }
+            },
+            first_field: self.data_first_field,
+            field_count: self.output.field_count - self.data_first_field,
+            is_public: self.data_is_public,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.item_start, end: item_end }
+            }
+        };
+        self.output.data_count = self.output.data_count + 1;
+        transition { _ -> retain_data_root(item_end, data_index) }
+    }
+
+    state retain_data_root(
+        &mut self,
+        item_end: u64 in Trapping,
+        data_index: u64 in Trapping
+    ) {
+        transition self.output.root_count < 256 {
+            true -> retain_data_root_bounded(item_end, data_index)
+            _ -> retained_capacity_lost()
+        }
+    }
+
+    state retain_data_root_bounded(
+        &mut self,
+        item_end: u64 in Trapping,
+        data_index: u64 in Trapping
+    ) {
+        self.output.roots[self.output.root_count] = RootItem {
+            kind: RootItemKind::Data,
+            item_index: data_index,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.item_start, end: item_end }
+            }
+        };
+        self.output.root_count = self.output.root_count + 1;
+        self.cursor = self.cursor + 1;
+        transition { _ -> next_root() }
+    }
+
+    state data_full(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::DataCapacityExceeded,
+            self.source,
+            self.current_start,
+            self.current_end
+        );
+    }
+
+    state field_full(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::DataFieldCapacityExceeded,
+            self.source,
+            self.current_start,
+            self.current_end
+        );
+    }
+
+    state type_reference_full(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::TypeReferenceCapacityExceeded,
+            self.source,
+            self.current_start,
+            self.current_end
+        );
+    }
+
+    state expected_data_after_public_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataAfterPub,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_data_after_public(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataAfterPub, self.source, start, end);
+    }
+
+    state expected_data_name_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataName,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_data_name(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataName, self.source, start, end);
+    }
+
+    state expected_data_body_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataBody,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_data_body(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataBody, self.source, start, end);
+    }
+
+    state expected_field_colon_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataFieldColon,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_field_colon(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataFieldColon, self.source, start, end);
+    }
+
+    state expected_field_type_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataFieldType,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_field_type(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataFieldType, self.source, start, end);
+    }
+
+    state expected_field_end_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataFieldEnd,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_field_end(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataFieldEnd, self.source, start, end);
+    }
+
+    state retained_capacity_lost(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::RootCapacityExceeded,
+            self.source,
+            self.item_start,
+            self.item_start
+        );
+    }
+
+    state expected_member_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedPathMember,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_member(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedPathMember,
+            self.source,
+            start,
+            end
+        );
+    }
+
+    state expected_separator_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_separator(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon,
+            self.source,
+            start,
+            end
+        );
+    }
+
+    state member_full(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(
+            ParseDiagnosticCode::PathMemberCapacityExceeded,
+            self.source,
+            start,
+            end
+        );
+    }
+
+    state done(&mut self) { }
+}
+
+// One checked dynamic-selection boundary feeds scalar scratch fields. The
+// current hosted compiler cannot yet materialize a runtime-selected aggregate
+// across a machine call without losing its fields; keeping the proof here
+// avoids a family of tag/start/end accessor permutations.
+machine Parser::load_current(&mut self) {
+    transition self.cursor < self.token_count {
+        true -> array_bound(self.cursor as u64)
+        _ -> absent()
+    }
+
+    state array_bound(&mut self, candidate: u64) {
+        transition candidate < 16384 {
+            true -> present(candidate)
+            _ -> absent()
+        }
+    }
+
+    state present(&mut self, retained: u64 [0..=16383]) {
+        self.current_tag = self.token_tags[retained];
+        self.current_first = self.token_first[retained];
+        self.current_start = self.token_starts[retained];
+        self.current_end = self.token_ends[retained];
+    }
+
+    state absent(&mut self) {
+        self.current_tag = 0;
+        self.current_first = 0;
+        self.current_start = 0;
+        self.current_end = 0;
+    }
+}
+
+machine Parser::skip_trivia(&mut self) {
+    transition self.cursor < self.token_count {
+        true -> classify()
+        _ -> done()
+    }
+
+    state classify(&mut self) {
+        self.load_current();
+        transition { _ -> classify_loaded() }
+    }
+
+    state classify_loaded(&mut self) {
+        transition self.current_tag == 7 || self.current_tag == 8 || self.current_tag == 9 {
+            true -> advance()
+            _ -> done()
+        }
+    }
+
+    state advance(&mut self) {
+        self.cursor = self.cursor + 1;
+        transition self.cursor < self.token_count {
+            true -> classify()
+            _ -> done()
+        }
+    }
+
+    state done(&mut self) { }
+}
