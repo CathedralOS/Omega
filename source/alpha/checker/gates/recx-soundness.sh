@@ -22,8 +22,8 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
 fi
 . "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" || exit $?
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" || exit $?
-. "$OMEGA_PATH_PROOF_KERNEL/artifact_env.sh" || exit $?
-cd "$OMEGA_PATH_PROOF_KERNEL"
+. "$OMEGA_PATH_ALPHA_CHECKER/artifact_env.sh" || exit $?
+cd "$OMEGA_PATH_ALPHA_CHECKER"
 command -v python3 >/dev/null 2>&1 || { echo "recx seam: skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
@@ -34,7 +34,7 @@ b() { "$T/bc.exe" < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x
 stamp_proof_checker "$T/check.exe" >/dev/null || { echo "checker artifact unavailable"; exit 1; }
 b "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "recx seam FAIL — build interp.beta"; exit 1; }
 
-python3 - "$T/check.exe" "$T/interp.exe" "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma <<'EOF'
+python3 - "$T/check.exe" "$T/interp.exe" "${OMEGA_PATH_ALPHA_CHECKER}"/implementations/gamma/checker.gamma <<'EOF'
 import random
 import os
 import subprocess
@@ -66,7 +66,7 @@ def verdict(cert):
     a = subprocess.run([check], input=cert, capture_output=True, text=True, timeout=60).stdout.strip()
     b = subprocess.run(['python3', 'implementations/reference/check_ref.py'], input=cert, capture_output=True,
                        text=True, timeout=60).stdout.strip()
-    tr = subprocess.run(['python3', os.path.join(os.environ['OMEGA_PATH_PROOF_KERNEL'],
+    tr = subprocess.run(['python3', os.path.join(os.environ['OMEGA_PATH_ALPHA_CHECKER'],
                                                 'tools/refcert_to_gamma.py')], input=cert,
                         capture_output=True, text=True, timeout=60)
     if tr.returncode != 0:

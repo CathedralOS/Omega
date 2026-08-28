@@ -33,7 +33,7 @@ for required in \
   "$OMEGA_PATH_DELTA" "$OMEGA_PATH_DELTA_MEANING" \
   "$OMEGA_PATH_OMEGA" "$OMEGA_PATH_OMEGA_PSI" \
   "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_BETA_VALIDATION" \
-  "$OMEGA_PATH_PROOF_KERNEL"
+  "$OMEGA_PATH_ALPHA_CHECKER"
 do
   [ -d "$required" ] || fail "required owner is absent: $required"
 done

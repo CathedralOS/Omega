@@ -28,7 +28,7 @@ fi
 cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "refinement-cert-diamond: skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_BETA_COMPILER}"/artifact_env.sh
-. "${OMEGA_PATH_PROOF_KERNEL}"/artifact_env.sh
+. "${OMEGA_PATH_ALPHA_CHECKER}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}/$ALPHA_SEED"
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
@@ -37,7 +37,7 @@ stamp_beta_compiler "$BC" >/dev/null 2>&1 || { echo "lattice bc artifact unavail
 stamp_proof_checker "$T/check.exe" >/dev/null 2>&1 || { echo "checker artifact unavailable"; exit 1; }
 "$BC" < "${OMEGA_PATH_GAMMA}"/interp.beta > "$T/i.asm" 2>/dev/null && "$ASM" < "$T/i.asm" > "$T/i.tape" 2>/dev/null \
   && stamp_seed "$T/i.tape" "$SEED" "$T/interp.exe" >/dev/null 2>&1 || { echo "interp.beta build failed"; exit 1; }
-DEFS=$(cat "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma)
+DEFS=$(cat "${OMEGA_PATH_ALPHA_CHECKER}"/implementations/gamma/checker.gamma)
 
 mkdir "$T/certs"
 # run the gate over the curated samples PLUS a deterministic slice of the loop/nested fuzz spaces (their
@@ -52,12 +52,12 @@ PASS=0; FAIL=0; GPASS=0; GFAIL=0
 for c in "$T"/certs/cert-*.beta; do
   [ -f "$c" ] || continue
   expect=$(basename "$c" .beta | sed 's/.*-//')
-  got=$(python3 "${OMEGA_PATH_PROOF_KERNEL}"/implementations/reference/check_ref.py < "$c" 2>/dev/null || echo error)
+  got=$(python3 "${OMEGA_PATH_ALPHA_CHECKER}"/implementations/reference/check_ref.py < "$c" 2>/dev/null || echo error)
   if [ "$got" = "$expect" ]; then PASS=$((PASS+1))
   else FAIL=$((FAIL+1)); echo "  FAIL $(basename "$c") : check.beta=$expect check_ref.py=$got"; fi
   # THIRD leg: checker.gamma — the cert translated to its (check ..) syntax ((k ..) terms become the CURRIED
   # constructor encoding (Apply.. (Con cid) ..); (fun ..) rules are inlined at each (f ..) site as Fapp).
-  gexpr=$(python3 "${OMEGA_PATH_PROOF_KERNEL}"/tools/refcert_to_gamma.py < "$c" 2>/dev/null) || { GFAIL=$((GFAIL+1)); echo "  FAIL $(basename "$c") : untranslatable to checker.gamma"; continue; }
+  gexpr=$(python3 "${OMEGA_PATH_ALPHA_CHECKER}"/tools/refcert_to_gamma.py < "$c" 2>/dev/null) || { GFAIL=$((GFAIL+1)); echo "  FAIL $(basename "$c") : untranslatable to checker.gamma"; continue; }
   vg=0; printf '%s\n%s\n' "$DEFS" "$gexpr" | "$T/interp.exe" >/dev/null 2>&1 || vg=$?   # accept = exit 1
   gv=reject; [ "$vg" = 1 ] && gv=accept
   if [ "$gv" = "$expect" ]; then GPASS=$((GPASS+1))

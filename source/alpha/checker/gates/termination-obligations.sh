@@ -29,8 +29,8 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
 fi
 . "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" || exit $?
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" || exit $?
-. "$OMEGA_PATH_PROOF_KERNEL/artifact_env.sh" || exit $?
-cd "$OMEGA_PATH_PROOF_KERNEL"
+. "$OMEGA_PATH_ALPHA_CHECKER/artifact_env.sh" || exit $?
+cd "$OMEGA_PATH_ALPHA_CHECKER"
 command -v python3 >/dev/null 2>&1 || { echo "termination-obligations: skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
@@ -40,14 +40,14 @@ stamp_beta_compiler "$T/bc.exe" >/dev/null
 b() { "$T/bc.exe" < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 stamp_proof_checker "$T/check.exe" >/dev/null || { echo "checker artifact unavailable"; exit 1; }
 b "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "termination-obligations FAIL — build interp.beta"; exit 1; }
-DEFS=$(cat "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma)
+DEFS=$(cat "${OMEGA_PATH_ALPHA_CHECKER}"/implementations/gamma/checker.gamma)
 LEMMA=corpus/proofs/slice-tail-shrink.elab
 
 # ---- 1. the measure-decrease lemma, verified by all three independent checkers ----
 cert=$(python3 tools/elab.py < "$LEMMA" 2>/dev/null)
 gb=$(printf '%s' "$cert" | "$T/check.exe" 2>/dev/null)
 gr=$(printf '%s' "$cert" | python3 implementations/reference/check_ref.py 2>/dev/null)
-gg=$(printf '%s\n%s\n' "$DEFS" "$(printf '%s' "$cert" | python3 "${OMEGA_PATH_PROOF_KERNEL}"/tools/refcert_to_gamma.py 2>/dev/null)" | perl -e 'alarm 40; exec @ARGV' "$T/interp.exe" >/dev/null 2>&1; r=$?; [ "$r" = 1 ] && echo accept || { [ "$r" = 0 ] && echo reject || echo undecided; })
+gg=$(printf '%s\n%s\n' "$DEFS" "$(printf '%s' "$cert" | python3 "${OMEGA_PATH_ALPHA_CHECKER}"/tools/refcert_to_gamma.py 2>/dev/null)" | perl -e 'alarm 40; exec @ARGV' "$T/interp.exe" >/dev/null 2>&1; r=$?; [ "$r" = 1 ] && echo accept || { [ "$r" = 0 ] && echo reject || echo undecided; })
 echo "  measure-decrease lemma (len t < len(cons h t)): implementations/beta/check.beta=$gb check_ref=$gr implementations/gamma/checker.gamma=$gg"
 
 # ---- 2. NEGATIVE control: the reversed measure (len(cons h t) < len t = the measure GROWS) must be rejected ----
