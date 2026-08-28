@@ -80,12 +80,15 @@ Canonical subjects:
 
 - [ ] Reduce the remaining admission implementation without merging distinct
   proof responsibilities. The bounded gate currently has 191 Alpha modules,
-  60,513 lines, and a 1,010,429-byte Checker A source. Shape, control, data,
+  60,492 lines, and a 1,010,194-byte Checker A source. Shape, control, data,
   memory, stack, effect, ranged-store, and meaning modules may share canonical
   decoded facts and structural indexes; they must retain separate semantic
   theorems. Owner-local cursor pooling has removed ten duplicate helper bodies
   and 2,492 source bytes across the parse-procedure and ROOT observation
-  families without merging either family's semantic obligations.
+  families without merging either family's semantic obligations. The frame,
+  ranged-store, and stack-custody owners now reuse the already imported exact
+  cell-increment primitive for 19 calls, removing three more duplicate helper
+  bodies and 235 source bytes without changing the ROOT identity.
 - [x] Make repeated structural queries O(1) only where the source tables admit
   a proved canonical index. The procedure-span inventory is complete: all 53
   endpoint binders are constant-time and the remaining 44 block identities

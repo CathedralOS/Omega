@@ -176,6 +176,12 @@ positive lookup, and one mutation tooth per family. Local kinds and slots,
 memory joins, transition meaning, event keys and occurrences, artifact PCs, and
 decoded opcode/effect policy remain separate semantic obligations.
 
+The frame summary, ranged-store bounds, and stack-register custody owners also
+share the exact cell-increment primitive already provided by the canonical
+shape-helper module. Nineteen calls retain their owner-local counter addresses
+while three byte-identical private routines are gone; no table or theorem moved
+between those responsibilities.
+
 The whole-artifact frame summary retains one canonical per-PC reachability,
 relative-depth, frame-kind, and saved-frame product. Ranged-store transfer
 rejoins its selected slurp/declare sites through checked accessors to that

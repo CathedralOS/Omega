@@ -65,7 +65,7 @@ ranged_class_store:
         jmp reject
 ranged_class_fixed:
         imm r1, 525152
-        call ranged_increment
+        call exact_increment_cell
         imm r1, 10618880
         add r1, r12
         load r8, r1
@@ -93,27 +93,27 @@ ranged_class_fixed_protected:
         jmp ranged_class_next
 ranged_class_nloc_writer:
         imm r1, 525184
-        call ranged_increment
+        call exact_increment_cell
         jmp ranged_class_next
 ranged_class_expr_writer:
         imm r1, 525192
-        call ranged_increment
+        call exact_increment_cell
         jmp ranged_class_next
 ranged_class_block_writer:
         imm r1, 525200
-        call ranged_increment
+        call exact_increment_cell
         jmp ranged_class_next
 ranged_class_source:
         imm r1, 525160
-        call ranged_increment
+        call exact_increment_cell
         jmp ranged_class_next
 ranged_class_nameoff:
         imm r1, 525168
-        call ranged_increment
+        call exact_increment_cell
         jmp ranged_class_next
 ranged_class_namelen:
         imm r1, 525176
-        call ranged_increment
+        call exact_increment_cell
 ranged_class_next:
         imm r1, 1
         add r10, r1
@@ -161,13 +161,6 @@ ranged_block_writer_count:
         imm r3, 5
         jeq r2, r3, ranged_require_schemas
         jmp reject
-
-ranged_increment:
-        load r2, r1
-        imm r3, 1
-        add r2, r3
-        store r1, r2
-        ret
 
 ranged_require_schemas:
         imm r20, ranged_schema_slurp

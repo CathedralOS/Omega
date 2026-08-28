@@ -531,38 +531,31 @@ stack_scan_relevant:
         jmp reject                     ; orphan stack effect
 stack_scan_count_union:
         imm r1, 525112
-        call stack_scan_increment
+        call exact_increment_cell
         imm r1, 0
         jlt r1, r20, stack_scan_count_write14
         jmp stack_scan_maybe_write15
 stack_scan_count_write14:
         imm r1, 525120
-        call stack_scan_increment
+        call exact_increment_cell
 stack_scan_maybe_write15:
         imm r1, 0
         jlt r1, r21, stack_scan_count_write15
         jmp stack_scan_maybe_memory
 stack_scan_count_write15:
         imm r1, 525128
-        call stack_scan_increment
+        call exact_increment_cell
 stack_scan_maybe_memory:
         imm r1, 0
         jlt r1, r22, stack_scan_count_memory
         jmp stack_scan_next
 stack_scan_count_memory:
         imm r1, 525136
-        call stack_scan_increment
+        call exact_increment_cell
 stack_scan_next:
         imm r1, 1
         add r10, r1
         jmp stack_scan_loop
-
-stack_scan_increment:
-        load r2, r1
-        imm r3, 1
-        add r2, r3
-        store r1, r2
-        ret
 
 stack_scan_counts:
         imm r1, 525112
