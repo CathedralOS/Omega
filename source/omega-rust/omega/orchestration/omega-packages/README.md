@@ -247,15 +247,13 @@ generated policy hash, exact numeric ceilings, normalized executable path set,
 discovery/inspection content-read roots when applicable, and mutable root. Every macOS
 phase uses a host-profile-free default-deny policy with exact selected
 executables and write-data to `/dev/null`. SSH discovery/fetch retain broad
-reads; HTTPS fetch permits broad metadata reads but confines file-content reads
-to its mutable-quarantine root and fixed runtime files. Initialization,
-inspection, and HTTPS discovery confine metadata and content to their exact
-phase root plus exact executable/runtime paths and required literal ancestors,
-and therefore mark their filesystem-read rows enforced. HTTPS discovery also
-admits metadata-only lookup within its compiler-selected Git helper directory
-and fixed `/etc/ssl` alias path. HTTPS discovery/fetch additionally read the
-fixed `/private/etc/ssl` system TLS
-configuration root; this does not establish TLS trust or custody.
+reads. Initialization, inspection, and HTTPS discovery/fetch confine metadata
+and content to their exact phase root plus exact executable/runtime paths and
+required literal ancestors, and therefore mark their filesystem-read rows
+enforced. HTTPS discovery/fetch also admit metadata-only lookup within their
+compiler-selected Git helper directory and fixed `/etc/ssl` alias path, and read
+the fixed `/private/etc/ssl` system TLS configuration root; this does not
+establish TLS trust or custody.
 Initialization and fetch additionally confine writes to the exact mutable
 quarantine root. Discovery and fetch require one closed authority matching the
 already-validated HTTPS or SSH transport and admit outbound network. Only SSH
@@ -385,10 +383,10 @@ as the parent Git executable and are rechecked around every launch and at
 completion. On macOS that floor also reads native extended ACLs for invocation
 entries, canonical targets, and every ancestor; any allow entry rejects even
 when ordinary mode bits appear safe. Deny-only entries do not broaden custody,
-and an unreadable ACL fails closed. Cache policy v24 separates entries
+and an unreadable ACL fails closed. Cache policy v25 separates entries
 predating this transport-executable, cumulative-output, endpoint-brokerage,
 network-transfer, nonnetwork descendant-denial, content-read, and nonnetwork-
-metadata/HTTPS-discovery-metadata floor. HTTPS receives
+metadata/HTTPS-network-metadata floor. HTTPS receives
 an exact command-scoped proxy. SSH uses the separately
 custodied `omega-resolver-connect` companion as a fixed ProxyCommand; compiler-
 authored environment fields carry the broker and normalized target without

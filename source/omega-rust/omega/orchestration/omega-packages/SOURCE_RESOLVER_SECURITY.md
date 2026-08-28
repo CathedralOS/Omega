@@ -12,8 +12,8 @@ never a live local tree, Git working tree, or helper-produced claim.
 
 The intended strict production path has three custody stages. The current
 macOS floor now confines repository-initialization, inspection, and HTTPS
-discovery content and metadata, and HTTPS fetch file content, but does not yet
-enforce read separation for SSH or HTTPS fetch metadata:
+discovery/fetch content and metadata, but does not yet enforce read separation
+for SSH:
 
 1. A fetch helper resolves transport into a fresh quarantined object store. In
    the strict boundary it has the selected transport authority and no access to
@@ -55,12 +55,11 @@ The current macOS engineering floor now selects a fixed Seatbelt launcher and
 closed resolver phase; it is described below. Every phase uses a self-contained
 compiler-generated policy with no host-profile import and confines writes and
 executable paths; the nonnetwork phases also deny network. SSH discovery/fetch
-reads remain broad. HTTPS fetch confines file-content reads to its mutable-
-quarantine root and fixed runtime files while retaining broad metadata reads.
-Initialization, inspection, and HTTPS discovery confine metadata and content to
-their phase root plus exact executable/runtime paths and the literal ancestors
-needed to reach them. HTTPS discovery additionally admits metadata-only lookup
-within the compiler-selected Git helper directory and `/etc/ssl` alias. HTTPS
+reads remain broad. Initialization, inspection, and HTTPS discovery/fetch
+confine metadata and content to their phase root plus exact executable/runtime
+paths and the literal ancestors needed to reach them. HTTPS discovery/fetch
+additionally admit metadata-only lookup within the compiler-selected Git helper
+directory and `/etc/ssl` alias. HTTPS
 discovery/fetch also admit the fixed `/private/etc/ssl` system TLS configuration
 root. Each network phase confines its child to one compiler-owned
 loopback broker port. The broker accepts only the normalized host and port derived from the
@@ -128,16 +127,13 @@ authentication, snapshot identity, and final publication verdict.
 
 Every macOS phase uses a compiler-generated default-deny profile with no import.
 All grant exact selected executables and write-data to `/dev/null`. SSH
-discovery/fetch grant broad reads. HTTPS fetch grants broad metadata reads but
-file-content reads only beneath its mutable-quarantine root, from the exact
-executable set, `/dev/null`, and the literal filesystem-root directory entry
-required by the native process runtime. Initialization, inspection, and HTTPS
-discovery grant both metadata and content reads only beneath their phase root
-and at exact executable/runtime paths and compiler-derived literal ancestors.
-HTTPS discovery additionally grants metadata-only lookup beneath its compiler-
-selected Git helper directory and fixed `/etc/ssl` alias. HTTPS discovery/fetch
-admit content beneath `/private/etc/ssl`;
-that fixed path is not evidence that TLS trust or custody was established.
+discovery/fetch grant broad reads. Initialization, inspection, and HTTPS
+discovery/fetch grant both metadata and content reads only beneath their phase
+root and at exact executable/runtime paths and compiler-derived literal
+ancestors. HTTPS discovery/fetch additionally grant metadata-only lookup beneath
+their compiler-selected Git helper directory and fixed `/etc/ssl` alias. They
+admit content beneath `/private/etc/ssl`; that fixed path is not evidence that
+TLS trust or custody was established.
 Initialization and fetch additionally grant writes only beneath the exact
 mutable quarantine root. Discovery and fetch require the already-validated
 closed HTTPS or SSH transport authority and grant outbound network. Only SSH
@@ -153,8 +149,8 @@ phase. Filesystem-write and executable-path rows are
 descendant containment is `Enforced` for initialization and inspection. The
 exact compiler-owned rlimit rows are `Enforced` throughout macOS.
 `FilesystemReadsConfined` is `Enforced` for initialization, inspection, and
-HTTPS discovery. It remains `Unavailable` for HTTPS fetch because its metadata
-remains broad, and for SSH discovery/fetch because their content remains broad.
+HTTPS discovery/fetch. It remains `Unavailable` for SSH discovery/fetch because
+their content and metadata remain broad.
 Before a successful Git result is issued, the package layer also requires the
 number of retained policy observations to equal the bounded launch count and
 requires every observation's executable path set to equal the paths backed by
