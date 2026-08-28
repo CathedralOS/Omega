@@ -139,8 +139,11 @@ real package fixture demonstrates an irreducible external contract.
   that custody is missing. Source-free compiler synthesis receives no invented
   fact location. Public trait requirements and public data fields/cases/payloads
   retain exact declaration coordinates under `trait_requirement` and
-  `data_member`; generated declarations expose their real derivation origin.
-  Recovery envelope v12, conflict fingerprint v15, and renderer V14 retain what
+  `data_member`; callable, public-operator, and public-trait-requirement value
+  parameters use `callable_parameter`, including parameters nested in
+  structural static-machine contracts. Generated declarations expose their
+  real derivation origin.
+  Recovery envelope v13, conflict fingerprint v16, and renderer V15 retain what
   review displays. Later nested carriers must come
   from existing compiler owners rather than package-layer source parsing.
 - Missing old source escalates code review but does not prevent comparison
@@ -1273,13 +1276,12 @@ contract as an observation that its current body exercised the permission.
 Public const initializer, transparent public-proposition formula, and authored
 proof-fact coordinates also survive their owning frontend stages; none is
 reconstructed from source text after value substitution or expression lowering.
-Other nested
-clause/use-site coordinates remain unfinished engineering work; none
+Other nested clause/use-site coordinates remain unfinished engineering work; none
 independently motivates nominal Chi. Checked invocation facts retain exact
 symbolic published and inferred targets before provider settlement, and package
 review consumes those facts rather than re-inferring from transformed typed
 calls. Package review v75/row v33,
-canonical recovery v12, conflict fingerprint v15, and conflict renderer V14 bind
+canonical recovery v13, conflict fingerprint v16, and conflict renderer V15 bind
 the current source-role vocabulary. The package layer
 does now validate a complete in-memory
 root-policy disposition for every exact blocking fingerprint. It canonicalizes
