@@ -16,10 +16,9 @@ use cap_std::{
         Metadata as CapabilityMetadata, OpenOptions as CapabilityOpenOptions,
     },
 };
-use command_group::{CommandGroup, GroupChild};
 use omega_resolver_execution::{
     RESOLVER_CONNECT_BROKER_ENVIRONMENT, RESOLVER_CONNECT_HELPER_BASENAME,
-    RESOLVER_CONNECT_TARGET_ENVIRONMENT, ResolverExecutionBackend,
+    RESOLVER_CONNECT_TARGET_ENVIRONMENT, ResolverExecutionBackend, ResolverExecutionChild,
     ResolverExecutionEndpointObservation, ResolverExecutionEndpointOutcome,
     ResolverExecutionEndpointRoute, ResolverExecutionNetworkTransport, ResolverExecutionPhase,
     ResolverExecutionPolicyObservation, ResolverExecutionRequestedEndpoint,
@@ -42,7 +41,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v26";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v27";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -5799,6 +5798,14 @@ fn verify_macos_cache_link_extended_acl_custody(
     Ok(())
 }
 
+#[cfg(not(target_os = "macos"))]
+fn verify_macos_cache_link_extended_acl_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
 #[cfg(target_os = "macos")]
 fn verify_macos_open_cache_extended_acl_custody(
     kind: CacheCustodyKind,
@@ -8670,26 +8677,18 @@ fn run_command_bounded_with_stdin_and_budget(
     let deadline = started.checked_add(timeout).unwrap_or(started);
     let cleanup_reserve = command_cleanup_reserve(timeout);
     let execution_deadline = deadline.checked_sub(cleanup_reserve).unwrap_or(started);
-    let mut child = command
+    command
         .stdin(stdin)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .group_spawn()
-        .map_err(|error| SourceResolveError::Git {
+        .stderr(Stdio::piped());
+    let mut child =
+        ResolverExecutionChild::spawn(command).map_err(|error| SourceResolveError::Git {
             operation: format!("{operation} spawn"),
             status: None,
             stderr: error.to_string(),
         })?;
-    let stdout = child
-        .inner()
-        .stdout
-        .take()
-        .expect("command stdout was piped");
-    let stderr = child
-        .inner()
-        .stderr
-        .take()
-        .expect("command stderr was piped");
+    let stdout = child.take_stdout().expect("command stdout was piped");
+    let stderr = child.take_stderr().expect("command stderr was piped");
     let (sender, receiver) = mpsc::channel();
     if let Err(error) = spawn_stream_capture(
         stdout,
@@ -8919,7 +8918,7 @@ fn command_cleanup_reserve(timeout: Duration) -> Duration {
 }
 
 fn fail_after_cleanup_before<T>(
-    child: &mut GroupChild,
+    child: &mut ResolverExecutionChild,
     operation: &str,
     deadline: Instant,
     original: SourceResolveError,
@@ -8931,7 +8930,7 @@ fn fail_after_cleanup_before<T>(
 }
 
 fn terminate_child_before(
-    child: &mut GroupChild,
+    child: &mut ResolverExecutionChild,
     operation: &str,
     command_deadline: Instant,
 ) -> Result<(), SourceResolveError> {

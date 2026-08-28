@@ -1350,7 +1350,6 @@ version = "0.1.0"
 dependencies = [
  "cap-fs-ext",
  "cap-std",
- "command-group",
  "nix",
  "omega-build-declarations",
  "omega-build-evaluation",
@@ -1532,9 +1531,11 @@ dependencies = [
 name = "omega-resolver-execution"
 version = "0.1.0"
 dependencies = [
+ "command-group",
  "omega-platform-custody",
  "rustix",
  "sha2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

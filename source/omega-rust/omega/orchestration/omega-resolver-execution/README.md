@@ -12,6 +12,8 @@ text or containment claims.
   per-command policy observations, and native canaries.
 - `src/network.rs` defines typed requested endpoints, the fixed-bound loopback
   HTTP CONNECT broker, sealed route policy, and bounded endpoint observations.
+- `src/windows.rs` owns suspended launch, Job Object limits, assignment/resume,
+  whole-job termination, and active-process-zero completion on Windows.
 
 ## Current enforcement
 
@@ -44,8 +46,15 @@ text or containment claims.
   ceilings with stricter inherited limits. Linux and Android additionally
   apply an address-space ceiling.
 - Other Unix hosts currently receive limits without strict filesystem/network
-  confinement. Windows retains the package layer's existing process-container
-  floor but has no strict backend here yet.
+  confinement. Windows commands are created suspended, assigned to a resolver-
+  owned kill-on-close Job Object, and resumed only after assignment. The job
+  prohibits breakaway by omission and enforces at most 16 active processes,
+  2 GiB committed memory per process, 4 GiB across the job, and 120 aggregate
+  user-CPU seconds. Completion requires both the primary child status and the
+  Job Object's active-process-zero event. Setup failure terminates and reaps the
+  suspended child rather than falling back. Windows therefore enforces
+  descendant containment, process-count, CPU-time, and aggregate CPU/memory
+  rows, but still lacks filesystem, executable-path, and endpoint confinement.
 - Every command is constructed together with a bounded canonical policy
   observation binding the backend, phase, closed network transport when
   applicable, sealed endpoint route when applicable, generated policy hash,
@@ -79,6 +88,7 @@ discovery/fetch now mark `FilesystemReadsConfined` enforced, but SSH discovery/
 fetch still permit broad reads, so complete resolver-wide filesystem-read
 confinement remains unavailable. The fixed TLS root
 is not a TLS trust receipt or credential-custody claim. Aggregate CPU, memory,
-process-count, and object-store quotas, plus Linux/Windows endpoint confinement
-and strict backends, remain package-manager tasks. See
+and process-count confinement remains unavailable on Unix; during-write object-
+store quotas, Linux/Windows endpoint confinement, and complete strict backends
+remain package-manager tasks. See
 [`SOURCE_RESOLVER_SECURITY.md`](../omega-packages/SOURCE_RESOLVER_SECURITY.md).

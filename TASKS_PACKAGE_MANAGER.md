@@ -269,10 +269,12 @@ complete.
     Linux and Windows route through the broker without yet denying direct egress.
     The broker now enforces one whole-resolution bidirectional transfer ceiling,
     but only macOS prevents helpers from bypassing it. Linux currently receives
-    inherited rlimits without filesystem/network/exec confinement, and Windows
-    retains only the existing process container. No backend yet enforces
-    process-count, aggregate descendant CPU/memory, or during-write object-store
-    ceilings. Process-container cleanup contains ordinary descendants but
+    inherited rlimits without filesystem/network/exec confinement. Windows now
+    receives a resolver-owned limited Job Object but still lacks filesystem/
+    network/exec confinement. Unix backends do not yet enforce process-count or
+    aggregate descendant CPU/memory, and no backend enforces during-write
+    object-store ceilings. Process-container cleanup contains ordinary
+    descendants but
     not a hostile Unix process that deliberately changes session. Cleanup is
     now reserved within command and whole-resolution deadlines, but host
     scheduling and uninterruptible kernel work still prevent a hard wall-clock
@@ -1004,6 +1006,25 @@ complete.
   v26 prevents reuse of state produced under the compiler-authored deadline
   extension. This removes that known overrun but does not claim a hard kernel
   wall-clock guarantee under scheduling stalls or uninterruptible operations.
+
+  Follow-up 2026-08-28: Windows resolver launches now move process-container
+  ownership beneath `omega-resolver-execution` instead of relying on an opaque
+  package-layer `command-group` handle. The backend creates each child
+  suspended, configures an unnamed Job Object, assigns the child before any
+  helper code executes, and only then resumes it. Assignment, configuration, or
+  resume failure terminates and reaps rather than falling back. The job denies
+  breakaway, kills on close, and enforces 16 active processes, 2 GiB committed
+  memory per process, 4 GiB aggregate committed memory, and 120 aggregate user-
+  CPU seconds. Completion waits for both primary status and active-process zero.
+  Windows policy rows now mark descendant containment, process count, CPU time,
+  and aggregate CPU/memory `Enforced`; filesystem, executable, address-space,
+  file, descriptor, core, and endpoint rows remain unavailable. Policy schema
+  13 and Git cache policy v27 bind the stronger backend. Windows-native normal-
+  completion and whole-job termination canaries are compiled; the resolver and
+  complete package crate cross-compile for `x86_64-pc-windows-msvc`, and the
+  resolver passes strict cross-target Clippy. Native limit-exhaustion execution
+  remains to be run on a Windows worker before treating platform coverage as
+  complete.
 
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build

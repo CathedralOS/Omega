@@ -11,7 +11,6 @@ path = "src/lib.rs"
 [dependencies]
 cap-fs-ext = "4.0.3"
 cap-std = "4.0.3"
-command-group = "5.0.1"
 omega-build-declarations = { path = "../omega-build-declarations" }
 omega-build-evaluation = { path = "../omega-build-evaluation" }
 omega-build-provenance = { path = "../omega-build-provenance" }
