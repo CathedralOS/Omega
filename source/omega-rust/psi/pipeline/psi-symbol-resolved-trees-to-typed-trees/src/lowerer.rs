@@ -126,7 +126,7 @@ pub fn lower_symbol_resolved_trees(
 
     for machine in &symbol_resolved_trees.machines {
         let machine = lowerer
-            .with_type_reference_exposure(declaration_exposure(machine.is_public), |lowerer| {
+            .with_type_reference_exposure(machine_interface_exposure(machine), |lowerer| {
                 lower_machine(lowerer, machine)
             })?;
         lowerer.typed_trees.push_machine(machine);
@@ -305,6 +305,17 @@ fn declaration_exposure(
     } else {
         AuthoredDeclarationSelectionExposure::PrivateImplementation
     }
+}
+
+fn machine_interface_exposure(
+    machine: &psi_symbol_resolved_trees::machine::Machine,
+) -> psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
+    let is_exported_boundary = matches!(
+        machine.supply_mode,
+        psi_language_semantics::MachineSupplyMode::Boundary
+            | psi_language_semantics::MachineSupplyMode::Accepted
+    );
+    declaration_exposure(machine.is_public || is_exported_boundary)
 }
 
 pub fn lower_symbol_resolved_trees_owned(

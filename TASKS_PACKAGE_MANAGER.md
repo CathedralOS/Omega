@@ -1499,6 +1499,19 @@ complete.
   private typed or checked handles. This reuses the existing coherent checked
   derivation and introduces neither a public IR contract nor nominal Chi.
 
+  Follow-up 2026-08-28: non-`pub` boundary machines now retain their actual
+  exported-interface exposure through both typed type-reference lowering and
+  named-conformance-bound selection collection. Syntax lowering already
+  classified boundary signature/contract expressions as public, but these two
+  nested paths had regressed to the ordinary `machine.is_public` bit. A
+  root-middle-leaf canary now rejects a boundary parameter type owned only by a
+  transitive dependency, accepts it after direct admission, and observes the
+  exact public-interface row. A same-package canary likewise rejects a boundary
+  generic bound naming a private conformance. Boundary and accepted supply are
+  derived from the retained semantic supply mode, not source spelling. This
+  closes that exported-boundary slice; the other visibility-dependent nested
+  positions below remain.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
   forms, nominal type references on public/private declaration surfaces,
