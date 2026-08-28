@@ -57,10 +57,14 @@ text or containment claims.
 
 The broker bounds CONNECT request bytes and headers, the complete DNS result
 set collected before any upstream connection, accepted connections, buffers,
-and connection/relay duration. Its endpoint observation records closed
-connection outcomes and effective socket peers. It does not establish TLS or
-SSH host trust, credential custody, network-transfer quotas, package
-acceptance, or a receipt.
+connection/relay duration, and bytes accepted for relay. Every route in one
+source resolution shares one compiler-owned bidirectional transfer budget;
+CONNECT framing and DNS traffic are excluded. Endpoint observations retain
+closed outcomes, effective socket peers, and exact uploaded/downloaded counts.
+An over-ceiling read is not forwarded or charged, closes the tunnel, and emits
+`TransferCeilingReached`. This does not establish TLS or SSH host trust,
+credential custody, package acceptance, or a receipt, and it cannot prevent a
+helper from bypassing the broker on a backend without endpoint confinement.
 
 The installed `omega` package includes `omega-resolver-connect` beside the main
 binary. HTTPS uses Git's command-scoped proxy configuration. SSH invokes the
@@ -72,7 +76,7 @@ This is engineering enforcement and one input to a future package-source
 receipt, not that accepted receipt. macOS still permits broad reads during SSH
 discovery/fetch plus broad metadata reads in narrowed phases, so
 complete filesystem-read confinement remains unavailable. The fixed TLS root
-is not a TLS trust receipt or credential-custody claim. Aggregate resource quotas and
-Linux/Windows endpoint confinement and strict backends remain package-manager
-tasks. See
+is not a TLS trust receipt or credential-custody claim. Aggregate CPU, memory,
+process-count, and object-store quotas, plus Linux/Windows endpoint confinement
+and strict backends, remain package-manager tasks. See
 [`SOURCE_RESOLVER_SECURITY.md`](../omega-packages/SOURCE_RESOLVER_SECURITY.md).

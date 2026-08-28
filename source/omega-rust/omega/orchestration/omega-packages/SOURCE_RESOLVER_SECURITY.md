@@ -173,9 +173,18 @@ the command container with a distinct error. Successful issuance requires the
 counter to equal the sum of every retained stdout/stderr length and binds both
 ceiling and observed count into the final observation. Output text and package-
 controlled arguments are not rendered into this fixed record. This establishes
-completed-command provenance and cumulative parent-captured-output accounting
-for successful resolution; it is not network-transfer, object-store, or
-descendant aggregate-resource accounting.
+completed-command provenance and cumulative parent-captured-output accounting.
+
+Every discovery/fetch route additionally shares one compiler-owned
+bidirectional broker-transfer counter across all commands, routes, and
+connections. Its separately derived ceiling is
+`min(source-byte ceiling + 64 MiB, 576 MiB)`. Counts cover tunnel payload bytes
+accepted by the broker in both directions, including encrypted transport
+overhead, but exclude loopback CONNECT framing and DNS. Endpoint events retain
+uploaded/downloaded counts and a closed `TransferCeilingReached` outcome. An
+over-ceiling read is neither charged nor forwarded. Successful issuance rejects
+that outcome and requires the checked sum of every retained endpoint event to
+equal the live shared counter.
 
 After the outer resolver has additionally reconciled cache namespace/custody
 and final executable content, it physically reopens and re-hashes the published
@@ -186,15 +195,17 @@ The public result fields are not mutable. The observation's canonical identity
 binds the exact source policy ceilings, request and normalized locator,
 transport and object format, selected commit/tree, immutable snapshot
 path/content/counts, Git and helper content identities, every native policy row,
-every completed-command row, and the cumulative captured-output ceiling and
-observed count.
+every completed-command row, the cumulative captured-output ceiling/count, and
+the directional broker-transfer ceiling/counts.
 The observation has no public constructor or decoder and is issued with the
 fixed outcome `resolved-non-admitting`; changing even a source ceiling changes
 its identity. This closes the successful-result join that the narrower rows
 could not express. It deliberately remains below `SourceResolutionReceiptV1`:
-unavailable containment rows remain unavailable, and Linux/Windows endpoint
-confinement, TLS/SSH trust, credential custody, transferred bytes, object-store/during-write
-quotas, descendant aggregate resources, and strict acceptance are still absent.
+unavailable containment rows remain unavailable. Linux/Windows endpoint
+confinement, TLS/SSH trust, credential custody, object-store/during-write quotas,
+descendant aggregate resources, and strict acceptance are still absent. The
+transfer observation is universal for broker-routed bytes, but only macOS
+currently prevents the child from opening a direct connection around it.
 
 Resolved package custody now also projects a bounded
 `CanonicalSourceClosureSubject`: the exact root request and every authored
@@ -473,7 +484,8 @@ also receive an 8 GiB address-space limit; Darwin does not expose a usable
 equivalent through this rlimit path. Each compiler ceiling intersects the inherited soft
 and hard limits and therefore never loosens a stricter host limit. These limits
 are inherited per process, not an
-aggregate descendant/process-count/object-store/transfer budget. Linux still
+aggregate descendant/process-count/object-store budget. The separate broker
+transfer budget spans the whole resolution, but Linux still
 lacks filesystem, executable, and network confinement; Windows still has only
 the existing kill-on-close process container. Native canaries exercise denied
 writes, denied unlisted descendant execution, denied inspection networking,
@@ -512,9 +524,11 @@ cleanup returns, including for blob reads. On Linux this process container
 floor is not an OS sandbox: a hostile Unix descendant may deliberately escape
 into another session. The macOS Seatbelt floor adds phase-specific native
 confinement but not endpoint, read-scope, or aggregate-resource custody.
-Depth-one fetch limits history amplification but does not enforce a transferred-
-byte or object-store quota. The launch ceiling and inherited rlimits are not an
-aggregate CPU, memory, process-count, object-store, or transfer-work budget.
+Depth-one fetch limits history amplification but does not enforce an object-
+store quota. The broker enforces its whole-resolution transfer ceiling on all
+routed traffic; Linux/Windows cannot yet prevent direct helper egress around
+that route. The launch ceiling and inherited rlimits are not an aggregate CPU,
+memory, process-count, or object-store budget.
 Materialization remains trusted parent code rooted in retained filesystem
 capabilities rather than a separate sandboxed helper. A deliberately hostile
 same-user process can race
@@ -533,8 +547,9 @@ parent traversal before and after use. That traversal sums regular-file and
 symlink logical lengths. Git entries reject above
 `min(3 * source-byte-limit + 64 MiB, 1 GiB)`; local publications reject above
 `min(source-byte-limit + 64 MiB, 512 MiB)`. These are post-helper acceptance
-ceilings for resident cache state, not during-write disk quotas or transferred-
-byte measurements: a helper without an aggregate disk quota may still exhaust
+ceilings for resident cache state, not during-write disk quotas. They are
+independent from the broker's transfer measurements: a helper without an
+aggregate disk quota may still exhaust
 storage before the parent can reject its output. Every Git or local publication lock opens
 no-follow relative to a retained canonical-parent capability. After waiting,
 the resolver compares the locked handle with that parent's current leaf and

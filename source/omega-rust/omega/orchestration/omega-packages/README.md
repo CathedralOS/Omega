@@ -276,19 +276,25 @@ the corresponding native policy digest. Both streams and every command charge
 one overflow-safe cumulative captured-output counter under
 `min(source-byte ceiling + 64 MiB, 576 MiB)`. Counts must match before success,
 and the counter must exactly equal the sum of all retained stream lengths.
+Every discovery/fetch route also shares one separately derived bidirectional
+broker-transfer ceiling with the same formula. Endpoint events retain uploaded
+and downloaded bytes accepted for relay; CONNECT framing and DNS are excluded.
+Any ceiling event rejects, and successful issuance requires the event sum to
+equal the live whole-resolution counter.
 Only after cache custody, executable content, those command rows, authenticated
 Git objects, and a final physical re-read of the immutable snapshot all
 reconcile under the retained cache lock does the resolver seal its private
 pending result and issue one compact canonical final-result observation. The
 public result exposes read-only accessors rather than mutable evidence fields.
 The observation also binds the source ceilings, request/selector, object format
-and identities, snapshot subject, tool identities, and cumulative captured-
-output ceiling and observed count. The fixed outcome is
+and identities, snapshot subject, tool identities, cumulative captured-output,
+and directional broker-transfer ceiling and counts. The fixed outcome is
 explicitly `resolved-non-admitting`:
 unavailable native guarantees remain unavailable. Linux/Windows strict
-backends, TLS/SSH credential evidence, network transfer, object-store and
-descendant aggregate-resource accounting, and the complete source receipt
-remain open, so this does not promote diagnostic source commands into admission.
+backends, TLS/SSH credential evidence, direct-egress prevention outside macOS,
+object-store and descendant aggregate-resource accounting, and the complete
+source receipt remain open, so this does not promote diagnostic source commands
+into admission.
 
 The crate now contains reviewed building blocks for immutable Git/local
 snapshots, hermetic package-name extraction, and typed package/source identity.
@@ -316,8 +322,9 @@ entering resolver custody. Exact object-ID pins re-authenticate and reuse an
 existing cache entry without transport; symbolic selectors still refetch. This
 is a transport floor, not selective package checkout: until the resolver has an
 exact selected member path, every admissible blob in the whole authenticated
-root is still required. Strict transferred-byte and object-store quotas still
-require a hardened execution backend.
+root is still required. Broker-routed bytes are now strictly bounded, but a
+universal transferred-byte guarantee still requires endpoint confinement on
+every execution backend; object-store quotas remain separate work.
 Selected Git objects are not trusted merely because Git named them. Before any
 snapshot stage exists, an exact requested object ID must equal the selected
 commit. The parent recomputes SHA-256 commit and blob IDs, computes SHA-1 with
@@ -372,9 +379,9 @@ as the parent Git executable and are rechecked around every launch and at
 completion. On macOS that floor also reads native extended ACLs for invocation
 entries, canonical targets, and every ancestor; any allow entry rejects even
 when ordinary mode bits appear safe. Deny-only entries do not broaden custody,
-and an unreadable ACL fails closed. Cache policy v20 separates entries
-predating this transport-executable, cumulative-output, endpoint-brokerage, and
-nonnetwork descendant-denial and content-read floor. HTTPS receives
+and an unreadable ACL fails closed. Cache policy v21 separates entries
+predating this transport-executable, cumulative-output, endpoint-brokerage,
+network-transfer, nonnetwork descendant-denial, and content-read floor. HTTPS receives
 an exact command-scoped proxy. SSH uses the separately
 custodied `omega-resolver-connect` companion as a fixed ProxyCommand; compiler-
 authored environment fields carry the broker and normalized target without
@@ -384,9 +391,11 @@ but still consumes
 the user's default known-host and key files. Strict OS confinement, explicit
 credential custody and during-write byte/resource enforcement remain. Ordinary
 resolution is now bounded to 64 Git launches, independent of package file
-count, ten minutes including cache-lock acquisition, and cumulative parent-
-captured output of `min(source-byte ceiling + 64 MiB, 576 MiB)`. This last
-ceiling is not a transfer, object-store, or descendant aggregate-resource quota.
+count, ten minutes including cache-lock acquisition, cumulative parent-captured
+output, and broker-routed bidirectional bytes. Each byte ceiling is separately
+derived as `min(source-byte ceiling + 64 MiB, 576 MiB)`. Neither is an
+object-store or descendant aggregate-resource quota, and the transfer ceiling
+does not prevent direct egress on an unconfining backend.
 Validated blobs use
 one exactly framed `cat-file --batch` launch; blob payloads are shared ranges
 over that bounded response and released before staged-source revalidation.

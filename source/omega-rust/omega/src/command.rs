@@ -235,7 +235,8 @@ fn warn_unhardened_source_resolver() {
     eprintln!(
         "warning: source audit is diagnostic and non-admitting; strict native \
          confinement on every platform, TLS/SSH credential custody, aggregate \
-         resource accounting, and an accepted source receipt remain unavailable"
+         CPU/memory/process/object-store accounting, and an accepted source \
+         receipt remain unavailable"
     );
 }
 
