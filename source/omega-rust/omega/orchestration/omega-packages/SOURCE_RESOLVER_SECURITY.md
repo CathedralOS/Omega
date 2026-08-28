@@ -206,13 +206,26 @@ parent-relative guard covers the interval before the new stage is retained;
 after retention, cleanup starts from the open stage and does not delete a
 replacement at its former name. Native Git still consumes the stage
 and repository through pathnames; a rename race during a launch and strict
-mutation confinement therefore remain native-isolation work. Published Git/local
-snapshot mode and shape verification opens the publication and Source roots
-no-follow, traverses retained child handles with identity checks, and captures
-content from that same open Source root. Authenticated Git paths, kinds, and
+mutation confinement therefore remain native-isolation work. Native Git
+repository verification now retains the exact cache entry, Omega-created bare
+repository, and object-store directories for the complete resolution.
+Control-record reads/restoration, recursive repository shape, and
+forbidden-indirection absence checks derive from those capabilities; only exact
+`NotFound` proves absence. The Omega-owned repository policy rejects all
+symlinks and, on Unix, multiply-linked regular files while allowing ordinary
+fetch products such as shallow state, refs, loose objects, and packs. Every
+repository-bound Git launch, including the bespoke blob batch, reconciles the
+retained entry/repository/object identities after success or failure, and full
+static shape is checked after fetch and before acceptance. This is not a claim
+that arbitrary bare Git repositories have that stricter shape. Git still
+receives the repository as a pathname, and batch-request staging remains
+ambient, so launch-race confinement and capability-relative request staging are
+still open. Published Git/local snapshot mode and shape verification opens the
+publication and Source roots no-follow, traverses retained child handles with
+identity checks, and captures content from that same open Source root.
+Authenticated Git paths, kinds, and
 executable bits are compared with the captured tree rather than ambient
-metadata. Native Git mutation remains pathname-visible to the unconfined
-helper. On macOS, retained cache directories, regular files, and locks are
+metadata. On macOS, retained cache directories, regular files, and locks are
 queried for extended ACL allow entries through their descriptors. Concrete
 selected executables and their ancestry are descriptor-queried as well. Cache
 root/ancestry ACL facts likewise follow no-follow directory acquisition and

@@ -592,6 +592,26 @@ complete.
   repository command path remain pathname consumers, so races during a launch
   and strict mutation confinement still belong to the native isolation backend.
 
+  Milestone 2026-08-27: native Git cache verification now returns one retained
+  repository object owning the exact cache entry, Omega-created bare
+  `repository`, and `objects` directory capabilities. Resolver metadata,
+  canonical configuration, repository traversal, and forbidden-indirection
+  probes derive from those handles. Only exact `NotFound` proves an
+  `alternates`, `http-alternates`, or `commondir` record absent; permission,
+  I/O, and non-directory failures reject. Because this is provenance validation
+  of Omega's freshly initialized repository rather than admission of arbitrary
+  Git layouts, every repository symlink rejects and Unix regular files must
+  have one link. Fetch, revision/tree discovery, commit authentication,
+  `ls-tree`, and the bespoke `cat-file --batch` launch all require the retained
+  repository object and reconcile entry/repository/object identities after
+  success or failure. Full static shape is rechecked after mutating fetch and
+  before acceptance. Canaries replace the retained repository and object-store
+  names, turn a forbidden probe's parent into a regular file, substitute
+  control/ref/object files with symlinks, and add an external hard link. Native
+  Git still receives a pathname, and the batch-request staging file is not yet
+  capability-relative, so active-launch confinement and request staging remain
+  subsequent native-isolation work.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the
