@@ -42,6 +42,7 @@ mod resolved_selected_form_layout;
 mod selected_reanalysis;
 mod selection;
 mod terminal_object_artifact;
+mod terminal_object_callable_entry;
 mod whole_function_exit_contract;
 mod x86_branch_relaxation;
 
@@ -203,6 +204,7 @@ pub use register_homes::{
 pub use report::{
     OptimizationPipelineReport, OptimizationReportRequest, optimization_pipeline_report,
     optimization_pipeline_report_from_terminal_object_artifact,
+    optimization_pipeline_report_from_terminal_ordinary_callable_entry,
 };
 pub use resolved_selected_form_layout::{
     OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,
@@ -233,6 +235,20 @@ pub use terminal_object_artifact::{
     ValidatedOptimizedTerminalObjectArtifactManifest,
     stage_validated_optimized_terminal_object_artifact,
     validate_optimized_terminal_object_artifact,
+};
+pub use terminal_object_callable_entry::{
+    OptimizedTerminalOrdinaryCallableEntryCustodyReceipt,
+    OptimizedTerminalOrdinaryCallableEntryDecodeError,
+    OptimizedTerminalOrdinaryCallableEntryDisposition, OptimizedTerminalOrdinaryCallableEntryError,
+    OptimizedTerminalOrdinaryCallableEntryManifest,
+    OptimizedTerminalOrdinaryCallableEntryManifestDecodeError,
+    OptimizedTerminalOrdinaryCallableEntryRecord, OptimizedTerminalOrdinaryCallableEntryStage,
+    OptimizedTerminalOrdinaryCallableEntryUnavailableData,
+    OptimizedTerminalOrdinaryCallableParameter, OptimizedTerminalOrdinaryCallableResult,
+    OptimizedTerminalOrdinaryCallableReturn, StagedValidatedOptimizedTerminalOrdinaryCallableEntry,
+    ValidatedOptimizedTerminalOrdinaryCallableEntryManifest,
+    stage_validated_optimized_terminal_ordinary_callable_entry,
+    validate_optimized_terminal_ordinary_callable_entry,
 };
 pub use whole_function_exit_contract::{
     TerminalWholeFunctionEntryAssumption, TerminalWholeFunctionExitContract,
@@ -10626,5 +10642,281 @@ mod tests {
                 TerminalLivenessError::RootMismatch
             ))
         ));
+    }
+
+    fn staged_callable_object_artifact(
+        target: NativeTarget,
+        selected_lowering: bool,
+    ) -> StagedValidatedOptimizedTerminalObjectArtifact {
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let layout = match target.architecture {
+            omega_target::Architecture::X86_64 => Optimization::X86RelaxConditionalBranchesToRel8V1,
+            omega_target::Architecture::Aarch64 => {
+                Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1
+            }
+        };
+        let selections = if selected_lowering {
+            OptimizationSelections::new([
+                Optimization::SelectedIncomingU12ExactAddImmediate,
+                layout,
+            ])
+            .unwrap()
+        } else {
+            OptimizationSelections::new([layout]).unwrap()
+        };
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            target,
+            &[],
+        )
+        .unwrap();
+        let source = match physical {
+            StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } => {
+                StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization))
+            }
+            StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } => {
+                StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(Box::new(
+                    realization,
+                ))
+            }
+            StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization } => {
+                StagedOptimizedFunctionFragmentEmissionSource::X86Rel8AfterSelectedLowering(
+                    Box::new(realization),
+                )
+            }
+            StagedOptimizedVerifiedPhysicalPipeline::SelectedLoweringPostAllocationMachine {
+                realization,
+            } => StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzAfterSelectedLowering(
+                Box::new(realization),
+            ),
+            _ => panic!("fixture must complete a function-relative realization"),
+        };
+        let fragments = stage_optimized_function_fragment_emission(source).unwrap();
+        let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
+        let object = stage_optimized_relocation_free_terminal_object_container(text).unwrap();
+        stage_validated_optimized_terminal_object_artifact(
+            canonical_terminal_artifact(&semantic, &proof),
+            object,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn ordinary_callable_entry_replays_target_abi_and_edge_specific_results() {
+        use omega_calling_conventions::{CallingPolicy, MachineRegister};
+
+        for (target, policy, parameter, result) in [
+            (
+                NativeTarget::linux_x64(),
+                CallingPolicy::SystemVAMD64,
+                MachineRegister::X86Rdi,
+                MachineRegister::X86Rax,
+            ),
+            (
+                NativeTarget::windows_x64(),
+                CallingPolicy::MicrosoftX64,
+                MachineRegister::X86Rcx,
+                MachineRegister::X86Rax,
+            ),
+            (
+                NativeTarget::linux_arm64(),
+                CallingPolicy::Aapcs64,
+                MachineRegister::Aarch64X(0),
+                MachineRegister::Aarch64X(0),
+            ),
+            (
+                NativeTarget::macos_arm64(),
+                CallingPolicy::Aapcs64,
+                MachineRegister::Aarch64X(0),
+                MachineRegister::Aarch64X(0),
+            ),
+        ] {
+            let artifact = staged_callable_object_artifact(target, false);
+            let object_identity = artifact.source().object().identity;
+            let object_bytes = artifact.source().container().bytes.clone();
+            let staged = stage_validated_optimized_terminal_ordinary_callable_entry(artifact)
+                .expect("ordinary callable classification");
+            assert_eq!(
+                validate_optimized_terminal_ordinary_callable_entry(&staged).unwrap(),
+                staged.custody()
+            );
+            let entry = staged.entry();
+            assert_eq!(entry.calling_policy, policy);
+            assert_eq!(entry.parameters.len(), 1);
+            assert_eq!(entry.parameters[0].abi_register, parameter);
+            assert_eq!(
+                entry.parameters[0].fixed_view,
+                entry.parameters[0].assigned_view
+            );
+            assert_eq!(entry.result.abi_register, result);
+            assert_eq!(entry.returns.len(), 2);
+            assert_ne!(entry.returns[0].value, entry.returns[1].value);
+            assert_ne!(
+                entry.returns[0].virtual_register,
+                entry.returns[1].virtual_register
+            );
+            assert!(entry.returns.iter().all(|returned| {
+                returned.view == entry.result.view
+                    && returned.storage_units == entry.result.storage_units
+            }));
+            assert_eq!(staged.source().source().object().identity, object_identity);
+            assert_eq!(staged.source().source().container().bytes, object_bytes);
+            assert_eq!(staged.source().source().object().relocation_record_count, 0);
+            assert_ne!(entry.semantic_entry_symbol_name, "main");
+            assert_ne!(entry.semantic_entry_symbol_name, "_main");
+            assert_eq!(
+                OptimizedTerminalOrdinaryCallableEntryRecord::decode(&entry.encode().unwrap())
+                    .unwrap(),
+                *entry
+            );
+            assert_eq!(
+                OptimizedTerminalOrdinaryCallableEntryManifest::decode(
+                    &staged.manifest().record().encode()
+                )
+                .unwrap(),
+                *staged.manifest().record()
+            );
+        }
+    }
+
+    #[test]
+    fn ordinary_callable_entry_accepts_both_selected_lowering_compositions_and_reports_opaquely() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+                staged_callable_object_artifact(target, true),
+            )
+            .unwrap();
+            let artifact_identity = staged.source().artifact().identity;
+            let container_identity = staged.source().source().container().identity;
+            let container_bytes = staged.source().source().container().bytes.clone();
+            assert_eq!(
+                validate_optimized_terminal_ordinary_callable_entry(&staged).unwrap(),
+                staged.custody()
+            );
+            let prior = optimization_pipeline_report_from_terminal_object_artifact(staged.source());
+            assert!(prior.ordinary_callable_entry().is_none());
+            let report =
+                optimization_pipeline_report_from_terminal_ordinary_callable_entry(&staged);
+            assert_eq!(
+                report.ordinary_callable_entry(),
+                Some(staged.manifest().record())
+            );
+            assert!(
+                report
+                    .render_human_text(OptimizationReportRequest::Suppressed)
+                    .is_none()
+            );
+            let text = report
+                .render_human_text(OptimizationReportRequest::EmitHumanText)
+                .unwrap();
+            assert!(text.contains("external process entry bridge: required"));
+            assert!(text.contains("publication: unavailable"));
+            assert_eq!(staged.source().artifact().identity, artifact_identity);
+            assert_eq!(
+                staged.source().source().container().identity,
+                container_identity
+            );
+            assert_eq!(staged.source().source().container().bytes, container_bytes);
+        }
+    }
+
+    #[test]
+    fn ordinary_callable_entry_rejects_record_manifest_and_codec_corruption() {
+        let mut staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+            staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        )
+        .unwrap();
+        staged.entry_mut().returns[0].value = ValueId::new(99_991).unwrap();
+        assert_eq!(
+            validate_optimized_terminal_ordinary_callable_entry(&staged),
+            Err(OptimizedTerminalOrdinaryCallableEntryError::RecordMismatch)
+        );
+
+        let mut staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+            staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        )
+        .unwrap();
+        staged.entry_mut().parameters[0].storage_units.clear();
+        assert_eq!(
+            validate_optimized_terminal_ordinary_callable_entry(&staged),
+            Err(OptimizedTerminalOrdinaryCallableEntryError::RecordMismatch)
+        );
+
+        let mut staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+            staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        )
+        .unwrap();
+        staged.entry_mut().semantic_entry_symbol_name = "main".to_owned();
+        assert_eq!(
+            validate_optimized_terminal_ordinary_callable_entry(&staged),
+            Err(OptimizedTerminalOrdinaryCallableEntryError::RecordMismatch)
+        );
+
+        let mut staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+            staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        )
+        .unwrap();
+        staged.entry_mut().exit_policy =
+            TerminalWholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1;
+        assert_eq!(
+            validate_optimized_terminal_ordinary_callable_entry(&staged),
+            Err(OptimizedTerminalOrdinaryCallableEntryError::RecordMismatch)
+        );
+
+        let mut staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+            staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        )
+        .unwrap();
+        staged.manifest_mut().record_mut().return_count += 1;
+        assert_eq!(
+            validate_optimized_terminal_ordinary_callable_entry(&staged),
+            Err(OptimizedTerminalOrdinaryCallableEntryError::ManifestMismatch)
+        );
+
+        let mut staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+            staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        )
+        .unwrap();
+        staged.corrupt_custody_for_test();
+        assert_eq!(
+            validate_optimized_terminal_ordinary_callable_entry(&staged),
+            Err(OptimizedTerminalOrdinaryCallableEntryError::ReceiptMismatch)
+        );
+
+        let staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+            staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        )
+        .unwrap();
+        let mut wrong_magic = staged.entry().encode().unwrap();
+        wrong_magic[0] ^= 1;
+        assert_eq!(
+            OptimizedTerminalOrdinaryCallableEntryRecord::decode(&wrong_magic),
+            Err(OptimizedTerminalOrdinaryCallableEntryDecodeError::WrongMagic)
+        );
+        let mut wrong_version = staged.manifest().record().encode();
+        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        assert_eq!(
+            OptimizedTerminalOrdinaryCallableEntryManifest::decode(&wrong_version),
+            Err(OptimizedTerminalOrdinaryCallableEntryManifestDecodeError::UnsupportedVersion(2))
+        );
+        let mut trailing = staged.entry().encode().unwrap();
+        trailing.push(0);
+        assert_eq!(
+            OptimizedTerminalOrdinaryCallableEntryRecord::decode(&trailing),
+            Err(OptimizedTerminalOrdinaryCallableEntryDecodeError::TrailingBytes)
+        );
+        let mut stale = staged.entry().encode().unwrap();
+        stale[12] ^= 1;
+        assert_eq!(
+            OptimizedTerminalOrdinaryCallableEntryRecord::decode(&stale),
+            Err(OptimizedTerminalOrdinaryCallableEntryDecodeError::IdentityMismatch)
+        );
     }
 }

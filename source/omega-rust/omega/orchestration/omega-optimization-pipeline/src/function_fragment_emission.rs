@@ -44,6 +44,87 @@ pub enum StagedOptimizedFunctionFragmentEmissionSource {
 }
 
 impl StagedOptimizedFunctionFragmentEmissionSource {
+    pub fn selected_plan(
+        &self,
+    ) -> &omega_terminal_selected_instructions::TerminalSelectedInstructionPlan {
+        match self {
+            Self::X86Rel8Direct(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .selected()
+                .selected_plan(),
+            Self::Aarch64CbnzDirect(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .selected()
+                .selected_plan(),
+            Self::X86Rel8AfterSelectedLowering(realization) => {
+                selected_after_lowering(realization.homes())
+            }
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => {
+                selected_after_lowering(realization.homes())
+            }
+        }
+    }
+
+    pub const fn register_homes(&self) -> &omega_regalloc::ValidatedTerminalRegisterHomes {
+        match self {
+            Self::X86Rel8Direct(realization) => realization.homes().homes(),
+            Self::X86Rel8AfterSelectedLowering(realization) => realization.homes().homes(),
+            Self::Aarch64CbnzDirect(realization) => realization.homes().homes(),
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization.homes().homes(),
+        }
+    }
+
+    pub fn register_environment(&self) -> &crate::ValidatedTargetRegisterEnvironment {
+        match self {
+            Self::X86Rel8Direct(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+            Self::Aarch64CbnzDirect(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+            Self::X86Rel8AfterSelectedLowering(realization) => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+        }
+    }
+
+    pub const fn exit_contract(&self) -> &crate::ValidatedTerminalWholeFunctionExitContract {
+        match self {
+            Self::X86Rel8Direct(realization) => realization.exit_contract(),
+            Self::X86Rel8AfterSelectedLowering(realization) => realization.exit_contract(),
+            Self::Aarch64CbnzDirect(realization) => realization.exit_contract(),
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization.exit_contract(),
+        }
+    }
     pub fn pre_physical_manifest(
         &self,
     ) -> &omega_optimization_validation::ValidatedPrePhysicalOptimizationManifest {
@@ -160,6 +241,22 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .optimized()
                 .verified_input(),
         }
+    }
+}
+
+fn selected_after_lowering(
+    homes: &crate::StagedOptimizedRegisterHomesAfterSelectedLowering,
+) -> &omega_terminal_selected_instructions::TerminalSelectedInstructionPlan {
+    let run = homes.selected_lowering_run();
+    match run.steps().last() {
+        Some(step) => step.fold().selected_plan(),
+        None => run
+            .source_legality_stage()
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage()
+            .selected()
+            .selected_plan(),
     }
 }
 
