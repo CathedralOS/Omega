@@ -313,6 +313,7 @@ fn expected_manifest(
         resolved_layout: artifacts.layout.identity(),
         x86_branch_relaxation: None,
         aarch64_cbnz_fusion: None,
+        aarch64_movn_materialization: None,
         whole_function_exit_contract: exit_contract.identity(),
         target: artifacts.layout.target(),
         layout_policy: artifacts.layout.policy(),

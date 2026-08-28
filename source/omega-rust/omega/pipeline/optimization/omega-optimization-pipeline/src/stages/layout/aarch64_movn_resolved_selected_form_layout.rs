@@ -718,10 +718,3 @@ pub(crate) fn corrupt_aarch64_movn_resolved_layout_byte_for_test(
         .expect("MOVN resolved-layout fixture must contain encoded bytes");
     *byte ^= 1;
 }
-
-#[cfg(test)]
-pub(crate) fn corrupt_aarch64_movn_resolved_layout_receipt_for_test(
-    staged: &mut StagedOptimizedAarch64MovnResolvedSelectedFormLayout,
-) {
-    staged.custody.selected_bytes ^= 1;
-}
