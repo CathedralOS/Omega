@@ -13,17 +13,17 @@ published Delta-produced compiler + C → omega₀
 omega₀ + the same C                    → omega
 ```
 
-`omega₀` may be conservatively generated and slow. It already implements the
-full product language because the optimizer and advanced lowering live in `C`.
-The second build improves the compiler executable; it does not add language
-functionality or close a missing bootstrap dependency.
+`omega₀` may be conservatively generated and slow. It is already a viable full
+product compiler because the optimizer and advanced lowering live in `C`. The
+second build closes the self-hosting edge and may improve the compiler
+executable; it does not add language functionality or another source owner.
 
 ## Ownership
 
 - [`psi/`](psi/) — target-neutral source, proof, and terminal semantics;
 - the rest of this root — target realization, optimization, artifact emission,
   and product command source;
-- [`../omega-rust/`](../omega-rust/) — temporary Rust implementation and
+- [`../omega-rust/`](../omega-rust/) — maintained Rust implementation and
   differential comparator, never bootstrap authority;
 - [`../delta/`](../delta/) — final lower-rung compiler and direct first-build
   producer.
