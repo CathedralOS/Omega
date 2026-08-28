@@ -85,18 +85,10 @@ Gamma. Being written in and evaluated by Gamma does not make a consumer part of
 the language or its meaning. Artifact-specific obligation reconstruction belongs
 beside the artifact being admitted, not under the Gamma rung.
 
-## Parked imperative Gamma
-
-`compatibility/imperative/` contains the older compiler-first language with
-variables `a`–`j`, mutation, `if`/`while`, and decimal I/O. Its compiler,
-native artifact, scripts, and examples remain compatibility and optional
-differential-testing artifacts only. They do not define canonical Gamma and
-must not grow into a second meaning path.
-
-The parked files are physically isolated from the canonical language owner.
-Their classification, not their host-language suffix, determines their
-architectural role. The former `compiler/gamma` compatibility entry has been
-retired.
+The older compiler-first imperative language, its native artifact, scripts, and
+private examples were retired after confirming no canonical gate or external
+consumer used them. Git history retains that experiment; Gamma has one meaning
+route rather than a parked second compiler.
 
 See [LANGUAGE.md](LANGUAGE.md) for the canonical surface and
 [`rungs/gamma.md`](../../wiki/architecture/bootstrap_lattice/rungs/gamma.md) for
