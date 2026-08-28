@@ -4500,6 +4500,17 @@ mod tests {
             assert_eq!(homes.custody().assignment_count(), 7);
             let post = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
             assert_eq!(post.custody().instruction_count(), 10);
+            let decoded_post = omega_machine_optimizer::TerminalPostAllocationMachinePlan::decode(
+                &post.machine().plan().encode(),
+            )
+            .unwrap();
+            assert_eq!(&decoded_post, post.machine().plan());
+            assert_eq!(
+                validate_raw_post_allocation(&homes, &post, decoded_post.clone())
+                    .unwrap()
+                    .receipt(),
+                post.machine().receipt()
+            );
             assert_eq!(
                 post.custody().source(),
                 &StagedOptimizedPostAllocationMachineSourceCustodyReceipt::RegisterHomes(
@@ -4703,7 +4714,7 @@ mod tests {
                         .filter(|operand| operand.write_semantics.is_some())
                         .all(|operand| !operand.write_units.is_empty())
             }));
-            let mut corrupted = post.machine().plan().clone();
+            let mut corrupted = decoded_post;
             let subtract = corrupted.functions[0]
                 .blocks
                 .iter_mut()

@@ -1631,7 +1631,7 @@ dependency.
 
   Current slice: `omega-terminal-selected-instructions` now owns a closed v1
   target machine-effect catalog vocabulary, and the two clean Terminal ISA
-  owners publish and semantically validate catalogs for all eight currently
+  owners publish and semantically validate catalogs for all nine currently
   admitted selected kinds. Each declaration binds its exact register-
   constraint key, explicit no-memory/no-trap/no-call/no-cleanup status, control
   barrier status, stable target-alternative keys, and honest size/latency
@@ -1664,7 +1664,8 @@ dependency.
   fact crosses that boundary.
 
   The sidecar also has a strict, versioned, self-authenticating binary codec
-  (currently v3 after adding encoded-realization content).
+  (currently v4 after adding encoded-realization content and exact-subtract
+  immediate selection).
   Decoding rejects wrong framing or version, truncated or trailing data,
   unknown closed-vocabulary tags, and any identity/content mismatch. It grants
   no rewrite, home, emission, or publication authority.
@@ -1682,6 +1683,16 @@ dependency.
   orchestration covers ordinary homes, fixed-view-copy homes, literal-fold
   homes, and named selected-lowering completion homes without transferring
   emission authority.
+
+  The post-allocation sidecar now has its own strict v1 self-authenticating
+  codec. Its framed content binds every joined root, the exact choice rule,
+  function/block/instruction roster, chosen alternative, physical operand
+  footprint, and complete unit effects. Decoding rejects unknown tags, invalid
+  machine identities, truncation, trailing data, and stale content identities,
+  but deliberately returns a plain unchecked plan. Both supported ISAs prove
+  that a decoded plan must pass independent reconstruction before use; changing
+  a decoded alternative and recomputing its content identity still fails that
+  replay.
 
   x86 flag-transparent three-address addition uses one always-applicable LEA
   alternative for allocator-produced GPR64 homes. R12 is a valid SIB index

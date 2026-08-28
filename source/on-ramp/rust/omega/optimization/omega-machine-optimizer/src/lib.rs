@@ -6,6 +6,7 @@
 //! publication authority. Its sealed inputs are already validated selected
 //! plans, and its output is a sidecar over those immutable instructions.
 
+mod alternative_codec;
 mod alternative_compute;
 mod alternative_identity;
 mod alternative_model;
@@ -16,6 +17,7 @@ mod effect_identity;
 mod effect_model;
 mod effect_validate;
 
+pub use alternative_codec::TerminalPostAllocationMachineDecodeError;
 pub use alternative_identity::terminal_post_allocation_machine_identity;
 pub use alternative_model::*;
 pub use alternative_validate::validate_terminal_post_allocation_machine_plan;
