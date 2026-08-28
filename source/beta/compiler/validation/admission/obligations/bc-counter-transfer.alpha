@@ -26,16 +26,17 @@ counter_transfer_init:
         call counter_check_context_bridge
         jmp stack_potential_lift_init
 
-; Compact wrappers around the responsibility-specific row joiners supplied by
-; bc-ranged-store-transfer.alpha.  Callers provide row/block/value/pc.
+; Compact wrappers around the canonical stable-row identities. Callers provide
+; only the source row, block, and semantic kind/value/slot; the checked tables
+; supply artifact coordinates.
 counter_require_local_load:
         imm r22, 1
         jmp counter_require_local_common
 counter_require_local_store:
         imm r22, 2
 counter_require_local_common:
-        ; r20 row, r21 block, r22 kind, r23 slot, r24 pc
-        call transfer_require_local
+        ; r20 row, r21 block, r22 kind, r23 slot
+        call exact_local_identity_pc
         ret
 
 counter_require_memory_load:
@@ -45,398 +46,322 @@ counter_require_memory_store:
         imm r22, 2
 counter_require_memory_common:
         imm r23, 8
-        ; r20 row, r21 block, r22 kind, r23 width, r24 pc
-        call transfer_require_memory
+        ; r20 row, r21 block, r22 kind, r23 width
+        call exact_memory_identity_pc
         ret
 
 counter_require_literal:
         imm r22, 1
-        ; r20 row, r21 block, r22 literal kind, r23 value, r24 pc
-        call transfer_require_primitive
+        ; r20 row, r21 block, r22 literal kind, r23 value
+        call exact_primitive_identity_pc
         ret
 counter_require_arithmetic:
         imm r22, 2
         ; r23 is the Alpha arithmetic opcode selected by the source.
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 counter_require_comparison:
         imm r22, 3
         ; r23 is the normalized comparison code selected by the source.
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 counter_require_binary_push:
-        ; r20 row, r21 block, r22 kind, r23 pc
-        call exact_require_binary_push
+        ; r20 row, r21 block; the adapter fixes binary kind.
+        call exact_require_binary_push_identity
         ret
 counter_require_store_push:
-        call exact_require_store_push
+        call exact_require_store_push_identity
         ret
 
 counter_require_selected_rows:
         ; slurp zero roots: EXPRDEPTH and BLOCKDEPTH.
         imm r20, 5
         imm r21, 4
-        imm r24, 968
         call counter_require_memory_store
         imm r20, 17
         imm r21, 4
         imm r23, 2097080
-        imm r24, 916
         call counter_require_literal
         imm r20, 18
         imm r21, 4
         imm r23, 0
-        imm r24, 942
         call counter_require_literal
         imm r20, 376
         imm r21, 4
-        imm r23, 926
         call counter_require_store_push
 
         imm r20, 7
         imm r21, 4
-        imm r24, 1078
         call counter_require_memory_store
         imm r20, 21
         imm r21, 4
         imm r23, 2097064
-        imm r24, 1026
         call counter_require_literal
         imm r20, 22
         imm r21, 4
         imm r23, 0
-        imm r24, 1052
         call counter_require_literal
         imm r20, 378
         imm r21, 4
-        imm r23, 1036
         call counter_require_store_push
 
         ; gen_expr depth snapshot and room guard.
         imm r20, 57
         imm r21, 303
-        imm r24, 43176
         call counter_require_memory_load
         imm r20, 192
         imm r21, 303
         imm r23, 0
-        imm r24, 43179
         call counter_require_local_store
         imm r20, 193
         imm r21, 304
         imm r23, 0
-        imm r24, 43198
         call counter_require_local_load
         imm r20, 673
         imm r21, 303
         imm r23, 2097080
-        imm r24, 43166
         call counter_require_literal
         imm r20, 675
         imm r21, 304
         imm r23, 64
-        imm r24, 43233
         call counter_require_literal
         imm r20, 674
         imm r21, 304
         imm r23, 8
-        imm r24, 43243
         call counter_require_comparison
         imm r20, 202
         imm r21, 304
-        imm r23, 43217
         call counter_require_binary_push
 
         ; gen_expr accepted increment.
         imm r20, 59
         imm r21, 305
-        imm r24, 43515
         call counter_require_memory_store
         imm r20, 194
         imm r21, 305
         imm r23, 0
-        imm r24, 43432
         call counter_require_local_load
         imm r20, 679
         imm r21, 305
         imm r23, 2097080
-        imm r24, 43406
         call counter_require_literal
         imm r20, 681
         imm r21, 305
         imm r23, 1
-        imm r24, 43467
         call counter_require_literal
         imm r20, 680
         imm r21, 305
         imm r23, 3
-        imm r24, 43477
         call counter_require_arithmetic
         imm r20, 203
         imm r21, 305
-        imm r23, 43451
         call counter_require_binary_push
         imm r20, 391
         imm r21, 305
-        imm r23, 43416
         call counter_require_store_push
 
         ; gen_expr no-comparison decrement.
         imm r20, 60
         imm r21, 306
-        imm r24, 43799
         call counter_require_memory_store
         imm r20, 61
         imm r21, 306
-        imm r24, 43732
         call counter_require_memory_load
         imm r20, 684
         imm r21, 306
         imm r23, 2097080
-        imm r24, 43696
         call counter_require_literal
         imm r20, 685
         imm r21, 306
         imm r23, 2097080
-        imm r24, 43722
         call counter_require_literal
         imm r20, 687
         imm r21, 306
         imm r23, 1
-        imm r24, 43751
         call counter_require_literal
         imm r20, 686
         imm r21, 306
         imm r23, 4
-        imm r24, 43761
         call counter_require_arithmetic
         imm r20, 205
         imm r21, 306
-        imm r23, 43735
         call counter_require_binary_push
         imm r20, 392
         imm r21, 306
-        imm r23, 43706
         call counter_require_store_push
 
         ; gen_expr comparison decrement.
         imm r20, 62
         imm r21, 307
-        imm r24, 44013
         call counter_require_memory_store
         imm r20, 63
         imm r21, 307
-        imm r24, 43946
         call counter_require_memory_load
         imm r20, 689
         imm r21, 307
         imm r23, 2097080
-        imm r24, 43910
         call counter_require_literal
         imm r20, 690
         imm r21, 307
         imm r23, 2097080
-        imm r24, 43936
         call counter_require_literal
         imm r20, 692
         imm r21, 307
         imm r23, 1
-        imm r24, 43965
         call counter_require_literal
         imm r20, 691
         imm r21, 307
         imm r23, 4
-        imm r24, 43975
         call counter_require_arithmetic
         imm r20, 206
         imm r21, 307
-        imm r23, 43949
         call counter_require_binary_push
         imm r20, 393
         imm r21, 307
-        imm r23, 43920
         call counter_require_store_push
 
         ; gen_stmts depth snapshot and room guard.
         imm r20, 64
         imm r21, 308
-        imm r24, 44108
         call counter_require_memory_load
         imm r20, 198
         imm r21, 308
         imm r23, 0
-        imm r24, 44111
         call counter_require_local_store
         imm r20, 199
         imm r21, 309
         imm r23, 0
-        imm r24, 44130
         call counter_require_local_load
         imm r20, 694
         imm r21, 308
         imm r23, 2097064
-        imm r24, 44098
         call counter_require_literal
         imm r20, 696
         imm r21, 309
         imm r23, 64
-        imm r24, 44165
         call counter_require_literal
         imm r20, 695
         imm r21, 309
         imm r23, 8
-        imm r24, 44175
         call counter_require_comparison
         imm r20, 207
         imm r21, 309
-        imm r23, 44149
         call counter_require_binary_push
 
         ; gen_stmts accepted increment.
         imm r20, 66
         imm r21, 310
-        imm r24, 44447
         call counter_require_memory_store
         imm r20, 200
         imm r21, 310
         imm r23, 0
-        imm r24, 44364
         call counter_require_local_load
         imm r20, 700
         imm r21, 310
         imm r23, 2097064
-        imm r24, 44338
         call counter_require_literal
         imm r20, 702
         imm r21, 310
         imm r23, 1
-        imm r24, 44399
         call counter_require_literal
         imm r20, 701
         imm r21, 310
         imm r23, 3
-        imm r24, 44409
         call counter_require_arithmetic
         imm r20, 208
         imm r21, 310
-        imm r23, 44383
         call counter_require_binary_push
         imm r20, 395
         imm r21, 310
-        imm r23, 44348
         call counter_require_store_push
 
         ; gen_stmts normal, eof, and exhausted decrements.
         imm r20, 68
         imm r21, 311
-        imm r24, 44810
         call counter_require_memory_store
         imm r20, 69
         imm r21, 311
-        imm r24, 44743
         call counter_require_memory_load
         imm r20, 708
         imm r21, 311
         imm r23, 2097064
-        imm r24, 44707
         call counter_require_literal
         imm r20, 709
         imm r21, 311
         imm r23, 2097064
-        imm r24, 44733
         call counter_require_literal
         imm r20, 711
         imm r21, 311
         imm r23, 1
-        imm r24, 44762
         call counter_require_literal
         imm r20, 710
         imm r21, 311
         imm r23, 4
-        imm r24, 44772
         call counter_require_arithmetic
         imm r20, 211
         imm r21, 311
-        imm r23, 44746
         call counter_require_binary_push
         imm r20, 396
         imm r21, 311
-        imm r23, 44717
         call counter_require_store_push
 
         imm r20, 70
         imm r21, 313
-        imm r24, 45086
         call counter_require_memory_store
         imm r20, 71
         imm r21, 313
-        imm r24, 45019
         call counter_require_memory_load
         imm r20, 715
         imm r21, 313
         imm r23, 2097064
-        imm r24, 44983
         call counter_require_literal
         imm r20, 716
         imm r21, 313
         imm r23, 2097064
-        imm r24, 45009
         call counter_require_literal
         imm r20, 718
         imm r21, 313
         imm r23, 1
-        imm r24, 45038
         call counter_require_literal
         imm r20, 717
         imm r21, 313
         imm r23, 4
-        imm r24, 45048
         call counter_require_arithmetic
         imm r20, 213
         imm r21, 313
-        imm r23, 45022
         call counter_require_binary_push
         imm r20, 397
         imm r21, 313
-        imm r23, 44993
         call counter_require_store_push
 
         imm r20, 72
         imm r21, 314
-        imm r24, 45222
         call counter_require_memory_store
         imm r20, 73
         imm r21, 314
-        imm r24, 45155
         call counter_require_memory_load
         imm r20, 720
         imm r21, 314
         imm r23, 2097064
-        imm r24, 45119
         call counter_require_literal
         imm r20, 721
         imm r21, 314
         imm r23, 2097064
-        imm r24, 45145
         call counter_require_literal
         imm r20, 723
         imm r21, 314
         imm r23, 1
-        imm r24, 45174
         call counter_require_literal
         imm r20, 722
         imm r21, 314
         imm r23, 4
-        imm r24, 45184
         call counter_require_arithmetic
         imm r20, 214
         imm r21, 314
-        imm r23, 45158
         call counter_require_binary_push
         imm r20, 398
         imm r21, 314
-        imm r23, 45129
         call counter_require_store_push
 
         ; RESOURCE zero root and every write of 252.  The gen_expr/gen_stmts
@@ -444,155 +369,123 @@ counter_require_selected_rows:
         ; above, so the protected-writer list is explicit and auditable.
         imm r20, 6
         imm r21, 4
-        imm r24, 1023
         call counter_require_memory_store
         imm r20, 19
         imm r21, 4
         imm r23, 2097072
-        imm r24, 971
         call counter_require_literal
         imm r20, 20
         imm r21, 4
         imm r23, 0
-        imm r24, 997
         call counter_require_literal
         imm r20, 377
         imm r21, 4
-        imm r23, 981
         call counter_require_store_push
 
         imm r20, 35
         imm r21, 159
-        imm r24, 22644
         call counter_require_memory_store
         imm r20, 408
         imm r21, 159
         imm r23, 2097072
-        imm r24, 22592
         call counter_require_literal
         imm r20, 409
         imm r21, 159
         imm r23, 252
-        imm r24, 22618
         call counter_require_literal
         imm r20, 383
         imm r21, 159
-        imm r23, 22602
         call counter_require_store_push
 
         imm r20, 38
         imm r21, 171
-        imm r24, 24384
         call counter_require_memory_store
         imm r20, 435
         imm r21, 171
         imm r23, 2097072
-        imm r24, 24332
         call counter_require_literal
         imm r20, 436
         imm r21, 171
         imm r23, 252
-        imm r24, 24358
         call counter_require_literal
         imm r20, 384
         imm r21, 171
-        imm r23, 24342
         call counter_require_store_push
 
         imm r20, 58
         imm r21, 304
-        imm r24, 43373
         call counter_require_memory_store
         imm r20, 676
         imm r21, 304
         imm r23, 2097072
-        imm r24, 43321
         call counter_require_literal
         imm r20, 677
         imm r21, 304
         imm r23, 252
-        imm r24, 43347
         call counter_require_literal
         imm r20, 390
         imm r21, 304
-        imm r23, 43331
         call counter_require_store_push
 
         imm r20, 65
         imm r21, 309
-        imm r24, 44305
         call counter_require_memory_store
         imm r20, 697
         imm r21, 309
         imm r23, 2097072
-        imm r24, 44253
         call counter_require_literal
         imm r20, 698
         imm r21, 309
         imm r23, 252
-        imm r24, 44279
         call counter_require_literal
         imm r20, 394
         imm r21, 309
-        imm r23, 44263
         call counter_require_store_push
 
         imm r20, 89
         imm r21, 340
-        imm r24, 49659
         call counter_require_memory_store
         imm r20, 784
         imm r21, 340
         imm r23, 2097072
-        imm r24, 49607
         call counter_require_literal
         imm r20, 785
         imm r21, 340
         imm r23, 252
-        imm r24, 49633
         call counter_require_literal
         imm r20, 403
         imm r21, 340
-        imm r23, 49617
         call counter_require_store_push
 
         imm r20, 92
         imm r21, 344
-        imm r24, 50367
         call counter_require_memory_store
         imm r20, 798
         imm r21, 344
         imm r23, 2097072
-        imm r24, 50315
         call counter_require_literal
         imm r20, 799
         imm r21, 344
         imm r23, 252
-        imm r24, 50341
         call counter_require_literal
         imm r20, 404
         imm r21, 344
-        imm r23, 50325
         call counter_require_store_push
 
         ; Appended gen_item malformed-input status writer.
         imm r20, 98
         imm r21, 358
-        imm r24, 52030
         call counter_require_memory_store
         imm r20, 824
         imm r21, 358
         imm r23, 2097072
-        imm r24, 51978
         call counter_require_literal
         imm r20, 825
         imm r21, 358
         imm r23, 251
-        imm r24, 52004
         call counter_require_literal
         imm r20, 405
         imm r21, 358
-        imm r23, 51988
         call counter_require_store_push
         ret
 
