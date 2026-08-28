@@ -24,6 +24,8 @@ Rust implementation belongs in this product subtree.
 `test-parser.sh` compiles the product entrypoint once and runs the parser's
 acceptance, rejection, capacity-edge, lexical-handoff, and determinism cases
 against that one native artifact. Its Python helper only decodes the versioned
-black-box observation; it implements no compiler semantics. Set
-`OMEGA_PRODUCT_PROGRAM` to reuse an already-built product executable during a
-focused iteration.
+black-box observation; it implements no compiler semantics. Set `OMEGA_CLI` to
+the exact freshly built comparator CLI that should compile the product source,
+or set `OMEGA_PRODUCT_PROGRAM` to reuse one exact product executable during a
+focused iteration. The gate deliberately does not select an arbitrary existing
+`target/debug/omega` as acceptance evidence.

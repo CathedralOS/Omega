@@ -8,10 +8,14 @@ if [ -n "${OMEGA_PRODUCT_PROGRAM:-}" ]; then
     exit 0
 fi
 
-omega_cli=${OMEGA_CLI:-"$repo_root/target/debug/omega"}
+if [ -z "${OMEGA_CLI:-}" ]; then
+    echo "set OMEGA_CLI to the exact freshly built comparator CLI" >&2
+    echo "or set OMEGA_PRODUCT_PROGRAM to an exact product executable" >&2
+    exit 2
+fi
+omega_cli=$OMEGA_CLI
 if [ ! -x "$omega_cli" ]; then
     echo "missing Omega CLI: $omega_cli" >&2
-    echo "build it once with: cargo build --locked --offline -p omega" >&2
     exit 1
 fi
 
