@@ -35,15 +35,17 @@ def segment(
     fileoff: int,
     filesize: int,
     protection: int,
-    section: bytes = b"",
+    sections: bytes = b"",
 ) -> bytes:
-    count = 1 if section else 0
-    size = 72 + len(section)
+    if len(sections) % 80:
+        raise AssertionError("test section table extent")
+    count = len(sections) // 80
+    size = 72 + len(sections)
     return struct.pack(
         "<II16sQQQQiiII", custody.LC_SEGMENT_64, size,
         name.ljust(16, b"\0"), vmaddr, vmsize, fileoff, filesize,
         protection, protection, count, 0,
-    ) + section
+    ) + sections
 
 
 def section(name: bytes, segment_name: bytes, address: int, extent: int, offset: int, flags: int) -> bytes:
@@ -54,16 +56,29 @@ def section(name: bytes, segment_name: bytes, address: int, extent: int, offset:
     )
 
 
-def minimal_macho(extra_commands: tuple[bytes, ...] = ()) -> bytes:
+def minimal_macho(
+    extra_commands: tuple[bytes, ...] = (), *, extra_executable_section: bool = False
+) -> bytes:
     text_offset = 1024
     text_bytes = b"\xc0\x03\x5f\xd6"  # ret
+    constant_bytes = b"ABC"
+    extra_text_bytes = b"X" if extra_executable_section else b""
+    extra_text_section = b""
+    if extra_executable_section:
+        extra_offset = text_offset + len(text_bytes) + len(constant_bytes)
+        extra_text_section = section(
+            b"__extra_exec", b"__TEXT", 0x100000000 + extra_offset,
+            len(extra_text_bytes), extra_offset, 0x80000400,
+        )
     linkedit = b"LINK"
-    linkedit_offset = text_offset + len(text_bytes)
+    linkedit_offset = text_offset + len(text_bytes) + len(constant_bytes) + len(extra_text_bytes)
     commands = [
         segment(b"__PAGEZERO", 0, 0x100000000, 0, 0, 0),
         segment(
             b"__TEXT", 0x100000000, 0x1000, 0, linkedit_offset, 5,
-            section(b"__text", b"__TEXT", 0x100000000 + text_offset, len(text_bytes), text_offset, 0x80000400),
+            section(b"__text", b"__TEXT", 0x100000000 + text_offset, len(text_bytes), text_offset, 0x80000400)
+            + section(b"__const", b"__TEXT", 0x100000000 + text_offset + len(text_bytes), len(constant_bytes), text_offset + len(text_bytes), 0)
+            + extra_text_section,
         ),
         segment(
             b"__DATA", 0x100001000, 0x1000, 0, 0, 3,
@@ -89,7 +104,10 @@ def minimal_macho(extra_commands: tuple[bytes, ...] = ()) -> bytes:
     prefix = header + load_commands
     if len(prefix) > text_offset:
         raise AssertionError("test Mach-O load commands exceed text offset")
-    return prefix + b"\0" * (text_offset - len(prefix)) + text_bytes + linkedit
+    return (
+        prefix + b"\0" * (text_offset - len(prefix)) + text_bytes
+        + constant_bytes + extra_text_bytes + linkedit
+    )
 
 
 class CustodyEvidence:
@@ -266,6 +284,20 @@ class ArtifactCustodyTests(unittest.TestCase):
         dylib = raw.find(b"/usr/lib/libSystem.B.dylib")
         self.assertGreater(dylib, 0)
         raw[dylib] = ord("x")
+        with self.assertRaises(custody.CustodyError):
+            custody.validate_macho(raw)
+
+        raw = minimal_macho(extra_executable_section=True)
+        with self.assertRaises(custody.CustodyError):
+            custody.validate_macho(raw)
+
+        raw = bytearray(minimal_macho())
+        text = raw.find(b"__text")
+        constant = raw.find(b"__const")
+        self.assertGreaterEqual(text, 32)
+        self.assertGreaterEqual(constant, 32)
+        struct.pack_into("<Q", raw, constant + 32, struct.unpack_from("<Q", raw, text + 32)[0])
+        struct.pack_into("<I", raw, constant + 48, struct.unpack_from("<I", raw, text + 48)[0])
         with self.assertRaises(custody.CustodyError):
             custody.validate_macho(raw)
 

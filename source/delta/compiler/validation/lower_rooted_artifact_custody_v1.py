@@ -78,6 +78,21 @@ LC_RPATH = 0x8000001C
 PLATFORM_MACOS = 1
 MIN_MACOS_11 = 11 << 16
 
+# The written Delta assembly contributes __text, __const, and __bss. The V1
+# command profile's Darwin linker synthesizes only the remaining stub/pointer
+# sections below. A new section is a target-profile change to review, not
+# opaque payload that can inherit this receipt's format claim.
+SECTION_FLAGS = {
+    ("__TEXT", "__text"): 0x80000400,
+    ("__TEXT", "__stubs"): 0x80000408,
+    ("__TEXT", "__stub_helper"): 0x80000400,
+    ("__TEXT", "__const"): 0,
+    ("__DATA_CONST", "__got"): 0x6,
+    ("__DATA", "__la_symbol_ptr"): 0x7,
+    ("__DATA", "__data"): 0,
+    ("__DATA", "__bss"): 0x1,
+}
+
 
 class CustodyError(Exception):
     status = 251
@@ -186,6 +201,7 @@ def validate_macho(raw: bytes) -> dict:
     offset = 32
     segments: dict[str, dict] = {}
     sections: dict[tuple[str, str], dict] = {}
+    segment_sections: dict[str, list[dict]] = {}
     dylibs: list[str] = []
     dylinker: str | None = None
     entry_offset: int | None = None
@@ -237,6 +253,7 @@ def validate_macho(raw: bytes) -> dict:
                 "load_index": load_index,
                 "section_count": section_count,
             }
+            segment_sections[segment] = []
             section_offset = 72
             for _ in range(section_count):
                 section = struct.unpack_from("<16s16sQQIIIIIIII", payload, section_offset)
@@ -261,7 +278,11 @@ def validate_macho(raw: bytes) -> dict:
                     "byte_length": extent,
                     "file_offset": file_offset,
                     "flags": section[8],
+                    "relocation_count": section[7],
+                    "relocation_offset": section[6],
+                    "reserved": section[9:12],
                 }
+                segment_sections[segment].append(sections[key])
                 section_offset += 80
         elif command == LC_MAIN:
             if command in seen_unique or size != 24:
@@ -376,6 +397,44 @@ def validate_macho(raw: bytes) -> dict:
         fail("Mach-O link-edit sections")
     if bss["flags"] & 0xFF != 1 or bss["file_offset"] != 0:
         fail("Mach-O BSS profile")
+
+    for key, section in sections.items():
+        if key not in SECTION_FLAGS or section["flags"] != SECTION_FLAGS[key]:
+            fail("Mach-O section profile")
+        if section["relocation_offset"] != 0 or section["relocation_count"] != 0:
+            fail("Mach-O final-image section relocations")
+        _, section_name = key
+        reserved1, reserved2, reserved3 = section["reserved"]
+        if reserved3 != 0:
+            fail("Mach-O section reserved fields")
+        if section_name == "__stubs":
+            if reserved2 != 12:
+                fail("Mach-O ARM64 stub width")
+        elif section_name in ("__got", "__la_symbol_ptr"):
+            if reserved2 != 0:
+                fail("Mach-O pointer-section reserved fields")
+        elif reserved1 != 0 or reserved2 != 0:
+            fail("Mach-O section reserved fields")
+
+    for segment_name, retained in segment_sections.items():
+        virtual_ranges = sorted(
+            (row["address"], row["address"] + row["byte_length"])
+            for row in retained if row["byte_length"]
+        )
+        if any(right_start < left_end for (_, left_end), (right_start, _) in zip(
+            virtual_ranges, virtual_ranges[1:]
+        )):
+            fail("Mach-O section virtual overlap")
+        file_ranges = sorted(
+            (row["file_offset"], row["file_offset"] + row["byte_length"])
+            for row in retained if row["byte_length"] and row["flags"] & 0xFF != 1
+        )
+        if any(right_start < left_end for (_, left_end), (right_start, _) in zip(
+            file_ranges, file_ranges[1:]
+        )):
+            fail("Mach-O section file overlap")
+        if segment_name == "__TEXT" and file_ranges and file_ranges[0][0] < commands_end:
+            fail("Mach-O text section/load-command overlap")
 
     linkedit_start = segments["__LINKEDIT"]["file_offset"]
     linkedit_end = linkedit_start + segments["__LINKEDIT"]["file_size"]

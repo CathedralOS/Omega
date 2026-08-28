@@ -65,8 +65,13 @@ artifacts over 64 MiB. The closed V1 load-command vocabulary additionally
 permits the bounded symbol/dynamic-symbol tables, dyld-info, source-version,
 function-start, and data-in-code metadata emitted by the declared command
 profile; each permitted command has an exact structural check rather than an
-ignore path. SDK version is allowed to vary but is recorded in the validated
-target summary and the exact SDK settings identity is bound. Individual
+ignore path. Section custody is likewise closed over the compiler's `__text`,
+`__const`, and `__bss` plus the command profile's reviewed ARM64 stubs, pointer
+tables, and linker data. Unknown or executable substitute sections, retained
+relocations, invalid stub metadata, section/load-command aliasing, and
+overlapping file or virtual ranges reject. This vocabulary does not freeze the
+SDK version: SDK version is allowed to vary, is recorded in the validated
+target summary, and the exact SDK settings identity is bound. Individual
 realization-tool inputs are bounded at 512 MiB; SDK settings and the libSystem
 stub are bounded at 64 MiB.
 
