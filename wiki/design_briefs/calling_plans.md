@@ -850,8 +850,15 @@ reach, direct invocation, suspension, blocking, termination, and crash axes.
 The selected exact-machine envelope separately aggregates effective checked
 reach/invocations, transitive suspension/blocking, checked termination/crash,
 mutation frames, and capability flows without promoting them into caller facts
-or changing either fingerprint. Resource ceilings remain the unassembled
-actual-envelope axis.
+or changing either fingerprint. That realized envelope now also owns one
+checked resource-derivation anchor per concrete entry. The anchor binds the
+exact machine, entry, and realized contract endpoint independently to stack,
+logical structural-work/fuel, and machine-state obligations. It carries no
+numeric demand, ceiling, target footprint, provider receipt, or installation
+authority, and its compact fingerprint is only a compilation-local join
+summary. Callback resource admission must next bind the selected entry's
+anchor to independently derived Terminal/target/backend receipts; the target
+calling-plan fingerprint cannot substitute for any of them.
 
 Lowering alone materializes the thunk relocation at the plan's exact native
 argument or nested field. A nested destination must name a typed private demand

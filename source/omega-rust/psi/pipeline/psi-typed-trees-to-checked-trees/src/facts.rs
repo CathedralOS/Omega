@@ -134,7 +134,7 @@ pub(crate) fn build_check_facts(
         &flow,
         &operators,
         &validation_facts.exact_integer_casts,
-    );
+    )?;
     let nominal_machine_uses =
         build_nominal_machine_use_facts(program, nominal_machine_uses, &contract_plans)?;
     // CRY1: materialize the effective structural policy once in the checked
@@ -215,6 +215,10 @@ pub(crate) fn refresh_realized_contract_envelopes(facts: &mut CheckFacts) {
         );
         envelope.checked_crash = contract.crash.clone();
     }
+    facts
+        .contract_plans
+        .validate_resource_envelopes()
+        .expect("checked resource envelopes must survive independent post-validation replay");
 }
 
 fn build_nominal_machine_use_facts(
@@ -631,7 +635,7 @@ fn build_contract_plans(
     flow: &psi_checked_trees::FlowFacts,
     operators: &psi_checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
-) -> psi_checked_trees::MachineContractPlans {
+) -> Result<psi_checked_trees::MachineContractPlans, Vec<psi_diagnostics::Diagnostic>> {
     let mut machines = Vec::new();
     let content_conservation = psi_validation::build_content_conservation_plans(program);
     for machine in program.machines() {
@@ -776,6 +780,11 @@ fn build_contract_plans(
     let realized_envelopes = machines
         .iter()
         .map(|contract| {
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == contract.machine)
+                .expect("every contract must retain its exact typed machine");
             let service_fact = service_reaches
                 .for_machine(contract.machine)
                 .expect("every checked machine must retain service-reach facts");
@@ -829,14 +838,68 @@ fn build_contract_plans(
                 checked_crash: contract.crash.clone(),
                 mutation,
                 capabilities: capability_rows,
+                resources:
+                    psi_checked_trees::CheckedMachineResourceEnvelopes::from_checked_contract_entries(
+                        contract.machine,
+                        contract.fingerprint,
+                        program.machine_states(machine).iter().map(|entry| entry.symbol),
+                    ),
             }
         })
         .collect();
-    psi_checked_trees::MachineContractPlans {
+    let plans = psi_checked_trees::MachineContractPlans {
         machines,
         crash_capsules,
         realized_envelopes,
+    };
+    plans.validate_resource_envelopes().map_err(|error| {
+        vec![psi_diagnostics::Diagnostic::error(format!(
+            "checked resource-envelope replay failed: {error}"
+        ))]
+    })?;
+    validate_checked_resource_envelope_coverage(program, &plans)?;
+    Ok(plans)
+}
+
+/// Reconstruct the complete per-entry resource roster from typed ownership
+/// and declaration order. Structural checked validation above does not reopen
+/// typed trees, so this second gate is what rejects a missing, foreign, or
+/// reordered entry before the source-independent carrier leaves this stage.
+fn validate_checked_resource_envelope_coverage(
+    program: &TypedTrees,
+    plans: &psi_checked_trees::MachineContractPlans,
+) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    for machine in program.machines() {
+        let contract = plans.for_machine(machine.symbol).ok_or_else(|| {
+            vec![psi_diagnostics::Diagnostic::error(
+                "checked resource-envelope replay is missing an exact machine contract",
+            )]
+        })?;
+        let realized = plans.realized_envelope(machine.symbol).ok_or_else(|| {
+            vec![psi_diagnostics::Diagnostic::error(
+                "checked resource-envelope replay is missing an exact realized machine row",
+            )]
+        })?;
+        let expected_entries = program.machine_states(machine);
+        if realized.resources.len() != expected_entries.len() {
+            return Err(vec![psi_diagnostics::Diagnostic::error(
+                "checked resource-envelope replay does not cover every owned machine entry",
+            )]);
+        }
+        for (resource, entry) in realized.resources.iter().zip(expected_entries) {
+            let replayed = psi_checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
+                machine.symbol,
+                entry.symbol,
+                contract.fingerprint,
+            );
+            if resource != &replayed {
+                return Err(vec![psi_diagnostics::Diagnostic::error(
+                    "checked resource-envelope replay changed entry ownership or declaration order",
+                )]);
+            }
+        }
     }
+    Ok(())
 }
 
 fn build_mutation_facts(program: &TypedTrees) -> psi_checked_trees::MutationFacts {
