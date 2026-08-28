@@ -111,6 +111,19 @@ pub fn load_injected_source(name: &str, text: &str, first_source_id: usize) -> L
     LoadedSources { sources, batch }
 }
 
+/// Load one compiler-retained package source with a logical package-relative
+/// path and no physical file access.
+pub fn load_package_generated_source(path: PathBuf, text: &str, source_id: usize) -> LoadedSources {
+    let mut sources = Arena::with_capacity(1);
+    let batch = sources.insert_many([LoadedSource {
+        source_id: SourceId(source_id),
+        path,
+        source: Arc::from(text),
+        origin: Some(SourceOrigin::User),
+    }]);
+    LoadedSources { sources, batch }
+}
+
 pub fn lex_sources(sources: LoadedSources) -> Result<LexedSources, Vec<Diagnostic>> {
     let loaded_sources = sources.sources.span_or_empty(sources.batch);
     let source_count = loaded_sources.len();
@@ -269,7 +282,13 @@ pub fn discover_imports_with_packages(
         let canonical_source = parsed_source.path.canonicalize().ok();
         let requester = canonical_source
             .as_deref()
-            .and_then(|source| packages.package_for_source(source));
+            .and_then(|source| packages.package_for_source(source))
+            .or_else(|| {
+                packages
+                    .is_generated_source_logical_path(&parsed_source.path)
+                    .then(|| packages.package_for_source(&parsed_source.path))
+                    .flatten()
+            });
 
         for root_item in &parsed_source.root_items {
             let item = syntax_trees.root_item(*root_item);
@@ -323,10 +342,11 @@ pub fn discover_imports_with_packages(
                                 members,
                             ),
                         };
-                    let imported = resolve_reconciled_import(
+                    let imported = resolve_reconciled_import_with_generated_source(
                         source_root.to_path_buf(),
+                        target,
                         path_members,
-                        "package",
+                        packages,
                     )?;
                     if target != requester
                         && imported.file_name().and_then(|name| name.to_str()) == Some("build.omg")
@@ -466,6 +486,36 @@ fn resolve_reconciled_import(
     Ok(canonical)
 }
 
+fn resolve_reconciled_import_with_generated_source(
+    expected_root: PathBuf,
+    package: psi_core::PackageKeyIdentity,
+    source_path: &[Identifier],
+    packages: &PackageCompilationInputs,
+) -> Result<PathBuf, Vec<Diagnostic>> {
+    let mut relative = PathBuf::new();
+    for segment in source_path {
+        relative.push(segment.as_str());
+    }
+    let relative_candidates = source_path_candidates(&relative);
+    let generated = packages
+        .generated_source_import_path(package, &relative_candidates)
+        .map_err(|error| vec![Diagnostic::error(error)])?;
+
+    let physical_base = expected_root.join(&relative);
+    let physical = source_path_candidates(&physical_base)
+        .into_iter()
+        .find(|candidate| candidate.exists());
+    match (generated, physical) {
+        (Some(generated), Some(physical)) => Err(vec![Diagnostic::error(format!(
+            "generated package source {} collides with physical package source {}",
+            generated.display(),
+            physical.display(),
+        ))]),
+        (Some(generated), None) => Ok(generated),
+        (None, _) => resolve_reconciled_import(expected_root, source_path, "package"),
+    }
+}
+
 fn is_bundled_omega_path(path: &[Identifier]) -> bool {
     path.first()
         .is_some_and(|segment| segment.as_str() == "omega")
@@ -479,8 +529,7 @@ pub(crate) fn bundled_omega_root() -> PathBuf {
         .join("../../../../../../source/library")
         .canonicalize()
         .unwrap_or_else(|_| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../../../../../source/library")
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../../../source/library")
         })
 }
 

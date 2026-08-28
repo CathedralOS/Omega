@@ -3,8 +3,9 @@ use omega_terminal_abstract_operations::{
     TerminalAbstractOperation, TerminalAbstractOperationPlan,
 };
 use omega_terminal_legalized_operations::{
-    TerminalLegalizationRecipe, TerminalLegalizedFunction, TerminalLegalizedImmediate,
-    TerminalLegalizedLeaf, TerminalLegalizedLeafValue, TerminalLegalizedOperationPlan,
+    TerminalLegalizationRecipe, TerminalLegalizationTheorem, TerminalLegalizedFunction,
+    TerminalLegalizedImmediate, TerminalLegalizedLeaf, TerminalLegalizedLeafValue,
+    TerminalLegalizedOperationPlan, TerminalLegalizedTemporaryId,
 };
 use omega_terminal_target_operations::{
     TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetIntegerControl,
@@ -14,7 +15,7 @@ use psi_core::{EdgeId, IntegerSign, OperationId, ScalarType};
 
 use crate::{TerminalLegalizationError, TerminalLegalizationError as Error};
 
-/// Independently replay a proposed V1 legal projection against all three raw
+/// Independently replay a proposed V3 legal projection against all three raw
 /// custody inputs. This module deliberately compares fields in place instead
 /// of constructing a second plan with the producer's derivation strategy.
 pub(crate) fn replay_terminal_legalized_plan(
@@ -22,7 +23,7 @@ pub(crate) fn replay_terminal_legalized_plan(
     abstract_plan: &TerminalAbstractOperationPlan,
     unit: &PsiOptimizationUnit,
     proposed: &TerminalLegalizedOperationPlan,
-) -> Result<(), TerminalLegalizationError> {
+) -> Result<usize, TerminalLegalizationError> {
     if omega_optimization_validation::validate_psi_optimization_unit(unit).is_err()
         || omega_optimization_unit::recompute_psi_optimization_unit_identity(unit) != unit.identity
         || target.terminal_psi != abstract_plan.terminal_psi
@@ -44,6 +45,7 @@ pub(crate) fn replay_terminal_legalized_plan(
         return Err(Error::NonCanonicalLegalizedPlan);
     }
 
+    let mut decomposition_count = 0usize;
     for (index, (((target_function, abstracted), optimized), legalized)) in target
         .functions
         .iter()
@@ -52,17 +54,19 @@ pub(crate) fn replay_terminal_legalized_plan(
         .zip(&proposed.functions)
         .enumerate()
     {
-        replay_function(
-            index,
-            target.target.architecture,
-            target_function,
-            abstracted,
-            optimized,
-            &unit.accepted_obligation_facts,
-            legalized,
-        )?;
+        decomposition_count = decomposition_count
+            .checked_add(replay_function(
+                index,
+                target.target.architecture,
+                target_function,
+                abstracted,
+                optimized,
+                &unit.accepted_obligation_facts,
+                legalized,
+            )?)
+            .ok_or(Error::NonCanonicalLegalizedPlan)?;
     }
-    Ok(())
+    Ok(decomposition_count)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -74,7 +78,7 @@ fn replay_function(
     optimized: &omega_optimization_unit::PsiOptimizationFunction,
     accepted_facts: &[omega_optimization_unit::AcceptedObligationFact],
     proposed: &TerminalLegalizedFunction,
-) -> Result<(), TerminalLegalizationError> {
+) -> Result<usize, TerminalLegalizationError> {
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
         || target.attachment != abstracted.attachment
@@ -177,6 +181,54 @@ fn replay_function(
                     && matches!(right.as_ref(), TerminalTargetIntegerExpression::Immediate { .. })
             )
         }),
+        TerminalLegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1 => [
+            when_true, when_false,
+        ]
+        .iter()
+        .all(|arm| {
+            matches!(
+                arm.control.as_ref(),
+                TerminalTargetIntegerControl::Return {
+                    expression: TerminalTargetIntegerExpression::IntegerWiden {
+                        source_type,
+                        operand,
+                        ..
+                    },
+                    ..
+                } if *source_type
+                    == psi_core::IntegerType::new(IntegerSign::Unsigned, 8).expect("u8")
+                    && matches!(
+                        operand.as_ref(),
+                        TerminalTargetIntegerExpression::ExactAdd { left, right, .. }
+                            if matches!(left.as_ref(), TerminalTargetIntegerExpression::Immediate { .. })
+                                && matches!(right.as_ref(), TerminalTargetIntegerExpression::Immediate { .. })
+                    )
+            )
+        }),
+        TerminalLegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1 => [
+            when_true, when_false,
+        ]
+        .iter()
+        .all(|arm| {
+            matches!(
+                arm.control.as_ref(),
+                TerminalTargetIntegerControl::Return {
+                    expression: TerminalTargetIntegerExpression::IntegerWiden {
+                        source_type,
+                        operand,
+                        ..
+                    },
+                    ..
+                } if *source_type
+                    == psi_core::IntegerType::new(IntegerSign::Unsigned, 8).expect("u8")
+                    && matches!(
+                        operand.as_ref(),
+                        TerminalTargetIntegerExpression::ExactSubtract { left, right, .. }
+                            if matches!(left.as_ref(), TerminalTargetIntegerExpression::Immediate { .. })
+                                && matches!(right.as_ref(), TerminalTargetIntegerExpression::Immediate { .. })
+                    )
+            )
+        }),
     };
     if !recipe_matches_target {
         return Err(Error::NonCanonicalLegalizedPlan);
@@ -188,6 +240,10 @@ fn replay_function(
         TerminalLegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1
         | TerminalLegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1 => {
             ([0, 1, 5], 9, 4, 1)
+        }
+        TerminalLegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1
+        | TerminalLegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1 => {
+            ([0, 1, 6], 11, 5, 1)
         }
     };
     if abstracted.operations.len() != operation_count
@@ -290,6 +346,7 @@ fn replay_function(
         accepted_facts,
         &proposed.when_true,
         architecture,
+        0,
     )?;
     let false_operations = replay_leaf(
         function,
@@ -303,6 +360,7 @@ fn replay_function(
         accepted_facts,
         &proposed.when_false,
         architecture,
+        2,
     )?;
     if let (
         TerminalLegalizedLeafValue::EntryParameter {
@@ -342,7 +400,11 @@ fn replay_function(
     if proposed.provenance != expected_provenance {
         return Err(Error::NonCanonicalLegalizedPlan);
     }
-    Ok(())
+    Ok(usize::from(matches!(
+        proposed.recipe,
+        TerminalLegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1
+            | TerminalLegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1
+    )) * 2)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -358,6 +420,7 @@ fn replay_leaf(
     accepted_facts: &[omega_optimization_unit::AcceptedObligationFact],
     proposed: &TerminalLegalizedLeaf,
     architecture: omega_target::Architecture,
+    temporary_base: u32,
 ) -> Result<Vec<OperationId>, TerminalLegalizationError> {
     if nodes.len() != abstract_operations.len()
         || nodes
@@ -503,6 +566,164 @@ fn replay_leaf(
             )
         }
         (
+            TerminalLegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1,
+            TerminalTargetIntegerExpression::IntegerWiden {
+                psi_operation: widen_operation,
+                source_type,
+                operand,
+            },
+            TerminalLegalizedLeafValue::WidenedExactAdd {
+                source_type: proposed_source_type,
+                target_type: proposed_target_type,
+                theorem,
+                obligation: proposed_obligation,
+                accepted_fact,
+                add_operation: proposed_add_operation,
+                narrow_result,
+                add_definition_site,
+                add_fuel,
+                widen_operation: proposed_widen_operation,
+                widen_definition_site,
+                widen_fuel,
+                left_temporary,
+                right_temporary,
+                left: proposed_left,
+                right: proposed_right,
+            },
+        ) => {
+            let TerminalTargetIntegerExpression::ExactAdd {
+                psi_operation: add_operation,
+                obligation,
+                left,
+                right,
+            } = operand.as_ref()
+            else {
+                return Err(Error::NonCanonicalLegalizedPlan);
+            };
+            let target_type = psi_core::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+            replay_widened_exact_binary(
+                function,
+                arm_edge,
+                true,
+                *source_value,
+                *source_type,
+                target_type,
+                *add_operation,
+                *obligation,
+                left,
+                right,
+                *widen_operation,
+                nodes,
+                optimized,
+                accepted_facts,
+                *proposed_source_type,
+                *proposed_target_type,
+                *theorem,
+                *proposed_obligation,
+                *accepted_fact,
+                *proposed_add_operation,
+                *narrow_result,
+                *add_definition_site,
+                add_fuel,
+                *proposed_widen_operation,
+                *widen_definition_site,
+                widen_fuel,
+                *left_temporary,
+                *right_temporary,
+                proposed_left,
+                proposed_right,
+                temporary_base,
+            )?;
+            (
+                &nodes[4],
+                vec![
+                    proposed_left.constant_operation,
+                    proposed_right.constant_operation,
+                    *proposed_add_operation,
+                    *proposed_widen_operation,
+                ],
+            )
+        }
+        (
+            TerminalLegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1,
+            TerminalTargetIntegerExpression::IntegerWiden {
+                psi_operation: widen_operation,
+                source_type,
+                operand,
+            },
+            TerminalLegalizedLeafValue::WidenedExactSubtract {
+                source_type: proposed_source_type,
+                target_type: proposed_target_type,
+                theorem,
+                obligation: proposed_obligation,
+                accepted_fact,
+                subtract_operation: proposed_subtract_operation,
+                narrow_result,
+                subtract_definition_site,
+                subtract_fuel,
+                widen_operation: proposed_widen_operation,
+                widen_definition_site,
+                widen_fuel,
+                left_temporary,
+                right_temporary,
+                left: proposed_left,
+                right: proposed_right,
+            },
+        ) => {
+            let TerminalTargetIntegerExpression::ExactSubtract {
+                psi_operation: subtract_operation,
+                obligation,
+                left,
+                right,
+            } = operand.as_ref()
+            else {
+                return Err(Error::NonCanonicalLegalizedPlan);
+            };
+            let target_type = psi_core::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+            replay_widened_exact_binary(
+                function,
+                arm_edge,
+                false,
+                *source_value,
+                *source_type,
+                target_type,
+                *subtract_operation,
+                *obligation,
+                left,
+                right,
+                *widen_operation,
+                nodes,
+                optimized,
+                accepted_facts,
+                *proposed_source_type,
+                *proposed_target_type,
+                *theorem,
+                *proposed_obligation,
+                *accepted_fact,
+                *proposed_subtract_operation,
+                *narrow_result,
+                *subtract_definition_site,
+                subtract_fuel,
+                *proposed_widen_operation,
+                *widen_definition_site,
+                widen_fuel,
+                *left_temporary,
+                *right_temporary,
+                proposed_left,
+                proposed_right,
+                temporary_base,
+            )?;
+            (
+                &nodes[4],
+                vec![
+                    proposed_left.constant_operation,
+                    proposed_right.constant_operation,
+                    *proposed_subtract_operation,
+                    *proposed_widen_operation,
+                ],
+            )
+        }
+        (
             TerminalLegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1,
             TerminalTargetIntegerExpression::ExactSubtract {
                 psi_operation,
@@ -578,6 +799,206 @@ fn replay_leaf(
         &proposed.return_fuel,
     )?;
     Ok(operations)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn replay_widened_exact_binary(
+    function: usize,
+    arm_edge: EdgeId,
+    add: bool,
+    final_value: psi_core::ValueId,
+    source_type: psi_core::IntegerType,
+    target_type: psi_core::IntegerType,
+    operation: OperationId,
+    obligation: psi_core::ObligationId,
+    target_left: &TerminalTargetIntegerExpression,
+    target_right: &TerminalTargetIntegerExpression,
+    widen_operation: OperationId,
+    nodes: &[omega_optimization_unit::OptimizationNode],
+    optimized: &omega_optimization_unit::PsiOptimizationFunction,
+    accepted_facts: &[omega_optimization_unit::AcceptedObligationFact],
+    proposed_source_type: psi_core::IntegerType,
+    proposed_target_type: psi_core::IntegerType,
+    theorem: TerminalLegalizationTheorem,
+    proposed_obligation: psi_core::ObligationId,
+    proposed_fact: omega_optimization_core::AcceptedObligationFactIdentity,
+    proposed_operation: OperationId,
+    proposed_narrow_result: psi_core::ValueId,
+    proposed_operation_site: omega_optimization_unit::ValueDefinitionSite,
+    proposed_operation_fuel: &[omega_optimization_unit::FuelSettlement],
+    proposed_widen_operation: OperationId,
+    proposed_widen_site: omega_optimization_unit::ValueDefinitionSite,
+    proposed_widen_fuel: &[omega_optimization_unit::FuelSettlement],
+    left_temporary: TerminalLegalizedTemporaryId,
+    right_temporary: TerminalLegalizedTemporaryId,
+    proposed_left: &TerminalLegalizedImmediate,
+    proposed_right: &TerminalLegalizedImmediate,
+    temporary_base: u32,
+) -> Result<(), TerminalLegalizationError> {
+    let u8_type = psi_core::IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let u64_type = psi_core::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    if source_type != u8_type || target_type != u64_type || nodes.len() != 5 {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    let expected_theorem = if add {
+        TerminalLegalizationTheorem::UnsignedExactAddCommutesWithWidenV1
+    } else {
+        TerminalLegalizationTheorem::UnsignedExactSubtractCommutesWithWidenV1
+    };
+    if proposed_source_type != source_type
+        || proposed_target_type != target_type
+        || theorem != expected_theorem
+        || left_temporary != TerminalLegalizedTemporaryId(temporary_base)
+        || right_temporary != TerminalLegalizedTemporaryId(temporary_base + 1)
+    {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
+
+    let narrow_scalar = ScalarType::Integer(source_type);
+    replay_immediate(
+        function,
+        arm_edge,
+        target_left,
+        &nodes[0],
+        proposed_left,
+        narrow_scalar,
+    )?;
+    replay_immediate(
+        function,
+        arm_edge,
+        target_right,
+        &nodes[1],
+        proposed_right,
+        narrow_scalar,
+    )?;
+
+    let (abstract_operation, abstract_obligation, narrow_result, abstract_source_type, left, right) =
+        match (&nodes[2].operation, add) {
+            (
+                TerminalAbstractOperation::ExactIntegerAdd {
+                    psi_operation,
+                    obligation,
+                    result,
+                    scalar_type,
+                    left,
+                    right,
+                },
+                true,
+            )
+            | (
+                TerminalAbstractOperation::ExactIntegerSubtract {
+                    psi_operation,
+                    obligation,
+                    result,
+                    scalar_type,
+                    left,
+                    right,
+                },
+                false,
+            ) => (psi_operation, obligation, result, scalar_type, left, right),
+            _ => return Err(Error::UnsupportedSourceShape { function }),
+        };
+    if *abstract_operation != operation
+        || *abstract_obligation != obligation
+        || *abstract_source_type != source_type
+        || *left != proposed_left.source_value
+        || *right != proposed_right.source_value
+        || nodes[2].definitions.len() != 1
+        || nodes[2].definitions[0].value != *narrow_result
+        || nodes[2].definitions[0].scalar_type != narrow_scalar
+        || nodes[2].provenance != vec![PsiProvenance::Operation(operation)]
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    let Some(fact) = accepted_facts.iter().find(|fact| {
+        fact.machine == optimized.machine
+            && fact.operation == operation
+            && fact.obligation == obligation
+    }) else {
+        return Err(Error::SourceCustodyMismatch);
+    };
+    if !optimized.facts.iter().any(|fact| {
+        matches!(
+            fact,
+            OptimizationFact::OperationObligationReference {
+                obligation: referenced,
+                support,
+            } if *referenced == obligation && *support == operation
+        )
+    }) {
+        return Err(Error::SourceCustodyMismatch);
+    }
+    if proposed_obligation != obligation
+        || proposed_fact != fact.identity
+        || proposed_operation != operation
+        || proposed_narrow_result != *narrow_result
+        || proposed_operation_site != nodes[2].definitions[0].site
+    {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
+    replay_operation_fuel(function, operation, &nodes[2].fuel, proposed_operation_fuel)?;
+
+    let TerminalAbstractOperation::IntegerWiden {
+        psi_operation: abstract_widen,
+        result: widen_result,
+        source_type: abstract_widen_source,
+        target_type: abstract_widen_target,
+        operand,
+    } = &nodes[3].operation
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    if *abstract_widen != widen_operation
+        || *widen_result != final_value
+        || *narrow_result == final_value
+        || *abstract_widen_source != source_type
+        || *abstract_widen_target != target_type
+        || *operand != *narrow_result
+        || nodes[3].definitions.len() != 1
+        || nodes[3].definitions[0].value != final_value
+        || nodes[3].definitions[0].scalar_type != ScalarType::Integer(target_type)
+        || nodes[3].provenance != vec![PsiProvenance::Operation(widen_operation)]
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    if proposed_widen_operation != widen_operation
+        || proposed_widen_site != nodes[3].definitions[0].site
+    {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
+    replay_operation_fuel(
+        function,
+        widen_operation,
+        &nodes[3].fuel,
+        proposed_widen_fuel,
+    )?;
+
+    let narrow_result = if add {
+        source_type.exact_add(proposed_left.value, proposed_right.value)
+    } else {
+        source_type.exact_sub(proposed_left.value, proposed_right.value)
+    };
+    let Some(narrow_result) = narrow_result else {
+        return Err(Error::SourceCustodyMismatch);
+    };
+    let Some(widened_narrow_result) = source_type.widen_value_to(target_type, narrow_result) else {
+        return Err(Error::SourceCustodyMismatch);
+    };
+    let Some(widened_left) = source_type.widen_value_to(target_type, proposed_left.value) else {
+        return Err(Error::SourceCustodyMismatch);
+    };
+    let Some(widened_right) = source_type.widen_value_to(target_type, proposed_right.value) else {
+        return Err(Error::SourceCustodyMismatch);
+    };
+    let widened_result = if add {
+        target_type.exact_add(widened_left, widened_right)
+    } else {
+        target_type.exact_sub(widened_left, widened_right)
+    };
+    if widened_result != Some(widened_narrow_result) {
+        return Err(Error::SourceCustodyMismatch);
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]

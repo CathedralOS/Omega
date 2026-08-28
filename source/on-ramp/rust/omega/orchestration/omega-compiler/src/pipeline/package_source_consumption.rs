@@ -16,6 +16,11 @@ pub struct PackageSourceConsumptionCommitment {
 }
 
 impl PackageSourceConsumptionCommitment {
+    #[cfg(test)]
+    pub(super) const fn for_test(digest: [u8; 32]) -> Self {
+        Self { digest }
+    }
+
     pub const fn digest(self) -> [u8; 32] {
         self.digest
     }
@@ -81,7 +86,7 @@ pub(super) fn verify_current_files(
     program: &CheckedTrees,
     generated_sources: &[(
         psi_source::SourceId,
-        super::build_staged_output::BuildStagedSource,
+        super::build_staged_output::PackageGeneratedSource,
     )],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();

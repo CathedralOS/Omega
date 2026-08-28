@@ -44,13 +44,12 @@ tv() {
   grep -A100 'INPUT-GRID:' "$src" | grep -oE '"[^"]*" -> [0-9]+' | while IFS= read -r row; do
     vec=$(printf '%s' "$row" | sed 's/^"\(.*\)" -> .*/\1/')
     want=$(printf '%s' "$row" | grep -oE '[0-9]+$')
-    list=$(python3 -c "
-import sys
-l = 'Nil'
-for b in reversed('''$vec'''.encode()):
-    l = '(Cons %d %s)' % (b, l)
-print(l)")
-    sed "s/STDIN/$list/" "$T/g" > "$T/gi"
+    printf '%s' "$vec" > "$T/input"
+    # gamma2claim currently proves the historical closed-Cons form. Construction
+    # still belongs to the single meaning encoder; packed/Cons equivalence is
+    # checked independently by packed-input-meaning.sh.
+    python3 "${OMEGA_PATH_OMEGA_BOOTSTRAP}/meaning/encode-gamma-input.py" \
+      inject-cons "$T/g" "$T/input" "$T/gi" || exit 9
     "$T/interp.exe" < "$T/gi" > "$T/iout" 2>&1; got=$?
     case "$(head -c 6 "$T/iout")" in '(Pair ')          # dual-channel: exit rides the printed pair
       got=$(head -1 "$T/iout" | sed 's/^(Pair \([0-9]*\) .*/\1/');; esac

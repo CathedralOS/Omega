@@ -4,11 +4,20 @@
 from __future__ import annotations
 
 import os
+import importlib.util
 import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+
+ENCODER_PATH = Path(__file__).resolve().parent.parent / "meaning" / "encode-gamma-input.py"
+ENCODER_SPEC = importlib.util.spec_from_file_location("encode_gamma_input", ENCODER_PATH)
+if ENCODER_SPEC is None or ENCODER_SPEC.loader is None:
+    raise RuntimeError(f"cannot load packed input encoder {ENCODER_PATH}")
+ENCODER = importlib.util.module_from_spec(ENCODER_SPEC)
+ENCODER_SPEC.loader.exec_module(ENCODER)
 
 
 def record(path: Path, label: str, elapsed: float, size: int) -> None:
@@ -47,20 +56,15 @@ def elaborate(args: list[str]) -> None:
     )
 
 
-def gamma_stdin(raw: bytes) -> str:
-    value = "Nil"
-    for byte in reversed(raw):
-        value = f"(Cons {byte} {value})"
-    return value
-
-
 def run(args: list[str]) -> None:
     interpreter, template_name, input_name, output_name, timing_name, label = args[:6]
     timeout = float(args[6])
-    template = Path(template_name).read_text(encoding="ascii")
-    if template.count("STDIN") != 1:
-        raise SystemExit(f"{label} FAIL - Gamma placeholder count")
-    program = template.replace("STDIN", gamma_stdin(Path(input_name).read_bytes())).encode("ascii")
+    try:
+        program = ENCODER.inject(
+            Path(template_name).read_bytes(), Path(input_name).read_bytes()
+        )
+    except ValueError as error:
+        raise SystemExit(f"{label} FAIL - packed Gamma input: {error}") from error
     started = time.monotonic()
     print(
         f"{label}: START Gamma ({len(program)} bytes, timeout {timeout:.0f}s)",

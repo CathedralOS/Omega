@@ -20,7 +20,7 @@ use crate::{
 };
 
 const RECOVERY_CLASSIFICATION_MAGIC: &[u8; 8] = b"OMGRCV\0\0";
-const RECOVERY_CLASSIFICATION_VERSION: u32 = 2;
+const RECOVERY_CLASSIFICATION_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalRecoveryClassificationIdentity(pub(crate) [u8; 32]);
@@ -577,6 +577,13 @@ impl<'encoded> RecoveryClassificationCursor<'encoded> {
             }),
             1 => Ok(TerminalVirtualRegisterOrigin::InstructionResult {
                 instruction: TerminalSelectedInstructionId(u32::from_le_bytes(self.array()?)),
+                source_value: self.value_id()?,
+            }),
+            2 => Ok(TerminalVirtualRegisterOrigin::LegalizationTemporary {
+                instruction: TerminalSelectedInstructionId(u32::from_le_bytes(self.array()?)),
+                temporary: omega_terminal_legalized_operations::TerminalLegalizedTemporaryId(
+                    u32::from_le_bytes(self.array()?),
+                ),
                 source_value: self.value_id()?,
             }),
             tag => Err(TerminalRecoveryClassificationDecodeError::UnknownOrigin(

@@ -422,9 +422,18 @@ fn replay_apply(
         id: copy.result_virtual_register,
         scalar_type: source.scalar_type,
         class: source.class,
-        origin: TerminalVirtualRegisterOrigin::InstructionResult {
-            instruction: copy.copy_instruction,
-            source_value: copy.source_value,
+        origin: match source.origin {
+            TerminalVirtualRegisterOrigin::LegalizationTemporary { temporary, .. } => {
+                TerminalVirtualRegisterOrigin::LegalizationTemporary {
+                    instruction: copy.copy_instruction,
+                    temporary,
+                    source_value: copy.source_value,
+                }
+            }
+            _ => TerminalVirtualRegisterOrigin::InstructionResult {
+                instruction: copy.copy_instruction,
+                source_value: copy.source_value,
+            },
         },
         definition_site: copy.source_definition_site,
         entry_fixed_view: None,

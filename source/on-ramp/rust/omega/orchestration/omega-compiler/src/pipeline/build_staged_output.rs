@@ -61,22 +61,31 @@ pub struct BuildStagedOutputTree {
 /// matching the interpreter's Output-rooted coordinate against sponsored
 /// staged-tree custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BuildStagedSource {
+pub struct PackageGeneratedSource {
     relative_path: Vec<u8>,
     bytes: Arc<[u8]>,
     digest: [u8; 32],
 }
 
-impl BuildStagedSource {
-    pub(crate) fn relative_path(&self) -> &[u8] {
+impl PackageGeneratedSource {
+    #[cfg(test)]
+    pub(super) fn for_test(relative_path: &[u8], bytes: &[u8]) -> Self {
+        Self {
+            relative_path: relative_path.to_vec(),
+            bytes: Arc::from(bytes),
+            digest: Sha256::digest(bytes).into(),
+        }
+    }
+
+    pub fn relative_path(&self) -> &[u8] {
         &self.relative_path
     }
 
-    pub(crate) fn bytes(&self) -> &[u8] {
+    pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
 
-    pub(crate) const fn digest(&self) -> [u8; 32] {
+    pub const fn digest(&self) -> [u8; 32] {
         self.digest
     }
 }
@@ -243,7 +252,7 @@ pub(super) fn replayed_single_ordinary_file(
 pub(super) fn select_included_sources(
     tree: &BuildStagedOutputTree,
     relative_paths: &[Vec<u8>],
-) -> Result<Vec<BuildStagedSource>, Vec<Diagnostic>> {
+) -> Result<Vec<PackageGeneratedSource>, Vec<Diagnostic>> {
     for entry in &tree.entries {
         let RetainedStagedOutputEntryKind::File { .. } = &entry.kind else {
             continue;
@@ -305,7 +314,7 @@ pub(super) fn select_included_sources(
             )));
         }
         let digest: [u8; 32] = Sha256::digest(bytes.as_ref()).into();
-        selected.push(BuildStagedSource {
+        selected.push(PackageGeneratedSource {
             relative_path: relative_path.clone(),
             bytes: Arc::clone(bytes),
             digest,

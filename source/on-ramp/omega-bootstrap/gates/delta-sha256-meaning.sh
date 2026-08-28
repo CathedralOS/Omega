@@ -77,25 +77,21 @@ print(
 )
 PY
 
-python3 - "$T/sha.gamma" "$VECTORS" "$T/program.gamma" "$T/expected" <<'PY'
+python3 - "$VECTORS" "$T/input" "$T/expected" <<'PY'
 from pathlib import Path
 import sys
 
-template_name, vectors_name, output_name, expected_name = sys.argv[1:]
+vectors_name, input_name, expected_name = sys.argv[1:]
 rows = {}
 for line in Path(vectors_name).read_text(encoding="ascii").splitlines():
     label, message, digest = line.split("\t")
     rows[label] = (bytes.fromhex(message), bytes.fromhex(digest))
 message, expected = rows["abc"]
-value = "Nil"
-for byte in reversed(message):
-    value = f"(Cons {byte} {value})"
-template = Path(template_name).read_text(encoding="ascii")
-if template.count("STDIN") != 1:
-    raise SystemExit("Delta SHA-256 meaning: expected one STDIN placeholder")
-Path(output_name).write_text(template.replace("STDIN", value), encoding="ascii")
+Path(input_name).write_bytes(message)
 Path(expected_name).write_bytes(expected)
 PY
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/meaning/encode-gamma-input.py" inject \
+  "$T/sha.gamma" "$T/input" "$T/program.gamma"
 
 python3 - "$T/interp.exe" "$T/program.gamma" "$T/observation" <<'PY'
 from pathlib import Path

@@ -1,0 +1,5 @@
+use generated_table::main;
+
+pub machine consume_generated_table() -> u64 {
+    table_size()
+}

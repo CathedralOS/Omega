@@ -47,12 +47,13 @@ b "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta   "$T/check.exe" 
 
 PASS=0; FAIL=0
 # _emit SAMPLE "ascii-stdin" : omega2gamma translates the certifier; interp.beta runs it with that stdin
-# (the ASCII is turned into the gamma byte list baked into the STDIN placeholder); prints the emitted cert.
+# (the ASCII is turned into the bounded packed Gamma carrier at STDIN); prints the emitted cert.
 _emit() {
-  bytes=$(printf '%s' "$2" | od -An -tu1 | tr ' ' '\n' | grep -vE '^$')
-  rev=""; for x in $bytes; do rev="$x $rev"; done
-  list="Nil"; for x in $rev; do list="(Cons $x $list)"; done
-  "$T/omega2gamma.exe" < "${OMEGA_PATH_DELTA}/samples/$1.alp" 2>/dev/null | sed "s/STDIN/$list/" | "$T/interp.exe" 2>/dev/null \
+  printf '%s' "$2" > "$T/input"
+  "$T/omega2gamma.exe" < "${OMEGA_PATH_DELTA}/samples/$1.alp" > "$T/template.gamma" 2>/dev/null
+  python3 "${OMEGA_PATH_OMEGA_BOOTSTRAP}/meaning/encode-gamma-input.py" \
+    inject "$T/template.gamma" "$T/input" "$T/program.gamma"
+  "$T/interp.exe" < "$T/program.gamma" 2>/dev/null \
     | grep -oE '[0-9]+' | awk '{printf "%c",$1}'
 }
 # ref SAMPLE "ascii" EXPECT : the cert check.beta emits must be EXPECT.
