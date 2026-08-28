@@ -88,6 +88,29 @@ pub fn callback_layout_plan_id(
     .expect("callback layout-plan identity is nonzero")
 }
 
+/// Compiler-issued nominal identity of one target-closed plan-laid data
+/// layout. The canonical data and policy subjects prevent physically identical
+/// layouts owned by distinct declarations from aliasing.
+pub fn callback_plan_laid_layout_id(
+    native_layout_fingerprint: u64,
+    canonical_data_identity: &str,
+    canonical_layout_subject: &str,
+    pointer_size: usize,
+    pointer_alignment: usize,
+) -> LayoutPlanId {
+    LayoutPlanId::new(callback_nominal_identity(
+        b"omega.callback-plan-laid-layout.v1",
+        &[
+            &native_layout_fingerprint.to_le_bytes(),
+            canonical_data_identity.as_bytes(),
+            canonical_layout_subject.as_bytes(),
+            &(pointer_size as u64).to_le_bytes(),
+            &(pointer_alignment as u64).to_le_bytes(),
+        ],
+    ))
+    .expect("callback plan-laid layout identity is nonzero")
+}
+
 /// Compiler-issued identity of one exact named private slot in one closed
 /// layout. The physical offset is already retained by the complete layout
 /// identity and is never repeated as slot identity.
@@ -97,6 +120,17 @@ pub fn callback_layout_slot_id(layout: LayoutPlanId, canonical_slot: &str) -> La
         &[&layout.get().to_le_bytes(), canonical_slot.as_bytes()],
     ))
     .expect("callback layout-slot identity is nonzero")
+}
+
+/// Compiler-issued identity of one semantic inline-record field hop in a
+/// target-closed callback path. Its domain is distinct from terminal private
+/// callback slots even when canonical spellings coincide.
+pub fn callback_layout_field_slot_id(layout: LayoutPlanId, canonical_field: &str) -> LayoutSlotId {
+    LayoutSlotId::new(callback_nominal_identity(
+        b"omega.callback-layout-field-slot.v1",
+        &[&layout.get().to_le_bytes(), canonical_field.as_bytes()],
+    ))
+    .expect("callback layout field-slot identity is nonzero")
 }
 
 /// One target-owned destination for a compiler-private callback relocation.
@@ -293,8 +327,27 @@ mod tests {
         assert_eq!(first_layout, callback_layout_plan_id(0x101, 8, 8));
         assert_ne!(first_layout, callback_layout_plan_id(0x102, 8, 8));
         assert_ne!(first_layout, callback_layout_plan_id(0x101, 4, 4));
+        let first_nominal =
+            callback_plan_laid_layout_id(0x101, "package::Data", "package::First", 8, 8);
+        assert_eq!(
+            first_nominal,
+            callback_plan_laid_layout_id(0x101, "package::Data", "package::First", 8, 8)
+        );
+        assert_ne!(
+            first_nominal,
+            callback_plan_laid_layout_id(0x101, "package::Data", "package::Second", 8, 8)
+        );
+        assert_ne!(
+            first_nominal,
+            callback_plan_laid_layout_id(0x101, "package::OtherData", "package::First", 8, 8)
+        );
+        assert_ne!(first_nominal, first_layout);
 
         let first_slot = callback_layout_slot_id(first_layout, "package::WindowSlot");
+        assert_ne!(
+            first_slot,
+            callback_layout_field_slot_id(first_layout, "package::WindowSlot")
+        );
         assert_eq!(
             first_slot,
             callback_layout_slot_id(first_layout, "package::WindowSlot")

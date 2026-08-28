@@ -754,19 +754,25 @@ object relocation, runtime storage, address, registration authority, or
 callback lifetime.
 
 The following target-closed placement recipe now binds that exact argument to
-the outbound registrar `CallPlan` parameter's `ValuePlacement`. For the current
-production `Field` form it also retains exactly one authoritative native-layout
-demand row, including layout, slot, requirement, data symbol, offset, pointer
-extent, and alignment. The offset remains layout evidence and never becomes a
-materialization identity. Replay rechecks the complete prior catalogs, formal
-ordinal and native parameter, target architecture, pointer-sized ABI placement,
-unique layout row, data-layout bounds, and alignment. The current layout
-closure publishes one terminal private slot, so zero- or multi-segment physical
-paths reject until a composable target-layout path carrier exists; this is an
-engineering gap, not a new source design decision. Direct parameter placement
-is covered only by synthetic compiler tests pending Q13. The recipe grants no
-selected or assigned operation, object symbol, relocation, bytes, runtime
-address, registration authority, or callback lifetime.
+the outbound registrar `CallPlan` parameter's `ValuePlacement`. A direct
+`Field` retains exactly one authoritative native-layout demand row, including
+layout, slot, requirement, data symbol, offset, pointer extent, and alignment.
+The bounded nested form retains one exact rooted path containing a nominal root
+layout, one domain-separated inline named-record field identity plus its exact
+`FieldLayout` edge and child layout, and one child-owned terminal private-slot
+demand. The compiler preserves the terminal one-slot layout identity and gives
+the rooted layout a separate data- and policy-subject-bound identity, so equal
+physical layouts cannot alias roots and existing one-slot plans do not drift.
+Layout closure and independent replay both prove the field belongs to the root
+record, rejoin the exact child record, and checked-compose the two relative
+offsets while validating the terminal extent inside the child and the final
+extent/alignment inside the root. Missing, duplicate, colliding, reordered,
+short, overlong, reference-indirected, array, variant, or deeper paths reject.
+The composed offset remains layout evidence and never becomes a materialization
+identity. Direct parameter placement is covered only by synthetic compiler
+tests pending Q13. The recipe grants no selected or assigned operation, object
+symbol, relocation, bytes, runtime address, registration authority, or callback
+lifetime.
 
 The selected/assigned registrar-operand prerequisite is now complete for the
 closed custom/unknown outbound host-operation branch. Instruction selection
@@ -803,8 +809,8 @@ and rechecks record origin/cardinality plus all non-relocation bits. The root
 boundary certificate is extended with the complete compiler-body address-write
 footprint; missing or insufficient root authority rejects. This grants no
 resolved runtime address, registration, invocation, callback lifetime/lease,
-or publication authority. `DataAddress`, direct parameters, and multi-segment
-paths remain fenced.
+or publication authority. `DataAddress`, direct parameters, and the bounded
+two-hop path remain fenced.
 
 One ordered non-Clone installation manifest now carries that closed evidence
 through retained native output. Each entry retains the full private object-store

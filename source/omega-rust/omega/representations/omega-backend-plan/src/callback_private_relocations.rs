@@ -70,6 +70,10 @@ pub enum CallbackRegistrarPhysicalDestinationKind {
         layout_demand_index: usize,
         layout_demand: omega_layout::TargetClosedPrivateCallbackDemand,
     },
+    NestedField {
+        path_demand_index: usize,
+        path_demand: omega_layout::TargetClosedTwoHopPrivateCallbackPath,
+    },
 }
 
 /// Exact selected/assigned operand binding for one callback registrar
@@ -544,6 +548,55 @@ pub fn replay_callback_registrar_physical_destinations(
                     )));
                 }
                 replay_physical_layout_geometry(target, layouts, binding_index, layout_demand)?;
+            }
+            (
+                NativePlace::Field {
+                    layout, field_path, ..
+                },
+                CallbackRegistrarPhysicalDestinationKind::NestedField {
+                    path_demand_index,
+                    path_demand,
+                },
+            ) => {
+                let [field_slot, terminal_slot] = field_path.as_slice() else {
+                    return Err(PlanDiagnostic(format!(
+                        "callback registrar physical destination {binding_index} nested field requires exactly two ordered slots"
+                    )));
+                };
+                let expected = layouts
+                    .two_hop_private_callback_paths
+                    .get(*path_demand_index)
+                    .ok_or_else(|| {
+                        PlanDiagnostic(format!(
+                            "callback registrar physical destination {binding_index} retained an invalid two-hop path index"
+                        ))
+                    })?;
+                let exact_path_count = layouts
+                    .two_hop_private_callback_paths
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.root_layout.layout == *layout
+                            && candidate.field_slot == *field_slot
+                            && candidate.terminal_demand.slot == *terminal_slot
+                    })
+                    .count();
+                if exact_path_count != 1
+                    || path_demand != expected
+                    || path_demand.root_layout.layout != *layout
+                    || path_demand.field_slot != *field_slot
+                    || path_demand.terminal_demand.slot != *terminal_slot
+                    || path_demand.terminal_demand.requirement != binding.demand.requirement
+                {
+                    return Err(PlanDiagnostic(format!(
+                        "callback registrar physical destination {binding_index} drifted from its exact two-hop layout path"
+                    )));
+                }
+                replay_two_hop_physical_layout_geometry(
+                    target,
+                    layouts,
+                    binding_index,
+                    path_demand,
+                )?;
             }
             _ => {
                 return Err(PlanDiagnostic(format!(
@@ -1108,6 +1161,192 @@ fn replay_physical_layout_geometry(
     {
         return Err(PlanDiagnostic(format!(
             "callback registrar physical destination {binding_index} field range is outside or misaligned for its exact data layout"
+        )));
+    }
+    Ok(())
+}
+
+fn replay_two_hop_physical_layout_geometry(
+    target: omega_target::NativeTarget,
+    layouts: &omega_layout::LayoutPlan,
+    binding_index: usize,
+    path: &omega_layout::TargetClosedTwoHopPrivateCallbackPath,
+) -> Result<(), PlanDiagnostic> {
+    let root = layouts
+        .plan_laid_layout_identities
+        .get(path.root_layout_index)
+        .ok_or_else(|| {
+            PlanDiagnostic(format!(
+                "callback registrar physical destination {binding_index} lost its root layout identity"
+            ))
+        })?;
+    let child = layouts
+        .plan_laid_layout_identities
+        .get(path.child_layout_index)
+        .ok_or_else(|| {
+            PlanDiagnostic(format!(
+                "callback registrar physical destination {binding_index} lost its child layout identity"
+            ))
+        })?;
+    let terminal = layouts
+        .private_callback_demands
+        .get(path.terminal_demand_index)
+        .ok_or_else(|| {
+            PlanDiagnostic(format!(
+                "callback registrar physical destination {binding_index} lost its terminal layout demand"
+            ))
+        })?;
+    let root_symbol_count = layouts
+        .plan_laid_layout_identities
+        .iter()
+        .filter(|identity| identity.data_symbol == root.data_symbol)
+        .count();
+    let root_layout_count = layouts
+        .plan_laid_layout_identities
+        .iter()
+        .filter(|identity| identity.layout == root.layout)
+        .count();
+    let child_symbol_count = layouts
+        .plan_laid_layout_identities
+        .iter()
+        .filter(|identity| identity.data_symbol == child.data_symbol)
+        .count();
+    let child_layout_count = layouts
+        .plan_laid_layout_identities
+        .iter()
+        .filter(|identity| identity.layout == child.layout)
+        .count();
+    let terminal_count = layouts
+        .private_callback_demands
+        .iter()
+        .filter(|demand| demand.data_symbol == terminal.data_symbol && demand.slot == terminal.slot)
+        .count();
+    let field_edge_changed = layouts
+        .two_hop_private_callback_paths
+        .iter()
+        .filter(|candidate| {
+            candidate.root_layout.layout == path.root_layout.layout
+                && candidate.field_slot == path.field_slot
+        })
+        .any(|candidate| {
+            candidate.field != path.field
+                || candidate.field_symbol != path.field_symbol
+                || candidate.field_layout != path.field_layout
+                || candidate.child_layout != path.child_layout
+        });
+    if root_symbol_count != 1
+        || root_layout_count != 1
+        || child_symbol_count != 1
+        || child_layout_count != 1
+        || terminal_count != 1
+        || path.root_layout_index == path.child_layout_index
+        || root.data_symbol == child.data_symbol
+        || field_edge_changed
+    {
+        return Err(PlanDiagnostic(format!(
+            "callback registrar physical destination {binding_index} lost unique root, child, or terminal path identity"
+        )));
+    }
+    let matching_roots = layouts
+        .data_layouts
+        .iter()
+        .filter(|(_, layout)| layout.symbol == root.data_symbol)
+        .collect::<Vec<_>>();
+    let [(_, root_data)] = matching_roots.as_slice() else {
+        return Err(PlanDiagnostic(format!(
+            "callback registrar physical destination {binding_index} root resolves to {} exact data layouts",
+            matching_roots.len()
+        )));
+    };
+    let matching_children = layouts
+        .data_layouts
+        .iter()
+        .filter(|(_, layout)| layout.symbol == child.data_symbol)
+        .collect::<Vec<_>>();
+    let [(_, child_data)] = matching_children.as_slice() else {
+        return Err(PlanDiagnostic(format!(
+            "callback registrar physical destination {binding_index} child resolves to {} exact data layouts",
+            matching_children.len()
+        )));
+    };
+    let omega_layout::DataShape::Record {
+        fields: root_fields,
+    } = root_data.shape
+    else {
+        return Err(PlanDiagnostic(format!(
+            "callback registrar physical destination {binding_index} root is not an exact record layout"
+        )));
+    };
+    let root_field_end = root_fields
+        .start()
+        .arena_index()
+        .checked_add(root_fields.count());
+    if !matches!(child_data.shape, omega_layout::DataShape::Record { .. })
+        || root_data.layout != root.physical
+        || child_data.layout != child.physical
+        || layouts.fields.span(root_fields).is_none()
+        || path.field.generation() != root_fields.start().generation()
+        || path.field.arena_index() < root_fields.start().arena_index()
+        || root_field_end.is_none_or(|end| path.field.arena_index() >= end)
+    {
+        return Err(PlanDiagnostic(format!(
+            "callback registrar physical destination {binding_index} changed its root/child data-layout edge"
+        )));
+    }
+    if !layouts.fields.is_valid(path.field) {
+        return Err(PlanDiagnostic(format!(
+            "callback registrar physical destination {binding_index} lost its exact field layout"
+        )));
+    }
+    let field = layouts.fields.get(path.field);
+    let expected_field_identity =
+        omega_calling_conventions::callback_layout_field_slot_id(root.layout, &path.field_identity);
+    let composed = path
+        .field_relative_offset
+        .checked_add(terminal.offset)
+        .ok_or_else(|| {
+            PlanDiagnostic(format!(
+                "callback registrar physical destination {binding_index} two-hop offset overflowed"
+            ))
+        })?;
+    if root != &path.root_layout
+        || child != &path.child_layout
+        || terminal != &path.terminal_demand
+        || field != &path.field_layout
+        || field.symbol != path.field_symbol
+        || path.field_slot != expected_field_identity
+        || field.offset != path.field_relative_offset
+        || field.layout.size != path.field_extent
+        || field.layout.alignment != path.field_alignment
+        || (field.type_symbol.is_valid() && field.type_symbol != child.data_symbol)
+        || !matches!(field.type_descriptor, omega_layout::TypeLayoutDescriptor::Named { symbol, .. } if symbol == child.data_symbol)
+        || field.layout != child.physical
+        || terminal.data_symbol != child.data_symbol
+        || terminal.byte_size != target.pointer_size
+        || terminal.alignment != target.pointer_alignment
+        || terminal.alignment == 0
+        || !terminal.offset.is_multiple_of(terminal.alignment)
+        || terminal
+            .offset
+            .checked_add(terminal.byte_size)
+            .is_none_or(|end| end > child.physical.size)
+        || composed != path.composed_offset
+        || path.field_alignment == 0
+        || !path
+            .field_relative_offset
+            .is_multiple_of(path.field_alignment)
+        || path
+            .field_relative_offset
+            .checked_add(path.field_extent)
+            .is_none_or(|end| end > root.physical.size)
+        || !path.composed_offset.is_multiple_of(terminal.alignment)
+        || path
+            .composed_offset
+            .checked_add(terminal.byte_size)
+            .is_none_or(|end| end > root.physical.size)
+    {
+        return Err(PlanDiagnostic(format!(
+            "callback registrar physical destination {binding_index} retained invalid two-hop layout geometry"
         )));
     }
     Ok(())

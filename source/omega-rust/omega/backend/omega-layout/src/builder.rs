@@ -4,11 +4,13 @@ use crate::sizing::{
 };
 use crate::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, FieldLayout, LayoutPlan,
-    MachineLayout, RepeatedFieldLayout, StoredIntegerLayout, TargetClosedPrivateCallbackDemand,
-    TypeLayout, TypeLayoutDescriptor, VariantLayout,
+    MachineLayout, RepeatedFieldLayout, StoredIntegerLayout,
+    TargetClosedPlanLaidDataLayoutIdentity, TargetClosedPrivateCallbackDemand,
+    TargetClosedTwoHopPrivateCallbackPath, TypeLayout, TypeLayoutDescriptor, VariantLayout,
 };
 use omega_calling_conventions::{
-    callback_layout_plan_id, callback_layout_slot_id, callback_requirement_id,
+    callback_layout_field_slot_id, callback_layout_plan_id, callback_layout_slot_id,
+    callback_plan_laid_layout_id, callback_requirement_id,
 };
 use omega_target::NativeTarget;
 use psi_arena::Arena;
@@ -72,7 +74,7 @@ pub fn build_layout_plan(
         builder.layout_machine(machine.symbol)?;
     }
 
-    Ok(builder.finish())
+    builder.finish()
 }
 
 /// Compute the selected target's concrete size/alignment for one checked type
@@ -95,6 +97,7 @@ struct LayoutBuilder<'program> {
     stored_integers: Vec<StoredIntegerLayout>,
     repeated_fields: Vec<RepeatedFieldLayout>,
     private_callback_demands: Vec<TargetClosedPrivateCallbackDemand>,
+    plan_laid_layout_identities: Vec<TargetClosedPlanLaidDataLayoutIdentity>,
     /// One recorded MONOMORPHIZED instance per generic data definition: the
     /// definition symbol paired with the canonical display of its type
     /// arguments. The instance's `DataLayout` is keyed by the DEFINITION symbol
@@ -210,6 +213,7 @@ impl<'program> LayoutBuilder<'program> {
             stored_integers: Vec::new(),
             repeated_fields: Vec::new(),
             private_callback_demands: Vec::new(),
+            plan_laid_layout_identities: Vec::new(),
             generic_instance_signatures: Vec::new(),
             machine_definitions,
             machine_layouts: Arena::with_capacity(machine_definitions.len()),
@@ -221,8 +225,15 @@ impl<'program> LayoutBuilder<'program> {
         }
     }
 
-    fn finish(self) -> LayoutPlan {
-        LayoutPlan {
+    fn finish(self) -> Result<LayoutPlan, Diagnostic> {
+        let two_hop_private_callback_paths = close_two_hop_private_callback_paths(
+            self.program,
+            &self.data_layouts,
+            &self.fields,
+            &self.plan_laid_layout_identities,
+            &self.private_callback_demands,
+        )?;
+        Ok(LayoutPlan {
             data_layouts: self.data_layouts,
             fields: self.fields,
             bit_fields: self.bit_fields,
@@ -231,7 +242,9 @@ impl<'program> LayoutBuilder<'program> {
             machine_layouts: self.machine_layouts,
             variants: self.variants,
             private_callback_demands: self.private_callback_demands,
-        }
+            plan_laid_layout_identities: self.plan_laid_layout_identities,
+            two_hop_private_callback_paths,
+        })
     }
 
     fn layout_data_definition(&mut self, symbol: SymbolHandle) -> Result<TypeLayout, Diagnostic> {
@@ -463,15 +476,62 @@ impl<'program> LayoutBuilder<'program> {
                     element_stride: repeated_field.element_stride,
                 });
             }
+            let canonical_layout_subject = self
+                .program
+                .normalized_hermetic_symbol_identity(plan.policy_symbol)
+                .ok()
+                .or_else(|| {
+                    plan.private_callback_demands
+                        .first()
+                        .map(|demand| demand.layout_subject_identity.clone())
+                })
+                .or_else(|| {
+                    let mut retained = self
+                        .program
+                        .typed
+                        .plan_laid_layouts
+                        .iter()
+                        .filter(|candidate| candidate.policy_symbol == plan.policy_symbol)
+                        .flat_map(|candidate| candidate.private_callback_demands.iter())
+                        .map(|demand| demand.layout_subject_identity.as_str())
+                        .collect::<Vec<_>>();
+                    retained.sort_unstable();
+                    retained.dedup();
+                    let [identity] = retained.as_slice() else {
+                        return None;
+                    };
+                    Some((*identity).to_owned())
+                });
+            let native_layout_fingerprint =
+                psi_layout_plans::normalized_native_layout_plan_fingerprint(
+                    &psi_layout_plans::NativeLayoutPlanReport {
+                        layout: plan.validated_layout.clone(),
+                        private_callback_demands: plan.private_callback_demands.clone(),
+                    },
+                );
+            let canonical_data_identity =
+                canonical_layout_subject
+                    .as_deref()
+                    .and_then(|canonical_layout_subject| {
+                        canonical_plan_laid_data_identity(
+                            self.program,
+                            plan,
+                            definition,
+                            canonical_layout_subject,
+                        )
+                    });
+            let terminal_layout_identity = callback_layout_plan_id(
+                native_layout_fingerprint,
+                self.target.pointer_size,
+                self.target.pointer_alignment,
+            );
             let closed_demands = if plan.private_callback_demands.is_empty() {
                 Vec::new()
             } else {
-                let canonical_layout_subject = self
-                    .program
-                    .normalized_hermetic_symbol_identity(plan.policy_symbol)
-                    .map_err(|reason| {
+                let canonical_layout_subject =
+                    canonical_layout_subject.as_deref().ok_or_else(|| {
                         Diagnostic::error(format!(
-                            "plan-laid data `{}` cannot rederive its private callback layout subject: {reason}",
+                            "plan-laid data `{}` lost its retained private-callback layout subject",
                             plan.data_name
                         ))
                     })?;
@@ -482,9 +542,36 @@ impl<'program> LayoutBuilder<'program> {
                         .expect("newly inserted plan-laid fields retain their span"),
                     self.target,
                     &canonical_layout_subject,
+                    terminal_layout_identity,
                 )?
             };
             self.private_callback_demands.extend(closed_demands);
+            if let (Some(canonical_data_identity), Some(canonical_layout_subject)) =
+                (canonical_data_identity, canonical_layout_subject)
+            {
+                let identity = TargetClosedPlanLaidDataLayoutIdentity {
+                    data_symbol: definition.symbol,
+                    layout: callback_plan_laid_layout_id(
+                        native_layout_fingerprint,
+                        &canonical_data_identity,
+                        &canonical_layout_subject,
+                        self.target.pointer_size,
+                        self.target.pointer_alignment,
+                    ),
+                    data_identity: canonical_data_identity.into(),
+                    layout_subject_identity: canonical_layout_subject.into(),
+                    physical: layout,
+                };
+                if self.plan_laid_layout_identities.iter().any(|prior| {
+                    prior.data_symbol == identity.data_symbol || prior.layout == identity.layout
+                }) {
+                    return Err(Diagnostic::error(format!(
+                        "plan-laid data `{}` repeats or collides on its target-closed layout identity",
+                        definition.name
+                    )));
+                }
+                self.plan_laid_layout_identities.push(identity);
+            }
 
             return Ok(DataLayout {
                 symbol: definition.symbol,
@@ -1245,11 +1332,240 @@ impl<'program> LayoutBuilder<'program> {
     }
 }
 
+fn canonical_plan_laid_data_identity(
+    program: &CheckedTrees,
+    plan: &psi_typed_trees::typed_trees::PlanLaidLayout,
+    definition: &DataDefinition,
+    canonical_layout_subject: &str,
+) -> Option<String> {
+    program
+        .normalized_hermetic_symbol_identity(definition.symbol)
+        .ok()
+        .or_else(|| {
+            definition.generic_instance.map(|origin| {
+                format!(
+                    "closed-data-instance::{}",
+                    program.package_qualified_type_identity(origin)
+                )
+            })
+        })
+        .or_else(|| {
+            program
+                .normalized_hermetic_symbol_identity(plan.schema_symbol)
+                .ok()
+                .map(|schema_identity| {
+                    format!("closed-plan-laid-data::{canonical_layout_subject}::{schema_identity}")
+                })
+        })
+}
+
+fn close_two_hop_private_callback_paths(
+    program: &CheckedTrees,
+    data_layouts: &Arena<DataLayout>,
+    fields: &Arena<FieldLayout>,
+    layout_identities: &[TargetClosedPlanLaidDataLayoutIdentity],
+    private_demands: &[TargetClosedPrivateCallbackDemand],
+) -> Result<Vec<TargetClosedTwoHopPrivateCallbackPath>, Diagnostic> {
+    let mut paths = Vec::new();
+    for (root_layout_index, root_identity) in layout_identities.iter().enumerate() {
+        let matching_roots = data_layouts
+            .iter()
+            .filter(|(_, layout)| layout.symbol == root_identity.data_symbol)
+            .collect::<Vec<_>>();
+        let [(_, root)] = matching_roots.as_slice() else {
+            return Err(Diagnostic::error(format!(
+                "target-closed plan-laid root resolves to {} exact data layouts",
+                matching_roots.len()
+            )));
+        };
+        if root.layout != root_identity.physical {
+            return Err(Diagnostic::error(
+                "target-closed plan-laid root changed its physical layout",
+            ));
+        }
+        let DataShape::Record {
+            fields: root_fields,
+        } = root.shape
+        else {
+            continue;
+        };
+        let root_field_layouts = fields.span(root_fields).ok_or_else(|| {
+            Diagnostic::error("target-closed plan-laid root retained an invalid field span")
+        })?;
+        for (field_ordinal, field_layout) in root_field_layouts.iter().enumerate() {
+            let TypeLayoutDescriptor::Named {
+                symbol: child_symbol,
+                ..
+            } = field_layout.type_descriptor
+            else {
+                continue;
+            };
+            if root_field_layouts
+                .iter()
+                .filter(|candidate| candidate.symbol == field_layout.symbol)
+                .count()
+                != 1
+            {
+                return Err(Diagnostic::error(
+                    "target-closed callback path field symbol is not unique in its root record",
+                ));
+            }
+            if field_layout.type_symbol.is_valid() && field_layout.type_symbol != child_symbol {
+                return Err(Diagnostic::error(format!(
+                    "target-closed callback path field changed its exact named child symbol from {:?} to {:?}",
+                    field_layout.type_symbol, child_symbol
+                )));
+            }
+            let matching_children = layout_identities
+                .iter()
+                .enumerate()
+                .filter(|(_, identity)| identity.data_symbol == child_symbol)
+                .collect::<Vec<_>>();
+            let [(child_layout_index, child_identity)] = matching_children.as_slice() else {
+                continue;
+            };
+            if root_identity.data_symbol == child_identity.data_symbol {
+                return Err(Diagnostic::error(
+                    "target-closed callback path cannot recursively contain its root layout",
+                ));
+            }
+            let matching_child_data = data_layouts
+                .iter()
+                .filter(|(_, layout)| layout.symbol == child_symbol)
+                .collect::<Vec<_>>();
+            let [(_, child_data)] = matching_child_data.as_slice() else {
+                return Err(Diagnostic::error(format!(
+                    "target-closed callback path child resolves to {} exact data layouts",
+                    matching_child_data.len()
+                )));
+            };
+            if !matches!(child_data.shape, DataShape::Record { .. })
+                || child_data.layout != child_identity.physical
+                || field_layout.layout != child_identity.physical
+                || field_layout.layout.alignment == 0
+                || !field_layout
+                    .offset
+                    .is_multiple_of(field_layout.layout.alignment)
+                || field_layout
+                    .offset
+                    .checked_add(field_layout.layout.size)
+                    .is_none_or(|end| end > root_identity.physical.size)
+            {
+                return Err(Diagnostic::error(
+                    "target-closed callback path changed its exact inline child geometry",
+                ));
+            }
+            let field_identity = program
+                .normalized_hermetic_symbol_identity(field_layout.symbol)
+                .map_err(|reason| {
+                    Diagnostic::error(format!(
+                        "target-closed callback path cannot rederive its exact field identity: {reason}"
+                    ))
+                })?;
+            let field_slot = callback_layout_field_slot_id(root_identity.layout, &field_identity);
+            let field_index = root_fields
+                .start()
+                .arena_index()
+                .checked_add(u32::try_from(field_ordinal).map_err(|_| {
+                    Diagnostic::error("target-closed callback path field ordinal overflowed")
+                })?)
+                .ok_or_else(|| {
+                    Diagnostic::error("target-closed callback path field handle overflowed")
+                })?;
+            let field =
+                psi_arena::Handle::from_parts(field_index, root_fields.start().generation());
+            for (terminal_demand_index, terminal_demand) in private_demands
+                .iter()
+                .enumerate()
+                .filter(|(_, demand)| demand.data_symbol == child_symbol)
+            {
+                if terminal_demand.alignment == 0
+                    || !terminal_demand
+                        .offset
+                        .is_multiple_of(terminal_demand.alignment)
+                    || terminal_demand
+                        .offset
+                        .checked_add(terminal_demand.byte_size)
+                        .is_none_or(|end| end > child_identity.physical.size)
+                {
+                    return Err(Diagnostic::error(
+                        "target-closed callback path changed its terminal child geometry",
+                    ));
+                }
+                let composed_offset = field_layout
+                    .offset
+                    .checked_add(terminal_demand.offset)
+                    .ok_or_else(|| {
+                        Diagnostic::error("target-closed callback path composed offset overflowed")
+                    })?;
+                if !composed_offset.is_multiple_of(terminal_demand.alignment)
+                    || composed_offset
+                        .checked_add(terminal_demand.byte_size)
+                        .is_none_or(|end| end > root_identity.physical.size)
+                {
+                    return Err(Diagnostic::error(
+                        "target-closed callback path composed range is outside or misaligned for its root layout",
+                    ));
+                }
+                paths.push(TargetClosedTwoHopPrivateCallbackPath {
+                    root_layout_index,
+                    root_layout: root_identity.clone(),
+                    field_symbol: field_layout.symbol,
+                    field,
+                    field_layout: field_layout.clone(),
+                    field_identity: field_identity.clone().into(),
+                    field_slot,
+                    field_relative_offset: field_layout.offset,
+                    field_extent: field_layout.layout.size,
+                    field_alignment: field_layout.layout.alignment,
+                    child_layout_index: *child_layout_index,
+                    child_layout: (*child_identity).clone(),
+                    terminal_demand_index,
+                    terminal_demand: terminal_demand.clone(),
+                    composed_offset,
+                });
+            }
+        }
+    }
+    paths.sort_unstable_by_key(|path| {
+        (
+            path.root_layout.layout,
+            path.field_slot,
+            path.terminal_demand.slot,
+        )
+    });
+    for (index, path) in paths.iter().enumerate() {
+        if paths[..index].iter().any(|prior| {
+            prior.root_layout.layout == path.root_layout.layout
+                && prior.field_slot == path.field_slot
+                && (prior.field != path.field
+                    || prior.field_symbol != path.field_symbol
+                    || prior.field_layout != path.field_layout
+                    || prior.child_layout != path.child_layout)
+        }) {
+            return Err(Diagnostic::error(
+                "target-closed callback path field slot collides across distinct root-to-child edges",
+            ));
+        }
+    }
+    if paths.windows(2).any(|pair| {
+        pair[0].root_layout.layout == pair[1].root_layout.layout
+            && pair[0].field_slot == pair[1].field_slot
+            && pair[0].terminal_demand.slot == pair[1].terminal_demand.slot
+    }) {
+        return Err(Diagnostic::error(
+            "target-closed callback path catalog repeats one exact two-hop path",
+        ));
+    }
+    Ok(paths)
+}
+
 fn close_private_callback_demands(
     plan: &psi_typed_trees::typed_trees::PlanLaidLayout,
     fields: &[FieldLayout],
     target: NativeTarget,
     canonical_layout_subject: &str,
+    layout: omega_calling_conventions::LayoutPlanId,
 ) -> Result<Vec<TargetClosedPrivateCallbackDemand>, Diagnostic> {
     if plan.private_callback_demands.is_empty() {
         return Ok(Vec::new());
@@ -1280,17 +1596,6 @@ fn close_private_callback_demands(
     }
 
     let semantic_ranges = plan_laid_semantic_ranges(plan, fields)?;
-    let native_layout_fingerprint = psi_layout_plans::normalized_native_layout_plan_fingerprint(
-        &psi_layout_plans::NativeLayoutPlanReport {
-            layout: plan.validated_layout.clone(),
-            private_callback_demands: plan.private_callback_demands.clone(),
-        },
-    );
-    let layout = callback_layout_plan_id(
-        native_layout_fingerprint,
-        target.pointer_size,
-        target.pointer_alignment,
-    );
     let mut occupied_private = Vec::<(usize, usize, &str)>::new();
     let mut closed = Vec::with_capacity(plan.private_callback_demands.len());
     for demand in &plan.private_callback_demands {
@@ -1583,7 +1888,7 @@ fn const_argument_value(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_layout_plan, close_private_callback_demands};
+    use super::build_layout_plan;
     use crate::{DataShape, FieldLayout, TypeLayout};
     use omega_target::NativeTarget;
     use psi_checked_trees::{CheckFacts, CheckedTrees};
@@ -1649,6 +1954,32 @@ mod tests {
             },
             ..FieldLayout::default()
         }]
+    }
+
+    fn close_private_callback_demands(
+        plan: &psi_typed_trees::typed_trees::PlanLaidLayout,
+        fields: &[FieldLayout],
+        target: NativeTarget,
+        canonical_layout_subject: &str,
+    ) -> Result<Vec<crate::TargetClosedPrivateCallbackDemand>, psi_diagnostics::Diagnostic> {
+        let fingerprint = psi_layout_plans::normalized_native_layout_plan_fingerprint(
+            &psi_layout_plans::NativeLayoutPlanReport {
+                layout: plan.validated_layout.clone(),
+                private_callback_demands: plan.private_callback_demands.clone(),
+            },
+        );
+        let layout = omega_calling_conventions::callback_layout_plan_id(
+            fingerprint,
+            target.pointer_size,
+            target.pointer_alignment,
+        );
+        super::close_private_callback_demands(
+            plan,
+            fields,
+            target,
+            canonical_layout_subject,
+            layout,
+        )
     }
 
     #[test]

@@ -533,6 +533,8 @@ mod tests {
             machine_layouts: Arena::with_capacity(0),
             variants: Arena::with_capacity(0),
             private_callback_demands: Vec::new(),
+            plan_laid_layout_identities: Vec::new(),
+            two_hop_private_callback_paths: Vec::new(),
         }
     }
 

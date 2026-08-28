@@ -66,31 +66,55 @@ pub(super) fn plan_callback_registrar_physical_destinations(
             NativePlace::Field {
                 layout, field_path, ..
             } => {
-                let [slot] = field_path.as_slice() else {
-                    return Err(Diagnostic::error(format!(
-                        "callback registrar argument binding {binding_index} requires one exact target-closed field slot; multi-segment paths remain an engineering gap"
-                    )));
-                };
-                let matching_layout_demands = layouts
-                    .private_callback_demands
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, candidate)| {
-                        candidate.layout == *layout
-                            && candidate.slot == *slot
-                            && candidate.requirement == binding.demand.requirement
-                    })
-                    .collect::<Vec<_>>();
-                let [(layout_demand_index, layout_demand)] = matching_layout_demands.as_slice()
-                else {
-                    return Err(Diagnostic::error(format!(
-                        "callback registrar argument binding {binding_index} resolves to {} target-closed layout demands; exactly one is required",
-                        matching_layout_demands.len()
-                    )));
-                };
-                CallbackRegistrarPhysicalDestinationKind::Field {
-                    layout_demand_index: *layout_demand_index,
-                    layout_demand: (*layout_demand).clone(),
+                if let [field_slot, terminal_slot] = field_path.as_slice() {
+                    let matching_paths = layouts
+                        .two_hop_private_callback_paths
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, path)| {
+                            path.root_layout.layout == *layout
+                                && path.field_slot == *field_slot
+                                && path.terminal_demand.slot == *terminal_slot
+                                && path.terminal_demand.requirement == binding.demand.requirement
+                        })
+                        .collect::<Vec<_>>();
+                    let [(path_demand_index, path_demand)] = matching_paths.as_slice() else {
+                        return Err(Diagnostic::error(format!(
+                            "callback registrar argument binding {binding_index} resolves to {} exact two-hop layout paths; exactly one is required",
+                            matching_paths.len()
+                        )));
+                    };
+                    CallbackRegistrarPhysicalDestinationKind::NestedField {
+                        path_demand_index: *path_demand_index,
+                        path_demand: (*path_demand).clone(),
+                    }
+                } else {
+                    let [slot] = field_path.as_slice() else {
+                        return Err(Diagnostic::error(format!(
+                            "callback registrar argument binding {binding_index} requires one or two exact target-closed field slots"
+                        )));
+                    };
+                    let matching_layout_demands = layouts
+                        .private_callback_demands
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, candidate)| {
+                            candidate.layout == *layout
+                                && candidate.slot == *slot
+                                && candidate.requirement == binding.demand.requirement
+                        })
+                        .collect::<Vec<_>>();
+                    let [(layout_demand_index, layout_demand)] = matching_layout_demands.as_slice()
+                    else {
+                        return Err(Diagnostic::error(format!(
+                            "callback registrar argument binding {binding_index} resolves to {} target-closed layout demands; exactly one is required",
+                            matching_layout_demands.len()
+                        )));
+                    };
+                    CallbackRegistrarPhysicalDestinationKind::Field {
+                        layout_demand_index: *layout_demand_index,
+                        layout_demand: (*layout_demand).clone(),
+                    }
                 }
             }
         };

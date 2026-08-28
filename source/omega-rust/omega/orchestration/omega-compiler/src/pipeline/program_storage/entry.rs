@@ -3110,6 +3110,8 @@ mod tests {
                 machine_layouts: Arena::new(),
                 variants: Arena::new(),
                 private_callback_demands: Vec::new(),
+                plan_laid_layout_identities: Vec::new(),
+                two_hop_private_callback_paths: Vec::new(),
             }),
             entry_key: continuation_key(2),
             entry_boundary_plan: None,

@@ -1,7 +1,7 @@
 use super::*;
 use crate::callback_registrar_assigned_operands::tests::{
-    Fixture, build_target, fixture, parameter_fixture, plan as plan_assigned, shared_root_fixture,
-    with_formal_operand_kind,
+    Fixture, build_target, fixture, nested_fixture, parameter_fixture, plan as plan_assigned,
+    shared_root_fixture, with_formal_operand_kind,
 };
 use omega_abstract_operations::{InstructionOperandKind, RuntimeStorageRegion};
 use omega_backend_plan::replay_callback_private_object_store_requests;
@@ -243,6 +243,19 @@ fn rejects_data_address_and_direct_parameter_shapes() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn nested_field_remains_fenced_before_object_store_requests() {
+    let (fixture, bindings) = with_formal_operand_kind(
+        nested_fixture(),
+        InstructionOperandKind::RuntimeStorageAddress {
+            region: RuntimeStorageRegion::Machine,
+            byte_offset: 32,
+        },
+    );
+    let object = ObjectPlan::with_capacities(NativeTarget::windows_x64(), 0, 0, 0);
+    assert!(plan(&fixture, &bindings, &object).is_err());
 }
 
 #[test]

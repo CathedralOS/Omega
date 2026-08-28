@@ -7,8 +7,9 @@ mod windows;
 pub use callback_materializations::{
     CallbackBinderRequirement, CallbackMaterialization, CallbackMaterializationContext,
     CallbackRequirementId, LayoutPlanId, LayoutSlotId, NativeCallbackDemand, NativeParameterId,
-    NativePlace, StaticMachineBinderId, callback_layout_plan_id, callback_layout_slot_id,
-    callback_native_parameter_id, callback_requirement_id,
+    NativePlace, StaticMachineBinderId, callback_layout_field_slot_id, callback_layout_plan_id,
+    callback_layout_slot_id, callback_native_parameter_id, callback_plan_laid_layout_id,
+    callback_requirement_id,
 };
 pub use darwin::{
     DARWIN_COREGRAPHICS_PATH, DARWIN_LIBOBJC_PATH, DARWIN_LIBSYSTEM_PATH, darwin_import_library,

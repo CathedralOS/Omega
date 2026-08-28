@@ -187,7 +187,9 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
     let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect("compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler")
+        .expect(
+            "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
+        )
         .join("tests/canaries/pass/layouts/runtime_plan_laid_value_field_exit/main.omg");
     let mut checked = compile_to_checked(&canary, None).expect("plan-laid canary should compile");
 
@@ -381,7 +383,9 @@ fn plan_laid_private_callback_slot_retains_exact_target_neutral_demand() {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect("compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler");
+        .expect(
+            "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
+        );
     let core_layout = fs::read_to_string(repository.join("source/library/core/layout.omg"))
         .expect("read normative core layout source");
     assert_eq!(
@@ -444,6 +448,11 @@ fn plan_laid_private_callback_slot_retains_exact_target_neutral_demand() {
     assert_eq!(closed_demand.offset, 8);
     assert_eq!(closed_demand.byte_size, 8);
     assert_eq!(closed_demand.alignment, 8);
+    assert_eq!(
+        closed_demand.layout,
+        omega_calling_conventions::callback_layout_plan_id(first, 8, 8),
+        "one-slot callback destinations retain their established layout identity"
+    );
     assert_eq!(closed_demand.slot_identity.as_ref(), demand.slot_identity);
     assert_eq!(
         closed_demand.requirement,
@@ -476,11 +485,89 @@ fn plan_laid_private_callback_slot_retains_exact_target_neutral_demand() {
 }
 
 #[test]
+fn target_closure_proves_one_inline_named_field_then_one_private_callback_slot() {
+    let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(5)
+        .unwrap()
+        .join("tests/canaries/pass/layouts/private_callback_slot_demand_compile/main.omg");
+    let mut checked =
+        compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x52))
+            .expect("private callback-slot layout canary should compile");
+    let child = checked
+        .typed
+        .plan_laid_layouts
+        .iter()
+        .find(|layout| layout.data_name == "Spread<ForeignRecord>")
+        .cloned()
+        .unwrap();
+    let main = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Main")
+        .unwrap();
+    let main_symbol = main.symbol;
+    let main_field = checked
+        .data_members(main)
+        .iter()
+        .find_map(|member| match member {
+            psi_checked_trees::data::DataMember::Field(field) => Some(field.symbol),
+            _ => None,
+        })
+        .unwrap();
+    let mut root = child.clone();
+    root.data_name = "Main".to_owned();
+    root.data_symbol = main_symbol;
+    root.field_symbols = vec![main_field];
+    root.schema_field_symbols = vec![main_field];
+    root.private_callback_demands.clear();
+    root.offsets = vec![0];
+    root.bit_fields.clear();
+    root.integer_fields.clear();
+    root.repeated_fields.clear();
+    root.size = 16;
+    root.align = 8;
+    root.validated_layout.entries.truncate(1);
+    root.validated_layout.offsets = Some(vec![0]);
+    root.validated_layout.size = Some(16);
+    root.validated_layout.align = 8;
+    checked.typed.plan_laid_layouts.push(root);
+
+    let closed = build_layout_plan(&checked, NativeTarget::windows_x64()).unwrap();
+    assert_eq!(
+        closed.plan_laid_layout_identities.len(),
+        2,
+        "root and child identities: {:?}",
+        closed.plan_laid_layout_identities
+    );
+    let [path] = closed.two_hop_private_callback_paths.as_slice() else {
+        panic!("one exact root-field-child-slot path should close")
+    };
+    assert_eq!(path.root_layout.data_symbol, main_symbol);
+    assert_eq!(path.field_symbol, main_field);
+    assert_eq!(path.child_layout.data_symbol, child.data_symbol);
+    assert_eq!(path.field_relative_offset, 0);
+    assert_eq!(path.field_extent, 16);
+    assert_eq!(path.terminal_demand.offset, 8);
+    assert_eq!(path.composed_offset, 8);
+    assert_ne!(path.root_layout.layout, path.child_layout.layout);
+    let demand = path.native_demand(omega_calling_conventions::NativeParameterId::new(1).unwrap());
+    assert!(matches!(
+        demand.destination,
+        omega_calling_conventions::NativePlace::Field { layout, field_path, .. }
+            if layout == path.root_layout.layout
+                && field_path == [path.field_slot, path.terminal_demand.slot]
+    ));
+}
+
+#[test]
 fn target_closed_private_callback_slot_rejects_geometry_mutations() {
     let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect("compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler")
+        .expect(
+            "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
+        )
         .join("tests/canaries/pass/layouts/private_callback_slot_demand_compile/main.omg");
     let mut checked =
         compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x56))
@@ -569,7 +656,9 @@ fn private_callback_slot_rejects_a_different_layout_subject() {
     let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect("compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler")
+        .expect(
+            "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
+        )
         .join("tests/canaries/fail/layouts/private_callback_slot_wrong_layout/main.omg");
     let diagnostics =
         compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x52))
@@ -590,7 +679,9 @@ fn private_callback_slot_rejects_duplicate_placement() {
     let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect("compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler")
+        .expect(
+            "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
+        )
         .join("tests/canaries/fail/layouts/private_callback_slot_duplicate/main.omg");
     let diagnostics =
         compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x53))
@@ -611,7 +702,9 @@ fn authored_place_private_lookalike_cannot_mint_a_receipt() {
     let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect("compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler")
+        .expect(
+            "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
+        )
         .join("tests/canaries/fail/layouts/private_callback_slot_authored_lookalike/main.omg");
     let diagnostics =
         compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x54))
@@ -633,7 +726,9 @@ fn untaken_private_callback_slot_branch_emits_no_receipt() {
     let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect("compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler")
+        .expect(
+            "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
+        )
         .join("tests/canaries/pass/layouts/private_callback_slot_untaken_compile/main.omg");
     let checked =
         compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x55))
@@ -654,7 +749,9 @@ fn plan_laid_compact_bits_retain_validated_fragment_geometry() {
     let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect("compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler")
+        .expect(
+            "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
+        )
         .join("tests/canaries/pass/layouts/runtime_plan_laid_compact_bits_exit/main.omg");
     let checked = compile_to_checked(&canary, None).expect("compact-bit canary should compile");
 

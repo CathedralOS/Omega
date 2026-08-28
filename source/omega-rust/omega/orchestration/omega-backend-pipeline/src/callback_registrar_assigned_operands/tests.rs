@@ -52,6 +52,24 @@ pub(crate) fn fixture(formal_ordinal: u32) -> Fixture {
     )
 }
 
+pub(crate) fn nested_fixture() -> Fixture {
+    let layouts = crate::callback_registrar_destinations::tests::nested_layouts();
+    let path = &layouts.two_hop_private_callback_paths[0];
+    let destination =
+        field_destination(1, &[path.field_slot.get(), path.terminal_demand.slot.get()]);
+    let (placements, thunks, demands, host_calls, boundaries, argument_bindings) =
+        exact_catalog(destination);
+    build_fixture(
+        placements,
+        thunks,
+        demands,
+        host_calls,
+        boundaries,
+        argument_bindings,
+        layouts,
+    )
+}
+
 fn build_fixture(
     placements: Vec<BoundNominalCallbackPlacement>,
     thunks: Arc<[CallbackThunkPlan]>,
@@ -321,6 +339,23 @@ fn retains_exact_register_and_stack_formal_operand_identity() {
             formal_ordinal == 4
         );
     }
+}
+
+#[test]
+fn retains_exact_two_hop_physical_path_in_assigned_operand_binding() {
+    let fixture = nested_fixture();
+    let bindings = plan(&fixture);
+    let [binding] = bindings.as_ref() else {
+        panic!("nested callback path has one assigned binding")
+    };
+    assert!(matches!(
+        &binding.destination.kind,
+        omega_backend_plan::CallbackRegistrarPhysicalDestinationKind::NestedField {
+            path_demand_index: 0,
+            path_demand,
+        } if path_demand == &fixture.layouts.two_hop_private_callback_paths[0]
+    ));
+    replay(&fixture, &bindings).unwrap();
 }
 
 #[test]

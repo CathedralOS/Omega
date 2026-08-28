@@ -31,6 +31,8 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
         machine_layouts: Arena::<MachineLayout>::new(),
         variants: Arena::<VariantLayout>::new(),
         private_callback_demands: Vec::new(),
+        plan_laid_layout_identities: Vec::new(),
+        two_hop_private_callback_paths: Vec::new(),
     };
     layouts.machine_layouts.insert(MachineLayout {
         symbol: machine_symbol,
@@ -857,6 +859,8 @@ fn empty_layouts() -> LayoutPlan {
         machine_layouts: Arena::<MachineLayout>::new(),
         variants: Arena::<VariantLayout>::new(),
         private_callback_demands: Vec::new(),
+        plan_laid_layout_identities: Vec::new(),
+        two_hop_private_callback_paths: Vec::new(),
     }
 }
 
