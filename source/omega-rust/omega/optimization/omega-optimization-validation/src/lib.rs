@@ -433,6 +433,46 @@ fn independent_proof_certified_scalar_identity(
             *scalar_type,
             independent_integer_one(*scalar_type),
         ),
+        (
+            O::ExactIntegerMultiply {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                ..
+            },
+            ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroLeft,
+        ) => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *left,
+            *left,
+            *scalar_type,
+            *scalar_type,
+            independent_integer_zero(*scalar_type),
+        ),
+        (
+            O::ExactIntegerMultiply {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                right,
+                ..
+            },
+            ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroRight,
+        ) => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *right,
+            *right,
+            *scalar_type,
+            *scalar_type,
+            independent_integer_zero(*scalar_type),
+        ),
         _ => return None,
     };
     Some(IndependentProofCertifiedScalarIdentity {
@@ -478,7 +518,15 @@ pub fn validate_proof_certified_scalar_identity_candidate(
     let divide_by_one_rule = OptimizationRuleIdentity::from_canonical_bytes(
         b"omega.psi-rule.live-proof-certified-integer-divide-by-one-elimination.v1",
     );
-    if ![exact_identity_rule, divide_by_one_rule].contains(&candidate.rule())
+    let multiply_by_zero_rule = OptimizationRuleIdentity::from_canonical_bytes(
+        b"omega.psi-rule.live-proof-certified-exact-integer-multiply-by-zero-elimination.v1",
+    );
+    if ![
+        exact_identity_rule,
+        divide_by_one_rule,
+        multiply_by_zero_rule,
+    ]
+    .contains(&candidate.rule())
         || !candidate
             .required_analyses()
             .contains(AnalysisKind::ScalarConstants)
@@ -525,6 +573,16 @@ pub fn validate_proof_certified_scalar_identity_candidate(
             ) =>
         {
             b"omega.validator.live-proof-certified-integer-divide-by-one-elimination.v1".as_slice()
+        }
+        rule if rule == multiply_by_zero_rule
+            && matches!(
+                patch.identity,
+                ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroLeft
+                    | ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroRight
+            ) =>
+        {
+            b"omega.validator.live-proof-certified-exact-integer-multiply-by-zero-elimination.v1"
+                .as_slice()
         }
         _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     };
