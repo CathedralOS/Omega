@@ -821,6 +821,7 @@ mod tests {
             transport_executable: None,
             execution_helper_executables: Vec::new(),
             execution_policy_observations: Vec::new(),
+            command_execution_observations: Vec::new(),
         };
 
         let https_lineage =

@@ -250,7 +250,11 @@ checking rejects them. Before returning a successful resolution, the package
 layer requires one observation per bounded launch and exact equality between
 every observed allowlist path and the verified content identities for Git, the
 selected transport, and fixed platform helpers; all helper identities remain
-in the result. Linux/Windows strict backends and the complete
+in the result. Each completed command also retains a domain-separated digest of
+its actual program, ordered arguments, sealed environment, cwd, and stdin class,
+then exact exit/signal and bounded stdout/stderr length/digest results joined to
+the corresponding native policy digest. Counts must match before success.
+Linux/Windows strict backends and the complete
 execution-bound source receipt remain open, so this does not promote diagnostic
 source commands into admission.
 

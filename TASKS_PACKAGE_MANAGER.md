@@ -686,6 +686,17 @@ complete.
   discarded. This closes configuration-to-content association but does not
   claim that a standalone observation proves command execution or outcome.
 
+  Follow-up 2026-08-28: every completed Git command now retains a bounded
+  package-layer outcome observation only after capture, backend/executable
+  revalidation, and budget reconciliation succeed. Its command commitment binds
+  the closed phase, actual native program, ordered arguments, complete explicit
+  environment, working directory, and null or exact object-batch stdin. Exit
+  code or signal and exact bounded stdout/stderr lengths and digests join
+  positionally to the native policy-observation digest. Successful resolution
+  requires launch, policy, and outcome counts to agree. Effective endpoint,
+  transferred bytes, aggregate resource observations, and the final accepted
+  source verdict remain outside this non-admitting provenance rung.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the
