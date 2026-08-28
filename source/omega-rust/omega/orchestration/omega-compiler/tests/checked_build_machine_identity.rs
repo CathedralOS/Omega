@@ -1,8 +1,6 @@
 use omega_build_declarations::BuildDeclarationError;
-use omega_compiler::{
-    PackageCompilationInputs, PackageSourceBinding, compile_to_checked,
-    compile_to_checked_with_packages,
-};
+use omega_compiler::{compile_to_checked, compile_to_checked_with_packages};
+use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use psi_core::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};

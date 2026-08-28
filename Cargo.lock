@@ -240,6 +240,7 @@ version = "0.1.0"
 dependencies = [
  "omega-compiler",
  "omega-core",
+ "omega-package-compilation",
  "omega-packages",
  "omega-target",
  "psi-checked-trees-to-terminal",
@@ -554,6 +555,7 @@ dependencies = [
  "omega-object-file",
  "omega-optimization-core",
  "omega-optimization-pipeline",
+ "omega-package-compilation",
  "omega-platform-interface",
  "omega-runtime-bodies",
  "omega-runtime-branching",
@@ -1249,11 +1251,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-package-compilation"
+version = "0.1.0"
+dependencies = [
+ "omega-build-output",
+ "omega-target",
+ "psi-build-time-evaluation",
+ "psi-checked-trees",
+ "psi-core",
+ "psi-diagnostics",
+ "psi-source",
+ "sha2",
+]
+
+[[package]]
 name = "omega-package-review"
 version = "0.1.0"
 dependencies = [
  "omega-compiler",
  "omega-effects",
+ "omega-package-compilation",
  "omega-target",
  "psi-arena",
  "psi-checked-trees",
@@ -1282,6 +1299,7 @@ dependencies = [
  "nix",
  "omega-build-declarations",
  "omega-compiler",
+ "omega-package-compilation",
  "omega-package-review",
  "omega-platform-custody",
  "psi-core",

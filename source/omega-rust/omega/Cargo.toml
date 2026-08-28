@@ -13,6 +13,7 @@ test = false
 omega-compiler = { path = "orchestration/omega-compiler" }
 omega-core = { path = "foundation/omega-core" }
 omega-packages = { path = "orchestration/omega-packages" }
+omega-package-compilation = { path = "orchestration/omega-package-compilation" }
 omega-target = { path = "foundation/omega-target" }
 psi-checked-trees-to-terminal = { path = "../psi/pipeline/psi-checked-trees-to-terminal" }
 psi-core = { path = "../psi/foundation/psi-core" }

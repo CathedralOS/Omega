@@ -35,9 +35,7 @@ pub use crate::pipeline::{
     InstalledProgramStorageRoots, IntegerInterpretation, LayoutFieldEntryReport,
     LayoutPlacementReport, LayoutPlanReport, MaterializationAction, MaterializationContext,
     MaterializationDiagnostic, MaterializationWrite, OwnedTerminalComponentDeploymentError,
-    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, PackageCompilationInputError, PackageCompilationInputs,
-    PackageDependencyBinding, PackageDependencyClosure, PackageGeneratedSourceBundle,
-    PackageSourceBinding, PackageSourceConsumptionCommitment, PartitionedProgramStorageRoots,
+    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, PartitionedProgramStorageRoots,
     ProgramEntryPhysicalContractPlan, ProgramEntryReceiverActivation,
     ProgramEntryReceiverActivationError, ProgramEntryReceiverPlacementRecord,
     ProgramEntryReceiverStoragePlan, ProgramEntrySourceExtentFieldLayout,
@@ -137,6 +135,5 @@ pub use crate::pipeline::{
     reserve_program_storage_entry_outgoing_stack_frame, selected_external_root_entry_fact_bindings,
     selected_external_root_provider_plan, selected_external_root_provider_plan_id,
     stage_acquire_and_deploy_terminal_component_output, stage_terminal_component,
-    toolchain_source_identity_digest, validate_const_materializable_typed_owned_layout,
-    write_finalized_terminal_component_output,
+    validate_const_materializable_typed_owned_layout, write_finalized_terminal_component_output,
 };

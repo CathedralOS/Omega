@@ -10,14 +10,15 @@
 use omega_compiler::{
     AggregateFieldSchema, AggregateFieldValue, BuildTimeValue, ByteOrder, ConsumptionInstant,
     EntryStubId, IntegerInterpretation, LayoutPlacementReport, MaterializationAction,
-    MaterializationContext, PackageCompilationInputs, PackageSourceBinding, RelocationTarget,
-    ScalarFieldSchema, ScalarFieldValue, SymbolicFieldValue, compile_to_checked,
-    compile_to_checked_with_packages, compute_layout_plan, decode_scalar_layout,
-    derive_symbolic_materialization, evaluate_and_materialize_typed_owned_layout_into,
-    materialize_aggregate_layout_into, materialize_scalar_layout_into,
-    materialize_typed_owned_layout_into, validate_const_materializable_typed_owned_layout,
+    MaterializationContext, RelocationTarget, ScalarFieldSchema, ScalarFieldValue,
+    SymbolicFieldValue, compile_to_checked, compile_to_checked_with_packages, compute_layout_plan,
+    decode_scalar_layout, derive_symbolic_materialization,
+    evaluate_and_materialize_typed_owned_layout_into, materialize_aggregate_layout_into,
+    materialize_scalar_layout_into, materialize_typed_owned_layout_into,
+    validate_const_materializable_typed_owned_layout,
 };
 use omega_layout::{DataShape, build_layout_plan};
+use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use omega_target::NativeTarget;
 use psi_core::PackageKeyIdentity;
 use std::fs;

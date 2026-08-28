@@ -15,6 +15,7 @@ command-group = "5.0.1"
 omega-build-declarations = { path = "../omega-build-declarations" }
 omega-compiler = { path = "../omega-compiler" }
 omega-package-review = { path = "../omega-package-review" }
+omega-package-compilation = { path = "../omega-package-compilation" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 psi-source = { path = "../../../psi/foundation/psi-source" }

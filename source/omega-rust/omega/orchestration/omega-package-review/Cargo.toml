@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-compiler = { path = "../omega-compiler" }
+omega-package-compilation = { path = "../omega-package-compilation" }
 omega-effects = { path = "../../representations/omega-effects" }
 omega-target = { path = "../../foundation/omega-target" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }

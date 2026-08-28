@@ -1,6 +1,5 @@
-use omega_compiler::{
-    PackageCompilationInputs, PackageSourceBinding, compile_to_checked_with_packages,
-};
+use omega_compiler::compile_to_checked_with_packages;
+use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use omega_package_review::{
     PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, PackageReviewCanonicalRowKind,
     PackageReviewCanonicalRowRecoveryLimits, PackageReviewSourceLocationRole,

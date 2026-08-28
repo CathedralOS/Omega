@@ -16,8 +16,9 @@ pub struct PackageSourceConsumptionCommitment {
 }
 
 impl PackageSourceConsumptionCommitment {
-    #[cfg(test)]
-    pub(super) const fn for_test(digest: [u8; 32]) -> Self {
+    #[cfg(any(test, feature = "test-support"))]
+    #[doc(hidden)]
+    pub const fn for_test(digest: [u8; 32]) -> Self {
         Self { digest }
     }
 
@@ -26,7 +27,8 @@ impl PackageSourceConsumptionCommitment {
     }
 }
 
-pub(super) fn derive(
+#[doc(hidden)]
+pub fn derive_source_consumption_commitment(
     program: &CheckedTrees,
     inputs: &super::PackageCompilationInputs,
 ) -> Result<PackageSourceConsumptionCommitment, Vec<Diagnostic>> {
@@ -82,7 +84,8 @@ pub(super) fn derive(
     })
 }
 
-pub(super) fn verify_current_files(
+#[doc(hidden)]
+pub fn verify_current_files(
     program: &CheckedTrees,
     generated_sources: &[(
         psi_source::SourceId,
@@ -128,7 +131,8 @@ pub(super) fn verify_current_files(
 /// Exact source-backed toolchain owners retained for package-review nominal
 /// type identity. `SourceId` is only the compiler-internal join coordinate;
 /// the canonical type string contains the collision-resistant digest alone.
-pub(super) fn toolchain_source_identities(
+#[doc(hidden)]
+pub fn toolchain_source_identities(
     program: &CheckedTrees,
 ) -> Result<Vec<(psi_source::SourceId, [u8; 32])>, Vec<Diagnostic>> {
     let mut identities = program

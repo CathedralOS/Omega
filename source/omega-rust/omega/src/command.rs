@@ -107,7 +107,7 @@ pub(crate) fn run() {
 /// direct compiler path used by focused probes and canaries.
 fn reconcile_declared_local_dependencies(
     options: &mut CompileOptions,
-) -> Result<Option<omega_compiler::PackageCompilationInputs>, String> {
+) -> Result<Option<omega_package_compilation::PackageCompilationInputs>, String> {
     let project_root = options
         .root_path
         .parent()

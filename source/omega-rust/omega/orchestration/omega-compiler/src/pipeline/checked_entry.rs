@@ -89,7 +89,7 @@ impl CheckedCompilation {
     /// orchestration calls this around its own whole-snapshot verification;
     /// hostile same-user races still require an OS isolation boundary.
     pub fn verify_current_source_consumption(&self) -> Result<(), Vec<Diagnostic>> {
-        super::package_source_consumption::verify_current_files(
+        omega_package_compilation::verify_current_files(
             &self.program,
             &self.generated_source_custody,
         )
@@ -774,18 +774,17 @@ fn compile_to_checked_inner_with_replay(
     let program = Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone());
     let dependency_closure = package_inputs.map(PackageCompilationInputs::dependency_closure);
     let source_consumption_commitment = package_inputs
-        .map(|inputs| super::package_source_consumption::derive(&program, inputs))
+        .map(|inputs| {
+            omega_package_compilation::derive_source_consumption_commitment(&program, inputs)
+        })
         .transpose()?;
     let exact_toolchain_sources = package_inputs
         .is_some()
-        .then(|| super::package_source_consumption::toolchain_source_identities(&program))
+        .then(|| omega_package_compilation::toolchain_source_identities(&program))
         .transpose()?
         .unwrap_or_default();
     if source_consumption_commitment.is_some() {
-        super::package_source_consumption::verify_current_files(
-            &program,
-            &generated_source_custody,
-        )?;
+        omega_package_compilation::verify_current_files(&program, &generated_source_custody)?;
     }
     Ok(CheckedCompilation {
         program,

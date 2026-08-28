@@ -1,7 +1,16 @@
-use super::package_source_consumption::PackageSourceConsumptionCommitment;
+#![forbid(unsafe_code)]
+
+//! Reconciled package compilation inputs and exact source-consumption custody.
+
+mod source_consumption;
+
 use omega_build_output::PackageGeneratedSource;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
+pub use source_consumption::{
+    PackageSourceConsumptionCommitment, derive_source_consumption_commitment,
+    toolchain_source_identities, toolchain_source_identity_digest, verify_current_files,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -100,7 +109,8 @@ pub struct PackageGeneratedSourceBundle {
 }
 
 impl PackageGeneratedSourceBundle {
-    pub(crate) fn from_checked(
+    #[doc(hidden)]
+    pub fn from_checked(
         package: PackageKeyIdentity,
         target: omega_target::TargetProfile,
         dependency_closure: PackageDependencyClosure,
@@ -450,13 +460,15 @@ impl PackageCompilationInputs {
         }
     }
 
-    pub(crate) fn dependency_generated_source_bundles(
+    #[doc(hidden)]
+    pub fn dependency_generated_source_bundles(
         &self,
     ) -> impl Iterator<Item = &PackageGeneratedSourceBundle> {
         self.dependency_generated_sources.values()
     }
 
-    pub(crate) fn validate_dependency_generated_source_target(
+    #[doc(hidden)]
+    pub fn validate_dependency_generated_source_target(
         &self,
         selected_target: Option<omega_target::TargetProfile>,
     ) -> Result<(), Vec<PackageCompilationInputError>> {
@@ -479,7 +491,8 @@ impl PackageCompilationInputs {
         }
     }
 
-    pub(crate) fn generated_source_import_path(
+    #[doc(hidden)]
+    pub fn generated_source_import_path(
         &self,
         package: PackageKeyIdentity,
         relative_candidates: &[PathBuf],
@@ -524,11 +537,13 @@ impl PackageCompilationInputs {
             })
     }
 
-    pub(crate) fn is_generated_source_logical_path(&self, path: &Path) -> bool {
+    #[doc(hidden)]
+    pub fn is_generated_source_logical_path(&self, path: &Path) -> bool {
         self.generated_source_at_logical_path(path).is_some()
     }
 
-    fn dependency_closure_for(&self, root: PackageKeyIdentity) -> PackageDependencyClosure {
+    #[doc(hidden)]
+    pub fn dependency_closure_for(&self, root: PackageKeyIdentity) -> PackageDependencyClosure {
         let reachable = reachable_packages(root, &self.dependencies);
         PackageDependencyClosure {
             root,
@@ -550,7 +565,8 @@ impl PackageCompilationInputs {
         }
     }
 
-    pub(crate) fn dependency_target(
+    #[doc(hidden)]
+    pub fn dependency_target(
         &self,
         requester: PackageKeyIdentity,
         alias: &str,
@@ -561,7 +577,8 @@ impl PackageCompilationInputs {
             .copied()
     }
 
-    pub(crate) fn allows_declaration_selection(
+    #[doc(hidden)]
+    pub fn allows_declaration_selection(
         &self,
         requester: PackageKeyIdentity,
         owner: PackageKeyIdentity,
@@ -573,20 +590,23 @@ impl PackageCompilationInputs {
                 .is_some_and(|aliases| aliases.values().any(|target| *target == owner))
     }
 
-    pub(crate) fn package_label(&self, identity: PackageKeyIdentity) -> String {
+    #[doc(hidden)]
+    pub fn package_label(&self, identity: PackageKeyIdentity) -> String {
         match self.package_name(identity) {
             Some(name) => format!("`{name}` ({})", display_identity(identity)),
             None => display_identity(identity),
         }
     }
 
-    pub(crate) fn package_for_source(&self, source: &Path) -> Option<PackageKeyIdentity> {
+    #[doc(hidden)]
+    pub fn package_for_source(&self, source: &Path) -> Option<PackageKeyIdentity> {
         self.packages
             .iter()
             .find_map(|(identity, root)| source.starts_with(root).then_some(*identity))
     }
 
-    pub(crate) fn validate_for_compilation(
+    #[doc(hidden)]
+    pub fn validate_for_compilation(
         &self,
         root_path: &Path,
         toolchain_root: &Path,
@@ -1346,80 +1366,6 @@ mod tests {
             b"pub machine generated_value() -> u64 { 17 }\n"
         );
         assert_eq!(retained.digest(), generated_digest);
-    }
-
-    #[test]
-    fn compiler_consumes_retained_dependency_generated_source_without_a_physical_file() {
-        let tree = TempTree::new();
-        let root = tree.package("root-generated-consumer");
-        let dependency = tree.package("dependency-generated-producer");
-        fs::write(
-            root.join("build.omg"),
-            r#"target windows_x64 { }
-machine build(builder: &mut Build) {
-    builder.application("root-generated-consumer");
-    builder.depend_as("dependency", Source::Path { location: "../dependency-generated-producer" });
-}
-"#,
-        )
-        .expect("write generated consumer build declaration");
-        fs::write(
-            root.join("main.omg"),
-            r#"use dependency::generated_api;
-pub machine consume_generated_value() -> u64 {
-    generated_value()
-}
-"#,
-        )
-        .expect("write generated consumer source");
-
-        let inputs = PackageCompilationInputs::new(
-            identity(1),
-            vec![
-                PackageSourceBinding::new(identity(1), "root-generated-consumer", root.clone()),
-                PackageSourceBinding::new(
-                    identity(2),
-                    "dependency-generated-producer",
-                    dependency.clone(),
-                ),
-            ],
-            vec![PackageDependencyBinding::new(
-                identity(1),
-                "dependency",
-                identity(2),
-            )],
-        )
-        .expect("generated consumer graph should close");
-        let bundle = generated_bundle(
-            &inputs,
-            identity(2),
-            omega_target::TargetProfile::WindowsX64,
-            12,
-            vec![generated_source(
-                b"generated_api.omg",
-                b"pub machine generated_value() -> u64 { 17 }\n",
-            )],
-        );
-        let inputs = inputs
-            .with_complete_dependency_generated_sources(vec![bundle])
-            .expect("consumer should receive the complete dependency bundle");
-
-        let checked = crate::pipeline::checked_entry::compile_to_checked_with_packages(
-            &root.join("main.omg"),
-            Some("windows_x64"),
-            inputs,
-        )
-        .expect("retained generated dependency source should enter initial frontend loading");
-        assert!(
-            !dependency
-                .join(".omega/generated/generated_api.omg")
-                .exists(),
-            "dependency-generated source must remain compiler custody, not a physical snapshot mutation"
-        );
-        checked
-            .verify_current_source_consumption()
-            .expect("generated bytes should verify from retained custody after compilation");
-        assert!(checked.source_consumption_commitment().is_some());
     }
 
     #[test]

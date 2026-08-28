@@ -12100,7 +12100,7 @@ fn toolchain_source_identity(
     source_file: &psi_source::SourceFile,
 ) -> Result<PackageReviewToolchainSourceIdentity, Vec<Diagnostic>> {
     Ok(PackageReviewToolchainSourceIdentity {
-        digest: omega_compiler::toolchain_source_identity_digest(source_file)?,
+        digest: omega_package_compilation::toolchain_source_identity_digest(source_file)?,
     })
 }
 
