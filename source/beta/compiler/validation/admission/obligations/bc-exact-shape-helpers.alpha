@@ -768,6 +768,58 @@ exact_require_program_prelude:
         imm r4, 31
         ret
 
+; Resolve the compiler-synthesized __write_str extent from the checked root
+; prelude instead of treating its current artifact coordinates as semantic
+; identities. The effect-site owner validates the exact 52-byte body once;
+; consumers use this helper only after that initialization edge. Bind the
+; mapper's helper cell to the checked prelude successor and return the exact
+; instruction starts (entry/branch/load/write/one/add/sub/jump/return) in
+; r0..r8 and the exclusive successor in r9. The nested prelude decoder clobbers
+; r20..r27; preserve r30/r31 because semantic callers conventionally retain
+; their arguments there. This resolver uses r28/r29 only as private saves.
+exact_require_write_str_extent:
+        mov r28, r30
+        mov r29, r31
+        imm r20, 69                  ; independently scanned main identity
+        call exact_require_program_prelude
+        mov r31, r4                  ; checked prelude successor / helper entry
+        imm r1, 524512
+        load r2, r1
+        jeq r2, r31, exact_write_str_extent_bound
+        jmp reject
+exact_write_str_extent_bound:
+        mov r0, r31
+        mov r1, r31
+        imm r30, 10
+        add r1, r30
+        mov r2, r31
+        imm r30, 21
+        add r2, r30
+        mov r3, r31
+        imm r30, 24
+        add r3, r30
+        mov r4, r31
+        imm r30, 26
+        add r4, r30
+        mov r5, r31
+        imm r30, 36
+        add r5, r30
+        mov r6, r31
+        imm r30, 39
+        add r6, r30
+        mov r7, r31
+        imm r30, 42
+        add r7, r30
+        mov r8, r31
+        imm r30, 51
+        add r8, r30
+        mov r9, r31
+        imm r30, 52
+        add r9, r30
+        mov r30, r28
+        mov r31, r29
+        ret
+
 ; Transition row/source-block/guarded/target/control-pc in r20..r24.
 exact_require_transition:
         mov r25, r20
