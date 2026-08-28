@@ -7,8 +7,8 @@ self-hosted compiler and not a language rung.
 - `psi/` implements source processing, language judgments, and terminal Psi.
 - `omega/` consumes terminal Psi and performs target lowering and artifact
   emission.
-- `apps/omega-cli/` exposes the current Rust implementation as the `omega`
-  development command.
+- `omega/` is the `omega` product package and development command. Its nested
+  crates implement target realization, orchestration, and artifact emission.
 
 The crates remain the working development compiler and a maintained parallel
 comparator while the Delta-built `omega-bootstrap` path grows. Migration builds

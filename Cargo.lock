@@ -235,6 +235,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega"
+version = "0.1.0"
+dependencies = [
+ "omega-compiler",
+ "omega-core",
+ "omega-packages",
+ "omega-target",
+ "psi-checked-trees-to-terminal",
+ "psi-core",
+ "psi-proof-admission",
+ "psi-terminal",
+ "psi-terminal-fixed-fuel",
+ "psi-terminal-verifier",
+]
+
+[[package]]
 name = "omega-abstract-operations"
 version = "0.1.0"
 dependencies = [
@@ -497,22 +513,6 @@ dependencies = [
  "psi-symbols",
  "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-tokens-to-syntax-trees",
-]
-
-[[package]]
-name = "omega-cli"
-version = "0.1.0"
-dependencies = [
- "omega-compiler",
- "omega-core",
- "omega-packages",
- "omega-target",
- "psi-checked-trees-to-terminal",
- "psi-core",
- "psi-proof-admission",
- "psi-terminal",
- "psi-terminal-fixed-fuel",
- "psi-terminal-verifier",
 ]
 
 [[package]]
