@@ -160,7 +160,8 @@ Generated case `build/` directories are ignored. Permanent expectations belong i
 
 ## Bundled Omega Packages
 
-Imports beginning with `omega::` resolve to bundled Omega source packages under `omega/`.
+Imports beginning with `omega::` resolve to bundled Omega source packages under
+`source/library/`.
 
 Package paths can resolve to either `name.omg` or `name/mod.omg`, so larger packages such as `omega::host::targets::windows` can live in folders and shard their contracts by domain.
 
@@ -210,7 +211,7 @@ Compile a sample on macOS ARM64:
 cargo run -p omega-cli -- --target macos_arm64 samples/cli/basics/cli_mvp/main.omg
 ```
 
-Inspect canaries:
+Run focused compiler acceptance groups:
 
 ```bash
 cargo test -p omega-compiler --test canary_suite entry_and_abi::pass_canaries_compile
