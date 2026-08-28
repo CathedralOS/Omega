@@ -8,4 +8,4 @@ lives under `source/psi/`; target realization and these product entrypoints live
 under `source/omega/`.
 
 The current Rust development command is the product package rooted at
-`source/on-ramp/rust/omega/`.
+`source/omega-rust/omega/`.

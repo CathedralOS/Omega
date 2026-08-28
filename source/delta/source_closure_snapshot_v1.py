@@ -112,7 +112,10 @@ def load_document(path: Path, context: str) -> tuple[dict, bytes]:
         fail(f"{context} JSON: {error}")
     if not isinstance(value, dict):
         fail(f"{context} object")
-    if raw != canonical_json(value, pretty=True):
+    # Git may materialize tracked text with CRLF on Windows. Canonical identity
+    # is the parsed document's LF encoding, not the checkout convention.
+    normalized = raw.replace(b"\r\n", b"\n")
+    if b"\r" in normalized or normalized != canonical_json(value, pretty=True):
         fail(f"{context} noncanonical JSON")
     return value, raw
 
@@ -239,14 +242,10 @@ def verify_data(manifest: dict, locations_path: Path, roots: dict[str, Path], *,
     if manifest["schema"] != SCHEMA:
         fail("snapshot schema")
     snapshot_id = identity(manifest["snapshot_id"], "snapshot")
-    if manifest["status"] not in ("canonical_compiler_root", "provisional_capability_slice"):
+    if manifest["status"] != "canonical_compiler_root":
         fail("snapshot status")
     if not isinstance(manifest["claim"], str) or not manifest["claim"] or len(manifest["claim"].encode()) > 512:
         fail("snapshot claim")
-    if manifest["status"] == "provisional_capability_slice" and "provisional" not in manifest["claim"].lower():
-        fail("provisional claim boundary")
-    if "complete omega-bootstrap" in manifest["claim"].lower():
-        fail("complete bridge claim")
     sha(manifest["content_set_sha256"], "content set")
     sha(manifest["closure_sha256"], "closure")
 
@@ -411,48 +410,11 @@ def verify_data(manifest: dict, locations_path: Path, roots: dict[str, Path], *,
         fail("artifact edge order/uniqueness")
     graph_acyclic(set(artifacts), artifact_graph, "artifact graph")
 
-    if manifest["status"] == "canonical_compiler_root":
-        if len(source_map) != 1 or len(builds) != 1 or source_graph:
-            fail("canonical compiler root profile")
-        source = next(iter(source_map.values()))
-        if source["roles"] != ["canonical_compiler_root", "delta_source", "entry"]:
-            fail("canonical compiler source roles")
-    else:
-        expected_source_roles = ["delta_source", "entry", "provisional_bridge_root"]
-        if len(builds) < 2 or len(source_map) != len(builds) or source_graph or not tools:
-            fail("provisional multi-root profile")
-        if any(row["roles"] != expected_source_roles for row in source_map.values()):
-            fail("provisional source roles")
-        if any(row["roles"] != ["provisional_bridge_root"] or row["compiler_tool"] == "none" for row in builds.values()):
-            fail("provisional build roles/tool")
-        used_inputs = [row["input_id"] for row in builds.values()]
-        if sorted(used_inputs) != sorted(generated_map) or len(generated_map) != len(source_map):
-            fail("provisional build-input closure")
-        if sorted(generated_source_members) != sorted(source_map):
-            fail("provisional source-input closure")
-        used_tools = {row["compiler_tool"] for row in builds.values()}
-        if used_tools != set(tools):
-            fail("provisional tool closure")
-        touched = {endpoint for edge in artifact_graph for endpoint in edge}
-        if set(artifacts) != touched:
-            fail("provisional artifact-flow closure")
-        # A capability slice is one action/data-flow component, not an
-        # arbitrary inventory of unrelated historical executables.
-        if artifacts:
-            neighbors = {node: set() for node in artifacts}
-            for left, right in artifact_graph:
-                neighbors[left].add(right)
-                neighbors[right].add(left)
-            pending = [min(artifacts)]
-            reached: set[str] = set()
-            while pending:
-                node = pending.pop()
-                if node in reached:
-                    continue
-                reached.add(node)
-                pending.extend(sorted(neighbors[node] - reached))
-            if reached != set(artifacts):
-                fail("provisional artifact-flow component")
+    if len(source_map) != 1 or len(builds) != 1 or source_graph:
+        fail("canonical compiler root profile")
+    source = next(iter(source_map.values()))
+    if source["roles"] != ["canonical_compiler_root", "delta_source", "entry"]:
+        fail("canonical compiler source roles")
 
     computed_content = content_digest(raw_sources, generated_bytes)
     computed_closure = closure_digest(manifest)

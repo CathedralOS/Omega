@@ -3,137 +3,76 @@
 [Lattice overview](bootstrap_lattice.md) | [Standing decisions](decisions.md) |
 [Product repository layout](../repository_layout.md)
 
-The repository groups source by semantic owner. Canonical languages and product
-compiler halves are direct children of `source/`; replaceable external or
-bridge implementations live under `source/on-ramp/`; cross-owner proof joins
-are named explicitly instead of being hidden in generic `compiler`,
-`bootstrap`, or `assurance` buckets.
-
-## Canonical structure
+The repository groups source by semantic owner. There is no standalone hosted
+bridge between Delta and Omega.
 
 ```text
 source/
-  alpha/                       Alpha semantics, seeds, and assembler
-  beta/                        Beta language, compiler, and reference meaning
-  gamma/                       Gamma language, interpreter, and type checker
-  delta/                       Delta language, compiler, and canonical artifacts
-  library/                     core, allocation, and standard library source
-    core/                      bundled language-versioned core
-    alloc/                     allocation facilities
-    std/                       ordinary standard-library package
-  psi/                         Omega-written target-neutral product compiler
-    build.omg                  Psi package declaration
-    generated/                 generated semantic tables
-    lex/ source/ tokens/       current landed source-to-token checkpoint
-  omega/                       Omega-written target realization and product owner
-    build.omg                  hosted product build/composition entrypoint
-    main.omg                   hosted product machine entrypoint
+  alpha/                 Alpha semantics, seeds, and assembler
+  beta/                  Beta language, compiler, and reference meaning
+  gamma/                 Gamma language, interpreter, and type checker
+  delta/                 Delta language, compiler, meaning, and artifacts
+  psi/                   Omega-written target-neutral compiler half
+  omega/                 Omega-written target realization and product entry
+  library/               core, allocation, and standard-library source
+  proof-kernel/           cross-cutting proof checking
+  refinement/             explicit checked joins between semantic owners
+  omega-rust/             temporary Rust product implementation/comparator
 
-  proof-kernel/
-    implementations/           Beta, Gamma, and untrusted reference checkers
-    tools/                     elaboration, proof search, certificate utilities
-    corpus/                    proofs, negative controls, and seam fixtures
-    gates/                     soundness, cross-check, and operational-seam gates
-  refinement/
-    alpha-beta/                Beta-source/Alpha-artifact reconstruction + gates
-    delta-omega-bootstrap/     bridge reconstruction + TV gate path
-
-  on-ramp/
-    rust/
-      psi/                  current Rust source/semantic producer
-      omega/                current Rust product command and target/backend producer
-    omega-bootstrap/        Delta-built bridge compiler owner
-    meaning/                Rust-free lower-rung meaning for Delta/bridge slices
-    compiler/               Delta source, profiles, and source-bundle format
-    gates/                  Delta→bridge and future hosted-build validation
-
-tests/
-  lattice/
-    corpus/                 programs shared across multiple bootstrap seams
-    lattice-cache-deps/     precise cache-input manifests
-
-tools/
-  bootstrap/               lattice orchestration and canonical path gates
+tests/lattice/            shared bootstrap inputs
+tools/bootstrap/          replaceable convenience orchestration
 ```
-
-The package library has moved to `source/library/` without a compatibility
-path. Package-manager P8 still tracks replacement of temporary physical-path
-readers with ordinary package-graph resolution.
-
-Canonical directories are named by durable role, not by every implementation
-language that may temporarily occupy that role. `source/on-ramp/rust/` carries
-the language qualifier because it is the temporary external Psi/Omega product
-implementation. The permanent product owners are `source/psi/` and
-`source/omega/`; if another
-external-language producer is retained, it belongs under its own explicit
-on-ramp owner rather than replacing or renaming those paths.
 
 ## Ownership rules
 
-- `source/<rung>/` owns the canonical language definition, lattice-built
-  artifacts, and the smallest implementation that establishes the rung.
-  External-language producers live under `source/on-ramp/` and gain no
-  semantic authority from being useful during construction.
-- `source/proof-kernel/` owns cross-cutting proof checking; it is not a compiler
-  rung or product compiler phase. `source/refinement/` owns explicit checked
-  joins whose two endpoints have different semantic owners.
-- `source/on-ramp/omega-bootstrap/` owns only the Delta-written bridge, its Rust-free
-  meaning route, bridge-specific contracts, and gates. It may consume product
-  source and canonical Psi/Omega formats but does not own production source.
-- `source/on-ramp/rust/` owns the current working Rust compiler as a maintained
-  reference and migration producer. It is removable from bootstrap and release
-  builds once the hosted compiler closes.
-- `source/psi/` and `source/omega/` own the two Omega-written product halves.
-  Psi ends at terminal Psi; Omega begins by consuming terminal Psi and owns
-  target realization. The first Psi lexical checkpoint has landed; later Psi
-  phases and the Omega backend remain open.
-- `source/omega/{build.omg,main.omg}` owns the hosted product entrypoint. Its
-  declared `psi` dependency points at the sibling `source/psi/` owner.
-  Compilation reconciles that dependency through `build.omg`; no nested
-  compatibility path exists. Exact product identity comes from Git, package
-  resolution, and the accepted source closure rather than authored numbered
-  checkpoints.
-- The Rust producer's `psi-proof-admission` crate checks product-local Psi
-  judgments and has no bootstrap-lattice authority.
-- Shared corpora belong at the narrowest common owner. Cross-rung fixtures live
-  in `tests/lattice/corpus/`; package-shaped integration fixtures live in
-  `tests/fixtures/packages/`.
+- `source/<rung>/` owns that rung's language, compiler source, canonical
+  meaning, and artifacts.
+- `source/delta/meaning/` owns the lower-rung elaboration needed to publish the
+  Delta compiler. It is not a separate compiler stage.
+- `source/psi/` and `source/omega/` are the two halves of the Omega-written
+  product compiler. Psi ends at terminal Psi; Omega consumes terminal Psi and
+  owns target realization.
+- `source/omega-rust/` is a maintained implementation and migration aid. Its
+  location grants no bootstrap or semantic authority.
+- `source/proof-kernel/` checks derivations. `source/refinement/` owns explicit
+  relations between different semantic subjects; neither is a language rung.
+- `tests/lattice/` owns shared inputs, not compiler stages or trust decisions.
+- `tools/bootstrap/` may invoke the chain. A script must not parse, resolve,
+  lower, discover source, manufacture evidence, or otherwise become a hidden
+  compiler stage.
 
-## Reference tooling is not an ownership axis
+The package library lives at `source/library/`. Package-manager work still owns
+replacement of temporary physical-path readers with package-graph resolution.
 
-Independent implementations may exist as references or conformance tools, but
-multiplicity does not grant authority. Compiler outputs become acceptable
-through lower-rooted source-to-artifact refinement, not agreement between
-producers. See
-[D5](decisions.md#d5--direct-checked-refinement-closes-compiler-provenance).
+## Direct product path
 
-Beta's executable semantic reference lives at `source/beta/reference/`;
-symbolic reconstruction lives at `source/refinement/alpha-beta/`. Python
-and Rust are implementation details rather than ownership categories.
+Let `C` be the exact Omega compiler source closure, constrained to `Ωself`:
+
+```text
+Alpha → Beta → Gamma → Delta-produced compiler
+Delta-produced compiler + C → omega₀
+omega₀ + the same C            → omega
+```
+
+`omega₀` is the first artifact of the product compiler, not a separately owned
+bridge. Its conservative code quality is permissible; its accepted semantics
+are not approximate. The second edge must use the same source closure so it is
+a rebuild of one compiler, not an untracked generation change.
 
 ## Canonical ownership map
 
-Gate scripts resolve cross-owner dependencies through
-[`tools/bootstrap/paths.sh`](../../../tools/bootstrap/paths.sh), and
-[`tools/bootstrap/check-path-hygiene.sh`](../../../tools/bootstrap/check-path-hygiene.sh)
-rejects new sibling-relative cross-owner references.
+| Responsibility | Canonical owner |
+| --- | --- |
+| language rungs | `source/{alpha,beta,gamma,delta}/` |
+| Delta lower-rung meaning | `source/delta/meaning/` |
+| Omega-written compiler | `source/{psi,omega}/` |
+| current Rust comparator | `source/omega-rust/` |
+| proof checking | `source/proof-kernel/` |
+| explicit cross-owner refinements | `source/refinement/` |
+| language libraries | `source/library/` |
+| shared lattice inputs | `tests/lattice/` |
+| non-authoritative runners | `tools/bootstrap/` |
 
-| Responsibility | Canonical owner | Placement status |
-| --- | --- | --- |
-| Alpha rung and assembler | `source/alpha/` | complete |
-| Beta rung and reference | `source/beta/` | complete |
-| Gamma rung | `source/gamma/` | complete |
-| Delta rung | `source/delta/` | complete; Delta v1 remains open |
-| current Rust Psi/Omega compiler and CLI | `source/on-ramp/rust/` | complete |
-| cross-cutting proof kernel | `source/proof-kernel/` | placement complete; assurance capabilities continue to evolve here |
-| Beta-source/Alpha-artifact refinement | `source/refinement/alpha-beta/` | complete |
-| bridge reconstruction and refinement | `source/refinement/delta-omega-bootstrap/` | placement complete; bridge assurance remains open |
-| shared lattice inputs | `tests/lattice/{corpus,lattice-cache-deps}/` | complete |
-| Omega-written Psi/Omega compiler | `source/{psi,omega}/` | first Psi lexical checkpoint landed |
-| hosted product entrypoint | `source/omega/{build.omg,main.omg}` | active |
-| language libraries | `source/library/` | placement complete; bundled-std reader retirement remains in P8 |
-
-`source/` contains the semantic spine, product compiler, proof services, and
-clearly marked on-ramps. `tests/` contains language canaries, package fixtures,
-and shared lattice inputs; `tools/` contains repository maintenance and
-bootstrap orchestration.
+Cross-owner paths are resolved through
+[`tools/bootstrap/paths.sh`](../../../tools/bootstrap/paths.sh) and checked by
+[`tools/bootstrap/check-path-hygiene.sh`](../../../tools/bootstrap/check-path-hygiene.sh).

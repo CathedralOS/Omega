@@ -17,14 +17,14 @@ Primary responsibility: preserve source identity and split text into tokens.
 The Psi product role owns this stage; its eventual hosted source belongs under
 `source/psi/`. The current Rust realization is:
 
-- `source/on-ramp/rust/psi/foundation/psi-source` contains loaded-source records and maps,
+- `source/omega-rust/psi/foundation/psi-source` contains loaded-source records and maps,
   source identities, byte-span coordinates, and source-backed text.
-- `source/on-ramp/rust/psi/foundation/psi-diagnostics` contains source-addressable
-  diagnostics, and `source/on-ramp/rust/psi/foundation/psi-source-loader` implements root-file
+- `source/omega-rust/psi/foundation/psi-diagnostics` contains source-addressable
+  diagnostics, and `source/omega-rust/psi/foundation/psi-source-loader` implements root-file
   loading.
-- `source/on-ramp/rust/psi/representations/psi-tokens` contains token kinds, text, and
+- `source/omega-rust/psi/representations/psi-tokens` contains token kinds, text, and
   streams.
-- `source/on-ramp/rust/psi/pipeline/psi-source-files-to-tokens` contains the implementation
+- `source/omega-rust/psi/pipeline/psi-source-files-to-tokens` contains the implementation
   files below. Every workspace harness uses this Psi stage directly.
 - `lexer.rs` owns token dispatch, source-span slicing, token construction, comments, whitespace, identifiers, keywords, and punctuation.
 - `lexer/numbers.rs` owns numeric literal scanning and lexical metadata such as base, suffix presence, and incomplete numeric parts.

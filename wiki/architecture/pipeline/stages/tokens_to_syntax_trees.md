@@ -22,24 +22,24 @@ source shape without turning nested syntax into scattered heap objects.
 The Psi product role owns this stage; its eventual hosted source belongs under
 `source/psi/`. The current Rust realization is:
 
-- `source/on-ramp/rust/psi/representations/psi-syntax-trees` contains `SyntaxTrees`, its
+- `source/omega-rust/psi/representations/psi-syntax-trees` contains `SyntaxTrees`, its
   arena-backed tables, identity/snapshot materialization, and all source-shaped
   nodes.
-- `source/on-ramp/rust/psi/pipeline/psi-tokens-to-syntax-trees` contains the parser modules
+- `source/omega-rust/psi/pipeline/psi-tokens-to-syntax-trees` contains the parser modules
   listed below. Every workspace harness uses this Psi stage directly.
-- `source/on-ramp/rust/psi/foundation/psi-arena` contains the generic typed dense, paged,
+- `source/omega-rust/psi/foundation/psi-arena` contains the generic typed dense, paged,
   generational, hierarchy, and ordered-root arena storage required by source
   representations.
-- `source/on-ramp/rust/psi/foundation/psi-diagnostics` contains the target-neutral
+- `source/omega-rust/psi/foundation/psi-diagnostics` contains the target-neutral
   `PhaseSnapshot` contract used to materialize readable source-shaped trees.
-- `source/on-ramp/rust/psi/foundation/psi-language-core` contains the grammar-facing
+- `source/omega-rust/psi/foundation/psi-language-core` contains the grammar-facing
   multiplicity, data-supply, carry, domain-body, call-acknowledgement,
   atomic-ordering, cast-form, operator-spelling, and source-assembly contract
   vocabulary.
-- `source/on-ramp/rust/psi/foundation/psi-numerics` contains exact numeric meanings,
+- `source/omega-rust/psi/foundation/psi-numerics` contains exact numeric meanings,
   arithmetic-domain vocabulary, and integer/float literal payloads. Parser-side
   literal validation therefore remains target-neutral when the stage migrates.
-- `source/on-ramp/rust/psi/foundation/psi-symbols` contains shared symbol identities and
+- `source/omega-rust/psi/foundation/psi-symbols` contains shared symbol identities and
   hierarchy storage. This parser stage does not assign symbols, but later
   Psi-owned resolution can consume its source-shaped output without an Omega
   foundation dependency.

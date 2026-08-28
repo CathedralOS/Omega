@@ -53,7 +53,7 @@ Remaining:
   firewall: Psi owns parsing and target-neutral semantics through terminal Psi;
   Omega owns provider installation, optimization, target realization, and
   artifact emission. The current implementation under
-  `source/on-ramp/rust/` is a migration/reference producer, not the
+  `source/omega-rust/` is a migration/reference producer, not the
   source tree for this task.
 
   Acceptance: the exact Omega source tree builds a compiler that implements the
@@ -67,10 +67,10 @@ Remaining:
   module, library, generated/compile-time source, build input, and tool imported
   by that build.
 
-  The first required build of this source is hosted by the Delta-written
-  `omega-bootstrap`; it is not itself an Omega-to-Omega self-rebuild. Once that
-  result exists, rebuilding the same source with production `omega` is optional
-  optimization and reproducibility work, not a second compiler-source task.
+  The lattice-built Delta compiler performs the first required build of this
+  source into `omega₀`. `omega₀` then rebuilds the exact same source closure into
+  production `omega`; this is one compiler source rebuilt across two checked
+  edges, not a separate bridge or a second source task.
 
   Author this source against the working `Ωself` policy in
   `wiki/architecture/bootstrap_lattice/compiler_source_profile.md`; this task
@@ -173,7 +173,7 @@ Remaining:
   layout become the public Omega ABI by accident.
 
 - **OMEGA-RUST-COMPARATOR.** Maintain the current Rust Psi/Omega compiler under
-  `source/on-ramp/rust/` as a parallel differential implementation
+  `source/omega-rust/` as a parallel differential implementation
   while its bug-finding value justifies its cost. It may compare diagnostics,
   normalized semantics, artifacts, and execution observations against the
   Omega-written product compiler, but it grants no authority and must be
@@ -182,7 +182,7 @@ Remaining:
   Acceptance: shared product suites can exercise both implementations without
   making Rust agreement or availability a correctness, bootstrap, or release
   condition. Rust-specific maintenance stays in the explicit
-  `source/on-ramp/rust/` owner and never
+  `source/omega-rust/` owner and never
   moves into `source/omega/{psi,omega}/`.
 
 ## Execution order
