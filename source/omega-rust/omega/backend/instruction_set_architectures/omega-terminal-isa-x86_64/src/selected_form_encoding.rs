@@ -53,6 +53,23 @@ pub struct X86_64StructuralUnitInternalControlFixup {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum X86_64StructuralUnitInternalControlResolutionState {
+    ResolvedInSectionV1,
+}
+
+/// Target-owned evidence that one structural Unit call fixup has been
+/// discharged against concrete text-section coordinates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86_64ResolvedStructuralUnitInternalControlFixup {
+    pub source: X86_64StructuralUnitInternalControlFixup,
+    pub state: X86_64StructuralUnitInternalControlResolutionState,
+    pub caller_section_offset: u64,
+    pub callee_section_offset: u64,
+    pub next_instruction_section_offset: u64,
+    pub displacement: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct X86_64StructuralUnitRootRead {
     pub root: MachineRegister,
     pub byte_offset: u32,
@@ -117,6 +134,49 @@ impl ValidatedX86_64SelectedStructuralUnitCallTemplate {
         self.fixup
     }
 }
+
+/// Canonical executable bytes plus independently replayed evidence that their
+/// rel32 field targets the selected in-section callee.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedX86_64ResolvedStructuralUnitCall {
+    bytes: Vec<u8>,
+    footprint: X86_64SelectedStructuralUnitCallFootprint,
+    resolution: X86_64ResolvedStructuralUnitInternalControlFixup,
+}
+
+impl ValidatedX86_64ResolvedStructuralUnitCall {
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub const fn footprint(&self) -> &X86_64SelectedStructuralUnitCallFootprint {
+        &self.footprint
+    }
+
+    pub const fn resolution(&self) -> X86_64ResolvedStructuralUnitInternalControlFixup {
+        self.resolution
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum X86_64StructuralUnitInternalControlResolutionError {
+    FixupMismatch,
+    SectionCoordinateOverflow,
+    RelativeDisplacementOutOfRange,
+    MalformedResolvedBytes,
+    TargetEquationMismatch,
+}
+
+impl std::fmt::Display for X86_64StructuralUnitInternalControlResolutionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "invalid x86-64 structural Unit internal-control resolution: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for X86_64StructuralUnitInternalControlResolutionError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum X86_64StructuralUnitCallTemplateError {
@@ -682,6 +742,152 @@ pub fn validate_x86_64_terminal_selected_structural_unit_call_template(
             field_byte_width: X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH,
             addend: 0,
         },
+    })
+}
+
+/// Resolve the canonical zero rel32 field once dense text placement has made
+/// both function coordinates available. The returned bytes are executable;
+/// the input template remains unresolved and unchanged.
+pub fn resolve_x86_64_structural_unit_internal_call(
+    template: &ValidatedX86_64SelectedStructuralUnitCallTemplate,
+    fixup: X86_64StructuralUnitInternalControlFixup,
+    caller_section_offset: u64,
+    callee_section_offset: u64,
+) -> Result<
+    ValidatedX86_64ResolvedStructuralUnitCall,
+    X86_64StructuralUnitInternalControlResolutionError,
+> {
+    validate_resolution_fixup(template, fixup)?;
+    let next_instruction_section_offset = caller_section_offset
+        .checked_add(u64::from(fixup.next_instruction_byte_offset))
+        .ok_or(X86_64StructuralUnitInternalControlResolutionError::SectionCoordinateOverflow)?;
+    let displacement = checked_rel32_displacement(
+        next_instruction_section_offset,
+        callee_section_offset,
+        fixup.addend,
+    )?;
+    let field_start = usize::from(fixup.field_byte_offset);
+    let field_end = field_start
+        .checked_add(usize::from(fixup.field_byte_width))
+        .ok_or(X86_64StructuralUnitInternalControlResolutionError::MalformedResolvedBytes)?;
+    let mut bytes = template.bytes().to_vec();
+    bytes
+        .get_mut(field_start..field_end)
+        .ok_or(X86_64StructuralUnitInternalControlResolutionError::MalformedResolvedBytes)?
+        .copy_from_slice(&displacement.to_le_bytes());
+
+    validate_x86_64_resolved_structural_unit_internal_call(
+        template,
+        fixup,
+        caller_section_offset,
+        callee_section_offset,
+        &bytes,
+    )
+}
+
+/// Independently replay a structural Unit rel32 resolution. This validates the
+/// opcode, every template byte outside the field, the signed little-endian
+/// displacement, and the final target equation.
+pub fn validate_x86_64_resolved_structural_unit_internal_call(
+    template: &ValidatedX86_64SelectedStructuralUnitCallTemplate,
+    fixup: X86_64StructuralUnitInternalControlFixup,
+    caller_section_offset: u64,
+    callee_section_offset: u64,
+    bytes: &[u8],
+) -> Result<
+    ValidatedX86_64ResolvedStructuralUnitCall,
+    X86_64StructuralUnitInternalControlResolutionError,
+> {
+    validate_resolution_fixup(template, fixup)?;
+    let next_instruction_section_offset = caller_section_offset
+        .checked_add(u64::from(fixup.next_instruction_byte_offset))
+        .ok_or(X86_64StructuralUnitInternalControlResolutionError::SectionCoordinateOverflow)?;
+    let expected_displacement = checked_rel32_displacement(
+        next_instruction_section_offset,
+        callee_section_offset,
+        fixup.addend,
+    )?;
+
+    let field_start = usize::from(fixup.field_byte_offset);
+    let field_end = field_start
+        .checked_add(usize::from(fixup.field_byte_width))
+        .ok_or(X86_64StructuralUnitInternalControlResolutionError::MalformedResolvedBytes)?;
+    let opcode_offset = usize::from(fixup.opcode_byte_offset);
+    if bytes.len() != template.bytes().len()
+        || bytes.get(opcode_offset) != Some(&0xe8)
+        || bytes.get(..field_start) != template.bytes().get(..field_start)
+        || bytes.get(field_end..) != template.bytes().get(field_end..)
+    {
+        return Err(X86_64StructuralUnitInternalControlResolutionError::MalformedResolvedBytes);
+    }
+    let displacement = bytes
+        .get(field_start..field_end)
+        .and_then(|field| field.try_into().ok())
+        .map(i32::from_le_bytes)
+        .ok_or(X86_64StructuralUnitInternalControlResolutionError::MalformedResolvedBytes)?;
+    if displacement != expected_displacement {
+        return Err(X86_64StructuralUnitInternalControlResolutionError::TargetEquationMismatch);
+    }
+    let replayed_target = i128::from(next_instruction_section_offset) + i128::from(displacement)
+        - i128::from(fixup.addend);
+    if replayed_target != i128::from(callee_section_offset) {
+        return Err(X86_64StructuralUnitInternalControlResolutionError::TargetEquationMismatch);
+    }
+
+    Ok(ValidatedX86_64ResolvedStructuralUnitCall {
+        bytes: bytes.to_vec(),
+        footprint: template.footprint().clone(),
+        resolution: X86_64ResolvedStructuralUnitInternalControlFixup {
+            source: fixup,
+            state: X86_64StructuralUnitInternalControlResolutionState::ResolvedInSectionV1,
+            caller_section_offset,
+            callee_section_offset,
+            next_instruction_section_offset,
+            displacement,
+        },
+    })
+}
+
+fn validate_resolution_fixup(
+    template: &ValidatedX86_64SelectedStructuralUnitCallTemplate,
+    fixup: X86_64StructuralUnitInternalControlFixup,
+) -> Result<(), X86_64StructuralUnitInternalControlResolutionError> {
+    if fixup != template.fixup()
+        || fixup.kind
+            != X86_64StructuralUnitInternalControlFixupKind::Relative32FromNextInstructionToInternalMachineV1
+        || fixup.state != X86_64StructuralUnitInternalControlFixupState::UnresolvedZeroFieldV1
+        || fixup.opcode_byte_offset != X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET
+        || fixup.field_byte_offset != X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET
+        || fixup.next_instruction_byte_offset
+            != X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET
+        || fixup.field_byte_width != X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH
+        || template
+            .bytes()
+            .get(usize::from(fixup.opcode_byte_offset))
+            != Some(&0xe8)
+        || template
+            .bytes()
+            .get(
+                usize::from(fixup.field_byte_offset)
+                    ..usize::from(fixup.next_instruction_byte_offset),
+            )
+            != Some(&[0, 0, 0, 0])
+    {
+        return Err(X86_64StructuralUnitInternalControlResolutionError::FixupMismatch);
+    }
+    Ok(())
+}
+
+fn checked_rel32_displacement(
+    next_instruction_section_offset: u64,
+    callee_section_offset: u64,
+    addend: i64,
+) -> Result<i32, X86_64StructuralUnitInternalControlResolutionError> {
+    let displacement = i128::from(callee_section_offset)
+        - i128::from(next_instruction_section_offset)
+        + i128::from(addend);
+    i32::try_from(displacement).map_err(|_| {
+        X86_64StructuralUnitInternalControlResolutionError::RelativeDisplacementOutOfRange
     })
 }
 
@@ -1703,6 +1909,119 @@ mod tests {
         .unwrap();
         assert_eq!(encoded.fixup().callee, MachineId::new(99).unwrap());
         assert_eq!(encoded.bytes()[81..85], [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn structural_unit_call_rel32_resolves_the_canonical_forward_fixture() {
+        let (physical, constraints, call) = structural_fixture();
+        let template = encode_x86_64_terminal_selected_structural_unit_call_template(
+            NativeTarget::uefi_x64(),
+            &physical,
+            &constraints,
+            &call,
+            structural_declaration(),
+        )
+        .unwrap();
+        let resolved =
+            resolve_x86_64_structural_unit_internal_call(&template, template.fixup(), 0, 90)
+                .unwrap();
+
+        assert_eq!(resolved.bytes()[81..85], [5, 0, 0, 0]);
+        assert_eq!(resolved.bytes()[80], 0xe8);
+        assert_eq!(resolved.footprint(), template.footprint());
+        assert_eq!(
+            resolved.resolution(),
+            X86_64ResolvedStructuralUnitInternalControlFixup {
+                source: template.fixup(),
+                state: X86_64StructuralUnitInternalControlResolutionState::ResolvedInSectionV1,
+                caller_section_offset: 0,
+                callee_section_offset: 90,
+                next_instruction_section_offset: 85,
+                displacement: 5,
+            }
+        );
+        assert_eq!(template.bytes()[81..85], [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn structural_unit_call_rel32_supports_backward_targets() {
+        let (physical, constraints, call) = structural_fixture();
+        let template = encode_x86_64_terminal_selected_structural_unit_call_template(
+            NativeTarget::windows_x64(),
+            &physical,
+            &constraints,
+            &call,
+            structural_declaration(),
+        )
+        .unwrap();
+        let resolved =
+            resolve_x86_64_structural_unit_internal_call(&template, template.fixup(), 200, 100)
+                .unwrap();
+
+        assert_eq!(resolved.resolution().next_instruction_section_offset, 285);
+        assert_eq!(resolved.resolution().displacement, -185);
+        assert_eq!(resolved.bytes()[81..85], (-185_i32).to_le_bytes());
+    }
+
+    #[test]
+    fn structural_unit_call_rel32_rejects_overflow_and_fixup_drift() {
+        let (physical, constraints, call) = structural_fixture();
+        let template = encode_x86_64_terminal_selected_structural_unit_call_template(
+            NativeTarget::uefi_x64(),
+            &physical,
+            &constraints,
+            &call,
+            structural_declaration(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            resolve_x86_64_structural_unit_internal_call(&template, template.fixup(), 0, u64::MAX,),
+            Err(X86_64StructuralUnitInternalControlResolutionError::RelativeDisplacementOutOfRange)
+        );
+        assert_eq!(
+            resolve_x86_64_structural_unit_internal_call(&template, template.fixup(), u64::MAX, 0,),
+            Err(X86_64StructuralUnitInternalControlResolutionError::SectionCoordinateOverflow)
+        );
+
+        let mut wrong_fixup = template.fixup();
+        wrong_fixup.addend = 1;
+        assert_eq!(
+            resolve_x86_64_structural_unit_internal_call(&template, wrong_fixup, 0, 90),
+            Err(X86_64StructuralUnitInternalControlResolutionError::FixupMismatch)
+        );
+    }
+
+    #[test]
+    fn structural_unit_call_resolution_replay_rejects_every_byte_corruption() {
+        let (physical, constraints, call) = structural_fixture();
+        let template = encode_x86_64_terminal_selected_structural_unit_call_template(
+            NativeTarget::uefi_x64(),
+            &physical,
+            &constraints,
+            &call,
+            structural_declaration(),
+        )
+        .unwrap();
+        let resolved =
+            resolve_x86_64_structural_unit_internal_call(&template, template.fixup(), 0, 90)
+                .unwrap();
+
+        for index in 0..resolved.bytes().len() {
+            let mut corrupted = resolved.bytes().to_vec();
+            corrupted[index] ^= 1;
+            let result = validate_x86_64_resolved_structural_unit_internal_call(
+                &template,
+                template.fixup(),
+                0,
+                90,
+                &corrupted,
+            );
+            assert!(
+                result.is_err(),
+                "byte {index} was not independently rejected"
+            );
+        }
     }
 
     #[test]
