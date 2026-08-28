@@ -1764,7 +1764,7 @@ mod tests {
         )
     }
 
-    fn live_exact_self_remainder_verified() -> VerifiedPsiOptimizationUnit {
+    fn live_exact_self_division_or_remainder_verified(divide: bool) -> VerifiedPsiOptimizationUnit {
         let machine = MachineId::new(1_142).unwrap();
         let block = BlockId::new(1_143).unwrap();
         let operand = ValueId::new(1_144).unwrap();
@@ -1784,10 +1784,18 @@ mod tests {
                 operations: vec![Operation {
                     id: OperationId::new(1_148).unwrap(),
                     result: OperationResult::Scalar(declaration(remainder)),
-                    kind: OperationKind::ExactIntegerRemainder {
-                        left: operand,
-                        right: operand,
-                        obligation,
+                    kind: if divide {
+                        OperationKind::ExactIntegerDivide {
+                            left: operand,
+                            right: operand,
+                            obligation,
+                        }
+                    } else {
+                        OperationKind::ExactIntegerRemainder {
+                            left: operand,
+                            right: operand,
+                            obligation,
+                        }
                     },
                 }],
                 terminator: Terminator::Return {
@@ -1818,6 +1826,14 @@ mod tests {
                 }],
             },
         )
+    }
+
+    fn live_exact_self_remainder_verified() -> VerifiedPsiOptimizationUnit {
+        live_exact_self_division_or_remainder_verified(false)
+    }
+
+    fn live_exact_self_divide_verified() -> VerifiedPsiOptimizationUnit {
+        live_exact_self_division_or_remainder_verified(true)
     }
 
     fn exact_add_verified_with_result(return_result: bool) -> VerifiedPsiOptimizationUnit {
@@ -2767,7 +2783,7 @@ mod tests {
         assert_eq!(optimized.commits().len(), 1);
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
         assert_eq!(optimized.pass_manifests().len(), 1);
-        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 8);
+        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 9);
         assert_eq!(optimized.plan().functions[0].operations.len(), 2);
         assert!(matches!(
             optimized.plan().functions[0].operations[1],
@@ -2801,7 +2817,7 @@ mod tests {
         assert_eq!(optimized.commits().len(), 1);
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
         assert_eq!(optimized.pass_manifests().len(), 1);
-        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 8);
+        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 9);
         assert_eq!(
             optimized.pass_manifests()[0].ordered_rules()[2],
             omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -2847,7 +2863,7 @@ mod tests {
         assert_eq!(optimized.commits().len(), 1);
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
         assert_eq!(optimized.pass_manifests().len(), 1);
-        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 8);
+        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 9);
         assert_eq!(
             optimized.pass_manifests()[0].ordered_rules()[3],
             omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -2896,7 +2912,7 @@ mod tests {
             assert_eq!(optimized.commits().len(), 1);
             assert_eq!(optimized.transformation_ledger().records().len(), 1);
             assert_eq!(optimized.pass_manifests().len(), 1);
-            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 8);
+            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 9);
             assert_eq!(
                 optimized.pass_manifests()[0].ordered_rules()[4],
                 omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -2947,7 +2963,7 @@ mod tests {
             assert_eq!(optimized.commits().len(), 1);
             assert_eq!(optimized.transformation_ledger().records().len(), 1);
             assert_eq!(optimized.pass_manifests().len(), 1);
-            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 8);
+            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 9);
             assert_eq!(
                 optimized.pass_manifests()[0].ordered_rules()[5],
                 omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -2998,7 +3014,7 @@ mod tests {
             assert_eq!(optimized.commits().len(), 1);
             assert_eq!(optimized.transformation_ledger().records().len(), 1);
             assert_eq!(optimized.pass_manifests().len(), 1);
-            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 8);
+            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 9);
             assert_eq!(
                 optimized.pass_manifests()[0].ordered_rules()[6],
                 omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -3070,7 +3086,7 @@ mod tests {
             assert_eq!(optimized.commits().len(), 1);
             assert_eq!(optimized.transformation_ledger().records().len(), 1);
             assert_eq!(optimized.pass_manifests().len(), 1);
-            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 8);
+            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 9);
             assert_eq!(
                 optimized.pass_manifests()[0].ordered_rules()[7],
                 omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -3123,6 +3139,78 @@ mod tests {
 
             let lowered = lower_optimized_to_target_operations(optimized, target)
                 .expect("the independently projected self-remainder zero remains lowerable");
+            assert_eq!(lowered.target(), target);
+            assert_eq!(lowered.target_operations().functions.len(), 1);
+            assert_eq!(lowered.optimized().commits().len(), 1);
+        }
+    }
+
+    #[test]
+    fn proof_check_elision_projects_and_lowers_live_exact_self_divide() {
+        let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let optimized = project_optimization_run(run(
+                live_exact_self_divide_verified(),
+                selections.clone(),
+            ))
+            .unwrap();
+
+            assert_eq!(optimized.commits().len(), 1);
+            assert_eq!(optimized.transformation_ledger().records().len(), 1);
+            assert_eq!(optimized.pass_manifests().len(), 1);
+            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 9);
+            assert_eq!(
+                optimized.pass_manifests()[0].ordered_rules()[8],
+                omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.live-proof-certified-integer-self-divide-elimination.v1"
+                )
+            );
+            assert_eq!(optimized.plan().functions[0].operations.len(), 2);
+            assert!(matches!(
+                optimized.plan().functions[0].operations[0],
+                TerminalAbstractOperation::IntegerConstant {
+                    psi_operation,
+                    result,
+                    value: IntegerValue::Unsigned(1),
+                    ..
+                } if psi_operation == OperationId::new(1_148).unwrap()
+                    && result == ValueId::new(1_145).unwrap()
+            ));
+            assert!(matches!(
+                optimized.plan().functions[0].operations[1],
+                TerminalAbstractOperation::Return { value, .. }
+                    if value == ValueId::new(1_145).unwrap()
+            ));
+            assert_eq!(optimized.unit().accepted_obligation_facts.len(), 1);
+            assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
+                !matches!(
+                    fact,
+                    omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                )
+            }));
+            assert!(optimized.unit().functions[0].facts.iter().any(|fact| {
+                matches!(
+                    fact,
+                    omega_optimization_unit::OptimizationFact::IntegerConstant {
+                        value,
+                        constant: IntegerValue::Unsigned(1),
+                        support,
+                    } if *value == ValueId::new(1_145).unwrap()
+                        && *support == OperationId::new(1_148).unwrap()
+                )
+            }));
+            assert_eq!(
+                optimized.pass_manifests()[0].decisions()[0]
+                    .consumed_facts()
+                    .len(),
+                1
+            );
+            let constant = &optimized.unit().functions[0].blocks[0].nodes[0];
+            assert_eq!(constant.provenance.len(), 1);
+            assert_eq!(constant.fuel.len(), 1);
+
+            let lowered = lower_optimized_to_target_operations(optimized, target)
+                .expect("the independently projected self-divide one remains lowerable");
             assert_eq!(lowered.target(), target);
             assert_eq!(lowered.target_operations().functions.len(), 1);
             assert_eq!(lowered.optimized().commits().len(), 1);
