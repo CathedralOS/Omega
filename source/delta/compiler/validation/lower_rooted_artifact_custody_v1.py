@@ -12,8 +12,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 import struct
 import sys
+import tempfile
 from pathlib import Path
 
 import lower_rooted_assembly_publication_v1 as assembly_publication
@@ -24,7 +26,7 @@ OBSERVATION_SCHEMA = "omega.delta-darwin-arm64-realization-observation.v1"
 RECEIPT_SCHEMA = "omega.delta-lower-rooted-artifact-custody.v1"
 RECEIPT_DOMAIN = b"omega.delta-lower-rooted-artifact-custody.v1\0"
 PUBLICATION_ID = "delta.compiler.darwin-arm64-executable.candidate.v1"
-CLAIM = "candidate_lower_rooted_executable_identity_only"
+CLAIM = "candidate_lower_rooted_executable_realization_replay_custody"
 FORMAT_PROFILE = "delta.darwin-arm64-macho.unsigned-no-uuid-v1"
 COMMAND_PROFILE = {
     "architecture_arguments": ["-arch", "arm64"],
@@ -46,6 +48,7 @@ MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
 MAX_TOOLCHAIN_COMPONENT_BYTES = 512 * 1024 * 1024
 MAX_SDK_COMPONENT_BYTES = 64 * 1024 * 1024
 EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
+REALIZATION_TIMEOUT_SECONDS = 300
 
 MH_MAGIC_64 = 0xFEEDFACF
 CPU_TYPE_ARM64 = 0x0100000C
@@ -545,7 +548,7 @@ def validate_status_elapsed(status: int, elapsed_ms: int) -> None:
         fail("realization elapsed milliseconds")
 
 
-def make_observation(
+def capture_observation(
     status: int,
     elapsed_ms: int,
     assembly: Path,
@@ -557,7 +560,7 @@ def make_observation(
     sdk_settings: Path,
     libsystem: Path,
     compiler_runtime: Path,
-) -> dict:
+) -> tuple[dict, bytes, bytes]:
     validate_status_elapsed(status, elapsed_ms)
     assembly_role = "darwin_arm64_assembly_stdout"
     assembly_raw = bounded_read(
@@ -574,7 +577,7 @@ def make_observation(
     artifact_raw = bounded_read(artifact, artifact_role, MAX_ARTIFACT_BYTES)
     artifact_identity = bytes_identity(artifact_raw, artifact_role)
     target = validate_macho(artifact_raw)
-    return {
+    return ({
         "artifact": artifact_identity,
         "assembly": assembly_identity,
         "command_profile": COMMAND_PROFILE,
@@ -601,7 +604,117 @@ def make_observation(
                 sdk_settings, "ambient_macos_sdk_settings", MAX_SDK_COMPONENT_BYTES
             ),
         },
-    }
+    }, assembly_raw, artifact_raw)
+
+
+def make_observation(
+    status: int,
+    elapsed_ms: int,
+    assembly: Path,
+    artifact: Path,
+    stdout: Path,
+    stderr: Path,
+    clang: Path,
+    linker: Path,
+    sdk_settings: Path,
+    libsystem: Path,
+    compiler_runtime: Path,
+) -> dict:
+    observation, _, _ = capture_observation(
+        status, elapsed_ms, assembly, artifact, stdout, stderr, clang, linker,
+        sdk_settings, libsystem, compiler_runtime,
+    )
+    return observation
+
+
+def realization_command(
+    clang: Path,
+    linker: Path,
+    sdk_root: Path,
+    artifact: Path,
+    assembly: Path,
+) -> list[str]:
+    """Instantiate the literal V1 profile without ambient PATH lookup."""
+
+    return [
+        os.fspath(clang),
+        "-arch", "arm64",
+        "-isysroot", os.fspath(sdk_root),
+        f"-fuse-ld={os.fspath(linker)}",
+        "-mmacosx-version-min=11.0",
+        "-Wl,-no_uuid",
+        "-Wl,-no_adhoc_codesign",
+        "-o", os.fspath(artifact),
+        os.fspath(assembly),
+    ]
+
+
+def replay_realization(
+    assembly_raw: bytes,
+    candidate_raw: bytes,
+    clang: Path,
+    linker: Path,
+    sdk_settings: Path,
+) -> dict:
+    """Run the declared producer and retain only deterministic replay facts."""
+
+    for path, context in (
+        (clang, "clang driver"),
+        (linker, "linker"),
+        (sdk_settings, "SDK settings"),
+    ):
+        if not path.is_absolute():
+            fail(f"realization replay {context} path")
+    with tempfile.TemporaryDirectory(prefix="omega-delta-realization-") as directory:
+        root = Path(directory)
+        assembly = root / "candidate.s"
+        artifact = root / "candidate"
+        stdout = root / "clang.stdout"
+        stderr = root / "clang.stderr"
+        assembly.write_bytes(assembly_raw)
+        with stdout.open("wb") as stdout_stream, stderr.open("wb") as stderr_stream:
+            try:
+                result = subprocess.run(
+                    realization_command(
+                        clang, linker, sdk_settings.parent, artifact, assembly
+                    ),
+                    stdin=subprocess.DEVNULL,
+                    stdout=stdout_stream,
+                    stderr=stderr_stream,
+                    check=False,
+                    timeout=REALIZATION_TIMEOUT_SECONDS,
+                )
+            except subprocess.TimeoutExpired:
+                fail("realization replay timeout")
+        if result.returncode != 0:
+            fail("realization replay status")
+        stdout_raw = bounded_read(stdout, "replayed_apple_clang_stdout", MAX_DOCUMENT)
+        stderr_raw = bounded_read(stderr, "replayed_apple_clang_stderr", MAX_DOCUMENT)
+        if stdout_raw or stderr_raw:
+            fail("realization replay diagnostics")
+        replayed_raw = bounded_read(
+            artifact, "replayed_unsigned_darwin_arm64_macho_executable",
+            MAX_ARTIFACT_BYTES,
+        )
+        target = validate_macho(replayed_raw)
+        if replayed_raw != candidate_raw:
+            fail("realization replay artifact cross-pair")
+        return {
+            "artifact": bytes_identity(
+                replayed_raw, "replayed_unsigned_darwin_arm64_macho_executable"
+            ),
+            "assembly": bytes_identity(
+                assembly_raw, "replayed_darwin_arm64_assembly_input"
+            ),
+            "command_profile": COMMAND_PROFILE,
+            "stderr": bytes_identity(
+                stderr_raw, "replayed_apple_clang_diagnostic_stderr"
+            ),
+            "stdout": bytes_identity(
+                stdout_raw, "replayed_apple_clang_diagnostic_stdout"
+            ),
+            "target": target,
+        }
 
 
 OBSERVATION_KEYS = {
@@ -645,7 +758,7 @@ def make_receipt(
     parent = rederive_assembly_receipt(assembly_receipt_path, assembly_join_arguments)
     observation = load_json(observation_path, "realization observation")
     strict(observation, OBSERVATION_KEYS, "realization observation")
-    expected_observation = make_observation(
+    expected_observation, assembly_raw, candidate_raw = capture_observation(
         observation.get("status"), observation.get("elapsed_milliseconds"),
         assembly, artifact, stdout, stderr, clang, linker, sdk_settings,
         libsystem, compiler_runtime,
@@ -654,6 +767,21 @@ def make_receipt(
         fail("realization observation custody")
     if observation["assembly"] != parent["assembly"]:
         fail("assembly/artifact cross-pair")
+
+    reconstruction = replay_realization(
+        assembly_raw, candidate_raw, clang, linker, sdk_settings
+    )
+    after_observation, after_assembly_raw, after_candidate_raw = capture_observation(
+        observation.get("status"), observation.get("elapsed_milliseconds"),
+        assembly, artifact, stdout, stderr, clang, linker, sdk_settings,
+        libsystem, compiler_runtime,
+    )
+    if (
+        after_observation != expected_observation
+        or after_assembly_raw != assembly_raw
+        or after_candidate_raw != candidate_raw
+    ):
+        fail("realization inputs changed during replay")
 
     receipt = {
         "artifact": observation["artifact"],
@@ -669,6 +797,7 @@ def make_receipt(
         "open_refinement": OPEN_REFINEMENT,
         "publication_id": PUBLICATION_ID,
         "realization": observation,
+        "reconstruction": reconstruction,
         "receipt_sha256": "0" * 64,
         "schema": RECEIPT_SCHEMA,
         "target": {

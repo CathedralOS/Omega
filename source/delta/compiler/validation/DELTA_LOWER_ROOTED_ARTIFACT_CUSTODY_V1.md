@@ -1,14 +1,15 @@
 # Delta lower-rooted artifact custody, version 1
 
 This contract joins an already verified Delta assembly-publication receipt to
-one exact unsigned Darwin ARM64 Mach-O executable. It closes **byte custody and
-container identity only**. It is not source-to-artifact refinement, compiler
-authority, or an admission of Apple clang, the Apple linker, an SDK, libSystem,
-or the compiler runtime.
+one exact unsigned Darwin ARM64 Mach-O executable. It closes **byte custody,
+container identity, and exact-command realization replay**. It is not
+source-to-artifact refinement, compiler authority, or an admission of Apple
+clang, the Apple linker, an SDK, libSystem, or the compiler runtime.
 
 The schema is `omega.delta-lower-rooted-artifact-custody.v1`, the publication
 ID is `delta.compiler.darwin-arm64-executable.candidate.v1`, and the claim is
-deliberately limited to `candidate_lower_rooted_executable_identity_only`.
+deliberately limited to
+`candidate_lower_rooted_executable_realization_replay_custody`.
 
 ## Direct realization command
 
@@ -31,6 +32,16 @@ rewrite the assembly or executable. A runner may locate the selected clang,
 linker, SDK, libSystem stub, and compiler-runtime archive, but their exact bytes
 are inputs to the observation and receipt; a generic tool name or version
 string is insufficient.
+
+`generate` and `verify` instantiate this command with the exact supplied
+absolute clang and linker paths; ambient `PATH` lookup rejects. `SDK_ROOT` is
+the parent of the supplied absolute `SDKSettings.json` path.
+They copy the already captured assembly bytes unchanged into a private
+temporary directory, use a separate temporary output, allow no stdin, bound
+the command to 300 seconds, and require status zero plus byte-empty stdout and
+stderr. The replayed output must independently pass the V1 Mach-O validator and
+equal the captured candidate byte for byte. Inputs are captured again after
+the command and must still equal their pre-replay observations.
 
 The compiler driver remains an ambient admitted producer. Recording its exact
 inputs makes the build reproducible and prevents a result from being silently
@@ -56,8 +67,18 @@ reconstructs all of the following before emitting or verifying a receipt:
 2. byte equality between the assembly identity in that receipt and the
    assembly supplied to realization;
 3. the exact identities of the Mach-O bytes, clang driver, linker, SDK settings,
-   libSystem stub, compiler-runtime archive, and empty process streams; and
-4. the bounded target/container profile below.
+   libSystem stub, compiler-runtime archive, and empty process streams;
+4. execution of the literal V1 command with the captured assembly, exact
+   supplied tool paths, and a fresh temporary output;
+5. successful empty-diagnostic replay, independent validation of the replayed
+   Mach-O, and byte equality with the candidate; and
+6. the bounded target/container profile below.
+
+The receipt's `reconstruction` member retains deterministic identities for the
+replay input, output, empty streams, command profile, and target summary. A
+handcrafted Mach-O can exercise `observe` and the container validator, but it
+cannot receive this reconstruction-bearing receipt without being reproduced by
+the declared command.
 
 The Mach-O validator requires a 64-bit ARM64 `MH_EXECUTE` image with macOS 11.0
 minimum deployment, exactly the `NOUNDEFS`, `DYLDLINK`, `TWOLEVEL`, and `PIE`
@@ -92,7 +113,9 @@ digest field omitted.
 
 ## Commands
 
-The verifier has no default evidence paths and does not run clang:
+The verifier has no default evidence paths. `observe` validates supplied
+identity/container evidence without running clang; `generate` and `verify`
+both execute the replay described above:
 
 ```text
 observe STATUS ELAPSED_MS ASSEMBLY ARTIFACT STDOUT STDERR \
