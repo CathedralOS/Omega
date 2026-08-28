@@ -23,6 +23,90 @@ mod structural_control_cases;
 mod structural_return_cases;
 mod unit_cleanup;
 
+fn checked_source(source: &str) -> psi_checked_trees::CheckedTrees {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed).expect("check")
+}
+
+#[test]
+fn program_entry_receipt_binds_checked_source_to_canonical_terminal_entry() {
+    let checked = checked_source(
+        r#"
+            data Main {}
+            machine Main::launch() {}
+        "#,
+    );
+    let source_signature_identity = [0x5a; 32];
+    let produced = produce_program_entry_terminal_artifact(
+        &checked,
+        "Main::launch",
+        source_signature_identity,
+    )
+    .expect("produce checked Unit ProgramEntry artifact");
+    let receipt = produced.receipt();
+    let selection = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find(|machine| machine.name == "Main::launch")
+        .expect("checked terminal selection");
+    let decoded = psi_terminal_codec::decode_module(produced.artifact().semantic_bytes())
+        .expect("decode canonical semantic module");
+
+    assert_eq!(
+        receipt.source_signature_identity(),
+        source_signature_identity
+    );
+    assert_eq!(receipt.source_machine(), selection.machine);
+    assert_eq!(receipt.source_machine_name(), "Main::launch");
+    assert_eq!(receipt.terminal_entry(), decoded.entry);
+    assert_eq!(
+        receipt.terminal_psi_identity(),
+        produced.artifact().manifest().semantic()
+    );
+    assert!(
+        decoded
+            .machines
+            .iter()
+            .any(|machine| machine.id == receipt.terminal_entry()
+                && machine.result == TerminalMachineResult::Unit)
+    );
+    produced
+        .artifact()
+        .validate()
+        .expect("receipt-coupled artifact replays");
+}
+
+#[test]
+fn program_entry_receipt_rejects_a_scalar_result_machine() {
+    let checked = checked_source(
+        r#"
+            data Helper {}
+            machine Helper::touch() {}
+            data Token { value: u64; }
+            machine Token::drop(&mut self) { Helper::touch(); }
+            data Main {}
+            machine Main::launch(token: Token) -> u64 { 7u64 }
+        "#,
+    );
+    let error = produce_program_entry_terminal_artifact(&checked, "Main::launch", [0x11; 32])
+        .expect_err("ProgramEntry receipt requires a Unit result");
+    assert!(
+        matches!(
+            &error,
+            TerminalArtifactProductionError::EntryReceipt(
+                ProgramEntryTerminalReceiptError::NonUnitEntry
+            )
+        ),
+        "unexpected receipt rejection: {error:?}"
+    );
+}
+
 fn checked_write_line_literal() -> psi_checked_trees::CheckedTrees {
     let source = r#"
         boundary trait Console {
