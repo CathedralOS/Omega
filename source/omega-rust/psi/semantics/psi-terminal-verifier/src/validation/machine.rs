@@ -13,7 +13,7 @@ pub(super) fn validate_machine(
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     registry: &mut IdRegistry,
-    _policy: ValidationPolicy,
+    policy: ValidationPolicy,
 ) -> Result<(), ModuleError> {
     if machine.blocks.is_empty() {
         return Err(ModuleError::MachineHasNoBlocks(machine.id));
@@ -807,12 +807,24 @@ pub(super) fn validate_machine(
         ));
     }
 
+    let representation_backedges = ranked_scc::validate_ranked_scc(machine, &blocks, &value_types)?;
     control_flow::validate_control_flow(
         machine,
         machines,
         &module.boundary_machines,
         &blocks,
         &value_types,
+        &representation_backedges,
     )?;
-    frontier::validate_structural_frontier(module, machine, machines, &blocks).map(|_| ())
+    frontier::validate_structural_frontier(
+        module,
+        machine,
+        machines,
+        &blocks,
+        &representation_backedges,
+    )?;
+    if policy == ValidationPolicy::Execution && machine.ranked_scc.is_some() {
+        return Err(ModuleError::NonExecutableRankedScc(machine.id));
+    }
+    Ok(())
 }

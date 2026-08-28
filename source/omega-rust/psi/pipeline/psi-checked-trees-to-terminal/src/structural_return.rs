@@ -202,6 +202,7 @@ pub(super) fn lower_structural_return_machine(
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
         parameters: Vec::new(),
         structural_parameters: parameters,
+        ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
             place: result_place,
             structural_type: lookup_type_id(&type_ids, &plan.result.type_identity)?,

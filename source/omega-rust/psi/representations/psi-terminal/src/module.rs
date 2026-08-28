@@ -2,9 +2,9 @@ use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentConservation,
     ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
     ContentStructuralPlace, ContentTerm, ContractId, DomainSemanticId, EdgeId, EvidenceTermId,
-    IeeeFloatFormat, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition,
-    PropositionId, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    IeeeFloatFormat, IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
+    Proposition, PropositionId, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId,
+    StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_language_core::BindingRelevance;
 
@@ -27,7 +27,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        36
+        37
     }
 }
 
@@ -783,6 +783,11 @@ pub struct TerminalMachine {
     pub parameters: Vec<ValueDeclaration>,
     /// Ordered runtime structural parameters, separate from scalar values.
     pub structural_parameters: Vec<StructuralParameterDeclaration>,
+    /// Canonical source-handle-free ranking evidence for the first admitted
+    /// cyclic control component. Representation validation checks only the
+    /// closed identity and graph joins; execution remains unavailable until
+    /// the verifier reconstructs the stated guard and successor arithmetic.
+    pub ranked_scc: Option<TerminalRankedScc>,
     /// Unit carries no value; scalar results have a stable pseudo-value bound
     /// by every scalar return edge and available to `ensures`.
     pub result: TerminalMachineResult,
@@ -809,6 +814,51 @@ pub struct TerminalMachine {
     pub entry: BlockId,
     pub blocks: Vec<Block>,
     pub contract: MachineContract,
+}
+
+/// One exact ranked strongly connected component in Terminal-Psi identity.
+///
+/// The current representation admits only the deliberately narrow unsigned
+/// countdown shape. The row names Terminal identities exclusively; frontend
+/// arena handles and source coordinates cannot survive this boundary.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalRankedScc {
+    pub header: BlockId,
+    pub rank_parameter: ValueId,
+    pub rank_type: IntegerType,
+    pub lower_bound: IntegerValue,
+    pub upper_bound: IntegerValue,
+    /// Strictly ordered by `edge`; every cyclic edge must appear exactly once.
+    pub covered_cyclic_edges: Vec<TerminalRankedSccEdge>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalRankedSccEdge {
+    pub edge: EdgeId,
+    pub source: BlockId,
+    pub target: BlockId,
+    pub guard: TerminalRankedGuard,
+    pub successor_argument: TerminalRankedSuccessorArgument,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TerminalRankedGuard {
+    UnsignedParameterPositive {
+        block: BlockId,
+        edge: EdgeId,
+        condition: ValueId,
+        parameter: ValueId,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TerminalRankedSuccessorArgument {
+    UnsignedParameterMinusOne {
+        argument_index: u32,
+        argument: ValueId,
+        source_parameter: ValueId,
+        target_parameter: ValueId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -236,6 +236,7 @@ pub(super) fn lower_trait_operator_scalar_return_machine(
             .transpose()?,
         parameters: Vec::new(),
         structural_parameters: structural_parameters.clone(),
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(machine_result),
         structural_places: structural_parameters
             .iter()
@@ -831,6 +832,7 @@ fn lower_structural_scalar_return_machine_in_namespace(
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
         parameters: scalar_parameters,
         structural_parameters: structural_parameters.clone(),
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(result),
         structural_places: structural_parameters
             .iter()

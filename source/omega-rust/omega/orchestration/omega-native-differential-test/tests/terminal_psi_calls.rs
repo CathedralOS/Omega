@@ -550,6 +550,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 parameters: Vec::new(),
+                ranked_scc: None,
                 result: TerminalMachineResult::Scalar(scalar_declaration(
                     caller_result,
                     scalar_type,
@@ -600,6 +601,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 parameters: vec![scalar_declaration(callee_parameter, scalar_type)],
+                ranked_scc: None,
                 result: TerminalMachineResult::Scalar(scalar_declaration(
                     callee_result,
                     scalar_type,

@@ -164,9 +164,17 @@ Remaining:
   exports the exact direct unsigned-countdown component, and checked structural
   control retains its header, rank carrier/bounds, covered edge coordinate,
   positive guard, and parameter-minus-one successor form without a second
-  syntax recognizer. The next substep is the source-handle-free Terminal
-  identity/codec and fail-closed representation policy; execution authority,
-  invariant reconstruction, fuel, and native lowering remain open after it.
+  syntax recognizer. The source-handle-free Terminal representation substep is
+  also complete: lowering emits an explicit entry preheader, ranked header,
+  positive guard, decrement block, and covered backedge; Terminal format 34 /
+  vocabulary 37 retains that identity canonically; and representation replay
+  reconstructs the zero-to-rank entry, actual guard, exact subtraction, and
+  successor argument while ordinary execution authority rejects the cyclic
+  machine. Missing rank evidence still reaches the existing unranked-cycle
+  rejection, and forwarding the original rank rejects as invalid rank evidence.
+  The next substep is execution-grade cyclic ownership-frontier convergence,
+  followed by interpreter execution, derived fuel, Omega/native lowering, and
+  artifact custody for the same exact first slice.
   Later product-required slices must then add persistent mutable receiver and
   subplace custody, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and

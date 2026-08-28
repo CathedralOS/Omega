@@ -9,6 +9,7 @@ pub(super) fn validate_control_flow(
     boundary_machines: &[BoundaryMachineDeclaration],
     blocks: &BTreeMap<BlockId, &psi_terminal::Block>,
     value_types: &BTreeMap<ValueId, ScalarType>,
+    representation_backedges: &BTreeSet<EdgeId>,
 ) -> Result<(), ModuleError> {
     let globally_defined = machine
         .parameters
@@ -28,18 +29,22 @@ pub(super) fn validate_control_flow(
     }
 
     let mut successors = BTreeMap::<BlockId, Vec<BlockId>>::new();
+    let mut representation_successors = BTreeMap::<BlockId, Vec<BlockId>>::new();
     let mut predecessors = blocks
         .keys()
         .map(|block| (*block, Vec::<BlockId>::new()))
         .collect::<BTreeMap<_, _>>();
     for block in blocks.values() {
         let targets = match &block.terminator {
-            Terminator::Jump { target, .. } => vec![*target],
+            Terminator::Jump { edge, target, .. } => vec![(*edge, *target)],
             Terminator::Conditional {
                 when_true,
                 when_false,
                 ..
-            } => vec![when_true.target, when_false.target],
+            } => vec![
+                (when_true.edge, when_true.target),
+                (when_false.edge, when_false.target),
+            ],
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
             | Terminator::ReturnUnitPartialAffine { .. }
@@ -47,16 +52,28 @@ pub(super) fn validate_control_flow(
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => Vec::new(),
         };
-        for target in &targets {
+        for (_, target) in &targets {
             if !blocks.contains_key(target) {
                 return Err(ModuleError::UnknownTargetBlock(*target));
             }
+        }
+        let retained_targets = targets
+            .iter()
+            .filter_map(|(edge, target)| {
+                (!representation_backedges.contains(edge)).then_some(*target)
+            })
+            .collect::<Vec<_>>();
+        for target in &retained_targets {
             predecessors
                 .get_mut(target)
                 .expect("known target has a predecessor row")
                 .push(block.id);
         }
-        successors.insert(block.id, targets);
+        successors.insert(
+            block.id,
+            targets.into_iter().map(|(_, target)| target).collect(),
+        );
+        representation_successors.insert(block.id, retained_targets);
     }
 
     let mut reachable = BTreeSet::new();
@@ -92,7 +109,10 @@ pub(super) fn validate_control_flow(
     let mut order = Vec::with_capacity(blocks.len());
     while let Some(block) = ready.pop_first() {
         order.push(block);
-        for target in successors.get(&block).expect("every block has successors") {
+        for target in representation_successors
+            .get(&block)
+            .expect("every block has representation successors")
+        {
             let count = indegree
                 .get_mut(target)
                 .expect("known target has an indegree");

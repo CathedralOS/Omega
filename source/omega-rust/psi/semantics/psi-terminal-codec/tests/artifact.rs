@@ -1979,6 +1979,7 @@ fn semantic_module() -> TerminalModule {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: value_id(2),
                 scalar_type,

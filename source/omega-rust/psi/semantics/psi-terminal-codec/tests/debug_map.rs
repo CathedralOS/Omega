@@ -257,6 +257,7 @@ fn fixture() -> TerminalModule {
                 id: value_id(1),
                 scalar_type,
             }],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: value_id(2),
                 scalar_type,

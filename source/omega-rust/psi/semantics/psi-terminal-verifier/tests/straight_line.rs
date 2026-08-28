@@ -360,6 +360,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: ScalarType::Boolean,
@@ -464,6 +465,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
                 id: parameter,
                 scalar_type: ScalarType::Boolean,
             }],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: ScalarType::Boolean,
@@ -605,6 +607,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
                     scalar_type: ScalarType::Boolean,
                 },
             ],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: ScalarType::Boolean,
@@ -749,6 +752,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
                     scalar_type: integer_scalar,
                 },
             ],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: ScalarType::Boolean,
@@ -915,6 +919,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
                         scalar_type: integer_scalar,
                     },
                 ],
+                ranked_scc: None,
                 result: TerminalMachineResult::Scalar(ValueDeclaration {
                     id: result,
                     scalar_type: ScalarType::Boolean,
@@ -1070,6 +1075,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
                         scalar_type,
                     },
                 ],
+                ranked_scc: None,
                 result: TerminalMachineResult::Scalar(ValueDeclaration {
                     id: result,
                     scalar_type,
@@ -1198,6 +1204,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
                 id: operand,
                 scalar_type,
             }],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
@@ -1312,6 +1319,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
                 id: operand,
                 scalar_type: source_scalar,
             }],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: target_scalar,
@@ -1454,6 +1462,7 @@ fn preserves_address_carrier_identity() {
                 id: parameter,
                 scalar_type: address,
             }],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: address,
@@ -1524,6 +1533,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
                 id: operand,
                 scalar_type: source,
             }],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: target,
@@ -1632,6 +1642,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
                     scalar_type: count_type,
                 },
             ],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: value_type,
@@ -1724,6 +1735,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
                     scalar_type: count_type,
                 },
             ],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: value_type,
@@ -1806,6 +1818,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
@@ -1882,6 +1895,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
@@ -1958,6 +1972,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
@@ -2034,6 +2049,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
@@ -2110,6 +2126,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
@@ -2185,6 +2202,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
@@ -2260,6 +2278,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
@@ -2335,6 +2354,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
@@ -2410,6 +2430,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: vec![declaration(left), declaration(right)],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
@@ -2523,6 +2544,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
                         scalar_type: count_scalar,
                     },
                 ],
+                ranked_scc: None,
                 result: TerminalMachineResult::Scalar(ValueDeclaration {
                     id: result,
                     scalar_type: value_scalar,
@@ -4095,6 +4117,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
         }],
         published_service_ceiling: Vec::new(),
         parameters: Vec::new(),
+        ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
             place: output_root,
             structural_type,
@@ -4221,6 +4244,7 @@ fn structural_call_module() -> TerminalModule {
         attachment: None,
         parameters: Vec::new(),
         structural_parameters: vec![parameter(caller_input, 0)],
+        ranked_scc: None,
         result: TerminalMachineResult::Structural(caller_result_declaration),
         structural_places: vec![
             StructuralPlaceDeclaration {
@@ -4307,6 +4331,7 @@ fn structural_call_module() -> TerminalModule {
         attachment: None,
         parameters: Vec::new(),
         structural_parameters: vec![parameter(callee_input, 0)],
+        ranked_scc: None,
         result: TerminalMachineResult::Structural(callee_result_declaration),
         structural_places: vec![
             StructuralPlaceDeclaration {
@@ -4577,6 +4602,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
             scalar_type: ScalarType::Boolean,
         }],
         structural_parameters: vec![structural_parameter.clone()],
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type: ScalarType::Boolean,
@@ -4778,6 +4804,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
             id: parameter,
             scalar_type: ScalarType::Boolean,
         }],
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type: ScalarType::Boolean,
@@ -5286,6 +5313,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
                 scalar_type,
             },
         ],
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,
@@ -5378,6 +5406,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
                 scalar_type,
             },
         ],
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,
@@ -5470,6 +5499,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
                 scalar_type,
             },
         ],
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,
@@ -5562,6 +5592,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
                 scalar_type,
             },
         ],
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,
@@ -5654,6 +5685,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
                 scalar_type,
             },
         ],
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,
@@ -5746,6 +5778,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
                 scalar_type,
             },
         ],
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,
@@ -5835,6 +5868,7 @@ fn unit_module() -> TerminalModule {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
@@ -6114,6 +6148,7 @@ impl Fixture {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,

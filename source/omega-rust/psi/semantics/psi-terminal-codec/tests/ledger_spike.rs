@@ -150,6 +150,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
         attachment: None,
         parameters: Vec::new(),
         structural_parameters: vec![parameter(caller_place, 0, false)],
+        ranked_scc: None,
         result: TerminalMachineResult::Unit,
         structural_places: vec![StructuralPlaceDeclaration {
             id: caller_place,
@@ -208,6 +209,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
         attachment: None,
         parameters: Vec::new(),
         structural_parameters: vec![parameter(callee_place, 0, false)],
+        ranked_scc: None,
         result: TerminalMachineResult::Unit,
         structural_places: vec![StructuralPlaceDeclaration {
             id: callee_place,
@@ -331,6 +333,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         }],
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: value_id(11),
             scalar_type: ScalarType::Boolean,
@@ -401,6 +404,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
         attachment: None,
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
+        ranked_scc: None,
         result: TerminalMachineResult::Unit,
         structural_places: vec![StructuralPlaceDeclaration {
             id: local,
@@ -442,6 +446,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
         attachment: Some(boolean_box),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
+        ranked_scc: None,
         result: TerminalMachineResult::Unit,
         structural_places: Vec::new(),
         entry_claims: Vec::new(),
@@ -548,6 +553,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
         attachment: None,
         parameters: vec![value(10), value(11), i16_value(12)],
         structural_parameters: Vec::new(),
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(value(13)),
         structural_places: Vec::new(),
         entry_claims: Vec::new(),
@@ -894,6 +900,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
         attachment: None,
         parameters: vec![value(200), value(201)],
         structural_parameters: Vec::new(),
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(value(202)),
         structural_places: Vec::new(),
         entry_claims: Vec::new(),

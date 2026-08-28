@@ -26,6 +26,7 @@ use psi_terminal::{
     StructuralPlaceDeclaration, StructuralResultClaimBinding, StructuralResultClaimTransfer,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
     TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalRankedGuard, TerminalRankedScc, TerminalRankedSccEdge, TerminalRankedSuccessorArgument,
     Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
@@ -38,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 34_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -46,11 +47,34 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "92ba7e7a4f97a519b5c0c227cf799c82257b3bb89d0c82b0d1da146cdbe0fdec"
+        "fa91a9e4aaecb12fcd5f14876fb7a3f98cbd17d46e5494c24bacdbd2cb69b757"
     );
     assert_eq!(
         identity.program_fingerprint,
         semantic_fingerprint(&module).unwrap()
+    );
+}
+
+#[test]
+fn ranked_countdown_round_trips_in_current_terminal_identity() {
+    let module = ranked_countdown_fixture();
+    let bytes = encode_module(&module).expect("ranked representation should encode");
+    assert_eq!(&bytes[8..10], 34_u16.to_le_bytes());
+    assert_eq!(
+        &bytes[10..12],
+        VocabularyMarker::CURRENT.get().to_le_bytes()
+    );
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(
+        encode_module(&decode_module(&bytes).unwrap()),
+        Ok(bytes.clone())
+    );
+
+    let mut stale_format = bytes;
+    stale_format[8..10].copy_from_slice(&33_u16.to_le_bytes());
+    assert_eq!(
+        decode_module(&stale_format),
+        Err(CodecError::UnsupportedFormatMarker(33))
     );
 }
 
@@ -313,7 +337,7 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 34_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -326,7 +350,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 34_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -361,7 +385,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 34_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -721,6 +745,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
                 qualifications: Vec::new(),
             },
         ],
+        ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
             place: result,
             structural_type: source_type,
@@ -1306,11 +1331,11 @@ fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
 #[test]
 fn decoder_rejects_the_previous_vocabulary_marker() {
     let mut bytes = encode_module(&structural_effect_fixture()).unwrap();
-    bytes[10..12].copy_from_slice(&35_u16.to_le_bytes());
+    bytes[10..12].copy_from_slice(&36_u16.to_le_bytes());
 
     assert_eq!(
         decode_module(&bytes),
-        Err(CodecError::UnsupportedVocabularyMarker(35))
+        Err(CodecError::UnsupportedVocabularyMarker(36))
     );
 }
 
@@ -1525,6 +1550,7 @@ fn decoder_rejects_an_unknown_machine_result_shape() {
     machine_prefix.push(0); // no attachment
     machine_prefix.extend(0_u32.to_le_bytes()); // no scalar parameters
     machine_prefix.extend(0_u32.to_le_bytes()); // no structural parameters
+    machine_prefix.push(0); // no ranked SCC
     machine_prefix.push(0); // Unit result tag
     let offsets = bytes
         .windows(machine_prefix.len())
@@ -1995,10 +2021,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&34_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&35_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(34))
+        Err(CodecError::UnsupportedFormatMarker(35))
     );
 
     let mut stale_format = bytes.clone();
@@ -2196,6 +2222,7 @@ fn partial_affine_fixture() -> TerminalModule {
                     access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                 }],
+                ranked_scc: None,
                 result: TerminalMachineResult::Unit,
                 structural_places: vec![StructuralPlaceDeclaration {
                     id: pair_place,
@@ -2259,6 +2286,7 @@ fn partial_affine_fixture() -> TerminalModule {
                     access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                 }],
+                ranked_scc: None,
                 result: TerminalMachineResult::Unit,
                 structural_places: vec![StructuralPlaceDeclaration {
                     id: token_place,
@@ -2421,6 +2449,7 @@ fn nominal_affine_fixture() -> TerminalModule {
                     access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                 }],
+                ranked_scc: None,
                 result: TerminalMachineResult::Unit,
                 structural_places: vec![StructuralPlaceDeclaration {
                     id: source_place,
@@ -2463,6 +2492,7 @@ fn nominal_affine_fixture() -> TerminalModule {
                 attachment: Some(resource_type),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
+                ranked_scc: None,
                 result: TerminalMachineResult::Unit,
                 structural_places: Vec::new(),
                 entry_claims: Vec::new(),
@@ -2597,6 +2627,7 @@ fn structural_effect_fixture() -> TerminalModule {
                     resource_type,
                     false,
                 )],
+                ranked_scc: None,
                 result: TerminalMachineResult::Unit,
                 structural_places: vec![StructuralPlaceDeclaration {
                     id: caller_place,
@@ -2659,6 +2690,7 @@ fn structural_effect_fixture() -> TerminalModule {
                     resource_type,
                     false,
                 )],
+                ranked_scc: None,
                 result: TerminalMachineResult::Unit,
                 structural_places: vec![StructuralPlaceDeclaration {
                     id: callee_place,
@@ -2731,7 +2763,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 33_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 34_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -3262,6 +3294,7 @@ fn unit_fixture() -> TerminalModule {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
@@ -3286,6 +3319,159 @@ fn unit_fixture() -> TerminalModule {
             },
         }],
     }
+}
+
+fn ranked_countdown_fixture() -> TerminalModule {
+    let mut module = unit_fixture();
+    let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let initial = value_id(901);
+    let rank = value_id(902);
+    let zero = value_id(903);
+    let condition = value_id(904);
+    let one = value_id(905);
+    let next = value_id(906);
+    let preheader = block_id(900);
+    let header = block_id(901);
+    let decrement = block_id(902);
+    let done = block_id(903);
+    let preheader_edge = edge_id(900);
+    let guard_edge = edge_id(901);
+    let exit_edge = edge_id(902);
+    let backedge = edge_id(903);
+    let return_edge = edge_id(904);
+    let machine = &mut module.machines[0];
+    machine.parameters = vec![ValueDeclaration {
+        id: initial,
+        scalar_type: scalar,
+    }];
+    machine.ranked_scc = Some(TerminalRankedScc {
+        header,
+        rank_parameter: rank,
+        rank_type: integer,
+        lower_bound: IntegerValue::Unsigned(0),
+        upper_bound: IntegerValue::Unsigned(u128::from(u32::MAX)),
+        covered_cyclic_edges: vec![TerminalRankedSccEdge {
+            edge: backedge,
+            source: decrement,
+            target: header,
+            guard: TerminalRankedGuard::UnsignedParameterPositive {
+                block: header,
+                edge: guard_edge,
+                condition,
+                parameter: rank,
+            },
+            successor_argument: TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
+                argument_index: 0,
+                argument: next,
+                source_parameter: rank,
+                target_parameter: rank,
+            },
+        }],
+    });
+    machine.entry = preheader;
+    machine.blocks = vec![
+        Block {
+            id: preheader,
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Jump {
+                edge: preheader_edge,
+                target: header,
+                arguments: vec![initial],
+                trivial_affine_discards: Vec::new(),
+            },
+        },
+        Block {
+            id: header,
+            parameters: vec![ValueDeclaration {
+                id: rank,
+                scalar_type: scalar,
+            }],
+            operations: vec![
+                Operation {
+                    id: operation_id(901),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        id: zero,
+                        scalar_type: scalar,
+                    }),
+                    kind: OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(0),
+                    },
+                },
+                Operation {
+                    id: operation_id(902),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        id: condition,
+                        scalar_type: ScalarType::Boolean,
+                    }),
+                    kind: OperationKind::IntegerLessThan {
+                        left: zero,
+                        right: rank,
+                    },
+                },
+            ],
+            terminator: Terminator::Conditional {
+                condition,
+                when_true: SuccessorEdge {
+                    edge: guard_edge,
+                    target: decrement,
+                    arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+                when_false: SuccessorEdge {
+                    edge: exit_edge,
+                    target: done,
+                    arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+            },
+        },
+        Block {
+            id: decrement,
+            parameters: Vec::new(),
+            operations: vec![
+                Operation {
+                    id: operation_id(903),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        id: one,
+                        scalar_type: scalar,
+                    }),
+                    kind: OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(1),
+                    },
+                },
+                Operation {
+                    id: operation_id(904),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        id: next,
+                        scalar_type: scalar,
+                    }),
+                    kind: OperationKind::ExactIntegerSubtract {
+                        left: rank,
+                        right: one,
+                        obligation: obligation_id(900),
+                    },
+                },
+            ],
+            terminator: Terminator::Jump {
+                edge: backedge,
+                target: header,
+                arguments: vec![next],
+                trivial_affine_discards: Vec::new(),
+            },
+        },
+        Block {
+            id: done,
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: return_edge,
+                trivial_affine_discards: Vec::new(),
+            },
+        },
+    ];
+    module
 }
 
 fn fixture() -> TerminalModule {
@@ -3324,6 +3510,7 @@ fn fixture() -> TerminalModule {
                 id: value_id(5),
                 scalar_type: ScalarType::Boolean,
             }],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: value_id(4),
                 scalar_type,
@@ -3468,6 +3655,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
                 id: value_id(80),
                 scalar_type: ScalarType::Boolean,
             }],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: value_id(81),
                 scalar_type: ScalarType::Boolean,
@@ -3689,6 +3877,7 @@ fn call_fixture() -> TerminalModule {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 parameters: Vec::new(),
+                ranked_scc: None,
                 result: TerminalMachineResult::Scalar(boolean(102)),
                 structural_places: Vec::new(),
                 content_entry_claims: Vec::new(),
@@ -3736,6 +3925,7 @@ fn call_fixture() -> TerminalModule {
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 parameters: vec![boolean(103)],
+                ranked_scc: None,
                 result: TerminalMachineResult::Scalar(boolean(104)),
                 structural_places: Vec::new(),
                 content_entry_claims: Vec::new(),

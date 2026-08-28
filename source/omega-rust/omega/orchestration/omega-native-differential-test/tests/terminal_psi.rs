@@ -39,6 +39,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
         parameters: Vec::new(),
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,
@@ -350,6 +351,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
         parameters: Vec::new(),
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: ValueId::new(90).expect("result"),
             scalar_type: ScalarType::Integer(integer),
@@ -460,6 +462,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
             id: parameter,
             scalar_type,
         }],
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {
             id: result,
             scalar_type,

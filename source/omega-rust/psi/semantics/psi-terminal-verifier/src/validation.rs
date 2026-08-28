@@ -39,6 +39,7 @@ mod machine;
 mod operations;
 mod propositions;
 mod quotient_correspondence;
+mod ranked_scc;
 mod root_service_reach;
 mod structural_operations;
 
@@ -135,7 +136,13 @@ pub(crate) fn reconstruct_validated_structural_ownership_frontiers(
                 .iter()
                 .map(|block| (block.id, block))
                 .collect::<BTreeMap<_, _>>();
-            frontier::validate_structural_frontier(module, machine, &machines, &blocks)
+            frontier::validate_structural_frontier(
+                module,
+                machine,
+                &machines,
+                &blocks,
+                &BTreeSet::new(),
+            )
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(VerifiedTerminalStructuralFrontiers {
