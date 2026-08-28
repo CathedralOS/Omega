@@ -727,6 +727,17 @@ complete.
   declaration-spelling surface, so nested expression origins no longer leave
   an ordinary `&&` occurrence unresolved at package admission.
 
+  Milestone 2026-08-27: proof-static member finalization now recovers the
+  receiver's exact declared type from its retained symbol. A package field is
+  selected first; only `len` on a checked fixed array or slice finalizes as the
+  closed compiler-owned `CollectionLength` meaning. Package review v75 and
+  canonical row v33 encode that meaning as a structural receiver expression,
+  require exactly one public-interface authored-selection occurrence, and do
+  not assign it a fictional package owner. A transparent public-proposition
+  canary exercises the intrinsic, while a package field named `len` remains an
+  ordinary package-qualified nominal member. Other unrepresented compiler
+  intrinsics remain fail-closed.
+
   Milestone 2026-08-25: source-backed static conformance arguments on generic
   calls now retain the exact package-scoped conformance selected by each
   authored argument, including nested static applications. Checked trait-backed
@@ -1462,7 +1473,8 @@ complete.
   Declaration kinds without retained visibility reject
   `pub` instead of silently compiling a private API. The remaining
   advanced call-bearing domain predicates, semantic-role/operator lanes,
-  source-free compiler-semantic subjects beyond the closed builtin type atoms,
+  source-free compiler-semantic subjects beyond the closed builtin type atoms
+  and collection-length contract projection,
   compiler-intrinsic provider-binding ownership, exact semantic-
   subject commitments, receipted build-operation transcripts, staged-output
   commitments, certificate closure, and reproducibility verdicts still need

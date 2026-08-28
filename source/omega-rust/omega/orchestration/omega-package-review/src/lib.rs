@@ -1074,6 +1074,12 @@ pub enum PackageReviewContractExpression {
     /// Proof-only observation of one exact type's normalized all-zero home
     /// representation. The checker rejects quotient targets before review.
     ZeroValue(PackageReviewTypeIdentity),
+    /// Compiler-owned `len` projection on a fixed array or slice. The exact
+    /// checked authored-selection occurrence must identify this intrinsic;
+    /// same-spelled package fields remain ordinary nominal members.
+    CollectionLength {
+        collection: Box<PackageReviewContractExpression>,
+    },
     Member {
         receiver: Box<PackageReviewContractExpression>,
         member: PackageReviewNominalIdentity,
@@ -9371,6 +9377,19 @@ fn project_contract_expression_with_substitutions(
             checked_fact,
         ),
         ExpressionNode::Member(member)
+            if contract_member_has_exact_collection_length(compilation, expression) =>
+        {
+            require_exact_checked_contract_collection_length(
+                compilation,
+                context,
+                expression,
+                member,
+            )?;
+            Ok(PackageReviewContractExpression::CollectionLength {
+                collection: Box::new(child(member.receiver)?),
+            })
+        }
+        ExpressionNode::Member(member)
             if matches!(
                 compilation.expression_table.expression(member.receiver),
                 ExpressionNode::Name(path)
@@ -10335,6 +10354,83 @@ fn project_contract_name_expression(
             case_variant,
         )
     })
+}
+
+fn contract_member_has_exact_collection_length(
+    compilation: &CheckedCompilation,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
+        AuthoredDeclarationSelectionTarget,
+    };
+
+    compilation
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| {
+            compilation
+                .authored_declaration_selections()
+                .get(occurrence)
+        })
+        .any(|selection| {
+            selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess
+                && selection.target()
+                    == AuthoredDeclarationSelectionTarget::Intrinsic(
+                        AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+                    )
+        })
+}
+
+fn require_exact_checked_contract_collection_length(
+    compilation: &CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    member: &psi_typed_trees::expression::TableMemberExpression,
+) -> Result<(), Vec<Diagnostic>> {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionIntrinsic,
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+    };
+
+    let selections = compilation
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| {
+            compilation
+                .authored_declaration_selections()
+                .get(occurrence)
+        })
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess)
+        .collect::<Vec<_>>();
+    let [selection] = selections.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` collection-length projection has {} exact checked member-selection rows; expected one",
+            context.subject_kind,
+            context.subject_name,
+            selections.len()
+        ))]);
+    };
+    if selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` collection-length projection is not retained as a public-interface selection",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    if member.member.as_str() != "len"
+        || member.member_symbol.is_valid()
+        || member.case_variant.is_some()
+        || selection.target()
+            != AuthoredDeclarationSelectionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+            )
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` collection-length syntax disagrees with its exact checked intrinsic selection",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    Ok(())
 }
 
 fn project_contract_member_expression(
