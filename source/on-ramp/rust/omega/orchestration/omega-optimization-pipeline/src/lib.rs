@@ -310,11 +310,15 @@ mod tests {
     };
     use omega_target::NativeTarget;
     use omega_terminal_abstract_operations::{TerminalAbstractOperation, TerminalValueBinding};
+    use omega_terminal_legalized_operations::{
+        TerminalLegalizationRecipe, terminal_legalized_operation_plan_identity,
+    };
     use omega_terminal_selected_instructions::{
         TerminalSelectedInstructionKind, TerminalSelectedTerminator, TerminalVirtualRegisterId,
     };
     use omega_terminal_target_operations_to_selected_instructions::{
-        SelectedInstructionError, terminal_selected_instruction_plan_identity,
+        SelectedInstructionError, TerminalLegalizationError,
+        terminal_selected_instruction_plan_identity, validate_terminal_legalized_operations,
         validate_terminal_selected_instructions,
     };
     use psi_core::{
@@ -1884,7 +1888,7 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_selected_instruction_source_shape_fails_at_selection_boundary() {
+    fn unsupported_target_shape_fails_at_legalization_boundary() {
         let (semantic, proof) = artifact();
         let optimized = optimize_artifact_sections(
             &semantic,
@@ -1900,14 +1904,14 @@ mod tests {
         .unwrap();
         assert!(matches!(
             stage_optimized_instruction_selection(target),
-            Err(OptimizedSelectionPipelineError::Selection(
-                SelectedInstructionError::UnsupportedSourceShape { function: 0 }
+            Err(OptimizedSelectionPipelineError::Legalization(
+                TerminalLegalizationError::UnsupportedSourceShape { function: 0 }
             ))
         ));
     }
 
     #[test]
-    fn non_u64_conditional_fails_at_named_integer_selection_boundary() {
+    fn non_u64_conditional_fails_at_named_integer_legalization_boundary() {
         let (semantic, proof) = conditional_immediate_artifact_with_type(
             IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
         );
@@ -1925,8 +1929,8 @@ mod tests {
         .unwrap();
         assert!(matches!(
             stage_optimized_instruction_selection(target),
-            Err(OptimizedSelectionPipelineError::Selection(
-                SelectedInstructionError::UnsupportedIntegerShape { function: 0 }
+            Err(OptimizedSelectionPipelineError::Legalization(
+                TerminalLegalizationError::UnsupportedIntegerShape { function: 0 }
             ))
         ));
     }
@@ -2127,6 +2131,17 @@ mod tests {
                 staged.optimized_target().optimized().unit().identity
             );
             assert_eq!(staged.custody().fuel_schedule(), plan.fuel_schedule);
+            assert_eq!(staged.legalized().receipt().target(), target);
+            assert_eq!(staged.legalized().receipt().function_count(), 1);
+            assert_eq!(staged.legalized().receipt().decomposition_count(), 0);
+            assert_eq!(
+                staged.custody().legalized(),
+                staged.legalized().receipt().identity()
+            );
+            assert_eq!(
+                staged.selected().receipt().legalized(),
+                staged.legalized().receipt().identity()
+            );
             assert_eq!(
                 staged.custody().register_environment(),
                 staged.register_environment().identity()
@@ -2183,9 +2198,92 @@ mod tests {
     }
 
     #[test]
+    fn legalization_identity_and_replay_reject_target_recipe_provenance_and_fuel_corruption() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let staged = staged_conditional(target);
+            let original = staged.legalized().plan();
+            let identity = terminal_legalized_operation_plan_identity(original);
+            assert_eq!(identity, staged.legalized().receipt().identity());
+            assert_eq!(
+                identity,
+                staged_conditional(target).legalized().receipt().identity()
+            );
+            assert_eq!(
+                original.functions[0].recipe,
+                TerminalLegalizationRecipe::ReturnU64ImmediateConditionalV1
+            );
+
+            let validate = |plan| {
+                validate_terminal_legalized_operations(
+                    staged.optimized_target().target_operations(),
+                    staged.optimized_target().optimized().plan(),
+                    staged.optimized_target().optimized().unit(),
+                    plan,
+                )
+            };
+
+            let mut corrupted = original.clone();
+            corrupted.target = if target.architecture == omega_target::Architecture::X86_64 {
+                NativeTarget::linux_arm64()
+            } else {
+                NativeTarget::linux_x64()
+            };
+            assert_ne!(
+                terminal_legalized_operation_plan_identity(&corrupted),
+                identity
+            );
+            assert_eq!(
+                validate(corrupted),
+                Err(TerminalLegalizationError::NonCanonicalLegalizedPlan)
+            );
+
+            let mut corrupted = original.clone();
+            corrupted.functions[0].recipe =
+                TerminalLegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1;
+            assert_ne!(
+                terminal_legalized_operation_plan_identity(&corrupted),
+                identity
+            );
+            assert_eq!(
+                validate(corrupted),
+                Err(TerminalLegalizationError::NonCanonicalLegalizedPlan)
+            );
+
+            let mut corrupted = original.clone();
+            corrupted.functions[0]
+                .provenance
+                .operations
+                .push(OperationId::new(9_601).unwrap());
+            assert_ne!(
+                terminal_legalized_operation_plan_identity(&corrupted),
+                identity
+            );
+            assert_eq!(
+                validate(corrupted),
+                Err(TerminalLegalizationError::NonCanonicalLegalizedPlan)
+            );
+
+            let mut corrupted = original.clone();
+            corrupted.functions[0].branch_true_fuel[0].units += 1;
+            assert_ne!(
+                terminal_legalized_operation_plan_identity(&corrupted),
+                identity
+            );
+            assert_eq!(
+                validate(corrupted),
+                Err(TerminalLegalizationError::NonCanonicalLegalizedPlan)
+            );
+        }
+    }
+
+    #[test]
     fn exact_add_selection_retains_proof_policy_and_target_constraints() {
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let staged = staged_exact_add_conditional(target);
+            assert_eq!(
+                staged.legalized().plan().functions[0].recipe,
+                TerminalLegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1
+            );
             let plan = staged.selected().plan();
             let function = &plan.functions[0];
             assert_eq!(function.virtual_registers.len(), 7);
@@ -2336,6 +2434,10 @@ mod tests {
     fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let staged = staged_exact_subtract_conditional(target);
+            assert_eq!(
+                staged.legalized().plan().functions[0].recipe,
+                TerminalLegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1
+            );
             let plan = staged.selected().plan();
             assert_eq!(plan.functions[0].virtual_registers.len(), 7);
             assert_eq!(staged.selected().receipt().instruction_count(), 10);
@@ -4353,13 +4455,11 @@ mod tests {
         SelectedInstructionError,
     >{
         let constraints = crate::selection::selection_constraints(
-            staged.optimized_target(),
+            staged.legalized(),
             staged.register_environment(),
         );
         validate_terminal_selected_instructions(
-            staged.optimized_target().target_operations(),
-            staged.optimized_target().optimized().plan(),
-            staged.optimized_target().optimized().unit(),
+            staged.legalized(),
             &constraints,
             staged.register_environment().physical(),
             staged.register_environment().constraints(),
@@ -4711,6 +4811,7 @@ mod tests {
             validate_optimized_selection_custody(
                 x86.optimized_target(),
                 arm.register_environment(),
+                x86.legalized(),
                 x86.selected(),
             ),
             Err(OptimizedSelectionCustodyError::RegisterEnvironmentTargetMismatch)
@@ -4719,6 +4820,7 @@ mod tests {
             validate_optimized_selection_custody(
                 x86.optimized_target(),
                 x86.register_environment(),
+                x86.legalized(),
                 arm.selected(),
             ),
             Err(OptimizedSelectionCustodyError::RootMismatch)
@@ -4730,42 +4832,27 @@ mod tests {
             .provenance
             .operations
             .push(forged_operation);
-        let mut selected = x86.selected().plan().clone();
-        selected.functions[0]
-            .provenance
-            .operations
-            .push(forged_operation);
-        let constraints = crate::selection::selection_constraints(
-            x86.optimized_target(),
-            x86.register_environment(),
-        );
         assert_eq!(
-            validate_terminal_selected_instructions(
+            validate_terminal_legalized_operations(
                 &target,
                 x86.optimized_target().optimized().plan(),
                 x86.optimized_target().optimized().unit(),
-                &constraints,
-                x86.register_environment().physical(),
-                x86.register_environment().constraints(),
-                selected,
+                x86.legalized().plan().clone(),
             ),
-            Err(SelectedInstructionError::SourceCustodyMismatch)
+            Err(TerminalLegalizationError::SourceCustodyMismatch)
         );
 
         let mut unit = x86.optimized_target().optimized().unit().clone();
         unit.functions[0].blocks[0].nodes[0].effect.output += 1_000;
         unit.identity = omega_optimization_unit::recompute_psi_optimization_unit_identity(&unit);
         assert_eq!(
-            validate_terminal_selected_instructions(
+            validate_terminal_legalized_operations(
                 x86.optimized_target().target_operations(),
                 x86.optimized_target().optimized().plan(),
                 &unit,
-                &constraints,
-                x86.register_environment().physical(),
-                x86.register_environment().constraints(),
-                x86.selected().plan().clone(),
+                x86.legalized().plan().clone(),
             ),
-            Err(SelectedInstructionError::SourceCustodyMismatch)
+            Err(TerminalLegalizationError::SourceCustodyMismatch)
         );
     }
 
@@ -4914,6 +5001,10 @@ mod tests {
     fn forwarded_parameter_conditional_retains_cross_edge_liveness() {
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let selected = staged_forwarded_conditional(target);
+            assert_eq!(
+                selected.legalized().plan().functions[0].recipe,
+                TerminalLegalizationRecipe::ReturnU64EntryParameterConditionalV1
+            );
             let selected_plan = selected.selected().plan();
             assert_eq!(selected_plan.functions[0].virtual_registers.len(), 2);
             assert_eq!(

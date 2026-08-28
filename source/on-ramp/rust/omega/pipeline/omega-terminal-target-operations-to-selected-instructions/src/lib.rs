@@ -1,10 +1,12 @@
 #![forbid(unsafe_code)]
 
-//! Instruction selection for the first production clean-Terminal virtual
-//! register CFG slice.
+//! Target legalization and instruction selection for the first production
+//! clean-Terminal virtual-register CFG slice.
 //!
-//! Selection and validation are separate steps. The public producer returns
-//! only the opaque validated carrier and makes no liveness or allocation claim.
+//! The mandatory checked legalizer produces an opaque target-legal carrier;
+//! selection accepts only that carrier rather than freely recombined raw
+//! target, abstract, and optimization-unit inputs. Both public producers return
+//! opaque validated carriers and make no liveness or allocation claim.
 
 use std::collections::BTreeSet;
 
@@ -16,6 +18,12 @@ use omega_register_model::{
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperationPlan;
+use omega_terminal_legalized_operations::{
+    TerminalLegalizedFunction as SourceFunction, TerminalLegalizedImmediate as SourceImmediate,
+    TerminalLegalizedLeaf as SourceLeaf, TerminalLegalizedLeafValue as SourceLeafValue,
+    TerminalLegalizedOperationPlan, TerminalLegalizedOperationPlanIdentity,
+    terminal_legalized_operation_plan_identity,
+};
 use omega_terminal_selected_instructions::{
     TerminalSelectedBlock, TerminalSelectedBlockId, TerminalSelectedConstraintKeys,
     TerminalSelectedFixedInputConstraint, TerminalSelectedFunction, TerminalSelectedInstruction,
@@ -29,7 +37,96 @@ use omega_terminal_target_operations::TerminalTargetOperationPlan;
 use psi_core::{IntegerSign, ScalarType};
 
 mod source;
-use source::{SourceFunction, SourceLeaf, SourceLeafValue, derive_source_functions};
+use source::derive_source_functions;
+
+/// Opaque custody of the canonical V1 target-legal projection.
+///
+/// This carrier grants no instruction-selection, liveness, allocation,
+/// emission, or publication authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedTerminalLegalizedOperations {
+    plan: TerminalLegalizedOperationPlan,
+    receipt: TerminalLegalizationValidationReceipt,
+}
+
+impl ValidatedTerminalLegalizedOperations {
+    pub const fn plan(&self) -> &TerminalLegalizedOperationPlan {
+        &self.plan
+    }
+
+    pub const fn receipt(&self) -> TerminalLegalizationValidationReceipt {
+        self.receipt
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalLegalizationValidationReceipt {
+    identity: TerminalLegalizedOperationPlanIdentity,
+    optimization_unit: omega_optimization_core::OptimizationUnitIdentity,
+    fuel_schedule: psi_core::FuelScheduleIdentity,
+    target: omega_target::NativeTarget,
+    function_count: usize,
+    decomposition_count: usize,
+}
+
+impl TerminalLegalizationValidationReceipt {
+    pub const fn identity(self) -> TerminalLegalizedOperationPlanIdentity {
+        self.identity
+    }
+
+    pub const fn optimization_unit(self) -> omega_optimization_core::OptimizationUnitIdentity {
+        self.optimization_unit
+    }
+
+    pub const fn fuel_schedule(self) -> psi_core::FuelScheduleIdentity {
+        self.fuel_schedule
+    }
+
+    pub const fn target(self) -> omega_target::NativeTarget {
+        self.target
+    }
+
+    pub const fn function_count(self) -> usize {
+        self.function_count
+    }
+
+    /// V1 admits only already-legal shapes, so this is always zero. Keeping the
+    /// count explicit prevents an identity recipe from masquerading as future
+    /// width or shape decomposition.
+    pub const fn decomposition_count(self) -> usize {
+        self.decomposition_count
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalLegalizationError {
+    SourceCustodyMismatch,
+    UnsupportedSourceShape {
+        function: usize,
+    },
+    UnsupportedIntegerShape {
+        function: usize,
+    },
+    UnsupportedCondition {
+        function: usize,
+    },
+    MissingConstantDefinition {
+        function: usize,
+        arm_edge: psi_core::EdgeId,
+    },
+    MissingFuelProvenance {
+        function: usize,
+    },
+    NonCanonicalLegalizedPlan,
+}
+
+impl std::fmt::Display for TerminalLegalizationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "Terminal target legalization failed: {self:?}")
+    }
+}
+
+impl std::error::Error for TerminalLegalizationError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedTerminalSelectedInstructions {
@@ -50,6 +147,7 @@ impl ValidatedTerminalSelectedInstructions {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TerminalSelectedInstructionValidationReceipt {
     identity: TerminalSelectedInstructionPlanIdentity,
+    legalized: TerminalLegalizedOperationPlanIdentity,
     optimization_unit: omega_optimization_core::OptimizationUnitIdentity,
     fuel_schedule: psi_core::FuelScheduleIdentity,
     function_count: usize,
@@ -61,6 +159,10 @@ pub struct TerminalSelectedInstructionValidationReceipt {
 impl TerminalSelectedInstructionValidationReceipt {
     pub const fn identity(self) -> TerminalSelectedInstructionPlanIdentity {
         self.identity
+    }
+
+    pub const fn legalized(self) -> TerminalLegalizedOperationPlanIdentity {
+        self.legalized
     }
 
     pub const fn optimization_unit(self) -> omega_optimization_core::OptimizationUnitIdentity {
@@ -170,50 +272,84 @@ impl std::fmt::Display for SelectedInstructionError {
 
 impl std::error::Error for SelectedInstructionError {}
 
-/// Select and then independently validate the bounded production VReg CFG.
-#[allow(clippy::too_many_arguments)]
-pub fn select_terminal_instructions(
+/// Canonicalize the bounded target-operation input into the mandatory V1
+/// legal-operation carrier, then replay its complete source projection.
+pub fn legalize_terminal_target_operations(
     target: &TerminalTargetOperationPlan,
     abstract_plan: &TerminalAbstractOperationPlan,
     unit: &PsiOptimizationUnit,
+) -> Result<ValidatedTerminalLegalizedOperations, TerminalLegalizationError> {
+    let plan = TerminalLegalizedOperationPlan {
+        terminal_psi: target.terminal_psi,
+        optimization_unit: unit.identity,
+        fuel_schedule: unit.fuel_schedule,
+        target: target.target,
+        entry: target.entry,
+        functions: derive_source_functions(target, abstract_plan, unit)?,
+    };
+    validate_terminal_legalized_operations(target, abstract_plan, unit, plan)
+}
+
+/// Reconstruct the exact admitted V1 projection from the raw target, abstract,
+/// and verified optimization-unit custody and compare every canonical field.
+pub fn validate_terminal_legalized_operations(
+    target: &TerminalTargetOperationPlan,
+    abstract_plan: &TerminalAbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
+    plan: TerminalLegalizedOperationPlan,
+) -> Result<ValidatedTerminalLegalizedOperations, TerminalLegalizationError> {
+    let expected = TerminalLegalizedOperationPlan {
+        terminal_psi: target.terminal_psi,
+        optimization_unit: unit.identity,
+        fuel_schedule: unit.fuel_schedule,
+        target: target.target,
+        entry: target.entry,
+        functions: derive_source_functions(target, abstract_plan, unit)?,
+    };
+    if plan != expected {
+        return Err(TerminalLegalizationError::NonCanonicalLegalizedPlan);
+    }
+    let receipt = TerminalLegalizationValidationReceipt {
+        identity: terminal_legalized_operation_plan_identity(&plan),
+        optimization_unit: unit.identity,
+        fuel_schedule: unit.fuel_schedule,
+        target: target.target,
+        function_count: plan.functions.len(),
+        decomposition_count: 0,
+    };
+    Ok(ValidatedTerminalLegalizedOperations { plan, receipt })
+}
+
+/// Select and then independently validate the bounded production VReg CFG.
+pub fn select_terminal_instructions(
+    legalized: &ValidatedTerminalLegalizedOperations,
     constraints: &TerminalSelectedSelectionConstraints,
     physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<ValidatedTerminalSelectedInstructions, SelectedInstructionError> {
-    let source = derive_source_functions(target, abstract_plan, unit)?;
-    let plan = build_plan(target, unit, constraints, physical, catalog, &source)?;
-    validate_terminal_selected_instructions(
-        target,
-        abstract_plan,
-        unit,
-        constraints,
-        physical,
-        catalog,
-        plan,
-    )
+    let plan = build_plan(legalized, constraints, physical, catalog)?;
+    validate_terminal_selected_instructions(legalized, constraints, physical, catalog, plan)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn validate_terminal_selected_instructions(
-    target: &TerminalTargetOperationPlan,
-    abstract_plan: &TerminalAbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
+    legalized: &ValidatedTerminalLegalizedOperations,
     constraints: &TerminalSelectedSelectionConstraints,
     physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
     plan: TerminalSelectedInstructionPlan,
 ) -> Result<ValidatedTerminalSelectedInstructions, SelectedInstructionError> {
+    let target = legalized.plan();
     if target.terminal_psi != plan.terminal_psi
         || target.target != plan.target
         || target.entry != plan.entry
-        || unit.fuel_schedule != plan.fuel_schedule
+        || target.fuel_schedule != plan.fuel_schedule
         || physical.model().architecture != target.target.architecture
         || catalog.architecture() != target.target.architecture
     {
         return Err(SelectedInstructionError::TargetRegisterArchitectureMismatch);
     }
-    let source = derive_source_functions(target, abstract_plan, unit)?;
-    if source.len() != plan.functions.len() || target.functions.len() != plan.functions.len() {
+    let source = &target.functions;
+    if source.len() != plan.functions.len() {
         return Err(SelectedInstructionError::SourceCustodyMismatch);
     }
     let expected_fixed_inputs = source
@@ -229,16 +365,11 @@ pub fn validate_terminal_selected_instructions(
         return Err(SelectedInstructionError::SourceCustodyMismatch);
     }
     require_key_rows(constraints.keys, catalog)?;
-    for (function_index, ((target_function, source), selected)) in target
-        .functions
-        .iter()
-        .zip(&source)
-        .zip(&plan.functions)
-        .enumerate()
+    for (function_index, (source, selected)) in
+        target.functions.iter().zip(&plan.functions).enumerate()
     {
         validate_function(
             function_index,
-            target_function,
             source,
             selected,
             constraints,
@@ -246,53 +377,41 @@ pub fn validate_terminal_selected_instructions(
             catalog,
         )?;
     }
-    let receipt = receipt(&plan, unit);
+    let receipt = receipt(&plan, legalized);
     Ok(ValidatedTerminalSelectedInstructions { plan, receipt })
 }
 
 fn build_plan(
-    target: &TerminalTargetOperationPlan,
-    unit: &PsiOptimizationUnit,
+    legalized: &ValidatedTerminalLegalizedOperations,
     constraints: &TerminalSelectedSelectionConstraints,
     physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
-    source: &[SourceFunction],
 ) -> Result<TerminalSelectedInstructionPlan, SelectedInstructionError> {
+    let target = legalized.plan();
     require_key_rows(constraints.keys, catalog)?;
     Ok(TerminalSelectedInstructionPlan {
         terminal_psi: target.terminal_psi,
-        fuel_schedule: unit.fuel_schedule,
+        fuel_schedule: target.fuel_schedule,
         target: target.target,
         entry: target.entry,
         functions: target
             .functions
             .iter()
-            .zip(source)
             .enumerate()
-            .map(|(index, (target_function, source))| {
-                build_function(
-                    index,
-                    target_function,
-                    source,
-                    constraints,
-                    physical,
-                    catalog,
-                )
-            })
+            .map(|(index, source)| build_function(index, source, constraints, physical, catalog))
             .collect::<Result<Vec<_>, _>>()?,
     })
 }
 
 fn build_function(
     function: usize,
-    target: &omega_terminal_target_operations::TerminalTargetFunction,
     source: &SourceFunction,
     constraints: &TerminalSelectedSelectionConstraints,
     physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<TerminalSelectedFunction, SelectedInstructionError> {
     let input = fixed_input_constraint(
-        target.machine,
+        source.machine,
         source.condition_source,
         source.condition_parameter_index,
         source.condition_register,
@@ -318,7 +437,7 @@ fn build_function(
             ..
         } => {
             let result_input = fixed_input_constraint(
-                target.machine,
+                source.machine,
                 source.when_true.source_value,
                 *parameter_index,
                 *register,
@@ -339,9 +458,9 @@ fn build_function(
     let u64_type =
         ScalarType::Integer(psi_core::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"));
     Ok(TerminalSelectedFunction {
-        machine: target.machine,
-        attachment: target.attachment,
-        provenance: target.provenance.clone(),
+        machine: source.machine,
+        attachment: source.attachment,
+        provenance: source.provenance.clone(),
         entry_block: TerminalSelectedBlockId(0),
         virtual_registers: {
             let mut registers = vec![TerminalVirtualRegister {
@@ -398,7 +517,7 @@ fn build_function(
                     SourceLeafValue::EntryParameter { .. },
                 ) => {
                     let fixed = fixed_input_constraint(
-                        target.machine,
+                        source.machine,
                         source.when_true.source_value,
                         *parameter_index,
                         *register,
@@ -782,7 +901,7 @@ fn build_exact_binary_return_block(
         ),
         _ => return Err(SelectedInstructionError::UnsupportedSourceShape { function }),
     };
-    let materialize = |id, register, immediate: &source::SourceImmediate| {
+    let materialize = |id, register, immediate: &SourceImmediate| {
         instruction(
             TerminalSelectedInstructionId(id),
             TerminalSelectedInstructionKind::MaterializeI64 {
@@ -925,16 +1044,15 @@ fn fixed_input_constraint(
 
 fn validate_function(
     function_index: usize,
-    target: &omega_terminal_target_operations::TerminalTargetFunction,
     source: &SourceFunction,
     function: &TerminalSelectedFunction,
     constraints: &TerminalSelectedSelectionConstraints,
     physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
-    if function.machine != target.machine
-        || function.attachment != target.attachment
-        || function.provenance != target.provenance
+    if function.machine != source.machine
+        || function.attachment != source.attachment
+        || function.provenance != source.provenance
         || function.entry_block != TerminalSelectedBlockId(0)
     {
         return Err(SelectedInstructionError::FunctionProjectionMismatch {
@@ -944,7 +1062,6 @@ fn validate_function(
     validate_dense(function_index, source, function)?;
     validate_virtual_registers(
         function_index,
-        target,
         source,
         function,
         constraints,
@@ -962,7 +1079,6 @@ fn validate_function(
 
 fn validate_virtual_registers(
     function_index: usize,
-    target: &omega_terminal_target_operations::TerminalTargetFunction,
     source: &SourceFunction,
     function: &TerminalSelectedFunction,
     constraints: &TerminalSelectedSelectionConstraints,
@@ -970,7 +1086,7 @@ fn validate_virtual_registers(
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     let input = fixed_input_constraint(
-        target.machine,
+        source.machine,
         source.condition_source,
         source.condition_parameter_index,
         source.condition_register,
@@ -1043,7 +1159,7 @@ fn validate_virtual_registers(
             SourceLeafValue::EntryParameter { .. },
         ) => {
             let result_input = fixed_input_constraint(
-                target.machine,
+                source.machine,
                 source.when_true.source_value,
                 *parameter_index,
                 *register,
@@ -1955,7 +2071,7 @@ fn terminator_instruction(terminator: &TerminalSelectedTerminator) -> &TerminalS
 
 fn receipt(
     plan: &TerminalSelectedInstructionPlan,
-    unit: &PsiOptimizationUnit,
+    legalized: &ValidatedTerminalLegalizedOperations,
 ) -> TerminalSelectedInstructionValidationReceipt {
     let function_count = plan.functions.len();
     let block_count = plan
@@ -1976,8 +2092,9 @@ fn receipt(
         .sum();
     TerminalSelectedInstructionValidationReceipt {
         identity: terminal_selected_instruction_plan_identity(plan),
-        optimization_unit: unit.identity,
-        fuel_schedule: unit.fuel_schedule,
+        legalized: legalized.receipt().identity(),
+        optimization_unit: legalized.receipt().optimization_unit(),
+        fuel_schedule: legalized.receipt().fuel_schedule(),
         function_count,
         block_count,
         virtual_register_count,

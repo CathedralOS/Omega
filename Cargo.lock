@@ -1180,6 +1180,7 @@ dependencies = [
  "omega-terminal-assigned-target-operations",
  "omega-terminal-isa-aarch64",
  "omega-terminal-isa-x86_64",
+ "omega-terminal-legalized-operations",
  "omega-terminal-psi-to-abstract-operations",
  "omega-terminal-selected-instructions",
  "omega-terminal-target-operations",
@@ -1718,6 +1719,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-terminal-legalized-operations"
+version = "0.1.0"
+dependencies = [
+ "omega-optimization-core",
+ "omega-optimization-unit",
+ "omega-target",
+ "omega-terminal-abstract-operations",
+ "omega-terminal-target-operations",
+ "psi-core",
+ "psi-terminal",
+ "sha2",
+]
+
+[[package]]
 name = "omega-terminal-machine-code"
 version = "0.1.0"
 dependencies = [
@@ -1822,6 +1837,7 @@ dependencies = [
  "omega-register-model",
  "omega-target",
  "omega-terminal-abstract-operations",
+ "omega-terminal-legalized-operations",
  "omega-terminal-selected-instructions",
  "omega-terminal-target-operations",
  "psi-core",
