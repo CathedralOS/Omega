@@ -11,7 +11,7 @@ mod driver;
 pub(crate) mod execution;
 mod harness;
 mod options;
-pub(crate) mod report;
+pub(crate) use omega_compilation_report as report;
 mod request;
 
 pub use harness::CompileHarnessRequest;

@@ -559,6 +559,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-compilation-report"
+version = "0.1.0"
+dependencies = [
+ "omega-build-evaluation",
+ "omega-component-deployment",
+ "omega-program-storage",
+ "omega-terminal-native-artifact",
+ "psi-terminal-codec",
+]
+
+[[package]]
 name = "omega-compiler"
 version = "0.1.0"
 dependencies = [
@@ -571,6 +582,7 @@ dependencies = [
  "omega-build-output",
  "omega-calling-conventions",
  "omega-checked-trees-to-state-graph",
+ "omega-compilation-report",
  "omega-component-deployment",
  "omega-component-publication",
  "omega-control-flow",
