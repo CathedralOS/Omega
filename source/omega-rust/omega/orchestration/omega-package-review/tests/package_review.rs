@@ -11,7 +11,8 @@ use omega_package_review::{
     PackageReviewCheckedServiceReach, PackageReviewConformanceSubject,
     PackageReviewContractBinaryOperator, PackageReviewContractExpression,
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewContractOperatorMeaning,
-    PackageReviewContractStaticArgument, PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
+    PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator,
+    PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
     PackageReviewDangerousAuthorityClass, PackageReviewDataKind, PackageReviewDataMember,
     PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentKind, PackageReviewDomainSemanticRole,
@@ -5043,6 +5044,100 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     review
         .canonical_review_bytes()
         .expect("collection-length review must be canonically encodable");
+}
+
+#[test]
+fn review_rejoins_unary_contract_operator_to_its_exact_compiler_intrinsic() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        "pub proposition inverted(value: u8, expected: u8) = ~value == expected;\n",
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("public unary proposition should check");
+    let inverted = checked
+        .propositions()
+        .iter()
+        .find(|proposition| proposition.name.as_str() == "inverted")
+        .expect("checked public proposition declaration");
+    let psi_typed_trees::proposition::PropositionBody::Transparent {
+        proposition:
+            psi_typed_trees::proposition::PropositionFormula::BooleanExpression(root_expression),
+    } = inverted.body
+    else {
+        panic!("inverted must retain its transparent boolean formula")
+    };
+    let psi_typed_trees::expression::ExpressionNode::Binary(binary) =
+        checked.expression_table.expression(root_expression)
+    else {
+        panic!("inverted formula must retain its equality root")
+    };
+    let unary_expression = binary.left;
+    assert!(matches!(
+        checked.expression_table.expression(unary_expression),
+        psi_typed_trees::expression::ExpressionNode::Unary(_)
+    ));
+    let unary_occurrences = checked
+        .expression_table
+        .authored_selection_occurrences(unary_expression)
+        .collect::<Vec<_>>();
+    let [unary_occurrence] = unary_occurrences.as_slice() else {
+        panic!("unary contract must retain one exact authored selection")
+    };
+    let unary_selection = checked
+        .authored_declaration_selections()
+        .get(*unary_occurrence)
+        .expect("unary occurrence must rejoin its checked selection");
+    assert_eq!(
+        unary_selection.kind(),
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Operator
+    );
+    assert_eq!(
+        unary_selection.target(),
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+        )
+    );
+    assert_eq!(
+        unary_selection.exposure(),
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+    );
+
+    let review = project_checked_package_review(&checked)
+        .expect("unary compiler intrinsic should rejoin package review");
+    let proposition = review
+        .public_propositions()
+        .iter()
+        .find(|proposition| proposition.identity().path() == "inverted")
+        .expect("public proposition row");
+    assert_eq!(
+        proposition.body(),
+        &PackageReviewPublicPropositionBody::Transparent(PackageReviewContractFact::Expression(
+            PackageReviewContractExpression::Binary {
+                meaning: PackageReviewContractOperatorMeaning::Builtin,
+                operator: PackageReviewContractBinaryOperator::Equal,
+                left: Box::new(PackageReviewContractExpression::Unary {
+                    operator: PackageReviewContractUnaryOperator::BitwiseNot,
+                    operand: Box::new(PackageReviewContractExpression::Parameter(0)),
+                }),
+                right: Box::new(PackageReviewContractExpression::Parameter(1)),
+            },
+        ))
+    );
+    review
+        .canonical_review_bytes()
+        .expect("unary compiler intrinsic must remain canonically encodable");
 }
 
 #[test]

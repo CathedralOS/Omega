@@ -411,6 +411,12 @@ proved, or admitted.
 Compiler intrinsics are a separate closed selection category. Their
 availability is fixed by the language/toolchain and cannot be acquired by a
 package declaring a public lookalike.
+An authored intrinsic still has source custody. In particular, each `!` or `~`
+token retains one exact operator-selection occurrence and the enclosing
+declaration determines whether that occurrence is public-interface or private-
+implementation use. Package review accepts the structural unary meaning only
+after checked lowering rejoins that occurrence to the compiler-owned builtin;
+a nested unary expression cannot disappear behind its enclosing binary fact.
 
 Omega has no `export` item. `pub` exposes declarations owned by the current
 package; it does not relabel dependency-owned identity. A package presents

@@ -1898,6 +1898,57 @@ fn distinguishes_public_contract_expressions_from_public_machine_bodies() {
 }
 
 #[test]
+fn retains_nested_unary_operator_custody_in_public_propositions() {
+    let source = "pub proposition inverted(value: u8, expected: u8) = ~value == expected;";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize public unary proposition");
+    let syntax = parse_syntax_trees(&tokens).expect("parse public unary proposition");
+    let program = lower_syntax_trees(&syntax).expect("resolve public unary proposition");
+    let proposition = program
+        .propositions
+        .iter()
+        .find(|proposition| proposition.name.as_str() == "inverted")
+        .expect("inverted proposition");
+    let psi_symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
+        proposition.body
+    else {
+        panic!("inverted proposition must remain transparent")
+    };
+    let psi_symbol_resolved_trees::expression::ExpressionNode::Binary(binary) =
+        program.tables.bodies.expressions.expression(proposition)
+    else {
+        panic!("inverted proposition must retain its binary root")
+    };
+    let unary = binary.left;
+    assert!(matches!(
+        program.tables.bodies.expressions.expression(unary),
+        psi_symbol_resolved_trees::expression::ExpressionNode::Unary(_)
+    ));
+    let occurrences = program
+        .tables
+        .bodies
+        .expressions
+        .authored_selection_occurrences(unary)
+        .collect::<Vec<_>>();
+    let [occurrence] = occurrences.as_slice() else {
+        panic!("nested unary operator must retain one exact authored selection")
+    };
+    let selection = program
+        .authored_declaration_selections()
+        .get(*occurrence)
+        .expect("nested unary occurrence must rejoin its selection");
+    assert_eq!(
+        selection.kind(),
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::Operator
+    );
+    assert_eq!(
+        selection.exposure(),
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+    );
+}
+
+#[test]
 fn retains_exact_establishment_route_declarations_with_domain_exposure() {
     let source = r#"
         data Ticket { }
