@@ -1973,7 +1973,8 @@ dependency.
   register-environment/catalog roots, complete ordered rows, and counts. Opt-in
   orchestration can stage the sidecar by borrow over original selection,
   fixed-view-copy output, the final output of an explicit literal-fold
-  sequence, or a completed named selected-lowering suite. Each route
+  sequence, the production active-resident multi-use rematerialization output,
+  or a completed named selected-lowering suite. Each route
   independently revalidates its exact source custody and binds the transformed
   selected identity; the named-suite path retains positive completion evidence
   even when its ordered change ledger is empty. No pre-transformation analysis
@@ -1997,8 +1998,17 @@ dependency.
   introducing a hidden cost policy. Independent reconstruction rejects root,
   chosen-alternative, physical-view, and unit-footprint corruption. Borrowed
   orchestration covers ordinary homes, fixed-view-copy homes, literal-fold
-  homes, and named selected-lowering completion homes without transferring
-  emission authority.
+  homes, active-resident rematerialization homes, and named selected-lowering
+  completion homes without transferring emission authority. The
+  rematerialization route first replays its complete one-step policy custody,
+  analyzes the transformed selected CFG, and joins only its freshly rebuilt
+  ranges, legality, homes, and typed v5 manifest. Its machine-effect and post-
+  allocation source receipts retain the exact rematerialization receipt, so a
+  same-shaped generic home plan cannot detach the optimization history. Both
+  supported ISAs reject corrupted upstream custody, detached original-selected
+  effects, and cross-source machine plans. Existing machine-effect v4 and post-
+  allocation-machine v1 identities/codecs require no bump because they already
+  bind every transformed input row and root.
 
   The post-allocation sidecar now has its own strict v1 self-authenticating
   codec. Its framed content binds every joined root, the exact choice rule,

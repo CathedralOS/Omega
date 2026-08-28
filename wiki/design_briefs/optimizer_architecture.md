@@ -1911,13 +1911,16 @@ versioned codec. The envelope carries an explicit magic, version, and content
 identity;
 the decoder consumes the complete closed vocabulary and rejects truncation,
 trailing bytes, unknown tags, and stale identities. Orchestration admits the
-same analysis over four separately validated selected forms: original
+same analysis over five separately validated selected forms: original
 selection, fixed-view-copy output, the final result of an explicitly invoked
-literal-fold sequence, and a completed named selected-lowering suite. Its
-custody receipt names which form was used and retains that form's independently
-replayed receipt, so a transformed CFG cannot inherit the source CFG's machine
-facts by shape or convention. The named-suite route remains meaningful when
-its independently validated result contains zero rewrites.
+literal-fold sequence, production active-resident multi-use rematerialization,
+and a completed named selected-lowering suite. Its custody receipt names which
+form was used and retains that form's independently replayed receipt, so a
+transformed CFG cannot inherit the source CFG's machine facts by shape or
+convention. The rematerialization route replays the complete one-step policy
+carrier before analyzing its transformed selected CFG. The named-suite route
+remains meaningful when its independently validated result contains zero
+rewrites.
 
 Target alternatives state uncertainty instead of guessing. AArch64 arbitrary
 i64 materialization is encoder-resolved because its current canonical variant
@@ -1974,10 +1977,18 @@ the register model, and target catalogs on both x86-64 and AArch64. Even a
 tampered plan with a freshly recomputed content identity is rejected by replay.
 
 Orchestration reconstructs this sidecar for ordinary selected homes,
-fixed-view-copy output, an explicit literal-fold sequence, and named selected-
-lowering completion, always retaining the matching transformed or verified-
-no-change custody and validated post-allocation manifest. This still grants no
-emission authority.
+fixed-view-copy output, an explicit literal-fold sequence, production active-
+resident rematerialization, and named selected-lowering completion, always
+retaining the matching transformed or verified-no-change custody and validated
+post-allocation manifest. The rematerialization path consumes only the
+transformed selected plan and its fresh ranges, legality, homes, and typed v5
+manifest while retaining the original target/environment/catalog/unit/fuel
+roots. Both machine-layer source receipts contain the exact full-vertical
+rematerialization receipt, and independent replay rejects upstream corruption,
+original-selected detachment, and cross-source substitution on both ISAs.
+Machine-effect v4 and post-allocation-machine v1 need no schema change because
+their identities already cover every transformed root and row. This still
+grants no encoding, layout, emission, or publication authority.
 
 The first post-allocation transformation is the exact, default-off
 `Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1` rule in the closed
