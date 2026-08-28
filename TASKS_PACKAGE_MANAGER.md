@@ -1127,6 +1127,17 @@ complete.
   escape. Deriving the context from the accepted lock and additional protocol
   adapters remain.
 
+  Milestone 2026-08-28: the diagnostic source-closure observer now sends every
+  declared application or package root through this custody path, including a
+  root with zero dependency rows. Its v4 observation joins the complete
+  canonical `CanonicalSourceClosureSubject` bytes and fingerprint to every
+  compiler-loaded source's exact package identity, package-relative path,
+  byte length, and content hash. A companion-free focused source remains
+  explicitly standalone. This is ruling-neutral closure/census scaffolding:
+  it does not run the final checked build, retain generated-source handoff or
+  build-host observations, identify an emitted artifact, issue an accepted
+  lock, or claim package admission.
+
 ## P3 — Compiler-derived package evidence
 
 - **PACKAGE-ADMISSION-COMPILATION.** Add a library/package compilation profile

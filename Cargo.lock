@@ -1642,6 +1642,7 @@ dependencies = [
  "psi-syntax-trees",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]

@@ -15,6 +15,6 @@ pub use census::{
     SourceResourceObservation, census_source_closure,
 };
 pub use snapshot::{
-    SOURCE_CLOSURE_SNAPSHOT_SCHEMA, SourceClosureSnapshot, SourceClosureSnapshotEntry,
-    SourceInspectionRoot,
+    PackageSourceClosureCustodySnapshot, SOURCE_CLOSURE_SNAPSHOT_SCHEMA, SourceClosureSnapshot,
+    SourceClosureSnapshotEntry, SourceClosureSnapshotFingerprint, SourceInspectionRoot,
 };
