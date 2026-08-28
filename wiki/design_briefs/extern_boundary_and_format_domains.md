@@ -332,10 +332,20 @@ Independent replay checks source, section, segment, alignment, alias, and
 fixup coverage plus the deferred procedure-placement envelopes. This remains
 geometry only, not loader, publication, or runnable-image authority.
 
-Section-header fixup application, program/ELF/section-header serialization,
-internal `.dynamic` and procedure address-fixup application, optional
-`.gnu.hash`, image mutation, and independent final-byte replay remain open.
-Validated semantic tags and absolute geometry still grant no loader,
+The section-header application carrier now consumes that exact absolute owner,
+copies the retained 768-byte template, and applies only the eleven resolved file
+offsets and ten resolved virtual addresses to their exact typed zero
+placeholders as little-endian `u64` values. Its independent bounded decoder
+replays all twelve roster rows, every unchanged field, exact application
+order/coordinate/kind/value, null and file-only `.shstrtab` semantics,
+deterministic content-bound identity, and load-layout custody. It assigns no
+`e_shoff`, serializes no ELF or program header, mutates no `FinalImage`, and
+grants no runnable authority.
+
+Program/ELF header serialization and final section-header placement, internal
+`.dynamic` and procedure address-fixup application, optional `.gnu.hash`, image
+mutation, and independent final-byte replay remain open. Validated semantic
+tags, absolute geometry, and applied section-header bytes still grant no loader,
 publication, or runnable-image authority. An owned
 direct `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
