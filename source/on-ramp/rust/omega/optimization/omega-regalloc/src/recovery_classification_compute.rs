@@ -193,12 +193,19 @@ fn classify_victim(
     if !is_fixed_unsigned_u64(victim.scalar_type) {
         return no_recovery(TerminalNoAdmittedRecoveryReason::UnsupportedScalarType);
     }
-    let TerminalVirtualRegisterOrigin::InstructionResult {
-        instruction: defining_id,
-        source_value,
-    } = victim.origin
-    else {
-        return no_recovery(TerminalNoAdmittedRecoveryReason::EntryParameter);
+    let (defining_id, source_value) = match victim.origin {
+        TerminalVirtualRegisterOrigin::EntryParameter { .. } => {
+            return no_recovery(TerminalNoAdmittedRecoveryReason::EntryParameter);
+        }
+        TerminalVirtualRegisterOrigin::InstructionResult {
+            instruction,
+            source_value,
+        }
+        | TerminalVirtualRegisterOrigin::LegalizationTemporary {
+            instruction,
+            source_value,
+            ..
+        } => (instruction, source_value),
     };
     if range.fragments.len() != 1
         || range.fragments[0].block != choice.block

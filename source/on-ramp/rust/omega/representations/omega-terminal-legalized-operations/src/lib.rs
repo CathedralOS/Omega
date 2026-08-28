@@ -14,8 +14,8 @@ use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::TerminalValueBinding;
 use omega_terminal_target_operations::{MachineRegister, TerminalPsiProvenance};
 use psi_core::{
-    BlockId, EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, ObligationId, OperationId,
-    ValueId,
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerType, IntegerValue, MachineId, ObligationId,
+    OperationId, ValueId,
 };
 use psi_terminal::TerminalPsiIdentity;
 use sha2::{Digest, Sha256};
@@ -37,18 +37,31 @@ impl TerminalLegalizedOperationPlanIdentity {
     }
 }
 
-/// The closed V1 legality recipe admitted for one function.
+/// Dense function-local identity for a value introduced by target
+/// legalization rather than Terminal Psi.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalLegalizedTemporaryId(pub u32);
+
+/// Closed semantic theorem that authorizes a non-identity legalization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalLegalizationTheorem {
+    /// For unsigned exact addition with a discharged narrow overflow
+    /// obligation, zero-extension commutes with addition.
+    UnsignedExactAddCommutesWithWidenV1,
+}
+
+/// The closed V2 legality recipe admitted for one function.
 ///
-/// Every recipe is already legal on the selected native target. V1 therefore
-/// performs an identity legalization and records zero decompositions. Future
-/// illegal-width expansion must add a new recipe and explicit source-to-output
-/// occurrence custody rather than silently broadening one of these cases.
+/// The original recipes are identity legalizations. The widened-u8 recipe is
+/// a closed non-identity transformation with explicit theorem, temporary,
+/// source-operation, proof, and fuel custody.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalLegalizationRecipe {
     ReturnU64ImmediateConditionalV1,
     ReturnU64EntryParameterConditionalV1,
     ReturnU64ExactAddImmediateConditionalV1,
     ReturnU64ExactSubtractImmediateConditionalV1,
+    ReturnU64WidenedU8ExactAddImmediateConditionalV1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,6 +136,24 @@ pub enum TerminalLegalizedLeafValue {
         left: TerminalLegalizedImmediate,
         right: TerminalLegalizedImmediate,
     },
+    WidenedExactAdd {
+        source_type: IntegerType,
+        target_type: IntegerType,
+        theorem: TerminalLegalizationTheorem,
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+        add_operation: OperationId,
+        narrow_result: ValueId,
+        add_definition_site: ValueDefinitionSite,
+        add_fuel: Vec<FuelSettlement>,
+        widen_operation: OperationId,
+        widen_definition_site: ValueDefinitionSite,
+        widen_fuel: Vec<FuelSettlement>,
+        left_temporary: TerminalLegalizedTemporaryId,
+        right_temporary: TerminalLegalizedTemporaryId,
+        left: TerminalLegalizedImmediate,
+        right: TerminalLegalizedImmediate,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -138,7 +169,7 @@ pub fn terminal_legalized_operation_plan_identity(
     plan: &TerminalLegalizedOperationPlan,
 ) -> TerminalLegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v1\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v2\0");
     bytes.extend_from_slice(plan.terminal_psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.terminal_psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -169,6 +200,7 @@ pub fn terminal_legalized_operation_plan_identity(
             TerminalLegalizationRecipe::ReturnU64EntryParameterConditionalV1 => 1,
             TerminalLegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1 => 2,
             TerminalLegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1 => 3,
+            TerminalLegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1 => 4,
         });
         bytes.extend_from_slice(&function.condition_source.get().to_le_bytes());
         bytes.extend_from_slice(&(function.condition_parameter_index as u64).to_le_bytes());
@@ -249,6 +281,44 @@ fn encode_leaf(bytes: &mut Vec<u8>, leaf: &TerminalLegalizedLeaf) {
             bytes.extend_from_slice(&subtract_operation.get().to_le_bytes());
             encode_definition_site(bytes, *definition_site);
             encode_fuel(bytes, subtract_fuel);
+            encode_immediate(bytes, left);
+            encode_immediate(bytes, right);
+        }
+        TerminalLegalizedLeafValue::WidenedExactAdd {
+            source_type,
+            target_type,
+            theorem,
+            obligation,
+            accepted_fact,
+            add_operation,
+            narrow_result,
+            add_definition_site,
+            add_fuel,
+            widen_operation,
+            widen_definition_site,
+            widen_fuel,
+            left_temporary,
+            right_temporary,
+            left,
+            right,
+        } => {
+            bytes.push(4);
+            encode_integer_type(bytes, *source_type);
+            encode_integer_type(bytes, *target_type);
+            bytes.push(match theorem {
+                TerminalLegalizationTheorem::UnsignedExactAddCommutesWithWidenV1 => 0,
+            });
+            bytes.extend_from_slice(&obligation.get().to_le_bytes());
+            bytes.extend_from_slice(&accepted_fact.bytes());
+            bytes.extend_from_slice(&add_operation.get().to_le_bytes());
+            bytes.extend_from_slice(&narrow_result.get().to_le_bytes());
+            encode_definition_site(bytes, *add_definition_site);
+            encode_fuel(bytes, add_fuel);
+            bytes.extend_from_slice(&widen_operation.get().to_le_bytes());
+            encode_definition_site(bytes, *widen_definition_site);
+            encode_fuel(bytes, widen_fuel);
+            bytes.extend_from_slice(&left_temporary.0.to_le_bytes());
+            bytes.extend_from_slice(&right_temporary.0.to_le_bytes());
             encode_immediate(bytes, left);
             encode_immediate(bytes, right);
         }
@@ -346,6 +416,18 @@ fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: psi_core::ScalarType) {
             bytes.extend_from_slice(&integer.bits().to_le_bytes());
         }
     }
+}
+
+fn encode_integer_type(bytes: &mut Vec<u8>, integer: IntegerType) {
+    bytes.push(match integer.carrier() {
+        psi_core::IntegerCarrier::Fixed => 0,
+        psi_core::IntegerCarrier::Address => 1,
+    });
+    bytes.push(match integer.sign() {
+        psi_core::IntegerSign::Signed => 0,
+        psi_core::IntegerSign::Unsigned => 1,
+    });
+    bytes.extend_from_slice(&integer.bits().to_le_bytes());
 }
 
 fn encode_fuel(bytes: &mut Vec<u8>, fuel: &[FuelSettlement]) {

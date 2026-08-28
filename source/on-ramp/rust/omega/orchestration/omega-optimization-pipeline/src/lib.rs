@@ -280,7 +280,7 @@ mod tests {
     use omega_optimization_core::{
         Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
     };
-    use omega_optimization_unit::ValueDefinitionSite;
+    use omega_optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
     use omega_psi_optimizer::OptimizationRunError;
     use omega_regalloc::{
         PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
@@ -311,10 +311,15 @@ mod tests {
     use omega_target::NativeTarget;
     use omega_terminal_abstract_operations::{TerminalAbstractOperation, TerminalValueBinding};
     use omega_terminal_legalized_operations::{
-        TerminalLegalizationRecipe, terminal_legalized_operation_plan_identity,
+        TerminalLegalizationRecipe, TerminalLegalizationTheorem, TerminalLegalizedLeafValue,
+        TerminalLegalizedTemporaryId, terminal_legalized_operation_plan_identity,
     };
     use omega_terminal_selected_instructions::{
-        TerminalSelectedInstructionKind, TerminalSelectedTerminator, TerminalVirtualRegisterId,
+        TerminalMachineBarrier, TerminalSelectedInstructionKind, TerminalSelectedTerminator,
+        TerminalVirtualRegisterId, TerminalVirtualRegisterOrigin,
+    };
+    use omega_terminal_target_operations::{
+        TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
     };
     use omega_terminal_target_operations_to_selected_instructions::{
         SelectedInstructionError, TerminalLegalizationError,
@@ -1417,12 +1422,236 @@ mod tests {
         )
     }
 
+    fn conditional_widened_u8_exact_add_artifact() -> (Vec<u8>, Vec<u8>) {
+        conditional_widened_u8_exact_add_artifact_with_values([200, 55], [254, 1])
+    }
+
+    fn conditional_widened_u8_exact_add_artifact_with_values(
+        when_true_values: [u128; 2],
+        when_false_values: [u128; 2],
+    ) -> (Vec<u8>, Vec<u8>) {
+        let machine = MachineId::new(5_101).unwrap();
+        let entry = BlockId::new(5_102).unwrap();
+        let when_true = BlockId::new(5_103).unwrap();
+        let when_false = BlockId::new(5_104).unwrap();
+        let condition = ValueId::new(5_105).unwrap();
+        let true_left = ValueId::new(5_106).unwrap();
+        let true_right = ValueId::new(5_107).unwrap();
+        let true_narrow_sum = ValueId::new(5_108).unwrap();
+        let true_wide_sum = ValueId::new(5_109).unwrap();
+        let false_left = ValueId::new(5_110).unwrap();
+        let false_right = ValueId::new(5_111).unwrap();
+        let false_narrow_sum = ValueId::new(5_112).unwrap();
+        let false_wide_sum = ValueId::new(5_113).unwrap();
+        let result = ValueId::new(5_114).unwrap();
+        let true_left_operation = OperationId::new(5_121).unwrap();
+        let true_right_operation = OperationId::new(5_122).unwrap();
+        let true_add_operation = OperationId::new(5_123).unwrap();
+        let true_widen_operation = OperationId::new(5_124).unwrap();
+        let false_left_operation = OperationId::new(5_125).unwrap();
+        let false_right_operation = OperationId::new(5_126).unwrap();
+        let false_add_operation = OperationId::new(5_127).unwrap();
+        let false_widen_operation = OperationId::new(5_128).unwrap();
+        let true_obligation = ObligationId::new(5_131).unwrap();
+        let false_obligation = ObligationId::new(5_132).unwrap();
+        let u8_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let u64_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+        let operation = |id, result, scalar_type, kind| Operation {
+            id,
+            result: OperationResult::Scalar(declaration(result, scalar_type)),
+            kind,
+        };
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                parameters: vec![declaration(condition, ScalarType::Boolean)],
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Scalar(declaration(result, u64_type)),
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry,
+                blocks: vec![
+                    Block {
+                        id: entry,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Conditional {
+                            condition,
+                            when_true: SuccessorEdge {
+                                edge: EdgeId::new(5_141).unwrap(),
+                                target: when_true,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                            when_false: SuccessorEdge {
+                                edge: EdgeId::new(5_142).unwrap(),
+                                target: when_false,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                        },
+                    },
+                    Block {
+                        id: when_true,
+                        parameters: Vec::new(),
+                        operations: vec![
+                            operation(
+                                true_left_operation,
+                                true_left,
+                                u8_type,
+                                OperationKind::IntegerConstant {
+                                    value: IntegerValue::Unsigned(when_true_values[0]),
+                                },
+                            ),
+                            operation(
+                                true_right_operation,
+                                true_right,
+                                u8_type,
+                                OperationKind::IntegerConstant {
+                                    value: IntegerValue::Unsigned(when_true_values[1]),
+                                },
+                            ),
+                            operation(
+                                true_add_operation,
+                                true_narrow_sum,
+                                u8_type,
+                                OperationKind::ExactIntegerAdd {
+                                    left: true_left,
+                                    right: true_right,
+                                    obligation: true_obligation,
+                                },
+                            ),
+                            operation(
+                                true_widen_operation,
+                                true_wide_sum,
+                                u64_type,
+                                OperationKind::IntegerWiden {
+                                    operand: true_narrow_sum,
+                                },
+                            ),
+                        ],
+                        terminator: Terminator::Return {
+                            edge: EdgeId::new(5_143).unwrap(),
+                            value: true_wide_sum,
+                            cleanup_actions: Vec::new(),
+                        },
+                    },
+                    Block {
+                        id: when_false,
+                        parameters: Vec::new(),
+                        operations: vec![
+                            operation(
+                                false_left_operation,
+                                false_left,
+                                u8_type,
+                                OperationKind::IntegerConstant {
+                                    value: IntegerValue::Unsigned(when_false_values[0]),
+                                },
+                            ),
+                            operation(
+                                false_right_operation,
+                                false_right,
+                                u8_type,
+                                OperationKind::IntegerConstant {
+                                    value: IntegerValue::Unsigned(when_false_values[1]),
+                                },
+                            ),
+                            operation(
+                                false_add_operation,
+                                false_narrow_sum,
+                                u8_type,
+                                OperationKind::ExactIntegerAdd {
+                                    left: false_left,
+                                    right: false_right,
+                                    obligation: false_obligation,
+                                },
+                            ),
+                            operation(
+                                false_widen_operation,
+                                false_wide_sum,
+                                u64_type,
+                                OperationKind::IntegerWiden {
+                                    operand: false_narrow_sum,
+                                },
+                            ),
+                        ],
+                        terminator: Terminator::Return {
+                            edge: EdgeId::new(5_144).unwrap(),
+                            value: false_wide_sum,
+                            cleanup_actions: Vec::new(),
+                        },
+                    },
+                ],
+                contract: MachineContract {
+                    id: ContractId::new(5_151).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        };
+        let proof = ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: [true_obligation, false_obligation]
+                .into_iter()
+                .map(|obligation| ObligationEvidence {
+                    obligation,
+                    route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+                })
+                .collect(),
+        };
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        )
+    }
+
     fn staged_exact_add_conditional(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
         staged_exact_add_conditional_with_selections(
             target,
             OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
             budget(),
         )
+    }
+
+    fn staged_widened_u8_exact_add_conditional(
+        target: NativeTarget,
+    ) -> StagedOptimizedSelectedInstructions {
+        let (semantic, proof) = conditional_widened_u8_exact_add_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target =
+            omega_lowering_optimizer::lower_optimized_to_target_operations(optimized, target)
+                .unwrap();
+        stage_optimized_instruction_selection(target).unwrap()
     }
 
     fn staged_exact_add_conditional_with_selections(
@@ -1491,9 +1720,17 @@ mod tests {
         .unwrap();
 
         assert_eq!(optimized.selections(), &selections);
-        assert_eq!(optimized.commits().len(), 3);
+        assert_eq!(optimized.commits().len(), 2);
         assert_eq!(optimized.pass_manifests().len(), 3);
-        assert_eq!(optimized.transformation_ledger().records().len(), 3);
+        assert_eq!(optimized.transformation_ledger().records().len(), 2);
+        assert_eq!(
+            optimized
+                .pass_manifests()
+                .iter()
+                .map(|manifest| manifest.work_usage().commits)
+                .collect::<Vec<_>>(),
+            [1, 1, 0]
+        );
         assert_eq!(
             optimized.pass_manifests()[0].output(),
             optimized.pass_manifests()[1].input()
@@ -1509,17 +1746,10 @@ mod tests {
                 ..
             }
         ));
-        assert!(
-            optimized.plan().functions[0].block_entries[1]
-                .parameters
-                .is_empty()
-        );
+        assert_eq!(optimized.plan().functions[0].block_entries.len(), 1);
+        assert_eq!(optimized.plan().functions[0].operations.len(), 4);
         assert!(matches!(
             &optimized.plan().functions[0].operations[3],
-            TerminalAbstractOperation::Jump { bindings, .. } if bindings.is_empty()
-        ));
-        assert!(matches!(
-            &optimized.plan().functions[0].operations[4],
             TerminalAbstractOperation::Return { value, .. } if *value == ValueId::new(2_006).unwrap()
         ));
         let target = omega_lowering_optimizer::lower_optimized_to_target_operations(
@@ -1632,14 +1862,14 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(optimized.commits().len(), 1);
-        assert_eq!(optimized.plan().functions[0].block_entries.len(), 2);
+        assert_eq!(optimized.commits().len(), 2);
+        assert_eq!(optimized.plan().functions[0].block_entries.len(), 1);
         assert_eq!(
-            optimized.plan().functions[0].block_entries[1].operation_offset,
-            2
+            optimized.plan().functions[0].block_entries[0].operation_offset,
+            0
         );
-        assert_eq!(optimized.plan().functions[0].operations.len(), 3);
-        assert_eq!(optimized.transformation_ledger().records().len(), 1);
+        assert_eq!(optimized.plan().functions[0].operations.len(), 2);
+        assert_eq!(optimized.transformation_ledger().records().len(), 2);
         assert_eq!(
             optimized.transformation_ledger().records()[0]
                 .provenance
@@ -1650,7 +1880,7 @@ mod tests {
         );
         let report = optimized.pre_physical_manifest().record().render_text();
         assert!(report.contains("source structure: functions=1, blocks=3, nodes=4"));
-        assert!(report.contains("optimized structure: functions=1, blocks=2, nodes=3"));
+        assert!(report.contains("optimized structure: functions=1, blocks=1, nodes=2"));
         assert!(report.contains("proven-unreachable=2"));
         assert!(report.contains("runtime-charge=none reason=proven-unreachable"));
     }
@@ -1666,26 +1896,26 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(optimized.commits().len(), 1);
-        assert_eq!(optimized.plan().functions[0].block_entries.len(), 2);
-        assert_eq!(optimized.plan().functions[0].operations.len(), 2);
+        assert_eq!(optimized.commits().len(), 2);
+        assert_eq!(optimized.plan().functions[0].block_entries.len(), 1);
+        assert_eq!(optimized.plan().functions[0].operations.len(), 1);
         assert_eq!(
-            optimized.unit().functions[0].blocks[0].nodes[0].successors[0]
+            optimized.unit().functions[0].blocks[0].nodes[0]
                 .provenance
                 .len(),
-            2
+            3
         );
         assert_eq!(
-            optimized.unit().functions[0].blocks[0].nodes[0].successors[0]
-                .fuel
-                .len(),
-            2
+            optimized.unit().functions[0].blocks[0].nodes[0].fuel.len(),
+            3
         );
-        assert_eq!(optimized.transformation_ledger().records().len(), 1);
+        assert_eq!(optimized.transformation_ledger().records().len(), 2);
         assert!(
-            optimized.transformation_ledger().records()[0]
-                .provenance
+            optimized
+                .transformation_ledger()
+                .records()
                 .iter()
+                .flat_map(|record| &record.provenance)
                 .all(|row| row.disposition.is_realized())
         );
         assert!(
@@ -1693,7 +1923,7 @@ mod tests {
                 .pre_physical_manifest()
                 .record()
                 .render_text()
-                .contains("optimized structure: functions=1, blocks=2, nodes=2")
+                .contains("optimized structure: functions=1, blocks=1, nodes=1")
         );
     }
 
@@ -1932,6 +2162,30 @@ mod tests {
             Err(OptimizedSelectionPipelineError::Legalization(
                 TerminalLegalizationError::UnsupportedIntegerShape { function: 0 }
             ))
+        ));
+    }
+
+    #[test]
+    fn overflowing_u8_add_is_rejected_before_the_widen_commutation_recipe() {
+        let (semantic, proof) =
+            conditional_widened_u8_exact_add_artifact_with_values([255, 1], [254, 1]);
+        let error = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            OptimizationPipelineError::ArtifactLowering(
+                omega_terminal_psi_to_abstract_operations::ArtifactLoweringError::Verification(
+                    psi_terminal_verifier::VerificationError::RejectedEvidence {
+                        obligation,
+                        ..
+                    }
+                )
+            ) if obligation == ObligationId::new(5_131).unwrap()
         ));
     }
 
@@ -2325,6 +2579,692 @@ mod tests {
                 Err(TerminalLegalizationError::SourceCustodyMismatch)
                     | Err(TerminalLegalizationError::NonCanonicalLegalizedPlan)
             ));
+        }
+    }
+
+    #[test]
+    fn widened_u8_exact_add_legalization_retains_theorem_temporaries_and_exact_custody() {
+        let u8_integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let u64_integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let expected_function_operations = vec![
+            OperationId::new(5_121).unwrap(),
+            OperationId::new(5_122).unwrap(),
+            OperationId::new(5_123).unwrap(),
+            OperationId::new(5_124).unwrap(),
+            OperationId::new(5_125).unwrap(),
+            OperationId::new(5_126).unwrap(),
+            OperationId::new(5_127).unwrap(),
+            OperationId::new(5_128).unwrap(),
+        ];
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let staged = staged_widened_u8_exact_add_conditional(target);
+            let target_plan = staged.optimized_target().target_operations();
+            let target_function = &target_plan.functions[0];
+            let TerminalTargetOperation::ReturnIntegerConditionalControl {
+                scalar_type,
+                when_true,
+                when_false,
+                ..
+            } = &target_function.operation
+            else {
+                panic!("fixture must lower to bounded integer conditional control")
+            };
+            assert_eq!(*scalar_type, u64_integer);
+            assert_eq!(
+                target_function.provenance.operations,
+                expected_function_operations
+            );
+            for (
+                arm,
+                expected_wide,
+                expected_widen_operation,
+                expected_add_operation,
+                expected_obligation,
+                expected_left,
+                expected_left_value,
+                expected_right,
+                expected_right_value,
+            ) in [
+                (
+                    when_true,
+                    ValueId::new(5_109).unwrap(),
+                    OperationId::new(5_124).unwrap(),
+                    OperationId::new(5_123).unwrap(),
+                    ObligationId::new(5_131).unwrap(),
+                    ValueId::new(5_106).unwrap(),
+                    IntegerValue::Unsigned(200),
+                    ValueId::new(5_107).unwrap(),
+                    IntegerValue::Unsigned(55),
+                ),
+                (
+                    when_false,
+                    ValueId::new(5_113).unwrap(),
+                    OperationId::new(5_128).unwrap(),
+                    OperationId::new(5_127).unwrap(),
+                    ObligationId::new(5_132).unwrap(),
+                    ValueId::new(5_110).unwrap(),
+                    IntegerValue::Unsigned(254),
+                    ValueId::new(5_111).unwrap(),
+                    IntegerValue::Unsigned(1),
+                ),
+            ] {
+                let TerminalTargetIntegerControl::Return {
+                    source_value,
+                    expression,
+                    ..
+                } = arm.control.as_ref()
+                else {
+                    panic!("conditional arm must return its widened value")
+                };
+                assert_eq!(*source_value, expected_wide);
+                let TerminalTargetIntegerExpression::IntegerWiden {
+                    psi_operation: widen_operation,
+                    source_type,
+                    operand,
+                } = expression
+                else {
+                    panic!("exact u8 addition must remain nested under its widening")
+                };
+                assert_eq!(*widen_operation, expected_widen_operation);
+                assert_eq!(*source_type, u8_integer);
+                let TerminalTargetIntegerExpression::ExactAdd {
+                    psi_operation: add_operation,
+                    obligation,
+                    left,
+                    right,
+                } = operand.as_ref()
+                else {
+                    panic!("proof-bearing exact addition must remain explicit")
+                };
+                assert_eq!(*add_operation, expected_add_operation);
+                assert_eq!(*obligation, expected_obligation);
+                assert_eq!(
+                    left.as_ref(),
+                    &TerminalTargetIntegerExpression::Immediate {
+                        source_value: expected_left,
+                        value: expected_left_value,
+                    }
+                );
+                assert_eq!(
+                    right.as_ref(),
+                    &TerminalTargetIntegerExpression::Immediate {
+                        source_value: expected_right,
+                        value: expected_right_value,
+                    }
+                );
+            }
+
+            let legalized = staged.legalized();
+            assert_eq!(legalized.receipt().target(), target);
+            assert_eq!(legalized.receipt().function_count(), 1);
+            assert_eq!(legalized.receipt().decomposition_count(), 2);
+            assert_eq!(
+                legalized.receipt().validator(),
+                terminal_legalization_validator_identity()
+            );
+            assert_eq!(
+                legalized.receipt().identity(),
+                staged_widened_u8_exact_add_conditional(target)
+                    .legalized()
+                    .receipt()
+                    .identity()
+            );
+            let legalized_function = &legalized.plan().functions[0];
+            assert_eq!(
+                legalized_function.recipe,
+                TerminalLegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1
+            );
+            assert_eq!(
+                legalized_function.provenance.operations,
+                expected_function_operations
+            );
+            assert_eq!(
+                legalized_function.provenance.edges,
+                vec![
+                    EdgeId::new(5_141).unwrap(),
+                    EdgeId::new(5_142).unwrap(),
+                    EdgeId::new(5_143).unwrap(),
+                    EdgeId::new(5_144).unwrap(),
+                ]
+            );
+            assert_eq!(
+                legalized_function.branch_true_fuel,
+                vec![FuelSettlement {
+                    site: PsiProvenance::Edge(EdgeId::new(5_141).unwrap()),
+                    units: 1,
+                }]
+            );
+            assert_eq!(
+                legalized_function.branch_false_fuel,
+                vec![FuelSettlement {
+                    site: PsiProvenance::Edge(EdgeId::new(5_142).unwrap()),
+                    units: 1,
+                }]
+            );
+            assert_eq!(
+                legalized_function.when_true.return_fuel,
+                vec![FuelSettlement {
+                    site: PsiProvenance::Edge(EdgeId::new(5_143).unwrap()),
+                    units: 1,
+                }]
+            );
+            assert_eq!(
+                legalized_function.when_false.return_fuel,
+                vec![FuelSettlement {
+                    site: PsiProvenance::Edge(EdgeId::new(5_144).unwrap()),
+                    units: 1,
+                }]
+            );
+            let accepted = &staged
+                .optimized_target()
+                .optimized()
+                .unit()
+                .accepted_obligation_facts;
+            assert_eq!(accepted.len(), 2);
+            for (
+                leaf,
+                expected_left_temporary,
+                expected_right_temporary,
+                expected_left,
+                expected_right,
+                expected_narrow,
+                expected_wide,
+                expected_add_operation,
+                expected_widen_operation,
+                expected_obligation,
+                expected_block,
+            ) in [
+                (
+                    &legalized_function.when_true,
+                    TerminalLegalizedTemporaryId(0),
+                    TerminalLegalizedTemporaryId(1),
+                    ValueId::new(5_106).unwrap(),
+                    ValueId::new(5_107).unwrap(),
+                    ValueId::new(5_108).unwrap(),
+                    ValueId::new(5_109).unwrap(),
+                    OperationId::new(5_123).unwrap(),
+                    OperationId::new(5_124).unwrap(),
+                    ObligationId::new(5_131).unwrap(),
+                    BlockId::new(5_103).unwrap(),
+                ),
+                (
+                    &legalized_function.when_false,
+                    TerminalLegalizedTemporaryId(2),
+                    TerminalLegalizedTemporaryId(3),
+                    ValueId::new(5_110).unwrap(),
+                    ValueId::new(5_111).unwrap(),
+                    ValueId::new(5_112).unwrap(),
+                    ValueId::new(5_113).unwrap(),
+                    OperationId::new(5_127).unwrap(),
+                    OperationId::new(5_128).unwrap(),
+                    ObligationId::new(5_132).unwrap(),
+                    BlockId::new(5_104).unwrap(),
+                ),
+            ] {
+                assert_eq!(leaf.source_value, expected_wide);
+                let TerminalLegalizedLeafValue::WidenedExactAdd {
+                    source_type,
+                    target_type,
+                    theorem,
+                    obligation,
+                    accepted_fact,
+                    add_operation,
+                    narrow_result,
+                    add_definition_site,
+                    add_fuel,
+                    widen_operation,
+                    widen_definition_site,
+                    widen_fuel,
+                    left_temporary,
+                    right_temporary,
+                    left,
+                    right,
+                } = &leaf.value
+                else {
+                    panic!("legalizer must publish its proof-aware widening recipe")
+                };
+                assert_eq!(*source_type, u8_integer);
+                assert_eq!(*target_type, u64_integer);
+                assert_eq!(
+                    *theorem,
+                    TerminalLegalizationTheorem::UnsignedExactAddCommutesWithWidenV1
+                );
+                assert_eq!(*obligation, expected_obligation);
+                assert_eq!(*add_operation, expected_add_operation);
+                assert_eq!(*narrow_result, expected_narrow);
+                assert_eq!(
+                    *add_definition_site,
+                    ValueDefinitionSite::Node {
+                        block: expected_block,
+                        node: 2,
+                    }
+                );
+                assert_eq!(*widen_operation, expected_widen_operation);
+                assert_eq!(
+                    *widen_definition_site,
+                    ValueDefinitionSite::Node {
+                        block: expected_block,
+                        node: 3,
+                    }
+                );
+                assert_eq!(*left_temporary, expected_left_temporary);
+                assert_eq!(*right_temporary, expected_right_temporary);
+                assert_eq!(left.source_value, expected_left);
+                assert_eq!(right.source_value, expected_right);
+                assert_eq!(
+                    add_fuel,
+                    &vec![FuelSettlement {
+                        site: PsiProvenance::Operation(expected_add_operation),
+                        units: 1,
+                    }]
+                );
+                assert_eq!(
+                    widen_fuel,
+                    &vec![FuelSettlement {
+                        site: PsiProvenance::Operation(expected_widen_operation),
+                        units: 1,
+                    }]
+                );
+                let fact = accepted
+                    .iter()
+                    .find(|fact| fact.identity == *accepted_fact)
+                    .expect("legalized fact remains verifier-owned");
+                assert_eq!(fact.operation, expected_add_operation);
+                assert_eq!(fact.obligation, expected_obligation);
+
+                let narrow_sum = source_type.exact_add(left.value, right.value).unwrap();
+                let widened_sum = source_type
+                    .widen_value_to(*target_type, narrow_sum)
+                    .unwrap();
+                let widened_left = source_type
+                    .widen_value_to(*target_type, left.value)
+                    .unwrap();
+                let widened_right = source_type
+                    .widen_value_to(*target_type, right.value)
+                    .unwrap();
+                assert_eq!(
+                    target_type.exact_add(widened_left, widened_right),
+                    Some(widened_sum)
+                );
+            }
+
+            let replayed = validate_terminal_legalized_operations(
+                staged.optimized_target().target_operations(),
+                staged.optimized_target().optimized().plan(),
+                staged.optimized_target().optimized().unit(),
+                legalized.plan().clone(),
+            )
+            .unwrap();
+            assert_eq!(replayed.receipt(), legalized.receipt());
+        }
+    }
+
+    #[test]
+    fn widened_u8_exact_add_independent_replay_rejects_corrupted_bridge_custody() {
+        let staged = staged_widened_u8_exact_add_conditional(NativeTarget::linux_x64());
+        let original = staged.legalized().plan();
+        let validate = |plan| {
+            validate_terminal_legalized_operations(
+                staged.optimized_target().target_operations(),
+                staged.optimized_target().optimized().plan(),
+                staged.optimized_target().optimized().unit(),
+                plan,
+            )
+        };
+        let false_fact = match original.functions[0].when_false.value {
+            TerminalLegalizedLeafValue::WidenedExactAdd { accepted_fact, .. } => accepted_fact,
+            _ => panic!("fixture must retain its false-arm proof fact"),
+        };
+
+        macro_rules! corrupt_true_leaf {
+            (|$value:ident| $body:block) => {{
+                let mut corrupted = original.clone();
+                let $value = &mut corrupted.functions[0].when_true.value;
+                $body
+                assert_eq!(
+                    validate(corrupted),
+                    Err(TerminalLegalizationError::NonCanonicalLegalizedPlan)
+                );
+            }};
+        }
+
+        corrupt_true_leaf!(|value| {
+            let TerminalLegalizedLeafValue::WidenedExactAdd { source_type, .. } = value else {
+                unreachable!()
+            };
+            *source_type = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
+        });
+        corrupt_true_leaf!(|value| {
+            let TerminalLegalizedLeafValue::WidenedExactAdd { target_type, .. } = value else {
+                unreachable!()
+            };
+            *target_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        });
+        corrupt_true_leaf!(|value| {
+            let TerminalLegalizedLeafValue::WidenedExactAdd { accepted_fact, .. } = value else {
+                unreachable!()
+            };
+            *accepted_fact = false_fact;
+        });
+        corrupt_true_leaf!(|value| {
+            let TerminalLegalizedLeafValue::WidenedExactAdd { narrow_result, .. } = value else {
+                unreachable!()
+            };
+            *narrow_result = ValueId::new(9_601).unwrap();
+        });
+        corrupt_true_leaf!(|value| {
+            let TerminalLegalizedLeafValue::WidenedExactAdd {
+                add_operation,
+                widen_operation,
+                ..
+            } = value
+            else {
+                unreachable!()
+            };
+            std::mem::swap(add_operation, widen_operation);
+        });
+        corrupt_true_leaf!(|value| {
+            let TerminalLegalizedLeafValue::WidenedExactAdd {
+                add_definition_site,
+                widen_definition_site,
+                ..
+            } = value
+            else {
+                unreachable!()
+            };
+            std::mem::swap(add_definition_site, widen_definition_site);
+        });
+        corrupt_true_leaf!(|value| {
+            let TerminalLegalizedLeafValue::WidenedExactAdd { add_fuel, .. } = value else {
+                unreachable!()
+            };
+            add_fuel[0].units += 1;
+        });
+        corrupt_true_leaf!(|value| {
+            let TerminalLegalizedLeafValue::WidenedExactAdd { widen_fuel, .. } = value else {
+                unreachable!()
+            };
+            widen_fuel[0].units += 1;
+        });
+        corrupt_true_leaf!(|value| {
+            let TerminalLegalizedLeafValue::WidenedExactAdd {
+                left_temporary,
+                right_temporary,
+                ..
+            } = value
+            else {
+                unreachable!()
+            };
+            *left_temporary = *right_temporary;
+        });
+        corrupt_true_leaf!(|value| {
+            let TerminalLegalizedLeafValue::WidenedExactAdd { left, right, .. } = value else {
+                unreachable!()
+            };
+            std::mem::swap(&mut left.constant_operation, &mut right.constant_operation);
+        });
+    }
+
+    #[test]
+    fn widened_u8_exact_add_reaches_selected_effect_and_register_pipelines_on_both_architectures() {
+        for (target, expected_homes) in [
+            (
+                NativeTarget::linux_x64(),
+                ["rdi", "rax", "rbx", "rax", "rax", "rbx", "rax"],
+            ),
+            (
+                NativeTarget::linux_arm64(),
+                ["x0", "x0", "x1", "x0", "x0", "x1", "x0"],
+            ),
+        ] {
+            let staged = staged_widened_u8_exact_add_conditional(target);
+            let function = &staged.selected().plan().functions[0];
+            assert_eq!(function.blocks.len(), 3);
+            assert_eq!(function.virtual_registers.len(), 7);
+            assert_eq!(staged.selected().receipt().instruction_count(), 10);
+            assert!(
+                function.blocks[0].instructions[0]
+                    .provenance
+                    .fuel
+                    .is_empty()
+            );
+            let TerminalSelectedTerminator::ConditionalBranch {
+                instruction,
+                when_nonzero,
+                when_zero,
+            } = &function.blocks[0].terminator
+            else {
+                panic!("selected entry must branch")
+            };
+            assert!(instruction.provenance.fuel.is_empty());
+            assert_eq!(
+                when_nonzero.fuel,
+                vec![FuelSettlement {
+                    site: PsiProvenance::Edge(EdgeId::new(5_141).unwrap()),
+                    units: 1,
+                }]
+            );
+            assert_eq!(
+                when_zero.fuel,
+                vec![FuelSettlement {
+                    site: PsiProvenance::Edge(EdgeId::new(5_142).unwrap()),
+                    units: 1,
+                }]
+            );
+            assert_eq!(
+                function
+                    .virtual_registers
+                    .iter()
+                    .map(|register| match register.origin {
+                        TerminalVirtualRegisterOrigin::LegalizationTemporary {
+                            temporary, ..
+                        } => Some(temporary),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+                vec![
+                    None,
+                    Some(TerminalLegalizedTemporaryId(0)),
+                    Some(TerminalLegalizedTemporaryId(1)),
+                    None,
+                    Some(TerminalLegalizedTemporaryId(2)),
+                    Some(TerminalLegalizedTemporaryId(3)),
+                    None,
+                ]
+            );
+            for (block, expected) in function.blocks[1..].iter().zip([
+                (
+                    [IntegerValue::Unsigned(200), IntegerValue::Unsigned(55)],
+                    [
+                        OperationId::new(5_123).unwrap(),
+                        OperationId::new(5_124).unwrap(),
+                    ],
+                    [
+                        ValueId::new(5_106).unwrap(),
+                        ValueId::new(5_107).unwrap(),
+                        ValueId::new(5_108).unwrap(),
+                        ValueId::new(5_109).unwrap(),
+                    ],
+                    ObligationId::new(5_131).unwrap(),
+                ),
+                (
+                    [IntegerValue::Unsigned(254), IntegerValue::Unsigned(1)],
+                    [
+                        OperationId::new(5_127).unwrap(),
+                        OperationId::new(5_128).unwrap(),
+                    ],
+                    [
+                        ValueId::new(5_110).unwrap(),
+                        ValueId::new(5_111).unwrap(),
+                        ValueId::new(5_112).unwrap(),
+                        ValueId::new(5_113).unwrap(),
+                    ],
+                    ObligationId::new(5_132).unwrap(),
+                ),
+            ]) {
+                assert_eq!(block.instructions.len(), 3);
+                for (materialize, expected_value) in block.instructions[..2].iter().zip(expected.0)
+                {
+                    assert_eq!(
+                        materialize.kind,
+                        TerminalSelectedInstructionKind::MaterializeI64 {
+                            value: expected_value,
+                        }
+                    );
+                }
+                let add = &block.instructions[2];
+                assert!(matches!(
+                    add.kind,
+                    TerminalSelectedInstructionKind::ExactAddI64 { obligation, .. }
+                        if obligation == expected.3
+                ));
+                assert_eq!(
+                    add.constraint,
+                    staged.register_environment().selected_keys().add_i64
+                );
+                assert_eq!(
+                    add.operands
+                        .iter()
+                        .map(|operand| operand.access)
+                        .collect::<Vec<_>>(),
+                    vec![
+                        RegisterOperandAccess::Use,
+                        RegisterOperandAccess::Use,
+                        RegisterOperandAccess::Def,
+                    ]
+                );
+                assert_eq!(add.provenance.operations, expected.1);
+                assert_eq!(add.provenance.values, expected.2);
+                assert_eq!(add.provenance.obligations, vec![expected.3]);
+                assert_eq!(
+                    add.provenance.fuel,
+                    expected
+                        .1
+                        .into_iter()
+                        .map(|operation| FuelSettlement {
+                            site: PsiProvenance::Operation(operation),
+                            units: 1,
+                        })
+                        .collect::<Vec<_>>()
+                );
+                assert!(
+                    add.operands
+                        .iter()
+                        .all(|operand| operand.fixed_view.is_none())
+                );
+                assert!(add.operands.iter().all(|operand| operand.tied_to.is_none()));
+                assert!(add.implicit_uses.is_empty());
+                assert!(add.implicit_defs.is_empty());
+                assert!(add.clobbers.is_empty());
+                let TerminalSelectedTerminator::Return { instruction, .. } = &block.terminator
+                else {
+                    panic!("selected leaf must return")
+                };
+                assert_eq!(instruction.provenance.values, vec![expected.2[3]]);
+                assert_eq!(instruction.provenance.fuel.len(), 1);
+            }
+            for (register, expected_source, expected_site) in [
+                (
+                    &function.virtual_registers[3],
+                    ValueId::new(5_109).unwrap(),
+                    ValueDefinitionSite::Node {
+                        block: BlockId::new(5_103).unwrap(),
+                        node: 3,
+                    },
+                ),
+                (
+                    &function.virtual_registers[6],
+                    ValueId::new(5_113).unwrap(),
+                    ValueDefinitionSite::Node {
+                        block: BlockId::new(5_104).unwrap(),
+                        node: 3,
+                    },
+                ),
+            ] {
+                assert_eq!(register.definition_site, expected_site);
+                assert!(matches!(
+                    register.origin,
+                    TerminalVirtualRegisterOrigin::InstructionResult { source_value, .. }
+                        if source_value == expected_source
+                ));
+            }
+
+            let selected_identity = staged.selected().receipt().identity();
+            let mut corrupted = staged.selected().plan().clone();
+            let TerminalVirtualRegisterOrigin::LegalizationTemporary { temporary, .. } =
+                &mut corrupted.functions[0].virtual_registers[1].origin
+            else {
+                panic!("first widened operand must retain its legal temporary")
+            };
+            temporary.0 += 10;
+            assert_ne!(
+                terminal_selected_instruction_plan_identity(&corrupted),
+                selected_identity
+            );
+            assert!(matches!(
+                validate_raw_selection(&staged, corrupted),
+                Err(SelectedInstructionError::VirtualRegisterProjectionMismatch { .. })
+            ));
+
+            let effects = stage_optimized_machine_effects(&staged).unwrap();
+            assert_eq!(effects.custody().instruction_count(), 10);
+            let adds = effects
+                .effects()
+                .plan()
+                .functions
+                .iter()
+                .flat_map(|function| &function.blocks)
+                .flat_map(|block| &block.instructions)
+                .filter(|instruction| {
+                    matches!(
+                        instruction.kind,
+                        TerminalSelectedInstructionKind::ExactAddI64 { .. }
+                    )
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(adds.len(), 2);
+            for add in adds {
+                assert_eq!(add.barrier, TerminalMachineBarrier::None);
+                assert_eq!(add.alternatives.len(), 1);
+                assert!(add.unit_clobbers.is_empty());
+                assert_eq!(add.provenance.operations.len(), 2);
+                assert_eq!(add.provenance.values.len(), 4);
+                assert_eq!(add.provenance.obligations.len(), 1);
+                assert_eq!(add.provenance.fuel.len(), 2);
+            }
+
+            let homes = stage_optimized_register_homes(
+                stage_optimized_allocation_legality(
+                    stage_optimized_live_ranges(stage_optimized_liveness(staged).unwrap()).unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let selected_stage = homes
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage();
+            let model = selected_stage.register_environment().physical().model();
+            assert_eq!(homes.custody().assignment_count(), 7);
+            assert_eq!(
+                homes.homes().plan().functions[0]
+                    .assignments
+                    .iter()
+                    .map(|assignment| {
+                        model
+                            .views
+                            .iter()
+                            .find(|view| view.id == assignment.view)
+                            .unwrap()
+                            .name
+                            .as_str()
+                    })
+                    .collect::<Vec<_>>(),
+                expected_homes
+            );
+            let post = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
+            assert_eq!(post.custody().instruction_count(), 10);
         }
     }
 

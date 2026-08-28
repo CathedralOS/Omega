@@ -1191,6 +1191,19 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
             "selected-instruction representation must remain data-only; found {forbidden}"
         );
     }
+    let selected_manifest = root.join(
+        "source/on-ramp/rust/omega/representations/omega-terminal-selected-instructions/Cargo.toml",
+    );
+    let selected_manifest_source = std::fs::read_to_string(&selected_manifest)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", selected_manifest.display()));
+    assert!(
+        selected_manifest_source.contains("omega-terminal-legalized-operations"),
+        "selected virtual-register origins must consume canonical legalization-temporary identities"
+    );
+    assert!(
+        selected_representation_source.contains("LegalizationTemporary"),
+        "selected virtual registers must distinguish legalized temporaries from Psi value identities"
+    );
 
     let graph = load_graph();
     assert_eq!(

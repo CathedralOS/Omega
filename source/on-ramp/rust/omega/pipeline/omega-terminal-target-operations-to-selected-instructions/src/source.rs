@@ -5,9 +5,10 @@ use omega_terminal_abstract_operations::{
     TerminalAbstractOperation, TerminalAbstractOperationPlan,
 };
 use omega_terminal_legalized_operations::{
-    TerminalLegalizationRecipe, TerminalLegalizedFunction as SourceFunction,
-    TerminalLegalizedImmediate as SourceImmediate, TerminalLegalizedLeaf as SourceLeaf,
-    TerminalLegalizedLeafValue as SourceLeafValue,
+    TerminalLegalizationRecipe, TerminalLegalizationTheorem,
+    TerminalLegalizedFunction as SourceFunction, TerminalLegalizedImmediate as SourceImmediate,
+    TerminalLegalizedLeaf as SourceLeaf, TerminalLegalizedLeafValue as SourceLeafValue,
+    TerminalLegalizedTemporaryId,
 };
 use omega_terminal_target_operations::{
     TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetIntegerControl,
@@ -200,12 +201,56 @@ fn derive_source_function(
             )
         )
     );
+    let u8_integer_type = psi_core::IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let widened_u8_exact_add_leaves = matches!(
+        (when_true.control.as_ref(), when_false.control.as_ref()),
+        (
+            TerminalTargetIntegerControl::Return {
+                expression: TerminalTargetIntegerExpression::IntegerWiden {
+                    source_type,
+                    operand,
+                    ..
+                },
+                ..
+            },
+            TerminalTargetIntegerControl::Return {
+                expression: TerminalTargetIntegerExpression::IntegerWiden {
+                    source_type: false_source_type,
+                    operand: false_operand,
+                    ..
+                },
+                ..
+            }
+        ) if *source_type == u8_integer_type
+            && *false_source_type == u8_integer_type
+            && matches!(
+                (operand.as_ref(), false_operand.as_ref()),
+                (
+                    TerminalTargetIntegerExpression::ExactAdd { left, right, .. },
+                    TerminalTargetIntegerExpression::ExactAdd {
+                        left: false_left,
+                        right: false_right,
+                        ..
+                    }
+                ) if matches!(
+                    (left.as_ref(), right.as_ref(), false_left.as_ref(), false_right.as_ref()),
+                    (
+                        TerminalTargetIntegerExpression::Immediate { .. },
+                        TerminalTargetIntegerExpression::Immediate { .. },
+                        TerminalTargetIntegerExpression::Immediate { .. },
+                        TerminalTargetIntegerExpression::Immediate { .. },
+                    )
+                )
+            )
+    );
     let expected_offsets = if constant_leaves {
         [0, 1, 3]
     } else if parameter_leaves {
         [0, 1, 2]
     } else if exact_add_leaves || exact_subtract_leaves {
         [0, 1, 5]
+    } else if widened_u8_exact_add_leaves {
+        [0, 1, 6]
     } else {
         return Err(Error::UnsupportedSourceShape { function });
     };
@@ -213,6 +258,8 @@ fn derive_source_function(
         (5, 2)
     } else if parameter_leaves {
         (3, 1)
+    } else if widened_u8_exact_add_leaves {
+        (11, 5)
     } else {
         (9, 4)
     };
@@ -294,6 +341,10 @@ fn derive_source_function(
         abstracted,
         optimized,
         accepted_obligation_facts,
+        [
+            TerminalLegalizedTemporaryId(0),
+            TerminalLegalizedTemporaryId(1),
+        ],
     )?;
     let when_false = derive_leaf(
         function,
@@ -304,6 +355,10 @@ fn derive_source_function(
         abstracted,
         optimized,
         accepted_obligation_facts,
+        [
+            TerminalLegalizedTemporaryId(2),
+            TerminalLegalizedTemporaryId(3),
+        ],
     )?;
     if let (
         SourceLeafValue::EntryParameter {
@@ -350,6 +405,8 @@ fn derive_source_function(
             TerminalLegalizationRecipe::ReturnU64EntryParameterConditionalV1
         } else if exact_add_leaves {
             TerminalLegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1
+        } else if widened_u8_exact_add_leaves {
+            TerminalLegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1
         } else {
             TerminalLegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1
         },
@@ -381,6 +438,7 @@ fn derive_leaf(
     abstracted: &omega_terminal_abstract_operations::TerminalAbstractFunction,
     optimized: &omega_optimization_unit::PsiOptimizationFunction,
     accepted_obligation_facts: &[AcceptedObligationFact],
+    temporaries: [TerminalLegalizedTemporaryId; 2],
 ) -> Result<SourceLeaf, TerminalLegalizationError> {
     if nodes.len() != abstract_operations.len()
         || nodes
@@ -464,6 +522,133 @@ fn derive_leaf(
                     parameter_index: *parameter_index,
                     register: *register,
                     definition_site: parameter.site,
+                },
+            )
+        }
+        TerminalTargetIntegerExpression::IntegerWiden {
+            psi_operation: widen_operation,
+            source_type,
+            operand,
+        } => {
+            let u8_integer_type = psi_core::IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+            let u8_type = ScalarType::Integer(u8_integer_type);
+            let TerminalTargetIntegerExpression::ExactAdd {
+                psi_operation: add_operation,
+                obligation,
+                left,
+                right,
+            } = operand.as_ref()
+            else {
+                return Err(Error::UnsupportedSourceShape { function });
+            };
+            if nodes.len() != 5 || *source_type != u8_integer_type {
+                return Err(Error::UnsupportedSourceShape { function });
+            }
+            let left = derive_immediate(function, arm_edge, left, &nodes[0], u8_type)?;
+            let right = derive_immediate(function, arm_edge, right, &nodes[1], u8_type)?;
+            let TerminalAbstractOperation::ExactIntegerAdd {
+                psi_operation: abstract_add_operation,
+                obligation: abstract_obligation,
+                result: narrow_result,
+                scalar_type: add_type,
+                left: abstract_left,
+                right: abstract_right,
+            } = &nodes[2].operation
+            else {
+                return Err(Error::UnsupportedSourceShape { function });
+            };
+            if abstract_add_operation != add_operation
+                || abstract_obligation != obligation
+                || *add_type != u8_integer_type
+                || *abstract_left != left.source_value
+                || *abstract_right != right.source_value
+                || nodes[2].definitions.len() != 1
+                || nodes[2].definitions[0].value != *narrow_result
+                || nodes[2].provenance != vec![PsiProvenance::Operation(*add_operation)]
+            {
+                return Err(Error::UnsupportedSourceShape { function });
+            }
+            let TerminalAbstractOperation::IntegerWiden {
+                psi_operation: abstract_widen_operation,
+                result: widened_result,
+                source_type: abstract_source_type,
+                target_type: abstract_target_type,
+                operand: abstract_operand,
+            } = &nodes[3].operation
+            else {
+                return Err(Error::UnsupportedSourceShape { function });
+            };
+            if abstract_widen_operation != widen_operation
+                || *widened_result != *source_value
+                || *narrow_result == *source_value
+                || *abstract_source_type != u8_integer_type
+                || *abstract_target_type != u64_integer_type
+                || *abstract_operand != *narrow_result
+                || nodes[3].definitions.len() != 1
+                || nodes[3].definitions[0].value != *source_value
+                || nodes[3].provenance != vec![PsiProvenance::Operation(*widen_operation)]
+            {
+                return Err(Error::UnsupportedSourceShape { function });
+            }
+
+            let Some(narrow_sum) = u8_integer_type.exact_add(left.value, right.value) else {
+                return Err(Error::UnsupportedSourceShape { function });
+            };
+            let Some(widened_sum) = u8_integer_type.widen_value_to(u64_integer_type, narrow_sum)
+            else {
+                return Err(Error::UnsupportedSourceShape { function });
+            };
+            let Some(widened_left) = u8_integer_type.widen_value_to(u64_integer_type, left.value)
+            else {
+                return Err(Error::UnsupportedSourceShape { function });
+            };
+            let Some(widened_right) = u8_integer_type.widen_value_to(u64_integer_type, right.value)
+            else {
+                return Err(Error::UnsupportedSourceShape { function });
+            };
+            if u64_integer_type.exact_add(widened_left, widened_right) != Some(widened_sum) {
+                return Err(Error::UnsupportedSourceShape { function });
+            }
+
+            let Some(accepted_fact) = accepted_obligation_facts.iter().find(|fact| {
+                fact.machine == optimized.machine
+                    && fact.operation == *add_operation
+                    && fact.obligation == *obligation
+            }) else {
+                return Err(Error::SourceCustodyMismatch);
+            };
+            if !optimized.facts.iter().any(|fact| {
+                matches!(
+                    fact,
+                    OptimizationFact::OperationObligationReference {
+                        obligation: referenced_obligation,
+                        support,
+                    } if *referenced_obligation == *obligation && *support == *add_operation
+                )
+            }) {
+                return Err(Error::SourceCustodyMismatch);
+            }
+            let add_fuel = exact_operation_fuel(&nodes[2], *add_operation, function)?;
+            let widen_fuel = exact_operation_fuel(&nodes[3], *widen_operation, function)?;
+            (
+                &nodes[4],
+                SourceLeafValue::WidenedExactAdd {
+                    source_type: u8_integer_type,
+                    target_type: u64_integer_type,
+                    theorem: TerminalLegalizationTheorem::UnsignedExactAddCommutesWithWidenV1,
+                    obligation: *obligation,
+                    accepted_fact: accepted_fact.identity,
+                    add_operation: *add_operation,
+                    narrow_result: *narrow_result,
+                    add_definition_site: nodes[2].definitions[0].site,
+                    add_fuel,
+                    widen_operation: *widen_operation,
+                    widen_definition_site: nodes[3].definitions[0].site,
+                    widen_fuel,
+                    left_temporary: temporaries[0],
+                    right_temporary: temporaries[1],
+                    left,
+                    right,
                 },
             )
         }
@@ -656,6 +841,18 @@ fn source_operations(value: &SourceLeafValue) -> Vec<OperationId> {
             left.constant_operation,
             right.constant_operation,
             *subtract_operation,
+        ],
+        SourceLeafValue::WidenedExactAdd {
+            add_operation,
+            widen_operation,
+            left,
+            right,
+            ..
+        } => vec![
+            left.constant_operation,
+            right.constant_operation,
+            *add_operation,
+            *widen_operation,
         ],
     }
 }

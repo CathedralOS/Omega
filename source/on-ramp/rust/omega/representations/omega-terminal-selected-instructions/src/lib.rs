@@ -123,6 +123,14 @@ pub enum TerminalVirtualRegisterOrigin {
         instruction: TerminalSelectedInstructionId,
         source_value: ValueId,
     },
+    /// A value introduced by mandatory target legalization. `source_value`
+    /// retains Psi lineage without claiming that the source value itself has
+    /// the legalized register type.
+    LegalizationTemporary {
+        instruction: TerminalSelectedInstructionId,
+        temporary: omega_terminal_legalized_operations::TerminalLegalizedTemporaryId,
+        source_value: ValueId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -166,9 +174,10 @@ pub enum TerminalSelectedInstructionKind {
         value: IntegerValue,
     },
     CopyI64,
-    /// Exact mathematical addition whose Psi proof obligation was discharged
-    /// before target lowering. The obligation remains semantic custody even
-    /// when the target uses the same physical row as wrapping addition.
+    /// Exact mathematical addition whose source proof obligation was
+    /// discharged before target lowering. A validated legalization theorem
+    /// may transport a narrower exact operation to this i64 form; the selected
+    /// receipt retains both the legal-plan and legalization-validator roots.
     ExactAddI64 {
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,
