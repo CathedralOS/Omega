@@ -485,6 +485,30 @@ pub struct DominatingScalarCommonSubexpressionRewrite {
     pub scalar_type: ScalarType,
 }
 
+/// One incoming control-flow arm supplying a value already computed for a
+/// phi-translated total scalar expression at the target block.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PhiTranslatedScalarIncoming {
+    pub source: BlockId,
+    pub edge: EdgeId,
+    pub leader: NodeLocation,
+    pub leader_operation: OperationId,
+    pub leader_result: ValueId,
+}
+
+/// Preserve the redundant result identity as a new target-block parameter,
+/// bind every incoming edge to its available translated leader, and remove the
+/// now-redundant target-block computation.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PhiTranslatedScalarGvnRewrite {
+    pub redundant: NodeLocation,
+    pub redundant_operation: OperationId,
+    pub redundant_result: ValueId,
+    pub scalar_type: ScalarType,
+    pub parameter_position: u32,
+    pub incoming: Vec<PhiTranslatedScalarIncoming>,
+}
+
 /// Remove the exact canonical complement of the independently reconstructed
 /// executable-machine root closure.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -512,6 +536,7 @@ pub enum PsiRewritePatch {
     RemoveDeadScalarNode(DeadScalarNodeRewrite),
     EliminateLocalScalarCommonSubexpression(LocalScalarCommonSubexpressionRewrite),
     EliminateDominatedScalarCommonSubexpression(DominatingScalarCommonSubexpressionRewrite),
+    EliminatePhiTranslatedScalarCommonSubexpression(PhiTranslatedScalarGvnRewrite),
     PruneUnreachablePrivateMachines(UnreachablePrivateMachinesRewrite),
 }
 
@@ -926,6 +951,26 @@ impl PsiRewriteCandidate {
         )
     }
 
+    pub fn new_phi_translated_scalar_common_subexpression(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        provenance: Vec<ProvenanceRewrite>,
+        predicted_cost_delta: i64,
+        patch: PhiTranslatedScalarGvnRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            Vec::new(),
+            provenance,
+            PsiRewriteWitness::StructuralIdentity,
+            predicted_cost_delta,
+            PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch),
+        )
+    }
+
     pub fn new_unreachable_private_machines(
         input: OptimizationUnitIdentity,
         contract: OptimizationRuleContract,
@@ -995,6 +1040,9 @@ impl PsiRewriteCandidate {
                 PsiRewriteDecisionPoint::Node(patch.redundant)
             }
             PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(patch) => {
+                PsiRewriteDecisionPoint::Node(patch.redundant)
+            }
+            PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch) => {
                 PsiRewriteDecisionPoint::Node(patch.redundant)
             }
             PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
@@ -1374,6 +1422,34 @@ impl PsiRewriteCandidate {
                     return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
                 }
             }
+            PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch) => {
+                let redundant_input = PsiRealizationSite::Node(patch.redundant);
+                if !substitutions.is_empty()
+                    || patch.incoming.len() < 2
+                    || patch.incoming.windows(2).any(|pair| {
+                        (pair[0].edge, pair[0].source) >= (pair[1].edge, pair[1].source)
+                    })
+                    || patch.incoming.iter().any(|incoming| {
+                        incoming.leader.machine != patch.redundant.machine
+                            || incoming.leader_operation == patch.redundant_operation
+                            || incoming.leader_result == patch.redundant_result
+                            || !affected_blocks.contains(&incoming.source)
+                    })
+                    || !provenance.iter().any(|row| row.input == redundant_input)
+                    || provenance.iter().any(|row| {
+                        let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
+                            return true;
+                        };
+                        site.machine() != patch.redundant.machine
+                            || site
+                                .node()
+                                .is_some_and(|location| !affected_blocks.contains(&location.block))
+                    })
+                    || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
+                {
+                    return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
+                }
+            }
             PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
                 let pruned = patch
                     .machines
@@ -1571,7 +1647,7 @@ fn encode_candidate(
     patch: &PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v20\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v21\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     match decision_point {
@@ -1784,6 +1860,22 @@ fn encode_candidate(
             encode_location(&mut bytes, patch.predecessor);
             bytes.extend_from_slice(&patch.incoming_edge.get().to_le_bytes());
             bytes.extend_from_slice(&patch.target.get().to_le_bytes());
+        }
+        PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch) => {
+            bytes.push(14);
+            encode_location(&mut bytes, patch.redundant);
+            bytes.extend_from_slice(&patch.redundant_operation.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.redundant_result.get().to_le_bytes());
+            encode_scalar_type(&mut bytes, patch.scalar_type);
+            bytes.extend_from_slice(&patch.parameter_position.to_le_bytes());
+            encode_len(&mut bytes, patch.incoming.len());
+            for incoming in &patch.incoming {
+                bytes.extend_from_slice(&incoming.source.get().to_le_bytes());
+                bytes.extend_from_slice(&incoming.edge.get().to_le_bytes());
+                encode_location(&mut bytes, incoming.leader);
+                bytes.extend_from_slice(&incoming.leader_operation.get().to_le_bytes());
+                bytes.extend_from_slice(&incoming.leader_result.get().to_le_bytes());
+            }
         }
     }
     bytes
@@ -2058,5 +2150,90 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn phi_translated_candidate_identity_binds_canonical_incoming_leaders() {
+        let machine = MachineId::new(100).unwrap();
+        let join = BlockId::new(200).unwrap();
+        let left = BlockId::new(201).unwrap();
+        let right = BlockId::new(202).unwrap();
+        let redundant = NodeLocation {
+            machine,
+            block: join,
+            node: 0,
+        };
+        let incoming = vec![
+            PhiTranslatedScalarIncoming {
+                source: left,
+                edge: EdgeId::new(301).unwrap(),
+                leader: NodeLocation {
+                    machine,
+                    block: left,
+                    node: 0,
+                },
+                leader_operation: OperationId::new(401).unwrap(),
+                leader_result: ValueId::new(501).unwrap(),
+            },
+            PhiTranslatedScalarIncoming {
+                source: right,
+                edge: EdgeId::new(302).unwrap(),
+                leader: NodeLocation {
+                    machine,
+                    block: right,
+                    node: 0,
+                },
+                leader_operation: OperationId::new(402).unwrap(),
+                leader_result: ValueId::new(502).unwrap(),
+            },
+        ];
+        let contract = OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(b"phi-rule"),
+            omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(b"phi-pass"),
+            1,
+            AnalysisSet::default(),
+            AnalysisInvalidationSet::default(),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        )
+        .unwrap();
+        let source = PsiProvenance::Operation(OperationId::new(403).unwrap());
+        let provenance = vec![ProvenanceRewrite {
+            input: PsiRealizationSite::Node(redundant),
+            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(redundant)),
+            sources: vec![source],
+            fuel: vec![FuelSettlement {
+                site: source,
+                units: 1,
+            }],
+        }];
+        let patch = PhiTranslatedScalarGvnRewrite {
+            redundant,
+            redundant_operation: OperationId::new(404).unwrap(),
+            redundant_result: ValueId::new(503).unwrap(),
+            scalar_type: ScalarType::Boolean,
+            parameter_position: 1,
+            incoming,
+        };
+        let candidate = PsiRewriteCandidate::new_phi_translated_scalar_common_subexpression(
+            OptimizationUnitIdentity::from_canonical_bytes(b"phi-input"),
+            contract,
+            vec![join, left, right],
+            provenance.clone(),
+            -1,
+            patch.clone(),
+        )
+        .unwrap();
+        let mut changed = patch;
+        changed.incoming[1].leader_result = ValueId::new(504).unwrap();
+        let changed = PsiRewriteCandidate::new_phi_translated_scalar_common_subexpression(
+            OptimizationUnitIdentity::from_canonical_bytes(b"phi-input"),
+            contract,
+            vec![join, left, right],
+            provenance,
+            -1,
+            changed,
+        )
+        .unwrap();
+        assert_ne!(candidate.identity(), changed.identity());
     }
 }

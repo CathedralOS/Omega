@@ -2,8 +2,8 @@
 
 This root owns the Omega-written target-lowering, optimization, and
 artifact-emission half of the production compiler; implementation remains open.
-Its source closure is constrained to `Ωself` and compiled directly by the
-published Delta-produced compiler.
+Its source closure deliberately uses only the ordinary-Omega forms accepted by
+the published Delta-produced compiler.
 
 The source-profile constraint does not narrow the resulting compiler: this half
 still implements full Omega optimization and target lowering. An optional

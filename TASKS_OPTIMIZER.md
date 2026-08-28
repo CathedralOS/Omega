@@ -1034,10 +1034,11 @@ dependency.
   semantics; potentially trapping, effectful, placed, atomic, or observation-
   dependent work is excluded unless its exact contract proves equivalence.
 
-  Current slice: the exact named `GlobalValueNumbering` selection owns four
+  Current slice: the exact named `GlobalValueNumbering` selection owns five
   rules in canonical order: obligation-free same-block CSE, proof-certified
   same-block CSE, obligation-free dominator GVN, and proof-certified dominator
-  GVN. The obligation-free rules cover literals, Boolean operations, integer
+  GVN, followed by obligation-free phi-translated GVN. The obligation-free
+  rules cover literals, Boolean operations, integer
   comparisons/bitwise/widening, wrapping shifts, and wrapping or saturating
   add/subtract/multiply. The proof-certified rules add exact integer casts,
   shifts, add/subtract/multiply/divide/remainder, plus wrapping or saturating
@@ -1060,12 +1061,27 @@ dependency.
   definitions, uses, dense effects, fact/place indexes, substitution, and
   custody accounting. Redundant provenance/fuel moves forward to the next
   co-executed node, never backward to the leader; its active obligation
-  reference disappears with the node. Candidate v19, optimization-unit
-  identity v10, the named v3 pass, prephysical manifest v13, and projection v14
-  bind this meaning; ledger v4 already represents the relocation and
-  substitution. Phi translation, partial redundancy elimination, and
-  cyclic-CFG GVN remain outside these rules; current admitted optimization
-  units reject control cycles.
+  reference disappears with the node. Candidate encoding v21,
+  optimization-unit identity v10, the named v4 pass, prephysical manifest v14,
+  and projection v15 bind this meaning; ledger v4 already represents the
+  relocation and substitution.
+
+  The fifth rule admits a join expression only when it references at least one
+  typed join parameter and every incoming edge translates that expression to
+  an exact, obligation-free total scalar leader available in the source block
+  or one of its strict dominators. For each arm it chooses the same canonical
+  outermost/depth-plus-location leader policy as dominator GVN. It preserves
+  the redundant result `ValueId` as a newly appended join parameter, appends
+  one exact typed leader binding to every incoming edge, and removes the join
+  computation without a global substitution. The validator independently
+  enumerates the complete incoming-edge set, translates operands through the
+  existing binding positions, reconstructs canonical leaders and custody, and
+  rejects missing arms, mismatched types, reordered or corrupted witnesses,
+  and detached leaders. A verified Terminal diamond proves optimized-plan
+  projection retains the new parameter and both bindings. Proof-certified phi
+  translation, partial redundancy elimination, and cyclic-CFG GVN remain
+  outside these rules; current admitted optimization units reject control
+  cycles.
 
 - **OPT-DEAD-SCALAR-WORK.** Remove unused pure and total scalar operations.
 

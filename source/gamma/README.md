@@ -48,8 +48,8 @@ Principal artifacts:
 
 - `interp.beta` — canonical Gamma reference interpreter, written in Beta;
 - `typeck.beta` — monomorphic Gamma type checker, written in Beta;
-- `source/proof-kernel/implementations/gamma/` — independent
-  proof-kernel implementations hosted by Gamma and owned by assurance;
+- `source/alpha/checker/implementations/gamma/` — independent
+  proof-kernel implementations hosted by Gamma and owned by Alpha's checker;
 - `canonical-bytes/` — reusable typed byte-cursor primitives;
 - `terminal-codec-primitives/` — reusable typed scalar, identity, type, integer-
   value, UTF-8, and structural-leaf grammar fragments. It deliberately owns no
@@ -62,7 +62,7 @@ sh source/gamma/test-interp.sh
 sh source/gamma/test-interp-gc.sh
 sh source/gamma/test-interp-arena.sh
 sh source/gamma/test-typeck.sh
-sh source/proof-kernel/gates/gamma-checker.sh
+sh source/alpha/checker/gates/gamma-checker.sh
 sh source/gamma/test-canonical-bytes.sh
 sh source/gamma/test-terminal-codec-primitives.sh
 ```
@@ -83,7 +83,7 @@ not override `interp.beta`.
 `canonical-bytes/` and `terminal-codec-primitives/` are reusable programs in
 Gamma. Being written in and evaluated by Gamma does not make a consumer part of
 the language or its meaning. Artifact-specific obligation reconstruction belongs
-under assurance, not under the Gamma rung.
+beside the artifact being admitted, not under the Gamma rung.
 
 ## Parked imperative Gamma
 

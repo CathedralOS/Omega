@@ -7,8 +7,8 @@
 
 ## The chain
 
-Let `C` be the exact source closure of the Omega-written compiler, constrained
-to the ordinary-Omega profile `Ωself`:
+Let `C` be the exact source closure of the Omega-written compiler. It is
+ordinary Omega deliberately authored with a conservative subset of features:
 
 ```text
 Alpha → Beta → Gamma → Delta-produced compiler
@@ -64,8 +64,9 @@ No implementation gains authority by occupying more than one of these roles.
 | [Delta](rungs/delta.md) | deterministic compiler-host language | Delta→Gamma elaboration and Gamma execution; publication open |
 | [Psi/Omega](omega_toolchain.md) | target-neutral product compiler then target realization | Omega-written source; direct Delta and self-build edges open |
 
-The [proof kernel](proof_kernel.md) is cross-cutting, not a fifth Greek rung.
-`Ωself` is a source profile, not another language. The current Rust compiler in
+The Alpha-owned [proof kernel](proof_kernel.md) is universal checker
+infrastructure, not a fifth Greek rung. The feature subset used by `C` is an
+incidental source property, not another language. The current Rust compiler in
 `source/omega-rust/` is an implementation/comparator, not a rung.
 
 ## Meaning routes and compilation routes
@@ -115,7 +116,7 @@ The ordered implementation work is in
 [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md). The principal open edges are:
 
 - publish the complete canonical Delta compiler from the lower rungs;
-- make that compiler accept the frozen, compositional `Ωself` profile;
+- make that compiler accept the compositional ordinary-Omega surface used by `C`;
 - close the exact product source graph `C`;
 - build `omega₀` from `C` with checked refinement; and
 - rebuild the same `C` with `omega₀` and check the resulting product artifact.

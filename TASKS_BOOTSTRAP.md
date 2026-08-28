@@ -9,7 +9,9 @@ checkpoint compilers.
 ## Fixed model
 
 Let `C` be the exact production compiler source closure. `C` is ordinary Omega
-constrained to the compositional `Ωself` authoring profile.
+written deliberately against only the language surface needed to express a
+robust compiler. That restriction is a property of this source closure, not a
+new language, dialect, compiler, or repository owner.
 
 ```text
 Alpha kernels
@@ -22,8 +24,9 @@ Alpha kernels
 
 `omega₀` and `omega` implement the same language from the same source. The first
 binary may be conservatively lowered; the second may use the optimizer and
-advanced backend already present in `C`. `Ωself` names the source profile, not
-another compiler artifact.
+advanced backend already present in `C`. The source may avoid difficult Omega
+features such as the mathematical proof surface or linear dependent types even
+though the compiler it implements accepts them.
 
 Every arrow must be directly invocable as a compiler operation over exact input
 bytes with exact output bytes. Shell and Python programs may order commands,
@@ -41,8 +44,9 @@ Git history is their archive.
   the chain.
 - The final Delta-produced compiler accepts `C` directly. There is no separate
   `omega-bootstrap` compiler between Delta and `omega₀`.
-- `Ωself` is ordinary Omega with a restricted authoring census: no private
-  syntax, altered meaning, file allowlist, or AST-permutation matching.
+- `C` uses an ordinary-Omega subset by authoring discipline: no private syntax,
+  altered meaning, file allowlist, AST-permutation matching, or separately
+  versioned profile.
 - The compiler source is authored once. `delta C → omega₀` and
   `omega₀ C → omega` consume the same closure.
 - The Rust producer at `source/omega-rust` is a development implementation and
@@ -50,7 +54,9 @@ Git history is their archive.
 - Authority comes from exact source, pinned semantics, checked obligations,
   disclosed admissions, and source-to-artifact refinement—not compiler
   pedigree, fixed points, or agreement with Rust.
-- The proof kernel is a cross-cutting checker, not another language rung.
+- The universal proof checker belongs to Alpha and is not another language rung.
+- The artifact being admitted owns its validation. Validation may consume the
+  Alpha checker, but candidate compiler output never accepts its own evidence.
 - Standalone interpreters, viewers, REPLs, and debugging tools remain outside
   `C` unless the compiler executable imports them.
 
@@ -58,14 +64,37 @@ Git history is their archive.
 
 | Owner | Present | Required closure |
 | --- | --- | --- |
-| Alpha | audited seed, VM, assembler, gates | keep its accepted host assumptions explicit |
-| Beta | Alpha-rooted compiler and self-host tests | retain exact source/artifact joins |
+| Alpha | audited seed, VM, assembler, checker implementations and gates | finish a non-circular checker construction rooted independently of the compiler artifact it admits |
+| Beta | compiler source/artifact under `source/beta/compiler`, Alpha-rooted cold start, self-host tests, and adjacent validation | consolidate the exact source/artifact admission into one comprehensible validator |
 | Gamma | interpreter, type checker, proof-kernel implementation | retain bounded canonical execution |
 | Delta | compiler corpus, lower-rung meaning under `source/delta/meaning`, provisional artifacts, source-closure and publication checks | publish the exact Delta-produced compiler from Gamma and extend it to accept all of `C` |
-| Omega source | permanent owners under `source/psi` and `source/omega` | finish the product compiler and freeze the exact `Ωself` census |
+| Omega source | permanent owners under `source/psi` and `source/omega` | finish the product compiler and freeze the exact surface actually used by `C` |
 | Rust comparator | working implementation under `source/omega-rust` | remain optional and non-authoritative |
 
 ## Execution queue
+
+### 0. Close and simplify the trust floor
+
+- [x] Put the root checker under `source/alpha/checker/`.
+- [x] Put the Beta compiler source, artifact, cold start, and admission evidence
+  together under `source/beta/compiler/`.
+- [x] Remove the generic `source/refinement/` owner. Future validation belongs
+  beside the compiler or artifact being admitted.
+- [ ] Replace the circular `bc → check.beta → admit bc` story with a checker
+  whose accepted artifact is constructed and audited below the Beta compiler it
+  validates. Alternate Beta, Gamma, Rust, or Python checkers remain differential
+  evidence, not acceptance authority.
+- [ ] Collapse the Beta validator's generated checker/permutation explosion into
+  one canonical obligation format and small responsibility-specific modules.
+  Delete cached HTML viewers, duplicated generated programs, receipt matrices,
+  and debug-only publication paths when no human or authoritative command
+  consumes them.
+- [ ] Keep fuzzing, alternate checkers, large corpora, and exhaustive mutation
+  campaigns as optional stress suites. The default lattice path must build each
+  compiler and run only the bounded admission gates required for that edge.
+- [ ] State every admitted artifact, checker, exact input, exact output, and
+  remaining assumption in one short chain manifest that can be audited without
+  reading orchestration scripts.
 
 ### 1. Publish the Delta-produced compiler from below
 
@@ -87,11 +116,11 @@ compiler artifact.
 - [ ] Ensure the publication path is reproducible by running the constituent
   compiler commands directly without `tools/bootstrap/verify-lattice.sh`.
 
-### 2. Make the Delta-produced compiler accept `Ωself`
+### 2. Make the Delta-produced compiler accept the surface used by `C`
 
 - [ ] Derive the required input surface from the live resolved closure `C`, not
   from frozen vertical canaries or historical bridge formats.
-- [ ] Implement the complete `Ωself` source frontend, checked semantics,
+- [ ] Implement that ordinary-Omega source frontend, checked semantics,
   conservative lowering, target realization, and artifact emission in the
   Delta compiler stage.
 - [ ] Preserve ordinary Omega meaning for every accepted form and reject every
@@ -107,8 +136,8 @@ compiler artifact.
   `omega`.
 - [ ] Compute the exact transitive compiler executable closure `C` through the
   package system.
-- [ ] Census the ordinary Omega forms used by `C` and freeze `Ωself` only after
-  the complete compiler builds.
+- [ ] Census the ordinary Omega forms used by `C` only after the complete
+  compiler builds; record a tested input boundary without naming a new dialect.
 - [ ] Keep package acceptance, generated-source custody, target semantics, and
   admitted boundary claims explicit in the closure.
 - [ ] Do not include tools that the compiler executable does not import.

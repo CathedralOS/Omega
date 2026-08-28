@@ -1,7 +1,7 @@
 //! Checked-frontend validation for one or more ordinary Omega source roots.
 //!
 //! This deliberately stops after checked trees: profile canaries prove that
-//! rejected Ωself facilities remain valid full-Omega source without paying for
+//! facilities unused by the compiler closure remain valid full-Omega source without paying for
 //! native lowering or publishing build artifacts.
 
 use omega_compiler::compile_to_checked;

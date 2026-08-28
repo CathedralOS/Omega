@@ -1157,8 +1157,9 @@ represents the many-to-one moves.
 The exact `GlobalValueNumbering` suite expands in canonical order to
 `same-block-obligation-free-total-scalar-cse.v1`,
 `same-block-proof-certified-total-scalar-cse.v1`,
-`dominator-obligation-free-total-scalar-gvn.v1`, and
-`dominator-proof-certified-total-scalar-gvn.v1`. Each local rule scans a block
+`dominator-obligation-free-total-scalar-gvn.v1`,
+`dominator-proof-certified-total-scalar-gvn.v1`, and
+`phi-translated-obligation-free-total-scalar-gvn.v1`. Each local rule scans a block
 in node order and replaces a later equivalent result with the earliest admitted
 leader. The obligation-free vocabulary contains literals, Boolean operations,
 integer comparisons/bitwise/widening, wrapping shifts, and wrapping or
@@ -1204,11 +1205,31 @@ manifesting only the redundant fact as consumed. A separately verified
 Terminal artifact proves return-use substitution and optimized-plan projection
 when the dominating leader appears later in the serialized block roster. A
 diamond fixture rejects sibling-only equivalence and reaches a two-rewrite
-cascading fixed point at its join. Candidate v19, optimization-unit content
-identity v10, the named v3 pass, prephysical manifest v13, and optimized-plan
-projection validation v14 bind this meaning; ledger v4 already represents the
-relocation and substitution. Phi translation, partial redundancy elimination,
-and cyclic-CFG GVN remain separate future rules; current admitted optimization
+cascading fixed point at its join.
+
+The phi-translated rule is deliberately narrower than general PRE. A candidate
+join expression must reference at least one typed block parameter. The rule
+enumerates every incoming edge, translates those parameter operands through
+the edge's existing binding positions, and requires an exact matching
+obligation-free total scalar leader available before the source terminator or
+in a strict dominator of that source. Each arm uses the same canonical
+outermost-depth then `NodeLocation` choice as dominator GVN. Missing arms,
+binding/type disagreement, and nonavailable sibling expressions decline.
+
+The rewrite does not invent a value identity and does not globally substitute
+the redundant result. It appends that result `ValueId` as a new typed join
+parameter, appends a binding from each incoming edge to that arm's leader, and
+removes the redundant join node. The independent validator reconstructs the
+complete incoming set, translations, dominators, leaders, parameter position,
+edge custody, definitions/uses, dense effects, facts/places, and provenance
+relocation before acceptance. Corruption tests cover reordered incoming rows
+and detached leaders; a verified Terminal diamond exercises publication
+projection with both appended bindings. Candidate encoding v21,
+optimization-unit content identity v10, the named v4 pass, prephysical
+manifest v14, and optimized-plan projection validation v15 bind the current
+meaning; ledger v4 already represents both node relocation and edge custody.
+Proof-certified phi translation, partial redundancy elimination, and
+cyclic-CFG GVN remain separate future rules; current admitted optimization
 units reject control cycles.
 
 ### Proof-certified dead scalar work

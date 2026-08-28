@@ -858,6 +858,107 @@ mod tests {
         verified(module, ProofBundle::default())
     }
 
+    fn phi_translated_gvn_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_451).unwrap();
+        let join = BlockId::new(1_452).unwrap();
+        let left = BlockId::new(1_453).unwrap();
+        let entry = BlockId::new(1_454).unwrap();
+        let right = BlockId::new(1_455).unwrap();
+        let condition = ValueId::new(1_456).unwrap();
+        let left_input = ValueId::new(1_457).unwrap();
+        let right_input = ValueId::new(1_458).unwrap();
+        let join_input = ValueId::new(1_459).unwrap();
+        let left_leader = ValueId::new(1_460).unwrap();
+        let right_leader = ValueId::new(1_461).unwrap();
+        let redundant = ValueId::new(1_462).unwrap();
+        let result = ValueId::new(1_471).unwrap();
+        let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+        let mut module = module_with_blocks(
+            machine,
+            entry,
+            TerminalMachineResult::Scalar(declaration(result, integer)),
+            vec![
+                Block {
+                    id: join,
+                    parameters: vec![declaration(join_input, integer)],
+                    operations: vec![Operation {
+                        id: OperationId::new(1_463).unwrap(),
+                        result: OperationResult::Scalar(declaration(redundant, integer)),
+                        kind: OperationKind::IntegerBitwiseNot {
+                            operand: join_input,
+                        },
+                    }],
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(1_464).unwrap(),
+                        value: redundant,
+                        cleanup_actions: Vec::new(),
+                    },
+                },
+                Block {
+                    id: left,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(1_465).unwrap(),
+                        result: OperationResult::Scalar(declaration(left_leader, integer)),
+                        kind: OperationKind::IntegerBitwiseNot {
+                            operand: left_input,
+                        },
+                    }],
+                    terminator: Terminator::Jump {
+                        edge: EdgeId::new(1_466).unwrap(),
+                        target: join,
+                        arguments: vec![left_input],
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    id: entry,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Conditional {
+                        condition,
+                        when_true: SuccessorEdge {
+                            edge: EdgeId::new(1_467).unwrap(),
+                            target: left,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                        when_false: SuccessorEdge {
+                            edge: EdgeId::new(1_468).unwrap(),
+                            target: right,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                },
+                Block {
+                    id: right,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(1_469).unwrap(),
+                        result: OperationResult::Scalar(declaration(right_leader, integer)),
+                        kind: OperationKind::IntegerBitwiseNot {
+                            operand: right_input,
+                        },
+                    }],
+                    terminator: Terminator::Jump {
+                        edge: EdgeId::new(1_470).unwrap(),
+                        target: join,
+                        arguments: vec![right_input],
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+            ],
+        );
+        module.machines[0].parameters.extend([
+            declaration(condition, ScalarType::Boolean),
+            declaration(left_input, integer),
+            declaration(right_input, integer),
+        ]);
+        verified(module, ProofBundle::default())
+    }
+
     fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationUnit {
         let entry_machine = MachineId::new(1_041).unwrap();
         let entry_block = BlockId::new(1_042).unwrap();
@@ -1687,6 +1788,43 @@ mod tests {
                 .iter()
                 .all(|row| row.disposition.is_realized())
         );
+    }
+
+    #[test]
+    fn global_value_numbering_projects_phi_translated_join_bindings() {
+        let selections = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
+        let optimized =
+            project_optimization_run(run(phi_translated_gvn_verified(), selections)).unwrap();
+        let join = BlockId::new(1_452).unwrap();
+        let redundant = ValueId::new(1_462).unwrap();
+        let function = &optimized.unit().functions[0];
+        let join_block = function
+            .blocks
+            .iter()
+            .find(|block| block.id == join)
+            .unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(join_block.parameters.len(), 2);
+        assert_eq!(join_block.parameters[1].value, redundant);
+        assert_eq!(join_block.nodes.len(), 1);
+        assert!(
+            matches!(join_block.nodes[0].operation, TerminalAbstractOperation::Return { value, .. } if value == redundant)
+        );
+        let mut supplied = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .flat_map(|node| &node.successors)
+            .filter(|edge| edge.target == join)
+            .map(|edge| edge.bindings[1].argument)
+            .collect::<Vec<_>>();
+        supplied.sort();
+        assert_eq!(
+            supplied,
+            vec![ValueId::new(1_460).unwrap(), ValueId::new(1_461).unwrap()]
+        );
+        assert_eq!(optimized.transformation_ledger().records().len(), 1);
     }
 
     #[test]
