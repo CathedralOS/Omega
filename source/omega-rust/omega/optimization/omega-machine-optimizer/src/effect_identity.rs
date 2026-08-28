@@ -6,6 +6,8 @@ use omega_terminal_selected_instructions::{
     TerminalMachineEncodedEffects, TerminalMachineEncodedMemoryEffect,
     TerminalMachineEncodedStackEffect, TerminalMachineEncodedTrapBehavior,
     TerminalMachineSizeKnowledge, TerminalSelectedInstructionKind,
+    TerminalStructuralUnitCallBarrier, TerminalStructuralUnitCallEffect,
+    TerminalStructuralUnitCallFrameEffect, TerminalStructuralUnitCallMemoryEffect,
 };
 
 use crate::{TerminalPreAllocationMachineEffectIdentity, TerminalPreAllocationMachineEffectPlan};
@@ -16,7 +18,7 @@ pub fn terminal_pre_allocation_machine_effect_identity(
     use sha2::{Digest, Sha256};
 
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-preallocation-machine-effects.v4\0");
+    bytes.extend_from_slice(b"omega.terminal-preallocation-machine-effects.v5\0");
     bytes.extend_from_slice(&encode_terminal_pre_allocation_machine_effect_content(plan));
     TerminalPreAllocationMachineEffectIdentity::from_bytes(Sha256::digest(bytes).into())
 }
@@ -62,7 +64,259 @@ pub(crate) fn encode_terminal_pre_allocation_machine_effect_content(
             }
         }
     }
+    encode_len(&mut bytes, plan.structural_unit_functions.len());
+    for function in &plan.structural_unit_functions {
+        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+        bytes.extend_from_slice(&function.block.0.to_le_bytes());
+        match &function.call {
+            None => bytes.push(0),
+            Some(call) => {
+                bytes.push(1);
+                bytes.extend_from_slice(&call.instruction.0.to_le_bytes());
+                bytes.extend_from_slice(&call.operation.get().to_le_bytes());
+                bytes.extend_from_slice(&call.callee.get().to_le_bytes());
+                encode_constraint_key(&mut bytes, call.constraint);
+                encode_units(&mut bytes, &call.unit_uses);
+                encode_units(&mut bytes, &call.unit_defs);
+                encode_units(&mut bytes, &call.unit_clobbers);
+                encode_structural_layout(&mut bytes, call.layout);
+                encode_effect_link(&mut bytes, call.effect);
+                encode_ownership(&mut bytes, &call.ownership);
+                encode_len(&mut bytes, call.claim_transfers.len());
+                for transfer in &call.claim_transfers {
+                    bytes.extend_from_slice(&transfer.claim.get().to_le_bytes());
+                    bytes.extend_from_slice(&transfer.argument_index.to_le_bytes());
+                }
+                encode_provenance(&mut bytes, &call.provenance);
+                encode_structural_declaration(&mut bytes, call.declaration);
+            }
+        }
+        encode_ordinary_instruction(&mut bytes, &function.return_instruction);
+        encode_effect_link(&mut bytes, function.return_effect);
+        encode_ownership(&mut bytes, &function.return_ownership);
+    }
     bytes
+}
+
+fn encode_ordinary_instruction(
+    bytes: &mut Vec<u8>,
+    instruction: &crate::TerminalInstructionMachineEffects,
+) {
+    bytes.extend_from_slice(&instruction.instruction.0.to_le_bytes());
+    encode_kind(bytes, instruction.kind);
+    encode_constraint_key(bytes, instruction.constraint);
+    encode_units(bytes, &instruction.unit_uses);
+    encode_units(bytes, &instruction.unit_defs);
+    encode_units(bytes, &instruction.unit_clobbers);
+    bytes.push(match instruction.memory {
+        omega_terminal_selected_instructions::TerminalMachineMemoryEffect::NoneV1 => 0,
+    });
+    bytes.push(match instruction.trap {
+        omega_terminal_selected_instructions::TerminalMachineTrapBehavior::NeverV1 => 0,
+        omega_terminal_selected_instructions::TerminalMachineTrapBehavior::MayArchitecturalFaultV1 => 1,
+    });
+    bytes.push(match instruction.barrier {
+        TerminalMachineBarrier::None => 0,
+        TerminalMachineBarrier::ControlFlow => 1,
+    });
+    bytes.push(match instruction.call {
+        omega_terminal_selected_instructions::TerminalMachineCallEffect::NoneV1 => 0,
+    });
+    bytes.push(match instruction.cleanup {
+        omega_terminal_selected_instructions::TerminalMachineCleanupEffect::NoneV1 => 0,
+    });
+    encode_provenance(bytes, &instruction.provenance);
+    encode_len(bytes, instruction.alternatives.len());
+    for alternative in &instruction.alternatives {
+        encode_alternative(bytes, alternative);
+    }
+}
+
+fn encode_structural_layout(
+    bytes: &mut Vec<u8>,
+    layout: omega_terminal_selected_instructions::TerminalSelectedMicrosoftX64OwnedIndirectPairLayout,
+) {
+    bytes.extend_from_slice(&layout.shadow_byte_count.to_le_bytes());
+    bytes.extend_from_slice(&layout.outgoing_frame_byte_count.to_le_bytes());
+    bytes.extend_from_slice(&layout.pre_call_stack_alignment.to_le_bytes());
+    for binding in layout.bindings {
+        bytes.extend_from_slice(&(binding.parameter_index as u64).to_le_bytes());
+        encode_machine_register(bytes, binding.pointer);
+        bytes.extend_from_slice(&binding.copy_stack_byte_offset.to_le_bytes());
+        bytes.extend_from_slice(&binding.byte_count.to_le_bytes());
+        bytes.extend_from_slice(&binding.alignment.to_le_bytes());
+    }
+}
+
+fn encode_machine_register(
+    bytes: &mut Vec<u8>,
+    register: omega_terminal_target_operations::MachineRegister,
+) {
+    use omega_terminal_target_operations::MachineRegister as R;
+    let tag = match register {
+        R::X86Rax => 0,
+        R::X86Rcx => 1,
+        R::X86Rdx => 2,
+        R::X86Rbx => 3,
+        R::X86Rsp => 4,
+        R::X86Rbp => 5,
+        R::X86Rsi => 6,
+        R::X86Rdi => 7,
+        R::X86R8 => 8,
+        R::X86R9 => 9,
+        R::X86R10 => 10,
+        R::X86R11 => 11,
+        R::X86R12 => 12,
+        R::X86R13 => 13,
+        R::X86R14 => 14,
+        R::X86R15 => 15,
+        R::X86Xmm(index) => {
+            bytes.push(16);
+            bytes.push(index);
+            return;
+        }
+        R::Aarch64X(index) => {
+            bytes.push(17);
+            bytes.push(index);
+            return;
+        }
+        R::Aarch64V(index) => {
+            bytes.push(18);
+            bytes.push(index);
+            return;
+        }
+    };
+    bytes.push(tag);
+}
+
+fn encode_effect_link(bytes: &mut Vec<u8>, effect: omega_optimization_unit::EffectLink) {
+    bytes.extend_from_slice(&effect.input.to_le_bytes());
+    bytes.extend_from_slice(&effect.output.to_le_bytes());
+}
+
+fn encode_ownership(bytes: &mut Vec<u8>, ownership: &[omega_optimization_unit::OwnershipEvent]) {
+    use omega_optimization_unit::OwnershipEvent;
+    encode_len(bytes, ownership.len());
+    for event in ownership {
+        match event {
+            OwnershipEvent::ClaimTransfer(claims) => {
+                bytes.push(1);
+                encode_ids(bytes, claims.iter().map(|id| id.get()));
+            }
+            OwnershipEvent::ClaimCompletion(claims) => {
+                bytes.push(2);
+                encode_ids(bytes, claims.iter().map(|id| id.get()));
+            }
+            OwnershipEvent::Cleanup(actions) => {
+                bytes.push(3);
+                encode_len(bytes, actions.len());
+                for action in actions {
+                    encode_cleanup(bytes, action);
+                }
+            }
+            OwnershipEvent::StructuralReturn(claims) => {
+                bytes.push(4);
+                encode_ids(bytes, claims.iter().map(|id| id.get()));
+            }
+            OwnershipEvent::CrashFrontier(claims) => {
+                bytes.push(5);
+                encode_ids(bytes, claims.iter().map(|id| id.get()));
+            }
+        }
+    }
+}
+
+fn encode_cleanup(bytes: &mut Vec<u8>, action: &psi_terminal::TerminalAffineCleanupAction) {
+    match action {
+        psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&place.get().to_le_bytes());
+        }
+        psi_terminal::TerminalAffineCleanupAction::DiscardResidual(discard) => {
+            bytes.push(2);
+            bytes.extend_from_slice(&discard.place.get().to_le_bytes());
+            encode_path(bytes, &discard.path);
+            bytes.extend_from_slice(&discard.structural_type.get().to_le_bytes());
+        }
+        psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+            bytes.push(3);
+            bytes.extend_from_slice(&cleanup.place.get().to_le_bytes());
+            bytes.extend_from_slice(&cleanup.structural_type.get().to_le_bytes());
+            bytes.extend_from_slice(&cleanup.cleanup_machine.get().to_le_bytes());
+            match cleanup.cleanup_receiver {
+                None => bytes.push(0),
+                Some(place) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&place.get().to_le_bytes());
+                }
+            }
+            encode_ids(
+                bytes,
+                cleanup.requirement_obligations.iter().map(|id| id.get()),
+            );
+        }
+    }
+}
+
+fn encode_path(bytes: &mut Vec<u8>, path: &[psi_terminal::StructuralPathSegment]) {
+    encode_len(bytes, path.len());
+    for segment in path {
+        match segment {
+            psi_terminal::StructuralPathSegment::Field(name) => {
+                bytes.push(1);
+                encode_len(bytes, name.len());
+                bytes.extend_from_slice(name.as_bytes());
+            }
+            psi_terminal::StructuralPathSegment::FixedIndex(index) => {
+                bytes.push(2);
+                bytes.extend_from_slice(&index.to_le_bytes());
+            }
+        }
+    }
+}
+
+fn encode_structural_declaration(
+    bytes: &mut Vec<u8>,
+    declaration: omega_terminal_selected_instructions::TerminalStructuralUnitCallEffectDeclaration,
+) {
+    encode_constraint_key(bytes, declaration.constraint);
+    match declaration.memory {
+        TerminalStructuralUnitCallMemoryEffect::ReadOwnedIndirectPairWriteCallerCopiesV1 {
+            root_byte_count,
+            copy_stack_byte_offsets,
+        } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&root_byte_count.to_le_bytes());
+            for offset in copy_stack_byte_offsets {
+                bytes.extend_from_slice(&offset.to_le_bytes());
+            }
+        }
+    }
+    match declaration.frame {
+        TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+            frame_byte_count,
+            shadow_byte_count,
+            pre_call_stack_alignment,
+        } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&frame_byte_count.to_le_bytes());
+            bytes.extend_from_slice(&shadow_byte_count.to_le_bytes());
+            bytes.extend_from_slice(&pre_call_stack_alignment.to_le_bytes());
+        }
+    }
+    bytes.push(match declaration.trap {
+        omega_terminal_selected_instructions::TerminalMachineTrapBehavior::NeverV1 => 0,
+        omega_terminal_selected_instructions::TerminalMachineTrapBehavior::MayArchitecturalFaultV1 => 1,
+    });
+    bytes.push(match declaration.barrier {
+        TerminalStructuralUnitCallBarrier::CallV1 => 1,
+    });
+    bytes.push(match declaration.call {
+        TerminalStructuralUnitCallEffect::DirectInternalUnitV1 => 1,
+    });
+    bytes.push(match declaration.cleanup {
+        omega_terminal_selected_instructions::TerminalMachineCleanupEffect::NoneV1 => 0,
+    });
 }
 
 fn encode_kind(bytes: &mut Vec<u8>, kind: TerminalSelectedInstructionKind) {
@@ -395,6 +649,7 @@ mod tests {
                     }],
                 }],
             }],
+            structural_unit_functions: Vec::new(),
         };
         plan.identity = terminal_pre_allocation_machine_effect_identity(&plan);
         plan

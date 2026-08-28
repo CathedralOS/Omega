@@ -1121,7 +1121,9 @@ dependencies = [
  "omega-target",
  "omega-terminal-isa-x86_64",
  "omega-terminal-selected-instructions",
+ "omega-terminal-target-operations",
  "psi-core",
+ "psi-terminal",
  "sha2",
 ]
 
