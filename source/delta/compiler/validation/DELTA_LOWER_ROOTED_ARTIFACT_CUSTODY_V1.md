@@ -52,11 +52,13 @@ reconstructs all of the following before emitting or verifying a receipt:
 4. the bounded target/container profile below.
 
 The Mach-O validator requires a 64-bit ARM64 `MH_EXECUTE` image with macOS 11.0
-minimum deployment, `LC_MAIN` inside `__TEXT,__text`, the required
+minimum deployment, exactly the `NOUNDEFS`, `DYLDLINK`, `TWOLEVEL`, and `PIE`
+header flags, `LC_MAIN` inside `__TEXT,__text`, the required
 `__PAGEZERO`, `__TEXT`, `__DATA`, and terminal `__LINKEDIT` segments,
 `__DATA,__bss`, `/usr/lib/dyld`, and exactly
 `/usr/lib/libSystem.B.dylib`. It rejects UUIDs, code signatures, encrypted text,
-wrong targets, malformed command/section ranges, an implicit stack request,
+wrong targets, executable-stack or other extra header policy, malformed
+command/section ranges, an implicit stack request,
 extra dynamic libraries, unknown load commands, overlapping or out-of-order
 segments, link-edit payloads outside the terminal `__LINKEDIT` extent, and
 artifacts over 64 MiB. The closed V1 load-command vocabulary additionally
