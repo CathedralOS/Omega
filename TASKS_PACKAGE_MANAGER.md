@@ -450,7 +450,8 @@ complete.
   ceiling bounds no-follow reacquisition work. This closes the custody walk's concrete
   classify-then-`read_dir` redirection gap. Lock acquisition, metadata reads,
   staging, publication, and invalidation still contain pathname operations;
-  path-based macOS ACL observation and a hostile same-user mutator remain open.
+  At this milestone, path-based macOS ACL observation and a hostile same-user
+  mutator remained open.
 
   Milestone 2026-08-27: Git cache-entry, Git snapshot, and local snapshot
   publication now open the canonical publication parent component-by-component
@@ -472,9 +473,9 @@ complete.
   parent pathname to retain their captured identities. Existing Git whole-
   resolution and local two-minute wait ceilings remain in force. Canaries prove
   that preexisting lock symlinks are not followed and that replacement of an
-  opened parent pathname rejects for both cache classes. Lock-node macOS ACL
-  observation still uses the display pathname, and an active same-user process
-  remains outside this cooperative custody floor.
+  opened parent pathname rejects for both cache classes. At this milestone,
+  lock-node macOS ACL observation still used the display pathname, and an
+  active same-user process remained outside this cooperative custody floor.
 
   Milestone 2026-08-27: Git cache invalidation no longer removes resolver
   metadata through the ambient entry pathname. It retains the canonical cache
@@ -494,7 +495,7 @@ complete.
   that handle. This removes the check-one-inode/unbounded-read-another gap.
   Oversized records and symlink leaves have explicit canaries. Other structural
   metadata observations, staging creation/cleanup, and path-based macOS ACL
-  inspection remain separate work.
+  inspection remained separate work at this milestone.
 
   Milestone 2026-08-27: immutable Git-tree and local-source snapshot staging is
   now capability-relative end to end. One shared pending-stage type creates a
@@ -526,7 +527,23 @@ complete.
   same handle-rooted mode walk and capture instead of separate pathname passes.
   A canary replaces the publication pathname after opening and proves mode
   verification remains on the retained root. Native Git object-cache structure
-  and path-based macOS ACL observations remain separate.
+  and path-based macOS ACL observations remained separate at this milestone.
+
+  Milestone 2026-08-27: macOS ACL custody for retained cache objects now uses
+  the object descriptor rather than reopening its display pathname. The narrow
+  `omega-platform-custody` wrapper exposes only whether `acl_get_fd_np`
+  observes an allow entry. Every directory in the bounded Git/local custody
+  walk is queried through its retained directory descriptor; every regular
+  file is opened no-follow relative to that retained parent, required to match
+  its classified identity, and queried through the resulting descriptor; and
+  publication locks are queried through their retained locked files both at
+  open and after waiting. Empty and deny-only ACLs remain non-broadening, while
+  unknown or unreadable ACL state fails closed. A native canary relocates an
+  open object, places an allow ACL on a replacement pathname, and proves the
+  query remains on the retained object; an integration canary does the same for
+  an opened cache root. Pre-open root/ancestry checks, symlink ACL inspection,
+  and executable ACL inspection remain path-based, and this still makes no
+  claim against an actively hostile same-user mutator.
 
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
@@ -573,8 +590,9 @@ complete.
   ceilings. The local-repository route is explicitly test-only. Remaining P0
   work is native fetch/materialization confinement, effective endpoint and SSH
   credential custody, during-operation resource quotas, remaining
-  native-Git cache and handle-bound ACL paths, and a locally reconstructed
-  opaque strict receipt. Public requests now admit only HTTPS and
+  native-Git mutation confinement, remaining path-based ancestry/symlink/
+  executable ACL observations, and a locally reconstructed opaque strict
+  receipt. Public requests now admit only HTTPS and
   SSH transports; the sealed executor grants only the request's selected
   `https` or `ssh` protocol, disables HTTP, unauthenticated `git://`, every
   unselected protocol, and HTTP redirects, and permits file transport only

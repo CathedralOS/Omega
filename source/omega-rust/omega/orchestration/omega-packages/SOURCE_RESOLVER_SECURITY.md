@@ -200,8 +200,10 @@ snapshot mode and shape verification opens the publication and Source roots
 no-follow, traverses retained child handles with identity checks, and captures
 content from that same open Source root. Authenticated Git paths, kinds, and
 executable bits are compared with the captured tree rather than ambient
-metadata. Native Git object-cache observations and macOS ACL inspection are not
-yet fully handle-relative.
+metadata. Native Git mutation remains pathname-visible to the unconfined
+helper. On macOS, retained cache directories, regular files, and locks are
+queried for extended ACL allow entries through their descriptors; pre-open
+root/ancestry, symlink, and executable ACL observations remain path-based.
 Destination exclusion is cooperative rather than an atomic hostile-same-user
 no-replace primitive, so this still does not claim exclusion of an actively
 hostile same-user process.
@@ -366,10 +368,14 @@ the resolver's effective user and not group- or other-writable;
 canonical ancestry must be root/resolver-owned and cannot be replaceable
 through a non-sticky writable directory; unsupported filesystem kinds reject.
 On macOS the same custody walk inspects native extended ACLs on every ancestor,
-cache, publication, staging, and lock node. Any allow entry rejects even when
-mode bits appear private; deny-only ACLs do not broaden custody, and an
-unreadable ACL fails closed. Symlinks are inspected as links rather than
-following their targets.
+cache, publication, staging, and lock node. Each already-open cache directory,
+regular file, and lock is queried through its descriptor; regular files first
+open no-follow beneath their retained parent and preserve classified identity.
+Any allow entry rejects even when mode bits appear private; deny-only ACLs do
+not broaden custody, and an unreadable ACL fails closed. Pre-open root and
+ancestry observations remain path-based. Symlinks are inspected as links
+rather than following their targets because the native link ACL interface is
+path-oriented.
 This closes ordinary cross-user
 ownership/configuration substitution on Unix. It does not prevent the owning
 user from replacing a path after an observation, establish Windows
