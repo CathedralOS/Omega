@@ -15,9 +15,9 @@ use omega_terminal_selected_instructions::{
 
 use crate::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH,
-    X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT,
-    X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_RETURN,
-    X86_64_SYSTEM_V_RETURN_UNIT,
+    X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR,
+    X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64,
+    X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +53,24 @@ pub fn x86_64_terminal_machine_effect_catalog(
         target,
         register_constraints: constraints.identity(),
         selected_keys,
+        structural_unit_call: selected_keys.structural_unit_call.map(|constraint| {
+            omega_terminal_selected_instructions::TerminalStructuralUnitCallEffectDeclaration {
+                constraint,
+                memory: omega_terminal_selected_instructions::TerminalStructuralUnitCallMemoryEffect::ReadOwnedIndirectPairWriteCallerCopiesV1 {
+                    root_byte_count: 16,
+                    copy_stack_byte_offsets: [32, 48],
+                },
+                frame: omega_terminal_selected_instructions::TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+                    frame_byte_count: 72,
+                    shadow_byte_count: 32,
+                    pre_call_stack_alignment: 16,
+                },
+                trap: TerminalMachineTrapBehavior::MayArchitecturalFaultV1,
+                barrier: omega_terminal_selected_instructions::TerminalStructuralUnitCallBarrier::CallV1,
+                call: omega_terminal_selected_instructions::TerminalStructuralUnitCallEffect::DirectInternalUnitV1,
+                cleanup: TerminalMachineCleanupEffect::NoneV1,
+            }
+        }),
         declarations: TerminalMachineSemanticKind::ALL
             .into_iter()
             .map(|semantic| declaration(semantic, selected_keys))
@@ -98,6 +116,8 @@ fn selected_keys(
         }
     };
     Ok(TerminalSelectedConstraintKeys {
+        structural_unit_call: matches!(target.object_format, ObjectFormat::Coff)
+            .then_some(X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR),
         materialize_i64: X86_64_MATERIALIZE_I64,
         copy_i64: X86_64_COPY_I64,
         add_i64: X86_64_ADD_I64,
@@ -472,6 +492,26 @@ mod tests {
                 validate_x86_64_terminal_machine_effect_catalog(target, &constraints, catalog)
                     .is_ok()
             );
+            let structural = x86_64_terminal_machine_effect_catalog(target, &constraints)
+                .unwrap()
+                .structural_unit_call;
+            if target.object_format == ObjectFormat::Coff {
+                let structural = structural.expect("Microsoft x64 owns the bounded Unit call");
+                assert_eq!(
+                    structural.constraint,
+                    X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR
+                );
+                assert_eq!(
+                    structural.frame,
+                    omega_terminal_selected_instructions::TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+                        frame_byte_count: 72,
+                        shadow_byte_count: 32,
+                        pre_call_stack_alignment: 16,
+                    }
+                );
+            } else {
+                assert!(structural.is_none());
+            }
         }
     }
 
@@ -521,6 +561,26 @@ mod tests {
                     TerminalMachineEffectCatalogValidationError::InvalidAlternativeApplicability(
                         TerminalMachineSemanticKind::ExactSubtractI64
                     )
+                )
+            )
+        ));
+
+        let target = NativeTarget::windows_x64();
+        let mut wrong_frame = x86_64_terminal_machine_effect_catalog(target, &constraints).unwrap();
+        let Some(structural) = wrong_frame.structural_unit_call.as_mut() else {
+            panic!("Microsoft catalog owns structural Unit call effects");
+        };
+        structural.frame =
+            omega_terminal_selected_instructions::TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+                frame_byte_count: 64,
+                shadow_byte_count: 32,
+                pre_call_stack_alignment: 16,
+            };
+        assert!(matches!(
+            validate_x86_64_terminal_machine_effect_catalog(target, &constraints, wrong_frame),
+            Err(
+                X86_64TerminalMachineEffectCatalogValidationError::Structural(
+                    TerminalMachineEffectCatalogValidationError::StructuralCallDeclarationMismatch
                 )
             )
         ));
