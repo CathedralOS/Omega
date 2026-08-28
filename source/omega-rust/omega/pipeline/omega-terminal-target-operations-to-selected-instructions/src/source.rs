@@ -138,12 +138,25 @@ fn derive_source_unit_function(
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
         || target.attachment != abstracted.attachment
+        || target.attachment.is_some()
         || !matches!(
             abstracted.result,
             omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Unit
         )
         || !abstracted.parameters.is_empty()
         || !optimized.parameters.is_empty()
+        // The current Unit vocabulary carries no structural ABI or ownership
+        // rows. Reject them here instead of silently projecting them away; a
+        // later ProgramStorage wrapper form must retain these fields exactly.
+        || !body.parameters.is_empty()
+        || !abstracted.structural_parameters.is_empty()
+        || !optimized.structural_parameters.is_empty()
+        || !abstracted.entry_claims.is_empty()
+        || !optimized.entry_claim_declarations.is_empty()
+        || !optimized.entry_claims.is_empty()
+        || !optimized.declared_places.is_empty()
+        || !abstracted.published_service_ceiling.is_empty()
+        || !optimized.published_service_ceiling.is_empty()
         || abstracted.entry != abstract_entry.block
         || optimized.entry != abstract_entry.block
         || optimized_block.id != abstract_entry.block
