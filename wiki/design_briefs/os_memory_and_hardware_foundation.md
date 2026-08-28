@@ -836,6 +836,16 @@ and its exact range, mapping, observer/device instance, and ordering scope.
 Every emitted requirement must receive derived or policy-permitted admitted
 evidence; an open requirement rejects.
 
+The current first carrier closes only the provider-coverage shape. It retains
+the complete private mapping evidence plus exact subrange and the complete
+admitted schema/device correspondence behind opaque contexts; compact mapping,
+placement, and device IDs cannot substitute for either structure. All five
+operation families remain distinct, and structural closure rejects missing,
+extra, duplicate, or drifted provider assertions without consuming retry
+custody. The carrier proves no provider admission and mints no device event,
+publication/acquisition fact, completion, Stable view, or lowering authority;
+source emission and provider/event realization remain.
+
 Publication evidence names the published place and current write state. An
 intersecting write frame invalidates it before a later doorbell can consume it.
 The erased evidence does not itself constrain emitted code: publication adds a

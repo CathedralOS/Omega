@@ -360,6 +360,18 @@ range. When completion also returns custody, the resulting CPU view may be
 Stable. If the device may continue writing, acquisition only orders subsequent
 observations and the placement remains External.
 
+The current non-authorizing foundation represents the five sealed operation
+families as distinct provider-coverage demands. Each demand retains an opaque
+exact-subrange context over the complete active mapping structure, an opaque
+context over the complete admitted schema/device correspondence, and a nominal
+ordering-scope identity. Exact structural closure rejects missing, extra,
+duplicate, and structurally drifted provider assertions while preserving every
+input for retry. This carrier retains only closed structural coverage; it does
+not prove provider admission or create an ordering event,
+publication/acquisition evidence, completion, custody, or lowering authority.
+Source emission, provider-selection admission binding, and scope/event
+realization remain required.
+
 Still required:
 
 - the remaining fetch-and-modify surface;
@@ -370,8 +382,9 @@ Still required:
 - proof-scoped AArch64 weaker-acquire selection after target measurements
   justify specialization machinery;
 - cross-activation ownership/borrow/access enforcement independent of `[copy]`;
-- device/DMA provider operations, scoped ordering events, completion-bound
-  acquisition, and publication invalidation through ordinary write frames;
+- source-emitted device/DMA requirements, admitted provider-selection binding,
+  scoped ordering events, completion-bound acquisition, and publication
+  invalidation through ordinary write frames;
 - and the deferred compiler-issued composition model when a concrete protocol
   or deployment profile requires whole-system proof.
 

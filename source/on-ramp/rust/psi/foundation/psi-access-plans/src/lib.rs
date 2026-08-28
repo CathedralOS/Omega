@@ -23,6 +23,7 @@ mod corresponded_atomic;
 mod corresponded_external;
 mod corresponded_stable;
 mod corresponded_stable_compound;
+mod device_operation_requirements;
 mod field_projection;
 mod normalized_identities;
 mod owned_atomic_resident_custody;
@@ -56,6 +57,13 @@ pub use corresponded_stable_compound::{
     CorrespondedStableCompoundMutationAccessRejection,
     CorrespondedStableCompoundMutationAccessRequest,
 };
+pub use device_operation_requirements::{
+    DeviceOperation, DeviceOperationProviderPlanId, DeviceOperationRequirement,
+    DeviceOperationRequirementId, DeviceOperationStructuralClosureError, DeviceOrderingScopeId,
+    ProviderAssertedDeviceOperationCoverage, StructurallyClosedDeviceOperationRequirement,
+    StructurallyClosedDeviceOperationRequirements,
+    structurally_close_device_operation_requirements,
+};
 pub use field_projection::{PlacedFieldAccess, PlacedFieldProjection};
 pub use owned_atomic_resident_custody::{
     DormantOwnedAtomicResident, EstablishedOwnedAtomicPlacement, OwnedAtomicAdoptionError,
@@ -84,8 +92,8 @@ pub use schema_correspondence::{
     SchemaCorrespondedPlacementAdmission, SchemaCorrespondencePlacementBindingError,
     SchemaCorrespondenceProviderId, SchemaCorrespondenceSourceId,
     SchemaDeviceCorrespondenceAdmissionError, SchemaDeviceCorrespondenceGrant,
-    SchemaDeviceCorrespondenceGrantError, StableDeviceInstanceId,
-    bind_schema_correspondence_to_placement,
+    SchemaDeviceCorrespondenceGrantError, SchemaDeviceCorrespondenceReceiptContext,
+    StableDeviceInstanceId, bind_schema_correspondence_to_placement,
 };
 
 #[cfg(test)]

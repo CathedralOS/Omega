@@ -9611,7 +9611,23 @@ checked-result arithmetic decision listed below.
   barriers, and installed-root same-context evidence do not wait for it.
 - Add sealed provider requirements for DMA publication/acquisition, cache
   maintenance, MMIO notification, and posted-write completion. Every emitted
-  requirement must be discharged or reject.
+  requirement must be discharged or reject. The first non-authorizing
+  foundation carrier now keeps all five operation families distinct and binds
+  each demand to one opaque exact mapped-subrange context, one complete
+  admitted schema/device-correspondence context, and one nominal ordering-scope
+  identity. The range context retains the complete private mapping/grant,
+  source/destination authority-account facts, lineage roots, rights, origin,
+  and mapping-era structure rather than trusting compact mapping IDs or public
+  geometry. The
+  correspondence context likewise retains provider/source/profile, full
+  placement structure, stable device, and optional revision evidence. Batch
+  structural closure requires exact one-to-one provider-asserted plan rows;
+  missing, extra, duplicate, or structurally drifted rows reject before
+  consumption and return every input in original order for corrected retry.
+  This establishes structural closure only: source/checker emission,
+  provider-selection admission binding, semantic validation of the opaque
+  ordering-scope identity, Terminal ordering events, execution, and lowering
+  remain.
 - Bind publication evidence to exact range/write state so intersecting writes
   invalidate it. Acquisition consumes request- and instance-bound completion
   evidence. Terminal Psi retains the actual ordering event; erased proof values

@@ -657,6 +657,13 @@ of device-written data consumes matching completion evidence. It establishes a
 Stable CPU view only when the protocol also returns custody; otherwise the
 storage remains External.
 
+The current compiler foundation retains these five provider-operation demands
+as distinct, exact structural rows and can close an emitted row set against
+one-to-one provider assertions. That staging carrier neither proves provider
+admission nor authorizes anything: source emission, ordering-scope validation,
+Terminal events, publication/acquisition evidence, completion, custody
+transitions, and target lowering are not implemented by it.
+
 Atomics underpin the waitable types above (`Mutex`, `Barrier`) and shared-ring
 IPC, so they sit below a concurrent task-runtime provider in the implementation
 order even though they appear later in this chapter.
