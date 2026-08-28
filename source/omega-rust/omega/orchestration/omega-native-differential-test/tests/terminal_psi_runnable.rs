@@ -4,8 +4,8 @@ use omega_optimization_validation::validate_verified_psi_optimization_unit;
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::TerminalAbstractOperation;
 use omega_terminal_abstract_operations_to_target_operations::{
-    AdmittedTerminalBoundarySettlement, LoweringError,
-    lower_to_target_operations_with_provider_executions,
+    lower_to_target_operations_with_provider_executions, AdmittedTerminalBoundarySettlement,
+    LoweringError,
 };
 use omega_terminal_image_emission::{
     build_terminal_installation_record_with_provider_executions, build_terminal_object_artifact,
@@ -82,13 +82,51 @@ fn canonical_console_source() -> &'static str {
 "#
 }
 
+const CONCRETE_ROOT_SERVICE_REACH_SOURCE: &str = r#"
+    boundary trait PortIo {}
+    data Receipt [linear] { value: u64; }
+
+    boundary machine Receipt::settle(self)
+    reaches PortIo
+    ensures true;
+
+    data Root {}
+    machine Root::enter(receipt: Receipt)
+    reaches PortIo
+    {
+        Receipt::settle(receipt);
+    }
+"#;
+
+const BOUNDED_ROOT_SERVICE_REACH_SOURCE: &str = r#"
+    boundary trait MachineControl {}
+    boundary trait PortIo {}
+
+    boundary trait InterruptCompletion {
+        machine complete() -> bool
+        reaches <= MachineControl + PortIo;
+    }
+
+    data Root {}
+    machine Root::enter<machine Completion>() -> bool
+    where machine Completion satisfies InterruptCompletion::complete;
+    {
+        let accepted: bool = Completion();
+        accepted
+    }
+"#;
+
 fn project_source(source: &str) -> (Vec<u8>, Vec<u8>) {
+    project_source_entry(source, "Main::main")
+}
+
+fn project_source_entry(source: &str, entry: &str) -> (Vec<u8>, Vec<u8>) {
     let tokens = Lexer::new(source).tokenize().expect("tokenize O1 source");
     let syntax = parse_syntax_trees(&tokens).expect("parse O1 source");
     let resolved = lower_syntax_trees(&syntax).expect("resolve O1 source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type O1 source");
     let checked = lower_typed_trees(typed).expect("check O1 source");
-    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::main")
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, entry)
         .expect("lower O1 source to terminal Psi");
     (
         psi_terminal_codec::encode_module(&lowered.semantic_module)
@@ -183,6 +221,14 @@ fn source_provider_attachment_specialization_reaches_verified_optimizer_admissio
         verified.unit().services.as_ref(),
         source_services.as_slice()
     );
+    assert_eq!(
+        verified.unit().root_service_reach,
+        verified
+            .input()
+            .context()
+            .terminal_module()
+            .root_service_reach
+    );
     let service_catalog = verified
         .unit()
         .services
@@ -196,6 +242,15 @@ fn source_provider_attachment_specialization_reaches_verified_optimizer_admissio
         .find(|service| service.identity.ends_with("Console"))
         .expect("source Console declaration remains in optimizer custody");
     assert!(console_service.parents.is_empty());
+    assert_eq!(
+        verified.unit().root_service_reach.concrete,
+        [console_service.id]
+    );
+    assert!(verified
+        .unit()
+        .root_service_reach
+        .installation_dependencies
+        .is_empty());
     assert!(verified.unit().functions.iter().all(|function| {
         function
             .published_service_ceiling
@@ -233,13 +288,11 @@ fn source_provider_attachment_specialization_reaches_verified_optimizer_admissio
             provider.refinement.realized_service_ceiling,
             candidate.published_service_ceiling
         );
-        assert!(
-            provider
-                .refinement
-                .realized_service_ceiling
-                .iter()
-                .all(|service| boundary.published_service_ceiling.contains(service))
-        );
+        assert!(provider
+            .refinement
+            .realized_service_ceiling
+            .iter()
+            .all(|service| boundary.published_service_ceiling.contains(service)));
     }
 
     let function = verified
@@ -248,11 +301,9 @@ fn source_provider_attachment_specialization_reaches_verified_optimizer_admissio
         .iter()
         .find(|function| function.machine == verified.unit().entry)
         .expect("optimizer unit retains the provider-backed source entry");
-    assert!(
-        function
-            .published_service_ceiling
-            .contains(&console_service.id)
-    );
+    assert!(function
+        .published_service_ceiling
+        .contains(&console_service.id));
     let provider_roots = function
         .structural_places
         .iter()
@@ -287,17 +338,13 @@ fn source_provider_attachment_specialization_reaches_verified_optimizer_admissio
                     .iter()
                     .find(|declaration| declaration.id == *boundary)
                     .expect("source boundary call retains its declaration");
-                assert!(
-                    declaration
-                        .published_service_ceiling
-                        .iter()
-                        .all(|service| function.published_service_ceiling.contains(service))
-                );
-                assert!(
-                    structural_arguments
-                        .iter()
-                        .all(|argument| !provider_places.contains(&argument.place))
-                );
+                assert!(declaration
+                    .published_service_ceiling
+                    .iter()
+                    .all(|service| function.published_service_ceiling.contains(service)));
+                assert!(structural_arguments
+                    .iter()
+                    .all(|argument| !provider_places.contains(&argument.place)));
                 Some(*boundary)
             }
             _ => None,
@@ -310,6 +357,103 @@ fn source_provider_attachment_specialization_reaches_verified_optimizer_admissio
             .collect::<std::collections::BTreeSet<_>>(),
         rooted_boundaries
     );
+}
+
+#[test]
+fn source_concrete_root_service_reach_reaches_verified_optimizer_admission() {
+    let (semantic, proof) = project_source_entry(CONCRETE_ROOT_SERVICE_REACH_SOURCE, "Root::enter");
+    let input =
+        lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default())
+            .expect("source concrete service reach verifies for optimizer admission");
+    let verified =
+        build_verified_psi_optimization_unit(input, TerminalFuelSchedule::CURRENT.identity())
+            .expect("source concrete service reach retains its optimizer unit");
+    validate_verified_psi_optimization_unit(&verified)
+        .expect("source concrete service reach passes independent replay");
+
+    assert_eq!(
+        verified.unit().root_service_reach,
+        verified
+            .input()
+            .context()
+            .terminal_module()
+            .root_service_reach
+    );
+    assert!(verified
+        .unit()
+        .root_service_reach
+        .installation_dependencies
+        .is_empty());
+    let concrete = verified
+        .unit()
+        .root_service_reach
+        .concrete
+        .iter()
+        .map(|service| {
+            verified
+                .unit()
+                .services
+                .iter()
+                .find(|declaration| declaration.id == *service)
+                .expect("root-reachable service remains declared")
+                .identity
+                .as_str()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(concrete, ["PortIo"]);
+}
+
+#[test]
+fn source_bounded_root_service_reach_reaches_verified_optimizer_admission() {
+    let (semantic, proof) = project_source_entry(BOUNDED_ROOT_SERVICE_REACH_SOURCE, "Root::enter");
+    let input =
+        lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default())
+            .expect("source bounded service reach verifies for optimizer admission");
+    let verified =
+        build_verified_psi_optimization_unit(input, TerminalFuelSchedule::CURRENT.identity())
+            .expect("source bounded service reach retains its optimizer unit");
+    validate_verified_psi_optimization_unit(&verified)
+        .expect("source bounded service reach passes independent replay");
+
+    assert_eq!(
+        verified.unit().root_service_reach,
+        verified
+            .input()
+            .context()
+            .terminal_module()
+            .root_service_reach
+    );
+    assert!(verified.unit().root_service_reach.concrete.is_empty());
+    let [dependency] = verified
+        .unit()
+        .root_service_reach
+        .installation_dependencies
+        .as_slice()
+    else {
+        panic!("source bounded reach retains one installation dependency")
+    };
+    let boundary = verified
+        .unit()
+        .boundary_machines
+        .iter()
+        .find(|boundary| boundary.identity == dependency.requirement_identity)
+        .expect("installation dependency names the retained requirement boundary");
+    assert_eq!(boundary.published_service_ceiling, dependency.upper_bound);
+    let bound_names = dependency
+        .upper_bound
+        .iter()
+        .map(|service| {
+            verified
+                .unit()
+                .services
+                .iter()
+                .find(|declaration| declaration.id == *service)
+                .expect("bounded service remains declared")
+                .identity
+                .as_str()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(bound_names, ["MachineControl", "PortIo"]);
 }
 
 #[test]

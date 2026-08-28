@@ -198,6 +198,7 @@ mod tests {
             structural_types: Vec::new(),
             structural_domains: Vec::new().into(),
             services: Vec::new().into(),
+            root_service_reach: Default::default(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             accepted_obligation_facts: Vec::new(),

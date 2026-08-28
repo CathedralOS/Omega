@@ -26,7 +26,7 @@ use psi_terminal::{
     MachineContract, ProviderCandidateConformance, ServiceDeclaration, StructuralDomainDeclaration,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
-    TerminalPsiIdentity,
+    TerminalPsiIdentity, TerminalRootServiceReach,
 };
 
 mod identity;
@@ -484,6 +484,10 @@ pub struct PsiOptimizationUnit {
     /// leave this empty; optimizer admission attaches the complete catalog so
     /// call reach and concrete service effects remain independently replayable.
     pub services: Arc<[ServiceDeclaration]>,
+    /// Exact current-revision closure of services executable from `entry`.
+    /// Unlike declaration custody, this derived row may narrow when a checked
+    /// rewrite removes an unreachable call or concrete service effect.
+    pub root_service_reach: TerminalRootServiceReach,
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
     pub provider_candidates: Vec<ProviderCandidateConformance>,
     pub accepted_obligation_facts: Vec<AcceptedObligationFact>,
@@ -661,6 +665,7 @@ pub fn reconstruct_psi_optimization_unit_seed(
         structural_types: plan.structural_types.clone(),
         structural_domains: Arc::new([]),
         services: Arc::new([]),
+        root_service_reach: TerminalRootServiceReach::default(),
         boundary_machines: plan.boundary_machines.clone(),
         provider_candidates: plan.provider_candidates.clone(),
         accepted_obligation_facts: Vec::new(),
@@ -1507,6 +1512,16 @@ mod tests {
             content_projection: None,
         }]);
         mutations.push(("module structural domain", unit));
+        let mut unit = baseline.clone();
+        unit.root_service_reach.concrete = vec![id(116, ServiceId::new)];
+        mutations.push(("root concrete service reach", unit));
+        let mut unit = baseline.clone();
+        unit.root_service_reach.installation_dependencies =
+            vec![psi_terminal::InstallationReachDependency {
+                requirement_identity: "identity-test-installation-requirement".into(),
+                upper_bound: vec![id(117, ServiceId::new)],
+            }];
+        mutations.push(("root installation service reach", unit));
         let mut unit = baseline.clone();
         unit.boundary_machines.push(BoundaryMachineDeclaration {
             id: boundary,

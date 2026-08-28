@@ -580,7 +580,7 @@ These facts constrain the work below.
   outside `declared_places`; source-derived one-local, two-local, and
   local-plus-tail returns pass verified optimizer admission. The verified
   unit now also retains Terminal's complete service catalog under content
-  identity v12. Independent validation replays unique IDs and identities,
+  identity v14. Independent validation replays unique IDs and identities,
   strict known-parent ordering, acyclicity, full transitive parent closure,
   canonical parent-closed function and boundary ceilings, all four internal
   call lanes and boundary-call reach, concrete `PortWrite` membership, and
@@ -618,10 +618,16 @@ These facts constrain the work below.
   builder additionally attaches
   a canonical immutable catalog of verifier-owned block-entry,
   operation-entry/exit, and edge-entry/available-edge-exit ownership snapshots.
+  The optimizer unit now also retains Terminal's exact root service-reach row,
+  and total validation independently walks the current entry call closure to
+  reconstruct its concrete services and installation-bound requirements.
+  This row is current-revision derived state: constant-conditional folding
+  refreshes it atomically when a rejected region contained a boundary or
+  concrete service effect, while a stale or forged row fails closed.
   `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
-  proof/range evidence, full ownership/custody replay, root-service reach, and
-  the crash/requirement and remaining effect vocabulary also remain across
-  the Terminal-Psi lowering boundary.
+  proof/range evidence, full ownership/custody replay, and the crash/requirement
+  and remaining effect vocabulary also remain across the Terminal-Psi lowering
+  boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
   division, and remainder now retain their exact obligation identities through
   Terminal abstract, target, and assigned-target operations. Exact add,
@@ -932,7 +938,7 @@ These facts constrain the work below.
   replay two successive merges to a three-block fixed point and lower on both
   x64 and arm64. Candidate v20, `ControlFlowCleanup` v11, prephysical manifest
   v14, and optimized-plan projection validator v15 bind this admission;
-  optimization-unit identity v13 and ledger v4 already encode the output and
+  optimization-unit identity v14 and ledger v4 already encode the output and
   occurrence relation.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds its input
@@ -1310,17 +1316,26 @@ dependency.
   `ReturnStructural` source-kind and signature equality now receive exact
   independent replay; focused corruptions and the real nominal-Boolean source
   canary cover that rung. Remaining full ownership/custody replay—including
-  hidden local-operation provenance—root-service reach, and
-  the crash/requirement and remaining effect vocabulary remain open. The
+  hidden local-operation provenance—and the crash/requirement and remaining
+  effect vocabulary remain open. The
   exact payloadless-callee classifier is complete: optimizer-only lowering
   retains the case producer and complete call/contract/evidence-lane surface,
   independent replay matches Terminal's bounded predicate, and ordinary and
   target lowering retain their materialization fence. The
-  service-catalog rung is complete: unit identity v12 retains the exact
+  service-catalog rung is complete: the unit retains the exact
   declaration graph; independent replay checks hierarchy closure, function and
   boundary ceilings, internal/boundary call reach, `PortWrite` membership, and
   provider refinement; verified-input custody plus the real Console source
-  canary cover projection.
+  canary cover projection. The current root-reach rung is complete as well:
+  unit identity v14 binds the canonical concrete row and ordered installation
+  dependencies, while an independent entry-rooted traversal follows all four
+  internal-call lanes, separates matching boundary requirements from concrete
+  boundary ceilings, expands `PortWrite` parents, and rejects unused or
+  mismatched dependencies. The row deliberately is not immutable source
+  custody; branch folding recomputes it after removing a dead effect region.
+  Real ordinary-boundary and installation-bound source programs cover both reach
+  axes, with synthetic corruptions covering recursion, detached functions, all
+  call lanes, overlap, canonicality, and stale post-rewrite reach.
 
 - **OPT-ANALYSIS-MANAGER.** Add deterministic revision-keyed analysis caching,
   dependency declaration, and precise invalidation.
@@ -1493,7 +1508,7 @@ dependency.
   non-adjacent unique-predecessor block merging in either roster direction,
   with explicit dominance/use-definition evidence, global typed substitution,
   moved-definition reconstruction, dense-effect accounting, and independent
-  replay. Candidate v20, optimization-unit identity v13, ledger v4,
+  replay. Candidate v20, optimization-unit identity v14, ledger v4,
   prephysical manifest v14, and projection validator v15 bind the current
   occurrence and function-roster replay.
 
@@ -1585,7 +1600,7 @@ dependency.
   custody accounting. Redundant provenance/fuel moves forward to the next
   co-executed node, never backward to the leader; its active obligation
   reference disappears with the node. Candidate encoding v24,
-  optimization-unit identity v13, the named v7 pass, prephysical manifest v23,
+  optimization-unit identity v14, the named v7 pass, prephysical manifest v23,
   and projection v24 bind this meaning; ledger v4 already represents the
   relocation and substitution.
 
