@@ -329,6 +329,14 @@ fn validate_roots<S: ValidatedTerminalSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), TerminalPostAllocationMachineError> {
+    if !selected
+        .selected_plan()
+        .structural_unit_functions
+        .is_empty()
+        || !effects.plan().structural_unit_functions.is_empty()
+    {
+        return Err(TerminalPostAllocationMachineError::UnsupportedStructuralUnitFunctions);
+    }
     if effects.receipt().selected() != selected.selected_identity()
         || ranges.receipt().selected() != selected.selected_identity()
     {

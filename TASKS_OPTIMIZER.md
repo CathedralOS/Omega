@@ -247,9 +247,10 @@ These facts constrain the work below.
   AArch64 `RET X30`, with no scalar result custody. The schema expansion is
   explicit rather than backward-compatible guesswork: the original Unit
   selection route landed with legalized-plan and legalization-replay v5,
-  while the structural Unit roster below advances both to v6; selected-plan
-  remains v8, effect-catalog v3,
-  preallocation-effect v4/codec v5, postallocation-machine v3/codec v2,
+  while the structural Unit roster below advances both to v6; structural-call
+  selection advances selected-plan to v9, register-environment to v6,
+  liveness to v8, effect-catalog to v4, and preallocation-effect to v5/codec
+  v6. Postallocation-machine remains v3/codec v2,
   fixed-copy codec v4, selected-form encoding v4, resolved-layout v4,
   whole-function exit v4, function-relative manifest v6, fragment/text
   manifests v3, fragment vocabulary v3, and x86 relaxation/revision v2 all
@@ -313,21 +314,30 @@ These facts constrain the work below.
   Independent replay recomputes both call plans, resolves the roster by unique
   `MachineId`, and rejects placement, plan, ordering, effect, ownership,
   cleanup, and roster corruption. Static attachment identity remains retained
-  without inventing receiver custody. Instruction selection rejects a nonempty
-  structural roster explicitly, so no legacy selected record can erase this
-  state.
+  without inventing receiver custody.
 
-  The next backend milestone is one atomic zero-VReg Microsoft-x64 structural
-  Unit-call selected pseudo plus the existing `ReturnUnit`, with exact indirect
-  `RCX`/`RDX` inputs, 32/48-byte copy slots, balanced 72-byte frame, direct
-  internal call, caller-saved clobbers, and structural memory/call effects. It
-  must remain ProgramStorage-neutral. A later join binds its applicable object
-  and MachineId-rooted private continuation symbol to the settlement, semantic
-  contract, and wrapper plan; the compiler-private wrapper itself receives no
-  fabricated Terminal `MachineId`. The checked-source ProgramStorage fixture
-  currently lowers its generic two-root handoff as `BoundaryCall`, not this
-  compiler-private `CallUnit`, and therefore is receipt evidence rather than a
-  positive wrapper fixture.
+  Selection now consumes that roster only when the target register environment
+  explicitly supplies the Microsoft-x64 COFF structural-call constraint key.
+  Selected-plan v9 represents the call as one atomic zero-VReg pseudo plus the
+  existing `ReturnUnit`, retaining the exact indirect `RCX`/`RDX` inputs,
+  32/48-byte copy slots, balanced 72-byte frame, direct internal callee,
+  caller-saved clobbers, claim transfers, effects, ownership, and provenance.
+  Effect-catalog v4 declares the structural call separately from ordinary
+  encoded alternatives. Preallocation-effect v5/codec v6 and liveness v8 carry
+  the parallel structural roster through independent replay; the latter records
+  architectural unit flow without inventing VRegs. Live-range analysis and
+  post-allocation machine analysis reject the roster explicitly, so this new
+  state cannot be erased by the older allocation/encoding route.
+
+  The next backend milestone is to extend this ProgramStorage-neutral atomic
+  form through zero-VReg live-range legality, empty register homes,
+  post-allocation structural effects, and target encoding before joining an
+  applicable object and MachineId-rooted private continuation symbol to the
+  settlement, semantic contract, and wrapper plan. The compiler-private
+  wrapper itself receives no fabricated Terminal `MachineId`. The checked-
+  source ProgramStorage fixture currently lowers its generic two-root handoff
+  as `BoundaryCall`, not this compiler-private `CallUnit`, and therefore is
+  receipt evidence rather than a positive wrapper fixture.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -2452,11 +2462,16 @@ dependency.
   bytes. A distinct structural Unit legalized roster now retains one whole-root
   `CallUnit` plus `ReturnUnit`, including exact paired ABI projections, call
   plans, places, claims, service, provenance, fuel, effects, and ownership;
-  independent replay reconstructs both sides and instruction selection fails
-  closed instead of erasing the roster. The next boundary must select and
-  realize the atomic Microsoft-x64 structural call form, join its applicable
-  object and private continuation symbol with the settlement, contract, and
-  wrapper plan, then construct the semantic
+  independent replay reconstructs both sides. The target-applicable Microsoft-
+  x64 COFF route now selects the call as one atomic zero-VReg pseudo, retains
+  its exact register constraint, frame/copy layout, effects, ownership, and
+  provenance through selected-plan replay, and carries its architectural unit
+  flow through preallocation machine effects and liveness. Live ranges and
+  post-allocation analysis remain explicitly closed for this parallel roster.
+  The next boundary must carry that atomic form through allocation legality,
+  empty homes, post-allocation effects, encoding, and an applicable object and
+  private continuation symbol, join those facts with the settlement, contract,
+  and wrapper plan, then construct the semantic
   `ProgramStorageEntry` wrapper object. The scalar-
   result conditional fixture used by the callable classifier remains
   intentionally ineligible. The current UEFI surface explicitly calls its

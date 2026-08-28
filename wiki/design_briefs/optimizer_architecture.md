@@ -190,7 +190,8 @@ canonical Terminal Psi semantic + proof sections
           -> validated declaration-only ProgramStorage semantic contract
           -> address-free semantic ProgramStorage wrapper plan
           -> claim-preserving call-aware Unit legalization
-          -> atomic Unit-call selection and object/private-symbol join (next)
+          -> atomic Unit-call selection + pre-allocation effects/liveness
+          -> zero-VReg allocation legality, encoding, and object/private-symbol join (next)
           -> semantic ProgramStorage wrapper object
        (physical process entry, native image, install, and publication closed)
     -> encoding, relocation, image, installation
@@ -2418,26 +2419,38 @@ target parameter/argument declarations, native call plans, places, claims,
 service ceiling, provenance, fuel, effects, and ownership events. Replay
 recomputes both caller and callee call plans and resolves the raw roster by
 unique `MachineId`. Any placement, ordering, plan, effect, ownership, cleanup,
-or roster drift fails closed. Selection explicitly rejects this new roster, so
-legalization grants no instruction, register, frame, encoding, symbol, object,
-or publication authority.
+or roster drift fails closed.
 
 This is the generic claim-preserving backend vocabulary needed by the wrapper,
-not the ProgramStorage wrapper object itself. The next implementation boundary
-selects one atomic Microsoft-x64 structural Unit call pseudo plus `ReturnUnit`,
-then joins an applicable realized object and its compiler-private continuation
-symbol with the settlement, semantic contract, and wrapper plan. The wrapper
-identity remains distinct from every Terminal `MachineId`; only the internal
-continuation is MachineId-rooted. The checked-source ProgramStorage regression
-also establishes that the existing generic source lowering expresses its
-two-root handoff as `BoundaryCall`, so it must not be misrepresented as the
-positive compiler-private `CallUnit` wrapper fixture. The scalar-result
-conditional fixture above remains an ordinary callable. The eventual semantic
-wrapper is not yet an authoritative firmware/process entry: the UEFI surface is
-explicitly planned and non-invoked, and no target/runtime contract maps
-`(EfiImageHandle, &EfiSystemTable)` into those two semantic extents or maps Unit
-completion and failure into `EfiStatus`. Hosted targets publish no physical
-entry contract yet. `OWNER_QUESTIONS.md` Q17 owns this genuine design decision;
+not the ProgramStorage wrapper object itself. On Microsoft x64 COFF only, the
+validated register environment now exposes an explicit structural-call key and
+selected-plan v9 lowers the bounded form to one atomic zero-VReg call pseudo
+plus `ReturnUnit`. Independent replay retains the exact `RCX`/`RDX` indirect
+inputs, caller-copy offsets 32/48, balanced 72-byte frame, internal callee,
+caller-saved clobbers, claim transfers, effects, ownership, and provenance.
+Effect-catalog v4 declares this pseudo separately from ordinary encoded
+alternatives. Preallocation-effect v5/`OMGMFX` v6 retains a parallel structural
+machine-effect roster, and liveness v8 retains its architectural unit uses,
+defs, and clobbers without fabricating VRegs. Live-range and post-allocation
+analysis reject nonempty structural rosters explicitly, establishing the
+current fail-closed boundary before allocation and encoding.
+
+The next implementation boundary carries the atomic form through zero-VReg
+live-range legality, empty homes, post-allocation structural effects, target
+encoding, and an applicable realized object/private continuation symbol, then
+joins those facts with the settlement, semantic contract, and wrapper plan.
+The wrapper identity remains distinct from every Terminal `MachineId`; only
+the internal continuation is MachineId-rooted. The checked-source
+ProgramStorage regression also establishes that the existing generic source
+lowering expresses its two-root handoff as `BoundaryCall`, so it must not be
+misrepresented as the positive compiler-private `CallUnit` wrapper fixture.
+The scalar-result conditional fixture above remains an ordinary callable. The
+eventual semantic wrapper is not yet an authoritative firmware/process entry:
+the UEFI surface is explicitly planned and non-invoked, and no target/runtime
+contract maps `(EfiImageHandle, &EfiSystemTable)` into those two semantic
+extents or maps Unit completion and failure into `EfiStatus`. Hosted targets
+publish no physical entry contract yet. `OWNER_QUESTIONS.md` Q17 owns this
+genuine design decision;
 the semantic-wrapper slice may proceed while physical bridge, image,
 installation, and publication authority remain closed.
 

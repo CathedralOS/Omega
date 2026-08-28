@@ -197,6 +197,7 @@ pub enum TerminalPostAllocationMachineError {
     PostAllocationManifestMismatch,
     OptimizationUnitMismatch,
     FuelScheduleMismatch,
+    UnsupportedStructuralUnitFunctions,
     FunctionMismatch {
         function: usize,
     },

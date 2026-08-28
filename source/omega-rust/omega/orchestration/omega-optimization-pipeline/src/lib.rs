@@ -461,8 +461,8 @@ mod tests {
         TerminalLegalizedTemporaryId, terminal_legalized_operation_plan_identity,
     };
     use omega_terminal_selected_instructions::{
-        TerminalMachineBarrier, TerminalSelectedInstructionKind, TerminalSelectedTerminator,
-        TerminalVirtualRegisterId, TerminalVirtualRegisterOrigin,
+        TerminalMachineBarrier, TerminalSelectedInstructionId, TerminalSelectedInstructionKind,
+        TerminalSelectedTerminator, TerminalVirtualRegisterId, TerminalVirtualRegisterOrigin,
     };
     use omega_terminal_target_operations::{
         TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
@@ -11109,7 +11109,7 @@ mod tests {
     }
 
     #[test]
-    fn structural_unit_call_legalization_retains_exact_abi_effect_and_ownership_custody() {
+    fn structural_unit_call_reaches_selected_liveness_and_machine_effect_custody() {
         let (semantic, proof) = structural_extent_call_unit_artifact();
         let optimized = optimize_artifact_sections(
             &semantic,
@@ -11209,12 +11209,103 @@ mod tests {
             .is_err()
         );
 
-        assert!(matches!(
-            stage_optimized_instruction_selection(target),
-            Err(OptimizedSelectionPipelineError::Selection(
-                SelectedInstructionError::UnsupportedSourceShape { function: 0 }
-            ))
-        ));
+        let selected = stage_optimized_instruction_selection(target)
+            .expect("the exact Microsoft-x64 structural call must reach selected v9");
+        assert_eq!(selected.custody().function_count(), 2);
+        assert!(selected.selected().plan().functions.is_empty());
+        assert_eq!(
+            selected.selected().plan().structural_unit_functions.len(),
+            2
+        );
+        let selected_caller = &selected.selected().plan().structural_unit_functions[0];
+        let selected_call = selected_caller
+            .call
+            .as_ref()
+            .expect("caller owns one atomic structural Unit call");
+        let selected_call_uses = selected_call.implicit_uses.clone();
+        assert_eq!(selected_call.id, TerminalSelectedInstructionId(0));
+        assert_eq!(
+            selected_call.constraint,
+            omega_terminal_isa_x86_64::X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR
+        );
+        assert!(selected_call.implicit_uses.len() >= 4);
+        assert!(selected_call.implicit_defs.len() >= 2);
+        assert!(!selected_call.clobbers.is_empty());
+        assert_eq!(
+            selected_caller.terminator.instruction.id,
+            TerminalSelectedInstructionId(1)
+        );
+
+        let effects = stage_optimized_machine_effects(&selected)
+            .expect("structural call must reach pre-allocation effect custody");
+        assert_eq!(effects.effects().plan().structural_unit_functions.len(), 2);
+        let effect_call = effects.effects().plan().structural_unit_functions[0]
+            .call
+            .as_ref()
+            .expect("caller effect roster owns the atomic call");
+        assert_eq!(effect_call.callee, selected_call.callee);
+        assert_eq!(effect_call.unit_uses, selected_call.implicit_uses);
+        assert_eq!(effect_call.effect, selected_call.effect);
+        assert_eq!(effect_call.ownership, selected_call.ownership);
+        assert_eq!(
+            effect_call.declaration.frame,
+            omega_terminal_selected_instructions::TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+                frame_byte_count: 72,
+                shadow_byte_count: 32,
+                pre_call_stack_alignment: 16,
+            }
+        );
+        assert_eq!(
+            &validate_optimized_machine_effect_custody(&selected, effects.effects()).unwrap(),
+            effects.custody()
+        );
+
+        let mut corrupted = effects.effects().plan().clone();
+        corrupted.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .unit_uses
+            .clear();
+        let environment = selected.register_environment();
+        let catalog = omega_terminal_isa_x86_64::validate_x86_64_terminal_machine_effect_catalog(
+            NativeTarget::uefi_x64(),
+            environment.constraints(),
+            omega_terminal_isa_x86_64::x86_64_terminal_machine_effect_catalog(
+                NativeTarget::uefi_x64(),
+                environment.constraints(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(
+            omega_machine_optimizer::validate_terminal_pre_allocation_machine_effects(
+                selected.selected(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+                &catalog,
+                corrupted,
+            )
+            .is_err()
+        );
+
+        let liveness = stage_optimized_liveness(selected)
+            .expect("zero-VReg structural functions must retain architectural liveness");
+        assert_eq!(
+            liveness.liveness().plan().structural_unit_functions.len(),
+            2
+        );
+        let live_caller = &liveness.liveness().plan().structural_unit_functions[0];
+        assert!(live_caller.entry_definitions.is_empty());
+        assert!(live_caller.operand_positions.is_empty());
+        assert_eq!(live_caller.blocks[0].instructions.len(), 2);
+        assert_eq!(
+            live_caller.blocks[0].instructions[0].unit_uses,
+            selected_call_uses
+        );
     }
 
     #[test]
