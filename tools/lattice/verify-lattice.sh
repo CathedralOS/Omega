@@ -41,8 +41,8 @@ step "beta — maximal-observation reconstruction" beta-validation admission/bc-
 step "gamma — interpreter" gamma test-interp.sh beta beta-compiler
 step "gamma — type checker" gamma test-typeck.sh beta beta-compiler
 
-step "delta — exact compiler source closure" delta source-closure-snapshot-v1.sh
-step "delta — lower-rooted publication model" delta lower-rooted-assembly-publication-v1-test.sh alpha-assembler beta-compiler gamma
+step "delta — exact compiler source closure" delta-validation source-closure-snapshot-v1.sh
+step "delta — lower-rooted publication model" delta-validation lower-rooted-assembly-publication-v1-test.sh alpha-assembler beta-compiler gamma
 
 echo ""
 echo "DIRECT LATTICE GATES PASS — Alpha → Beta → Gamma; Delta publication and direct Omega build remain open"

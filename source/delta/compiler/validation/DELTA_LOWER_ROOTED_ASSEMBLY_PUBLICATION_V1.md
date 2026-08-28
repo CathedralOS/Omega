@@ -90,7 +90,7 @@ the byte list structurally. Assembly retains the separate 16 MiB, 500,000-line,
 resource overflow returns 252. Rejection publishes no stdout bytes.
 
 The assembly profile is the bounded spelling emitted by the canonical
-`lowermachine.alp`, not a general AArch64 assembler grammar. In particular, its
+`source/delta/compiler/main.alp`, not a general AArch64 assembler grammar. In particular, its
 four-operand arithmetic forms are immediate `lsl #12` and the full-width array
 address form `add Xd, Xn, Xm, lsl #3`. Standalone register shifts preserve one
 register width; the emitted sign-fill immediates are exactly `asr Wd, Wn, #31`

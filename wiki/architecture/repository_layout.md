@@ -187,7 +187,10 @@ Omega/
 |   |-- beta/                                              # Beta language, reference meaning, and gates.
 |   |   `-- compiler/                                      # Compiler source, artifact, cold start, and validation.
 |   |-- gamma/                                             # Gamma language, interpreter, and type checker.
-|   |-- delta/                                             # Delta language, compiler, and canonical artifacts.
+|   |-- delta/                                             # Delta language, compiler, meaning, tests, and artifacts.
+|   |   |-- compiler/                                     # Canonical compiler source, validation, and admitted artifacts.
+|   |   |-- meaning/                                      # Lower-rung Delta-to-Gamma elaboration.
+|   |   `-- tests/                                        # Delta language cases.
 |   |-- library/                                           # Core, allocation, and standard library source.
 |   |   |-- core/                                          # Always-available language package.
 |   |   |-- alloc/                                         # Allocation facilities.
@@ -240,7 +243,9 @@ Each rung remains the semantic owner of its language and lattice-built
 artifacts. A Rust producer nested beneath that rung is tooling for the same
 concept, not a second semantic owner. The root proof checker belongs to Alpha.
 Validation belongs beside the artifact it admits, so the Beta compiler's
-source/artifact reconstruction lives under `source/beta/compiler/validation/`.
+source/artifact reconstruction lives under `source/beta/compiler/validation/`
+and Delta publication/custody lives under
+`source/delta/compiler/validation/`.
 
 The package library now lives at `source/library/`. The relocation deliberately
 has no compatibility symlink. Package-manager P8 still owns removal of the

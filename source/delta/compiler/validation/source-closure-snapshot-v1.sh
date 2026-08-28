@@ -15,9 +15,9 @@ done
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/lattice/paths.sh"
 
-VERIFY=$OMEGA_PATH_DELTA/source_closure_snapshot_v1.py
-SNAPSHOT=$OMEGA_PATH_DELTA/source-closures/canonical-compiler-v1.json
-LOCATIONS=$OMEGA_PATH_DELTA/source-closures/canonical-compiler-v1.locations.json
+VERIFY=$OMEGA_PATH_DELTA_VALIDATION/source_closure_snapshot_v1.py
+SNAPSHOT=$OMEGA_PATH_DELTA_VALIDATION/source-closures/canonical-compiler-v1.json
+LOCATIONS=$OMEGA_PATH_DELTA_VALIDATION/source-closures/canonical-compiler-v1.locations.json
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT HUP INT TERM
 

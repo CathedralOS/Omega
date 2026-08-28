@@ -135,7 +135,7 @@ and are not blocked on this ruling.
   only when a separately declared publication profile requires it.
 - [ ] Bind source identity, target identity, emitted artifact identity, and the
   exact reconstruction custody needed by the eventual refinement edge.
-- [ ] Once no exact publication attempt is live, move Delta compiler admission
+- [x] Once no exact publication attempt is live, move Delta compiler admission
   documentation, receipts, drivers, and tests from the flat `source/delta/`
   root into `source/delta/compiler/validation/`. Keep the semantic elaboration
   under `source/delta/meaning/`; do not create a generic assurance owner.
@@ -146,7 +146,7 @@ and are not blocked on this ruling.
   was referenced by a gate or included in the canonical source closure.
 - [ ] Install the published compiler under `source/delta/compiler/artifacts/`
   with receipts rooted in that exact execution.
-- [x] Keep [`source/delta/lower-rooted-assembly-publication-v1.sh`](source/delta/lower-rooted-assembly-publication-v1.sh)
+- [x] Keep [`source/delta/compiler/validation/lower-rooted-assembly-publication-v1.sh`](source/delta/compiler/validation/lower-rooted-assembly-publication-v1.sh)
   a verifier for already observed data, not a hidden producer. Its only command
   calls `verify` over sixteen caller-supplied evidence paths; it neither invokes
   a lower-rung executable nor writes an observation or receipt. The focused

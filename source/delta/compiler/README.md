@@ -13,7 +13,7 @@ runner, must own the resulting source graph.
 
 No unbound compiler executable is checked in here. A published artifact belongs
 under `artifacts/` only after its exact lower-rung producer edge and custody
-receipt exist. The currently active publication machinery remains temporarily
-at `source/delta/` while its exact run is live; once cold, it moves together
-under `validation/`. The active work order is in
+receipt exist. [`validation/`](validation/) owns the exact source-closure,
+publication, and artifact-custody checks adjacent to the compiler they admit.
+The active work order is in
 [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).

@@ -15,6 +15,7 @@ from publication_support_test import POSITIVE_ASSEMBLY
 
 
 HERE = Path(__file__).resolve().parent
+DELTA = HERE.parents[1]
 MANIFEST = HERE / "source-closures/canonical-compiler-v1.json"
 LOCATIONS = HERE / "source-closures/canonical-compiler-v1.locations.json"
 
@@ -44,7 +45,7 @@ class Evidence:
         self.interpreter.write_bytes(b"test-only deterministic interpreter tape\n")
         self.template.write_bytes(b"(let compiler_input STDIN 0)\n")
         image = publication.support.materialize_canonical_image(
-            MANIFEST, LOCATIONS, {"delta": HERE}
+            MANIFEST, LOCATIONS, {"delta": DELTA}
         )
         packer = publication._load_module("publication_test_packer", publication.PACKER_SOURCE)
         self.gamma.write_bytes(packer.inject(self.template.read_bytes(), image))
@@ -57,7 +58,7 @@ class Evidence:
 
     @property
     def roots(self) -> dict[str, Path]:
-        return {"delta": HERE}
+        return {"delta": DELTA}
 
     def write_observations(self) -> None:
         elaboration = publication.make_elaboration_observation(
@@ -84,7 +85,7 @@ class Evidence:
             str(self.gamma), str(self.elaboration), str(self.elaboration_stderr),
             str(self.execution[0]), str(self.raw[0]), str(self.assembly[0]),
             str(self.stderr[0]), str(self.execution[1]), str(self.raw[1]),
-            str(self.assembly[1]), str(self.stderr[1]), f"delta={HERE}",
+            str(self.assembly[1]), str(self.stderr[1]), f"delta={DELTA}",
         ]
 
 
@@ -148,7 +149,7 @@ class PublicationJoinTests(unittest.TestCase):
             "observe-elaboration", "0", "101", str(MANIFEST), str(LOCATIONS),
             str(self.evidence.assembler), str(self.evidence.translator),
             str(self.evidence.interpreter), str(self.evidence.template),
-            str(self.evidence.elaboration_stderr), f"delta={HERE}",
+            str(self.evidence.elaboration_stderr), f"delta={DELTA}",
         )
         self.assertEqual(elaboration.returncode, 0, elaboration.stderr)
         self.assertEqual(elaboration.stdout, self.evidence.elaboration.read_bytes())
@@ -158,7 +159,7 @@ class PublicationJoinTests(unittest.TestCase):
             str(self.evidence.interpreter), str(self.evidence.template),
             str(self.evidence.gamma), str(self.evidence.raw[0]),
             str(self.evidence.assembly[0]), str(self.evidence.stderr[0]),
-            f"delta={HERE}",
+            f"delta={DELTA}",
         )
         self.assertEqual(execution.returncode, 0, execution.stderr)
         self.assertEqual(execution.stdout, self.evidence.execution[0].read_bytes())
@@ -170,7 +171,7 @@ class PublicationJoinTests(unittest.TestCase):
             str(self.evidence.interpreter), str(self.evidence.template),
             str(self.evidence.gamma), str(self.evidence.raw[0]),
             str(self.evidence.assembly[0]), str(self.evidence.stderr[0]),
-            f"delta={HERE}",
+            f"delta={DELTA}",
         ]
         self.assert_rejects(251, *args)
         self.evidence.stderr[0].write_bytes(b"diagnostic\n")

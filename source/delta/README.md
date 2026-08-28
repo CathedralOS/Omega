@@ -21,17 +21,9 @@ compiler between Delta and `omega₀`.
 - [`tests/`](tests/) contains the executable Delta language corpus.
 - [`meaning/`](meaning/) contains the lower-rung Delta-to-Gamma elaboration and
   its byte transport helpers.
-- [`source-closures/`](source-closures/) contains the exact canonical compiler
-  source and tool manifests.
-- [`lower_rooted_assembly_publication_v1_driver.py`](lower_rooted_assembly_publication_v1_driver.py)
-  prepares a fresh exact evidence attempt, reports token/epoch-bound stage
-  status, and finalizes the existing V1 receipt without hiding a compiler run
-  inside the verifier.
-- [`lower_rooted_artifact_custody_v1.py`](lower_rooted_artifact_custody_v1.py)
-  re-verifies that complete assembly evidence and binds it to one exact bounded,
-  unsigned Darwin ARM64 Mach-O image and realization toolchain. Its receipt is
-  custody-only while the authoritative Delta v1 semantics subject and direct
-  source/artifact refinement remain open.
+- [`compiler/validation/`](compiler/validation/) contains the compiler's exact
+  source-closure records, lower-rung publication verifier and driver, artifact
+  custody checks, and their focused tests.
 - [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) tracks Delta-language facilities
   justified by the compiler stage and the ordinary-Omega surface used by `C`.
 

@@ -22,9 +22,9 @@ export OMEGA_REPO_ROOT
 
 RECEIPT=$1
 shift
-VERIFY=$OMEGA_PATH_DELTA/lower_rooted_assembly_publication_v1.py
-MANIFEST=$OMEGA_PATH_DELTA/source-closures/canonical-compiler-v1.json
-LOCATIONS=$OMEGA_PATH_DELTA/source-closures/canonical-compiler-v1.locations.json
+VERIFY=$OMEGA_PATH_DELTA_VALIDATION/lower_rooted_assembly_publication_v1.py
+MANIFEST=$OMEGA_PATH_DELTA_VALIDATION/source-closures/canonical-compiler-v1.json
+LOCATIONS=$OMEGA_PATH_DELTA_VALIDATION/source-closures/canonical-compiler-v1.locations.json
 
 python3 -B "$VERIFY" verify "$RECEIPT" "$MANIFEST" "$LOCATIONS" \
   "$@" "delta=$OMEGA_PATH_DELTA"

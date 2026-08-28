@@ -50,7 +50,7 @@ accepted Omega programs retain their exact Omega meaning.
 - `source/delta/compiler/artifacts/` is reserved for exact artifacts admitted
   by the lower-rung producer edge; it remains absent until publication closes.
 - `source/delta/compiler/validation/` owns publication verification and custody
-  once the current live evidence attempt is complete.
+  adjacent to the compiler artifact those checks admit.
 - `source/delta/FEATURE_LEDGER.md` records candidate Delta facilities and the
   evidence still needed to retain them.
 
