@@ -14,9 +14,11 @@ use crate::{
     OptimizedLiteralFoldCustodyError, OptimizedLiveRangeCustodyError,
     OptimizedLivenessCustodyError, OptimizedPostAllocationMachinePipelineError,
     OptimizedPostSelectedLoweringHomeCustodyError, OptimizedRegisterHomeCustodyError,
-    OptimizedSelectionPipelineError, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedRegisterHomes, StagedSelectedLoweringFunctionRelativeRealization,
-    run_selected_lowering_optimizations, stage_optimized_allocation_legality,
+    OptimizedSelectionPipelineError, StagedFunctionRelativeLayoutOptimizationRealization,
+    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedRegisterHomes,
+    StagedSelectedLoweringFunctionRelativeRealization,
+    ValidatedFunctionRelativeOptimizationRealizationManifest, run_selected_lowering_optimizations,
+    stage_function_relative_layout_optimization_realization, stage_optimized_allocation_legality,
     stage_optimized_allocation_legality_for_frameless_leaf, stage_optimized_instruction_selection,
     stage_optimized_live_ranges, stage_optimized_liveness,
     stage_optimized_post_allocation_machine_plan, stage_optimized_register_homes,
@@ -25,13 +27,16 @@ use crate::{
 };
 
 /// Complete currently admitted physical validation for one explicitly selected
-/// optimized source. Both variants stop before frame construction, machine
+/// optimized source. All variants stop before frame construction, machine
 /// emission, object construction, installation, or publication.
 #[derive(Debug)]
 pub enum StagedOptimizedVerifiedPhysicalPipeline {
     PsiOnly {
         homes: StagedOptimizedRegisterHomes,
         machine: StagedOptimizedPostAllocationMachinePlan,
+    },
+    FunctionRelativeLayout {
+        realization: StagedFunctionRelativeLayoutOptimizationRealization,
     },
     SelectedLowering {
         realization: StagedSelectedLoweringFunctionRelativeRealization,
@@ -42,6 +47,15 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
     pub const fn pre_physical_manifest(&self) -> &ValidatedPrePhysicalOptimizationManifest {
         match self {
             Self::PsiOnly { homes, .. } => homes
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+            Self::FunctionRelativeLayout { realization } => realization
+                .homes()
                 .legality_stage()
                 .live_range_stage()
                 .liveness_stage()
@@ -65,6 +79,9 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
     pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
         match self {
             Self::PsiOnly { homes, .. } => homes.post_allocation_manifest(),
+            Self::FunctionRelativeLayout { realization } => {
+                realization.homes().post_allocation_manifest()
+            }
             Self::SelectedLowering { realization } => {
                 realization.homes().post_allocation_manifest()
             }
@@ -74,6 +91,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
     pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
         match self {
             Self::PsiOnly { machine, .. } => machine,
+            Self::FunctionRelativeLayout { realization } => realization.machine(),
             Self::SelectedLowering { realization } => realization.machine(),
         }
     }
@@ -82,14 +100,34 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         &self,
     ) -> Option<&StagedSelectedLoweringFunctionRelativeRealization> {
         match self {
-            Self::PsiOnly { .. } => None,
+            Self::PsiOnly { .. } | Self::FunctionRelativeLayout { .. } => None,
             Self::SelectedLowering { realization } => Some(realization),
+        }
+    }
+
+    pub const fn function_relative_manifest(
+        &self,
+    ) -> Option<&ValidatedFunctionRelativeOptimizationRealizationManifest> {
+        match self {
+            Self::PsiOnly { .. } => None,
+            Self::FunctionRelativeLayout { realization } => Some(realization.manifest()),
+            Self::SelectedLowering { realization } => Some(realization.manifest()),
         }
     }
 
     pub fn selections(&self) -> OptimizationSelectionIdentity {
         match self {
             Self::PsiOnly { homes, .. } => homes
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .selections()
+                .identity(),
+            Self::FunctionRelativeLayout { realization } => realization
+                .homes()
                 .legality_stage()
                 .live_range_stage()
                 .liveness_stage()
@@ -110,7 +148,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         &self,
     ) -> Option<omega_optimization_core::SelectedLoweringOptimizationCompletionIdentity> {
         match self {
-            Self::PsiOnly { .. } => None,
+            Self::PsiOnly { .. } | Self::FunctionRelativeLayout { .. } => None,
             Self::SelectedLowering { realization } => Some(
                 realization
                     .homes()
@@ -175,8 +213,15 @@ pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
         .optimized()
         .selections()
         .for_phase(OptimizationExecutionPhase::SelectedLowering);
+    let function_relative_layout = ranges
+        .liveness_stage()
+        .selected_stage()
+        .optimized_target()
+        .optimized()
+        .selections()
+        .for_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
 
-    if selected_lowering.is_empty() {
+    if selected_lowering.is_empty() && function_relative_layout.is_empty() {
         let legality = stage_optimized_allocation_legality(ranges)
             .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
         let homes = stage_optimized_register_homes(legality)
@@ -184,6 +229,14 @@ pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
         let machine = stage_optimized_post_allocation_machine_plan(&homes)
             .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
         Ok(StagedOptimizedVerifiedPhysicalPipeline::PsiOnly { homes, machine })
+    } else if selected_lowering.is_empty() {
+        let legality = stage_optimized_allocation_legality_for_frameless_leaf(ranges)
+            .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
+        let homes = stage_optimized_register_homes(legality)
+            .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterHomes)?;
+        let realization = stage_function_relative_layout_optimization_realization(homes)
+            .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
+        Ok(StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization })
     } else {
         let legality = stage_optimized_allocation_legality_for_frameless_leaf(ranges)
             .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;

@@ -610,15 +610,17 @@ These facts constrain the work below.
   zero-change result transformed the CFG. The v4 canonical codec round-trips
   direct and transformed forms, reconstructs typed target and stage fields,
   and rejects identity tampering, unknown tags, truncation, and trailing bytes.
-  Decoding remains non-authoritative. A new selected-lowering-only
-  function-relative realization manifest joins the exact full suite and phase
-  subset, mandatory completion, pre-physical/post-allocation manifests, final
+  Decoding remains non-authoritative. The function-relative v3 realization
+  manifest joins the exact full suite and both phase subsets, optional
+  selected-lowering completion, pre-physical/post-allocation manifests, final
   selected CFG, pre-/post-allocation machine roots, pre-layout encoding,
-  resolved layout, target, named layout policy, and derived function/block/
-  instruction/byte/branch statistics. Its strict v1 codec recomputes identity,
-  closed-vocabulary corruption fails, and custody replay reconstructs every
-  joined artifact. Its v2 schema now also binds an independently replayed
-  frameless whole-function exit contract. The contract selects the exact
+  baseline and final layouts, optional layout-transformation receipt, target,
+  named layout policy, and derived final function/block/instruction/byte/branch
+  statistics. Its strict codec recomputes identity, closed-vocabulary
+  corruption fails, and custody replay reconstructs every joined artifact. It
+  also binds an independently replayed frameless whole-function exit contract,
+  whose v2 identity names its exact baseline or transformed layout custody. The
+  contract selects the exact
   System V AMD64, Microsoft x64, AAPCS64, or Darwin AAPCS64 convention; proves
   canonical RSP-pop or X30 return behavior for every Psi exit; retains RAX/X0
   result custody separately from encoded return reads; and rejects stack/frame
@@ -1161,7 +1163,7 @@ dependency.
   statistics for both changed and verified no-change suites. The legacy native
   compiler firewall remains closed rather than feeding selected builds into its
   old backend. A validated frameless whole-function exit contract now joins
-  every selected-lowering realization and the v2 manifest; compiler staging
+  every selected-lowering realization and the v3 manifest; compiler staging
   derives caller-saved-only unconstrained homes for that exact policy.
   Remaining to close: add general frame/call/save-restore and entry-bridge/
   hardening custody, broaden selected instruction shapes, and complete section/
@@ -1717,15 +1719,18 @@ dependency.
   it creates no code section, symbol, object relocation, executable span, or
   publication authority.
 
-  A selected-lowering-only function-relative realization carrier now owns that
-  validated layout together with its strict homes, post-allocation machine, and
-  pre-layout encoding. Its immutable v2 manifest binds the complete named suite,
-  exact selected-lowering subset and completion, pre-physical and post-
-  allocation manifests, final selected CFG, pre-/post-allocation machine roots,
-  both encoding/layout roots, target, and named layout policy. Statistics are
-  derived from the retained layout rather than supplied by callers. Its strict
-  self-authenticating codec and independent custody replay reject detached or
-  corrupted roots. A target-neutral whole-function exit artifact now joins the
+  Function-relative realization now has distinct custody routes for ordinary
+  homes and selected-lowering completion. Both own the validated required
+  layout together with strict homes, post-allocation machine, and pre-layout
+  encoding. The immutable v3 manifest binds the complete named suite, exact
+  selected-lowering and function-relative-layout projections, optional
+  selected-lowering completion, pre-physical and post-allocation manifests,
+  final selected CFG, pre-/post-allocation machine roots, baseline and final
+  layout roots, optional layout transformation receipt, target, and named
+  layout policy. Statistics are derived from the final retained layout rather
+  than supplied by callers. Its strict self-authenticating codec and independent
+  custody replay reject detached or corrupted roots. A target-neutral
+  whole-function exit artifact now joins the
   same roots and the target owner's exact System V AMD64, Microsoft x64,
   AAPCS64, or Darwin AAPCS64 preservation convention. Its named frameless-leaf
   policy requires caller-saved unconstrained homes, no non-return stack/memory
@@ -1733,7 +1738,7 @@ dependency.
   exact RAX/X0 ABI result custody, and exact canonical return bytes/effects for
   every Psi return edge. It retains the external aligned-stack/return-state
   assumption and possible architectural return faults rather than inventing
-  stronger facts. The v2 manifest binds this contract identity. Frame,
+  stronger facts. The v3 manifest binds this contract's v2 identity. Frame,
   emission, sections, symbols, relocations, executable image, installation, and
   publication remain explicitly unavailable.
 
@@ -1751,18 +1756,27 @@ dependency.
   work budgets fail closed. An absent selection remains on the required near-
   branch baseline without constructing this optimization.
 
-  Remaining for the named rel8 rule: route its function-relative selection
-  through physical orchestration, admit branch-only suites without requiring a
-  selected-lowering completion, bind both baseline and relaxed layout roots in
-  the realization manifest and whole-function exit validation, and replace the
-  current compiler execution gate with end-to-end selected-build tests. Until
-  that custody join exists, a build that explicitly selects the rule is parsed
-  and identified but fails without installing output.
+  Physical orchestration now routes that exact phase independently of selected
+  lowering. A branch-only suite uses frameless legality and ordinary homes and
+  truthfully records no selected-lowering completion; a combined suite retains
+  both completions. The strict v3 realization manifest binds the full suite,
+  both exact phase projections, optional selected-lowering completion,
+  required near-layout root, final layout root, optional rel8 receipt, final-
+  byte statistics, and final-layout exit contract. Whole-function exit custody
+  is v2 and distinguishes the required near layout from a final layout admitted
+  only after independent relaxation replay. Tests cover a four-byte shrink,
+  branch-only and combined routing, detached final-layout corruption, and
+  non-x86 rejection.
+
+  Remaining for the named rel8 rule: replace the current compiler execution
+  gate with an end-to-end selected-build path once the clean function-relative
+  realization is consumed by the native emission/publication boundary. Until
+  that downstream authority exists, a build that explicitly selects the rule
+  is parsed and identified but still fails without installing output.
 
   Remaining to close: complete memory/trap/call/cleanup vocabularies as
   selected IR admits them, general CFG layout and non-fallthrough terminator
-  bundles, the rel8 realization custody join above, general framed/calling exit
-  policies with save/restore and unwind
+  bundles, general framed/calling exit policies with save/restore and unwind
   evidence, authoritative entry-bridge and enabled-hardening identities,
   whole-program span/relocation validation, and publication-side enforcement of
   the independent encoding receipt.
