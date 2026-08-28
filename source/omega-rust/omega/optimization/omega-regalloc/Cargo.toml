@@ -11,14 +11,13 @@ path = "src/lib.rs"
 [dependencies]
 omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
 omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
+omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
 omega-register-model = { path = "../../representations/omega-register-model" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-terminal-legalized-operations = { path = "../../representations/omega-terminal-legalized-operations" }
 omega-terminal-selected-instructions = { path = "../../representations/omega-terminal-selected-instructions" }
+omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
 omega-terminal-target-operations-to-selected-instructions = { path = "../../pipeline/omega-terminal-target-operations-to-selected-instructions" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
-sha2 = "0.10.9"
-
-[dev-dependencies]
-omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+sha2 = "0.10.9"

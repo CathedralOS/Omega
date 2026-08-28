@@ -458,6 +458,8 @@ mod tests {
             termination_plan: Default::default(),
             service_reach_row: Default::default(),
             service_reach_is_installation_bound: false,
+            suspends_keyword_source_spans: Vec::new(),
+            blocks_keyword_source_spans: Vec::new(),
             storage: MachineStorage {
                 lifetime_parameters: Vec::new(),
                 type_parameters: HandleSpan::empty(),

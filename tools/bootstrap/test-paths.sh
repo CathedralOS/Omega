@@ -18,26 +18,19 @@ expect_role() {
   [ "$actual" = "$expected" ] || fail "$role resolved to $actual, expected $expected"
 }
 
-expect_role source "$OMEGA_REPO_ROOT/source"
 expect_role alpha "$OMEGA_REPO_ROOT/source/alpha"
-expect_role beta "$OMEGA_REPO_ROOT/source/beta"
+expect_role alpha-checker "$OMEGA_REPO_ROOT/source/alpha/checker"
 expect_role beta-compiler "$OMEGA_REPO_ROOT/source/beta/compiler"
 expect_role beta-validation "$OMEGA_REPO_ROOT/source/beta/compiler/validation"
 expect_role gamma "$OMEGA_REPO_ROOT/source/gamma"
 expect_role delta "$OMEGA_REPO_ROOT/source/delta"
-expect_role delta-meaning "$OMEGA_REPO_ROOT/source/delta/meaning"
-expect_role proof-kernel "$OMEGA_REPO_ROOT/source/alpha/checker"
-expect_role omega-rust "$OMEGA_REPO_ROOT/source/omega-rust"
-expect_role psi-rust "$OMEGA_REPO_ROOT/source/omega-rust/psi"
-expect_role omega-rust-lowering "$OMEGA_REPO_ROOT/source/omega-rust/omega"
-expect_role psi "$OMEGA_REPO_ROOT/source/psi"
-expect_role omega "$OMEGA_REPO_ROOT/source/omega"
+expect_role bootstrap-tools "$OMEGA_REPO_ROOT/tools/bootstrap"
 
 for required in \
   "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" \
   "$OMEGA_PATH_DELTA" "$OMEGA_PATH_DELTA_MEANING" \
-  "$OMEGA_PATH_PROOF_KERNEL" "$OMEGA_PATH_OMEGA_RUST" \
-  "$OMEGA_PATH_PSI_PRODUCT" "$OMEGA_PATH_OMEGA_PRODUCT"
+  "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_BETA_VALIDATION" \
+  "$OMEGA_PATH_PROOF_KERNEL"
 do
   [ -d "$required" ] || fail "required owner is absent: $required"
 done

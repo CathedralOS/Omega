@@ -925,6 +925,16 @@ mod tests {
     }
 
     fn verified_exact_add_unit() -> VerifiedPsiOptimizationUnit {
+        verified_exact_add_unit_with_right(psi_core::IntegerValue::Unsigned(8))
+    }
+
+    fn verified_exact_add_zero_unit() -> VerifiedPsiOptimizationUnit {
+        verified_exact_add_unit_with_right(psi_core::IntegerValue::Unsigned(0))
+    }
+
+    fn verified_exact_add_unit_with_right(
+        right_constant: psi_core::IntegerValue,
+    ) -> VerifiedPsiOptimizationUnit {
         use psi_core::{
             BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
             ObligationId, OperationId, ScalarType, ValueId,
@@ -991,7 +1001,7 @@ mod tests {
                             id: OperationId::new(417).unwrap(),
                             result: OperationResult::Scalar(declaration(right)),
                             kind: OperationKind::IntegerConstant {
-                                value: IntegerValue::Unsigned(8),
+                                value: right_constant,
                             },
                         },
                         Operation {
@@ -1345,7 +1355,7 @@ mod tests {
         assert_eq!(output.accepted_obligation_facts.len(), 1);
         assert_eq!(ledger.records().len(), 1);
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 1);
+        assert_eq!(manifest.ordered_rules().len(), 2);
         assert_eq!(
             manifest.decisions()[0].consumed_facts(),
             [OptimizationFactReference::AcceptedObligation(accepted_fact)]
@@ -1855,6 +1865,41 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn public_run_elides_live_proof_certified_identity_and_reaches_fixed_point() {
+        let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
+        let run = run_psi_pipeline(verified_exact_add_zero_unit(), &selections, budget(8)).unwrap();
+
+        assert_eq!(run.commits.len(), 1);
+        assert_eq!(run.pass_manifests.len(), 1);
+        assert_eq!(run.pass_manifests[0].ordered_rules().len(), 2);
+        assert_eq!(run.pass_manifests[0].decisions().len(), 1);
+        assert_eq!(
+            run.pass_manifests[0].decisions()[0].consumed_facts().len(),
+            2
+        );
+        assert_eq!(run.session.unit().accepted_obligation_facts.len(), 1);
+        assert!(run.session.unit().functions[0].facts.iter().all(|fact| {
+            !matches!(
+                fact,
+                omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+            )
+        }));
+        assert!(matches!(
+            run.session.unit().functions[0].blocks[0].nodes[2].operation,
+            TerminalAbstractOperation::Return { value, .. }
+                if value == psi_core::ValueId::new(413).unwrap()
+        ));
+
+        let registry = built_in_psi_registry(&selections).unwrap();
+        let (output, commits, usage, _, _, ledger) =
+            run_unit(run.session.unit().clone(), &registry, budget(8)).unwrap();
+        assert_eq!(output.identity, run.session.unit().identity);
+        assert!(commits.is_empty());
+        assert_eq!(usage.iterations, 1);
+        assert!(ledger.records().is_empty());
     }
 
     #[test]

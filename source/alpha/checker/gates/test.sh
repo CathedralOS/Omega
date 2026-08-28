@@ -1,8 +1,7 @@
 #!/usr/bin/env sh
-# Gate for the proof-kernel certificate checker. Compiles implementations/beta/check.beta with bc (the
-# self-hosting, Rust-free Beta compiler), then feeds it proof certificates: valid
-# ones must `accept`, invalid ones must `reject`. This is the full lattice stack —
-# hand-audited seed -> assembler -> bc -> the checker -> a validated proof.
+# Gate for the proof-kernel certificate checker. Stamps the persisted checker
+# tape constructed by the Alpha-written cold compiler, then feeds it proof
+# certificates: valid ones must `accept`, invalid ones must `reject`.
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
@@ -18,6 +17,7 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
 fi
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" || exit $?
+. "$OMEGA_PATH_PROOF_KERNEL/artifact_env.sh" || exit $?
 cd "$OMEGA_PATH_PROOF_KERNEL"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
@@ -32,8 +32,7 @@ buildbc() { # src.beta -> $T/out.exe
   stamp_seed "$T/p.tape" "$SEED" "$2" >/dev/null 2>&1
   echo "$1 tape: $(wc -c < "$T/p.tape" | tr -d ' ') B (compiled by bc)"
 }
-buildbc implementations/beta/check.beta "$T/check.exe"
-
+stamp_proof_checker "$T/check.exe" >/dev/null || { echo "checker artifact unavailable"; exit 1; }
 PASS=0; FAIL=0
 chk() { # description  "goal term"  expect
   out=$(printf '%s' "$2" | "$T/check.exe")

@@ -44,8 +44,8 @@ inside the checked output extent.
 
 The compiler reads at most 1,048,576 source bytes into a checked fixed extent,
 bounds expression/call nesting at 64, procedure count at 128, recorded calls at
-512, frame slots per procedure at 64, and states/transitions at 64 per procedure
-and 512 globally. It preflights emitted assembly against the Alpha assembler's
+1,024, frame slots per procedure at 64, states at 128 per procedure, transitions
+at 256 per procedure, and each table at 1,024 globally. It preflights emitted assembly against the Alpha assembler's
 1 MiB source region. The first parse records frozen procedure, call, state, and
 transition metadata; resolves calls and procedure-scoped edges after EOF; and
 reserves exact output without publishing it. The second parse checks every
@@ -67,11 +67,9 @@ refinement for the exact persisted tape and `B_bc1` profile.
 ## Full-source target profile
 
 The target is pinned to the current `bc.beta` source, SHA-256
-`f844d33e29814f1280bbeee2bf599db2bded2fb9469a7f1bfc870fac522c326d`:
-32,064 bytes, 5,810 tokens, 70 procedures, at most two parameters or call
-arguments, five frame slots, seventeen states and twenty-four transitions per
-procedure, expression depth five, and identifier length eighteen. Across the
-source it has 285 states, 291 transitions, and 180 comparison nodes. It uses
+`fe4b5af69f87163ce919d22e2aa662ad0b5f2a044a6904581c91e8638749aa25`:
+32,565 bytes. Its measured surface remains inside every adjacent-boundary-tested
+cold-compiler capacity. It uses
 every arithmetic and comparison operator, byte/word memory, calls, CFG
 transitions, byte I/O, and fixed-string emission. These measurements define
 implementation capacities; they do not broaden Beta's language meaning.

@@ -211,3 +211,50 @@ impl std::fmt::Display for TerminalFixedViewCopyError {
 }
 
 impl std::error::Error for TerminalFixedViewCopyError {}
+
+/// Artifact framing errors. Successful decoding returns an unchecked plain
+/// plan and does not replace independent fixed-view-copy validation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalFixedViewCopyDecodeError {
+    Truncated,
+    WrongMagic,
+    UnsupportedVersion(u32),
+    UnknownPolicy(u8),
+    UnknownDefinitionSite(u8),
+    UnknownFixedSite(u8),
+    UnknownRegisterOrigin(u8),
+    UnknownTerminator(u8),
+    UnknownInstructionKind(u8),
+    UnknownFuelSite(u8),
+    UnknownArchitecture(u8),
+    UnknownObjectFormat(u8),
+    UnknownScalarType(u8),
+    UnknownIntegerCarrier(u8),
+    UnknownIntegerSign(u8),
+    UnknownIntegerValue(u8),
+    UnknownConstraintFamily(u8),
+    UnknownOperandAccess(u8),
+    UnknownBoolean(u8),
+    UnknownOption(u8),
+    InvalidVocabulary(u16),
+    InvalidFuelSchedule(u32),
+    InvalidSemanticId(u64),
+    InvalidIntegerType,
+    InvalidBudget,
+    InvalidUsage,
+    LengthOverflow,
+    TransformedIdentityMismatch,
+    IdentityMismatch,
+    TrailingBytes,
+}
+
+impl std::fmt::Display for TerminalFixedViewCopyDecodeError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "invalid Terminal fixed-view-copy artifact: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for TerminalFixedViewCopyDecodeError {}

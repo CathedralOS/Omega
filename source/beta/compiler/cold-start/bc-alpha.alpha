@@ -37,13 +37,13 @@
 ;   1048576 SOURCE (1048576-byte checked compiler extent)
 ;   2097152 decimal output scratch
 ;   540000 PROC_TABLE (128 x 32: start, len, params, slots)
-;   550000 CALL_TABLE (512 x 24: start, len, argc)
+;   550000 CALL_TABLE (1024 x 24: start, len, argc)
 ;   600000 SLOT_TABLE (64 x 16: start, len)
 ;   610000 NAME_STACK (64 x 24: start, len, argc)
 ;   620000 CMP_STACK (65 x 8: comparison opcode at depths 0..64)
 ;   621000 WIDTH_STACK (64 x 8: nested memory-load widths)
-;   630000 STATE_TABLE (512 x 24: start, len, proc index)
-;   680000 EDGE_TABLE (512 x 24: start, len, proc index)
+;   630000 STATE_TABLE (1024 x 24: start, len, proc index)
+;   680000 EDGE_TABLE (1024 x 24: start, len, proc index)
 
 ; ---------------- entry and checked slurp ----------------
         imm   r6, 0
@@ -1792,7 +1792,7 @@ add_call:
         mov   r5, r0
         imm   r0, 524416
         load  r6, r0
-        imm   r1, 512
+        imm   r1, 1024
         jeq   r6, r1, ac_error
         imm   r0, 24
         mul   r0, r6
@@ -1825,11 +1825,11 @@ add_state:
         jnz   r0, ast_error
         imm   r0, 524592
         load  r6, r0
-        imm   r1, 64
+        imm   r1, 128
         jeq   r6, r1, ast_error
         imm   r0, 524568
         load  r7, r0
-        imm   r1, 512
+        imm   r1, 1024
         jeq   r7, r1, ast_error
         imm   r0, 524496
         imm   r1, 0
@@ -1899,11 +1899,11 @@ add_edge:
         jnz   r0, ae_error
         imm   r0, 524600
         load  r7, r0
-        imm   r1, 64
+        imm   r1, 256
         jeq   r7, r1, ae_error
         imm   r0, 524576
         load  r6, r0
-        imm   r1, 512
+        imm   r1, 1024
         jeq   r6, r1, ae_error
         imm   r0, 24
         mul   r0, r6

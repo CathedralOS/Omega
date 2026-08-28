@@ -64,9 +64,9 @@ Git history is their archive.
 
 | Owner | Present | Required closure |
 | --- | --- | --- |
-| Alpha | audited seed, VM, assembler, checker implementations and gates | finish a non-circular checker construction rooted independently of the compiler artifact it admits |
+| Alpha | audited seed, VM, assembler, below-Beta checker artifact, implementations, and gates | preserve the explicit checker reconstruction and disclosed machine/host admissions |
 | Beta | compiler source/artifact under `source/beta/compiler`, Alpha-rooted cold start, self-host tests, and adjacent validation | consolidate the exact source/artifact admission into one comprehensible validator |
-| Gamma | interpreter, type checker, proof-kernel implementation | retain bounded canonical execution |
+| Gamma | interpreter and type checker; an alternate Gamma-hosted checker remains owned by Alpha | retain bounded canonical execution |
 | Delta | compiler corpus, lower-rung meaning under `source/delta/meaning`, provisional artifacts, source-closure and publication checks | publish the exact Delta-produced compiler from Gamma and extend it to accept all of `C` |
 | Omega source | permanent owners under `source/psi` and `source/omega` | finish the product compiler and freeze the exact surface actually used by `C` |
 | Rust comparator | working implementation under `source/omega-rust` | remain optional and non-authoritative |
@@ -80,7 +80,7 @@ Git history is their archive.
   together under `source/beta/compiler/`.
 - [x] Remove the generic `source/refinement/` owner. Future validation belongs
   beside the compiler or artifact being admitted.
-- [ ] Replace the circular `bc → check.beta → admit bc` story with a checker
+- [x] Replace the circular `bc → check.beta → admit bc` story with a checker
   whose accepted artifact is constructed and audited below the Beta compiler it
   validates. Alternate Beta, Gamma, Rust, or Python checkers remain differential
   evidence, not acceptance authority.
@@ -92,7 +92,7 @@ Git history is their archive.
 - [x] Keep fuzzing, alternate checkers, large corpora, and exhaustive mutation
   campaigns as optional stress suites. The default lattice path must build each
   compiler and run only the bounded admission gates required for that edge.
-- [ ] State every admitted artifact, checker, exact input, exact output, and
+- [x] State every admitted artifact, checker, exact input, exact output, and
   remaining assumption in one short chain manifest that can be audited without
   reading orchestration scripts.
 
@@ -130,6 +130,11 @@ compiler artifact.
   sequence of versioned bridge IRs merely to measure progress.
 
 ### 3. Close the product compiler source
+
+Design blocker: [`OWNER_QUESTIONS.md`](OWNER_QUESTIONS.md) Q8 must settle the
+requested-target versus source-selected-target rule before the durable product
+build entry and final `C` closure can freeze. This does not block implementation
+of compiler modules that do not exercise target selection.
 
 - [ ] Finish the Omega-written Psi frontend, proof checking, optimizer, target
   lowering, artifact emission, and command entrypoint required by production

@@ -1,11 +1,16 @@
 use std::collections::BTreeMap;
 
-use omega_machine_optimizer::TerminalPostAllocationMachineInstruction;
+use omega_machine_optimizer::{
+    TerminalAarch64CbnzFusionAction, TerminalAarch64CbnzInstructionDisposition,
+    TerminalPostAllocationMachineInstruction, TerminalQualifiedPhysicalRead,
+};
 use omega_regalloc::ValidatedTerminalSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_isa_aarch64::{
-    Aarch64SelectedFormEncodingError, encode_aarch64_terminal_selected_nonzero_branch_form,
+    Aarch64SelectedFormEncodingError,
+    encode_aarch64_terminal_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
+    encode_aarch64_terminal_selected_nonzero_branch_form,
 };
 use omega_terminal_isa_x86_64::{
     X86_64SelectedFormEncodingError, encode_x86_64_terminal_selected_nonzero_branch_form,
@@ -23,12 +28,14 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     DeferredTerminalControlEncodingReason, OptimizedSelectedFormEncodingError,
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedSelectedFormEncoding,
-    TerminalSelectedFormEncodingRow, TerminalSelectedFormEncodingState,
+    StagedOptimizedAarch64CbnzFusion, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedSelectedFormEncoding, TerminalSelectedFormEncodingRow,
+    TerminalSelectedFormEncodingState, TerminalSelectedFormMachineOptimizationCustody,
     validate_optimized_layout_independent_selected_form_encoding,
+    validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion,
 };
 
-const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v1";
+const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v2";
 
 /// Required-stage baseline layout for the currently admitted three-block
 /// conditional. This is a visible policy identity, not an optimization level.
@@ -62,6 +69,7 @@ pub struct TerminalResolvedConditionalBranchEvidence {
     /// x86-64 measures from instruction end; AArch64 measures from the branch
     /// word address. The target decoder independently checks this convention.
     pub byte_displacement: i64,
+    pub decoded_register_reads: Vec<omega_register_model::RegisterViewId>,
     pub decoded_effects: TerminalMachineEncodedEffects,
 }
 
@@ -94,6 +102,7 @@ pub struct StagedOptimizedResolvedSelectedFormLayout {
     selected: omega_terminal_selected_instructions::TerminalSelectedInstructionPlanIdentity,
     machine: omega_machine_optimizer::TerminalPostAllocationMachineIdentity,
     pre_layout: crate::TerminalSelectedFormEncodingIdentity,
+    machine_optimization: Option<TerminalSelectedFormMachineOptimizationCustody>,
     target: NativeTarget,
     policy: TerminalSelectedFunctionLayoutPolicy,
     identity: TerminalResolvedSelectedFormLayoutIdentity,
@@ -113,6 +122,12 @@ impl StagedOptimizedResolvedSelectedFormLayout {
 
     pub const fn pre_layout(&self) -> crate::TerminalSelectedFormEncodingIdentity {
         self.pre_layout
+    }
+
+    pub const fn machine_optimization(
+        &self,
+    ) -> Option<TerminalSelectedFormMachineOptimizationCustody> {
+        self.machine_optimization
     }
 
     pub const fn target(&self) -> NativeTarget {
@@ -143,6 +158,7 @@ impl StagedOptimizedResolvedSelectedFormLayout {
             self.selected,
             self.machine,
             self.pre_layout,
+            self.machine_optimization,
             self.target,
             self.policy,
             &functions,
@@ -151,6 +167,7 @@ impl StagedOptimizedResolvedSelectedFormLayout {
             selected: self.selected,
             machine: self.machine,
             pre_layout: self.pre_layout,
+            machine_optimization: self.machine_optimization,
             target: self.target,
             policy: self.policy,
             identity,
@@ -199,7 +216,7 @@ pub fn stage_optimized_resolved_selected_form_layout<S: ValidatedTerminalSelecte
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &StagedOptimizedSelectedFormEncoding,
 ) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
-    let artifact = compute(selected, machine, physical, pre_layout)?;
+    let artifact = compute(selected, machine, physical, pre_layout, None)?;
     validate_optimized_resolved_selected_form_layout(
         selected, machine, physical, pre_layout, &artifact,
     )?;
@@ -213,7 +230,46 @@ pub fn validate_optimized_resolved_selected_form_layout<S: ValidatedTerminalSele
     pre_layout: &StagedOptimizedSelectedFormEncoding,
     artifact: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
-    let replayed = compute(selected, machine, physical, pre_layout)?;
+    let replayed = compute(selected, machine, physical, pre_layout, None)?;
+    if artifact != &replayed {
+        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+    }
+    Ok(())
+}
+
+/// Resolve the validated symbolic CBNZ disposition after function-relative
+/// offsets exist. The compare retains a zero-byte roster row and the branch is
+/// independently target-decoded as CBNZ. The result remains separate
+/// fragments with no emission, relocation, image, or publication authority.
+pub fn stage_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion<
+    S: ValidatedTerminalSelectedAnalysis,
+>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    pre_layout: &StagedOptimizedSelectedFormEncoding,
+    fusion: &StagedOptimizedAarch64CbnzFusion,
+) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
+    let artifact = compute(selected, machine, physical, pre_layout, Some(fusion))?;
+    validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion(
+        selected, machine, physical, pre_layout, fusion, &artifact,
+    )?;
+    Ok(artifact)
+}
+
+/// Independently reconstruct every offset, byte string, target footprint, and
+/// symbolic-fusion custody field.
+pub fn validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion<
+    S: ValidatedTerminalSelectedAnalysis,
+>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    pre_layout: &StagedOptimizedSelectedFormEncoding,
+    fusion: &StagedOptimizedAarch64CbnzFusion,
+    artifact: &StagedOptimizedResolvedSelectedFormLayout,
+) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+    let replayed = compute(selected, machine, physical, pre_layout, Some(fusion))?;
     if artifact != &replayed {
         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
     }
@@ -225,10 +281,18 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &StagedOptimizedSelectedFormEncoding,
+    fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
 ) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
-    validate_optimized_layout_independent_selected_form_encoding(
-        selected, machine, physical, pre_layout,
-    )
+    match fusion {
+        None => validate_optimized_layout_independent_selected_form_encoding(
+            selected, machine, physical, pre_layout,
+        ),
+        Some(fusion) => {
+            validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion(
+                selected, machine, physical, fusion, pre_layout,
+            )
+        }
+    }
     .map_err(OptimizedResolvedSelectedFormLayoutError::PreLayout)?;
     let selected_plan = selected.selected_plan();
     let machine_plan = machine.machine().plan();
@@ -237,6 +301,9 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
         || selected_plan.target != machine_plan.target
         || selected_plan.target.architecture != physical.model().architecture
         || selected_plan.functions.len() != machine_plan.functions.len()
+        || pre_layout.machine_optimization()
+            != fusion
+                .map(crate::post_allocation_selected_form_encoding::machine_optimization_custody)
     {
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
@@ -279,6 +346,7 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
             &function_pre_rows,
             &machine_rows,
             physical,
+            fusion,
         )?);
     }
     if pre_rows.next().is_some() {
@@ -294,6 +362,7 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
         selected_root,
         machine_root,
         pre_layout_root,
+        pre_layout.machine_optimization(),
         target,
         policy,
         &functions,
@@ -302,6 +371,7 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
         selected: selected_root,
         machine: machine_root,
         pre_layout: pre_layout_root,
+        machine_optimization: pre_layout.machine_optimization(),
         target,
         policy,
         identity,
@@ -318,6 +388,7 @@ fn layout_function(
         &TerminalPostAllocationMachineInstruction,
     >,
     physical: &ValidatedPhysicalRegisterModel,
+    fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
 ) -> Result<TerminalResolvedSelectedFunctionLayout, OptimizedResolvedSelectedFormLayoutError> {
     if function.blocks.len() != 3 {
         return Err(
@@ -367,7 +438,7 @@ fn layout_function(
                 OptimizedResolvedSelectedFormLayoutError::MissingInstruction(instruction.id),
             )?;
             offset = offset
-                .checked_add(planned_size(architecture, instruction.id, pre)?)
+                .checked_add(planned_size(architecture, instruction, pre)?)
                 .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
         }
         block_sizes.insert(block.id, offset - start);
@@ -389,20 +460,18 @@ fn layout_function(
                     OptimizedResolvedSelectedFormLayoutError::AlternativeMismatch(instruction.id),
                 );
             }
-            let (bytes, branch) = match &pre.state {
-                TerminalSelectedFormEncodingState::Encoded { bytes, .. } => (bytes.clone(), None),
-                TerminalSelectedFormEncodingState::DeferredControl {
-                    reason: DeferredTerminalControlEncodingReason::RequiresResolvedBranchLayout,
-                } => resolve_branch(
-                    architecture,
-                    block,
-                    instruction,
-                    instruction_offset,
-                    &block_offsets,
-                    machine,
-                    physical,
-                )?,
-            };
+            let (bytes, branch) = resolve_instruction(
+                architecture,
+                function.machine,
+                block,
+                instruction,
+                instruction_offset,
+                &block_offsets,
+                machine,
+                pre,
+                physical,
+                fusion,
+            )?;
             let byte_count = u64::try_from(bytes.len())
                 .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
             instructions.push(TerminalResolvedSelectedFormRow {
@@ -434,6 +503,96 @@ fn layout_function(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
+fn resolve_instruction(
+    architecture: Architecture,
+    function: MachineId,
+    block: &TerminalSelectedBlock,
+    instruction: &TerminalSelectedInstruction,
+    instruction_offset: u64,
+    block_offsets: &BTreeMap<TerminalSelectedBlockId, u64>,
+    machine: &TerminalPostAllocationMachineInstruction,
+    pre: &TerminalSelectedFormEncodingRow,
+    physical: &ValidatedPhysicalRegisterModel,
+    fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
+) -> Result<
+    (
+        Vec<u8>,
+        Option<Box<TerminalResolvedConditionalBranchEvidence>>,
+    ),
+    OptimizedResolvedSelectedFormLayoutError,
+> {
+    match (&pre.machine_disposition, &pre.state) {
+        (
+            TerminalAarch64CbnzInstructionDisposition::RetainedV1,
+            TerminalSelectedFormEncodingState::Encoded { bytes, .. },
+        ) => Ok((bytes.clone(), None)),
+        (
+            TerminalAarch64CbnzInstructionDisposition::RetainedV1,
+            TerminalSelectedFormEncodingState::DeferredControl {
+                reason: DeferredTerminalControlEncodingReason::RequiresResolvedBranchLayout,
+            },
+        ) => resolve_branch(
+            architecture,
+            block,
+            instruction,
+            instruction_offset,
+            block_offsets,
+            machine,
+            physical,
+            None,
+        ),
+        (
+            TerminalAarch64CbnzInstructionDisposition::ElidedCompareI64ZeroV1 { consumer },
+            TerminalSelectedFormEncodingState::Encoded { .. },
+        ) => {
+            let action = fusion_action(fusion, function, block.id, instruction.id, *consumer)?;
+            if architecture != Architecture::Aarch64
+                || !matches!(
+                    instruction.kind,
+                    omega_terminal_selected_instructions::TerminalSelectedInstructionKind::CompareI64Zero
+                )
+                || action.compare != instruction.id
+                || action.branch != *consumer
+            {
+                return Err(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(
+                    instruction.id,
+                ));
+            }
+            Ok((Vec::new(), None))
+        }
+        (
+            TerminalAarch64CbnzInstructionDisposition::FusedBranchNonZeroToCbnzV1 {
+                compare,
+                source_read,
+            },
+            TerminalSelectedFormEncodingState::DeferredControl {
+                reason: DeferredTerminalControlEncodingReason::RequiresResolvedBranchLayout,
+            },
+        ) => {
+            let action = fusion_action(fusion, function, block.id, *compare, instruction.id)?;
+            if architecture != Architecture::Aarch64 || &action.source_read != source_read {
+                return Err(
+                    OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(
+                        instruction.id,
+                    ),
+                );
+            }
+            resolve_branch(
+                architecture,
+                block,
+                instruction,
+                instruction_offset,
+                block_offsets,
+                machine,
+                physical,
+                Some((source_read, action)),
+            )
+        }
+        _ => Err(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(instruction.id)),
+    }
+}
+
 fn resolve_branch(
     architecture: Architecture,
     block: &TerminalSelectedBlock,
@@ -442,6 +601,10 @@ fn resolve_branch(
     block_offsets: &BTreeMap<TerminalSelectedBlockId, u64>,
     machine: &TerminalPostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
+    fused: Option<(
+        &TerminalQualifiedPhysicalRead,
+        &TerminalAarch64CbnzFusionAction,
+    )>,
 ) -> Result<
     (
         Vec<u8>,
@@ -483,8 +646,27 @@ fn resolve_branch(
         Architecture::X86_64 => checked_delta(nonzero_offset, branch_end)?,
         Architecture::Aarch64 => checked_delta(nonzero_offset, instruction_offset)?,
     };
-    let (bytes, effects) = match architecture {
-        Architecture::X86_64 => {
+    let (bytes, register_reads, effects) = match (architecture, fused) {
+        (Architecture::Aarch64, Some((source_read, _))) => {
+            let encoded =
+                encode_aarch64_terminal_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
+                    physical,
+                    source_read.view,
+                    displacement,
+                )
+                .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
+            (
+                encoded.bytes().to_vec(),
+                encoded.footprint().register_reads.clone(),
+                encoded.footprint().encoded.clone(),
+            )
+        }
+        (Architecture::X86_64, Some(_)) => {
+            return Err(
+                OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(instruction.id),
+            );
+        }
+        (Architecture::X86_64, None) => {
             let encoded = encode_x86_64_terminal_selected_nonzero_branch_form(
                 physical,
                 machine.alternative.key,
@@ -493,10 +675,11 @@ fn resolve_branch(
             .map_err(OptimizedResolvedSelectedFormLayoutError::X86_64)?;
             (
                 encoded.bytes().to_vec(),
+                encoded.footprint().register_reads.clone(),
                 encoded.footprint().encoded.clone(),
             )
         }
-        Architecture::Aarch64 => {
+        (Architecture::Aarch64, None) => {
             let encoded = encode_aarch64_terminal_selected_nonzero_branch_form(
                 physical,
                 machine.alternative.key,
@@ -505,11 +688,23 @@ fn resolve_branch(
             .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
             (
                 encoded.bytes().to_vec(),
+                encoded.footprint().register_reads.clone(),
                 encoded.footprint().encoded.clone(),
             )
         }
     };
-    if effects != machine.alternative.encoded {
+    if let Some((source_read, action)) = fused {
+        validate_fused_branch_footprint(
+            instruction.id,
+            block,
+            source_read,
+            action,
+            physical,
+            &register_reads,
+            &effects,
+            &machine.alternative.encoded,
+        )?;
+    } else if effects != machine.alternative.encoded {
         return Err(
             OptimizedResolvedSelectedFormLayoutError::BranchEffectsMismatch(instruction.id),
         );
@@ -541,6 +736,7 @@ fn resolve_branch(
             when_zero_block: when_zero.block,
             when_zero_offset: zero_offset,
             byte_displacement: displacement,
+            decoded_register_reads: register_reads,
             decoded_effects: effects,
         })),
     ))
@@ -570,18 +766,48 @@ fn block_instructions(block: &TerminalSelectedBlock) -> Vec<&TerminalSelectedIns
 
 fn planned_size(
     architecture: Architecture,
-    instruction: TerminalSelectedInstructionId,
+    instruction: &TerminalSelectedInstruction,
     row: &TerminalSelectedFormEncodingRow,
 ) -> Result<u64, OptimizedResolvedSelectedFormLayoutError> {
+    match &row.machine_disposition {
+        TerminalAarch64CbnzInstructionDisposition::ElidedCompareI64ZeroV1 { .. } => {
+            if architecture == Architecture::Aarch64
+                && matches!(
+                    instruction.kind,
+                    omega_terminal_selected_instructions::TerminalSelectedInstructionKind::CompareI64Zero
+                )
+                && matches!(row.state, TerminalSelectedFormEncodingState::Encoded { .. })
+            {
+                return Ok(0);
+            }
+            return Err(
+                OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(instruction.id),
+            );
+        }
+        TerminalAarch64CbnzInstructionDisposition::FusedBranchNonZeroToCbnzV1 { .. } => {
+            if architecture == Architecture::Aarch64
+                && matches!(
+                    row.state,
+                    TerminalSelectedFormEncodingState::DeferredControl { .. }
+                )
+            {
+                return Ok(branch_size(architecture));
+            }
+            return Err(
+                OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(instruction.id),
+            );
+        }
+        TerminalAarch64CbnzInstructionDisposition::RetainedV1 => {}
+    }
     match &row.state {
         TerminalSelectedFormEncodingState::Encoded { bytes, .. } => u64::try_from(bytes.len())
             .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow),
         TerminalSelectedFormEncodingState::DeferredControl {
             reason: DeferredTerminalControlEncodingReason::RequiresResolvedBranchLayout,
         } => {
-            if row.instruction != instruction {
+            if row.instruction != instruction.id {
                 return Err(
-                    OptimizedResolvedSelectedFormLayoutError::MissingInstruction(instruction),
+                    OptimizedResolvedSelectedFormLayoutError::MissingInstruction(instruction.id),
                 );
             }
             Ok(branch_size(architecture))
@@ -601,10 +827,81 @@ fn checked_delta(target: u64, base: u64) -> Result<i64, OptimizedResolvedSelecte
         .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)
 }
 
+fn fusion_action<'fusion>(
+    fusion: Option<&'fusion StagedOptimizedAarch64CbnzFusion>,
+    machine: MachineId,
+    block: TerminalSelectedBlockId,
+    compare: TerminalSelectedInstructionId,
+    branch: TerminalSelectedInstructionId,
+) -> Result<&'fusion TerminalAarch64CbnzFusionAction, OptimizedResolvedSelectedFormLayoutError> {
+    fusion
+        .and_then(|fusion| {
+            fusion.fusion().plan().actions.iter().find(|action| {
+                action.machine == machine
+                    && action.block == block
+                    && action.compare == compare
+                    && action.branch == branch
+            })
+        })
+        .ok_or(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(branch))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_fused_branch_footprint(
+    instruction: TerminalSelectedInstructionId,
+    block: &TerminalSelectedBlock,
+    source_read: &TerminalQualifiedPhysicalRead,
+    action: &TerminalAarch64CbnzFusionAction,
+    physical: &ValidatedPhysicalRegisterModel,
+    register_reads: &[omega_register_model::RegisterViewId],
+    effects: &TerminalMachineEncodedEffects,
+    original: &TerminalMachineEncodedEffects,
+) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+    let view = physical
+        .model()
+        .views
+        .iter()
+        .find(|view| view.id == source_read.view)
+        .ok_or(OptimizedResolvedSelectedFormLayoutError::BranchEffectsMismatch(instruction))?;
+    let TerminalSelectedTerminator::ConditionalBranch {
+        when_nonzero,
+        when_zero,
+        ..
+    } = &block.terminator
+    else {
+        return Err(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(instruction));
+    };
+    if register_reads != [source_read.view]
+        || source_read.units != view.units
+        || &action.source_read != source_read
+        || action.when_nonzero_edge != when_nonzero.psi_edge
+        || action.when_nonzero_block != when_nonzero.block
+        || action.when_zero_edge != when_zero.psi_edge
+        || action.when_zero_block != when_zero.block
+        || effects.external_operand_reads != []
+        || effects.external_operand_writes != []
+        || effects.implicit_unit_uses != action.pc_units
+        || effects.implicit_unit_defs != action.pc_units
+        || !effects.implicit_unit_clobbers.is_empty()
+        || effects
+            .implicit_unit_uses
+            .iter()
+            .any(|unit| action.nzcv_units.contains(unit))
+        || effects.memory != original.memory
+        || effects.stack != original.stack
+        || effects.trap != original.trap
+        || effects.control != original.control
+    {
+        return Err(OptimizedResolvedSelectedFormLayoutError::BranchEffectsMismatch(instruction));
+    }
+    Ok(())
+}
+
 fn layout_identity(
     selected: omega_terminal_selected_instructions::TerminalSelectedInstructionPlanIdentity,
     machine: omega_machine_optimizer::TerminalPostAllocationMachineIdentity,
     pre_layout: crate::TerminalSelectedFormEncodingIdentity,
+    machine_optimization: Option<TerminalSelectedFormMachineOptimizationCustody>,
     target: NativeTarget,
     policy: TerminalSelectedFunctionLayoutPolicy,
     functions: &[TerminalResolvedSelectedFunctionLayout],
@@ -614,6 +911,15 @@ fn layout_identity(
     hasher.update(selected.bytes());
     hasher.update(machine.bytes());
     hasher.update(pre_layout.bytes());
+    match machine_optimization {
+        None => hasher.update([0]),
+        Some(custody) => {
+            hasher.update([1]);
+            hasher.update(custody.selections().bytes());
+            hasher.update(custody.post_allocation_machine_selections().bytes());
+            hasher.update(custody.fusion().bytes());
+        }
+    }
     hasher.update([match target.architecture {
         Architecture::Aarch64 => 0,
         Architecture::X86_64 => 1,
@@ -656,6 +962,7 @@ fn layout_identity(
                         hasher.update(branch.when_zero_block.0.to_le_bytes());
                         hasher.update(branch.when_zero_offset.to_le_bytes());
                         hasher.update(branch.byte_displacement.to_le_bytes());
+                        encode_views(&mut hasher, &branch.decoded_register_reads);
                         encode_effects(&mut hasher, &branch.decoded_effects);
                     }
                 }
@@ -663,6 +970,13 @@ fn layout_identity(
         }
     }
     TerminalResolvedSelectedFormLayoutIdentity(hasher.finalize().into())
+}
+
+fn encode_views(hasher: &mut Sha256, values: &[omega_register_model::RegisterViewId]) {
+    hasher.update((values.len() as u64).to_le_bytes());
+    for value in values {
+        hasher.update(value.0.to_le_bytes());
+    }
 }
 
 fn encode_alternative(hasher: &mut Sha256, alternative: TerminalMachineAlternativeKey) {
