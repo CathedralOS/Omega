@@ -696,7 +696,7 @@ fn compile_to_checked_inner_with_replay(
             selected_provider_plans,
         )?;
     if package_inputs.is_some() {
-        crate::pipeline::trust_lockfile::reject_package_non_provider_grants(
+        omega_trust_ledger::reject_package_non_provider_grants(
             &typed,
             &build_config.grants,
             &provider_plans,

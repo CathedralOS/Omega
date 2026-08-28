@@ -242,8 +242,8 @@ impl LegacyDriver {
                 selected_provider_plans.clone(),
             )
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let prepared_trust_lock = crate::pipeline::trust_lockfile::prepare_trust_lockfile(
-            &self.options,
+        let prepared_trust_lock = omega_trust_ledger::prepare_trust_lockfile(
+            &self.options.root_path,
             &typed,
             &build_config.grants,
             &provider_plans,
@@ -284,10 +284,7 @@ impl LegacyDriver {
                 &boundary_calling_plan_realizations,
             )?,
         );
-        crate::pipeline::trust_lockfile::enforce_trust_lockfile(
-            prepared_trust_lock,
-            checked.program.as_ref(),
-        )?;
+        omega_trust_ledger::enforce_trust_lockfile(prepared_trust_lock, checked.program.as_ref())?;
         let executable_tcb_installation_authorization =
             settle_compiler_executable_tcb_installation(
                 &mut checked,
@@ -310,8 +307,8 @@ impl LegacyDriver {
                 entry_machine_name.as_deref(),
             )?
             .map(Arc::new);
-        crate::pipeline::trust_report::write_trust_report(
-            &self.options,
+        omega_trust_ledger::write_trust_report(
+            &self.options.build_dir(),
             &checked.program,
             &build_config.grants,
             &provider_plans,

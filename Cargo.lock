@@ -591,6 +591,7 @@ dependencies = [
  "omega-terminal-psi-to-abstract-operations",
  "omega-terminal-target-operations",
  "omega-terminal-target-operations-to-assigned-target-operations",
+ "omega-trust-ledger",
  "omega-visualizations",
  "psi-access-plans",
  "psi-arena",
@@ -1931,6 +1932,22 @@ dependencies = [
  "omega-terminal-target-operations",
  "psi-core",
  "psi-terminal",
+]
+
+[[package]]
+name = "omega-trust-ledger"
+version = "0.1.0"
+dependencies = [
+ "omega-artifacts",
+ "omega-effects",
+ "omega-target",
+ "psi-checked-trees",
+ "psi-core",
+ "psi-diagnostics",
+ "psi-language-semantics",
+ "psi-symbols",
+ "psi-typed-trees",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]

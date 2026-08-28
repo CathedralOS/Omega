@@ -504,6 +504,32 @@ fn source_profile_analysis_is_not_owned_by_the_compiler() {
 }
 
 #[test]
+fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler/src");
+    let owner = root.join("source/omega-rust/omega/orchestration/omega-trust-ledger/src/lib.rs");
+
+    assert!(
+        owner.is_file(),
+        "omega-trust-ledger must own trust receipts and reports"
+    );
+    assert!(
+        !compiler.join("pipeline/trust/lockfile.rs").exists()
+            && !compiler.join("pipeline/trust/report.rs").exists(),
+        "omega-compiler must not retain trust-ledger implementations"
+    );
+
+    let public_api = std::fs::read_to_string(compiler.join("public_api.rs"))
+        .expect("read omega-compiler public API");
+    assert!(
+        !public_api.contains("PreparedTrustLock")
+            && !public_api.contains("write_trust_report")
+            && !public_api.contains("AcceptedTemplateClassifications"),
+        "omega-compiler must not compatibility-reexport trust-ledger ownership"
+    );
+}
+
+#[test]
 fn package_review_is_not_owned_or_reexported_by_the_compiler() {
     let root = workspace_root();
     let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");

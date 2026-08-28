@@ -79,10 +79,6 @@ mod terminal_component_driver;
 #[path = "terminal/native_artifact.rs"]
 mod terminal_native_artifact;
 mod timing;
-#[path = "trust/lockfile.rs"]
-mod trust_lockfile;
-#[path = "trust/report.rs"]
-mod trust_report;
 mod wire_report;
 
 pub(crate) use crate::compiler::{

@@ -5,7 +5,6 @@
 //! dev-active provenance; the latter carries a standing warning. Domains are
 //! semantic declarations, not grantable trust-report subjects.
 
-use crate::compiler::CompileOptions;
 use omega_artifacts::{
     ArtifactWriter, TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard,
     TrustGenericAcceptedInstanceRow, TrustProgressPremiseRow, TrustProgressPremiseSubject,
@@ -14,19 +13,19 @@ use omega_artifacts::{
 };
 use psi_diagnostics::Diagnostic;
 
-pub(super) fn write_trust_report(
-    options: &CompileOptions,
+pub fn write_trust_report(
+    build_dir: &std::path::Path,
     checked: &psi_checked_trees::CheckedTrees,
     root_grants: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
-    accepted_template_classifications: &super::stages::AcceptedTemplateClassifications,
+    accepted_template_classifications: &crate::AcceptedTemplateClassifications,
     emit_auxiliary_artifacts: bool,
 ) -> Result<(), Vec<Diagnostic>> {
     let typed = &checked.typed;
     let mut report = TrustReport::default();
     report.selected_provider_closure_fingerprint = selected_provider_plans.normalized_identity();
-    let provider_grants = crate::pipeline::provider_plans::resolve_selected_provider_grants(
+    let provider_grants = crate::resolve_selected_provider_grants(
         provider_plans,
         selected_provider_plans,
         root_grants,
@@ -42,7 +41,7 @@ pub(super) fn write_trust_report(
         }
         non_provider_grants.push((
             grant.as_str(),
-            crate::pipeline::trust_lockfile::resolve_non_provider_trust_grant(typed, grant)
+            crate::lockfile::resolve_non_provider_trust_grant(typed, grant)
                 .map_err(|diagnostic| vec![diagnostic])?,
         ));
     }
@@ -253,10 +252,7 @@ pub(super) fn write_trust_report(
             continue;
         }
         let granted = non_provider_grants.iter().any(|(_, subject)| {
-            *subject
-                == crate::pipeline::trust_lockfile::NonProviderTrustGrant::AcceptedMachine(
-                    machine.symbol,
-                )
+            *subject == crate::lockfile::NonProviderTrustGrant::AcceptedMachine(machine.symbol)
         });
         let contract = exact_machine_contract_plan(
             checked,
@@ -335,8 +331,7 @@ pub(super) fn write_trust_report(
     }
 
     if emit_auxiliary_artifacts {
-        let writer =
-            ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
+        let writer = ArtifactWriter::new(build_dir).map_err(|diagnostic| vec![diagnostic])?;
         writer
             .write_trust_report(&report)
             .map_err(|diagnostic| vec![diagnostic])?;
