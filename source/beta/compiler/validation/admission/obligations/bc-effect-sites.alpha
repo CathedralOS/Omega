@@ -635,14 +635,7 @@ validate_source_write:
         add r1, r14
         loadb r2, r1
         imm r3, 18
-        jeq r2, r3, validate_source_write_reg
-        jmp reject
-validate_source_write_reg:
-        imm r2, 1
-        add r1, r2
-        loadb r2, r1
-        imm r3, 0
-        jeq r2, r3, validate_event_owned
+        jeq r2, r3, validate_source_read_reg
         jmp reject
 
 validate_source_return:

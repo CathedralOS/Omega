@@ -984,13 +984,7 @@ guarded_jump:
         add r1, r2
         loadb r2, r1
         imm r3, 12
-        jeq r2, r3, guarded_jump_target
-        jmp reject
-guarded_jump_target:
-        imm r2, 1
-        add r1, r2
-        load r2, r1
-        jeq r2, r15, transition_ok
+        jeq r2, r3, plain_target
         jmp reject
 
 transition_ok:

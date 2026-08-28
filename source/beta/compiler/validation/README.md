@@ -107,8 +107,8 @@ same memory-owner rejoins for its complete memory family. The synthesized
 `__write_str` helper resolves from the exact main-prelude successor and mapper
 cell; effect custody owns its sole exhaustive body check, while event and
 summary consumers use its returned relative sites. The final ROOT tape is
-82,804 bytes for the current exact subjects, SHA-256
-`d44905ff9d1fd63ffc1649e756f39402af00c649edfe185a6f4fdcf0129bb404`.
+82,695 bytes for the current exact subjects, SHA-256
+`73c5cbcba706f02a0f4fa6877ff9f1a50325ff4ef740f81a3d39a462114eec80`.
 `gen_emit`'s three identical newline events now use checker-owned exact
 cardinality and lexical occurrence rather than source rows. An eighth control
 swaps the first two valid witness PCs and is rejected by the label-emitter
@@ -187,6 +187,12 @@ share the exact cell-increment primitive already provided by the canonical
 shape-helper module. Nineteen calls retain their owner-local counter addresses
 while three byte-identical private routines are gone; no table or theorem moved
 between those responsibilities.
+
+Four owner-local control tails are similarly singular: memory-site and
+non-site paths share cursor restoration, read/write events share their checked
+register-zero operand, plain/guarded jumps share the decoded target-word
+comparison, and `imm`/`read` share one-destination register custody. Opcode and
+semantic classification remain distinct before each join.
 
 The whole-artifact frame summary retains one canonical per-PC reachability,
 relative-depth, frame-kind, and saved-frame product. Ranged-store transfer
