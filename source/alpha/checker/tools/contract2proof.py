@@ -4,7 +4,7 @@
 # the certificate. This is the source-contract half of proof-carrying Omega (omega's obligations/
 # contracts concept): `machine M(params) requires R ensures E {}` asserts `∀params. R... -> E...`.
 #
-# Reads samples/math_proofs/main.omg on stdin; prints `NAME<TAB>PROP` per machine for the fragment it
+# Reads the shared math_proofs input on stdin; prints `NAME<TAB>PROP` per machine for the fragment it
 # covers (equalities and </<=/!= over + * and nat-literals), or `NAME<TAB>UNSUPPORTED: <reason>` (ranges
 # `in a..=b`, `Bag(..)` permutations — future). Params are de Bruijn `(v i)` under the ∀-prefix; requires
 # are antecedents; nat literals expand to s-numerals; + -> (p ..), * -> (m ..), < -> Lt, <= -> Le,

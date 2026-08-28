@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
-# CONTRACT DISCHARGE (omega source), AUTOMATED — the requires/ensures of samples/math_proofs are proof
+# CONTRACT DISCHARGE (omega source), AUTOMATED — the requires/ensures of the
+# shared math_proofs input are proof
 # obligations; this gate discharges the arithmetic-and-ordering fragment with a kernel certificate the
 # PROVER generates and ALL THREE independent checkers verify.
 #
@@ -36,7 +37,7 @@ b() { "$T/bc.exe" < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x
 stamp_proof_checker "$T/check.exe" >/dev/null || { echo "checker artifact unavailable"; exit 1; }
 b "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "math-contracts FAIL — build interp.beta"; exit 1; }
 DEFS=$(cat "${OMEGA_PATH_ALPHA_CHECKER}"/implementations/gamma/checker.gamma)
-SRC="${OMEGA_PATH_CORPUS}"/math_corpus/proofs/main.omg
+SRC="${OMEGA_PATH_LATTICE_CORPUS}"/math_proofs/main.omg
 
 gverdict() {
   gg=$(python3 tools/prover.py --gamma "$1" 30 2>/dev/null)
