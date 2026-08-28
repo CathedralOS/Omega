@@ -2151,7 +2151,41 @@ mod tests {
                 .iter()
                 .map(|record| record.provenance.len())
                 .collect::<Vec<_>>(),
-            [6, 6]
+            [5, 6]
+        );
+        let retained_outgoing_edge = omega_optimization_unit::PsiRealizationSite::Edge {
+            machine: MachineId::new(1_501).unwrap(),
+            edge: EdgeId::new(1_517).unwrap(),
+        };
+        assert!(
+            optimized.transformation_ledger().records()[0]
+                .provenance
+                .iter()
+                .all(|row| row.input != retained_outgoing_edge)
+        );
+        let outgoing_edge_rewrites = optimized.transformation_ledger().records()[1]
+            .provenance
+            .iter()
+            .filter(|row| row.input == retained_outgoing_edge)
+            .collect::<Vec<_>>();
+        assert_eq!(outgoing_edge_rewrites.len(), 1);
+        assert_eq!(
+            outgoing_edge_rewrites[0].sources,
+            [omega_optimization_unit::PsiProvenance::Edge(
+                EdgeId::new(1_517).unwrap()
+            )]
+        );
+        assert_eq!(
+            outgoing_edge_rewrites[0].disposition,
+            omega_optimization_unit::ProvenanceDisposition::RealizedAt(
+                omega_optimization_unit::PsiRealizationSite::Node(
+                    omega_optimization_unit::NodeLocation {
+                        machine: MachineId::new(1_501).unwrap(),
+                        block: BlockId::new(1_506).unwrap(),
+                        node: 2,
+                    }
+                )
+            )
         );
         assert!(
             optimized
