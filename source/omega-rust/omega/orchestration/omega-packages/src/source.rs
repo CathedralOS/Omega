@@ -4,12 +4,15 @@ use crate::identity::{
 use crate::record_file::{RecordFileLimits, RecordFileRoot};
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(unix)]
-use cap_std::fs::OpenOptionsExt as CapabilityOpenOptionsExt;
+use cap_std::fs::{
+    DirBuilderExt as CapabilityDirBuilderExt, OpenOptionsExt as CapabilityOpenOptionsExt,
+    PermissionsExt as CapabilityPermissionsExt,
+};
 use cap_std::{
     ambient_authority,
     fs::{
-        Dir as CapabilityDirectory, Metadata as CapabilityMetadata,
-        OpenOptions as CapabilityOpenOptions,
+        Dir as CapabilityDirectory, DirBuilder as CapabilityDirBuilder,
+        Metadata as CapabilityMetadata, OpenOptions as CapabilityOpenOptions,
     },
 };
 use command_group::{CommandGroup, GroupChild};
@@ -875,34 +878,64 @@ pub fn resolve_git_source(
             git_cache_identity(locator_identity, requested_rev, execution_transport);
         let entry_root = cache_dir.join(format!("git-{cache_identity}"));
         let lock_path = cache_dir.join(format!("git-{cache_identity}.lock"));
-        let _entry_lock = CacheEntryLock::acquire_with_git_budget(&lock_path, &executor)?;
-        let cache_entry_existed = entry_root.exists();
+        let entry_lock = CacheEntryLock::acquire_with_git_budget(&lock_path, &executor)?;
+        let entry_name =
+            direct_cache_child_name(CacheCustodyKind::Git, &cache_dir, &entry_root)?.to_os_string();
+        let cache_entry_existed = retained_cache_directory_exists(
+            CacheCustodyKind::Git,
+            entry_lock.parent(),
+            &entry_name,
+            &entry_root,
+        )?;
+        entry_lock.verify_path_identity()?;
 
         if cache_entry_existed {
-            if let Err(error) = verify_git_cache_entry(
+            let verification_result = verify_git_cache_entry(
                 &entry_root,
                 locator_identity,
                 requested_rev,
                 execution_transport,
                 limits,
-            ) {
-                invalidate_git_cache_entry(&entry_root);
-                return Err(error);
+            );
+            let namespace_result = entry_lock.verify_path_identity();
+            if verification_result.is_err() || namespace_result.is_err() {
+                let invalidation_result = invalidate_git_cache_entry_from_open_parent(
+                    &cache_dir,
+                    entry_lock.parent(),
+                    &entry_name,
+                    &entry_root,
+                );
+                let failure = reconcile_git_cache_operation_result(
+                    verification_result,
+                    namespace_result,
+                    Some(invalidation_result),
+                );
+                return Err(failure
+                    .err()
+                    .expect("failed cache verification must retain one failure"));
             }
         } else {
-            create_git_cache_entry(
+            let creation_result = create_git_cache_entry(
                 &executor,
                 &cache_dir,
+                entry_lock.parent(),
                 &entry_root,
+                &entry_name,
                 &cache_identity,
                 locator_identity,
                 request.fetch_locator(),
                 requested_rev,
                 execution_transport,
                 limits,
+            );
+            reconcile_git_cache_operation_result(
+                creation_result,
+                entry_lock.verify_path_identity(),
+                None,
             )?;
         }
 
+        entry_lock.verify_path_identity()?;
         let result = resolve_verified_git_cache_entry(
             &executor,
             &entry_root,
@@ -914,15 +947,26 @@ pub fn resolve_git_source(
             limits,
             !cache_entry_existed || !is_object_id(requested_rev),
         );
+        let namespace_result = entry_lock.verify_path_identity();
         match result {
             Ok(resolved) => {
+                namespace_result?;
                 verify_git_cache_root_custody(&cache_dir)?;
                 verify_git_cache_custody(&entry_root, limits)?;
                 Ok(resolved)
             }
             Err(error) => {
-                invalidate_git_cache_entry(&entry_root);
-                Err(error)
+                let invalidation_result = invalidate_git_cache_entry_from_open_parent(
+                    &cache_dir,
+                    entry_lock.parent(),
+                    &entry_name,
+                    &entry_root,
+                );
+                reconcile_git_cache_operation_result(
+                    Err(error),
+                    namespace_result,
+                    Some(invalidation_result),
+                )
             }
         }
     })();
@@ -3174,7 +3218,9 @@ fn make_tree_owner_writable(root: &Path) {
 fn create_git_cache_entry(
     executor: &GitExecutor,
     cache_dir: &Path,
+    cache_directory: &CapabilityDirectory,
     entry_root: &Path,
+    entry_name: &OsStr,
     cache_identity: &str,
     locator_identity: &str,
     fetch_locator: &str,
@@ -3182,12 +3228,18 @@ fn create_git_cache_entry(
     execution_transport: GitExecutionTransport,
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
-    let mut pending = PendingCacheEntry::create(cache_dir, cache_identity)?;
+    let mut pending = PendingCacheEntry::create(cache_dir, cache_directory, cache_identity)?;
     let repository = pending.root.join(GIT_CACHE_REPOSITORY);
     let empty_template = pending.root.join("empty-template");
-    std::fs::create_dir(&empty_template).map_err(|error| io_error(&empty_template, error))?;
-    let object_format =
-        discover_git_object_format(executor, &pending.root, fetch_locator, requested_rev)?;
+    pending.create_private_directory("empty-template", &empty_template)?;
+    pending.verify_ambient_path_identity(cache_dir)?;
+    let object_format_result =
+        discover_git_object_format(executor, &pending.root, fetch_locator, requested_rev);
+    let object_format = reconcile_git_cache_operation_result(
+        object_format_result,
+        pending.verify_ambient_path_identity(cache_dir),
+        None,
+    )?;
     let mut init_arguments = vec![
         OsString::from("init"),
         OsString::from("--quiet"),
@@ -3199,21 +3251,54 @@ fn create_git_cache_entry(
     init_arguments.push(OsString::from("--template"));
     init_arguments.push(empty_template.as_os_str().to_owned());
     init_arguments.push(repository.as_os_str().to_owned());
-    run_git(executor, &pending.root, init_arguments.iter())?;
+    pending.verify_ambient_path_identity(cache_dir)?;
+    let init_result = run_git(executor, &pending.root, init_arguments.iter());
+    reconcile_git_cache_operation_result(
+        init_result,
+        pending.verify_ambient_path_identity(cache_dir),
+        None,
+    )?;
     let config_path = repository.join("config");
     let canonical_config = match object_format {
         GitObjectIdAlgorithm::Sha1 => GIT_CONFIG_SHA1,
         GitObjectIdAlgorithm::Sha256 => GIT_CONFIG_SHA256,
     };
-    replace_canonical_git_control_file(&repository, &config_path, canonical_config)?;
-    std::fs::remove_dir(&empty_template).map_err(|error| io_error(&empty_template, error))?;
+    pending.verify_ambient_path_identity(cache_dir)?;
+    let config_result =
+        replace_canonical_git_control_file(&repository, &config_path, canonical_config);
+    reconcile_git_cache_operation_result(
+        config_result,
+        pending.verify_ambient_path_identity(cache_dir),
+        None,
+    )?;
+    pending
+        .directory()?
+        .remove_dir("empty-template")
+        .map_err(|error| io_error(&empty_template, error))?;
 
     let metadata_path = pending.root.join(GIT_CACHE_METADATA);
-    let mut metadata = OpenOptions::new()
+    let mut metadata_options = CapabilityOpenOptions::new();
+    metadata_options
         .write(true)
         .create_new(true)
-        .open(&metadata_path)
+        .follow(FollowSymlinks::No);
+    #[cfg(unix)]
+    metadata_options.mode(0o600);
+    let mut metadata = pending
+        .directory()?
+        .open_with(GIT_CACHE_METADATA, &metadata_options)
         .map_err(|error| io_error(&metadata_path, error))?;
+    #[cfg(unix)]
+    {
+        let mut permissions = metadata
+            .metadata()
+            .map_err(|error| io_error(&metadata_path, error))?
+            .permissions();
+        permissions.set_mode(0o600);
+        metadata
+            .set_permissions(permissions)
+            .map_err(|error| io_error(&metadata_path, error))?;
+    }
     metadata
         .write_all(&git_cache_metadata(
             locator_identity,
@@ -3224,16 +3309,40 @@ fn create_git_cache_entry(
     metadata
         .sync_all()
         .map_err(|error| io_error(&metadata_path, error))?;
+    let metadata_custody = metadata
+        .metadata()
+        .map_err(|error| io_error(&metadata_path, error))?;
+    verify_capability_cache_node_owner_and_mode(
+        CacheCustodyKind::Git,
+        &metadata_path,
+        &metadata_custody,
+    )?;
+    #[cfg(unix)]
+    {
+        use cap_fs_ext::OsMetadataExt;
 
-    verify_git_cache_entry(
+        if metadata_custody.mode() & 0o777 != 0o600 {
+            return Err(cache_invalid(
+                &metadata_path,
+                "resolver metadata does not have exact private mode 0600",
+            ));
+        }
+    }
+
+    pending.verify_ambient_path_identity(cache_dir)?;
+    let verification_result = verify_git_cache_entry(
         &pending.root,
         locator_identity,
         requested_rev,
         execution_transport,
         limits,
+    );
+    reconcile_git_cache_operation_result(
+        verification_result,
+        pending.verify_ambient_path_identity(cache_dir),
+        None,
     )?;
-    publish_cache_directory(CacheCustodyKind::Git, cache_dir, &pending.root, entry_root)?;
-    pending.published = true;
+    pending.publish(cache_dir, entry_root, entry_name)?;
     Ok(())
 }
 
@@ -3357,10 +3466,7 @@ fn verify_git_cache_entry(
     Ok(())
 }
 
-fn invalidate_git_cache_entry(entry_root: &Path) {
-    let _ = invalidate_git_cache_entry_from_retained_parent(entry_root);
-}
-
+#[cfg(test)]
 fn invalidate_git_cache_entry_from_retained_parent(
     entry_root: &Path,
 ) -> Result<(), SourceResolveError> {
@@ -3371,6 +3477,20 @@ fn invalidate_git_cache_entry_from_retained_parent(
     let cache_directory = open_absolute_directory_nofollow(cache_root)
         .map_err(|error| cache_invalid(cache_root, error.to_string()))?;
     let entry_name = direct_cache_child_name(CacheCustodyKind::Git, cache_root, entry_root)?;
+    invalidate_git_cache_entry_from_open_parent(
+        cache_root,
+        &cache_directory,
+        entry_name,
+        entry_root,
+    )
+}
+
+fn invalidate_git_cache_entry_from_open_parent(
+    cache_root: &Path,
+    cache_directory: &CapabilityDirectory,
+    entry_name: &OsStr,
+    entry_root: &Path,
+) -> Result<(), SourceResolveError> {
     let classified = cache_directory
         .symlink_metadata(entry_name)
         .map_err(|error| io_error(entry_root, error))?;
@@ -3394,7 +3514,13 @@ fn invalidate_git_cache_entry_from_retained_parent(
     }
     entry_directory
         .remove_file(GIT_CACHE_METADATA)
-        .map_err(|error| io_error(&entry_root.join(GIT_CACHE_METADATA), error))
+        .map_err(|error| io_error(&entry_root.join(GIT_CACHE_METADATA), error))?;
+    cache_directory
+        .try_clone()
+        .map_err(|error| io_error(cache_root, error))?
+        .into_std_file()
+        .sync_all()
+        .map_err(|error| io_error(cache_root, error))
 }
 
 fn git_cache_identity(
@@ -3739,6 +3865,7 @@ fn cache_custody_has_capacity(observed: usize, pending: usize) -> bool {
         .is_some_and(|retained| retained < CACHE_CUSTODY_ENTRY_LIMIT)
 }
 
+#[cfg(test)]
 fn publish_cache_directory(
     kind: CacheCustodyKind,
     parent: &Path,
@@ -3784,6 +3911,22 @@ fn direct_cache_child_name<'a>(
         }
     };
     Ok(name)
+}
+
+fn retained_cache_directory_exists(
+    kind: CacheCustodyKind,
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    path: &Path,
+) -> Result<bool, SourceResolveError> {
+    match parent.symlink_metadata(name) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => Err(
+            cache_custody_invalid(kind, path, "cache entry is not a concrete directory"),
+        ),
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(io_error(path, error)),
+    }
 }
 
 fn publish_cache_directory_from_open_parent(
@@ -4128,7 +4271,10 @@ fn verify_macos_cache_link_extended_acl_custody(
 
 struct CacheEntryLock {
     file: File,
-    _parent: CapabilityDirectory,
+    parent: CapabilityDirectory,
+    kind: CacheCustodyKind,
+    path: PathBuf,
+    lock_name: OsString,
 }
 
 impl CacheEntryLock {
@@ -4213,7 +4359,10 @@ impl CacheEntryLock {
         verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &parent, &lock_name, &file)?;
         Ok(Self {
             file,
-            _parent: parent,
+            parent,
+            kind: CacheCustodyKind::Git,
+            path: path.to_path_buf(),
+            lock_name,
         })
     }
 
@@ -4224,7 +4373,10 @@ impl CacheEntryLock {
         verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &parent, &lock_name, &file)?;
         Ok(Self {
             file,
-            _parent: parent,
+            parent,
+            kind: CacheCustodyKind::Git,
+            path: path.to_path_buf(),
+            lock_name,
         })
     }
 
@@ -4268,8 +4420,25 @@ impl CacheEntryLock {
         )?;
         Ok(Self {
             file,
-            _parent: parent,
+            parent,
+            kind: CacheCustodyKind::LocalSnapshot,
+            path: path.to_path_buf(),
+            lock_name,
         })
+    }
+
+    fn parent(&self) -> &CapabilityDirectory {
+        &self.parent
+    }
+
+    fn verify_path_identity(&self) -> Result<(), SourceResolveError> {
+        verify_cache_lock_path_identity(
+            self.kind,
+            &self.path,
+            &self.parent,
+            &self.lock_name,
+            &self.file,
+        )
     }
 }
 
@@ -4313,10 +4482,18 @@ fn verify_cache_lock_path_identity(
     let parent_path = path
         .parent()
         .ok_or_else(|| cache_custody_invalid(kind, path, "cache lock has no publication parent"))?;
+    verify_retained_cache_parent_path(kind, parent_path, parent)
+}
+
+fn verify_retained_cache_parent_path(
+    kind: CacheCustodyKind,
+    parent_path: &Path,
+    retained_parent: &CapabilityDirectory,
+) -> Result<(), SourceResolveError> {
     verify_cache_custody_root(parent_path, kind)?;
     let current_parent = open_absolute_directory_nofollow(parent_path)
         .map_err(|error| cache_custody_invalid(kind, parent_path, error.to_string()))?;
-    let retained_metadata = parent
+    let retained_metadata = retained_parent
         .dir_metadata()
         .map_err(|error| io_error(parent_path, error))?;
     let current_metadata = current_parent
@@ -4326,7 +4503,7 @@ fn verify_cache_lock_path_identity(
         return Err(cache_custody_invalid(
             kind,
             parent_path,
-            "cache lock parent pathname no longer identifies the retained directory",
+            "cache parent pathname no longer identifies the retained directory",
         ));
     }
     Ok(())
@@ -4368,21 +4545,43 @@ impl Drop for CacheEntryLock {
 
 struct PendingCacheEntry {
     root: PathBuf,
+    parent: CapabilityDirectory,
+    directory: Option<CapabilityDirectory>,
+    stage_name: OsString,
     published: bool,
 }
 
 impl PendingCacheEntry {
-    fn create(cache_dir: &Path, cache_identity: &str) -> Result<Self, SourceResolveError> {
+    fn create(
+        cache_dir: &Path,
+        cache_directory: &CapabilityDirectory,
+        cache_identity: &str,
+    ) -> Result<Self, SourceResolveError> {
+        let parent = cache_directory
+            .try_clone()
+            .map_err(|error| io_error(cache_dir, error))?;
         for _ in 0..128 {
             let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-            let root = cache_dir.join(format!(
+            let stage_name = OsString::from(format!(
                 ".git-{cache_identity}.stage-{}-{sequence}",
                 std::process::id()
             ));
-            match std::fs::create_dir(&root) {
+            let root = cache_dir.join(&stage_name);
+            match create_private_cache_directory(&parent, &stage_name) {
                 Ok(()) => {
+                    let provisional = ProvisionalCacheDirectory::new(&parent, &stage_name);
+                    let directory = retain_private_cache_directory(
+                        CacheCustodyKind::Git,
+                        &parent,
+                        &stage_name,
+                        &root,
+                    )?;
+                    provisional.disarm();
                     return Ok(Self {
                         root,
+                        parent,
+                        directory: Some(directory),
+                        stage_name,
                         published: false,
                     });
                 }
@@ -4395,14 +4594,190 @@ impl PendingCacheEntry {
             "could not allocate a unique Git cache staging directory",
         ))
     }
+
+    fn directory(&self) -> Result<&CapabilityDirectory, SourceResolveError> {
+        self.directory
+            .as_ref()
+            .ok_or_else(|| cache_invalid(&self.root, "Git cache stage handle is absent"))
+    }
+
+    fn create_private_directory(&self, name: &str, path: &Path) -> Result<(), SourceResolveError> {
+        let directory = self.directory()?;
+        create_private_cache_directory(directory, name).map_err(|error| io_error(path, error))?;
+        let provisional = ProvisionalCacheDirectory::new(directory, OsStr::new(name));
+        retain_private_cache_directory(CacheCustodyKind::Git, directory, OsStr::new(name), path)?;
+        provisional.disarm();
+        Ok(())
+    }
+
+    fn verify_path_identity(&self) -> Result<CapabilityMetadata, SourceResolveError> {
+        let retained = self
+            .directory()?
+            .dir_metadata()
+            .map_err(|error| io_error(&self.root, error))?;
+        let named = self
+            .parent
+            .symlink_metadata(&self.stage_name)
+            .map_err(|error| io_error(&self.root, error))?;
+        if !named.is_dir() || !same_capability_file_identity(&retained, &named) {
+            return Err(cache_invalid(
+                &self.root,
+                "Git cache stage pathname no longer identifies the retained directory",
+            ));
+        }
+        Ok(retained)
+    }
+
+    fn verify_parent_path_identity(&self, cache_dir: &Path) -> Result<(), SourceResolveError> {
+        verify_retained_cache_parent_path(CacheCustodyKind::Git, cache_dir, &self.parent)
+    }
+
+    fn verify_ambient_path_identity(&self, cache_dir: &Path) -> Result<(), SourceResolveError> {
+        self.verify_parent_path_identity(cache_dir)?;
+        self.verify_path_identity().map(|_| ())
+    }
+
+    fn publish(
+        &mut self,
+        cache_dir: &Path,
+        entry_root: &Path,
+        entry_name: &OsStr,
+    ) -> Result<(), SourceResolveError> {
+        let retained = self.verify_path_identity()?;
+        publish_cache_directory_from_open_parent(
+            CacheCustodyKind::Git,
+            cache_dir,
+            &self.parent,
+            &self.stage_name,
+            entry_name,
+            Some(&retained),
+        )?;
+        let published = self
+            .parent
+            .symlink_metadata(entry_name)
+            .map_err(|error| io_error(entry_root, error))?;
+        if !same_capability_file_identity(&retained, &published) {
+            return Err(cache_invalid(
+                entry_root,
+                "published Git cache entry does not identify the retained stage",
+            ));
+        }
+        self.published = true;
+        Ok(())
+    }
+}
+
+struct ProvisionalCacheDirectory<'a> {
+    parent: &'a CapabilityDirectory,
+    name: &'a OsStr,
+    armed: bool,
+}
+
+impl<'a> ProvisionalCacheDirectory<'a> {
+    fn new(parent: &'a CapabilityDirectory, name: &'a OsStr) -> Self {
+        Self {
+            parent,
+            name,
+            armed: true,
+        }
+    }
+
+    fn disarm(mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for ProvisionalCacheDirectory<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = self.parent.remove_dir_all(self.name);
+        }
+    }
 }
 
 impl Drop for PendingCacheEntry {
     fn drop(&mut self) {
-        if !self.published {
-            let _ = std::fs::remove_dir_all(&self.root);
+        if !self.published
+            && let Some(directory) = self.directory.take()
+        {
+            make_open_tree_owner_writable(&directory);
+            let _ = directory.remove_open_dir_all();
         }
     }
+}
+
+fn create_private_cache_directory(
+    parent: &CapabilityDirectory,
+    name: impl AsRef<Path>,
+) -> std::io::Result<()> {
+    #[cfg(not(target_os = "wasi"))]
+    {
+        let mut builder = CapabilityDirBuilder::new();
+        #[cfg(unix)]
+        builder.mode(0o700);
+        parent.create_dir_with(name, &builder)
+    }
+    #[cfg(target_os = "wasi")]
+    {
+        parent.create_dir(name)
+    }
+}
+
+fn retain_private_cache_directory(
+    kind: CacheCustodyKind,
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    path: &Path,
+) -> Result<CapabilityDirectory, SourceResolveError> {
+    let classified = parent
+        .symlink_metadata(name)
+        .map_err(|error| io_error(path, error))?;
+    let directory = parent
+        .open_dir_nofollow(name)
+        .map_err(|error| cache_custody_invalid(kind, path, error.to_string()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        directory
+            .try_clone()
+            .map_err(|error| io_error(path, error))?
+            .into_std_file()
+            .set_permissions(std::fs::Permissions::from_mode(0o700))
+            .map_err(|error| io_error(path, error))?;
+    }
+    let opened = directory
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    if !classified.is_dir() || !same_capability_file_identity(&classified, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "private cache directory changed while being retained",
+        ));
+    }
+    verify_capability_cache_node_owner_and_mode(kind, path, &opened)?;
+    #[cfg(unix)]
+    {
+        use cap_fs_ext::OsMetadataExt;
+
+        if opened.mode() & 0o777 != 0o700 {
+            return Err(cache_custody_invalid(
+                kind,
+                path,
+                "private cache directory does not have exact mode 0700",
+            ));
+        }
+    }
+    verify_macos_open_cache_extended_acl_custody(
+        kind,
+        path,
+        &directory
+            .try_clone()
+            .map_err(|error| io_error(path, error))?
+            .into_std_file(),
+    )?;
+    Ok(directory)
 }
 
 #[derive(Debug)]
@@ -6017,6 +6392,20 @@ fn reconcile_git_command_result<T>(
         (_, _, Err(error)) => Err(error),
         (result, Ok(()), Ok(())) => result,
     }
+}
+
+fn reconcile_git_cache_operation_result<T>(
+    operation_result: Result<T, SourceResolveError>,
+    namespace_result: Result<(), SourceResolveError>,
+    invalidation_result: Option<Result<(), SourceResolveError>>,
+) -> Result<T, SourceResolveError> {
+    if let Err(error) = namespace_result {
+        return Err(error);
+    }
+    if let Some(Err(error)) = invalidation_result {
+        return Err(error);
+    }
+    operation_result
 }
 
 #[derive(Debug)]
@@ -8467,10 +8856,15 @@ mod tests {
             execution_transport,
         );
         let entry_root = canonical_cache.join(format!("git-{cache_identity}"));
+        let cache_directory =
+            open_absolute_directory_nofollow(&canonical_cache).expect("retain resolver cache");
+        let entry_name = entry_root.file_name().expect("cache entry has a name");
         create_git_cache_entry(
             &executor,
             &canonical_cache,
+            &cache_directory,
             &entry_root,
+            entry_name,
             &cache_identity,
             request.locator_identity(),
             request.fetch_locator(),
@@ -9167,6 +9561,91 @@ mod tests {
     }
 
     #[test]
+    fn cache_namespace_and_invalidation_failures_outrank_operation_failure() {
+        let operation = Err::<(), _>(SourceResolveError::Git {
+            operation: "test".to_owned(),
+            status: Some(1),
+            stderr: "operation failed".to_owned(),
+        });
+        let namespace = Err(cache_invalid(
+            Path::new("cache"),
+            "namespace reconciliation failed",
+        ));
+        let error = reconcile_git_cache_operation_result(operation, namespace, None)
+            .expect_err("namespace custody must outrank operation failure");
+        assert!(matches!(
+            error,
+            SourceResolveError::GitCacheInvalid { message, .. }
+                if message.contains("namespace reconciliation")
+        ));
+
+        let operation = Err::<(), _>(SourceResolveError::Git {
+            operation: "test".to_owned(),
+            status: Some(1),
+            stderr: "operation failed".to_owned(),
+        });
+        let invalidation = Err(cache_invalid(
+            Path::new("cache"),
+            "invalidation synchronization failed",
+        ));
+        let error = reconcile_git_cache_operation_result(operation, Ok(()), Some(invalidation))
+            .expect_err("invalidation custody must outrank operation failure");
+        assert!(matches!(
+            error,
+            SourceResolveError::GitCacheInvalid { message, .. }
+                if message.contains("invalidation synchronization")
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failed_operation_still_reconciles_the_retained_lock_parent() {
+        let cache = temp_root("git-failed-operation-parent-reconciliation");
+        let retained = cache.with_extension("retained");
+        std::fs::create_dir_all(&cache).expect("create cache parent");
+        let cache = cache.canonicalize().expect("canonicalize cache parent");
+        let lock_path = cache.join("entry.lock");
+        let lock = CacheEntryLock::acquire(&lock_path).expect("acquire retained cache lock");
+
+        std::fs::rename(&cache, &retained).expect("replace retained cache parent path");
+        std::fs::create_dir(&cache).expect("create replacement cache parent");
+        let operation = Err::<(), _>(SourceResolveError::Git {
+            operation: "test".to_owned(),
+            status: Some(1),
+            stderr: "native operation failed".to_owned(),
+        });
+        let error =
+            reconcile_git_cache_operation_result(operation, lock.verify_path_identity(), None)
+                .expect_err("post-operation namespace reconciliation must still run");
+
+        assert!(matches!(
+            error,
+            SourceResolveError::GitCacheInvalid { path, message }
+                if path == cache && message.contains("retained directory")
+        ));
+        drop(lock);
+        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_dir_all(&retained);
+    }
+
+    #[test]
+    fn provisional_git_cache_directory_is_cleaned_if_retention_fails() {
+        let cache = temp_root("git-provisional-stage-cleanup");
+        std::fs::create_dir_all(&cache).expect("create provisional cache parent");
+        let cache = cache.canonicalize().expect("canonicalize cache parent");
+        let parent = open_absolute_directory_nofollow(&cache).expect("retain cache parent");
+        create_private_cache_directory(&parent, "provisional")
+            .expect("create provisional cache directory");
+        {
+            let _provisional = ProvisionalCacheDirectory::new(&parent, OsStr::new("provisional"));
+            // Returning from a failed retention path drops this guard while it
+            // still owns the just-created parent-relative name.
+        }
+        assert!(!cache.join("provisional").exists());
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
     fn git_cache_rejects_resolver_metadata_substitution() {
         let (repo, _) = create_git_source("git-metadata-source");
         let (substitute, _) = create_git_source("git-metadata-substitute");
@@ -9414,6 +9893,136 @@ mod tests {
         assert!(staged.is_dir());
         assert!(publication.is_dir());
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_cache_stage_and_metadata_use_explicit_private_modes() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let (repository, _) = create_git_source("git-private-cache-modes");
+        let cache = temp_root("git-private-cache-modes-cache");
+        let request = local_git_request(&repository, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect("materialize private Git cache entry");
+        let entry = git_cache_entry_root(&cache, &request);
+
+        assert_eq!(
+            std::fs::symlink_metadata(&entry)
+                .expect("inspect published cache entry")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+        assert_eq!(
+            std::fs::symlink_metadata(entry.join(GIT_CACHE_METADATA))
+                .expect("inspect resolver metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+
+        let _ = std::fs::remove_dir_all(&repository);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pending_git_cache_cleanup_does_not_remove_a_replacement_stage_name() {
+        let cache = temp_root("git-retained-stage-cleanup");
+        let retained_stage = cache.join("retained-stage");
+        std::fs::create_dir_all(&cache).expect("create Git cache parent");
+        let cache = cache.canonicalize().expect("canonicalize Git cache parent");
+        let parent = open_absolute_directory_nofollow(&cache).expect("retain Git cache parent");
+        let pending = PendingCacheEntry::create(&cache, &parent, "cleanup")
+            .expect("create retained Git cache stage");
+        let stage = pending.root.clone();
+
+        std::fs::rename(&stage, &retained_stage).expect("relocate retained Git stage");
+        std::fs::create_dir(&stage).expect("create replacement Git stage");
+        std::fs::write(stage.join("sentinel"), b"replacement").expect("write replacement sentinel");
+        drop(pending);
+
+        assert_eq!(
+            std::fs::read(stage.join("sentinel")).expect("read replacement sentinel"),
+            b"replacement"
+        );
+        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_dir_all(&retained_stage);
+    }
+
+    #[test]
+    fn pending_git_cache_publication_rejects_a_replaced_stage_name() {
+        let cache = temp_root("git-retained-stage-publication");
+        let retained_stage = cache.join("retained-stage");
+        std::fs::create_dir_all(&cache).expect("create Git cache parent");
+        let cache = cache.canonicalize().expect("canonicalize Git cache parent");
+        let parent = open_absolute_directory_nofollow(&cache).expect("retain Git cache parent");
+        let mut pending = PendingCacheEntry::create(&cache, &parent, "publication")
+            .expect("create retained Git cache stage");
+        let stage = pending.root.clone();
+        let publication = cache.join("published");
+
+        std::fs::rename(&stage, &retained_stage).expect("relocate retained Git stage");
+        std::fs::create_dir(&stage).expect("create replacement Git stage");
+        let error = pending
+            .publish(&cache, &publication, OsStr::new("published"))
+            .expect_err("publication must reject a replaced Git stage name");
+
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+        assert!(!publication.exists());
+        drop(pending);
+        assert!(stage.is_dir(), "cleanup must not remove the replacement");
+        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_dir_all(&retained_stage);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retained_git_cache_parent_owns_staging_and_invalidation_after_path_replacement() {
+        let cache = temp_root("git-retained-parent-namespace");
+        let retained_cache = cache.with_extension("retained");
+        std::fs::create_dir_all(cache.join("entry")).expect("create retained cache entry");
+        std::fs::write(cache.join("entry").join(GIT_CACHE_METADATA), b"retained")
+            .expect("write retained metadata");
+        let cache = cache.canonicalize().expect("canonicalize Git cache parent");
+        let parent = open_absolute_directory_nofollow(&cache).expect("retain Git cache parent");
+
+        std::fs::rename(&cache, &retained_cache).expect("replace Git cache parent path");
+        std::fs::create_dir_all(cache.join("entry")).expect("create replacement cache entry");
+        std::fs::write(cache.join("entry").join(GIT_CACHE_METADATA), b"replacement")
+            .expect("write replacement metadata");
+
+        let pending = PendingCacheEntry::create(&cache, &parent, "parent")
+            .expect("create stage beneath retained cache parent");
+        let retained_stage_name = pending.stage_name.clone();
+        assert!(retained_cache.join(&retained_stage_name).is_dir());
+        assert!(!cache.join(&retained_stage_name).exists());
+        drop(pending);
+
+        invalidate_git_cache_entry_from_open_parent(
+            &cache,
+            &parent,
+            OsStr::new("entry"),
+            &cache.join("entry"),
+        )
+        .expect("invalidate through retained Git cache parent");
+        assert!(
+            !retained_cache
+                .join("entry")
+                .join(GIT_CACHE_METADATA)
+                .exists()
+        );
+        assert_eq!(
+            std::fs::read(cache.join("entry").join(GIT_CACHE_METADATA))
+                .expect("read replacement metadata"),
+            b"replacement"
+        );
+
+        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_dir_all(&retained_cache);
     }
 
     #[test]

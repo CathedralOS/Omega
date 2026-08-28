@@ -570,6 +570,28 @@ complete.
   Darwin provides no descriptor form for a symlink itself, and hostile
   same-user mutation remains outside this cooperative floor.
 
+  Milestone 2026-08-27: one retained Git-cache parent now survives from lock
+  acquisition through entry discovery, mutable staging, publication,
+  invalidation, and final namespace reconciliation. Entry existence is
+  classified relative to that parent and only exact `NotFound` means absent.
+  The mutable stage is created beneath it with exact Unix mode `0700`, retained
+  by an open directory and file identity, and owned first by a provisional
+  parent-relative cleanup guard that attempts best-effort removal if retention
+  fails, so no newly created directory is ever left without cleanup ownership.
+  Stage and parent pathnames are checked around each setup-time
+  native Git operation even when that operation fails. Resolver metadata is
+  created no-follow through the stage at exact mode `0600`. Publication passes
+  the retained stage identity into the parent-relative rename; invalidation
+  removes metadata through the same parent and synchronizes it. Failure cleanup
+  starts from the open stage rather than its possibly replaced name. Canaries
+  replace the parent and stage names, prove creation/invalidation remain in the
+  retained namespace, prove stale-name publication rejects, and prove cleanup
+  leaves a replacement stage untouched. Namespace and invalidation/sync
+  failures outrank an ordinary operation failure rather than being discarded.
+  Native Git and the later published-
+  repository command path remain pathname consumers, so races during a launch
+  and strict mutation confinement still belong to the native isolation backend.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the

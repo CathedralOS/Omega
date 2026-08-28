@@ -194,8 +194,19 @@ the stage name no longer identifies the retained stage, and cleanup begins from
 the retained stage handle. The host
 cleanup primitive is not atomic against concurrent rename and is pathname-
 based on Windows, so cleanup remains best-effort under a hostile same-user
-process. The mutable Git object-cache stage remains pathname-visible to
-native Git and belongs to native process confinement. Published Git/local
+process. Mutable Git object-cache staging now retains the lock-acquired cache
+parent and exact stage directory across creation, resolver-metadata emission,
+publication, invalidation, and cleanup. The stage has exact Unix mode `0700`,
+its resolver metadata has exact mode `0600`, setup-time native Git calls are
+bracketed by parent/stage pathname-identity checks on success and failure,
+publication requires the retained stage identity, and invalidation plus parent
+synchronization remain relative to that same parent. Namespace and
+invalidation failures outrank ordinary operation errors. A provisional
+parent-relative guard covers the interval before the new stage is retained;
+after retention, cleanup starts from the open stage and does not delete a
+replacement at its former name. Native Git still consumes the stage
+and repository through pathnames; a rename race during a launch and strict
+mutation confinement therefore remain native-isolation work. Published Git/local
 snapshot mode and shape verification opens the publication and Source roots
 no-follow, traverses retained child handles with identity checks, and captures
 content from that same open Source root. Authenticated Git paths, kinds, and
