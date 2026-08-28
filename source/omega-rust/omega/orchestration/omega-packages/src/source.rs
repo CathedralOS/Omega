@@ -3,6 +3,8 @@ use crate::identity::{
 };
 use crate::record_file::{RecordFileLimits, RecordFileRoot};
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
+#[cfg(unix)]
+use cap_std::fs::OpenOptionsExt as CapabilityOpenOptionsExt;
 use cap_std::{
     ambient_authority,
     fs::{
@@ -3650,29 +3652,69 @@ fn verify_macos_cache_extended_acl_custody(
 
 struct CacheEntryLock {
     file: File,
+    _parent: CapabilityDirectory,
 }
 
 impl CacheEntryLock {
-    fn open_git(path: &Path) -> Result<File, SourceResolveError> {
-        if let Ok(metadata) = std::fs::symlink_metadata(path)
-            && (metadata.file_type().is_symlink() || !metadata.is_file())
-        {
-            return Err(cache_invalid(path, "cache lock is not a regular file"));
-        }
-        OpenOptions::new()
+    fn open_retained(
+        kind: CacheCustodyKind,
+        path: &Path,
+    ) -> Result<(File, CapabilityDirectory, OsString), SourceResolveError> {
+        let parent_path = path.parent().ok_or_else(|| {
+            cache_custody_invalid(kind, path, "cache lock has no publication parent")
+        })?;
+        verify_cache_custody_root(parent_path, kind)?;
+        let parent = open_absolute_directory_nofollow(parent_path)
+            .map_err(|error| cache_custody_invalid(kind, parent_path, error.to_string()))?;
+        let lock_name = direct_cache_child_name(kind, parent_path, path)?.to_os_string();
+        let mut options = CapabilityOpenOptions::new();
+        options
             .read(true)
             .write(true)
             .create(true)
             .truncate(false)
-            .open(path)
-            .map_err(|error| io_error(path, error))
+            .follow(FollowSymlinks::No);
+        #[cfg(unix)]
+        options.mode(0o600);
+        let capability_file = parent.open_with(&lock_name, &options).map_err(|error| {
+            cache_custody_invalid(
+                kind,
+                path,
+                format!("could not open cache lock without following links: {error}"),
+            )
+        })?;
+        let handle_metadata = capability_file
+            .metadata()
+            .map_err(|error| io_error(path, error))?;
+        let path_metadata = parent
+            .symlink_metadata(&lock_name)
+            .map_err(|error| io_error(path, error))?;
+        if !handle_metadata.is_file()
+            || path_metadata.file_type().is_symlink()
+            || !path_metadata.is_file()
+            || !same_capability_file_identity(&handle_metadata, &path_metadata)
+        {
+            return Err(cache_custody_invalid(
+                kind,
+                path,
+                "cache lock is not a stable regular file beneath its retained parent",
+            ));
+        }
+        verify_capability_cache_node_owner_and_mode(kind, path, &path_metadata)?;
+        Ok((capability_file.into_std(), parent, lock_name))
+    }
+
+    #[cfg(test)]
+    fn open_git(path: &Path) -> Result<File, SourceResolveError> {
+        let (file, _, _) = Self::open_retained(CacheCustodyKind::Git, path)?;
+        Ok(file)
     }
 
     fn acquire_with_git_budget(
         path: &Path,
         executor: &GitExecutor,
     ) -> Result<Self, SourceResolveError> {
-        let file = Self::open_git(path)?;
+        let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::Git, path)?;
         loop {
             executor.verify_budget()?;
             match file.try_lock() {
@@ -3690,16 +3732,22 @@ impl CacheEntryLock {
             let _ = file.unlock();
             return Err(error);
         }
-        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &file)?;
-        Ok(Self { file })
+        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &parent, &lock_name, &file)?;
+        Ok(Self {
+            file,
+            _parent: parent,
+        })
     }
 
     #[cfg(test)]
     fn acquire(path: &Path) -> Result<Self, SourceResolveError> {
-        let file = Self::open_git(path)?;
+        let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::Git, path)?;
         file.lock().map_err(|error| io_error(path, error))?;
-        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &file)?;
-        Ok(Self { file })
+        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &parent, &lock_name, &file)?;
+        Ok(Self {
+            file,
+            _parent: parent,
+        })
     }
 
     fn acquire_local(path: &Path) -> Result<Self, SourceResolveError> {
@@ -3710,21 +3758,7 @@ impl CacheEntryLock {
         path: &Path,
         timeout: Duration,
     ) -> Result<Self, SourceResolveError> {
-        if let Ok(metadata) = std::fs::symlink_metadata(path)
-            && (metadata.file_type().is_symlink() || !metadata.is_file())
-        {
-            return Err(local_snapshot_invalid(
-                path,
-                "cache lock is not a regular file",
-            ));
-        }
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(path)
-            .map_err(|error| io_error(path, error))?;
+        let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::LocalSnapshot, path)?;
         let started = Instant::now();
         loop {
             match file.try_lock() {
@@ -3747,8 +3781,17 @@ impl CacheEntryLock {
             let _ = file.unlock();
             return Err(local_snapshot_lock_timed_out(path, timeout));
         }
-        verify_cache_lock_path_identity(CacheCustodyKind::LocalSnapshot, path, &file)?;
-        Ok(Self { file })
+        verify_cache_lock_path_identity(
+            CacheCustodyKind::LocalSnapshot,
+            path,
+            &parent,
+            &lock_name,
+            &file,
+        )?;
+        Ok(Self {
+            file,
+            _parent: parent,
+        })
     }
 }
 
@@ -3762,9 +3805,13 @@ fn local_snapshot_lock_timed_out(path: &Path, timeout: Duration) -> SourceResolv
 fn verify_cache_lock_path_identity(
     kind: CacheCustodyKind,
     path: &Path,
+    parent: &CapabilityDirectory,
+    lock_name: &OsStr,
     file: &File,
 ) -> Result<(), SourceResolveError> {
-    let path_metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
+    let path_metadata = parent
+        .symlink_metadata(lock_name)
+        .map_err(|error| io_error(path, error))?;
     if path_metadata.file_type().is_symlink() || !path_metadata.is_file() {
         return Err(cache_custody_invalid(
             kind,
@@ -3773,42 +3820,63 @@ fn verify_cache_lock_path_identity(
         ));
     }
     let handle_metadata = file.metadata().map_err(|error| io_error(path, error))?;
-    if !handle_metadata.is_file() || !same_file_identity(&handle_metadata, &path_metadata) {
+    if !handle_metadata.is_file()
+        || !same_std_and_capability_file_identity(&handle_metadata, &path_metadata)
+    {
         return Err(cache_custody_invalid(
             kind,
             path,
             "cache lock path does not identify the locked file",
         ));
     }
-    verify_cache_node_owner_and_mode(kind, path, &path_metadata)
+    verify_capability_cache_node_owner_and_mode(kind, path, &path_metadata)?;
+
+    let parent_path = path
+        .parent()
+        .ok_or_else(|| cache_custody_invalid(kind, path, "cache lock has no publication parent"))?;
+    verify_cache_custody_root(parent_path, kind)?;
+    let current_parent = open_absolute_directory_nofollow(parent_path)
+        .map_err(|error| cache_custody_invalid(kind, parent_path, error.to_string()))?;
+    let retained_metadata = parent
+        .dir_metadata()
+        .map_err(|error| io_error(parent_path, error))?;
+    let current_metadata = current_parent
+        .dir_metadata()
+        .map_err(|error| io_error(parent_path, error))?;
+    if !same_capability_file_identity(&retained_metadata, &current_metadata) {
+        return Err(cache_custody_invalid(
+            kind,
+            parent_path,
+            "cache lock parent pathname no longer identifies the retained directory",
+        ));
+    }
+    Ok(())
 }
 
-#[cfg(unix)]
-fn same_file_identity(left: &std::fs::Metadata, right: &std::fs::Metadata) -> bool {
-    use std::os::unix::fs::MetadataExt;
+fn same_std_and_capability_file_identity(
+    left: &std::fs::Metadata,
+    right: &CapabilityMetadata,
+) -> bool {
+    use cap_fs_ext::MetadataExt;
 
     left.dev() == right.dev() && left.ino() == right.ino()
 }
 
-#[cfg(windows)]
-fn same_file_identity(left: &std::fs::Metadata, right: &std::fs::Metadata) -> bool {
-    use std::os::windows::fs::MetadataExt;
-
-    matches!(
-        (
-            left.volume_serial_number(),
-            left.file_index(),
-            right.volume_serial_number(),
-            right.file_index(),
-        ),
-        (Some(left_volume), Some(left_index), Some(right_volume), Some(right_index))
-            if left_volume == right_volume && left_index == right_index
-    )
-}
-
-#[cfg(not(any(unix, windows)))]
-fn same_file_identity(_left: &std::fs::Metadata, _right: &std::fs::Metadata) -> bool {
-    false
+#[cfg(test)]
+fn verify_cache_lock_path_identity_for_test(
+    kind: CacheCustodyKind,
+    path: &Path,
+    file: &File,
+) -> Result<(), SourceResolveError> {
+    let parent_path = path.parent().expect("test cache lock has a parent");
+    let canonical_parent = parent_path
+        .canonicalize()
+        .map_err(|error| io_error(parent_path, error))?;
+    let lock_name = path.file_name().expect("test cache lock has a name");
+    let canonical_path = canonical_parent.join(lock_name);
+    let parent = open_absolute_directory_nofollow(&canonical_parent)
+        .map_err(|error| io_error(&canonical_parent, error))?;
+    verify_cache_lock_path_identity(kind, &canonical_path, &parent, lock_name, file)
 }
 
 impl Drop for CacheEntryLock {
@@ -5882,7 +5950,10 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system clock")
             .as_nanos();
-        std::env::temp_dir().join(format!(
+        let temporary_directory = std::env::temp_dir()
+            .canonicalize()
+            .expect("canonicalize test temporary directory");
+        temporary_directory.join(format!(
             "omega-packages-{name}-{}-{stamp}",
             std::process::id()
         ))
@@ -8274,7 +8345,7 @@ mod tests {
         std::fs::write(&lock_path, []).expect("replace lock path");
 
         assert!(matches!(
-            verify_cache_lock_path_identity(CacheCustodyKind::Git, &lock_path, &file),
+            verify_cache_lock_path_identity_for_test(CacheCustodyKind::Git, &lock_path, &file),
             Err(SourceResolveError::GitCacheInvalid { .. })
         ));
 
@@ -8300,12 +8371,88 @@ mod tests {
         std::fs::write(&lock_path, []).expect("replace lock path");
 
         assert!(matches!(
-            verify_cache_lock_path_identity(CacheCustodyKind::LocalSnapshot, &lock_path, &file,),
+            verify_cache_lock_path_identity_for_test(
+                CacheCustodyKind::LocalSnapshot,
+                &lock_path,
+                &file,
+            ),
             Err(SourceResolveError::LocalSnapshotInvalid { .. })
         ));
 
         file.unlock().expect("unlock displaced cache entry");
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_lock_open_does_not_follow_a_preexisting_symlink() {
+        let root = temp_root("cache-lock-symlink");
+        std::fs::create_dir_all(&root).expect("create cache lock root");
+        let target = root.join("target");
+        std::fs::write(&target, b"untouched").expect("create symlink target");
+
+        for (name, kind) in [
+            ("git.lock", CacheCustodyKind::Git),
+            ("local.lock", CacheCustodyKind::LocalSnapshot),
+        ] {
+            let lock_path = root.join(name);
+            std::os::unix::fs::symlink(&target, &lock_path).expect("create cache lock symlink");
+            let error = CacheEntryLock::open_retained(kind, &lock_path)
+                .expect_err("cache lock open must not follow a symlink");
+            assert!(matches!(
+                (kind, error),
+                (
+                    CacheCustodyKind::Git,
+                    SourceResolveError::GitCacheInvalid { .. }
+                ) | (
+                    CacheCustodyKind::LocalSnapshot,
+                    SourceResolveError::LocalSnapshotInvalid { .. }
+                )
+            ));
+            std::fs::remove_file(&lock_path).expect("remove cache lock symlink");
+        }
+        assert_eq!(
+            std::fs::read(&target).expect("read symlink target"),
+            b"untouched"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn cache_lock_identity_rejects_a_replaced_parent_path() {
+        for (name, kind) in [
+            ("git", CacheCustodyKind::Git),
+            ("local", CacheCustodyKind::LocalSnapshot),
+        ] {
+            let root = temp_root(&format!("cache-lock-parent-replaced-{name}"));
+            let cache = root.join("cache");
+            let retained = root.join("retained");
+            std::fs::create_dir_all(&cache).expect("create cache lock parent");
+            let lock_path = cache.join("entry.lock");
+            let (file, parent, lock_name) = CacheEntryLock::open_retained(kind, &lock_path)
+                .expect("open lock through retained parent");
+            file.lock().expect("lock retained cache entry");
+
+            std::fs::rename(&cache, &retained).expect("replace cache lock parent path");
+            std::fs::create_dir(&cache).expect("create replacement cache lock parent");
+            std::fs::write(cache.join("entry.lock"), []).expect("create replacement lock leaf");
+            let error =
+                verify_cache_lock_path_identity(kind, &lock_path, &parent, &lock_name, &file)
+                    .expect_err("replaced cache lock parent must reject");
+            assert!(matches!(
+                (kind, error),
+                (
+                    CacheCustodyKind::Git,
+                    SourceResolveError::GitCacheInvalid { .. }
+                ) | (
+                    CacheCustodyKind::LocalSnapshot,
+                    SourceResolveError::LocalSnapshotInvalid { .. }
+                )
+            ));
+
+            file.unlock().expect("unlock retained cache entry");
+            let _ = std::fs::remove_dir_all(&root);
+        }
     }
 
     #[cfg(unix)]
@@ -8813,7 +8960,7 @@ mod tests {
                 .open(&path)
                 .expect("open cache lock");
             change_macos_acl(&path, &["+a", "everyone allow write"]);
-            let error = verify_cache_lock_path_identity(kind, &path, &file)
+            let error = verify_cache_lock_path_identity_for_test(kind, &path, &file)
                 .expect_err("extended ACL allow on cache lock must reject");
             assert!(
                 matches!(

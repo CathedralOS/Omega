@@ -461,6 +461,18 @@ complete.
   and path-based macOS ACL observation remain open; this does not claim defense
   against an active same-user process racing the destination-existence check.
 
+  Milestone 2026-08-27: Git and local publication locks now open only a
+  validated direct-child name through a retained, component-by-component
+  no-follow parent capability. The resolver verifies regular-file identity and
+  custody relative to that parent before waiting, retains the parent for the
+  lock lifetime, and after acquisition requires both the leaf and canonical
+  parent pathname to retain their captured identities. Existing Git whole-
+  resolution and local two-minute wait ceilings remain in force. Canaries prove
+  that preexisting lock symlinks are not followed and that replacement of an
+  opened parent pathname rejects for both cache classes. Lock-node macOS ACL
+  observation still uses the display pathname, and an active same-user process
+  remains outside this cooperative custody floor.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the
