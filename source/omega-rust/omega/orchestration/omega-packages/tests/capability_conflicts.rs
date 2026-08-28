@@ -820,7 +820,7 @@ end_root_policy_resolution\n",
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render bounded conflict evidence");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V14\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V15\n"));
     assert!(rendered.contains("change added\nkind public_proposition\nrisk blocking\n"));
     assert!(rendered.contains("candidate_location declaration package "));
     assert!(rendered.contains(" \"main.omg\"\n"));
@@ -1294,7 +1294,7 @@ fn public_const_changes_render_as_blocking_review_conflicts() {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render public const conflict");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V14\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V15\n"));
     assert!(rendered.contains("change changed\nkind public_const\nrisk blocking\n"));
     assert!(rendered.contains("baseline_location const_initializer package "));
     assert!(rendered.contains("candidate_location const_initializer package "));
@@ -1370,6 +1370,119 @@ fn public_operator_changes_render_as_blocking_review_conflicts() {
         .expect("render public operator conflict");
     assert!(rendered.contains("change changed\nkind public_operator\nrisk blocking\n"));
     assert!(rendered.contains("candidate_location contract_clause package "));
+
+    let _ = std::fs::remove_dir_all(live);
+    let _ = std::fs::remove_dir_all(baseline_cache);
+    let _ = std::fs::remove_dir_all(candidate_cache);
+    let _ = std::fs::remove_dir_all(build_root);
+}
+
+#[test]
+fn public_callable_parameter_changes_render_exact_parameter_locations() {
+    let live = temp_root("public-callable-parameter-live");
+    let baseline_cache = temp_root("public-callable-parameter-baseline");
+    let candidate_cache = temp_root("public-callable-parameter-candidate");
+    let build_root = temp_root("public-callable-parameter-build");
+    let context = ExternalSourceContext::derive(b"public-callable-parameter-conflict-test");
+    let baseline_source = "pub machine inspect(baseline_value: u32) -> u32 { baseline_value }\n";
+    let candidate_source = "pub machine inspect(candidate_value: u32) -> u32 { candidate_value }\n";
+
+    write_package(&live, baseline_source);
+    let baseline_sources = resolve_external_local_package_closure(
+        &live,
+        context.clone(),
+        &baseline_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve public callable parameter baseline");
+    let baseline_reviews =
+        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+            .expect("compile public callable parameter baseline");
+
+    write_package(&live, candidate_source);
+    let candidate_sources = resolve_external_local_package_closure(
+        &live,
+        context,
+        &candidate_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve public callable parameter candidate");
+    let candidate_reviews =
+        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+            .expect("compile public callable parameter candidate");
+
+    let conflicts = compare_review_only_capabilities(
+        &baseline_reviews,
+        &candidate_reviews,
+        &candidate_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare public callable parameter rows");
+    let conflict = conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| package.conflicts())
+        .find(|conflict| conflict.kind() == PackageReviewCanonicalRowKind::Callable)
+        .expect("changed public callable row");
+    let expected_locations = [
+        (
+            conflict.baseline_source(),
+            baseline_source,
+            "baseline_value",
+        ),
+        (
+            conflict.candidate_source(),
+            candidate_source,
+            "candidate_value",
+        ),
+    ];
+    for (source, package_source, parameter) in expected_locations {
+        let start = u64::try_from(
+            package_source
+                .find(parameter)
+                .expect("parameter identifier in package source"),
+        )
+        .expect("parameter start fits review coordinate");
+        let end = start
+            + u64::try_from(parameter.len()).expect("parameter length fits review coordinate");
+        let location = source
+            .and_then(PackageReviewCanonicalRowSource::authored_locations)
+            .expect("public callable source locations")
+            .iter()
+            .find(|location| {
+                location.role()
+                    == omega_compiler::PackageReviewSourceLocationRole::CallableParameter
+            })
+            .expect("exact callable parameter source location");
+        assert_eq!(location.relative_path(), "main.omg");
+        assert_eq!(location.start_byte(), start);
+        assert_eq!(location.end_byte(), end);
+    }
+
+    let rendered = conflicts
+        .render_bounded(1024 * 1024)
+        .expect("render public callable parameter conflict");
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V15\n"));
+    for (label, package_source, parameter) in [
+        ("baseline", baseline_source, "baseline_value"),
+        ("candidate", candidate_source, "candidate_value"),
+    ] {
+        let start = u64::try_from(
+            package_source
+                .find(parameter)
+                .expect("rendered parameter identifier in package source"),
+        )
+        .expect("rendered parameter start fits review coordinate");
+        let end = start
+            + u64::try_from(parameter.len()).expect("parameter length fits review coordinate");
+        let line = rendered
+            .lines()
+            .find(|line| line.starts_with(&format!("{label}_location callable_parameter package ")))
+            .expect("rendered callable parameter location");
+        assert!(line.ends_with(&format!(" {start} {end} \"main.omg\"")));
+    }
 
     let _ = std::fs::remove_dir_all(live);
     let _ = std::fs::remove_dir_all(baseline_cache);
@@ -1594,7 +1707,7 @@ fn public_trait_requirement_changes_render_exact_requirement_locations() {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render public trait requirement conflict");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V14\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V15\n"));
     assert!(rendered.contains("baseline_location trait_requirement package "));
     assert!(rendered.contains("candidate_location trait_requirement package "));
 
@@ -1739,7 +1852,7 @@ fn public_data_shape_changes_render_exact_member_locations() {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render public data member conflict");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V14\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V15\n"));
     assert!(rendered.contains("baseline_location data_member package "));
     assert!(rendered.contains("candidate_location data_member package "));
 
@@ -2123,7 +2236,7 @@ fn transparent_proposition_changes_render_exact_formula_custody() {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render transparent proposition conflict");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V14\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V15\n"));
     assert!(rendered.contains("baseline_location proposition_formula package "));
     assert!(rendered.contains("candidate_location proposition_formula package "));
 
@@ -2201,7 +2314,7 @@ fn public_domain_changes_render_exact_proof_fact_custody() {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render public domain proof-fact conflict");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V14\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V15\n"));
     assert!(rendered.contains("baseline_location proof_fact package "));
     assert!(rendered.contains("candidate_location proof_fact package "));
 
