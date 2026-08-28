@@ -368,11 +368,23 @@ These facts constrain the work below.
   Text-section schema v3 identity-binds the patched bytes and complete
   resolution coordinates. The unchanged zero-relocation object path then emits
   exact caller/callee private symbols at `0/90` and `90/1` with no fabricated
-  object relocation. The next milestone is to join that applicable object and
-  MachineId-rooted private continuation symbol to the settlement, semantic
-  contract, and wrapper plan. The compiler-
-  private wrapper itself receives no fabricated Terminal `MachineId`. The
-  checked-source ProgramStorage fixture currently lowers its generic two-root
+  object relocation. Audit established that this two-Machine object is a
+  generic code-generation proof fixture, not the ProgramStorage wrapper:
+  its caller is the Terminal module entry and every symbol is necessarily
+  `MachineId`-rooted. It cannot be relabelled as the compiler-private wrapper,
+  and its leaf cannot replace the entry bound by the checked settlement.
+
+  The next milestone belongs in `omega-terminal-native-realization`: consume
+  the canonical optimized object artifact for the actual settled Terminal
+  entry, bind its exact object-local semantic-entry symbol as the private
+  continuation, independently replay the settlement, semantic contract, and
+  wrapper plan, then synthesize a separate compiler-owned wrapper object. The
+  wrapper encoding must first reconcile and explicitly validate the optimized
+  structural call offsets `80/81` against the older full-frame wrapper recipe's
+  `113/114`; no join may claim wrapper bytes by silently equating those layouts.
+  This is an engineering representation task and does not require Q17. The
+  compiler-private wrapper itself receives no fabricated Terminal `MachineId`.
+  The checked-source ProgramStorage fixture currently lowers its generic two-root
   handoff as `BoundaryCall`, not this compiler-private `CallUnit`, and therefore
   is receipt evidence rather than a positive wrapper fixture.
 
@@ -2512,12 +2524,16 @@ dependency.
   whole-function-exit v5, and function-relative manifest v7 now retain it, its
   full footprint, exact 90/1-byte function spans, separate returns, balanced
   caller policy, and structural statistics without misclassifying the zero
-  field as a resolved call. The next boundary must carry and resolve that fixup
-  through machine-code fragments and whole-section layout, encoding, and an
-  applicable object/private continuation
-  symbol, join those facts with the settlement, contract, and wrapper plan,
-  then construct the semantic
-  `ProgramStorageEntry` wrapper object. The scalar-
+  field as a resolved call. Machine-code fragments, two-pass whole-section
+  layout, target-owned rel32 resolution, and the zero-relocation object now
+  retain that generic two-Machine proof through exact caller/callee private
+  symbols. It is not the wrapper object because both functions are Terminal
+  `MachineId`s. The next boundary must instead bind the settled Terminal
+  entry's canonical object-local symbol as a private continuation, select and
+  replay one wrapper encoding contract (including the `80/81` optimized versus
+  `113/114` legacy offset distinction), and construct a distinct compiler-owned
+  semantic `ProgramStorageEntry` wrapper object in
+  `omega-terminal-native-realization`. The scalar-
   result conditional fixture used by the callable classifier remains
   intentionally ineligible. The current UEFI surface explicitly calls its
   physical shell planned and non-invoked: no authoritative contract maps

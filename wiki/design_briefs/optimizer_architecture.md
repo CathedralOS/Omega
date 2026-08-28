@@ -196,8 +196,10 @@ canonical Terminal Psi semantic + proof sections
           -> function-relative custody and balanced whole-function exit
           -> fixup-preserving fragments
           -> whole-section resolution
-          -> object/private-symbol join
-          -> semantic ProgramStorage wrapper object (next)
+          -> zero-relocation two-Machine object (generic codegen proof)
+          -> settled Terminal continuation object/artifact
+          -> compiler-owned wrapper encoding selection and replay (next)
+          -> separate semantic ProgramStorage wrapper object (next)
        (physical process entry, native image, install, and publication closed)
     -> encoding, relocation, image, installation
 ```
@@ -2471,10 +2473,30 @@ field, next-IP and callee coordinates, the canonical `+5` displacement, and
 zero remaining internal fixups. Independent replay reconstructs the target
 template and resolution before granting relocation-free custody. The unchanged
 object v1 path then emits two exact private symbols and zero relocation records.
-The next boundary joins that object/private continuation symbol with the
-settlement, semantic contract, and wrapper plan.
+That two-Machine object is a generic code-generation proof fixture, not the
+ProgramStorage wrapper object: its caller is the Terminal module entry, every
+function and symbol is `MachineId`-rooted, and object validation deliberately
+forbids relabelling one of them as a compiler wrapper. The checked settlement
+also binds the source entry to that same Terminal module entry, so the leaf in
+the structural fixture cannot be substituted as the settled continuation.
+
+The next owning join belongs in `omega-terminal-native-realization`, which
+already owns the settlement and depends on both `omega-program-storage` and the
+optimization pipeline. It must consume the canonical optimized object artifact
+for the actual settled Terminal entry, bind that exact object-local
+`MachineId` symbol as the private continuation, independently replay the
+semantic contract and wrapper plan, and then synthesize a separate
+compiler-owned wrapper object. Before it can grant wrapper-byte custody, the
+target-owned encoding contract must resolve the current layout split: the clean
+structural encoder places the call opcode/field at function offsets `80/81`,
+while the older full-frame wrapper recipe records `113/114`. The optimized
+route may select the shorter encoding only after the wrapper plan and validator
+describe and replay that choice; it must not silently treat the generic
+structural caller as the wrapper. This is an engineering representation task,
+not a language-design dependency.
+
 The wrapper identity remains distinct from every Terminal `MachineId`; only
-the internal continuation is MachineId-rooted. The checked-source
+the settled internal continuation is MachineId-rooted. The checked-source
 ProgramStorage regression also establishes that the existing generic source
 lowering expresses its two-root handoff as `BoundaryCall`, so it must not be
 misrepresented as the positive compiler-private `CallUnit` wrapper fixture.
