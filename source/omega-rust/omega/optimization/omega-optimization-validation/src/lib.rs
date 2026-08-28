@@ -225,6 +225,12 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         place: PlaceId,
     },
+    NonCanonicalByteSequenceLiterals(MachineId),
+    ByteSequenceLiteralDeclarationRequiresBorrowedView {
+        machine: MachineId,
+        place: PlaceId,
+    },
+    ByteSequenceLiteralEstablishmentMismatch(MachineId),
     StructuralPlaceNotAvailable {
         machine: MachineId,
         block: BlockId,
@@ -10064,10 +10070,16 @@ fn validate_function_structural_catalog(
     types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
     domains: &BTreeMap<StructuralDomainId, &psi_terminal::StructuralDomainDeclaration>,
 ) -> Result<
-    Vec<(
-        psi_terminal::StructuralPlaceDeclaration,
-        psi_terminal::StructuralTypeDeclaration,
-    )>,
+    (
+        Vec<(
+            psi_terminal::StructuralPlaceDeclaration,
+            psi_terminal::StructuralTypeDeclaration,
+        )>,
+        Vec<(
+            psi_terminal::StructuralPlaceDeclaration,
+            psi_terminal::StructuralTypeDeclaration,
+        )>,
+    ),
     OptimizationUnitValidationError,
 > {
     let mismatch = || OptimizationUnitValidationError::StructuralCatalogMismatch {
@@ -10106,32 +10118,29 @@ fn validate_function_structural_catalog(
             StructuralPlaceKind::OperationResult {
                 producer,
                 structural_type,
-            } => types.contains_key(&structural_type)
-                && function.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
-                    matches!(
-                        &node.operation,
-                        O::CallStructural { psi_operation, result, .. }
-                            if *psi_operation == producer
-                                && result.place == place.id
-                                && result.structural_type == structural_type
-                    )
-                }),
+            } => {
+                types.contains_key(&structural_type)
+                    && function
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.nodes)
+                        .any(|node| {
+                            matches!(
+                                &node.operation,
+                                O::CallStructural { psi_operation, result, .. }
+                                    if *psi_operation == producer
+                                        && result.place == place.id
+                                        && result.structural_type == structural_type
+                            )
+                        })
+            }
             StructuralPlaceKind::ByteSequenceLiteral {
-                structural_type, ..
-            } => types.contains_key(&structural_type)
-                && function.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
-                    matches!(
-                        &node.operation,
-                        O::EstablishByteSequenceLiteral { place: operation_place, structural_type: operation_type, .. }
-                            if operation_place == place && operation_type.id == structural_type
-                    )
-                }),
+                structural_type: _, ..
+            } => true,
             StructuralPlaceKind::TrivialAffineLocal { .. } => true,
-            StructuralPlaceKind::ProviderAttachment {
-                attachment,
-                ..
-            } => types.contains_key(&attachment)
-                && function.attachment == Some(attachment),
+            StructuralPlaceKind::ProviderAttachment { attachment, .. } => {
+                types.contains_key(&attachment) && function.attachment == Some(attachment)
+            }
         };
         if !known_type {
             return Err(mismatch());
@@ -10262,6 +10271,52 @@ fn validate_function_structural_catalog(
     {
         return Err(mismatch());
     }
+    let mut byte_sequence_literals = function
+        .structural_places
+        .iter()
+        .filter_map(|place| match place.kind {
+            StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal,
+                structural_type,
+            } => Some((*place, declaration_ordinal, structural_type)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    byte_sequence_literals.sort_by_key(|(_, declaration_ordinal, _)| *declaration_ordinal);
+    if byte_sequence_literals
+        .iter()
+        .enumerate()
+        .any(|(expected, (_, declaration_ordinal, _))| {
+            u32::try_from(expected).ok() != Some(*declaration_ordinal)
+        })
+    {
+        return Err(
+            OptimizationUnitValidationError::NonCanonicalByteSequenceLiterals(function.machine),
+        );
+    }
+    let byte_sequence_literals = byte_sequence_literals
+        .into_iter()
+        .map(|(place, _, structural_type)| {
+            let declaration = types.get(&structural_type).ok_or(
+                OptimizationUnitValidationError::UnknownStructuralType(structural_type),
+            )?;
+            if !matches!(
+                declaration.shape,
+                psi_terminal::StructuralTypeShape::ByteSequence(
+                    psi_terminal::ByteSequenceCarrier::BorrowedView
+                )
+            ) {
+                return Err(
+                    OptimizationUnitValidationError::ByteSequenceLiteralDeclarationRequiresBorrowedView {
+                        machine: function.machine,
+                        place: place.id,
+                    },
+                );
+            }
+            Ok((place, (*declaration).clone()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
     let mut trivial_affine_locals = function
         .structural_places
         .iter()
@@ -10285,7 +10340,7 @@ fn validate_function_structural_catalog(
             OptimizationUnitValidationError::NonCanonicalTrivialAffineLocals(function.machine),
         );
     }
-    trivial_affine_locals
+    let trivial_affine_locals = trivial_affine_locals
         .into_iter()
         .map(|(place, _, structural_type)| {
             let declaration = types.get(&structural_type).ok_or(
@@ -10304,7 +10359,53 @@ fn validate_function_structural_catalog(
             }
             Ok((place, (*declaration).clone()))
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((byte_sequence_literals, trivial_affine_locals))
+}
+
+fn validate_byte_sequence_literal_witnesses(
+    function: &PsiOptimizationFunction,
+    expected_literals: &[(
+        psi_terminal::StructuralPlaceDeclaration,
+        psi_terminal::StructuralTypeDeclaration,
+    )],
+) -> Result<(), OptimizationUnitValidationError> {
+    let mut expected = expected_literals
+        .iter()
+        .map(|(place, structural_type)| (place.id, (*place, structural_type)))
+        .collect::<BTreeMap<_, _>>();
+    let mut actual = 0_usize;
+    for node in function.blocks.iter().flat_map(|block| &block.nodes) {
+        let O::EstablishByteSequenceLiteral {
+            place,
+            structural_type,
+            ..
+        } = &node.operation
+        else {
+            continue;
+        };
+        actual += 1;
+        if expected
+            .remove(&place.id)
+            .is_none_or(|(expected_place, expected_type)| {
+                *place != expected_place || structural_type != expected_type
+            })
+        {
+            return Err(
+                OptimizationUnitValidationError::ByteSequenceLiteralEstablishmentMismatch(
+                    function.machine,
+                ),
+            );
+        }
+    }
+    if actual != expected_literals.len() || !expected.is_empty() {
+        return Err(
+            OptimizationUnitValidationError::ByteSequenceLiteralEstablishmentMismatch(
+                function.machine,
+            ),
+        );
+    }
+    Ok(())
 }
 
 fn validate_trivial_affine_local_witnesses(
@@ -10539,7 +10640,7 @@ fn validate_function(
     structural_types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &psi_terminal::StructuralDomainDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let trivial_affine_locals =
+    let (byte_sequence_literals, trivial_affine_locals) =
         validate_function_structural_catalog(function, structural_types, structural_domains)?;
     let indexed_entry_claims = function
         .entry_claim_declarations
@@ -10695,8 +10796,9 @@ fn validate_function(
         }
     }
 
+    validate_byte_sequence_literal_witnesses(function, &byte_sequence_literals)?;
     validate_trivial_affine_local_witnesses(function, &trivial_affine_locals)?;
-    validate_operation_result_availability(function, &blocks, &predecessor)?;
+    validate_structural_place_availability(function, &blocks, &predecessor)?;
 
     validate_provenance_fuel_effects(function)?;
     validate_fact_index(function)?;
@@ -10826,73 +10928,108 @@ fn validate_fact_index(
     Ok(())
 }
 
-/// Reconstruct the current-revision availability of structural operation
-/// results from executable nodes and CFG dominance. Immutable source frontier
-/// facts do not authorize a result at a rewritten site.
-fn validate_operation_result_availability(
+/// Every executable structural root is available only after its current
+/// producer. Immutable source-frontier rows do not authorize a root at a
+/// rewritten site. Compressed return-tuple locals are metadata-only and have
+/// no executable producer, so they are deliberately absent from this walk.
+fn validate_structural_place_availability(
     function: &PsiOptimizationFunction,
     blocks: &BTreeMap<BlockId, &omega_optimization_unit::OptimizationBlock>,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let mut producers = BTreeMap::<OperationId, (PlaceId, BlockId, u32)>::new();
+    let mut producers = BTreeMap::<PlaceId, (BlockId, u32)>::new();
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
-            let O::CallStructural {
-                psi_operation,
-                result,
-                ..
-            } = &node.operation
-            else {
-                continue;
+            let place = match &node.operation {
+                O::CallStructural { result, .. } => Some(result.place),
+                O::EstablishByteSequenceLiteral { place, .. }
+                | O::EstablishTrivialAffineLocal { place, .. } => Some(place.id),
+                _ => None,
             };
-            producers.insert(
-                *psi_operation,
-                (
-                    result.place,
-                    block.id,
-                    u32::try_from(node_index).expect("unit node index fits u32"),
-                ),
-            );
+            if let Some(place) = place {
+                producers.insert(
+                    place,
+                    (
+                        block.id,
+                        u32::try_from(node_index).expect("unit node index fits u32"),
+                    ),
+                );
+            }
         }
     }
     let dominators = dominators(function.entry, blocks.keys().copied(), predecessors);
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
-            let O::ReturnStructural { source, .. } = &node.operation else {
-                continue;
-            };
-            let Some(StructuralPlaceKind::OperationResult { producer, .. }) = function
-                .structural_places
-                .iter()
-                .find(|place| place.id == *source)
-                .map(|place| place.kind)
-            else {
-                continue;
-            };
             let node_index = u32::try_from(node_index).expect("unit node index fits u32");
-            let available = producers.get(&producer).is_some_and(
-                |(produced_place, producer_block, producer_node)| {
-                    *produced_place == *source
-                        && ((*producer_block == block.id && *producer_node < node_index)
-                            || (*producer_block != block.id
-                                && dominators
-                                    .get(&block.id)
-                                    .is_some_and(|set| set.contains(producer_block))))
-                },
-            );
-            if !available {
-                return Err(
-                    OptimizationUnitValidationError::StructuralPlaceNotAvailable {
-                        machine: function.machine,
-                        block: block.id,
-                        node: node_index,
-                        place: *source,
-                    },
-                );
+            for place in operation_place_inputs(&node.operation) {
+                let Some((producer_block, producer_node)) = producers.get(&place) else {
+                    continue;
+                };
+                let available = (*producer_block == block.id && *producer_node < node_index)
+                    || (*producer_block != block.id
+                        && dominators
+                            .get(&block.id)
+                            .is_some_and(|set| set.contains(producer_block)));
+                if !available {
+                    return Err(
+                        OptimizationUnitValidationError::StructuralPlaceNotAvailable {
+                            machine: function.machine,
+                            block: block.id,
+                            node: node_index,
+                            place,
+                        },
+                    );
+                }
             }
         }
     }
     Ok(())
+}
+
+fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
+    let mut inputs = match operation {
+        O::CallUnit {
+            structural_arguments,
+            ..
+        }
+        | O::CallStructuralScalar {
+            structural_arguments,
+            ..
+        }
+        | O::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | O::BoundaryCall {
+            structural_arguments,
+            ..
+        } => structural_arguments
+            .iter()
+            .map(|argument| argument.place)
+            .collect(),
+        O::BooleanStructuralField { source, .. } | O::ReturnStructural { source, .. } => {
+            vec![*source]
+        }
+        _ => Vec::new(),
+    };
+    match operation {
+        O::Return {
+            cleanup_actions, ..
+        }
+        | O::ReturnUnit {
+            cleanup_actions, ..
+        } => inputs.extend(cleanup_actions.iter().map(|cleanup| match cleanup {
+            psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place) => *place,
+            psi_terminal::TerminalAffineCleanupAction::DiscardResidual(discard) => discard.place,
+            psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => cleanup.place,
+        })),
+        O::ReturnStructural {
+            trivial_affine_discards,
+            ..
+        } => inputs.extend(trivial_affine_discards.iter().copied()),
+        _ => {}
+    }
+    inputs
 }
 
 fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<OptimizationFact> {
@@ -13763,6 +13900,388 @@ mod tests {
         .expect("explicit affine local unit")
     }
 
+    fn byte_literal_boundary_unit() -> PsiOptimizationUnit {
+        let machine = id(4_600, MachineId::new);
+        let block = id(4_601, BlockId::new);
+        let boundary = id(4_602, BoundaryMachineId::new);
+        let byte_type = id(4_603, StructuralTypeId::new);
+        let literal = id(4_604, PlaceId::new);
+        let boundary_place = id(4_605, PlaceId::new);
+        let declaration = structural_type(
+            4_603,
+            psi_terminal::StructuralTypeShape::ByteSequence(
+                psi_terminal::ByteSequenceCarrier::BorrowedView,
+            ),
+        );
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([20; 32]),
+                },
+                entry: machine,
+                structural_types: vec![declaration.clone()],
+                boundary_machines: vec![psi_terminal::BoundaryMachineDeclaration {
+                    id: boundary,
+                    identity: "validation::byte-literal-boundary".into(),
+                    attachment: None,
+                    scalar_parameters: Vec::new(),
+                    structural_parameters: vec![psi_terminal::StructuralParameterDeclaration {
+                        place: boundary_place,
+                        position: 0,
+                        is_self: false,
+                        structural_type: byte_type,
+                        multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+                        access: psi_terminal::StructuralAccess::SharedBorrow,
+                        qualifications: Vec::new(),
+                    }],
+                    result: None,
+                    requires: Vec::new(),
+                    program_local_root_introductions: Vec::new(),
+                    content_guarantees: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                }],
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry: block,
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        TerminalAbstractOperation::EstablishByteSequenceLiteral {
+                            psi_operation: id(4_606, OperationId::new),
+                            place: psi_terminal::StructuralPlaceDeclaration {
+                                id: literal,
+                                kind: StructuralPlaceKind::ByteSequenceLiteral {
+                                    declaration_ordinal: 0,
+                                    structural_type: byte_type,
+                                },
+                            },
+                            structural_type: declaration,
+                            bytes: vec![0, 0x7f, 0x80, 0xff],
+                        },
+                        TerminalAbstractOperation::BoundaryCall {
+                            psi_operation: id(4_607, OperationId::new),
+                            result: None,
+                            boundary,
+                            arguments: Vec::new(),
+                            structural_arguments: vec![psi_terminal::StructuralArgument {
+                                place: literal,
+                                access: psi_terminal::StructuralAccess::SharedBorrow,
+                                path: Vec::new(),
+                            }],
+                            completion_claim_sources: Vec::new(),
+                            completion_receipts: Vec::new(),
+                        },
+                        TerminalAbstractOperation::ReturnUnit {
+                            psi_edge: id(4_608, EdgeId::new),
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).expect("nonzero schedule"),
+        )
+        .expect("byte literal boundary unit")
+    }
+
+    fn refresh_function_derivatives(unit: &mut PsiOptimizationUnit, function_index: usize) {
+        let function = &mut unit.functions[function_index];
+        let mut effect = 0_u64;
+        for block in &mut function.blocks {
+            for (node_index, node) in block.nodes.iter_mut().enumerate() {
+                let node_index = u32::try_from(node_index).expect("test node index fits u32");
+                node.definitions = expected_definitions(&node.operation, block.id, node_index);
+                node.uses = expected_uses(&node.operation, block.id, node_index);
+                node.provenance = expected_provenance(&node.operation);
+                node.fuel = node
+                    .provenance
+                    .iter()
+                    .copied()
+                    .map(|site| omega_optimization_unit::FuelSettlement { site, units: 1 })
+                    .collect();
+                node.effect = omega_optimization_unit::EffectLink {
+                    input: effect,
+                    output: effect + 1,
+                };
+                effect += 1;
+                node.successors = expected_edges(&node.operation);
+                node.ownership = expected_ownership(&node.operation);
+            }
+        }
+        function.facts = reconstruct_fact_index(function);
+        refresh_identity(unit);
+    }
+
+    fn byte_literal_dominating_non_topological_unit() -> PsiOptimizationUnit {
+        let mut unit = byte_literal_boundary_unit();
+        let producer = id(4_601, BlockId::new);
+        let use_block = id(4_609, BlockId::new);
+        let mut nodes = std::mem::take(&mut unit.functions[0].blocks[0].nodes).into_iter();
+        let establish = nodes.next().expect("literal establishment");
+        let boundary = nodes.next().expect("literal boundary use");
+        let returned = nodes.next().expect("Unit return");
+        let mut jump = returned.clone();
+        jump.operation = TerminalAbstractOperation::Jump {
+            psi_edge: id(4_610, EdgeId::new),
+            target: use_block,
+            bindings: Vec::new(),
+        };
+        unit.functions[0].entry = producer;
+        unit.functions[0].blocks = vec![
+            omega_optimization_unit::OptimizationBlock {
+                id: use_block,
+                parameters: Vec::new(),
+                nodes: vec![boundary, returned],
+            },
+            omega_optimization_unit::OptimizationBlock {
+                id: producer,
+                parameters: Vec::new(),
+                nodes: vec![establish, jump],
+            },
+        ];
+        refresh_function_derivatives(&mut unit, 0);
+        unit
+    }
+
+    fn byte_literal_sibling_use_unit() -> PsiOptimizationUnit {
+        let mut unit = byte_literal_boundary_unit();
+        let entry = id(4_611, BlockId::new);
+        let producer = id(4_612, BlockId::new);
+        let use_block = id(4_613, BlockId::new);
+        let condition = id(4_614, ValueId::new);
+        let mut nodes = std::mem::take(&mut unit.functions[0].blocks[0].nodes).into_iter();
+        let establish = nodes.next().expect("literal establishment");
+        let boundary = nodes.next().expect("literal boundary use");
+        let returned = nodes.next().expect("Unit return");
+        let mut boolean = establish.clone();
+        boolean.operation = TerminalAbstractOperation::BooleanConstant {
+            psi_operation: id(4_615, OperationId::new),
+            result: condition,
+            value: true,
+        };
+        let mut conditional = returned.clone();
+        conditional.operation = TerminalAbstractOperation::Conditional {
+            condition,
+            when_true: omega_terminal_abstract_operations::TerminalAbstractSuccessor {
+                psi_edge: id(4_616, EdgeId::new),
+                target: producer,
+                bindings: Vec::new(),
+            },
+            when_false: omega_terminal_abstract_operations::TerminalAbstractSuccessor {
+                psi_edge: id(4_617, EdgeId::new),
+                target: use_block,
+                bindings: Vec::new(),
+            },
+        };
+        let mut producer_return = returned.clone();
+        producer_return.operation = TerminalAbstractOperation::ReturnUnit {
+            psi_edge: id(4_618, EdgeId::new),
+            cleanup_actions: Vec::new(),
+        };
+        unit.functions[0].entry = entry;
+        unit.functions[0].blocks = vec![
+            omega_optimization_unit::OptimizationBlock {
+                id: entry,
+                parameters: Vec::new(),
+                nodes: vec![boolean, conditional],
+            },
+            omega_optimization_unit::OptimizationBlock {
+                id: producer,
+                parameters: Vec::new(),
+                nodes: vec![establish, producer_return],
+            },
+            omega_optimization_unit::OptimizationBlock {
+                id: use_block,
+                parameters: Vec::new(),
+                nodes: vec![boundary, returned],
+            },
+        ];
+        refresh_function_derivatives(&mut unit, 0);
+        unit
+    }
+
+    fn byte_literal_partial_predecessor_unit() -> PsiOptimizationUnit {
+        let mut unit = byte_literal_boundary_unit();
+        let entry = id(4_630, BlockId::new);
+        let producer = id(4_631, BlockId::new);
+        let bypass = id(4_632, BlockId::new);
+        let join = id(4_633, BlockId::new);
+        let condition = id(4_634, ValueId::new);
+        let mut nodes = std::mem::take(&mut unit.functions[0].blocks[0].nodes).into_iter();
+        let establish = nodes.next().expect("literal establishment");
+        let boundary = nodes.next().expect("literal boundary use");
+        let returned = nodes.next().expect("Unit return");
+        let mut boolean = establish.clone();
+        boolean.operation = TerminalAbstractOperation::BooleanConstant {
+            psi_operation: id(4_635, OperationId::new),
+            result: condition,
+            value: true,
+        };
+        let mut conditional = returned.clone();
+        conditional.operation = TerminalAbstractOperation::Conditional {
+            condition,
+            when_true: omega_terminal_abstract_operations::TerminalAbstractSuccessor {
+                psi_edge: id(4_636, EdgeId::new),
+                target: producer,
+                bindings: Vec::new(),
+            },
+            when_false: omega_terminal_abstract_operations::TerminalAbstractSuccessor {
+                psi_edge: id(4_637, EdgeId::new),
+                target: bypass,
+                bindings: Vec::new(),
+            },
+        };
+        let jump = |edge| TerminalAbstractOperation::Jump {
+            psi_edge: id(edge, EdgeId::new),
+            target: join,
+            bindings: Vec::new(),
+        };
+        let mut producer_jump = returned.clone();
+        producer_jump.operation = jump(4_638);
+        let mut bypass_jump = returned.clone();
+        bypass_jump.operation = jump(4_639);
+        unit.functions[0].entry = entry;
+        unit.functions[0].blocks = vec![
+            omega_optimization_unit::OptimizationBlock {
+                id: entry,
+                parameters: Vec::new(),
+                nodes: vec![boolean, conditional],
+            },
+            omega_optimization_unit::OptimizationBlock {
+                id: producer,
+                parameters: Vec::new(),
+                nodes: vec![establish, producer_jump],
+            },
+            omega_optimization_unit::OptimizationBlock {
+                id: bypass,
+                parameters: Vec::new(),
+                nodes: vec![bypass_jump],
+            },
+            omega_optimization_unit::OptimizationBlock {
+                id: join,
+                parameters: Vec::new(),
+                nodes: vec![boundary, returned],
+            },
+        ];
+        refresh_function_derivatives(&mut unit, 0);
+        unit
+    }
+
+    fn explicit_local_dominating_non_topological_unit() -> PsiOptimizationUnit {
+        let mut unit = explicit_trivial_affine_return_unit();
+        let producer = id(391, BlockId::new);
+        let cleanup = id(4_640, BlockId::new);
+        let mut nodes = std::mem::take(&mut unit.functions[0].blocks[0].nodes).into_iter();
+        let establish = nodes.next().expect("local establishment");
+        let returned = nodes.next().expect("local cleanup return");
+        let mut jump = returned.clone();
+        jump.operation = TerminalAbstractOperation::Jump {
+            psi_edge: id(4_641, EdgeId::new),
+            target: cleanup,
+            bindings: Vec::new(),
+        };
+        unit.functions[0].blocks = vec![
+            omega_optimization_unit::OptimizationBlock {
+                id: cleanup,
+                parameters: Vec::new(),
+                nodes: vec![returned],
+            },
+            omega_optimization_unit::OptimizationBlock {
+                id: producer,
+                parameters: Vec::new(),
+                nodes: vec![establish, jump],
+            },
+        ];
+        refresh_function_derivatives(&mut unit, 0);
+        unit
+    }
+
+    fn explicit_local_same_block_use_before_definition_unit() -> PsiOptimizationUnit {
+        let mut unit = explicit_trivial_affine_return_unit();
+        let local = id(393, PlaceId::new);
+        let mut observation = unit.functions[0].blocks[0].nodes[0].clone();
+        observation.operation = TerminalAbstractOperation::BooleanStructuralField {
+            psi_operation: id(4_642, OperationId::new),
+            result: id(4_643, ValueId::new),
+            source: local,
+            field: id(4_644, psi_core::StructuralFieldId::new),
+        };
+        unit.functions[0].blocks[0].nodes.insert(0, observation);
+        refresh_function_derivatives(&mut unit, 0);
+        unit
+    }
+
+    fn explicit_local_sibling_cleanup_unit() -> PsiOptimizationUnit {
+        let mut unit = explicit_trivial_affine_return_unit();
+        let entry = id(4_620, BlockId::new);
+        let producer = id(4_621, BlockId::new);
+        let cleanup = id(4_622, BlockId::new);
+        let condition = id(4_623, ValueId::new);
+        let mut nodes = std::mem::take(&mut unit.functions[0].blocks[0].nodes).into_iter();
+        let establish = nodes.next().expect("local establishment");
+        let returned = nodes.next().expect("local cleanup return");
+        let mut boolean = establish.clone();
+        boolean.operation = TerminalAbstractOperation::BooleanConstant {
+            psi_operation: id(4_624, OperationId::new),
+            result: condition,
+            value: true,
+        };
+        let mut conditional = returned.clone();
+        conditional.operation = TerminalAbstractOperation::Conditional {
+            condition,
+            when_true: omega_terminal_abstract_operations::TerminalAbstractSuccessor {
+                psi_edge: id(4_625, EdgeId::new),
+                target: producer,
+                bindings: Vec::new(),
+            },
+            when_false: omega_terminal_abstract_operations::TerminalAbstractSuccessor {
+                psi_edge: id(4_626, EdgeId::new),
+                target: cleanup,
+                bindings: Vec::new(),
+            },
+        };
+        let mut producer_return = returned.clone();
+        producer_return.operation = TerminalAbstractOperation::ReturnUnit {
+            psi_edge: id(4_627, EdgeId::new),
+            cleanup_actions: match &returned.operation {
+                TerminalAbstractOperation::ReturnUnit {
+                    cleanup_actions, ..
+                } => cleanup_actions.clone(),
+                _ => unreachable!("fixture return"),
+            },
+        };
+        unit.functions[0].entry = entry;
+        unit.functions[0].blocks = vec![
+            omega_optimization_unit::OptimizationBlock {
+                id: entry,
+                parameters: Vec::new(),
+                nodes: vec![boolean, conditional],
+            },
+            omega_optimization_unit::OptimizationBlock {
+                id: producer,
+                parameters: Vec::new(),
+                nodes: vec![establish, producer_return],
+            },
+            omega_optimization_unit::OptimizationBlock {
+                id: cleanup,
+                parameters: Vec::new(),
+                nodes: vec![returned],
+            },
+        ];
+        refresh_function_derivatives(&mut unit, 0);
+        unit
+    }
+
     #[derive(Clone, Copy)]
     enum OperationResultCfgShape {
         DominatingNonTopological,
@@ -14227,6 +14746,224 @@ mod tests {
         );
         validate_psi_optimization_unit(&candidate)
             .expect("CallStructural result dominates the structural return through the CFG");
+    }
+
+    #[test]
+    fn byte_literal_catalog_and_exact_establishment_correspondence_validate() {
+        let baseline = byte_literal_boundary_unit();
+        validate_psi_optimization_unit(&baseline)
+            .expect("one exact borrowed-view literal establishment validates");
+
+        let mut ordinal_gap = baseline.clone();
+        let StructuralPlaceKind::ByteSequenceLiteral {
+            declaration_ordinal,
+            ..
+        } = &mut ordinal_gap.functions[0].structural_places[0].kind
+        else {
+            panic!("fixture retains its byte-literal place")
+        };
+        *declaration_ordinal = 1;
+        let TerminalAbstractOperation::EstablishByteSequenceLiteral { place, .. } =
+            &mut ordinal_gap.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture begins with its literal establishment")
+        };
+        let StructuralPlaceKind::ByteSequenceLiteral {
+            declaration_ordinal,
+            ..
+        } = &mut place.kind
+        else {
+            panic!("establishment retains its literal declaration")
+        };
+        *declaration_ordinal = 1;
+        refresh_function_derivatives(&mut ordinal_gap, 0);
+        assert_eq!(
+            validate_psi_optimization_unit(&ordinal_gap),
+            Err(
+                OptimizationUnitValidationError::NonCanonicalByteSequenceLiterals(id(
+                    4_600,
+                    MachineId::new
+                ))
+            )
+        );
+
+        let mut wrong_carrier = baseline.clone();
+        wrong_carrier.structural_types[0].shape =
+            psi_terminal::StructuralTypeShape::Record { fields: Vec::new() };
+        refresh_identity(&mut wrong_carrier);
+        assert_eq!(
+            validate_psi_optimization_unit(&wrong_carrier),
+            Err(
+                OptimizationUnitValidationError::ByteSequenceLiteralDeclarationRequiresBorrowedView {
+                    machine: id(4_600, MachineId::new),
+                    place: id(4_604, PlaceId::new),
+                }
+            )
+        );
+
+        let expected = OptimizationUnitValidationError::ByteSequenceLiteralEstablishmentMismatch(
+            id(4_600, MachineId::new),
+        );
+        let mut missing = baseline.clone();
+        missing.functions[0].blocks[0].nodes.remove(0);
+        refresh_function_derivatives(&mut missing, 0);
+        assert_eq!(
+            validate_psi_optimization_unit(&missing),
+            Err(expected.clone())
+        );
+
+        let mut forged_type = baseline.clone();
+        let TerminalAbstractOperation::EstablishByteSequenceLiteral {
+            structural_type, ..
+        } = &mut forged_type.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture begins with its literal establishment")
+        };
+        structural_type.identity.push_str("::forged");
+        refresh_function_derivatives(&mut forged_type, 0);
+        assert_eq!(
+            validate_psi_optimization_unit(&forged_type),
+            Err(expected.clone())
+        );
+
+        let mut duplicate = baseline;
+        let mut second = duplicate.functions[0].blocks[0].nodes[0].clone();
+        let TerminalAbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. } =
+            &mut second.operation
+        else {
+            panic!("fixture begins with its literal establishment")
+        };
+        *psi_operation = id(4_619, OperationId::new);
+        duplicate.functions[0].blocks[0].nodes.insert(1, second);
+        refresh_function_derivatives(&mut duplicate, 0);
+        assert_eq!(
+            validate_psi_optimization_unit(&duplicate),
+            Err(
+                OptimizationUnitValidationError::ByteSequenceLiteralEstablishmentMismatch(id(
+                    4_600,
+                    MachineId::new
+                ))
+            )
+        );
+
+        let mut two_literals = byte_literal_boundary_unit();
+        let second_place = id(4_645, PlaceId::new);
+        let second_declaration = psi_terminal::StructuralPlaceDeclaration {
+            id: second_place,
+            kind: StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal: 1,
+                structural_type: id(4_603, StructuralTypeId::new),
+            },
+        };
+        let mut second = two_literals.functions[0].blocks[0].nodes[0].clone();
+        let TerminalAbstractOperation::EstablishByteSequenceLiteral {
+            psi_operation,
+            place,
+            bytes,
+            ..
+        } = &mut second.operation
+        else {
+            panic!("fixture begins with its literal establishment")
+        };
+        *psi_operation = id(4_646, OperationId::new);
+        *place = second_declaration;
+        *bytes = vec![1, 2, 3];
+        two_literals.functions[0]
+            .structural_places
+            .push(second_declaration);
+        two_literals.functions[0]
+            .declared_places
+            .insert(second_place);
+        two_literals.functions[0].blocks[0].nodes.insert(1, second);
+        refresh_function_derivatives(&mut two_literals, 0);
+        validate_psi_optimization_unit(&two_literals)
+            .expect("two dense exact literal witnesses validate independent of use count");
+    }
+
+    #[test]
+    fn explicit_structural_roots_require_current_cfg_availability() {
+        let dominating = byte_literal_dominating_non_topological_unit();
+        assert_ne!(
+            dominating.functions[0].blocks[0].id, dominating.functions[0].entry,
+            "fixture stores the literal use block before its producer block"
+        );
+        validate_psi_optimization_unit(&dominating)
+            .expect("a dominating byte-literal producer is available independent of storage order");
+
+        let local_dominating = explicit_local_dominating_non_topological_unit();
+        assert_ne!(
+            local_dominating.functions[0].blocks[0].id, local_dominating.functions[0].entry,
+            "fixture stores the local cleanup block before its producer block"
+        );
+        validate_psi_optimization_unit(&local_dominating)
+            .expect("a dominating explicit local establishment reaches cleanup");
+
+        let mut same_block = byte_literal_boundary_unit();
+        same_block.functions[0].blocks[0].nodes.swap(0, 1);
+        refresh_function_derivatives(&mut same_block, 0);
+        assert_eq!(
+            validate_psi_optimization_unit(&same_block),
+            Err(
+                OptimizationUnitValidationError::StructuralPlaceNotAvailable {
+                    machine: id(4_600, MachineId::new),
+                    block: id(4_601, BlockId::new),
+                    node: 0,
+                    place: id(4_604, PlaceId::new),
+                }
+            )
+        );
+
+        let sibling = byte_literal_sibling_use_unit();
+        assert_eq!(
+            validate_psi_optimization_unit(&sibling),
+            Err(
+                OptimizationUnitValidationError::StructuralPlaceNotAvailable {
+                    machine: id(4_600, MachineId::new),
+                    block: id(4_613, BlockId::new),
+                    node: 0,
+                    place: id(4_604, PlaceId::new),
+                }
+            )
+        );
+
+        let partial = byte_literal_partial_predecessor_unit();
+        assert_eq!(
+            validate_psi_optimization_unit(&partial),
+            Err(
+                OptimizationUnitValidationError::StructuralPlaceNotAvailable {
+                    machine: id(4_600, MachineId::new),
+                    block: id(4_633, BlockId::new),
+                    node: 0,
+                    place: id(4_604, PlaceId::new),
+                }
+            )
+        );
+
+        let local_same_block = explicit_local_same_block_use_before_definition_unit();
+        assert_eq!(
+            validate_psi_optimization_unit(&local_same_block),
+            Err(
+                OptimizationUnitValidationError::StructuralPlaceNotAvailable {
+                    machine: id(390, MachineId::new),
+                    block: id(391, BlockId::new),
+                    node: 0,
+                    place: id(393, PlaceId::new),
+                }
+            )
+        );
+
+        let local_cleanup = explicit_local_sibling_cleanup_unit();
+        assert_eq!(
+            validate_psi_optimization_unit(&local_cleanup),
+            Err(
+                OptimizationUnitValidationError::StructuralPlaceNotAvailable {
+                    machine: id(390, MachineId::new),
+                    block: id(4_622, BlockId::new),
+                    node: 0,
+                    place: id(393, PlaceId::new),
+                }
+            )
+        );
     }
 
     #[test]

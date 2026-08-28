@@ -1,6 +1,8 @@
 use omega_calling_conventions::{CallSignature, ValueShape};
 use omega_native_differential_test::admit_native_provider;
+use omega_optimization_validation::validate_verified_psi_optimization_unit;
 use omega_target::NativeTarget;
+use omega_terminal_abstract_operations::TerminalAbstractOperation;
 use omega_terminal_abstract_operations_to_target_operations::{
     AdmittedTerminalBoundarySettlement, LoweringError,
     lower_to_target_operations_with_provider_executions,
@@ -11,7 +13,10 @@ use omega_terminal_image_emission::{
     encode_terminal_installation_record, validate_terminal_installation_record,
 };
 use omega_terminal_machine_emission::emit_machine_code;
-use omega_terminal_psi_to_abstract_operations::lower_artifact_sections;
+use omega_terminal_psi_to_abstract_operations::{
+    build_verified_psi_optimization_unit, lower_artifact_sections,
+    lower_artifact_sections_for_optimization,
+};
 use omega_terminal_target_operations::{
     TerminalLinuxExitGroupI32Realization, TerminalLinuxWriteLineRealization,
 };
@@ -23,7 +28,7 @@ use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_terminal::TerminalModule;
 use psi_terminal_codec::{decode_module, encode_proof_bundle, terminal_psi_identity};
-use psi_terminal_fuel::TerminalFuelMeter;
+use psi_terminal_fuel::{TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
@@ -106,6 +111,59 @@ fn hex_bytes(bytes: &[u8]) -> String {
         output.push(DIGITS[(byte & 0xf) as usize] as char);
     }
     output
+}
+
+#[test]
+fn source_byte_sequence_literal_reaches_verified_optimizer_admission() {
+    let (semantic, proof) = project_source(canonical_console_source());
+    let input =
+        lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default())
+            .expect("source byte literal verifies for optimizer admission");
+    let verified =
+        build_verified_psi_optimization_unit(input, TerminalFuelSchedule::CURRENT.identity())
+            .expect("source byte literal retains its optimizer unit");
+    validate_verified_psi_optimization_unit(&verified)
+        .expect("source byte-literal producer dominates its boundary use");
+
+    let function = verified
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == verified.unit().entry)
+        .expect("optimizer unit retains the source entry");
+    let [block] = function.blocks.as_slice() else {
+        panic!("current source byte-literal lowering remains one block")
+    };
+    let (producer_index, literal) =
+        block
+            .nodes
+            .iter()
+            .enumerate()
+            .find_map(|(index, node)| match &node.operation {
+                TerminalAbstractOperation::EstablishByteSequenceLiteral {
+                    place, bytes, ..
+                } if bytes == b"Hello, Omega." => Some((index, place.id)),
+                _ => None,
+            })
+            .expect("source lowering retains the exact byte literal");
+    let use_index = block
+        .nodes
+        .iter()
+        .enumerate()
+        .find_map(|(index, node)| match &node.operation {
+            TerminalAbstractOperation::BoundaryCall {
+                structural_arguments,
+                ..
+            } if structural_arguments
+                .iter()
+                .any(|argument| argument.place == literal) =>
+            {
+                Some(index)
+            }
+            _ => None,
+        })
+        .expect("source lowering retains the literal boundary use");
+    assert!(producer_index < use_index);
 }
 
 #[test]
