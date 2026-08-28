@@ -237,26 +237,28 @@ wide=$(awk 'BEGIN { printf "proc main() { return 1"; for (i = 0; i < 12000; i++)
 reject output_extent "$wide"
 many_slots=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 65; i++) printf " let v%d = %d", i, i; print " return 0 }" }')
 reject slot_extent "$many_slots"
-many_calls=$(awk 'BEGIN { printf "proc main() { return zero()"; for (i = 1; i < 513; i++) printf " + zero()"; print " } proc zero() { return 0 }" }')
-reject call_extent "$many_calls"
+calls_1024=$(awk 'BEGIN { printf "proc main() { return zero()"; for (i = 1; i < 1024; i++) printf " + zero()"; print " } proc zero() { return 0 }" }')
+accept call_global_limit "$calls_1024" 0
+calls_1025=$(awk 'BEGIN { printf "proc main() { return zero()"; for (i = 1; i < 1025; i++) printf " + zero()"; print " } proc zero() { return 0 }" }')
+reject call_global_extent "$calls_1025"
 many_procs=$(awk 'BEGIN { print "proc main() { return 0 }"; for (i = 0; i < 128; i++) printf "proc p%d() { return %d }\n", i, i }')
 reject procedure_extent "$many_procs"
-states_64=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 64; i++) printf " state s%d { }", i; print " return 0 }" }')
-accept state_proc_limit "$states_64" 0
-states_65=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 65; i++) printf " state s%d { }", i; print " return 0 }" }')
-reject state_proc_extent "$states_65"
-states_512=$(awk 'BEGIN { for (p = 0; p < 8; p++) { if (p == 0) printf "proc main() {"; else printf "proc p%d() {", p; for (i = 0; i < 64; i++) printf " state s%d { }", i; print " return 0 }" } }')
-accept state_global_limit "$states_512" 0
-states_513="$states_512 proc extra() { state overflow { return 0 } }"
-reject state_global_extent "$states_513"
-edges_64=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 64; i++) printf " to done"; print " state done { return 0 } }" }')
-accept edge_proc_limit "$edges_64" 0
-edges_65=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 65; i++) printf " to done"; print " state done { return 0 } }" }')
-reject edge_proc_extent "$edges_65"
-edges_512=$(awk 'BEGIN { for (p = 0; p < 8; p++) { if (p == 0) printf "proc main() {"; else printf "proc p%d() {", p; for (i = 0; i < 64; i++) printf " to done"; print " state done { return 0 } }" } }')
-accept edge_global_limit "$edges_512" 0
-edges_513="$edges_512 proc extra_edges() { to done state done { return 0 } }"
-reject edge_global_extent "$edges_513"
+states_128=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 128; i++) printf " state s%d { }", i; print " return 0 }" }')
+accept state_proc_limit "$states_128" 0
+states_129=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 129; i++) printf " state s%d { }", i; print " return 0 }" }')
+reject state_proc_extent "$states_129"
+states_1024=$(awk 'BEGIN { for (p = 0; p < 8; p++) { if (p == 0) printf "proc main() {"; else printf "proc p%d() {", p; for (i = 0; i < 128; i++) printf " state s%d { }", i; print " return 0 }" } }')
+accept state_global_limit "$states_1024" 0
+states_1025="$states_1024 proc extra() { state overflow { return 0 } }"
+reject state_global_extent "$states_1025"
+edges_256=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 256; i++) printf " to done"; print " state done { return 0 } }" }')
+accept edge_proc_limit "$edges_256" 0
+edges_257=$(awk 'BEGIN { printf "proc main() {"; for (i = 0; i < 257; i++) printf " to done"; print " state done { return 0 } }" }')
+reject edge_proc_extent "$edges_257"
+edges_1024=$(awk 'BEGIN { for (p = 0; p < 4; p++) { if (p == 0) printf "proc main() {"; else printf "proc p%d() {", p; for (i = 0; i < 256; i++) printf " to done"; print " state done { return 0 } }" } }')
+accept edge_global_limit "$edges_1024" 0
+edges_1025="$edges_1024 proc extra_edges() { to done state done { return 0 } }"
+reject edge_global_extent "$edges_1025"
 
 # Pin the compiler-owned source extent: exactly 1 MiB is accepted, while the
 # next byte is observed before any table write or output publication.

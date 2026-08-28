@@ -28,13 +28,13 @@ fi
 cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "refinement-cert-diamond: skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_BETA_COMPILER}"/artifact_env.sh
+. "${OMEGA_PATH_PROOF_KERNEL}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}/$ALPHA_SEED"
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 BC="$T/bc.exe"
 stamp_beta_compiler "$BC" >/dev/null 2>&1 || { echo "lattice bc artifact unavailable"; exit 1; }
-"$BC" < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta > "$T/c.asm" 2>/dev/null && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
-  && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1 || { echo "check.beta build failed"; exit 1; }
+stamp_proof_checker "$T/check.exe" >/dev/null 2>&1 || { echo "checker artifact unavailable"; exit 1; }
 "$BC" < "${OMEGA_PATH_GAMMA}"/interp.beta > "$T/i.asm" 2>/dev/null && "$ASM" < "$T/i.asm" > "$T/i.tape" 2>/dev/null \
   && stamp_seed "$T/i.tape" "$SEED" "$T/interp.exe" >/dev/null 2>&1 || { echo "interp.beta build failed"; exit 1; }
 DEFS=$(cat "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma)

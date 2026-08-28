@@ -4,10 +4,10 @@ This Alpha-owned service is where the lattice's whole thesis — **trust by
 checking, not by pedigree** — becomes concrete. The bootstrap spine gives us a
 Rust-free route to run its current implementations.
 
-The current Beta checker is compiled by `bc`. It is therefore a strong
-regression and differential checker, but cannot non-circularly admit `bc`
-itself. Closing an independently rooted checker artifact is explicit bootstrap
-work; directory placement alone does not grant authority.
+The authoritative Beta checker artifact is compiled by the Alpha-written cold
+Beta compiler, below `bc`, and reconstructed byte-for-byte by
+`reconstruct-artifact.sh`. A second checker compiled by `bc` remains useful
+regression and differential evidence, but cannot admit its own producer.
 
 This tree is checker infrastructure rather than a compiler or language rung.
 Canonical callers resolve the `proof-kernel` role through `tools/bootstrap/paths.sh`.
@@ -21,6 +21,9 @@ implementations/
   beta/              lattice-built logical and definitional-equality checkers
   reference/         independent executable reference checker
   gamma/             independent Gamma checker and its typed form
+artifacts/            persisted below-Beta checker tape and rebuild entry
+artifact_env.sh       stamps the accepted tape into the audited host seed
+construct-artifact.sh direct Alpha -> cold Beta -> checker construction
 tools/                untrusted elaboration, proof search, and certificate conversion
 corpus/               proof sources, shared libraries, and deterministic fuzz generators
 gates/                executable soundness, cross-check, and operational-seam policy
@@ -126,16 +129,21 @@ pairs. Three further gates harden the trust anchor:
 
 ## The full stack
 
-`check` is compiled by **bc** (the self-hosting Beta compiler — no Rust in its
-execution), assembled by the alpha assembler, and run on the hand-audited seed:
+The authoritative `check` tape is constructed below **bc**, then stamped into
+the hand-audited seed:
 
 ```
 hand-audited alpha seed
   runs the assembler (written in alpha)
-  which lowered bc (the Beta compiler, written in Beta)
-  which compiled check.beta (this checker)
+  which lowers the cold Beta compiler (written in alpha)
+  which compiles check.beta (this checker) to artifacts/check.tape
   which validates a certificate -> accept / reject
 ```
+
+`reconstruct-artifact.sh` rebuilds that tape twice and compares it byte-for-byte
+with the committed artifact. The accepted `bc.tape` may separately compile the
+same checker source as differential evidence, but that product cannot admit the
+compiler that produced it.
 
 A separate, untrusted, arbitrarily-clever proof-**search** engine may produce
 certificates; it has no authority — a false proposition cannot get past `check`,

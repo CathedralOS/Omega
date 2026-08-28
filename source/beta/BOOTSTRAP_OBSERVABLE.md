@@ -95,10 +95,10 @@ rather than treating that host status as its definition.
 The first supported whole-compiler profile is now frozen to the exact source and
 artifact committed together:
 
-- `bc.beta`: 32,064 bytes, SHA-256
-  `f844d33e29814f1280bbeee2bf599db2bded2fb9469a7f1bfc870fac522c326d`;
-- `bc.tape`: 51,602 bytes, SHA-256
-  `835c44d1b99afc13be8da3f8ccc95fc6dde61aaa94dfba8b3920b0d34c4f99d9`;
+- `bc.beta`: 32,565 bytes, SHA-256
+  `fe4b5af69f87163ce919d22e2aa662ad0b5f2a044a6904581c91e8638749aa25`;
+- `bc.tape`: 52,141 bytes, SHA-256
+  `1b32401c4c8fb60598e97178d415136227c9aa2231e28d9eb44b30e7a2818a2f`;
 - Alpha memory: 64 MiB, with the tape at byte zero and the hidden return stack
   starting at 64 MiB;
 - stamped tape payload: at most 262,140 bytes inside the 256 KiB hole after its

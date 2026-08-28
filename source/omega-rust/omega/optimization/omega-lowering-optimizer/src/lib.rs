@@ -1311,6 +1311,61 @@ mod tests {
         exact_add_verified_with_result(false)
     }
 
+    fn live_exact_add_zero_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_081).unwrap();
+        let block = BlockId::new(1_082).unwrap();
+        let left = ValueId::new(1_083).unwrap();
+        let zero = ValueId::new(1_084).unwrap();
+        let computed = ValueId::new(1_085).unwrap();
+        let result = ValueId::new(1_086).unwrap();
+        let obligation = ObligationId::new(1_087).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let declaration = |id| ValueDeclaration { id, scalar_type };
+        let mut module = module_with_blocks(
+            machine,
+            block,
+            TerminalMachineResult::Scalar(declaration(result)),
+            vec![Block {
+                id: block,
+                parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        id: OperationId::new(1_088).unwrap(),
+                        result: OperationResult::Scalar(declaration(zero)),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(0),
+                        },
+                    },
+                    Operation {
+                        id: OperationId::new(1_089).unwrap(),
+                        result: OperationResult::Scalar(declaration(computed)),
+                        kind: OperationKind::ExactIntegerAdd {
+                            left,
+                            right: zero,
+                            obligation,
+                        },
+                    },
+                ],
+                terminator: Terminator::Return {
+                    cleanup_actions: Vec::new(),
+                    edge: EdgeId::new(1_090).unwrap(),
+                    value: computed,
+                },
+            }],
+        );
+        module.machines[0].parameters.push(declaration(left));
+        verified(
+            module,
+            ProofBundle {
+                evidence_producers: Vec::new(),
+                evidence: vec![ObligationEvidence {
+                    obligation,
+                    route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+                }],
+            },
+        )
+    }
+
     fn exact_add_verified_with_result(return_result: bool) -> VerifiedPsiOptimizationUnit {
         let machine = MachineId::new(1_011).unwrap();
         let block = BlockId::new(1_012).unwrap();
@@ -2069,6 +2124,40 @@ mod tests {
             terminal.operation,
             TerminalAbstractOperation::ReturnUnit { .. }
         ));
+        assert_eq!(terminal.provenance.len(), 2);
+        assert_eq!(terminal.fuel.len(), 2);
+    }
+
+    #[test]
+    fn proof_check_elision_projects_live_exact_identity_with_fact_and_fuel_custody() {
+        let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
+        let optimized =
+            project_optimization_run(run(live_exact_add_zero_verified(), selections)).unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.transformation_ledger().records().len(), 1);
+        assert_eq!(optimized.pass_manifests().len(), 1);
+        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 2);
+        assert_eq!(optimized.plan().functions[0].operations.len(), 2);
+        assert!(matches!(
+            optimized.plan().functions[0].operations[1],
+            TerminalAbstractOperation::Return { value, .. }
+                if value == ValueId::new(1_083).unwrap()
+        ));
+        assert_eq!(optimized.unit().accepted_obligation_facts.len(), 1);
+        assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
+            !matches!(
+                fact,
+                omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+            )
+        }));
+        assert_eq!(
+            optimized.pass_manifests()[0].decisions()[0]
+                .consumed_facts()
+                .len(),
+            2
+        );
+        let terminal = &optimized.unit().functions[0].blocks[0].nodes[1];
         assert_eq!(terminal.provenance.len(), 2);
         assert_eq!(terminal.fuel.len(), 2);
     }

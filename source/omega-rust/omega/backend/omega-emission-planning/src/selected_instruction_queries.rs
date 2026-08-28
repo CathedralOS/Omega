@@ -75,6 +75,7 @@ mod tests {
         let kind = SelectedInstructionKind::HostOperation {
             operation_key,
             operands: HandleSpan::empty(),
+            provenance: None,
         };
 
         assert_eq!(

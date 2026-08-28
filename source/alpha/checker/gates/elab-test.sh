@@ -20,15 +20,13 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
 fi
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" || exit $?
+. "$OMEGA_PATH_PROOF_KERNEL/artifact_env.sh" || exit $?
 cd "$OMEGA_PATH_PROOF_KERNEL"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-stamp_beta_compiler "$T/bc.exe" >/dev/null
-"$T/bc.exe" < implementations/beta/check.beta > "$T/p.asm" || { echo "bc(implementations/beta/check.beta) failed"; exit 1; }
-"$ASM" < "$T/p.asm" > "$T/p.tape" || { echo "asm failed"; exit 1; }
-stamp_seed "$T/p.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1
+stamp_proof_checker "$T/check.exe" >/dev/null || { echo "checker artifact unavailable"; exit 1; }
 PASS=0; FAIL=0
 for f in corpus/proofs/*.elab; do
   out=$(python3 tools/elab.py --check "$T/check.exe" < "$f" 2>&1)

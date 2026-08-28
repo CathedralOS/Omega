@@ -18,6 +18,7 @@ mod allocator_availability_identity;
 mod allocator_availability_model;
 mod allocator_availability_validate;
 mod compute;
+mod fixed_view_copy_codec;
 mod fixed_view_copy_compute;
 mod fixed_view_copy_identity;
 mod fixed_view_copy_model;

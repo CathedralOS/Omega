@@ -269,7 +269,7 @@ A symbolic trip count `n` can't be unrolled. Both sides recognize the loop and r
 | `refinement_fuzz_gen.py` | random straight-line arithmetic programs |
 | `refinement_loop_gen.py` | random data-dependent counter loops (`<` / `<=`) |
 | `refinement_compose_gen.py` | random pre-loop + loop + post-loop compositions |
-| `refinement.sh` | builds `check.beta` + `bc`, runs the driver; the lattice step |
+| `refinement.sh` | stamps the below-Beta checker artifact and `bc`, then runs the driver; the lattice step |
 | `refinement-samples/*.beta` | curated end-to-end samples (muln, countn, tri, muln_le, …) |
 | `symbolic_loop_check.py` + `symbolic-loops.sh` | source-side soundness gate: `beta_symbolic`'s loop summaries pinned to `../../../rungs/beta/reference/beta_interp.py` over an input grid |
 

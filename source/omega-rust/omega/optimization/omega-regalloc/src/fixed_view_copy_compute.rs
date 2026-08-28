@@ -747,7 +747,7 @@ fn is_u64(scalar: ScalarType) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use omega_optimization_unit::ValueDefinitionSite;
     use omega_register_model::{
         RegisterClassId, RegisterConstraintFamily, RegisterConstraintId, RegisterConstraintKey,
@@ -806,7 +806,7 @@ mod tests {
         }
     }
 
-    fn fixture() -> (
+    pub(crate) fn fixture() -> (
         TerminalSelectedFunction,
         TerminalFunctionAllocationLegality,
         RegisterInstructionConstraint,
@@ -972,17 +972,28 @@ mod tests {
         (function, legality, row)
     }
 
-    #[test]
-    fn shared_entry_policy_inserts_one_copy_after_compare_and_rewrites_both_returns() {
+    pub(crate) fn computed_shared_fixture() -> (
+        TerminalSelectedFunction,
+        TerminalFunctionAllocationLegality,
+        RegisterInstructionConstraint,
+        TerminalFixedViewCopy,
+        TerminalSelectedFunction,
+    ) {
         let (function, legality, row) = fixture();
         let copy = build_shared_entry_copy(0, &function, &legality, &row, row.key, 4, 2)
             .unwrap()
             .unwrap();
+        let mut transformed = function.clone();
+        apply_copy(0, &mut transformed, &copy, &row).unwrap();
+        (function, legality, row, copy, transformed)
+    }
+
+    #[test]
+    fn shared_entry_policy_inserts_one_copy_after_compare_and_rewrites_both_returns() {
+        let (_, _, _, copy, transformed) = computed_shared_fixture();
         assert_eq!(copy.insertion_block, TerminalSelectedBlockId(0));
         assert_eq!(copy.before_instruction, TerminalSelectedInstructionId(1));
         assert_eq!(copy.destinations.len(), 2);
-        let mut transformed = function;
-        apply_copy(0, &mut transformed, &copy, &row).unwrap();
         assert_eq!(transformed.blocks[0].instructions.len(), 2);
         assert_eq!(
             transformed.blocks[0].instructions[1].kind,
