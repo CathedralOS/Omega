@@ -508,6 +508,38 @@ fn package_review_is_not_owned_or_reexported_by_the_compiler() {
 }
 
 #[test]
+fn build_output_custody_is_not_owned_or_reexported_by_the_compiler() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
+    assert!(
+        !compiler
+            .join("src/pipeline/build/staged_output.rs")
+            .exists(),
+        "retained build-output custody must not return to omega-compiler"
+    );
+
+    let owner = root.join("source/omega-rust/omega/orchestration/omega-build-output/src/lib.rs");
+    assert!(
+        owner.is_file(),
+        "omega-build-output must own retained build output"
+    );
+
+    let public_api = std::fs::read_to_string(compiler.join("src/public_api.rs"))
+        .expect("read omega-compiler compatibility API");
+    for forbidden in [
+        "BuildStagedOutputMaterializationError",
+        "BuildStagedOutputTree",
+        "BuildStagedOutputTreeCommitment",
+        "PackageGeneratedSource,",
+    ] {
+        assert!(
+            !public_api.contains(forbidden),
+            "omega-compiler must not reexport build-output owner `{forbidden}`"
+        );
+    }
+}
+
+#[test]
 fn omega_product_entry_remains_a_tiny_dispatcher() {
     let root = workspace_root();
     let entry = root.join("source/omega-rust/omega/src/main.rs");

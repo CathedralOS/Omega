@@ -49,7 +49,7 @@ use std::path::{Path, PathBuf};
 
 use omega_optimization_core::{Optimization, OptimizationSelections};
 
-use super::build_staged_output::{
+use omega_build_output::{
     BuildStagedOutputTree, PackageGeneratedSource, capture, empty, replayed_single_ordinary_file,
     select_included_sources,
 };

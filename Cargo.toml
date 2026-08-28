@@ -129,6 +129,7 @@ members = [
     "source/omega-rust/omega/orchestration/omega-backend-pipeline",
     "source/omega-rust/omega/orchestration/omega-build-declarations",
     "source/omega-rust/omega/orchestration/omega-source-profile",
+    "source/omega-rust/omega/orchestration/omega-build-output",
     "source/omega-rust/omega/orchestration/omega-compiler",
     "source/omega-rust/omega/orchestration/omega-package-review",
     "source/omega-rust/omega/orchestration/omega-packages",

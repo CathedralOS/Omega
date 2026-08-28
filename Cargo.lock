@@ -487,6 +487,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-build-output"
+version = "0.1.0"
+dependencies = [
+ "psi-checked-interpreter",
+ "psi-diagnostics",
+ "sha2",
+]
+
+[[package]]
 name = "omega-calling-conventions"
 version = "0.1.0"
 dependencies = [
@@ -524,6 +533,7 @@ dependencies = [
  "omega-backend-plan",
  "omega-backend-report",
  "omega-build-declarations",
+ "omega-build-output",
  "omega-calling-conventions",
  "omega-checked-trees-to-state-graph",
  "omega-component-deployment",

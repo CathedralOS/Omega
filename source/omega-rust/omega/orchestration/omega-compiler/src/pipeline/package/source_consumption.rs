@@ -86,7 +86,7 @@ pub(super) fn verify_current_files(
     program: &CheckedTrees,
     generated_sources: &[(
         psi_source::SourceId,
-        super::build_staged_output::PackageGeneratedSource,
+        omega_build_output::PackageGeneratedSource,
     )],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
