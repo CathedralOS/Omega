@@ -424,6 +424,10 @@ pub struct ResolvedGitSource {
     /// Exact transport executable observed for HTTPS or SSH resolution.
     /// The test-only file adapter retains no transport executable here.
     pub transport_executable: Option<GitTransportExecutableIdentity>,
+    /// Fixed platform executables admitted in addition to Git and the selected
+    /// transport helper. Each identity binds its invocation path, canonical
+    /// target, and exact content digest.
+    pub(crate) execution_helper_executables: Vec<GitTransportExecutableIdentity>,
     /// Locally reconstructed native policy observations for every command
     /// configured during this resolution. These rows are provenance, not accepted source
     /// authority; strict admission must reject any unavailable required row.
@@ -433,6 +437,10 @@ pub struct ResolvedGitSource {
 impl ResolvedGitSource {
     pub fn execution_policy_observations(&self) -> &[ResolverExecutionPolicyObservation] {
         &self.execution_policy_observations
+    }
+
+    pub fn execution_helper_executables(&self) -> &[GitTransportExecutableIdentity] {
+        &self.execution_helper_executables
     }
 }
 
@@ -1065,6 +1073,7 @@ fn resolve_verified_git_cache_entry(
         resolve_git_snapshot(executor, &repository, &tree, entries, limits)?;
     repository.verify_current(limits)?;
     executor.verify()?;
+    executor.validate_execution_policy_observations()?;
     Ok(ResolvedGitSource {
         requested_locator: requested_locator.to_owned(),
         locator_identity: locator_identity.to_owned(),
@@ -1079,6 +1088,11 @@ fn resolve_verified_git_cache_entry(
             .transport_executable
             .as_ref()
             .map(|executable| executable.identity.clone()),
+        execution_helper_executables: executor
+            .execution_helpers
+            .iter()
+            .map(|executable| executable.identity.clone())
+            .collect(),
         execution_policy_observations: executor.execution_policy_observations.borrow().clone(),
     })
 }
@@ -6529,6 +6543,52 @@ impl GitExecutor {
         self.verify_budget()
     }
 
+    fn validate_execution_policy_observations(&self) -> Result<(), SourceResolveError> {
+        let observations = self.execution_policy_observations.borrow();
+        if observations.len() != self.launches.get() {
+            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "native policy observation count does not match launched command count"
+                    .to_owned(),
+            });
+        }
+        for observation in observations.iter() {
+            if observation.executable() != self.identity.path {
+                return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "native policy observation names a different Git executable"
+                        .to_owned(),
+                });
+            }
+            let network_phase = matches!(
+                observation.phase(),
+                ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch
+            );
+            let mut expected = BTreeSet::new();
+            if network_phase {
+                for executable in self
+                    .transport_executable
+                    .iter()
+                    .chain(self.execution_helpers.iter())
+                {
+                    expected.insert(executable.identity.invocation_path.clone());
+                    expected.insert(executable.identity.path.clone());
+                }
+            }
+            expected.remove(&self.identity.path);
+            let observed = observation
+                .additional_executables()
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            if observed != expected {
+                return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "native policy observation executable paths do not match verified executable content custody"
+                        .to_owned(),
+                });
+            }
+        }
+        Ok(())
+    }
+
     fn begin_launch(&self) -> Result<Duration, SourceResolveError> {
         self.verify_budget()?;
         let launches = self.launches.get();
@@ -9680,6 +9740,16 @@ mod tests {
                     == ResolverExecutionPhase::RepositoryInspection
                     && observation.mutable_root().is_none())
         );
+        #[cfg(target_os = "macos")]
+        {
+            assert_eq!(resolved.execution_helper_executables().len(), 5);
+            assert!(
+                resolved
+                    .execution_helper_executables()
+                    .iter()
+                    .all(|executable| executable.content_identity().len() == 64)
+            );
+        }
 
         let _ = std::fs::remove_dir_all(&repo);
         let _ = std::fs::remove_dir_all(&cache);

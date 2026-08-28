@@ -678,6 +678,14 @@ complete.
   endpoint/credential trust, object authentication, snapshot publication, and
   final verdict still require a package-layer canonical join.
 
+  Follow-up 2026-08-28: successful Git resolution now requires the retained
+  policy-observation count to equal the bounded launch count and requires each
+  observation's executable path set to equal the paths backed by the verified
+  Git, selected transport, and fixed platform-helper content identities for
+  that phase. Fixed helper identities are retained in the result rather than
+  discarded. This closes configuration-to-content association but does not
+  claim that a standalone observation proves command execution or outcome.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the
