@@ -194,6 +194,7 @@ pub use machine_effects::{
 pub use physical_pipeline::{
     OptimizedVerifiedPhysicalPipelineError, StagedOptimizedVerifiedPhysicalPipeline,
     stage_optimized_verified_physical_pipeline_with_provider_executions,
+    stage_optimized_verified_physical_pipeline_with_provider_executions_and_installation,
 };
 pub use post_allocation_machine_effects::{
     OptimizedPostAllocationMachinePipelineError,

@@ -1,5 +1,7 @@
 use omega_lowering_optimizer::{
-    ValidatedOptimizedAbstractPlan, lower_optimized_to_target_operations_with_provider_executions,
+    ValidatedOptimizedAbstractPlan, ValidatedOptimizedTargetOperations,
+    lower_optimized_to_target_operations_with_provider_executions,
+    lower_optimized_to_target_operations_with_provider_executions_and_installation,
 };
 use omega_optimization_core::{
     Optimization, OptimizationExecutionPhase, OptimizationSelectionIdentity,
@@ -14,6 +16,7 @@ use omega_target::NativeTarget;
 use omega_terminal_abstract_operations_to_target_operations::{
     AdmittedTerminalBoundarySettlement, LoweringError,
 };
+use omega_terminal_psi_to_abstract_operations::AdmittedTerminalProviderInstallation;
 
 use crate::{
     FunctionRelativeOptimizationRealizationError, OptimizedActiveResidentRematerializationError,
@@ -428,21 +431,58 @@ pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
     target: NativeTarget,
     settlements: &[AdmittedTerminalBoundarySettlement<'_>],
 ) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
-    let allocation_recovery = optimized
+    let optimized_target = lower_optimized_to_target_operations_with_provider_executions(
+        optimized,
+        target,
+        settlements,
+    )
+    .map_err(OptimizedVerifiedPhysicalPipelineError::TargetLowering)?;
+    stage_optimized_verified_physical_pipeline(optimized_target)
+}
+
+/// Lower and validate one optimized plan while retaining the exact opaque
+/// provider installation that authorized its installed-provider calls. The
+/// admission remains owned by the nested target carrier throughout every
+/// selected and physical stage.
+pub fn stage_optimized_verified_physical_pipeline_with_provider_executions_and_installation(
+    optimized: ValidatedOptimizedAbstractPlan,
+    target: NativeTarget,
+    settlements: &[AdmittedTerminalBoundarySettlement<'_>],
+    installation: AdmittedTerminalProviderInstallation,
+) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
+    let optimized_target =
+        lower_optimized_to_target_operations_with_provider_executions_and_installation(
+            optimized,
+            target,
+            settlements,
+            installation,
+        )
+        .map_err(OptimizedVerifiedPhysicalPipelineError::TargetLowering)?;
+    stage_optimized_verified_physical_pipeline(optimized_target)
+}
+
+fn stage_optimized_verified_physical_pipeline(
+    optimized_target: ValidatedOptimizedTargetOperations,
+) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
+    let allocation_recovery = optimized_target
+        .optimized()
         .selections()
         .for_phase(OptimizationExecutionPhase::AllocationRecovery);
     if allocation_recovery.as_slice()
         == [Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1]
     {
-        if !optimized
+        if !optimized_target
+            .optimized()
             .selections()
             .for_phase(OptimizationExecutionPhase::SelectedLowering)
             .is_empty()
-            || !optimized
+            || !optimized_target
+                .optimized()
                 .selections()
                 .for_phase(OptimizationExecutionPhase::FunctionRelativeLayout)
                 .is_empty()
-            || !optimized
+            || !optimized_target
+                .optimized()
                 .selections()
                 .for_phase(OptimizationExecutionPhase::PostAllocationMachine)
                 .is_empty()
@@ -451,8 +491,7 @@ pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
                 OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,
             );
         }
-        let ranges =
-            stage_active_resident_rematerialization_live_ranges(optimized, target, settlements)?;
+        let ranges = stage_active_resident_rematerialization_live_ranges(optimized_target)?;
         let realization = stage_active_resident_rematerialization_pipeline(ranges)?;
         return Ok(
             StagedOptimizedVerifiedPhysicalPipeline::ActiveResidentRematerialization {
@@ -460,22 +499,14 @@ pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
             },
         );
     }
-    stage_non_active_resident_rematerialization_physical_pipeline(optimized, target, settlements)
+    stage_non_active_resident_rematerialization_physical_pipeline(optimized_target)
 }
 
 #[inline(never)]
 fn stage_active_resident_rematerialization_live_ranges(
-    optimized: ValidatedOptimizedAbstractPlan,
-    target: NativeTarget,
-    settlements: &[AdmittedTerminalBoundarySettlement<'_>],
+    optimized_target: ValidatedOptimizedTargetOperations,
 ) -> Result<StagedOptimizedLiveRanges, OptimizedVerifiedPhysicalPipelineError> {
-    let target = lower_optimized_to_target_operations_with_provider_executions(
-        optimized,
-        target,
-        settlements,
-    )
-    .map_err(OptimizedVerifiedPhysicalPipelineError::TargetLowering)?;
-    let selected = stage_optimized_instruction_selection(target)
+    let selected = stage_optimized_instruction_selection(optimized_target)
         .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)?;
     let liveness = stage_optimized_liveness(selected)
         .map_err(OptimizedVerifiedPhysicalPipelineError::Liveness)?;
@@ -485,17 +516,9 @@ fn stage_active_resident_rematerialization_live_ranges(
 
 #[inline(never)]
 fn stage_non_active_resident_rematerialization_physical_pipeline(
-    optimized: ValidatedOptimizedAbstractPlan,
-    target: NativeTarget,
-    settlements: &[AdmittedTerminalBoundarySettlement<'_>],
+    optimized_target: ValidatedOptimizedTargetOperations,
 ) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
-    let target = lower_optimized_to_target_operations_with_provider_executions(
-        optimized,
-        target,
-        settlements,
-    )
-    .map_err(OptimizedVerifiedPhysicalPipelineError::TargetLowering)?;
-    let selected = stage_optimized_instruction_selection(target)
+    let selected = stage_optimized_instruction_selection(optimized_target)
         .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)?;
     let liveness = stage_optimized_liveness(selected)
         .map_err(OptimizedVerifiedPhysicalPipelineError::Liveness)?;

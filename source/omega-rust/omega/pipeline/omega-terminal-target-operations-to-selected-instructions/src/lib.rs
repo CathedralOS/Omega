@@ -4521,7 +4521,7 @@ mod structural_unit_tests {
                 boundary,
                 arguments: Vec::new(),
                 structural_arguments: vec![structural_arguments[1].clone()],
-                completion_claim_sources: vec![completion_claim_sources[1].clone()],
+                completion_claim_sources: completion_claim_sources.clone(),
                 completion_receipts: vec![CompletionReceipt {
                     claim: completion_receipts[1].claim,
                     argument_index: 0,
@@ -4570,7 +4570,7 @@ mod structural_unit_tests {
             settlement(
                 second_operation,
                 structural_arguments[1].clone(),
-                vec![completion_claim_sources[1].clone()],
+                completion_claim_sources.clone(),
                 vec![CompletionReceipt {
                     claim: completion_receipts[1].claim,
                     argument_index: 0,
