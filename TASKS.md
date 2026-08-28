@@ -100,10 +100,11 @@ Remaining:
   Deriving the exact surface used by `C`, extending the Delta-produced compiler,
   and validating the direct build remain in `TASKS_BOOTSTRAP.md`; do not duplicate
   product Psi/Omega implementation tasks there. The exact manifest is closure
-  evidence, not permission for the bridge to recognize particular files or AST
-  permutations. Terminal-Psi representation and lowering modules linked into
-  the compiler remain ordinary source dependencies; standalone interpreters,
-  viewers, REPLs, proof explorers, and debuggers do not.
+  evidence, not permission for the Delta-produced compiler to recognize
+  particular files or AST permutations. Terminal-Psi representation and
+  lowering modules linked into the compiler remain ordinary source
+  dependencies; standalone interpreters, viewers, REPLs, proof explorers, and
+  debuggers do not.
 
   Deliver this incrementally through coherent live source slices, each of which
   passes the applicable product suites. Historical `checkpoint-000001`

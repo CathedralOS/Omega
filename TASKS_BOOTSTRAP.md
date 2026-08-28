@@ -133,8 +133,11 @@ executable reconstruction, and frontend implementation remain engineering work
 and are not blocked on this ruling.
 
 - [ ] Execute the exact canonical Delta compiler source through the accepted
-  Gamma route on the current required V1 host, Darwin ARM64. Add another host
-  only when a separately declared publication profile requires it.
+  Gamma route on the current required V1 host, Darwin ARM64, using the four
+  literal elaboration, packing, and repeated-execution commands, and retain the
+  resulting assembly receipt. Bounded direct-command coverage does not
+  substitute for those canonical observations. Add another host only when a
+  separately declared publication profile requires it.
 - [ ] Bind source identity, target identity, emitted artifact identity, and the
   exact reconstruction custody needed by the eventual refinement edge.
 - [x] Once no exact publication attempt is live, move Delta compiler admission
@@ -154,20 +157,34 @@ and are not blocked on this ruling.
   a lower-rung executable nor writes an observation or receipt. The focused
   suite covers exact verification plus missing, malformed, oversized,
   disagreeing, and mutated evidence.
-- [ ] Ensure the publication path is reproducible by running the constituent
-  compiler commands directly without `tools/lattice/verify-lattice.sh`.
+- [x] Expose every constituent publication command directly without
+  `tools/lattice/verify-lattice.sh` or a private driver action. The prepared
+  attempt now contains four literal scripts for Delta elaboration, input
+  packing, and the two Gamma executions. The focused gate runs the real
+  elaboration and packing commands plus one bounded real Gamma execution;
+  marker custody observes those commands but does not select or execute them.
 - [ ] Make the full Gamma execution practical to repeat. The current paired V1
   run is already parallel, but after two CPU-hours per execution a read-only
   sample still places about 91% of time in the audited Alpha VM's common
-  instruction-dispatch path. A bounds-checked 21-row branch-table prototype
+  instruction-dispatch path. Exact-workload profiling over 16,329,474,048
+  Alpha instructions found `imm`, `sub`, `load`, `mov`, `store`, and `add`
+  account for 90.2% of execution; the first five account for 81.7%. Reordering
+  the existing ARM64 comparison rows by measured frequency preserved every
+  handler and improved exact-workload progress by 8.7–11.2% and the
+  representative million-call Gamma loop by about 6.8% in temporary builds.
+  It passed Alpha conformance/assembler reproduction and the Gamma interpreter
+  gate, but has not been adopted or subjected to the full cross-check suite.
+  A bounds-checked 21-row branch-table prototype
   passed all Alpha gates and improved a synthetic two-opcode loop from
   4.28–4.29 seconds to 3.66 seconds, but regressed a representative million-call
   Gamma tail loop from 2.68–2.70 seconds to 3.18–3.19 seconds; it was therefore
-  rejected and the committed seed remains unchanged. Profile the generated
-  Delta/Gamma workload before choosing the next optimization axis. Reduce the
-  cost without changing Alpha or Gamma meaning, hiding a compiler stage, or
-  weakening the exact evidence join. The 12-hour safety ceiling is not an
-  acceptable normal gate duration.
+  rejected and the committed seed remains unchanged. Validate and, if it
+  survives the complete seed/checker/Gamma suite, land the simple row reorder;
+  then profile Beta-generated stack/register traffic before attempting another
+  dispatch mechanism or speculative Gamma rewrite. Reduce the cost without
+  changing Alpha or Gamma meaning, hiding a compiler stage, or weakening the
+  exact evidence join. The 12-hour safety ceiling is not an acceptable normal
+  gate duration.
 - [x] Retire the unconsumed imperative Gamma compatibility compiler, its native
   artifact, scripts, and private example corpus. It was not the Gamma rung used
   to produce Delta and no default gate or external consumer used it; Git history
