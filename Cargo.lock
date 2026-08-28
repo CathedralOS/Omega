@@ -1420,6 +1420,7 @@ dependencies = [
  "psi-language-semantics",
  "psi-symbols",
  "psi-typed-trees",
+ "sha2",
 ]
 
 [[package]]
@@ -2002,10 +2003,12 @@ dependencies = [
 name = "omega-terminal-native-realization"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-effects",
  "omega-lowering-optimizer",
  "omega-optimization-core",
  "omega-optimization-pipeline",
+ "omega-program-storage",
  "omega-target",
  "omega-terminal-abstract-operations",
  "omega-terminal-abstract-operations-to-target-operations",

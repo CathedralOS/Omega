@@ -8,6 +8,26 @@
 //! record graph needed to distinguish its fields from a size-only lookalike.
 
 use crate::ProgramStorageEntryRootRole;
+use sha2::{Digest, Sha256};
+
+const SOURCE_SIGNATURE_SCHEMA: &[u8] = b"omega.program-entry.source-signature.v1\0";
+
+/// Source-path-free identity of one exact checked `ProgramEntry` signature.
+/// Arena handles remain private replay coordinates; normalized callable/type
+/// identities and the complete target-owned slot and value layout define the
+/// durable join key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ProgramEntrySourceSignatureIdentity([u8; 32]);
+
+impl ProgramEntrySourceSignatureIdentity {
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub const fn bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProgramEntrySourceReceiverSignature {
@@ -323,6 +343,93 @@ impl SelectedProgramEntrySourceSignature {
         self.result
     }
 
+    /// Recompute the canonical source-signature join identity. Symbol handles
+    /// are intentionally excluded because the normalized callable and type
+    /// identities already bind semantic ownership while arena numbering is a
+    /// property of one frontend run.
+    pub fn identity(&self) -> ProgramEntrySourceSignatureIdentity {
+        let mut canonical = SOURCE_SIGNATURE_SCHEMA.to_vec();
+        push_string(&mut canonical, self.target_slot.owner.target_name());
+        push_string(&mut canonical, self.target_slot.slot_name);
+        canonical.push(match self.target_slot.schema {
+            omega_target::ProgramEntrySchema::HostedApplication => 1,
+            omega_target::ProgramEntrySchema::ProgramStorageApplication => 2,
+        });
+        push_string(
+            &mut canonical,
+            self.target_slot.semantic_arrival_requirement,
+        );
+        push_optional_string(
+            &mut canonical,
+            self.target_slot.physical_arrival_requirement,
+        );
+        push_optional_string(
+            &mut canonical,
+            self.target_slot
+                .physical_contract_package
+                .map(omega_target::ProgramEntryPhysicalContractPackage::manifest_identity),
+        );
+        push_optional_string(&mut canonical, self.target_slot.boundary_schema);
+        push_optional_calling_convention(
+            &mut canonical,
+            self.target_slot.physical_calling_convention,
+        );
+        push_optional_calling_convention(
+            &mut canonical,
+            self.target_slot.semantic_calling_convention,
+        );
+        canonical.push(match self.target_slot.visible_parameters {
+            omega_target::ProgramEntryVisibleParameters::None => 1,
+            omega_target::ProgramEntryVisibleParameters::ImageAndInitialStorage => 2,
+        });
+        canonical.push(match self.target_slot.receiver {
+            omega_target::ProgramEntryReceiverProvisioning::NoneOrProvisionedZii => 1,
+        });
+        push_string(&mut canonical, &self.normalized_callable_identity);
+        match &self.receiver {
+            ProgramEntrySourceReceiverSignature::Free => canonical.push(1),
+            ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+                normalized_type_identity,
+            } => {
+                canonical.push(2);
+                push_string(&mut canonical, normalized_type_identity);
+            }
+        }
+        canonical.extend_from_slice(
+            &u64::try_from(self.visible_parameters.len())
+                .expect("ProgramEntry parameter count fits u64")
+                .to_le_bytes(),
+        );
+        for parameter in &self.visible_parameters {
+            canonical.push(match parameter.role {
+                ProgramStorageEntryRootRole::Image => 1,
+                ProgramStorageEntryRootRole::InitialStorage => 2,
+            });
+            canonical.extend_from_slice(
+                &u64::try_from(parameter.visible_parameter_index)
+                    .expect("ProgramEntry parameter index fits u64")
+                    .to_le_bytes(),
+            );
+            push_string(&mut canonical, &parameter.normalized_type_identity);
+            push_shape(&mut canonical, parameter.value_shape);
+            canonical.push(u8::from(parameter.is_const));
+            canonical.push(u8::from(parameter.is_mutable));
+            push_shape(&mut canonical, parameter.extent_value_layout.shape);
+            for field in &parameter.extent_value_layout.fields {
+                canonical.push(match field.role {
+                    ProgramEntrySourceExtentFieldRole::Base => 1,
+                    ProgramEntrySourceExtentFieldRole::Length => 2,
+                });
+                canonical.extend_from_slice(&field.byte_offset.to_le_bytes());
+                push_shape(&mut canonical, field.shape);
+            }
+        }
+        canonical.push(match self.result {
+            ProgramEntrySourceResultSignature::Unit => 1,
+        });
+        ProgramEntrySourceSignatureIdentity(Sha256::digest(canonical).into())
+    }
+
     pub fn validate_program_storage_binding(
         &self,
         selected_slot: omega_target::ProgramEntrySlotDeclaration,
@@ -448,6 +555,46 @@ impl SelectedProgramEntrySourceSignature {
             is_mutable,
         }
     }
+}
+
+fn push_string(canonical: &mut Vec<u8>, value: &str) {
+    canonical.extend_from_slice(
+        &u64::try_from(value.len())
+            .expect("ProgramEntry identity string length fits u64")
+            .to_le_bytes(),
+    );
+    canonical.extend_from_slice(value.as_bytes());
+}
+
+fn push_optional_string(canonical: &mut Vec<u8>, value: Option<&str>) {
+    match value {
+        None => canonical.push(0),
+        Some(value) => {
+            canonical.push(1);
+            push_string(canonical, value);
+        }
+    }
+}
+
+fn push_optional_calling_convention(
+    canonical: &mut Vec<u8>,
+    value: Option<omega_target::ProgramEntryCallingConvention>,
+) {
+    canonical.push(match value {
+        None => 0,
+        Some(omega_target::ProgramEntryCallingConvention::MicrosoftX64) => 1,
+    });
+}
+
+fn push_shape(canonical: &mut Vec<u8>, shape: omega_calling_conventions::ValueShape) {
+    // Exact captured Extent signatures admit only integer shapes; the checked
+    // constructor enforces that closed graph before this identity can exist.
+    debug_assert!(matches!(
+        shape.class,
+        omega_calling_conventions::ValueClass::Integer
+    ));
+    canonical.extend_from_slice(&shape.byte_size.to_le_bytes());
+    canonical.extend_from_slice(&shape.alignment.to_le_bytes());
 }
 
 #[cfg(test)]
@@ -588,6 +735,39 @@ mod tests {
             )
             .expect("exact declaration binding");
         assert_eq!(signature.result(), ProgramEntrySourceResultSignature::Unit);
+    }
+
+    #[test]
+    fn source_signature_identity_binds_normalized_semantics_not_arena_coordinates() {
+        let source = signature(ProgramEntrySourceReceiverSignature::Free);
+        let identity = source.identity();
+        assert_eq!(identity, source.clone().identity());
+
+        let mut renumbered = source.clone();
+        renumbered.machine_symbol = SymbolHandle::from_arena_index(20);
+        renumbered.state_symbol = SymbolHandle::from_arena_index(21);
+        for (index, parameter) in renumbered.visible_parameters.iter_mut().enumerate() {
+            let base = u32::try_from(index).expect("fixture index fits u32") * 3;
+            parameter.extent_value_layout.data_symbol = SymbolHandle::from_arena_index(30 + base);
+            parameter.extent_value_layout.fields[0].symbol =
+                SymbolHandle::from_arena_index(31 + base);
+            parameter.extent_value_layout.fields[1].symbol =
+                SymbolHandle::from_arena_index(32 + base);
+        }
+        assert_eq!(identity, renumbered.identity());
+
+        let mut callable_drift = source.clone();
+        callable_drift.normalized_callable_identity = "other-callable".into();
+        assert_ne!(identity, callable_drift.identity());
+
+        let receiver_drift = signature(ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+            normalized_type_identity: "Boot".into(),
+        });
+        assert_ne!(identity, receiver_drift.identity());
+
+        let mut parameter_drift = source.clone();
+        parameter_drift.visible_parameters.swap(0, 1);
+        assert_ne!(identity, parameter_drift.identity());
     }
 
     #[test]

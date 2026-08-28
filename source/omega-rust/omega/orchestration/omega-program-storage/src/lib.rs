@@ -64,8 +64,8 @@ pub use selected_provider::ProgramStorageSelectedProviderPlan;
 pub use source_signature::{
     ProgramEntrySourceExtentFieldLayout, ProgramEntrySourceExtentFieldRole,
     ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,
-    ProgramEntrySourceResultSignature, ProgramEntrySourceVisibleParameterSignature,
-    SelectedProgramEntrySourceSignature,
+    ProgramEntrySourceResultSignature, ProgramEntrySourceSignatureIdentity,
+    ProgramEntrySourceVisibleParameterSignature, SelectedProgramEntrySourceSignature,
 };
 
 mod provider_plans {

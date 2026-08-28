@@ -42,51 +42,149 @@ pub struct TerminalNativeProviderSettlement<'execution> {
     pub realization: TerminalBoundaryRealization,
 }
 
+/// Exact build-owned source-entry custody carried into native realization.
+/// This is declaration and calling-contract evidence only: it owns no runtime
+/// roots and cannot authorize a physical bootstrap, image, or publication.
+#[derive(Debug, Clone, Copy)]
+pub struct TerminalNativeProgramEntrySettlement<'entry> {
+    source: &'entry omega_program_storage::SelectedProgramEntrySourceSignature,
+    semantic_boundary_entry_plan: Option<&'entry omega_calling_conventions::BoundaryEntryPlan>,
+    storage_entry: Option<&'entry omega_program_storage::SelectedProgramStorageEntryPlan>,
+}
+
+impl<'entry> TerminalNativeProgramEntrySettlement<'entry> {
+    pub const fn new(
+        source: &'entry omega_program_storage::SelectedProgramEntrySourceSignature,
+        calling_plans: Option<(
+            &'entry omega_calling_conventions::BoundaryEntryPlan,
+            &'entry omega_program_storage::SelectedProgramStorageEntryPlan,
+        )>,
+    ) -> Self {
+        let (semantic_boundary_entry_plan, storage_entry) = match calling_plans {
+            Some((semantic, storage)) => (Some(semantic), Some(storage)),
+            None => (None, None),
+        };
+        Self {
+            source,
+            semantic_boundary_entry_plan,
+            storage_entry,
+        }
+    }
+
+    pub const fn source(
+        self,
+    ) -> &'entry omega_program_storage::SelectedProgramEntrySourceSignature {
+        self.source
+    }
+
+    pub const fn semantic_boundary_entry_plan(
+        self,
+    ) -> Option<&'entry omega_calling_conventions::BoundaryEntryPlan> {
+        self.semantic_boundary_entry_plan
+    }
+
+    pub const fn storage_entry(
+        self,
+    ) -> Option<&'entry omega_program_storage::SelectedProgramStorageEntryPlan> {
+        self.storage_entry
+    }
+
+    fn validate_for_target(self, target: omega_target::NativeTarget) -> Result<(), String> {
+        let slot = self.source.target_slot();
+        if slot.owner.native_target() != target {
+            return Err(format!(
+                "selected ProgramEntry target profile `{}` does not own native target {target:?}",
+                slot.owner.target_name(),
+            ));
+        }
+        let declares_two_surfaces = slot.boundary_schema.is_some()
+            || slot.physical_arrival_requirement.is_some()
+            || slot.physical_contract_package.is_some()
+            || slot.physical_calling_convention.is_some()
+            || slot.semantic_calling_convention.is_some();
+        match (
+            declares_two_surfaces,
+            self.semantic_boundary_entry_plan,
+            self.storage_entry,
+        ) {
+            (false, None, None) => Ok(()),
+            (true, Some(semantic), Some(storage))
+                if storage.target_slot() == slot
+                    && storage
+                        .physical_contract()
+                        .is_some_and(|physical| physical.target_slot() == slot)
+                    && semantic.call.policy
+                        == omega_calling_conventions::CallingPolicy::MicrosoftX64 =>
+            {
+                Ok(())
+            }
+            _ => Err(
+                "selected ProgramEntry lost its exact paired semantic/physical calling-plan custody"
+                    .into(),
+            ),
+        }
+    }
+}
+
+/// Complete build-owned inputs for one target-native realization. Keeping
+/// these coupled prevents callers from accidentally carrying entry, target,
+/// optimization, and provider custody through separate positional channels.
+pub struct TerminalNativeRealizationRequest<'request> {
+    pub target: omega_target::NativeTarget,
+    pub subsystem: u16,
+    pub profile: &'request psi_proof_admission::AdmissionProfile,
+    pub program_entry: TerminalNativeProgramEntrySettlement<'request>,
+    pub optimization_selections: &'request omega_optimization_core::OptimizationSelections,
+    pub selected_provider_plans: &'request omega_effects::SelectedProviderPlanFacts,
+    pub settlements: &'request [TerminalNativeProviderSettlement<'request>],
+}
+
 /// Realize one canonical Terminal-Psi artifact into an authority-free target
-/// object and executable image. Ordinary native compilation and component
-/// packaging share this exact source-independent operation.
+/// object and executable image while retaining its captured source-entry
+/// settlement. Ordinary native compilation and component packaging share this
+/// exact operation.
 pub fn realize_terminal_native_artifact(
     terminal_artifact: psi_terminal_codec::CanonicalTerminalArtifact,
-    target: omega_target::NativeTarget,
-    subsystem: u16,
-    profile: &psi_proof_admission::AdmissionProfile,
-    optimization_selections: &omega_optimization_core::OptimizationSelections,
-    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
-    settlements: &[TerminalNativeProviderSettlement<'_>],
+    request: TerminalNativeRealizationRequest<'_>,
 ) -> Result<TerminalNativeArtifact, Vec<Diagnostic>> {
+    request
+        .program_entry
+        .validate_for_target(request.target)
+        .map_err(|error| realization_error("ProgramEntry custody", error))?;
     terminal_artifact
         .validate()
         .map_err(|error| realization_error("canonical artifact replay", error))?;
     let semantic_bytes = terminal_artifact.semantic_bytes();
     let proof_bytes = terminal_artifact.proof_bytes();
-    let abstract_operations = if optimization_selections.is_empty() {
+    let abstract_operations = if request.optimization_selections.is_empty() {
         StagedAbstractOperations::Compatibility(
             omega_terminal_psi_to_abstract_operations::lower_artifact_sections(
                 semantic_bytes,
                 proof_bytes,
-                profile,
+                request.profile,
             )
             .map_err(|error| realization_error("verified artifact lowering", error))?,
         )
     } else {
-        let request =
-            omega_optimization_pipeline::compiler_baseline_request_v1(optimization_selections)
-                .expect("the selected realization branch is nonempty");
+        let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(
+            request.optimization_selections,
+        )
+        .expect("the selected realization branch is nonempty");
         StagedAbstractOperations::Optimized(Box::new(
             omega_optimization_pipeline::optimize_artifact_sections(
                 semantic_bytes,
                 proof_bytes,
-                profile,
-                request,
+                request.profile,
+                optimization_request,
             )
             .map_err(|error| realization_error("verified optimization", error))?,
         ))
     };
 
     let mut seen_requirements = BTreeSet::new();
-    let mut admitted = Vec::with_capacity(settlements.len());
-    let mut provider_executions = Vec::with_capacity(settlements.len());
-    for settlement in settlements {
+    let mut admitted = Vec::with_capacity(request.settlements.len());
+    let mut provider_executions = Vec::with_capacity(request.settlements.len());
+    for settlement in request.settlements {
         let evidence = settlement.provider_execution;
         let requirement = evidence.requirement_identity();
         if !seen_requirements.insert(requirement.to_owned()) {
@@ -94,7 +192,8 @@ pub fn realize_terminal_native_artifact(
                 "Terminal native realization received more than one provider execution for requirement `{requirement}`"
             ))]);
         }
-        let selected_plan = selected_provider_plans
+        let selected_plan = request
+            .selected_provider_plans
             .plan_by_identity(evidence.provider_plan())
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(
@@ -152,7 +251,7 @@ pub fn realize_terminal_native_artifact(
         StagedAbstractOperations::Compatibility(abstract_operations) => {
             lower_to_target_operations_with_provider_executions(
                 &abstract_operations,
-                target,
+                request.target,
                 &admitted,
             )
             .map_err(|error| realization_error("target operation lowering", error))?
@@ -160,12 +259,14 @@ pub fn realize_terminal_native_artifact(
         StagedAbstractOperations::Optimized(optimized) => {
             let _physical = omega_optimization_pipeline::
                 stage_optimized_verified_physical_pipeline_with_provider_executions(
-                    *optimized, target, &admitted,
+                    *optimized, request.target, &admitted,
                 )
                 .map_err(|error| {
-                    optimized_physical_stage_error(optimization_selections, error)
+                    optimized_physical_stage_error(request.optimization_selections, error)
                 })?;
-            return Err(optimized_publication_unavailable(optimization_selections));
+            return Err(optimized_publication_unavailable(
+                request.optimization_selections,
+            ));
         }
     };
     let assigned =
@@ -177,10 +278,12 @@ pub fn realize_terminal_native_artifact(
         .map_err(|error| realization_error("machine-code emission", error))?;
     let object = omega_terminal_image_emission::build_terminal_object_artifact(&machine_code)
         .map_err(|error| realization_error("terminal object construction", error))?;
-    let image = omega_terminal_image_emission::emit_terminal_executable_image(&object, subsystem)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let image =
+        omega_terminal_image_emission::emit_terminal_executable_image(&object, request.subsystem)
+            .map_err(|diagnostic| vec![diagnostic])?;
 
-    let mut selected_provider_plan_projections = selected_provider_plans
+    let mut selected_provider_plan_projections = request
+        .selected_provider_plans
         .plans()
         .iter()
         .map(|plan| {
@@ -195,11 +298,11 @@ pub fn realize_terminal_native_artifact(
         .collect::<Vec<_>>();
     selected_provider_plan_projections.sort_by_key(TerminalNativeSelectedProviderPlan::identity);
     TerminalNativeArtifact::from_replayed_parts(TerminalNativeArtifactParts {
-        target,
+        target: request.target,
         terminal_artifact,
         object,
         image,
-        selected_provider_closure_identity: selected_provider_plans.normalized_identity(),
+        selected_provider_closure_identity: request.selected_provider_plans.normalized_identity(),
         selected_provider_plans: selected_provider_plan_projections,
         provider_executions,
     })
@@ -239,6 +342,10 @@ fn optimized_publication_unavailable(
         .join("`, `");
     vec![Diagnostic::error(format!(
         "selected optimization{} `{names}` completed the verified physical pipeline through post-allocation machine validation, but frame/exit, emission, artifact, and optimized component publication validation are not available yet; no output was installed",
-        if selections.as_slice().len() == 1 { "" } else { "s" },
+        if selections.as_slice().len() == 1 {
+            ""
+        } else {
+            "s"
+        },
     ))]
 }
