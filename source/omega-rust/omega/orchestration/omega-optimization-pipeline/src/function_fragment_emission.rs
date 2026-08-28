@@ -306,11 +306,11 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         }
     }
 
-    /// Borrow the exact verifier-owned input retained through every admitted realization route.
-    /// This accessor does not detach the semantic or proof context from its staged custody.
-    pub fn verified_input(
+    /// Borrow the exact optimized-target carrier retained through every
+    /// admitted realization route.
+    pub fn optimized_target(
         &self,
-    ) -> &omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput {
+    ) -> &omega_lowering_optimizer::ValidatedOptimizedTargetOperations {
         match self {
             Self::X86Rel8Direct(realization) => realization
                 .homes()
@@ -318,9 +318,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .live_range_stage()
                 .liveness_stage()
                 .selected_stage()
-                .optimized_target()
-                .optimized()
-                .verified_input(),
+                .optimized_target(),
             Self::X86Rel8AfterSelectedLowering(realization) => realization
                 .homes()
                 .selected_lowering_run()
@@ -328,18 +326,14 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .live_range_stage()
                 .liveness_stage()
                 .selected_stage()
-                .optimized_target()
-                .optimized()
-                .verified_input(),
+                .optimized_target(),
             Self::Aarch64CbnzDirect(realization) => realization
                 .homes()
                 .legality_stage()
                 .live_range_stage()
                 .liveness_stage()
                 .selected_stage()
-                .optimized_target()
-                .optimized()
-                .verified_input(),
+                .optimized_target(),
             Self::Aarch64CbnzAfterSelectedLowering(realization) => realization
                 .homes()
                 .selected_lowering_run()
@@ -347,9 +341,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .live_range_stage()
                 .liveness_stage()
                 .selected_stage()
-                .optimized_target()
-                .optimized()
-                .verified_input(),
+                .optimized_target(),
             Self::ActiveResidentRematerialization(realization) => {
                 active_resident_rematerialization(realization)
                     .source()
@@ -357,8 +349,6 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                     .liveness_stage()
                     .selected_stage()
                     .optimized_target()
-                    .optimized()
-                    .verified_input()
             }
             Self::UnitBaseline(realization) => realization
                 .homes()
@@ -366,19 +356,33 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .live_range_stage()
                 .liveness_stage()
                 .selected_stage()
-                .optimized_target()
-                .optimized()
-                .verified_input(),
+                .optimized_target(),
             Self::StructuralUnit(realization) => realization
                 .homes()
                 .legality_stage()
                 .live_range_stage()
                 .liveness_stage()
                 .selected_stage()
-                .optimized_target()
-                .optimized()
-                .verified_input(),
+                .optimized_target(),
         }
+    }
+
+    /// Borrow the exact verifier-owned input retained through every admitted
+    /// realization route. This accessor does not detach semantic or proof
+    /// context from staged custody.
+    pub fn verified_input(
+        &self,
+    ) -> &omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput {
+        self.optimized_target().optimized().verified_input()
+    }
+
+    /// Borrow the opaque checked-provider installation, when one authorized
+    /// the installed calls retained by this realization.
+    pub fn provider_installation(
+        &self,
+    ) -> Option<&omega_terminal_psi_to_abstract_operations::AdmittedTerminalProviderInstallation>
+    {
+        self.optimized_target().provider_installation()
     }
 }
 
@@ -633,6 +637,13 @@ impl StagedOptimizedFunctionFragmentEmission {
         &self,
     ) -> &omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput {
         self.source.verified_input()
+    }
+
+    pub fn provider_installation(
+        &self,
+    ) -> Option<&omega_terminal_psi_to_abstract_operations::AdmittedTerminalProviderInstallation>
+    {
+        self.source.provider_installation()
     }
 
     pub const fn function_relative_manifest(

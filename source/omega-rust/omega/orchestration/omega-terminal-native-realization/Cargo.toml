@@ -24,6 +24,7 @@ omega-terminal-installation-evidence = { path = "../../representations/omega-ter
 omega-terminal-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-terminal-isa-x86_64" }
 omega-terminal-machine-emission = { path = "../../backend/omega-terminal-machine-emission" }
 omega-terminal-native-artifact = { path = "../omega-terminal-native-artifact" }
+omega-terminal-selected-instructions = { path = "../../representations/omega-terminal-selected-instructions" }
 omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
 omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
 omega-terminal-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-terminal-target-operations-to-assigned-target-operations" }
@@ -35,7 +36,6 @@ psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 
 [dev-dependencies]
-omega-terminal-selected-instructions = { path = "../../representations/omega-terminal-selected-instructions" }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
 psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }

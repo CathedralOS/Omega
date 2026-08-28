@@ -242,6 +242,13 @@ impl StagedOptimizedRelocationFreeTerminalObjectContainer {
         self.source.source().verified_input()
     }
 
+    pub fn provider_installation(
+        &self,
+    ) -> Option<&omega_terminal_psi_to_abstract_operations::AdmittedTerminalProviderInstallation>
+    {
+        self.source.source().provider_installation()
+    }
+
     #[cfg(test)]
     pub(crate) fn object_mut(&mut self) -> &mut TerminalRelocationFreeObjectPlan {
         &mut self.object
