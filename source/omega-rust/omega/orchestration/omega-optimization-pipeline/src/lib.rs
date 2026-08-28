@@ -12237,6 +12237,267 @@ mod tests {
         .unwrap()
     }
 
+    fn staged_active_resident_callable_object_artifact(
+        target: NativeTarget,
+    ) -> StagedValidatedOptimizedTerminalObjectArtifact {
+        let (semantic, proof) = conditional_active_resident_exact_add_chain_artifact();
+        let selections = OptimizationSelections::new([
+            Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+        ])
+        .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            target,
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::ActiveResidentRematerialization {
+            realization,
+        } = physical
+        else {
+            panic!("the root-build rematerialization selection must retain its owning realization")
+        };
+        let fragments = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(
+                realization,
+            ),
+        )
+        .unwrap();
+        let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
+        let object = stage_optimized_relocation_free_terminal_object_container(text).unwrap();
+        stage_validated_optimized_terminal_object_artifact(
+            canonical_terminal_artifact(&semantic, &proof),
+            object,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_both_isas() {
+        use omega_calling_conventions::{CallingPolicy, MachineRegister};
+
+        let selections = OptimizationSelections::new([
+            Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+        ])
+        .unwrap()
+        .identity();
+        for (target, policy, parameter, result) in [
+            (
+                NativeTarget::linux_x64(),
+                CallingPolicy::SystemVAMD64,
+                MachineRegister::X86Rdi,
+                MachineRegister::X86Rax,
+            ),
+            (
+                NativeTarget::windows_x64(),
+                CallingPolicy::MicrosoftX64,
+                MachineRegister::X86Rcx,
+                MachineRegister::X86Rax,
+            ),
+            (
+                NativeTarget::linux_arm64(),
+                CallingPolicy::Aapcs64,
+                MachineRegister::Aarch64X(0),
+                MachineRegister::Aarch64X(0),
+            ),
+            (
+                NativeTarget::macos_arm64(),
+                CallingPolicy::Aapcs64,
+                MachineRegister::Aarch64X(0),
+                MachineRegister::Aarch64X(0),
+            ),
+        ] {
+            let artifact = staged_active_resident_callable_object_artifact(target);
+            let object_stage = artifact.source();
+            let text_stage = object_stage.source();
+            let fragment_stage = text_stage.source();
+            let StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(
+                realization,
+            ) = fragment_stage.source()
+            else {
+                panic!("object custody must retain the rematerialization realization")
+            };
+            let rematerialization = realization.source().pre_layout().source();
+            let fresh = rematerialization.rematerialization().plan().functions[0]
+                .action
+                .as_ref()
+                .expect("the exact root-build family must apply one rematerialization")
+                .fresh_materialize;
+            let emitted_fresh = text_stage.text_section().functions[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .find(|row| row.instruction == fresh)
+                .expect("the object text section must retain the fresh materialization span");
+            assert_ne!(emitted_fresh.byte_count, 0);
+            assert_eq!(
+                validate_optimized_function_fragment_emission(fragment_stage).unwrap(),
+                fragment_stage.custody()
+            );
+            assert_eq!(
+                validate_optimized_relocation_free_text_section(text_stage).unwrap(),
+                text_stage.custody()
+            );
+            assert_eq!(
+                validate_optimized_relocation_free_terminal_object_container(object_stage).unwrap(),
+                object_stage.custody()
+            );
+            assert_eq!(fragment_stage.manifest().record().selections, selections);
+            assert_eq!(text_stage.manifest().record().selections, selections);
+            assert_eq!(object_stage.manifest().record().selections, selections);
+            assert_eq!(artifact.artifact().selections, selections);
+            assert_eq!(
+                realization
+                    .manifest()
+                    .record()
+                    .allocation_recovery_selections,
+                selections
+            );
+            assert_eq!(
+                fragment_stage.manifest().record().source_kind,
+                FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
+            );
+            assert_eq!(
+                rematerialization
+                    .post_allocation_manifest()
+                    .record()
+                    .selected_transformations,
+                [
+                    PostAllocationSelectedTransformation::PressureRematerialization(
+                        rematerialization.rematerialization().receipt().identity(),
+                    )
+                ]
+            );
+            assert_eq!(object_stage.object().relocation_record_count, 0);
+            assert_eq!(object_stage.object().symbols.len(), 1);
+            assert_eq!(
+                object_stage.object().text_section.bytes,
+                text_stage.text_section().bytes
+            );
+            assert_eq!(
+                object_stage.object().semantic_entry_symbol,
+                object_stage.object().symbols[0].symbol
+            );
+            assert_eq!(
+                object_stage.object().symbols[0].linkage,
+                omega_object_file::TerminalRelocationFreeObjectSymbolLinkage::ObjectLocalV1
+            );
+            assert_eq!(
+                object_stage.object().symbols[0].role,
+                omega_object_file::TerminalRelocationFreeObjectSymbolRole::SemanticEntryV1
+            );
+            assert_ne!(object_stage.object().symbols[0].name, "main");
+            assert_ne!(object_stage.object().symbols[0].name, "_main");
+            assert_eq!(
+                artifact.artifact().pre_physical_manifest,
+                fragment_stage
+                    .source()
+                    .pre_physical_manifest()
+                    .record()
+                    .identity
+            );
+            assert_eq!(
+                artifact.artifact().post_allocation_manifest,
+                fragment_stage
+                    .source()
+                    .post_allocation_manifest()
+                    .record()
+                    .identity
+            );
+            assert_eq!(
+                validate_optimized_terminal_object_artifact(&artifact).unwrap(),
+                artifact.custody()
+            );
+            assert_eq!(
+                OptimizedTerminalObjectArtifactRecord::decode(&artifact.artifact().encode())
+                    .unwrap(),
+                *artifact.artifact()
+            );
+            assert_eq!(
+                OptimizedTerminalObjectArtifactManifest::decode(
+                    &artifact.manifest().record().encode()
+                )
+                .unwrap(),
+                *artifact.manifest().record()
+            );
+            let artifact_report =
+                optimization_pipeline_report_from_terminal_object_artifact(&artifact);
+            assert_eq!(
+                artifact_report.function_fragment().unwrap().source_kind,
+                FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
+            );
+            assert!(artifact_report.ordinary_callable_entry().is_none());
+
+            let staged = stage_validated_optimized_terminal_ordinary_callable_entry(artifact)
+                .expect("the rematerialized semantic entry remains an ordinary callable");
+            assert_eq!(
+                validate_optimized_terminal_ordinary_callable_entry(&staged).unwrap(),
+                staged.custody()
+            );
+            let entry = staged.entry();
+            assert_eq!(entry.selections, selections);
+            assert_eq!(entry.calling_policy, policy);
+            assert_eq!(entry.parameters.len(), 1);
+            assert_eq!(entry.parameters[0].abi_register, parameter);
+            assert_eq!(
+                entry.parameters[0].fixed_view,
+                entry.parameters[0].assigned_view
+            );
+            assert_eq!(entry.result.abi_register, result);
+            assert_eq!(entry.returns.len(), 2);
+            assert!(entry.returns.iter().all(|returned| {
+                returned.view == entry.result.view
+                    && returned.storage_units == entry.result.storage_units
+            }));
+            assert_eq!(
+                entry.disposition,
+                OptimizedTerminalOrdinaryCallableEntryDisposition::ExternalProcessEntryBridgeRequiredV1
+            );
+            assert_eq!(
+                OptimizedTerminalOrdinaryCallableEntryRecord::decode(&entry.encode().unwrap())
+                    .unwrap(),
+                *entry
+            );
+            assert_eq!(
+                OptimizedTerminalOrdinaryCallableEntryManifest::decode(
+                    &staged.manifest().record().encode()
+                )
+                .unwrap(),
+                *staged.manifest().record()
+            );
+            let report =
+                optimization_pipeline_report_from_terminal_ordinary_callable_entry(&staged);
+            assert_eq!(
+                report.function_fragment().unwrap().source_kind,
+                FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
+            );
+            assert_eq!(
+                report.object_container().unwrap().identity,
+                staged.source().source().manifest().record().identity
+            );
+            assert_eq!(
+                report.terminal_object_artifact().unwrap().artifact,
+                staged.source().artifact().identity
+            );
+            assert_eq!(
+                report.ordinary_callable_entry().unwrap().entry,
+                entry.identity
+            );
+            let human = report
+                .render_human_text(OptimizationReportRequest::EmitHumanText)
+                .unwrap();
+            assert!(human.contains("external process entry bridge: required"));
+            assert!(human.contains("publication: unavailable"));
+        }
+    }
+
     #[test]
     fn ordinary_callable_entry_replays_target_abi_and_edge_specific_results() {
         use omega_calling_conventions::{CallingPolicy, MachineRegister};
