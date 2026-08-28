@@ -32,7 +32,7 @@ use crate::{
     RuleRegistryError, ScalarConstant, ScalarConstantAnalysis, ValueRangeAnalysis,
 };
 
-const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v2";
+const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v3";
 const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v12";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v2";
@@ -7390,87 +7390,140 @@ boolean_evaluation_rule!(
     BooleanEvaluationKind::IntegerLessOrEqual
 );
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct IntegerLessThanRangeConstantRule;
-
-impl IntegerLessThanRangeConstantRule {
-    pub fn contract() -> OptimizationRuleContract {
-        OptimizationRuleContract::new(
-            OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.integer-less-than-range-constant.v1",
-            ),
-            OptimizationPassIdentity::from_canonical_bytes(SCCP_PASS_NAME),
-            1,
-            AnalysisSet::new([AnalysisKind::ScalarConstants, AnalysisKind::ValueRanges]),
-            AnalysisInvalidationSet::new([AnalysisKind::UseDefinition]),
-            OptimizationSafetyClass::ProofCertified,
-        )
-        .expect("built-in rule has nonzero version")
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IntegerRangeComparisonKind {
+    RangeLessThanConstant,
+    ConstantLessThanRange,
+    RangeLessOrEqualConstant,
+    ConstantLessOrEqualRange,
 }
 
-impl PsiOptimizationRule for IntegerLessThanRangeConstantRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
+macro_rules! integer_range_comparison_rule {
+    ($name:ident, $identity:literal, $kind:expr) => {
+        #[derive(Debug, Clone, Copy, Default)]
+        pub struct $name;
 
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        let Some(AnalysisProduct::ScalarConstants(constants)) =
-            analyses.get(AnalysisKind::ScalarConstants)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::ScalarConstants,
-            ));
-        };
-        let Some(AnalysisProduct::ValueRanges(ranges)) = analyses.get(AnalysisKind::ValueRanges)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
-                AnalysisKind::ValueRanges,
-            ));
-        };
-        propose_integer_less_than_range_constant(unit, constants, ranges, Self::contract())
-    }
+        impl $name {
+            pub fn contract() -> OptimizationRuleContract {
+                OptimizationRuleContract::new(
+                    OptimizationRuleIdentity::from_canonical_bytes($identity),
+                    OptimizationPassIdentity::from_canonical_bytes(SCCP_PASS_NAME),
+                    1,
+                    AnalysisSet::new([AnalysisKind::ScalarConstants, AnalysisKind::ValueRanges]),
+                    AnalysisInvalidationSet::new([AnalysisKind::UseDefinition]),
+                    OptimizationSafetyClass::ProofCertified,
+                )
+                .expect("built-in rule has nonzero version")
+            }
+        }
+
+        impl PsiOptimizationRule for $name {
+            fn contract(&self) -> OptimizationRuleContract {
+                Self::contract()
+            }
+
+            fn propose(
+                &self,
+                unit: &PsiOptimizationUnit,
+                analyses: RuleAnalysisView<'_>,
+            ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+                let Some(AnalysisProduct::ScalarConstants(constants)) =
+                    analyses.get(AnalysisKind::ScalarConstants)
+                else {
+                    return Err(RuleProposalError::MissingAnalysis(
+                        AnalysisKind::ScalarConstants,
+                    ));
+                };
+                let Some(AnalysisProduct::ValueRanges(ranges)) =
+                    analyses.get(AnalysisKind::ValueRanges)
+                else {
+                    return Err(RuleProposalError::MissingAnalysis(
+                        AnalysisKind::ValueRanges,
+                    ));
+                };
+                propose_integer_range_comparison(unit, constants, ranges, Self::contract(), $kind)
+            }
+        }
+    };
 }
 
-fn propose_integer_less_than_range_constant(
+integer_range_comparison_rule!(
+    IntegerLessThanRangeConstantRule,
+    b"omega.psi-rule.integer-less-than-range-constant.v1",
+    IntegerRangeComparisonKind::RangeLessThanConstant
+);
+integer_range_comparison_rule!(
+    IntegerLessThanConstantRangeRule,
+    b"omega.psi-rule.integer-less-than-constant-range.v1",
+    IntegerRangeComparisonKind::ConstantLessThanRange
+);
+integer_range_comparison_rule!(
+    IntegerLessOrEqualRangeConstantRule,
+    b"omega.psi-rule.integer-less-or-equal-range-constant.v1",
+    IntegerRangeComparisonKind::RangeLessOrEqualConstant
+);
+integer_range_comparison_rule!(
+    IntegerLessOrEqualConstantRangeRule,
+    b"omega.psi-rule.integer-less-or-equal-constant-range.v1",
+    IntegerRangeComparisonKind::ConstantLessOrEqualRange
+);
+
+fn propose_integer_range_comparison(
     unit: &PsiOptimizationUnit,
     constants: &ScalarConstantAnalysis,
     ranges: &ValueRangeAnalysis,
     contract: OptimizationRuleContract,
+    kind: IntegerRangeComparisonKind,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
     let mut candidates = Vec::new();
     for function in &unit.functions {
         for block in &function.blocks {
             for (node_index, node) in block.nodes.iter().enumerate() {
-                let O::IntegerLessThan {
-                    psi_operation,
-                    result,
-                    left,
-                    right,
-                } = node.operation
+                let (psi_operation, result, left, right) = match (kind, &node.operation) {
+                    (
+                        IntegerRangeComparisonKind::RangeLessThanConstant
+                        | IntegerRangeComparisonKind::ConstantLessThanRange,
+                        O::IntegerLessThan {
+                            psi_operation,
+                            result,
+                            left,
+                            right,
+                        },
+                    )
+                    | (
+                        IntegerRangeComparisonKind::RangeLessOrEqualConstant
+                        | IntegerRangeComparisonKind::ConstantLessOrEqualRange,
+                        O::IntegerLessOrEqual {
+                            psi_operation,
+                            result,
+                            left,
+                            right,
+                        },
+                    ) => (*psi_operation, *result, *left, *right),
+                    _ => continue,
+                };
+                let (range_value, constant_operand) = match kind {
+                    IntegerRangeComparisonKind::RangeLessThanConstant
+                    | IntegerRangeComparisonKind::RangeLessOrEqualConstant => (left, right),
+                    IntegerRangeComparisonKind::ConstantLessThanRange
+                    | IntegerRangeComparisonKind::ConstantLessOrEqualRange => (right, left),
+                };
+                let Some((constant_value, constant_fact)) =
+                    literal_integer_constant(constants, function.machine, constant_operand)
                 else {
                     continue;
                 };
-                let Some((right_value, constant_fact)) =
-                    literal_integer_constant(constants, function.machine, right)
-                else {
+                let Some(scalar_type) = integer_value_type(function, range_value) else {
                     continue;
                 };
-                let Some(scalar_type) = integer_value_type(function, left) else {
-                    continue;
-                };
-                if integer_value_type(function, right) != Some(scalar_type) {
+                if integer_value_type(function, constant_operand) != Some(scalar_type) {
                     continue;
                 }
                 let node_index =
                     u32::try_from(node_index).expect("optimization node indices are u32");
                 let Some(range) = ranges.facts.iter().find(|fact| {
                     fact.valid_in.machine == function.machine
-                        && fact.value == left
+                        && fact.value == range_value
                         && fact.scalar_type == scalar_type
                         && matches!(
                             fact.support,
@@ -7486,17 +7539,13 @@ fn propose_integer_less_than_range_constant(
                 }) else {
                     continue;
                 };
-                let constant = if scalar_type
-                    .compare(range.maximum, right_value)
-                    .is_some_and(|ordering| ordering.is_lt())
-                {
-                    true
-                } else if scalar_type
-                    .compare(range.minimum, right_value)
-                    .is_some_and(|ordering| !ordering.is_lt())
-                {
-                    false
-                } else {
+                let Some(constant) = evaluate_integer_range_comparison(
+                    kind,
+                    scalar_type,
+                    range.minimum,
+                    range.maximum,
+                    constant_value,
+                ) else {
                     continue;
                 };
                 let location = NodeLocation {
@@ -7536,6 +7585,33 @@ fn propose_integer_less_than_range_constant(
         }
     }
     Ok(candidates)
+}
+
+fn evaluate_integer_range_comparison(
+    kind: IntegerRangeComparisonKind,
+    scalar_type: IntegerType,
+    minimum: IntegerValue,
+    maximum: IntegerValue,
+    constant: IntegerValue,
+) -> Option<bool> {
+    let minimum_to_constant = scalar_type.compare(minimum, constant)?;
+    let maximum_to_constant = scalar_type.compare(maximum, constant)?;
+    match kind {
+        IntegerRangeComparisonKind::RangeLessThanConstant => maximum_to_constant
+            .is_lt()
+            .then_some(true)
+            .or_else(|| (!minimum_to_constant.is_lt()).then_some(false)),
+        IntegerRangeComparisonKind::ConstantLessThanRange => minimum_to_constant
+            .is_gt()
+            .then_some(true)
+            .or_else(|| (!maximum_to_constant.is_gt()).then_some(false)),
+        IntegerRangeComparisonKind::RangeLessOrEqualConstant => (!maximum_to_constant.is_gt())
+            .then_some(true)
+            .or_else(|| minimum_to_constant.is_gt().then_some(false)),
+        IntegerRangeComparisonKind::ConstantLessOrEqualRange => (!minimum_to_constant.is_lt())
+            .then_some(true)
+            .or_else(|| maximum_to_constant.is_lt().then_some(false)),
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -8944,6 +9020,9 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
         register!(28, IntegerLessThanConstantsRule);
         register!(29, IntegerLessOrEqualConstantsRule);
         register!(30, IntegerLessThanRangeConstantRule);
+        register!(31, IntegerLessThanConstantRangeRule);
+        register!(32, IntegerLessOrEqualRangeConstantRule);
+        register!(33, IntegerLessOrEqualConstantRangeRule);
     }
     if optimization == Optimization::ControlFlowCleanup {
         register!(0, ConstantConditionalFoldRule);
@@ -12159,7 +12238,7 @@ pub(crate) mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        assert_eq!(registry.len(), 31);
+        assert_eq!(registry.len(), 34);
         let mut dispatched = 0usize;
         let mut candidates = Vec::new();
         for rule in registry.iter() {

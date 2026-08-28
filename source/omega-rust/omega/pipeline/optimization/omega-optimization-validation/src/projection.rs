@@ -229,7 +229,7 @@ pub fn validate_optimized_abstract_plan_projection(
         ledger: ledger.identity(),
         bundle: bundle.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.optimized-abstract-plan-projection.v29",
+            b"omega.validator.optimized-abstract-plan-projection.v30",
         ),
     })
 }
