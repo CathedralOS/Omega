@@ -323,6 +323,53 @@ class DriverTests(unittest.TestCase):
 
 
 class UsageTests(unittest.TestCase):
+    def test_limited_identity_bounds_growth_during_read(self) -> None:
+        class GrowingStream:
+            def __init__(self, path: Path, requested: list[int]) -> None:
+                self.path = path
+                self.stream = path.open("rb")
+                self.requested = requested
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, kind, value, traceback) -> None:
+                self.stream.close()
+
+            def fileno(self) -> int:
+                return self.stream.fileno()
+
+            def read(self, extent: int) -> bytes:
+                self.requested.append(extent)
+                with self.path.open("r+b") as writer:
+                    writer.truncate(1_048_576)
+                return self.stream.read(extent)
+
+        class GrowingPath:
+            def __init__(self, path: Path, requested: list[int]) -> None:
+                self.path = path
+                self.requested = requested
+
+            def stat(self):
+                return self.path.stat()
+
+            def open(self, mode: str):
+                self.assert_read_mode(mode)
+                return GrowingStream(self.path, self.requested)
+
+            @staticmethod
+            def assert_read_mode(mode: str) -> None:
+                if mode != "rb":
+                    raise AssertionError(f"unexpected mode {mode}")
+
+        with tempfile.TemporaryDirectory() as spelling:
+            path = Path(spelling) / "growing-output"
+            path.write_bytes(b"12345678")
+            requested: list[int] = []
+            with self.assertRaises(driver.DriverResourceError):
+                driver.identity(GrowingPath(path, requested), "growing", 8)
+            self.assertEqual(requested, [9])
+
     def test_relative_and_missing_arguments_reject(self) -> None:
         script = str(HERE / "lower_rooted_assembly_publication_v1_driver.py")
         for arguments in (("prepare", "relative"), ("status",)):

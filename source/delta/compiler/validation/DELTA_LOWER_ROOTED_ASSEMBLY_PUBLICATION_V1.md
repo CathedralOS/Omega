@@ -165,10 +165,13 @@ preparation epoch, exact input/output identities, process status, elapsed
 diagnostic, and time ceiling. Before a finish marker can retain output, the
 driver applies the same 1 MiB template, 4 MiB closed-Gamma, 256 MiB raw Gamma
 observation, and 65,536-byte diagnostic ceilings reconstructed by finalization.
-It checks extent before reading and rechecks after the identity read; `+1`
-returns resource status 252 without a finish marker. A stage is never resumed
-into an existing output or marker. A timeout receives its own token- and
-epoch-bound marker and status 124; an unsubstantiated status 124 rejects.
+Each limited output is read once from one open descriptor, for at most its
+ceiling plus one byte, with descriptor extent checked before and after and the
+current path rejoined afterward. Thus growth after the first extent check
+cannot trigger an unbounded read; `+1` returns resource status 252 without a
+finish marker. A stage is never resumed into an existing output or marker. A
+timeout receives its own token- and epoch-bound marker and status 124; an
+unsubstantiated status 124 rejects.
 
 `status` is read-only. Missing stages are pending, a start without a matching
 finish is running (or timed-out once a valid timeout marker exists), and a
