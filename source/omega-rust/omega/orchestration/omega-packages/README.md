@@ -259,19 +259,23 @@ platform helpers; all helper identities remain in the result. Each completed
 command also retains a domain-separated digest of
 its actual program, ordered arguments, sealed environment, cwd, and stdin class,
 then exact exit/signal and bounded stdout/stderr length/digest results joined to
-the corresponding native policy digest. Counts must match before success.
+the corresponding native policy digest. Both streams and every command charge
+one overflow-safe cumulative captured-output counter under
+`min(source-byte ceiling + 64 MiB, 576 MiB)`. Counts must match before success,
+and the counter must exactly equal the sum of all retained stream lengths.
 Only after cache custody, executable content, those command rows, authenticated
 Git objects, and a final physical re-read of the immutable snapshot all
 reconcile under the retained cache lock does the resolver seal its private
 pending result and issue one compact canonical final-result observation. The
 public result exposes read-only accessors rather than mutable evidence fields.
 The observation also binds the source ceilings, request/selector, object format
-and identities, snapshot subject, and tool identities. The fixed outcome is
+and identities, snapshot subject, tool identities, and cumulative captured-
+output ceiling and observed count. The fixed outcome is
 explicitly `resolved-non-admitting`:
 unavailable native guarantees remain unavailable. Linux/Windows strict
-backends, endpoint/credential evidence, transfer/resource accounting, and the
-complete source receipt remain open, so this does not promote diagnostic source
-commands into admission.
+backends, endpoint/credential evidence, network transfer, object-store and
+descendant aggregate-resource accounting, and the complete source receipt
+remain open, so this does not promote diagnostic source commands into admission.
 
 The crate now contains reviewed building blocks for immutable Git/local
 snapshots, hermetic package-name extraction, and typed package/source identity.
@@ -355,14 +359,17 @@ as the parent Git executable and are rechecked around every launch and at
 completion. On macOS that floor also reads native extended ACLs for invocation
 entries, canonical targets, and every ancestor; any allow entry rejects even
 when ordinary mode bits appear safe. Deny-only entries do not broaden custody,
-and an unreadable ACL fails closed. Cache policy v12 separates entries
-predating this transport-executable floor. This does not certify any
-executable, bind other Git components, or establish TLS/endpoint custody. SSH
+and an unreadable ACL fails closed. Cache policy v13 separates entries
+predating this transport-executable and cumulative-output floor. This does not
+certify any executable, bind other Git components, or establish TLS/endpoint custody. SSH
 is noninteractive and strict about host keys, but still consumes
 the user's default known-host and key files. Strict OS confinement, explicit
 credential custody and during-write byte/resource enforcement remain. Ordinary
 resolution is now bounded to 64 Git launches, independent of package file
-count, and ten minutes, including cache-lock acquisition. Validated blobs use
+count, ten minutes including cache-lock acquisition, and cumulative parent-
+captured output of `min(source-byte ceiling + 64 MiB, 576 MiB)`. This last
+ceiling is not a transfer, object-store, or descendant aggregate-resource quota.
+Validated blobs use
 one exactly framed `cat-file --batch` launch; blob payloads are shared ranges
 over that bounded response and released before staged-source revalidation.
 Cleanup/reaping has a separate two-second

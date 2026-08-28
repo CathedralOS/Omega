@@ -36,7 +36,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v12";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v13";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -66,14 +66,16 @@ const LOCAL_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT: u64 = 512 * 1024 * 1024;
 const GIT_COMMAND_TIMEOUT: Duration = Duration::from_secs(120);
 const GIT_STDOUT_LIMIT: usize = 16 * 1024 * 1024;
 const GIT_STDERR_LIMIT: usize = 1024 * 1024;
+const GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE: u64 = 64 * 1024 * 1024;
+const GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT: u64 = 576 * 1024 * 1024;
 const GIT_EXECUTABLE_BYTE_LIMIT: u64 = 256 * 1024 * 1024;
 const GIT_RESOLUTION_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const GIT_FIXED_COMMAND_ALLOWANCE: usize = 64;
 const GIT_COMMAND_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
 const LOCAL_SNAPSHOT_LOCK_TIMEOUT: Duration = Duration::from_secs(120);
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(5);
-const GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 1;
-const GIT_RESOLUTION_OBSERVATION_DOMAIN: &[u8] = b"omega-git-resolution-observation-v1";
+const GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 2;
+const GIT_RESOLUTION_OBSERVATION_DOMAIN: &[u8] = b"omega-git-resolution-observation-v2";
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -435,6 +437,7 @@ pub struct ResolvedGitSource {
     /// authority; strict admission must reject any unavailable required row.
     execution_policy_observations: Vec<ResolverExecutionPolicyObservation>,
     command_execution_observations: Vec<GitCommandExecutionObservation>,
+    captured_output_observation: GitCapturedOutputObservation,
     resolution_observation: GitSourceResolutionObservation,
 }
 
@@ -491,6 +494,10 @@ impl ResolvedGitSource {
         &self.command_execution_observations
     }
 
+    pub const fn captured_output_observation(&self) -> &GitCapturedOutputObservation {
+        &self.captured_output_observation
+    }
+
     /// Canonical final-result provenance issued only after source, cache,
     /// executable, policy, and command reconciliation all succeed.
     ///
@@ -516,6 +523,7 @@ struct PendingResolvedGitSource {
     execution_helper_executables: Vec<GitTransportExecutableIdentity>,
     execution_policy_observations: Vec<ResolverExecutionPolicyObservation>,
     command_execution_observations: Vec<GitCommandExecutionObservation>,
+    captured_output_observation: GitCapturedOutputObservation,
 }
 
 #[cfg(test)]
@@ -535,7 +543,29 @@ impl PendingResolvedGitSource {
             execution_helper_executables: resolved.execution_helper_executables.clone(),
             execution_policy_observations: resolved.execution_policy_observations.clone(),
             command_execution_observations: resolved.command_execution_observations.clone(),
+            captured_output_observation: resolved.captured_output_observation.clone(),
         }
+    }
+}
+
+/// Compiler-owned cumulative stdout/stderr accounting for one Git resolution.
+///
+/// This observation covers only bytes captured by the parent process. It does
+/// not measure network transfer, object-store allocation, or descendant
+/// aggregate resources.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitCapturedOutputObservation {
+    ceiling: u64,
+    observed: u64,
+}
+
+impl GitCapturedOutputObservation {
+    pub const fn ceiling(&self) -> u64 {
+        self.ceiling
+    }
+
+    pub const fn observed(&self) -> u64 {
+        self.observed
     }
 }
 
@@ -549,6 +579,8 @@ pub struct GitSourceResolutionObservation {
     schema_version: u32,
     identity: String,
     command_count: usize,
+    captured_output_ceiling: u64,
+    captured_output_observed: u64,
 }
 
 impl GitSourceResolutionObservation {
@@ -563,6 +595,14 @@ impl GitSourceResolutionObservation {
     pub const fn command_count(&self) -> usize {
         self.command_count
     }
+
+    pub const fn captured_output_ceiling(&self) -> u64 {
+        self.captured_output_ceiling
+    }
+
+    pub const fn captured_output_observed(&self) -> u64 {
+        self.captured_output_observed
+    }
 }
 
 fn issue_git_source_resolution_observation(
@@ -574,6 +614,15 @@ fn issue_git_source_resolution_observation(
     {
         return Err(SourceResolveError::GitExecutionBoundaryInvalid {
             message: "final Git resolution provenance has inconsistent command custody".to_owned(),
+        });
+    }
+    let expected_captured_output = git_captured_output_observation(
+        &resolved.command_execution_observations,
+        git_resolution_captured_output_ceiling(limits),
+    )?;
+    if resolved.captured_output_observation != expected_captured_output {
+        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "final Git resolution captured-output accounting is inconsistent".to_owned(),
         });
     }
     let object_algorithm = git_object_algorithm(&resolved.commit)?;
@@ -655,13 +704,44 @@ fn issue_git_source_resolution_observation(
         hash_resolution_u64(&mut hasher, observation.stderr_length);
         hash_resolution_field(&mut hasher, observation.stderr_identity.as_bytes());
     }
+    hash_resolution_u64(&mut hasher, resolved.captured_output_observation.ceiling);
+    hash_resolution_u64(&mut hasher, resolved.captured_output_observation.observed);
     hash_resolution_field(&mut hasher, b"resolved-non-admitting");
 
     Ok(GitSourceResolutionObservation {
         schema_version: GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION,
         identity: format_sha256(&hasher.finalize()),
         command_count: resolved.command_execution_observations.len(),
+        captured_output_ceiling: resolved.captured_output_observation.ceiling,
+        captured_output_observed: resolved.captured_output_observation.observed,
     })
+}
+
+fn git_resolution_captured_output_ceiling(limits: LocalSourceLimits) -> u64 {
+    limits
+        .max_bytes
+        .saturating_add(GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE)
+        .min(GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT)
+}
+
+fn git_captured_output_observation(
+    commands: &[GitCommandExecutionObservation],
+    ceiling: u64,
+) -> Result<GitCapturedOutputObservation, SourceResolveError> {
+    let observed = commands.iter().try_fold(0_u64, |total, command| {
+        total
+            .checked_add(command.stdout_length)
+            .and_then(|total| total.checked_add(command.stderr_length))
+            .ok_or_else(|| SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "Git captured-output accounting overflowed".to_owned(),
+            })
+    })?;
+    if observed > ceiling {
+        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "Git captured-output observations exceed their compiler ceiling".to_owned(),
+        });
+    }
+    Ok(GitCapturedOutputObservation { ceiling, observed })
 }
 
 fn hash_resolution_transport_executable(
@@ -834,8 +914,65 @@ struct GitExecutor {
     launches: Cell<usize>,
     execution_policy_observations: RefCell<Vec<ResolverExecutionPolicyObservation>>,
     command_execution_observations: RefCell<Vec<GitCommandExecutionObservation>>,
+    captured_output_budget: GitCapturedOutputBudget,
     maximum_launches: usize,
     execution_backend: ResolverExecutionBackend,
+}
+
+#[derive(Debug, Clone)]
+struct GitCapturedOutputBudget {
+    ceiling: u64,
+    observed: Arc<AtomicU64>,
+}
+
+impl GitCapturedOutputBudget {
+    fn new(ceiling: u64) -> Self {
+        Self {
+            ceiling,
+            observed: Arc::new(AtomicU64::new(0)),
+        }
+    }
+
+    fn observed(&self) -> u64 {
+        self.observed.load(Ordering::Acquire)
+    }
+
+    fn charge(&self, count: usize) -> Result<(), CapturedOutputLimitExceeded> {
+        let count = u64::try_from(count).map_err(|_| CapturedOutputLimitExceeded {
+            ceiling: self.ceiling,
+            attempted: u64::MAX,
+        })?;
+        let mut current = self.observed();
+        loop {
+            let attempted = current
+                .checked_add(count)
+                .ok_or(CapturedOutputLimitExceeded {
+                    ceiling: self.ceiling,
+                    attempted: u64::MAX,
+                })?;
+            if attempted > self.ceiling {
+                return Err(CapturedOutputLimitExceeded {
+                    ceiling: self.ceiling,
+                    attempted,
+                });
+            }
+            match self.observed.compare_exchange_weak(
+                current,
+                attempted,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return Ok(()),
+                Err(actual) => current = actual,
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CapturedOutputLimitExceeded {
+    ceiling: u64,
+    attempted: u64,
 }
 
 #[derive(Debug)]
@@ -920,6 +1057,10 @@ pub enum SourceResolveError {
     },
     GitResolutionTimedOut {
         timeout_millis: u64,
+    },
+    GitResolutionCapturedOutputLimit {
+        ceiling: u64,
+        attempted: u64,
     },
     GitCleanupFailed {
         operation: String,
@@ -1060,6 +1201,10 @@ impl fmt::Display for SourceResolveError {
             Self::GitResolutionTimedOut { timeout_millis } => write!(
                 output,
                 "Git source resolution exceeded its {timeout_millis}-millisecond whole-operation deadline"
+            ),
+            Self::GitResolutionCapturedOutputLimit { ceiling, attempted } => write!(
+                output,
+                "Git source resolution attempted to capture {attempted} bytes across all commands, exceeding its {ceiling}-byte cumulative output ceiling"
             ),
             Self::GitCleanupFailed { operation, message } => write!(
                 output,
@@ -1225,7 +1370,7 @@ pub fn resolve_git_source(
 ) -> Result<ResolvedGitSource, SourceResolveError> {
     let limits = limits.compiler_bounded();
     let execution_transport = request.execution_transport();
-    let executor = GitExecutor::system(execution_transport)?;
+    let executor = GitExecutor::system(execution_transport, limits)?;
     let result = (|| {
         let requested_rev = request.requested_revision();
         let locator_identity = request.locator_identity();
@@ -1430,6 +1575,7 @@ fn resolve_verified_git_cache_entry(
             .collect(),
         execution_policy_observations: executor.execution_policy_observations.borrow().clone(),
         command_execution_observations: executor.command_execution_observations.borrow().clone(),
+        captured_output_observation: executor.captured_output_observation()?,
     })
 }
 
@@ -1472,6 +1618,7 @@ fn finalize_git_resolution(
         execution_helper_executables: pending.execution_helper_executables,
         execution_policy_observations: pending.execution_policy_observations,
         command_execution_observations: pending.command_execution_observations,
+        captured_output_observation: pending.captured_output_observation,
         resolution_observation,
     })
 }
@@ -1528,12 +1675,14 @@ fn validate_pending_git_execution(
             .all(|(pending, current)| pending == &current.identity);
     let policies = executor.execution_policy_observations.borrow();
     let commands = executor.command_execution_observations.borrow();
+    let captured_output = executor.captured_output_observation()?;
     if pending.transport_profile != executor.execution_transport.profile()
         || pending.git_executable != executor.identity
         || pending.transport_executable.as_ref() != expected_transport
         || !helpers_match
         || pending.execution_policy_observations.as_slice() != policies.as_slice()
         || pending.command_execution_observations.as_slice() != commands.as_slice()
+        || pending.captured_output_observation != captured_output
     {
         return Err(SourceResolveError::GitExecutionBoundaryInvalid {
             message: "pending Git result diverged from final executable and command custody"
@@ -3089,13 +3238,14 @@ fn execute_git_blob_batch(
         ResolverExecutionPhase::RepositoryInspection,
         &stdin_identity,
     );
-    let result = run_command_bounded_with_stdin(
+    let result = run_command_bounded_with_stdin_and_budget(
         &mut command,
         Stdio::from(request),
         "cat-file --batch",
         stdout_limit,
         GIT_STDERR_LIMIT,
         command_timeout,
+        executor.captured_output_budget.clone(),
     );
     let output = reconcile_git_command_result(result, executor.verify(), executor.verify_budget())?;
     executor.record_command_execution(
@@ -6859,7 +7009,10 @@ fn io_error(path: &Path, error: std::io::Error) -> SourceResolveError {
 }
 
 impl GitExecutor {
-    fn system(execution_transport: GitExecutionTransport) -> Result<Self, SourceResolveError> {
+    fn system(
+        execution_transport: GitExecutionTransport,
+        limits: LocalSourceLimits,
+    ) -> Result<Self, SourceResolveError> {
         for candidate in system_git_candidates() {
             let path = Path::new(candidate);
             if path.is_file() {
@@ -6867,6 +7020,7 @@ impl GitExecutor {
                     path,
                     GIT_FIXED_COMMAND_ALLOWANCE,
                     GIT_RESOLUTION_TIMEOUT,
+                    git_resolution_captured_output_ceiling(limits),
                     execution_transport,
                 );
             }
@@ -6880,6 +7034,7 @@ impl GitExecutor {
             path,
             GIT_FIXED_COMMAND_ALLOWANCE,
             GIT_RESOLUTION_TIMEOUT,
+            git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
             GitExecutionTransport::File,
         )
     }
@@ -6894,6 +7049,23 @@ impl GitExecutor {
             path,
             maximum_launches,
             timeout,
+            git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
+            GitExecutionTransport::File,
+        )
+    }
+
+    #[cfg(test)]
+    fn open_with_resource_budgets(
+        path: &Path,
+        maximum_launches: usize,
+        timeout: Duration,
+        captured_output_ceiling: u64,
+    ) -> Result<Self, SourceResolveError> {
+        Self::open_with_budget_for_transport(
+            path,
+            maximum_launches,
+            timeout,
+            captured_output_ceiling,
             GitExecutionTransport::File,
         )
     }
@@ -6902,6 +7074,7 @@ impl GitExecutor {
         path: &Path,
         maximum_launches: usize,
         timeout: Duration,
+        captured_output_ceiling: u64,
         execution_transport: GitExecutionTransport,
     ) -> Result<Self, SourceResolveError> {
         let started = Instant::now();
@@ -6949,6 +7122,7 @@ impl GitExecutor {
             launches: Cell::new(0),
             execution_policy_observations: RefCell::new(Vec::new()),
             command_execution_observations: RefCell::new(Vec::new()),
+            captured_output_budget: GitCapturedOutputBudget::new(captured_output_ceiling),
             maximum_launches,
             execution_backend,
         })
@@ -7063,6 +7237,22 @@ impl GitExecutor {
             }
         }
         Ok(())
+    }
+
+    fn captured_output_observation(
+        &self,
+    ) -> Result<GitCapturedOutputObservation, SourceResolveError> {
+        let expected = git_captured_output_observation(
+            &self.command_execution_observations.borrow(),
+            self.captured_output_budget.ceiling,
+        )?;
+        if expected.observed != self.captured_output_budget.observed() {
+            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "Git captured-output counter does not match retained command outcomes"
+                    .to_owned(),
+            });
+        }
+        Ok(expected)
     }
 
     fn record_command_execution(
@@ -7912,12 +8102,13 @@ where
     command.args(args);
     let command_identity =
         git_command_configuration_identity(&command, phase, &GitCommandStdinIdentity::Null);
-    let result = run_command_bounded(
+    let result = run_command_bounded_with_budget(
         &mut command,
         "command",
         GIT_STDOUT_LIMIT,
         GIT_STDERR_LIMIT,
         command_timeout,
+        executor.captured_output_budget.clone(),
     );
     let output = reconcile_git_command_result(result, executor.verify(), executor.verify_budget())?;
     executor.record_command_execution(phase, command_identity, &output)?;
@@ -7976,6 +8167,7 @@ impl CapturedStream {
 enum StreamCaptureResult {
     Complete(Vec<u8>),
     Overflow,
+    ResolutionOverflow(CapturedOutputLimitExceeded),
     Failed(String),
 }
 
@@ -7984,6 +8176,7 @@ struct StreamCapture {
     result: StreamCaptureResult,
 }
 
+#[cfg(test)]
 fn run_command_bounded(
     command: &mut Command,
     operation: &str,
@@ -7991,23 +8184,43 @@ fn run_command_bounded(
     stderr_limit: usize,
     timeout: Duration,
 ) -> Result<BoundedCommandOutput, SourceResolveError> {
-    run_command_bounded_with_stdin(
+    run_command_bounded_with_budget(
+        command,
+        operation,
+        stdout_limit,
+        stderr_limit,
+        timeout,
+        GitCapturedOutputBudget::new(u64::MAX),
+    )
+}
+
+fn run_command_bounded_with_budget(
+    command: &mut Command,
+    operation: &str,
+    stdout_limit: usize,
+    stderr_limit: usize,
+    timeout: Duration,
+    captured_output_budget: GitCapturedOutputBudget,
+) -> Result<BoundedCommandOutput, SourceResolveError> {
+    run_command_bounded_with_stdin_and_budget(
         command,
         Stdio::null(),
         operation,
         stdout_limit,
         stderr_limit,
         timeout,
+        captured_output_budget,
     )
 }
 
-fn run_command_bounded_with_stdin(
+fn run_command_bounded_with_stdin_and_budget(
     command: &mut Command,
     stdin: Stdio,
     operation: &str,
     stdout_limit: usize,
     stderr_limit: usize,
     timeout: Duration,
+    captured_output_budget: GitCapturedOutputBudget,
 ) -> Result<BoundedCommandOutput, SourceResolveError> {
     let started = Instant::now();
     let mut child = command
@@ -8031,8 +8244,13 @@ fn run_command_bounded_with_stdin(
         .take()
         .expect("command stderr was piped");
     let (sender, receiver) = mpsc::channel();
-    if let Err(error) = spawn_stream_capture(stdout, CapturedStream::Stdout, stdout_limit, &sender)
-    {
+    if let Err(error) = spawn_stream_capture(
+        stdout,
+        CapturedStream::Stdout,
+        stdout_limit,
+        captured_output_budget.clone(),
+        &sender,
+    ) {
         return fail_after_cleanup(
             &mut child,
             operation,
@@ -8043,8 +8261,13 @@ fn run_command_bounded_with_stdin(
             },
         );
     }
-    if let Err(error) = spawn_stream_capture(stderr, CapturedStream::Stderr, stderr_limit, &sender)
-    {
+    if let Err(error) = spawn_stream_capture(
+        stderr,
+        CapturedStream::Stderr,
+        stderr_limit,
+        captured_output_budget,
+        &sender,
+    ) {
         return fail_after_cleanup(
             &mut child,
             operation,
@@ -8119,6 +8342,16 @@ fn run_command_bounded_with_stdin(
                             },
                         );
                     }
+                    StreamCaptureResult::ResolutionOverflow(exceeded) => {
+                        return fail_after_cleanup(
+                            &mut child,
+                            operation,
+                            SourceResolveError::GitResolutionCapturedOutputLimit {
+                                ceiling: exceeded.ceiling,
+                                attempted: exceeded.attempted,
+                            },
+                        );
+                    }
                     StreamCaptureResult::Failed(message) => {
                         return fail_after_cleanup(
                             &mut child,
@@ -8159,6 +8392,7 @@ fn spawn_stream_capture<R>(
     reader: R,
     stream: CapturedStream,
     limit: usize,
+    captured_output_budget: GitCapturedOutputBudget,
     sender: &mpsc::Sender<StreamCapture>,
 ) -> std::io::Result<()>
 where
@@ -8168,13 +8402,25 @@ where
     std::thread::Builder::new()
         .name(format!("omega-git-{}", stream.name()))
         .spawn(move || {
-            let result = capture_stream_bounded(reader, limit);
+            let result = capture_stream_bounded_with_budget(reader, limit, &captured_output_budget);
             let _ = sender.send(StreamCapture { stream, result });
         })?;
     Ok(())
 }
 
+#[cfg(test)]
 fn capture_stream_bounded<R>(mut reader: R, limit: usize) -> StreamCaptureResult
+where
+    R: Read,
+{
+    capture_stream_bounded_with_budget(&mut reader, limit, &GitCapturedOutputBudget::new(u64::MAX))
+}
+
+fn capture_stream_bounded_with_budget<R>(
+    mut reader: R,
+    limit: usize,
+    captured_output_budget: &GitCapturedOutputBudget,
+) -> StreamCaptureResult
 where
     R: Read,
 {
@@ -8191,6 +8437,9 @@ where
         };
         if next_length > limit {
             return StreamCaptureResult::Overflow;
+        }
+        if let Err(exceeded) = captured_output_budget.charge(count) {
+            return StreamCaptureResult::ResolutionOverflow(exceeded);
         }
         if bytes.try_reserve(count).is_err() {
             return StreamCaptureResult::Failed("output capture allocation failed".to_owned());
@@ -8865,6 +9114,29 @@ mod tests {
         assert!(output.status.success());
         assert_eq!(output.stdout.len(), 128 * 1024);
         assert_eq!(output.stderr.len(), 128 * 1024);
+
+        let shared_budget = GitCapturedOutputBudget::new(192 * 1024);
+        let mut aggregate_overflow = shell_command(
+            "dd if=/dev/zero bs=65536 count=2 1>&2 2>/dev/null; \
+             dd if=/dev/zero bs=65536 count=2 2>/dev/null",
+        );
+        let error = run_command_bounded_with_budget(
+            &mut aggregate_overflow,
+            "test-shared-output-budget",
+            128 * 1024,
+            128 * 1024,
+            Duration::from_secs(2),
+            shared_budget.clone(),
+        )
+        .expect_err("stdout and stderr must consume one shared cumulative budget");
+        assert!(matches!(
+            error,
+            SourceResolveError::GitResolutionCapturedOutputLimit {
+                ceiling,
+                attempted,
+            } if ceiling == 192 * 1024 && attempted > ceiling
+        ));
+        assert!(shared_budget.observed() <= shared_budget.ceiling);
     }
 
     #[cfg(unix)]
@@ -9079,7 +9351,8 @@ mod tests {
         run_test_git(&repo, ["add", "."]);
         run_test_git(&repo, ["commit", "--quiet", "-m", "add batched sources"]);
         let executor =
-            GitExecutor::system(GitExecutionTransport::Https).expect("system Git executor");
+            GitExecutor::system(GitExecutionTransport::Https, LocalSourceLimits::default())
+                .expect("system Git executor");
         let tree = run_git_stdout(
             &executor,
             &repo,
@@ -9112,6 +9385,7 @@ mod tests {
         )
         .expect("parse tree");
         let launches_before = executor.launches.get();
+        let captured_before = executor.captured_output_budget.observed();
         read_git_blobs_batch_from_path(
             &executor,
             &repo,
@@ -9122,6 +9396,17 @@ mod tests {
 
         assert_eq!(entries.len(), 33);
         assert_eq!(executor.launches.get() - launches_before, 1);
+        let last_command = executor
+            .command_execution_observations
+            .borrow()
+            .last()
+            .expect("blob batch command observation")
+            .clone();
+        assert_eq!(
+            executor.captured_output_budget.observed() - captured_before,
+            last_command.stdout_length + last_command.stderr_length,
+            "blob batch output must be charged exactly once"
+        );
         assert_eq!(executor.maximum_launches, GIT_FIXED_COMMAND_ALLOWANCE);
         assert!(entries.iter().any(|entry| {
             entry.relative_bytes == b"main.omg"
@@ -10328,11 +10613,31 @@ mod tests {
             resolved.command_execution_observations().len(),
             resolved.execution_policy_observations().len()
         );
-        assert_eq!(resolved.resolution_observation().schema_version(), 1);
+        assert_eq!(resolved.resolution_observation().schema_version(), 2);
         assert_eq!(resolved.resolution_observation().identity().len(), 64);
         assert_eq!(
             resolved.resolution_observation().command_count(),
             resolved.command_execution_observations().len()
+        );
+        assert_eq!(
+            resolved.captured_output_observation().ceiling(),
+            git_resolution_captured_output_ceiling(LocalSourceLimits::default())
+        );
+        assert_eq!(
+            resolved.captured_output_observation().observed(),
+            resolved
+                .command_execution_observations()
+                .iter()
+                .map(|command| command.stdout_length() + command.stderr_length())
+                .sum::<u64>()
+        );
+        assert_eq!(
+            resolved.resolution_observation().captured_output_ceiling(),
+            resolved.captured_output_observation().ceiling()
+        );
+        assert_eq!(
+            resolved.resolution_observation().captured_output_observed(),
+            resolved.captured_output_observation().observed()
         );
         let alternate_policy_result = PendingResolvedGitSource::from_issued(&resolved);
         let alternate_policy_observation = issue_git_source_resolution_observation(
@@ -10348,12 +10653,41 @@ mod tests {
             resolved.resolution_observation().identity(),
             "the final observation must bind compiler source ceilings"
         );
+        let alternate_output_limits = LocalSourceLimits {
+            max_bytes: LocalSourceLimits::default().max_bytes - 1,
+            ..LocalSourceLimits::default()
+        };
+        let mut alternate_output_result = PendingResolvedGitSource::from_issued(&resolved);
+        alternate_output_result.captured_output_observation.ceiling =
+            git_resolution_captured_output_ceiling(alternate_output_limits);
+        let alternate_output_observation = issue_git_source_resolution_observation(
+            &alternate_output_result,
+            alternate_output_limits,
+        )
+        .expect("issue observation for an alternate captured-output policy");
+        assert_ne!(
+            alternate_output_observation.identity(),
+            resolved.resolution_observation().identity(),
+            "the final observation must bind the cumulative output ceiling"
+        );
         let mut unjoined_result = PendingResolvedGitSource::from_issued(&resolved);
         unjoined_result.command_execution_observations.pop();
         assert!(
             issue_git_source_resolution_observation(&unjoined_result, LocalSourceLimits::default())
                 .is_err(),
             "final issuance must reject missing command outcome rows"
+        );
+        let mut mismatched_output_accounting = PendingResolvedGitSource::from_issued(&resolved);
+        mismatched_output_accounting
+            .captured_output_observation
+            .observed += 1;
+        assert!(
+            issue_git_source_resolution_observation(
+                &mismatched_output_accounting,
+                LocalSourceLimits::default()
+            )
+            .is_err(),
+            "final issuance must reject changed cumulative output accounting"
         );
         let mut mismatched_transport = PendingResolvedGitSource::from_issued(&resolved);
         mismatched_transport.transport_profile = GitTransportProfile::Https;
@@ -10644,7 +10978,8 @@ mod tests {
         let canonical_cache = cache.canonicalize().expect("canonical resolver cache");
         verify_git_cache_root_custody(&canonical_cache).expect("verify resolver cache custody");
         let execution_transport = request.execution_transport();
-        let executor = GitExecutor::system(execution_transport).expect("select test Git executor");
+        let executor = GitExecutor::system(execution_transport, LocalSourceLimits::default())
+            .expect("select test Git executor");
         let cache_identity = git_cache_identity(
             request.locator_identity(),
             request.requested_revision(),
@@ -11037,7 +11372,8 @@ mod tests {
         let repository = entry_root.join(GIT_CACHE_REPOSITORY);
         let missing_oid = "0000000000000000000000000000000000000000";
         let executor =
-            GitExecutor::system(GitExecutionTransport::Https).expect("system Git executor");
+            GitExecutor::system(GitExecutionTransport::Https, LocalSourceLimits::default())
+                .expect("system Git executor");
         let mut entries = vec![GitTreeEntry {
             relative_bytes: b"missing.omg".to_vec(),
             relative_path: PathBuf::from("missing.omg"),
@@ -12588,7 +12924,8 @@ mod tests {
     #[test]
     fn git_commands_seal_ambient_config_protocol_and_execution_injection() {
         let executor =
-            GitExecutor::system(GitExecutionTransport::Https).expect("system Git executor");
+            GitExecutor::system(GitExecutionTransport::Https, LocalSourceLimits::default())
+                .expect("system Git executor");
         let helper_directory = executor
             .transport_executable
             .as_ref()
@@ -12735,7 +13072,8 @@ mod tests {
             (GitExecutionTransport::Ssh, "ssh"),
             (GitExecutionTransport::File, "file"),
         ] {
-            let executor = GitExecutor::system(transport).expect("system Git executor");
+            let executor = GitExecutor::system(transport, LocalSourceLimits::default())
+                .expect("system Git executor");
             let command =
                 sealed_git_command(&executor, &working_directory, ResolverExecutionPhase::Fetch)
                     .expect("sealed absolute Git command");
@@ -12856,6 +13194,7 @@ mod tests {
             executable,
             1,
             Duration::from_secs(3),
+            git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
             transport,
         )
         .expect("open bounded system Git executor")
@@ -13134,7 +13473,8 @@ mod tests {
     #[test]
     fn system_git_executor_excludes_the_apple_dispatcher() {
         let executor =
-            GitExecutor::system(GitExecutionTransport::Https).expect("concrete macOS Git executor");
+            GitExecutor::system(GitExecutionTransport::Https, LocalSourceLimits::default())
+                .expect("concrete macOS Git executor");
         assert_ne!(executor.identity.path, Path::new("/usr/bin/git"));
         assert!(executor.identity.path.is_absolute());
     }
@@ -13181,6 +13521,18 @@ mod tests {
     fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
         use std::os::unix::fs::PermissionsExt;
 
+        assert_eq!(
+            git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
+            LocalSourceLimits::default().max_bytes + GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE
+        );
+        assert_eq!(
+            git_resolution_captured_output_ceiling(LocalSourceLimits {
+                max_bytes: SOURCE_BYTE_ABSOLUTE_LIMIT,
+                ..LocalSourceLimits::default()
+            }),
+            GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT
+        );
+
         let root = temp_root("git-resolution-budget");
         std::fs::create_dir_all(&root).expect("create Git budget root");
         let fast_git = root.join("fast-git");
@@ -13221,6 +13573,42 @@ mod tests {
             ),
             Err(SourceResolveError::GitResolutionTimedOut { .. })
         ));
+
+        let output_git = root.join("output-git");
+        std::fs::write(
+            &output_git,
+            b"#!/bin/sh\nfor argument do last=$argument; done\nprintf 12345678\nif [ \"$last\" = second ]; then while :; do :; done; fi\n",
+        )
+        .expect("write output fake Git");
+        std::fs::set_permissions(&output_git, std::fs::Permissions::from_mode(0o700))
+            .expect("make output fake Git executable");
+        let output_bounded =
+            GitExecutor::open_with_resource_budgets(&output_git, 2, Duration::from_secs(1), 12)
+                .expect("capture output-bounded Git");
+        run_git_output(
+            &output_bounded,
+            &root,
+            ResolverExecutionPhase::Fetch,
+            [OsStr::new("first")],
+        )
+        .expect("first command fits cumulative output budget");
+        let output_error = run_git_output(
+            &output_bounded,
+            &root,
+            ResolverExecutionPhase::Fetch,
+            [OsStr::new("second")],
+        )
+        .expect_err("second command must exhaust cumulative output budget");
+        assert!(
+            matches!(
+            &output_error,
+            SourceResolveError::GitResolutionCapturedOutputLimit {
+                ceiling: 12,
+                attempted,
+            } if *attempted > 12
+            ),
+            "unexpected cumulative output error: {output_error:?}"
+        );
 
         let _ = std::fs::remove_dir_all(root);
     }

@@ -137,9 +137,16 @@ environment, working directory, and either null stdin or the exact object-batch
 stdin length and digest. The outcome binds exit code or Unix signal plus exact
 bounded stdout/stderr lengths and digests, and joins positionally to the digest
 of its native policy observation. Successful resolution requires outcome,
-policy, and launch counts to agree. Output text and package-controlled arguments
-are not rendered into this fixed record. This establishes completed-command
-provenance for successful resolution.
+policy, and launch counts to agree. Both capture threads and every command also
+charge one overflow-safe whole-resolution counter. Its compiler-owned ceiling
+is `min(source-byte ceiling + 64 MiB, 576 MiB)`. Exhaustion terminates and reaps
+the command container with a distinct error. Successful issuance requires the
+counter to equal the sum of every retained stdout/stderr length and binds both
+ceiling and observed count into the final observation. Output text and package-
+controlled arguments are not rendered into this fixed record. This establishes
+completed-command provenance and cumulative parent-captured-output accounting
+for successful resolution; it is not network-transfer, object-store, or
+descendant aggregate-resource accounting.
 
 After the outer resolver has additionally reconciled cache namespace/custody
 and final executable content, it physically reopens and re-hashes the published
@@ -150,14 +157,15 @@ The public result fields are not mutable. The observation's canonical identity
 binds the exact source policy ceilings, request and normalized locator,
 transport and object format, selected commit/tree, immutable snapshot
 path/content/counts, Git and helper content identities, every native policy row,
-and every completed-command row.
+every completed-command row, and the cumulative captured-output ceiling and
+observed count.
 The observation has no public constructor or decoder and is issued with the
 fixed outcome `resolved-non-admitting`; changing even a source ceiling changes
 its identity. This closes the successful-result join that the narrower rows
 could not express. It deliberately remains below `SourceResolutionReceiptV1`:
 unavailable containment rows remain unavailable, and effective endpoints,
-TLS/SSH trust, credential custody, transferred bytes, aggregate resources, and
-strict acceptance are still absent.
+TLS/SSH trust, credential custody, transferred bytes, object-store/during-write
+quotas, descendant aggregate resources, and strict acceptance are still absent.
 
 Resolved package custody now also projects a bounded
 `CanonicalSourceClosureSubject`: the exact root request and every authored
@@ -384,8 +392,8 @@ sealed SSH command receive the same identity, hash, custody, and ACL treatment;
 they do not grant execution of any unlisted descendant. Both transports recheck
 their executable identity around every Git launch, re-hash the canonical target
 at completion, and retain it separately. Drift rejects. The Git cache policy is
-v12, so a cache fetched before these executable-custody floors
-or under a different transport-authority profile is not silently reused.
+v13, so a cache fetched before these executable-custody and cumulative-output
+floors or under a different transport-authority profile is not silently reused.
 This identifies observed parent bytes and closes ordinary cross-user path
 ownership on Unix; it does not certify Git, the HTTPS helper, or SSH, bind
 other executable components, establish Windows ownership/DACL custody, protect
@@ -407,7 +415,9 @@ Each launch clears the complete inherited environment, installs only the fixed
 Git/protocol/locale/helper-path variables, and uses an explicit absolute cache
 or repository working directory. It also receives resolver-owned stdin,
 concurrent bounded stdout/stderr capture, and a deadline. Stdin is null except
-for the exact object-ID request file supplied to `cat-file --batch`.
+for the exact object-ID request file supplied to `cat-file --batch`. Per-command
+stream ceilings remain independent of the whole-resolution captured-output
+ceiling described above.
 
 `omega-resolver-execution` derives native policy from one of four closed phases:
 transport discovery, repository initialization, fetch, or repository
