@@ -5,7 +5,7 @@
 //! dev-active provenance; the latter carries a standing warning. Domains are
 //! semantic declarations, not grantable trust-report subjects.
 
-use crate::pipeline::compile_options::CompileOptions;
+use crate::compiler::CompileOptions;
 use omega_artifacts::{
     ArtifactWriter, TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard,
     TrustGenericAcceptedInstanceRow, TrustProgressPremiseRow, TrustProgressPremiseSubject,

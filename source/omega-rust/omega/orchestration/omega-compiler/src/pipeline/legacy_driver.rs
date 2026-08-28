@@ -1,3 +1,6 @@
+use crate::compiler::CompileReport;
+use crate::compiler::CompileRequest;
+use crate::compiler::{ArtifactEmissionPolicy, CompileOptions};
 use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::artifacts::{
     BackendReportObservation, FinalPipelineObservation, remove_stale_phase_diagrams,
@@ -6,11 +9,9 @@ use crate::pipeline::artifacts::{
     write_syntax_snapshot, write_typed_snapshot,
 };
 use crate::pipeline::boundary_report::BoundaryReportObservation;
-use crate::pipeline::compile_options::{ArtifactEmissionPolicy, CompileOptions};
 use crate::pipeline::compile_policy::{
     ExecutableTcbBuildPolicy, settle_compiler_executable_tcb_installation,
 };
-use crate::pipeline::compile_report::CompileReport;
 use crate::pipeline::output::{LegacyCompilerOutputCustody, write_output};
 use crate::pipeline::stages::{
     backend_plan_to_native_image_payload, checked_trees_to_state_graph,
@@ -23,255 +24,79 @@ use omega_core::parallel::WorkerPool;
 use psi_diagnostics::Diagnostic;
 use std::sync::Arc;
 
-const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
-
-/// The semantic product requested from the production compiler pipeline.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RequestedCompileProduct {
-    Check,
-    TerminalArtifact,
-    NativeArtifact,
-    InstalledOutput,
-}
-
-impl RequestedCompileProduct {
-    const fn from_legacy_write_output(write_output: bool) -> Self {
-        if write_output {
-            Self::InstalledOutput
-        } else {
-            Self::Check
-        }
-    }
-
-    const fn installs_output(self) -> bool {
-        matches!(self, Self::InstalledOutput)
-    }
-}
-
-/// One typed production compiler invocation.
+/// Temporary owner of the pre-cutover compilation implementation.
 ///
-/// Test-only entry overrides and worker ceilings deliberately remain on the
-/// separate harness functions below. This request owns the production policy
-/// inputs that used to select distinct public orchestration paths.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompileRequest {
+/// The crate-root [`crate::Compiler`] is the public coordinator. This job
+/// remains isolated here only until the Psi-to-Terminal route replaces and
+/// deletes `compile_legacy`; new policy or semantic models must not be added.
+pub(crate) struct LegacyDriver {
     options: CompileOptions,
-    requested_product: RequestedCompileProduct,
-    executable_tcb_policy: ExecutableTcbBuildPolicy,
-    artifact_policy: ArtifactEmissionPolicy,
-    terminal_admission_profile: psi_proof_admission::AdmissionProfile,
-    package_inputs: Option<PackageCompilationInputs>,
-}
-
-impl CompileRequest {
-    pub fn new(options: CompileOptions) -> Self {
-        let requested_product =
-            RequestedCompileProduct::from_legacy_write_output(options.write_output);
-        Self {
-            options,
-            requested_product,
-            executable_tcb_policy: ExecutableTcbBuildPolicy::default(),
-            artifact_policy: ArtifactEmissionPolicy::Full,
-            terminal_admission_profile: psi_proof_admission::AdmissionProfile::default(),
-            package_inputs: None,
-        }
-    }
-
-    pub fn with_executable_tcb_policy(
-        mut self,
-        executable_tcb_policy: ExecutableTcbBuildPolicy,
-    ) -> Self {
-        self.executable_tcb_policy = executable_tcb_policy;
-        self
-    }
-
-    pub fn with_requested_product(mut self, requested_product: RequestedCompileProduct) -> Self {
-        self.requested_product = requested_product;
-        self
-    }
-
-    pub fn with_artifact_policy(mut self, artifact_policy: ArtifactEmissionPolicy) -> Self {
-        self.artifact_policy = artifact_policy;
-        self
-    }
-
-    /// Select the exact owner-accepted admission set used while verifying a
-    /// canonical Terminal artifact. The default is empty and therefore
-    /// rejects every admission-authorized obligation.
-    pub fn with_terminal_admission_profile(
-        mut self,
-        profile: psi_proof_admission::AdmissionProfile,
-    ) -> Self {
-        self.terminal_admission_profile = profile;
-        self
-    }
-
-    pub fn with_package_inputs(mut self, package_inputs: PackageCompilationInputs) -> Self {
-        self.package_inputs = Some(package_inputs);
-        self
-    }
-
-    pub const fn options(&self) -> &CompileOptions {
-        &self.options
-    }
-
-    pub const fn requested_product(&self) -> RequestedCompileProduct {
-        self.requested_product
-    }
-}
-
-/// Execute the single typed production compiler request.
-pub fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diagnostic>> {
-    run_on_compile_thread(move || Compiler::from_request(request).compile())
-}
-
-/// Explicitly test-only compiler controls. Entry overrides and worker ceilings
-/// cannot enter [`CompileRequest`] or production compilation.
-#[doc(hidden)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompileHarnessRequest {
-    options: CompileOptions,
-    entry_machine_name: Option<String>,
-    worker_count: Option<usize>,
-    artifact_policy: ArtifactEmissionPolicy,
-}
-
-#[doc(hidden)]
-impl CompileHarnessRequest {
-    pub fn new(options: CompileOptions) -> Self {
-        Self {
-            options,
-            entry_machine_name: None,
-            worker_count: None,
-            artifact_policy: ArtifactEmissionPolicy::Full,
-        }
-    }
-
-    pub fn with_test_entry(mut self, entry_machine_name: impl Into<String>) -> Self {
-        self.entry_machine_name = Some(entry_machine_name.into());
-        self
-    }
-
-    pub fn with_worker_count(mut self, worker_count: usize) -> Self {
-        self.worker_count = Some(worker_count.max(1));
-        self
-    }
-
-    pub fn with_artifact_policy(mut self, artifact_policy: ArtifactEmissionPolicy) -> Self {
-        self.artifact_policy = artifact_policy;
-        self
-    }
-}
-
-/// Test-harness seam for fixtures and outer schedulers. A corpus runner may
-/// bound backend workers here to avoid multiplying its own parallel job count.
-#[doc(hidden)]
-pub fn compile_harness(request: CompileHarnessRequest) -> Result<CompileReport, Vec<Diagnostic>> {
-    run_on_compile_thread(move || {
-        let mut compiler = Compiler::with_executable_tcb_policy(
-            request.options,
-            ExecutableTcbBuildPolicy::default(),
-        )
-        .with_artifact_policy(request.artifact_policy);
-        if let Some(entry_machine_name) = request.entry_machine_name {
-            compiler = compiler.with_test_entry(entry_machine_name);
-        }
-        if let Some(worker_count) = request.worker_count {
-            compiler = compiler.with_worker_count(worker_count);
-        }
-        compiler.compile()
-    })
-}
-
-/// Run the whole pipeline on a thread with a large explicit stack. Recursive
-/// parsing and representation walks must reach their explicit depth guards on
-/// hosts whose default thread stacks are small. Pages commit lazily, and a
-/// genuine compiler panic is resumed on the calling thread.
-pub(super) fn run_on_compile_thread<T>(work: impl FnOnce() -> T + Send + 'static) -> T
-where
-    T: Send + 'static,
-{
-    std::thread::Builder::new()
-        .name("omega-compile".to_owned())
-        .stack_size(COMPILE_STACK_SIZE)
-        .spawn(work)
-        .expect("failed to spawn compiler thread")
-        .join()
-        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
-}
-pub struct Compiler {
-    options: CompileOptions,
-    requested_product: RequestedCompileProduct,
+    installs_output: bool,
     executable_tcb_policy: ExecutableTcbBuildPolicy,
     test_entry_machine_name: Option<String>,
     worker_count: Option<usize>,
     artifact_policy: ArtifactEmissionPolicy,
-    terminal_admission_profile: psi_proof_admission::AdmissionProfile,
     package_inputs: Option<PackageCompilationInputs>,
 }
 
-impl Compiler {
-    fn from_request(request: CompileRequest) -> Self {
+impl LegacyDriver {
+    pub(crate) fn from_request(request: CompileRequest) -> Self {
         Self {
             options: request.options,
-            requested_product: request.requested_product,
+            installs_output: true,
             executable_tcb_policy: request.executable_tcb_policy,
             test_entry_machine_name: None,
             worker_count: None,
             artifact_policy: request.artifact_policy,
-            terminal_admission_profile: request.terminal_admission_profile,
             package_inputs: request.package_inputs,
         }
     }
 
-    pub fn with_executable_tcb_policy(
+    pub(crate) fn with_executable_tcb_policy(
         options: CompileOptions,
         executable_tcb_policy: ExecutableTcbBuildPolicy,
     ) -> Self {
-        let requested_product =
-            RequestedCompileProduct::from_legacy_write_output(options.write_output);
+        let installs_output = options.write_output;
         Self {
             options,
-            requested_product,
+            installs_output,
             executable_tcb_policy,
             test_entry_machine_name: None,
             worker_count: None,
             artifact_policy: ArtifactEmissionPolicy::Full,
-            terminal_admission_profile: psi_proof_admission::AdmissionProfile::default(),
             package_inputs: None,
         }
     }
 
-    fn with_test_entry(mut self, entry_machine_name: String) -> Self {
+    pub(crate) fn with_test_entry(mut self, entry_machine_name: String) -> Self {
         self.test_entry_machine_name = Some(entry_machine_name);
         self
     }
 
-    fn with_worker_count(mut self, worker_count: usize) -> Self {
+    pub(crate) fn with_worker_count(mut self, worker_count: usize) -> Self {
         self.worker_count = Some(worker_count.max(1));
         self
     }
 
-    fn with_artifact_policy(mut self, artifact_policy: ArtifactEmissionPolicy) -> Self {
+    pub(crate) fn with_artifact_policy(mut self, artifact_policy: ArtifactEmissionPolicy) -> Self {
         self.artifact_policy = artifact_policy;
         self
     }
 
-    pub fn compile(self) -> Result<CompileReport, Vec<Diagnostic>> {
-        match self.requested_product {
-            RequestedCompileProduct::TerminalArtifact => self.compile_terminal_artifact(),
-            RequestedCompileProduct::NativeArtifact => self.compile_native_artifact(),
-            RequestedCompileProduct::Check | RequestedCompileProduct::InstalledOutput => {
-                self.compile_legacy()
-            }
-        }
+    pub(crate) fn compile(self) -> Result<CompileReport, Vec<Diagnostic>> {
+        self.compile_state_graph_compatibility()
+    }
+
+    pub(crate) fn compile_installed_output(self) -> Result<CompileReport, Vec<Diagnostic>> {
+        debug_assert!(self.installs_output);
+        self.compile_state_graph_compatibility()
     }
 
     /// Compatibility route retained only for checked reporting and installed
     /// output while the remaining Terminal vocabulary migrates. Native
     /// artifacts must never enter this StateGraph path.
-    fn compile_legacy(self) -> Result<CompileReport, Vec<Diagnostic>> {
-        let installs_output = self.requested_product.installs_output();
+    fn compile_state_graph_compatibility(self) -> Result<CompileReport, Vec<Diagnostic>> {
+        let installs_output = self.installs_output;
         let requires_native_backend = installs_output;
         let mut timings = CompileTimings::default();
         let emit_auxiliary_artifacts = self.artifact_policy.emits_auxiliary_artifacts();
@@ -433,7 +258,7 @@ impl Compiler {
         )?;
 
         let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
-        super::provider_plans::settle_compiler_external_binding_rows(
+        crate::pipeline::provider_plans::settle_compiler_external_binding_rows(
             &mut checked,
             self.options.target_name.as_deref(),
             selected_native_target,
@@ -540,7 +365,7 @@ impl Compiler {
         // frontend artifacts would turn `--check` into implicit execution
         // policy; callers that need native validation either select an exact
         // `ProgramEntry` or use the explicit legacy test-entry seam.
-        if self.requested_product == RequestedCompileProduct::Check
+        if !installs_output
             && (entry_machine_name.is_none() || !build_config.optimizations.is_empty())
         {
             write_final_pipeline_observations(
@@ -560,7 +385,7 @@ impl Compiler {
         }
 
         if requires_native_backend {
-            super::component_progress::reject_undischarged_build_bound_progress(
+            crate::pipeline::component_progress::reject_undischarged_build_bound_progress(
                 checked.component_progress.as_deref(),
             )?;
         }
@@ -689,101 +514,5 @@ impl Compiler {
                 build_observation_summary,
             )
             .map_err(|message| vec![Diagnostic::error(message)])
-    }
-
-    /// Produce a complete target-native artifact exclusively through the
-    /// canonical Terminal-Psi handoff. Unsupported vocabulary, unresolved
-    /// provider executions, admissions outside the selected profile, and
-    /// build-bound component progress reject here; none may fall back to the
-    /// legacy StateGraph backend.
-    fn compile_native_artifact(self) -> Result<CompileReport, Vec<Diagnostic>> {
-        let checked = crate::pipeline::checked_entry::compile_to_checked_for_terminal(
-            &self.options,
-            self.package_inputs.as_ref(),
-        )?;
-        let source_file_count = checked.source_file_count();
-        let entry_machine = checked
-            .selected_program_entry_machine()
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "native-artifact production requires one exact selected program entry",
-                )]
-            })?
-            .to_owned();
-        let target = checked.selected_native_target().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "native-artifact production requires one exact selected native target",
-            )]
-        })?;
-        if checked
-            .component_progress()
-            .is_some_and(|manifest| !manifest.pending().is_empty())
-        {
-            return Err(vec![Diagnostic::error(
-                "native-artifact production cannot discard pending build-bound component progress; request component staging with explicit establishment evidence",
-            )]);
-        }
-        let build_evaluation_usage = checked.build_evaluation_usage();
-        let build_observation_summary = checked.build_observation_summary().cloned();
-        let artifact =
-            psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, &entry_machine)
-                .map_err(|error| {
-                    vec![Diagnostic::error(format!(
-                        "native-artifact Terminal production failed: {error}"
-                    ))]
-                })?;
-        let native_artifact =
-            crate::pipeline::terminal_native_artifact::realize_terminal_native_artifact(
-                artifact,
-                target,
-                checked.subsystem(),
-                &self.terminal_admission_profile,
-                checked.optimization_selections(),
-                checked.selected_provider_plans(),
-                &[],
-            )?;
-        CompileReport::from_retained_native_artifact(
-            self.options.root_path,
-            source_file_count,
-            native_artifact,
-            build_evaluation_usage,
-            build_observation_summary,
-        )
-        .map_err(|message| vec![Diagnostic::error(message)])
-    }
-
-    /// Produce the canonical Psi-owned handoff artifact without entering any
-    /// legacy StateGraph, native emission, output, or installation stage.
-    fn compile_terminal_artifact(self) -> Result<CompileReport, Vec<Diagnostic>> {
-        let checked = crate::pipeline::checked_entry::compile_to_checked_for_terminal(
-            &self.options,
-            self.package_inputs.as_ref(),
-        )?;
-        let source_file_count = checked.source_file_count();
-        let entry_machine = checked
-            .selected_program_entry_machine()
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "terminal-artifact production requires one exact selected program entry",
-                )]
-            })?
-            .to_owned();
-        let build_evaluation_usage = checked.build_evaluation_usage();
-        let build_observation_summary = checked.build_observation_summary().cloned();
-        let artifact =
-            psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, &entry_machine)
-                .map_err(|error| {
-                    vec![Diagnostic::error(format!(
-                        "terminal-artifact production failed: {error}"
-                    ))]
-                })?;
-        CompileReport::from_terminal_artifact(
-            self.options.root_path,
-            source_file_count,
-            artifact,
-            build_evaluation_usage,
-            build_observation_summary,
-        )
-        .map_err(|message| vec![Diagnostic::error(message)])
     }
 }

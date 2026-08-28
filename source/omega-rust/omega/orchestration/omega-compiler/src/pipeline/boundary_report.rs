@@ -1,6 +1,6 @@
 mod builder;
 
-use crate::pipeline::compile_options::CompileOptions;
+use crate::compiler::CompileOptions;
 use builder::{append_capability_blast_radius, build_boundary_report};
 use omega_artifacts::ArtifactWriter;
 use psi_checked_trees::CheckedTrees;
@@ -65,7 +65,7 @@ impl BoundaryReportObservation {
 #[cfg(test)]
 mod tests {
     use super::BoundaryReportObservation;
-    use crate::pipeline::compile_options::CompileOptions;
+    use crate::compiler::CompileOptions;
     use psi_checked_trees::CheckedTrees;
     use psi_effects::{CapabilityFlowFact, CapabilityFlowKind};
     use psi_source_files_to_tokens::Lexer;

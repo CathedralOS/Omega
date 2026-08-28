@@ -11,16 +11,15 @@ mod build_staged_output;
 #[path = "provider/calling_policy_plans.rs"]
 mod calling_policy_plans;
 mod checked_entry;
-pub mod compile_options;
 mod compile_policy;
-pub mod compile_report;
-pub mod compiler;
 mod compiler_executable_commitment;
 #[path = "provider/component_progress.rs"]
 mod component_progress;
+mod emitted_program;
 #[path = "dispatch/float_intrinsic.rs"]
 mod float_intrinsic_dispatch;
 pub mod frontend;
+pub(crate) mod legacy_driver;
 #[path = "dispatch/operator_adapter.rs"]
 mod operator_adapter_dispatch;
 mod optimization_gate;
@@ -74,7 +73,6 @@ mod provider_approval;
 mod provider_plans;
 pub mod source;
 mod source_inspection;
-mod source_profile;
 mod stage;
 mod stages;
 #[path = "provider/target_machines.rs"]
@@ -95,6 +93,11 @@ mod trust_lockfile;
 #[path = "trust/report.rs"]
 mod trust_report;
 mod wire_report;
+
+pub(crate) use crate::compiler::{
+    CompileOptions, CompileOutputKind, CompileReport, ExecutablePublicationDestination,
+    ExecutablePublicationReceipt,
+};
 
 pub use artifacts::{
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, program_storage_installation_record_json,
@@ -126,23 +129,20 @@ pub use build_staged_output::{
     PackageGeneratedSource,
 };
 pub use calling_policy_plans::evaluate_calling_policy_plan;
+pub(crate) use checked_entry::compile_to_checked_for_terminal;
 pub use checked_entry::{
     CheckedCompilation, compile_to_checked, compile_to_checked_with_packages,
     compile_to_checked_with_packages_and_replay_record,
     compile_to_checked_with_packages_in_build_dir,
     compile_to_checked_with_packages_in_sponsored_build_dir, compile_to_checked_with_replay_record,
 };
-pub use compile_options::{ArtifactEmissionPolicy, CompileOptions};
 pub use compile_policy::ExecutableTcbBuildPolicy;
-pub use compile_report::{
-    CompileOutputKind, CompileReport, ExecutablePublicationDestination,
-    ExecutablePublicationReceipt, RetainedNativeArtifact, TerminalComponentDeploymentReportError,
-};
-pub use compiler::{
-    CompileHarnessRequest, CompileRequest, RequestedCompileProduct, compile, compile_harness,
-};
 pub use compiler_executable_commitment::{
     CompilerExecutableCommitment, CompilerExecutableCommitmentError,
+};
+pub use omega_source_profile::{
+    SOURCE_FEATURE_CATALOG, SOURCE_FEATURE_CENSUS_SCHEMA, SOURCE_FEATURE_IDS, SOURCE_RESOURCE_IDS,
+    SourceFeatureCensus, SourceFeatureCount, SourceResourceObservation, census_source_closure,
 };
 pub use output::{
     OwnedTerminalComponentDeploymentError, SuppliedTerminalComponentDeploymentError,
@@ -341,10 +341,6 @@ pub use psi_layout_plans::{
 pub use source_inspection::{
     SOURCE_CLOSURE_SNAPSHOT_SCHEMA, SourceClosureSnapshot, SourceClosureSnapshotEntry,
     SourceInspectionRoot, inspect_source_closure, inspect_source_closure_with_packages,
-};
-pub use source_profile::{
-    SOURCE_FEATURE_CATALOG, SOURCE_FEATURE_CENSUS_SCHEMA, SOURCE_FEATURE_IDS, SOURCE_RESOURCE_IDS,
-    SourceFeatureCensus, SourceFeatureCount, SourceResourceObservation, census_source_closure,
 };
 pub use terminal_compile_driver::{
     TerminalComponentCompileError, TerminalComponentCompileRequest,

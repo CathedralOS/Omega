@@ -5901,13 +5901,12 @@ fn selected_conformance_application_type_reference(
         if parameter_kind != ContractCallStaticParameterKind::Const {
             return Err(rejected("a literal in a non-const telescope slot"));
         }
-        return Ok(compilation
-            .typed
-            .type_reference_table
-            .insert(TypeReferenceNode::Named {
+        return Ok(compilation.program_mut().typed.type_reference_table.insert(
+            TypeReferenceNode::Named {
                 symbol: SymbolHandle::invalid(),
                 name: psi_typed_trees::name::Identifier::generated(literal.text()),
-            }));
+            },
+        ));
     }
     if let Some(application) = argument.application.as_ref() {
         if parameter_kind != ContractCallStaticParameterKind::Type
@@ -5947,18 +5946,18 @@ fn selected_conformance_application_type_reference(
             )?);
         }
         let arguments = compilation
+            .program_mut()
             .typed
             .type_reference_table
             .insert_type_reference_handles(children);
-        return Ok(compilation
-            .typed
-            .type_reference_table
-            .insert(TypeReferenceNode::Generic {
+        return Ok(compilation.program_mut().typed.type_reference_table.insert(
+            TypeReferenceNode::Generic {
                 base_symbol: definition.symbol,
                 base_name: definition.name,
                 lifetime_arguments: application.lifetime_arguments.to_vec(),
                 arguments,
-            }));
+            },
+        ));
     }
     if !argument.symbol.is_valid() {
         return Err(rejected("an unresolved declaration argument"));
@@ -5969,6 +5968,7 @@ fn selected_conformance_application_type_reference(
         )
     });
     Ok(compilation
+        .program_mut()
         .typed
         .type_reference_table
         .insert(TypeReferenceNode::Named {
@@ -6100,7 +6100,7 @@ fn project_selected_conformance_application(
                     ))]);
                 }
                 let carrier_name = carrier.name.clone();
-                let carrier = projected.typed.type_reference_table.insert(
+                let carrier = projected.program_mut().typed.type_reference_table.insert(
                     psi_typed_trees::types::TypeReferenceNode::Named {
                         symbol: declaration.carrier_symbol,
                         name: carrier_name,

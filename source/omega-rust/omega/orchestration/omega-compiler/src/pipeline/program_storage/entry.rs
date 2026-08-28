@@ -3238,7 +3238,7 @@ mod tests {
         let _ = fs::remove_dir_all(&build_dir);
         let report = super::super::compiler::compile(
             super::super::compiler::CompileRequest::new(
-                super::super::compile_options::CompileOptions {
+                crate::compiler::CompileOptions {
                     root_path: repository_root().join(
                         "tests/canaries/pass/build/uefi_program_entry_storage_roots/main.omg",
                     ),
@@ -3248,7 +3248,7 @@ mod tests {
                 },
             )
             .with_artifact_policy(
-                super::super::compile_options::ArtifactEmissionPolicy::OutputOnly,
+                crate::compiler::ArtifactEmissionPolicy::OutputOnly,
             ),
         )
         .expect("receiver-bound UEFI program-storage bridge");
@@ -3313,7 +3313,7 @@ machine build(builder: &mut Build) {
         .expect("write receiver-free publication build root");
         let report = super::super::compiler::compile(
             super::super::compiler::CompileRequest::new(
-                super::super::compile_options::CompileOptions {
+                crate::compiler::CompileOptions {
                     root_path: directory.join("main.omg"),
                     build_dir: Some(directory.join("build")),
                     target_name: Some("uefi_x64".into()),
@@ -3321,7 +3321,7 @@ machine build(builder: &mut Build) {
                 },
             )
             .with_artifact_policy(
-                super::super::compile_options::ArtifactEmissionPolicy::OutputOnly,
+                crate::compiler::ArtifactEmissionPolicy::OutputOnly,
             ),
         )
         .expect("receiver-free UEFI program-storage bridge");
