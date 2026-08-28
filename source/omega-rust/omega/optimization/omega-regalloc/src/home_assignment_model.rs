@@ -9,7 +9,7 @@ use crate::{
 };
 
 const REGISTER_HOME_MAGIC: &[u8; 8] = b"OMGRAH\0\0";
-const REGISTER_HOME_VERSION: u32 = 4;
+const REGISTER_HOME_VERSION: u32 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalRegisterHomeIdentity(pub(crate) [u8; 32]);
@@ -129,6 +129,7 @@ pub struct TerminalRegisterHomeValidationReceipt {
     pub(crate) function_count: usize,
     pub(crate) assignment_count: usize,
     pub(crate) tied_pair_count: usize,
+    pub(crate) tied_component_count: usize,
     pub(crate) early_clobber_count: usize,
 }
 
@@ -156,6 +157,9 @@ impl TerminalRegisterHomeValidationReceipt {
     }
     pub const fn tied_pair_count(self) -> usize {
         self.tied_pair_count
+    }
+    pub const fn tied_component_count(self) -> usize {
+        self.tied_component_count
     }
     pub const fn early_clobber_count(self) -> usize {
         self.early_clobber_count
@@ -222,10 +226,10 @@ pub enum TerminalRegisterHomeError {
         lower: u32,
         higher: u32,
     },
-    NoCommonTiedCandidate {
+    NoCommonTiedComponent {
         function: usize,
-        lower: u32,
-        higher: u32,
+        leader: u32,
+        member_count: usize,
     },
     NonCanonicalAssignments {
         function: usize,

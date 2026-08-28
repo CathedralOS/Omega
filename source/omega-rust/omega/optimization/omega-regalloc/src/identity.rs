@@ -6,7 +6,7 @@ use crate::model::{TerminalLivenessIdentity, TerminalLivenessPlan};
 
 pub fn terminal_liveness_identity(plan: &TerminalLivenessPlan) -> TerminalLivenessIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-register-liveness.v3\0");
+    bytes.extend_from_slice(b"omega.terminal-register-liveness.v4\0");
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
