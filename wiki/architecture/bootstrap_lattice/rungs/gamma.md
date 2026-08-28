@@ -57,24 +57,13 @@ and auditable.
 The exact spike sizes, supported operation cohorts, and gate counts belong in
 the spike's own README and live task status, not in this durable rung definition.
 
-## Parked imperative surface
-
-`source/gamma/compatibility/imperative/` contains the compiler, native
-executable, scripts, and examples for the older compiler-first imperative
-language. It has fixed
-variables, mutation, `if`/`while`, and decimal I/O. It remains a compatibility
-and differential-testing artifact only. It does not define Gamma and must not
-grow into a parallel meaning path.
-
-The parked implementation remains below the Gamma owner only so its historical
-entry points keep working. That containment grants no semantic authority. The
-old format-specific terminal-ledger prototype was retired after
-its feasibility result was absorbed into the production closed-row design; any
-future low-rung generator belongs beside the artifact it admits, not this rung.
+The older compiler-first imperative prototype, its native artifact, scripts,
+and private example corpus were retired after confirming that no lattice gate
+or external consumer used them. Git history preserves that experiment; Gamma
+does not own a parallel compatibility compiler.
 
 ## Implementation frontiers
 
-- Retire or keep differential coverage for the parked imperative compiler.
 - Keep the full canonical decoder auditable within Gamma's deliberately small
   type system; shared decoding primitives should absorb repeated mechanics.
 - Improve reference-route performance without changing fuel visibility or

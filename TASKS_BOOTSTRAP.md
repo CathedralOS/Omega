@@ -154,11 +154,10 @@ and are not blocked on this ruling.
   disagreeing, and mutated evidence.
 - [ ] Ensure the publication path is reproducible by running the constituent
   compiler commands directly without `tools/lattice/verify-lattice.sh`.
-- [x] Isolate the parked imperative Gamma compatibility compiler after
-  confirming no default gate or external consumer uses it. Its compiler,
-  artifact, scripts, and examples now live under
-  `source/gamma/compatibility/imperative/`; it is not the Gamma rung used to
-  produce Delta and does not appear in the canonical artifact chain.
+- [x] Retire the unconsumed imperative Gamma compatibility compiler, its native
+  artifact, scripts, and private example corpus. It was not the Gamma rung used
+  to produce Delta and no default gate or external consumer used it; Git history
+  is the archive.
 
 ### 2. Make the Delta-produced compiler accept the surface used by `C`
 

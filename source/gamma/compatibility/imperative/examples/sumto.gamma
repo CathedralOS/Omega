@@ -1,8 +1,0 @@
-# read n, print the sum 1..n
-read a
-b = 0
-while a >= 1 {
-  b = b + a
-  a = a - 1
-}
-print b
