@@ -27,7 +27,8 @@ expression_gen_expr_require_proc_meta:
 
 expression_gen_expr_require_blocks:
         imm r20, 303
-        imm r21, 43134                 ; exact gen_expr entry pc
+        imm r21, 61                    ; gen_expr procedure identity
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 304
         imm r21, 43198
@@ -91,7 +92,8 @@ expression_gen_expr_require_events:
         imm r21, 306
         imm r22, 43527
         imm r23, 0
-        imm r24, 38910
+        imm r24, 58                    ; gen_sum procedure identity
+        call exact_proc_entry_r24
         imm r25, 43536
         call expression_gen_expr_require_call
         imm r20, 491
@@ -116,14 +118,16 @@ expression_gen_expr_require_events:
         imm r21, 307
         imm r22, 43832
         imm r23, 0
-        imm r24, 32248
+        imm r24, 47                    ; emit_push procedure identity
+        call exact_proc_entry_r24
         imm r25, 43841
         call expression_gen_expr_require_call
         imm r20, 495
         imm r21, 307
         imm r22, 43841
         imm r23, 0
-        imm r24, 38910
+        imm r24, 58                    ; gen_sum procedure identity
+        call exact_proc_entry_r24
         imm r25, 43850
         call expression_gen_expr_require_call
         imm r20, 496
@@ -444,8 +448,10 @@ expression_gen_expr_require_censuses:
         ret
 
 expression_gen_expr_require_region:
-        imm r20, 43134
-        imm r21, 44066
+        imm r20, 61                    ; gen_expr procedure identity
+        call exact_proc_entry_r20
+        imm r21, 62                    ; gen_stmts procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 6
         imm r23, 4
         imm r24, 17

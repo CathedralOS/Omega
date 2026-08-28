@@ -50,10 +50,14 @@ same responsibility-neutral owner decodes compiler-generated push, pop,
 saved-frame prologue, optional frame-allocation, parameter-store, and epilogue
 macros once. Frame, effect, memory, expression, and stack-table consumers pass
 their independently reconstructed PC/register/slot facts to those decoders
-instead of embedding another instruction-byte copy. The final ROOT tape is
-77,889 bytes for the current
+instead of embedding another instruction-byte copy. A shared fail-closed
+procedure resolver likewise maps independently scanned source procedure IDs to
+the unique checked entry-block PC; the expression-family modules consume that
+identity for `emit_dec`, `emit_pop_into`, `emit_push`, `gen_sum`, `gen_expr`,
+and their adjacent procedure boundary instead of pinning those entry PCs. The
+final ROOT tape is 78,206 bytes for the current
 exact subjects, SHA-256
-`c3d80a1f102bff26a8ed70e5a70f89b4f327afb41296d4d1815c59aa16849865`.
+`be1198ed207cec4c94497f10e44e02f0c03acf84b97148f4d270224af1a48bf0`.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is

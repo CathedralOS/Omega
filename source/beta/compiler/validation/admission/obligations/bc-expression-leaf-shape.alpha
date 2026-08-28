@@ -112,7 +112,8 @@ expression_leaf_require_events:
         imm r22, 17814
         imm r23, 0
         imm r24, 0
-        imm r25, 43134
+        imm r25, 61                    ; gen_expr procedure identity
+        call exact_proc_entry_r25
         imm r26, 17823
         call summary_require_call_site
         imm r20, 167
@@ -156,7 +157,8 @@ expression_leaf_require_events:
         imm r22, 21513
         imm r23, 0
         imm r24, 0
-        imm r25, 43134
+        imm r25, 61                    ; gen_expr procedure identity
+        call exact_proc_entry_r25
         imm r26, 21522
         call summary_require_call_site
         imm r20, 239
