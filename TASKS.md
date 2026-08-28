@@ -2098,11 +2098,15 @@ Remaining:
   that route. An empty selected set is the identity transformation: native
   realization still reconstructs the verified optimizer unit, runs its bounded
   pass manager, and projects the resulting abstract plan before target
-  lowering. Nonempty selections remain rejected until the selected-instruction
-  continuation covers baseline frame/exit, executable image, and publication
-  validation. Work in progress on that continuation must replace the current
-  bounded direct assignment inside this route; it must not restore its former
-  private production fork.
+  lowering. Nonempty selections now consume the same optimized carrier and run
+  the optimizer-owned legalization, selected-instruction, liveness, allocation,
+  home, and post-allocation-machine continuation. They fail closed at the
+  remaining frame/exit, executable-image, and publication join without running
+  or discarding into the bounded baseline route. This work is now owned by the
+  canonical native realization path; any separately tracked optimizer-agent
+  task is subordinate to this join and must not restore its former private
+  production fork. The selected continuation must replace the current bounded
+  direct assignment when its machine/object metadata closure is complete.
 
   Restore the original mechanical split before doing further redesign:
 

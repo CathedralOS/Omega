@@ -1121,8 +1121,10 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     assert!(
         production_realization.contains("optimize_verified_terminal_input(")
             && production_realization
-                .contains("stage_optimized_assignment_with_provider_executions"),
-        "Omega native realization must traverse the canonical optimizer and its owned physical-assignment stage"
+                .contains("stage_optimized_assignment_with_provider_executions")
+            && production_realization
+                .contains("stage_optimized_verified_physical_pipeline_with_provider_executions"),
+        "Omega native realization must traverse the canonical optimizer, route selected work through its verified physical continuation, and retain the transitional identity-assignment continuation only for the publishable baseline"
     );
     for forbidden in [
         "CheckedCompilation",

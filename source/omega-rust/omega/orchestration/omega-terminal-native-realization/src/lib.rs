@@ -402,11 +402,6 @@ pub fn realize_terminal_native_artifact(
     terminal_artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     request: TerminalNativeRealizationRequest<'_>,
 ) -> Result<TerminalNativeArtifact, Vec<Diagnostic>> {
-    if !request.optimization_selections.is_empty() {
-        return Err(selected_physical_pipeline_not_publishable(
-            request.optimization_selections,
-        ));
-    }
     request
         .program_entry
         .validate_for_target(request.target)
@@ -517,14 +512,35 @@ pub fn realize_terminal_native_artifact(
         }
     };
 
-    let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(
-        request.optimization_selections,
-    );
+    let optimization_request =
+        omega_optimization_pipeline::compiler_baseline_request_v1(request.optimization_selections);
     let optimized = omega_optimization_pipeline::optimize_verified_terminal_input(
         optimization_input,
         optimization_request,
     )
     .map_err(|error| realization_error("canonical optimization", error))?;
+    if !request.optimization_selections.is_empty() {
+        let physical = match provider_installation {
+            Some(installation) => omega_optimization_pipeline::stage_optimized_verified_physical_pipeline_with_provider_executions_and_installation(
+                optimized,
+                request.target,
+                &admitted,
+                installation,
+            ),
+            None => omega_optimization_pipeline::stage_optimized_verified_physical_pipeline_with_provider_executions(
+                optimized,
+                request.target,
+                &admitted,
+            ),
+        }
+        .map_err(|error| {
+            selected_physical_pipeline_failed(request.optimization_selections, error)
+        })?;
+        return Err(selected_physical_pipeline_not_publishable(
+            request.optimization_selections,
+            &physical,
+        ));
+    }
     let assigned = match provider_installation {
         Some(installation) => {
             omega_optimization_pipeline::stage_optimized_assignment_with_provider_executions_and_installation(
@@ -663,6 +679,7 @@ fn realization_error(context: &str, error: impl std::fmt::Display) -> Vec<Diagno
 
 fn selected_physical_pipeline_not_publishable(
     selections: &omega_optimization_core::OptimizationSelections,
+    physical: &omega_optimization_pipeline::StagedOptimizedVerifiedPhysicalPipeline,
 ) -> Vec<Diagnostic> {
     debug_assert!(!selections.is_empty());
     let names = selections
@@ -672,7 +689,29 @@ fn selected_physical_pipeline_not_publishable(
         .collect::<Vec<_>>()
         .join("`, `");
     vec![Diagnostic::error(format!(
-        "selected optimization{} `{names}` cannot enter native production: the selected-instruction pipeline does not yet cover baseline frame/exit, executable-image, and publication validation; no alternate compiler route was run",
+        "selected optimization{} `{names}` completed the complete verified optimizer pipeline through selected/physical validation (selection identity {:?}) but cannot yet enter native production: the continuation does not cover baseline frame/exit, executable-image, and publication validation; no alternate compiler route was run and no output was installed",
+        if selections.as_slice().len() == 1 {
+            ""
+        } else {
+            "s"
+        },
+        physical.selections(),
+    ))]
+}
+
+fn selected_physical_pipeline_failed(
+    selections: &omega_optimization_core::OptimizationSelections,
+    error: impl std::fmt::Display,
+) -> Vec<Diagnostic> {
+    debug_assert!(!selections.is_empty());
+    let names = selections
+        .as_slice()
+        .iter()
+        .map(|optimization| optimization.build_case_name())
+        .collect::<Vec<_>>()
+        .join("`, `");
+    vec![Diagnostic::error(format!(
+        "selected optimization{} `{names}` failed in the complete verified optimizer pipeline during selected/physical validation: {error}; no alternate compiler route was run and no output was installed",
         if selections.as_slice().len() == 1 {
             ""
         } else {

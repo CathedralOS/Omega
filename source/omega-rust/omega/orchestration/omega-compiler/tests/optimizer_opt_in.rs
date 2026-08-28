@@ -40,8 +40,11 @@ fn project(label: &str, build: Option<&str>) -> PathBuf {
     ));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).expect("create optimizer opt-in project");
-    std::fs::write(root.join("main.omg"), "data Main { value: u8; }\n")
-        .expect("write optimizer opt-in main");
+    std::fs::write(
+        root.join("main.omg"),
+        "data Main { value: u8; }\nmachine Main::main(&mut self) { }\n",
+    )
+    .expect("write optimizer opt-in main");
     if let Some(build) = build {
         std::fs::write(root.join("build.omg"), build).expect("write optimizer opt-in build");
     }
@@ -247,8 +250,10 @@ fn selected_native_build_fails_closed_without_installing_output() {
     let root = project(
         "fail-closed",
         Some(
-            r#"machine build(builder: &mut Build) {
+            r#"target windows_x64 { }
+machine build(builder: &mut Build) {
     builder.application("optimizer-fail-closed");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingU12ExactAddImmediate);
 }
 "#,
@@ -258,7 +263,7 @@ fn selected_native_build_fails_closed_without_installing_output() {
     let diagnostics = compile(CompileOptions {
         root_path: root.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: Some("windows_x64".into()),
         write_output: true,
     })
     .expect_err("selected optimization must not fall through to legacy O0 lowering");
@@ -266,7 +271,9 @@ fn selected_native_build_fails_closed_without_installing_output() {
     assert!(
         diagnostics[0]
             .message
-            .contains("`SelectedIncomingU12ExactAddImmediate`")
+            .contains("`SelectedIncomingU12ExactAddImmediate`"),
+        "unexpected diagnostic: {}",
+        diagnostics[0].message
     );
     assert!(
         diagnostics[0]
@@ -282,8 +289,10 @@ fn exact_subtract_immediate_native_build_fails_closed_without_installing_output(
     let root = project(
         "subtract-fail-closed",
         Some(
-            r#"machine build(builder: &mut Build) {
+            r#"target windows_x64 { }
+machine build(builder: &mut Build) {
     builder.application("optimizer-subtract-fail-closed");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingU12ExactSubtractImmediate);
 }
 "#,
@@ -293,7 +302,7 @@ fn exact_subtract_immediate_native_build_fails_closed_without_installing_output(
     let diagnostics = compile(CompileOptions {
         root_path: root.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: Some("windows_x64".into()),
         write_output: true,
     })
     .expect_err("selected optimization must not fall through to legacy O0 lowering");
@@ -301,7 +310,9 @@ fn exact_subtract_immediate_native_build_fails_closed_without_installing_output(
     assert!(
         diagnostics[0]
             .message
-            .contains("`SelectedIncomingU12ExactSubtractImmediate`")
+            .contains("`SelectedIncomingU12ExactSubtractImmediate`"),
+        "unexpected diagnostic: {}",
+        diagnostics[0].message
     );
     assert!(
         diagnostics[0]
@@ -326,8 +337,10 @@ fn x86_rel8_relaxation_selection_round_trips_but_remains_default_off() {
     let selected = project(
         "x86-rel8-selected",
         Some(
-            r#"machine build(builder: &mut Build) {
+            r#"target windows_x64 { }
+machine build(builder: &mut Build) {
     builder.application("optimizer-x86-rel8-selected");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::X86RelaxConditionalBranchesToRel8V1);
 }
 "#,
@@ -348,7 +361,7 @@ fn x86_rel8_relaxation_selection_round_trips_but_remains_default_off() {
     let diagnostics = compile(CompileOptions {
         root_path: selected.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: Some("windows_x64".into()),
         write_output: true,
     })
     .expect_err("the build-visible layout selection must remain execution-gated");
@@ -377,8 +390,10 @@ fn aarch64_cbnz_fusion_selection_round_trips_but_remains_default_off() {
     let selected = project(
         "aarch64-cbnz-selected",
         Some(
-            r#"machine build(builder: &mut Build) {
+            r#"target windows_x64 { }
+machine build(builder: &mut Build) {
     builder.application("optimizer-aarch64-cbnz-selected");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1);
 }
 "#,
@@ -399,7 +414,7 @@ fn aarch64_cbnz_fusion_selection_round_trips_but_remains_default_off() {
     let diagnostics = compile(CompileOptions {
         root_path: selected.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: Some("windows_x64".into()),
         write_output: true,
     })
     .expect_err("the build-visible machine selection must remain publication-gated");
@@ -428,8 +443,10 @@ fn shared_entry_fixed_view_copy_selection_round_trips_but_remains_default_off() 
     let selected = project(
         "shared-entry-copy-selected",
         Some(
-            r#"machine build(builder: &mut Build) {
+            r#"target windows_x64 { }
+machine build(builder: &mut Build) {
     builder.application("optimizer-shared-entry-copy-selected");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1);
 }
 "#,
@@ -450,7 +467,7 @@ fn shared_entry_fixed_view_copy_selection_round_trips_but_remains_default_off() 
     let diagnostics = compile(CompileOptions {
         root_path: selected.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: Some("windows_x64".into()),
         write_output: true,
     })
     .expect_err("the build-visible allocation recovery must remain publication-gated");
@@ -479,8 +496,10 @@ fn active_resident_multi_use_rematerialization_selection_round_trips_but_remains
     let selected = project(
         "active-resident-rematerialization-selected",
         Some(
-            r#"machine build(builder: &mut Build) {
+            r#"target windows_x64 { }
+machine build(builder: &mut Build) {
     builder.application("optimizer-active-resident-rematerialization-selected");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1);
 }
 "#,
@@ -501,7 +520,7 @@ fn active_resident_multi_use_rematerialization_selection_round_trips_but_remains
     let diagnostics = compile(CompileOptions {
         root_path: selected.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: Some("windows_x64".into()),
         write_output: true,
     })
     .expect_err("the build-visible rematerialization must remain publication-gated");
