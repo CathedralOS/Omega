@@ -232,71 +232,7 @@ emit_ident_require_censuses:
         imm r22, 0                   ; no ordinary calls
         imm r23, 2                   ; explicit and synthetic returns
         imm r24, 1                   ; one direct output
-        call emit_ident_scan_region
-        ret
-
-; Region [r20,r21) has exactly r22 calls, r23 returns, and r24 direct writes.
-; Unlike the shared quiet-region scanner, this leaf deliberately contains one
-; write_byte. Reject direct input, halt, division, and remainder.
-emit_ident_scan_region:
-        mov r25, r20
-        mov r26, r21
-        mov r27, r22
-        mov r28, r23
-        mov r29, r24
-        imm r10, 0                   ; calls
-        imm r11, 0                   ; returns
-        imm r12, 0                   ; direct writes
-emit_ident_scan_loop:
-        jlt r25, r26, emit_ident_scan_pc
-        jeq r10, r27, emit_ident_scan_returns
-        jmp reject
-emit_ident_scan_returns:
-        jeq r11, r28, emit_ident_scan_writes
-        jmp reject
-emit_ident_scan_writes:
-        jeq r12, r29, emit_ident_scan_done
-        jmp reject
-emit_ident_scan_pc:
-        imm r1, 4194304
-        add r1, r25
-        loadb r2, r1
-        imm r3, 1
-        jeq r2, r3, emit_ident_scan_start
-        jmp emit_ident_scan_next
-emit_ident_scan_start:
-        imm r1, 2097152
-        add r1, r25
-        loadb r2, r1
-        imm r3, 19
-        jeq r2, r3, emit_ident_scan_call
-        imm r3, 20
-        jeq r2, r3, emit_ident_scan_return
-        imm r3, 18
-        jeq r2, r3, emit_ident_scan_write
-        imm r3, 0
-        jeq r2, r3, reject
-        imm r3, 6
-        jeq r2, r3, reject
-        imm r3, 7
-        jeq r2, r3, reject
-        imm r3, 17
-        jeq r2, r3, reject
-        jmp emit_ident_scan_next
-emit_ident_scan_call:
-        imm r1, 1
-        add r10, r1
-        jmp emit_ident_scan_next
-emit_ident_scan_return:
-        imm r1, 1
-        add r11, r1
-        jmp emit_ident_scan_next
-emit_ident_scan_write:
-        imm r1, 1
-        add r12, r1
-emit_ident_scan_next:
-        imm r1, 1
-        add r25, r1
-        jmp emit_ident_scan_loop
-emit_ident_scan_done:
+        imm r25, 9                   ; saved-fp/local/push stores
+        imm r26, 1                   ; source-byte loadb is intentional
+        call exact_effect_scan_region
         ret

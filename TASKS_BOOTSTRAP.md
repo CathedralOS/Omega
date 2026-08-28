@@ -101,8 +101,8 @@ do not become additional lattice steps.
   `admission/witnesses/`, and optional generated refinement in `stress/`.
 - [ ] Collapse the remaining Beta validator obligation explosion into one
   canonical data format and small responsibility-specific modules. The current
-  189 fragments total 64,679 lines after replacing six more private instruction
-  scans with the shared exact quiet-region scanner. Continue replacing
+  189 fragments total 64,562 lines after replacing nine private instruction
+  scans with shared exact effect-census logic. Continue replacing
   shape/control/data/publication permutations with data decoded by common
   checks; do not recreate cached viewers or debug-only publication paths.
 - [x] Keep fuzzing, alternate checkers, large corpora, and exhaustive mutation

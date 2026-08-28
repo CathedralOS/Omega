@@ -42,9 +42,11 @@ the audited seed accepts at most 262,140 tape bytes. Responsibility-specific
 programs cover source/artifact control and effect custody, frame and stack
 shape, memory-site classification, expression and statement composition,
 bounded emitters, parsing/resource outcomes, and the final greatest-fixed-point
-maximal observation. The final ROOT tape is 79,003 bytes for the current exact
-subjects, SHA-256
-`33a15b13586df64bcbe714adf517f35cf3e312c1f70c9971a7e5fd3c971ca40a`.
+maximal observation. Responsibility-specific decoded-region descriptors share
+one parameterized effect census for exact call, return, write, store, and
+raw-byte-access policy. The final ROOT tape is 79,124 bytes for the current
+exact subjects, SHA-256
+`4d86cbf68057f622d18ead2127d5bf663b3183510ae87166116811dd7f485ad2`.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is
