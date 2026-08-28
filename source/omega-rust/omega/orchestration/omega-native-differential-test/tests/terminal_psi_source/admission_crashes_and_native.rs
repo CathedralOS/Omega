@@ -1525,6 +1525,8 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
                     terminal_artifact: deployment_terminal_artifact,
                     object: object_artifact,
                     image: image.clone(),
+                    selected_provider_closure_identity:
+                        omega_effects::SelectedProviderPlanFacts::default().normalized_identity(),
                     selected_provider_plans: Vec::new(),
                     provider_executions: Vec::new(),
                 },

@@ -99,6 +99,7 @@ pub struct TerminalNativeArtifact {
     terminal_artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     object: omega_terminal_image_emission::TerminalObjectArtifact,
     image: omega_terminal_image_emission::TerminalExecutableImage,
+    selected_provider_closure_identity: u64,
     selected_provider_plans: Vec<TerminalNativeSelectedProviderPlan>,
     provider_executions: Vec<TerminalNativeProviderExecution>,
 }
@@ -109,6 +110,7 @@ pub struct TerminalNativeArtifactParts {
     pub terminal_artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     pub object: omega_terminal_image_emission::TerminalObjectArtifact,
     pub image: omega_terminal_image_emission::TerminalExecutableImage,
+    pub selected_provider_closure_identity: u64,
     pub selected_provider_plans: Vec<TerminalNativeSelectedProviderPlan>,
     pub provider_executions: Vec<TerminalNativeProviderExecution>,
 }
@@ -122,6 +124,7 @@ impl TerminalNativeArtifact {
             terminal_artifact: parts.terminal_artifact,
             object: parts.object,
             image: parts.image,
+            selected_provider_closure_identity: parts.selected_provider_closure_identity,
             selected_provider_plans: parts.selected_provider_plans,
             provider_executions: parts.provider_executions,
         };
@@ -151,6 +154,11 @@ impl TerminalNativeArtifact {
             .map_err(|_| "Terminal native artifact canonical semantics failed to decode")?;
         if module.entry != self.object.entry() {
             return Err("Terminal native artifact entry disagrees with canonical semantics");
+        }
+        if self.selected_provider_closure_identity == 0 {
+            return Err(
+                "Terminal native artifact selected provider closure has the reserved zero identity",
+            );
         }
 
         let mut prior_plan = None;
@@ -277,6 +285,10 @@ impl TerminalNativeArtifact {
         &self.image
     }
 
+    pub const fn selected_provider_closure_identity(&self) -> u64 {
+        self.selected_provider_closure_identity
+    }
+
     pub fn selected_provider_plans(&self) -> &[TerminalNativeSelectedProviderPlan] {
         &self.selected_provider_plans
     }
@@ -291,6 +303,7 @@ impl TerminalNativeArtifact {
             terminal_artifact: self.terminal_artifact,
             object: self.object,
             image: self.image,
+            selected_provider_closure_identity: self.selected_provider_closure_identity,
             selected_provider_plans: self.selected_provider_plans,
             provider_executions: self.provider_executions,
         }

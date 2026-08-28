@@ -2245,8 +2245,12 @@ closed identity retains the selected provider closure, exact plan, application
 set, and complete coverage assertion; multiple applications still name one
 slot. Terminal emission of verifier-derived concrete and symbolic demand and
 coverage rows, their composition wiring, and installation issuance binding
-remain open. Until those joins land, this structural closure grants no provider
-admission, resident custody, transfer, or installation authority.
+remain open. Native realization does retain the exact nonzero selected-closure
+identity beside its source-free provider-plan projection. Component-candidate
+replay requires both identities to agree independently, so indexed coverage or
+resolved-reach drift cannot be masked by unchanged plan rows. Until the
+remaining joins land, this structural closure and identity replay grant no
+provider admission, resident custody, transfer, or installation authority.
 
 ### Crash-control slice
 

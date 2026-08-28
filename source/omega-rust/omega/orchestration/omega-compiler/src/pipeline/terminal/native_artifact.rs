@@ -196,6 +196,7 @@ pub fn realize_terminal_native_artifact(
         terminal_artifact,
         object,
         image,
+        selected_provider_closure_identity: selected_provider_plans.normalized_identity(),
         selected_provider_plans: selected_provider_plan_projections,
         provider_executions,
     })
