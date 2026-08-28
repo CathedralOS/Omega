@@ -5,7 +5,7 @@ use crate::lowerer::Lowerer;
 use crate::name::lower_name;
 use crate::operator::lower_operator_definition;
 use crate::type_reference::lower_type_reference_into_table;
-use psi_arena::HandleSpan;
+use psi_arena::{Handle, HandleSpan};
 use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees as resolved;
 use psi_typed_trees as typed;
@@ -190,7 +190,16 @@ pub(crate) fn lower_proof_facts(
 ) -> Result<HandleSpan<typed::domain::ProofFact>, Diagnostic> {
     let mut lowered = HandleSpan::empty();
 
-    for fact in lowerer.source_trees.proof_facts(facts) {
+    for (offset, fact) in lowerer.source_trees.proof_facts(facts).iter().enumerate() {
+        let source_fact = Handle::from_parts(
+            facts
+                .start()
+                .arena_index()
+                .checked_add(u32::try_from(offset).expect("proof fact offset overflow"))
+                .expect("proof fact source handle overflow"),
+            facts.start().generation(),
+        );
+        let source_span = lowerer.source_trees.proof_fact_source_span(source_fact);
         match fact {
             resolved::domain::ProofFact::Expression(expression) => {
                 if let resolved::expression::ExpressionNode::Call(call) = lowerer
@@ -208,10 +217,15 @@ pub(crate) fn lower_proof_facts(
                 {
                     let application =
                         crate::proposition::lower_proposition_application(lowerer, call)?;
-                    lowerer.typed_trees.proof_facts.append_to_span(
+                    let handle = lowerer.typed_trees.proof_facts.append_to_span(
                         &mut lowered,
                         typed::domain::ProofFact::Proposition(application),
                     );
+                    if let Some(source_span) = source_span {
+                        lowerer
+                            .typed_trees
+                            .set_proof_fact_source_span(handle, source_span);
+                    }
                     continue;
                 }
                 let expression = lower_expression_handle_from_table_in_fact_position(
@@ -220,10 +234,15 @@ pub(crate) fn lower_proof_facts(
                     &mut lowerer.typed_trees,
                     *expression,
                 )?;
-                lowerer.typed_trees.proof_facts.append_to_span(
+                let handle = lowerer.typed_trees.proof_facts.append_to_span(
                     &mut lowered,
                     typed::domain::ProofFact::Expression(expression),
                 );
+                if let Some(source_span) = source_span {
+                    lowerer
+                        .typed_trees
+                        .set_proof_fact_source_span(handle, source_span);
+                }
             }
             resolved::domain::ProofFact::Membership(membership) => {
                 let value = lower_expression_handle_from_table(
@@ -248,7 +267,7 @@ pub(crate) fn lower_proof_facts(
                             .domain_path_members
                             .append_to_span(&mut domain, lower_name(&member));
                     }
-                    lowerer.typed_trees.proof_facts.append_to_span(
+                    let handle = lowerer.typed_trees.proof_facts.append_to_span(
                         &mut lowered,
                         typed::domain::ProofFact::Membership(typed::domain::ProofMembershipFact {
                             value,
@@ -256,6 +275,11 @@ pub(crate) fn lower_proof_facts(
                             domain_symbol: atom.symbol,
                         }),
                     );
+                    if let Some(source_span) = source_span {
+                        lowerer
+                            .typed_trees
+                            .set_proof_fact_source_span(handle, source_span);
+                    }
                 }
             }
         }

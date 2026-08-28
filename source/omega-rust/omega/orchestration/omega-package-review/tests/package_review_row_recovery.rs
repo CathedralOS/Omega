@@ -57,6 +57,7 @@ pub trait Marker { machine Self::touch(&self); }
 pub Primary: Token satisfies Marker { machine touch(&self) { } }
 pub proposition ready() = true;
 pub const LIMIT: u64 = 4;
+pub domain Token::Nonnegative requires self.value >= 0;
 pub boundary trait ForeignSurface {
     machine invoke() reaches ForeignSurface;
 }
@@ -120,6 +121,14 @@ fn canonical_rows_round_trip_with_validated_package_target_and_exact_source() {
                 })
             })
     }));
+    assert!(rows.iter().any(|row| {
+        row.kind() == PackageReviewCanonicalRowKind::PublicDomain
+            && row.source().authored_locations().is_some_and(|locations| {
+                locations
+                    .iter()
+                    .any(|location| location.role() == PackageReviewSourceLocationRole::ProofFact)
+            })
+    }));
     assert!(
         rows.iter()
             .any(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConst),
@@ -151,7 +160,7 @@ fn canonical_rows_round_trip_with_validated_package_target_and_exact_source() {
                 })
             })
     }));
-    assert_eq!(PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, 10);
+    assert_eq!(PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, 11);
 
     for row in rows {
         let envelope = encode_package_review_canonical_row(&row).expect("encode recovery row");

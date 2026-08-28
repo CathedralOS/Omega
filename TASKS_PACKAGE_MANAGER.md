@@ -2585,11 +2585,11 @@ complete.
   otherwise contract-supplied machines, the checked operational summary remains
   the published may-ceiling by language design—it is not presented as a second
   observation that the retained body happened to be quiet. Current package
-  review v75/canonical row v33, conflict fingerprint v13, renderer V12, and
-  canonical-row recovery envelope v10 bind the appended roles; stale envelopes
-  reject rather than being reinterpreted. Remaining per-fact spans are
-  incremental engineering work and require deliberate retention before typed
-  lowering, not later source-text reconstruction.
+  review v75/canonical row v33, conflict fingerprint v14, renderer V13, and
+  canonical-row recovery envelope v11 bind the appended roles; stale envelopes
+  reject rather than being reinterpreted. Any later nested source carriers
+  remain incremental engineering work and require deliberate retention before
+  their owning frontend stage erases them, not later source-text reconstruction.
   Milestone 2026-08-27: every authored external executable leaf now retains
   the exact `via` keyword occurrence on the same conformance that owns its
   normalized binding identity. Syntax copying, resolution, and typed lowering
@@ -2626,6 +2626,21 @@ complete.
   compatibility identity, while the formula location is explanatory custody.
   Boolean and application-form canaries require the exact source slices and
   reject missing or contradictory custody.
+  Milestone 2026-08-27: every authored proof fact now retains its full
+  semantic-token extent at the common fact parser boundary. A sparse sidecar
+  binds that occurrence to the existing exact fact handle through syntax,
+  resolution, typed lowering, generic-instance synthesis, and checked
+  monomorphization; semantic fact variants and canonical identity remain
+  unchanged. Public domain predicates and public data invariants require exact
+  custody for every fact. Authored callable, trait-requirement, operator, and
+  recursively structural machine-parameter contracts likewise require one
+  fact location per retained fact, while source-free compiler-synthesized
+  contracts receive no invented coordinates. The closed `proof_fact` role
+  exposes those extents beside the independent clause keyword. Recovery
+  envelope v11, conflict fingerprint v14, and renderer V13 bind the role and
+  coordinates; semantic package-review bytes remain v75/canonical row v33.
+  Vertical canaries cover expression and membership parsing, data/domain/trait
+  projection, recovery, and changed-domain conflict rendering.
   Canonical recovery and root-project file custody are recorded below; none of
   these concerns requires nominal Chi or a new owner decision.
 

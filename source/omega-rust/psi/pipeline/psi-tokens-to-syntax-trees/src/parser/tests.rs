@@ -4590,6 +4590,20 @@ fn parses_domain_definition_surface() {
         facts[1],
         psi_syntax_trees::item::ProofFact::Expression(_)
     ));
+    let source_slices = (0..domains[0].facts.count())
+        .map(|offset| {
+            let handle = psi_arena::Handle::from_parts(
+                domains[0].facts.start().arena_index() + offset,
+                domains[0].facts.start().generation(),
+            );
+            let span = parsed
+                .items
+                .proof_fact_source_span(handle)
+                .expect("authored proof fact source span");
+            &source[span.span.start..span.span.end]
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(source_slices, ["self in Player::Valid", "self.health > 0"]);
 }
 
 #[test]

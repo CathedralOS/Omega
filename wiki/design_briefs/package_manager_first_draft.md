@@ -488,7 +488,7 @@ requires the authored boolean, retained keywords, and exact checked interface
 to agree; omission and inference acquire no invented location. For public or
 otherwise contract-supplied machines, the checked operational fact is the
 published may-ceiling, not a claim that the current body exercised it. Review
-v75/row v33, recovery v9, conflict fingerprint v12, and renderer V11 bind the
+v75/row v33, recovery v11, conflict fingerprint v14, and renderer V13 bind the
 current source schema. External executable leaves retain the exact authored
 `via` keyword on the same conformance as the normalized binding identity.
 Projection requires binding/span parity and carries that occurrence under
@@ -498,10 +498,17 @@ rejects. Public const declarations additionally retain the exact parsed
 initializer-expression span through symbol resolution and typed lowering,
 before substitution erases the value tree. `PublicConst` rows carry it as
 `const_initializer` beside the declaration-name anchor. Relocation changes the
-explanatory coordinates but not semantic row bytes. Coordinates remain
-explanatory rather than semantic identity. Remaining per-fact spans are later
-rungs;
-missing spans must be retained before they are erased, never recovered by
+explanatory coordinates but not semantic row bytes. Transparent public
+propositions similarly retain their complete authored formula extent at the
+parser boundary under `proposition_formula`, before application lowering or
+operator-root narrowing can erase it. Primitive and witness propositions
+receive no invented formula location. Every authored proof fact now retains
+its full semantic-token extent under `proof_fact` through syntax, resolution,
+typed lowering, generic synthesis, and checked specialization. Public
+domain/data facts require that custody, as does every fact beneath an authored
+public contract clause; source-free compiler synthesis receives no invented
+coordinate. Coordinates remain explanatory rather than semantic identity.
+Missing spans must be retained before they are erased, never recovered by
 parsing source text in package orchestration.
 
 Proposition and named-evidence rows apply that rule as an explicit join. The
