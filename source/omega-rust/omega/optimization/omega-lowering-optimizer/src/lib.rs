@@ -12,7 +12,7 @@ use omega_optimization_core::{
     OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationRuleSetIdentity,
     OptimizationSelections, OptimizationWorkUsage,
 };
-use omega_optimization_policy::BaselineDecisionLog;
+use omega_optimization_policy::{BaselineDecisionLog, ExternalDecisionLog};
 use omega_optimization_unit::{
     PsiOptimizationUnit, PsiTransformationLedger, PsiTransformationRecord, ValueDefinition,
     ValueDefinitionSite,
@@ -26,6 +26,7 @@ use omega_optimization_validation::{
 use omega_psi_optimizer::{
     OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit, RuleRegistryError,
     baseline_psi_cost_model_identity, built_in_psi_registries,
+    validate_external_decision_recording,
 };
 use omega_terminal_abstract_operations::{
     TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractOperationPlan,
@@ -140,6 +141,10 @@ impl ValidatedOptimizedAbstractPlan {
         self.run.decisions()
     }
 
+    pub const fn external_decisions(&self) -> &ExternalDecisionLog {
+        self.run.external_decisions()
+    }
+
     pub fn pass_manifests(&self) -> &[OptimizationPassManifestRecord] {
         self.run.pass_manifests()
     }
@@ -174,6 +179,7 @@ pub enum OptimizedAbstractProjectionError {
     FinalUnitReplayMismatch,
     LedgerCommitMismatch,
     ManifestUsageMismatch,
+    ExternalDecisionRecordingMismatch,
     PsiSelectionProjectionMismatch,
     IndependentValidation(OptimizedAbstractPlanProjectionError),
     PrePhysicalManifest(PrePhysicalOptimizationManifestError),
@@ -211,6 +217,8 @@ pub fn project_optimization_run(
         .map_err(|_| OptimizedAbstractProjectionError::CommitReplayMismatch)?;
     replay_commits(&run)?;
     validate_run_records(&run, ordered_rule_set)?;
+    validate_external_decision_recording(&run)
+        .map_err(|_| OptimizedAbstractProjectionError::ExternalDecisionRecordingMismatch)?;
     let plan = project_plan(run.session().input().plan(), run.session().unit())?;
     let validation = validate_optimized_abstract_plan_projection(
         run.session().input(),
@@ -1714,6 +1722,21 @@ mod tests {
         assert_eq!(first.validation(), second.validation());
         assert!(first.commits().is_empty());
         assert!(first.pass_manifests().is_empty());
+    }
+
+    #[test]
+    fn projection_rejects_detached_external_decision_recording() {
+        let selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let mut optimized = run(exact_add_verified(), selections);
+        let empty = run(empty_verified(), OptimizationSelections::default());
+        optimized.external_decisions = empty.external_decisions;
+
+        assert!(matches!(
+            project_optimization_run(optimized),
+            Err(OptimizedAbstractProjectionError::ExternalDecisionRecordingMismatch)
+        ));
     }
 
     #[test]
