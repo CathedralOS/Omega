@@ -95,14 +95,15 @@ do not become additional lattice steps.
 - [x] Put every retained Beta admission module under its actual consumer and
   remove the cached viewers, duplicated generated programs, receipt matrices,
   and default stress/permutation paths that had no authoritative consumer. The
-  bounded whole-compiler command now consumes all 189 retained `bc-*.alpha`
+  bounded whole-compiler command now consumes all 188 retained `bc-*.alpha`
   modules from `validation/admission/obligations/`; the two exact-subject gates
   live in `admission/`, untrusted witness producers in
   `admission/witnesses/`, and optional generated refinement in `stress/`.
 - [ ] Collapse the remaining Beta validator obligation explosion into one
   canonical data format and small responsibility-specific modules. The current
-  189 fragments total 64,562 lines after replacing nine private instruction
-  scans with shared exact effect-census logic. Continue replacing
+  188 fragments total 64,455 lines after replacing nine private instruction
+  scans with shared exact effect-census logic and merging the duplicate
+  selected-row decoders into the canonical exact-table helper. Continue replacing
   shape/control/data/publication permutations with data decoded by common
   checks; do not recreate cached viewers or debug-only publication paths.
 - [x] Keep fuzzing, alternate checkers, large corpora, and exhaustive mutation
