@@ -34,9 +34,9 @@ use omega_optimization_unit::{
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentProjectionExpression, ContentProjectionScalar,
-    EdgeId, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
-    PlaceId, ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId,
-    ValueId,
+    ContentTerm, EdgeId, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId,
+    OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralDomainId,
+    StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal_fuel::TerminalFuelSchedule;
 
@@ -7549,7 +7549,8 @@ fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: ValueId) {
             rewrite_bindings(&mut when_false.bindings);
         }
         O::Return { value, .. } => replace(value),
-        O::EstablishByteSequenceLiteral { .. }
+        O::EstablishPayloadlessCase { .. }
+        | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::CallUnit { .. }
         | O::CallStructuralScalar { .. }
@@ -8231,7 +8232,8 @@ fn normalize_redundant_parameter_observation_operation(
             normalize_bindings(when_false.target, &mut when_false.bindings)?;
         }
         O::Return { value, .. } => replace(value),
-        O::EstablishByteSequenceLiteral { .. }
+        O::EstablishPayloadlessCase { .. }
+        | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::CallUnit { .. }
         | O::CallStructuralScalar { .. }
@@ -8374,7 +8376,8 @@ fn rewrite_block_parameter_operation(
             }
         }
         O::Return { value, .. } => replace(value),
-        O::EstablishByteSequenceLiteral { .. }
+        O::EstablishPayloadlessCase { .. }
+        | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::CallUnit { .. }
         | O::CallStructuralScalar { .. }
@@ -9781,6 +9784,13 @@ fn attach_verified_structural_context(
             .ok_or(OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)?;
         function.structural_places = source.structural_places.clone();
         function.content_entry_claims = source.content_entry_claims.clone();
+        function.verified_contract = Some(source.contract.clone());
+        function.evidence_contract_lanes = module
+            .evidence_contract_lanes
+            .iter()
+            .filter(|lane| lane.machine == function.machine)
+            .cloned()
+            .collect();
     }
     unit.identity = recompute_psi_optimization_unit_identity(unit);
     Ok(())
@@ -9909,6 +9919,8 @@ fn same_immutable_signature_custody(
                         && seed.result == unit.result
                         && seed.entry_claim_declarations == unit.entry_claim_declarations
                         && seed.content_entry_claims == unit.content_entry_claims
+                        && seed.verified_contract == unit.verified_contract
+                        && seed.evidence_contract_lanes == unit.evidence_contract_lanes
                         && seed.entry_claims == unit.entry_claims
                         && seed.published_service_ceiling == unit.published_service_ceiling
                 })
@@ -10498,7 +10510,12 @@ fn validate_function_structural_catalog(
                         .any(|node| {
                             matches!(
                                 &node.operation,
-                                O::CallStructural { psi_operation, result, .. }
+                                O::EstablishPayloadlessCase {
+                                    psi_operation,
+                                    result,
+                                    ..
+                                }
+                                | O::CallStructural { psi_operation, result, .. }
                                     if *psi_operation == producer
                                         && result.place == place.id
                                         && result.structural_type == structural_type
@@ -10555,7 +10572,12 @@ fn validate_function_structural_catalog(
             // tuple compressed into ReturnStructural. Their one-to-one
             // recognition is validated together below.
             O::EstablishTrivialAffineLocal { .. } => None,
-            O::CallStructural {
+            O::EstablishPayloadlessCase {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::CallStructural {
                 psi_operation,
                 result,
                 ..
@@ -11481,7 +11503,9 @@ fn validate_structural_place_availability(
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
             let place = match &node.operation {
-                O::CallStructural { result, .. } => Some(result.place),
+                O::EstablishPayloadlessCase { result, .. } | O::CallStructural { result, .. } => {
+                    Some(result.place)
+                }
                 O::EstablishByteSequenceLiteral { place, .. }
                 | O::EstablishTrivialAffineLocal { place, .. } => Some(place.id),
                 _ => None,
@@ -11711,7 +11735,12 @@ fn validate_structural_root_operations(
                                 .iter()
                                 .flat_map(|block| &block.nodes)
                                 .find_map(|node| match &node.operation {
-                                    O::CallStructural {
+                                    O::EstablishPayloadlessCase {
+                                        psi_operation,
+                                        result,
+                                        ..
+                                    }
+                                    | O::CallStructural {
                                         psi_operation,
                                         result,
                                         ..
@@ -12289,6 +12318,9 @@ fn operation_structural_call_contract_matches(
     domains: &BTreeMap<StructuralDomainId, &psi_terminal::StructuralDomainDeclaration>,
 ) -> bool {
     match operation {
+        O::EstablishPayloadlessCase { .. } => {
+            payloadless_establishment_matches(caller, operation, types)
+        }
         O::CallUnit {
             callee,
             structural_arguments,
@@ -12352,10 +12384,11 @@ fn operation_structural_call_contract_matches(
             ) && validate_structural_call_result(
                 result,
                 callee,
+                exact_payloadless_structural_call(operation, callee, types),
                 claim_transfers,
                 returned_claim_transfers,
                 types,
-            )
+            ) && payloadless_selected_evidence_surface_matches(operation, callee, types)
         }),
         O::BoundaryCall {
             boundary,
@@ -12724,9 +12757,301 @@ fn function_claim_input(
         })
 }
 
+fn proposition_structural_roots(proposition: &Proposition) -> BTreeSet<PlaceId> {
+    fn scalar_term_roots(term: &ScalarTerm, roots: &mut BTreeSet<PlaceId>) {
+        match term {
+            ScalarTerm::BooleanField { root, .. } | ScalarTerm::IntegerField { root, .. } => {
+                roots.insert(*root);
+            }
+            ScalarTerm::BooleanNot { operand }
+            | ScalarTerm::IntegerBitwiseNot { operand, .. }
+            | ScalarTerm::IntegerWiden { operand, .. }
+            | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_roots(operand, roots),
+            ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. }
+            | ScalarTerm::IntegerLessThan { left, right, .. }
+            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
+            | ScalarTerm::ExactIntegerAdd { left, right, .. }
+            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
+            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
+            | ScalarTerm::ExactIntegerDivide { left, right, .. }
+            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
+            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
+            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
+            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+                scalar_term_roots(left, roots);
+                scalar_term_roots(right, roots);
+            }
+            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
+                scalar_term_roots(value, roots);
+                scalar_term_roots(count, roots);
+            }
+            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+        }
+    }
+
+    fn content_term_roots(term: &ContentTerm, roots: &mut BTreeSet<PlaceId>) {
+        match term {
+            ContentTerm::Projection { subject, .. } => {
+                roots.insert(subject.root);
+            }
+            ContentTerm::Separate(terms) => {
+                for term in terms {
+                    content_term_roots(term, roots);
+                }
+            }
+        }
+    }
+
+    fn collect(proposition: &Proposition, roots: &mut BTreeSet<PlaceId>) {
+        match proposition {
+            Proposition::Equal(left, right)
+            | Proposition::LessThan(left, right)
+            | Proposition::LessOrEqual(left, right) => {
+                scalar_term_roots(left, roots);
+                scalar_term_roots(right, roots);
+            }
+            Proposition::IeeeFloatComparison { left, right, .. } => {
+                roots.insert(left.root());
+                roots.insert(right.root());
+            }
+            Proposition::ByteSequenceEqual { left, right } => {
+                roots.insert(left.root());
+                roots.insert(right.root());
+            }
+            Proposition::StructuralCaseMembership { subject, .. } => {
+                roots.insert(subject.root());
+            }
+            Proposition::ContentConservation(conservation) => {
+                content_term_roots(conservation.left(), roots);
+                content_term_roots(conservation.right(), roots);
+            }
+            Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+                for proposition in propositions {
+                    collect(proposition, roots);
+                }
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                collect(premise, roots);
+                collect(conclusion, roots);
+            }
+            Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
+        }
+    }
+
+    let mut roots = BTreeSet::new();
+    collect(proposition, &mut roots);
+    roots
+}
+
+fn payloadless_establishment_matches(
+    function: &PsiOptimizationFunction,
+    operation: &O,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> bool {
+    let O::EstablishPayloadlessCase {
+        psi_operation,
+        result,
+        result_case,
+    } = operation
+    else {
+        return false;
+    };
+    function.structural_places.iter().any(|place| {
+        place.id == result.place
+            && matches!(
+                place.kind,
+                StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type,
+                } if producer == *psi_operation && structural_type == result.structural_type
+            )
+    }) && result.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted
+        && result.qualifications.is_empty()
+        && result.claims.is_empty()
+        && types.get(&result.structural_type).is_some_and(|declaration| {
+            matches!(
+                &declaration.shape,
+                psi_terminal::StructuralTypeShape::Sum { cases }
+                    if cases.iter().any(|case| case.id == *result_case && case.fields.is_empty())
+            )
+        })
+}
+
+fn exact_payloadless_case_return_exits(
+    callee: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> bool {
+    let Some(signature) = callee.result.structural() else {
+        return false;
+    };
+    if !signature.qualifications.is_empty()
+        || signature.multiplicity != psi_terminal::StructuralMultiplicity::Unrestricted
+        || callee
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .any(|node| {
+                matches!(
+                    node.operation,
+                    O::Call { .. }
+                        | O::CallUnit { .. }
+                        | O::CallStructuralScalar { .. }
+                        | O::CallStructural { .. }
+                        | O::BoundaryCall { .. }
+                )
+            })
+    {
+        return false;
+    }
+    let mut exits = 0_usize;
+    for block in &callee.blocks {
+        let Some(node) = block.nodes.last() else {
+            return false;
+        };
+        let O::ReturnStructural {
+            source,
+            returned_claims,
+            ..
+        } = &node.operation
+        else {
+            continue;
+        };
+        if !returned_claims.is_empty() {
+            return false;
+        }
+        let Some(producer) = callee.structural_places.iter().find_map(|place| {
+            (place.id == *source)
+                .then_some(place.kind)
+                .and_then(|kind| match kind {
+                    StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type,
+                    } if structural_type == signature.structural_type => Some(producer),
+                    _ => None,
+                })
+        }) else {
+            return false;
+        };
+        let Some(producer) = callee
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .map(|node| &node.operation)
+            .find(|operation| {
+                matches!(
+                    operation,
+                    O::EstablishPayloadlessCase { psi_operation, .. }
+                        if *psi_operation == producer
+                )
+            })
+        else {
+            return false;
+        };
+        let O::EstablishPayloadlessCase { result, .. } = producer else {
+            return false;
+        };
+        if result.place != *source
+            || result.structural_type != signature.structural_type
+            || !payloadless_establishment_matches(callee, producer, types)
+        {
+            return false;
+        }
+        exits += 1;
+    }
+    exits != 0
+}
+
+fn exact_payloadless_structural_call(
+    operation: &O,
+    callee: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> bool {
+    let O::CallStructural {
+        result,
+        structural_arguments,
+        claim_transfers,
+        returned_claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+        selected_evidence: _,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let Some(callee_result) = callee.result.structural() else {
+        return false;
+    };
+    let Some(contract) = callee.verified_contract.as_ref() else {
+        return false;
+    };
+    callee.parameters.is_empty()
+        && callee.structural_parameters.is_empty()
+        && callee.entry_claim_declarations.is_empty()
+        && callee.content_entry_claims.is_empty()
+        && contract.requires.is_empty()
+        && contract.ensures.is_empty()
+        && contract.crash_routes.is_empty()
+        && callee.evidence_contract_lanes.is_empty()
+        && structural_arguments.is_empty()
+        && claim_transfers.is_empty()
+        && returned_claim_transfers.is_empty()
+        && requirement_obligations.is_empty()
+        && crash_continuations.is_empty()
+        && result.structural_type == callee_result.structural_type
+        && result.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted
+        && result.multiplicity == callee_result.multiplicity
+        && result.qualifications.is_empty()
+        && result.qualifications == callee_result.qualifications
+        && result.claims.is_empty()
+        && contract.outcome_specific_ensures.iter().all(|row| {
+            proposition_structural_roots(&row.proposition)
+                .into_iter()
+                .all(|root| root == callee_result.place)
+        })
+        && exact_payloadless_case_return_exits(callee, types)
+}
+
+fn payloadless_selected_evidence_surface_matches(
+    operation: &O,
+    callee: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> bool {
+    let O::CallStructural {
+        selected_evidence, ..
+    } = operation
+    else {
+        return true;
+    };
+    selected_evidence.is_none()
+        || (exact_payloadless_structural_call(operation, callee, types)
+            && callee
+                .verified_contract
+                .as_ref()
+                .is_some_and(|contract| !contract.outcome_specific_ensures.is_empty()))
+}
+
 fn validate_structural_call_result(
     result: &psi_terminal::StructuralOperationResult,
     callee: &PsiOptimizationFunction,
+    exact_payloadless: bool,
     claim_transfers: &[psi_terminal::ClaimTransfer],
     returned: &[psi_terminal::StructuralResultClaimTransfer],
     types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
@@ -12753,15 +13078,7 @@ fn validate_structural_call_result(
     {
         return false;
     }
-    let payloadless = callee.structural_parameters.is_empty()
-        && callee.entry_claim_declarations.is_empty()
-        && callee.content_entry_claims.is_empty()
-        && claim_transfers.is_empty()
-        && returned.is_empty()
-        && result.claims.is_empty()
-        && result.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted
-        && result.qualifications.is_empty();
-    if payloadless {
+    if exact_payloadless {
         return true;
     }
     if callee.entry_claim_declarations.is_empty()
@@ -12924,7 +13241,8 @@ fn operation_scalar_types_match(
         integer(left, expected) && integer(right, expected)
     };
     match operation {
-        O::EstablishByteSequenceLiteral { .. }
+        O::EstablishPayloadlessCase { .. }
+        | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::PortWrite { .. }
         | O::BooleanStructuralField { .. }
@@ -13310,7 +13628,7 @@ fn reconstruct_declared_places(
                 | O::EstablishTrivialAffineLocal { place, .. } => {
                     known_places.insert(place.id);
                 }
-                O::CallStructural { result, .. } => {
+                O::EstablishPayloadlessCase { result, .. } | O::CallStructural { result, .. } => {
                     known_places.insert(result.place);
                 }
                 _ => {}
@@ -13611,7 +13929,8 @@ fn expected_provenance(
         | O::ReturnUnit { psi_edge, .. }
         | O::ReturnStructural { psi_edge, .. }
         | O::Crash { psi_edge, .. } => vec![PsiProvenance::Edge(*psi_edge)],
-        O::EstablishByteSequenceLiteral { psi_operation, .. }
+        O::EstablishPayloadlessCase { psi_operation, .. }
+        | O::EstablishByteSequenceLiteral { psi_operation, .. }
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
         | O::CallUnit { psi_operation, .. }
         | O::CallStructuralScalar { psi_operation, .. }
@@ -14837,6 +15156,9 @@ mod tests {
                                     caller_claim: claim,
                                 },
                             ],
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
+                            selected_evidence: None,
                         },
                         TerminalAbstractOperation::ReturnUnit {
                             psi_edge: id(358, EdgeId::new),
@@ -15528,6 +15850,9 @@ mod tests {
                 callee_claim: claim,
                 caller_claim: claim,
             }],
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+            selected_evidence: None,
         };
         let return_result = |edge| TerminalAbstractOperation::ReturnStructural {
             psi_edge: edge,
@@ -18894,6 +19219,9 @@ mod tests {
                 structural_arguments: Vec::new(),
                 claim_transfers: Vec::new(),
                 returned_claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+                selected_evidence: None,
             },
         ];
         for call in &calls {

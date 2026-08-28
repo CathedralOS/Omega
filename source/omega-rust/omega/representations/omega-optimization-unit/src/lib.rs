@@ -22,10 +22,11 @@ use psi_core::{
     OperationId, PlaceId, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    BoundaryMachineDeclaration, ContentEntryClaim, EntryClaim, ProviderCandidateConformance,
-    ServiceDeclaration, StructuralDomainDeclaration, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
+    BoundaryMachineDeclaration, ContentEntryClaim, EntryClaim, EvidenceContractLane,
+    MachineContract, ProviderCandidateConformance, ServiceDeclaration, StructuralDomainDeclaration,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
+    TerminalPsiIdentity,
 };
 
 mod identity;
@@ -199,6 +200,12 @@ pub struct PsiOptimizationFunction {
     /// Complete verifier-owned content-claim signature. Content projection
     /// authority cannot be reconstructed from ordinary claims alone.
     pub content_entry_claims: Vec<ContentEntryClaim>,
+    /// Complete verifier-owned machine contract. Bare reconstruction seeds do
+    /// not carry verifier authority and therefore leave this absent.
+    pub verified_contract: Option<MachineContract>,
+    /// Complete module evidence-contract roster for this machine. Its absence
+    /// is semantically meaningful to exact payloadless-call classification.
+    pub evidence_contract_lanes: Vec<EvidenceContractLane>,
     pub entry_claims: BTreeSet<ClaimId>,
     /// Exact verifier-normalized service ceiling in canonical Terminal-Psi
     /// order. It is semantic custody, not an optimizer-selected reach set.
@@ -799,11 +806,12 @@ fn build_function(
                 .collect();
             collect_places(operation, &mut declared_places);
             match operation {
-                TerminalAbstractOperation::EstablishByteSequenceLiteral { place, .. }
-                | TerminalAbstractOperation::EstablishTrivialAffineLocal { place, .. } => {
-                    structural_places.push(*place);
+                TerminalAbstractOperation::EstablishPayloadlessCase {
+                    psi_operation,
+                    result,
+                    ..
                 }
-                TerminalAbstractOperation::CallStructural {
+                | TerminalAbstractOperation::CallStructural {
                     psi_operation,
                     result,
                     ..
@@ -814,6 +822,10 @@ fn build_function(
                         structural_type: result.structural_type,
                     },
                 }),
+                TerminalAbstractOperation::EstablishByteSequenceLiteral { place, .. }
+                | TerminalAbstractOperation::EstablishTrivialAffineLocal { place, .. } => {
+                    structural_places.push(*place);
+                }
                 _ => {}
             }
             collect_fact(operation, &mut facts);
@@ -852,6 +864,8 @@ fn build_function(
         declared_places,
         entry_claim_declarations: function.entry_claims.clone(),
         content_entry_claims: Vec::new(),
+        verified_contract: None,
+        evidence_contract_lanes: Vec::new(),
         entry_claims: function
             .entry_claims
             .iter()
@@ -871,7 +885,8 @@ fn operation_node_provenance(operation: &TerminalAbstractOperation) -> Vec<PsiPr
         | O::ReturnUnit { psi_edge, .. }
         | O::ReturnStructural { psi_edge, .. }
         | O::Crash { psi_edge, .. } => PsiProvenance::Edge(*psi_edge),
-        O::EstablishByteSequenceLiteral { psi_operation, .. }
+        O::EstablishPayloadlessCase { psi_operation, .. }
+        | O::EstablishByteSequenceLiteral { psi_operation, .. }
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
         | O::CallUnit { psi_operation, .. }
         | O::CallStructuralScalar { psi_operation, .. }
@@ -1158,7 +1173,7 @@ fn collect_places(operation: &TerminalAbstractOperation, places: &mut BTreeSet<P
         | O::EstablishTrivialAffineLocal { place, .. } => {
             places.insert(place.id);
         }
-        O::CallStructural { result, .. } => {
+        O::EstablishPayloadlessCase { result, .. } | O::CallStructural { result, .. } => {
             places.insert(result.place);
         }
         O::BooleanStructuralField { source, .. } | O::ReturnStructural { source, .. } => {

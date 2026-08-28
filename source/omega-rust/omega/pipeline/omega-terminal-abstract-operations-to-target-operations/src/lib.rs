@@ -744,7 +744,8 @@ fn lower_function(
             return Err(LoweringError::OperationAfterReturn(function.machine));
         }
         match operation {
-            TerminalAbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. } => {
+            TerminalAbstractOperation::EstablishPayloadlessCase { psi_operation, .. }
+            | TerminalAbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. } => {
                 return Err(LoweringError::UnitOperationInScalarFunction {
                     machine: function.machine,
                     operation: *psi_operation,
@@ -2612,6 +2613,9 @@ fn lower_unit_function(
             return Err(LoweringError::OperationAfterReturn(function.machine));
         }
         match operation {
+            TerminalAbstractOperation::EstablishPayloadlessCase { .. } => {
+                return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
+            }
             TerminalAbstractOperation::EstablishByteSequenceLiteral {
                 psi_operation,
                 place,
@@ -4688,7 +4692,8 @@ fn conditional_provenance(
     let mut provenance = TerminalPsiProvenance::default();
     for operation in &function.operations {
         let psi_operation = match operation {
-            TerminalAbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
+            TerminalAbstractOperation::EstablishPayloadlessCase { psi_operation, .. }
+            | TerminalAbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
             | TerminalAbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
             | TerminalAbstractOperation::CallUnit { psi_operation, .. }
             | TerminalAbstractOperation::CallStructuralScalar { psi_operation, .. }
