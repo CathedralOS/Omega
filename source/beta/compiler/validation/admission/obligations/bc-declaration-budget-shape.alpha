@@ -21,14 +21,17 @@ declaration_budget_require_parse_shape:
         ; parse_proc.pdone owns the one count_lets call; slotsready/genbody are
         ; in the same procedure and retain the restored body cursor.
         imm r20, 344
-        imm r21, 50015
-        call exact_require_block_pc
+        imm r21, 68
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 345
-        imm r21, 50400
-        call exact_require_block_pc
+        imm r21, 68
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 348
-        imm r21, 50945
-        call exact_require_block_pc
+        imm r21, 68
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 3145728
         imm r21, 344
         imm r22, 68
@@ -37,58 +40,50 @@ declaration_budget_require_parse_shape:
         imm r21, 348
         imm r22, 68
         call transfer_require_cell
-        ; Exact count_lets event 594 at PC50142, one ambient staged nparams.
-        imm r20, 594
+        ; Exact count_lets event, with one ambient staged nparams.
+        imm r20, 68
         imm r21, 344
-        imm r22, 50142                 ; exact count_lets call PC
-        imm r23, 0
-        imm r24, 1
-        imm r25, 27433
-        imm r26, 50151
-        call summary_require_call_site
+        imm r22, 0
+        imm r23, 1
+        imm r24, 39                    ; count_lets procedure identity
+        call summary_require_call_fallthrough_identity
         ret
 
 declaration_budget_require_let_shape:
         ; p67 do_let is block324. Its ordered calls are SWSQ, RIDS, DCLS, then
         ; (only on room) EXPS/GEXP/ESTS.  DREM depends on the first three.
         imm r20, 324
-        imm r21, 47393
-        call exact_require_block_pc
+        imm r21, 67
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 3145728
         imm r21, 324
         imm r22, 67
         call transfer_require_cell
-        imm r20, 544
+        imm r20, 67
         imm r21, 324
-        imm r22, 47393
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 4277
-        imm r26, 47402
-        call summary_require_call_site
-        imm r20, 545
+        imm r24, 10                    ; skip_ws procedure identity
+        call summary_require_call_fallthrough_identity
+        imm r20, 67
         imm r21, 324
-        imm r22, 47402
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 5217
-        imm r26, 47411
-        call summary_require_call_site
-        imm r20, 546
+        imm r24, 12                    ; read_ident procedure identity
+        call summary_require_call_fallthrough_identity
+        imm r20, 67
         imm r21, 324
-        imm r22, 47411
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 24145
-        imm r26, 47420
-        call summary_require_call_site
+        imm r24, 34                    ; declare procedure identity
+        call summary_require_call_fallthrough_identity
         ; Exact resource guard from do_let to letfailed.
         imm r20, 262
         imm r21, 324
         imm r22, 1
         imm r23, 325
-        imm r24, 47537
-        call exact_require_transition
+        call exact_transition_identity_pc
         ret
 
 declaration_budget_record_occurrence_custody:

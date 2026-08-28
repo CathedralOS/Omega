@@ -22,14 +22,17 @@ declare_require_shape:
 
 declare_shape_blocks:
         imm r20, 170
-        imm r21, 24145
-        call exact_require_block_pc
+        imm r21, 34
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 171
-        imm r21, 24209
-        call exact_require_block_pc
+        imm r21, 34
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 172
-        imm r21, 24417
-        call exact_require_block_pc
+        imm r21, 34
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 170
         imm r21, 172
         imm r22, 34
@@ -38,8 +41,7 @@ declare_shape_blocks:
         imm r21, 171
         imm r22, 1
         imm r23, 172
-        imm r24, 24313               ; checked declare room guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked declare room guard
         call declare_require_events
         call declare_require_locals
         call declare_require_memory
@@ -49,25 +51,14 @@ declare_shape_blocks:
         ret
 
 declare_require_events:
-        imm r20, 273
+        imm r20, 34
         imm r21, 171
-        imm r22, 5
-        imm r23, 24416
-        call exact_require_event
-        imm r20, 274
+        call exact_require_event_epilogue
+        imm r20, 34
         imm r21, 172
-        imm r22, 5
-        imm r23, 24893
-        call exact_require_event
-        imm r20, 24397
-        imm r21, 24416
-        call exact_require_epilogue
-        imm r20, 24874
-        imm r21, 24893
-        call exact_require_epilogue
-        imm r20, 24894
-        imm r21, 24913
-        call exact_require_epilogue
+        call exact_require_event_epilogue
+        imm r20, 35                    ; name_eq identifies synthetic return
+        call exact_require_preentry_epilogue
         ret
 
 declare_require_locals:
@@ -291,8 +282,10 @@ declare_require_censuses:
         imm r28, 384
         imm r29, 388
         call summary_require_expr_census
-        imm r20, 24145
-        imm r21, 24914
+        imm r20, 34
+        call exact_proc_entry_r20
+        imm r21, 35
+        call exact_proc_entry_r21
         imm r22, 0
         imm r23, 3
         call skip_scan_call_region

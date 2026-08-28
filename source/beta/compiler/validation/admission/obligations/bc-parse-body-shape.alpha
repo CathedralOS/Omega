@@ -32,49 +32,33 @@ parse_body_require_proc:
 
 parse_body_require_block:
         imm r20, 348
-        imm r21, 50945
-        call exact_require_block_pc
+        imm r21, 68
+        imm r22, 1
+        call exact_block_identity_pc
         ret
 
-; r20=row,r21=pc,r22=target,r23=continuation.
+; r22=target procedure identity.
 parse_body_require_call:
-        mov r30, r20
-        mov r31, r21
-        mov r32, r22
-        mov r33, r23
-        mov r20, r30
+        mov r24, r22
+        imm r20, 68
         imm r21, 348
-        mov r22, r31
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        mov r25, r32
-        mov r26, r33
-        call summary_require_call_site
+        call summary_require_call_fallthrough_identity
         ret
 
 parse_body_require_events:
         imm r20, 600
-        imm r21, 50945
         imm r22, 62                    ; gen_stmts procedure identity
-        call exact_proc_entry_r22
-        imm r23, 50954
         call parse_body_require_call
         imm r20, 601
-        imm r21, 50954
-        imm r22, 31970                 ; emit_epilogue
-        imm r23, 50963
+        imm r22, 46                    ; emit_epilogue procedure identity
         call parse_body_require_call
-        imm r20, 602
+        imm r20, 68                    ; parse_proc procedure identity
         imm r21, 348
-        imm r22, 5
-        imm r23, 50992
-        call exact_require_event
-        imm r20, 50973
-        imm r21, 50992
-        call exact_require_epilogue
-        imm r20, 50993
-        imm r21, 51012
-        call exact_require_epilogue
+        call exact_require_event_epilogue
+        imm r20, 69                    ; main identifies synthetic return
+        call exact_require_preentry_epilogue
         ret
 
 parse_body_require_data:
@@ -82,8 +66,7 @@ parse_body_require_data:
         imm r21, 348
         imm r22, 1
         imm r23, 0
-        imm r24, 50963
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 parse_body_require_censuses:

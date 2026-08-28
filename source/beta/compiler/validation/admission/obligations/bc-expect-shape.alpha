@@ -22,14 +22,17 @@ expect_require_shape:
 
 expect_shape_blocks:
         imm r20, 129
-        imm r21, 17441
-        call exact_require_block_pc
+        imm r21, 24
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 130
-        imm r21, 17501
-        call exact_require_block_pc
+        imm r21, 24
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 131
-        imm r21, 17653
-        call exact_require_block_pc
+        imm r21, 24
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 129
         imm r21, 131
         imm r22, 24
@@ -39,58 +42,40 @@ expect_shape_blocks:
         imm r21, 130
         imm r22, 1
         imm r23, 131
-        imm r24, 17604               ; checked expect match guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked expect match guard
         call expect_require_events
         call expect_require_locals_primitives
         call expect_require_censuses
         ret
 
 expect_require_events:
-        imm r20, 160
+        imm r20, 24
         imm r21, 129
-        imm r22, 17492
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 4277
-        imm r26, 17501               ; checked expect skip_ws continuation
-        call summary_require_call_site
-        imm r20, 161
+        imm r24, 10                    ; skip_ws procedure identity
+        call summary_require_call_fallthrough_identity
+        imm r20, 24
         imm r21, 130
-        imm r22, 17501
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 1609
-        imm r26, 17510               ; checked expect cbyte continuation
-        call summary_require_call_site
-        imm r20, 163
+        imm r24, 4                     ; cbyte procedure identity
+        call summary_require_call_fallthrough_identity
+        imm r20, 24
         imm r21, 131
-        imm r22, 17653
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 17662               ; checked expect adv continuation
-        call summary_require_call_site
+        imm r24, 5                     ; adv procedure identity
+        call summary_require_call_fallthrough_identity
 
-        imm r20, 162
+        imm r20, 24
         imm r21, 130
-        imm r22, 5
-        imm r23, 17652
-        call exact_require_event
-        imm r20, 164
+        call exact_require_event_epilogue
+        imm r20, 24
         imm r21, 131
-        imm r22, 5
-        imm r23, 17691
-        call exact_require_event
-        imm r20, 17633
-        imm r21, 17652
-        call exact_require_epilogue
-        imm r20, 17672
-        imm r21, 17691
-        call exact_require_epilogue
-        imm r20, 17692
-        imm r21, 17711
-        call exact_require_epilogue
+        call exact_require_event_epilogue
+        imm r20, 25                    ; gen_load identifies synthetic return
+        call exact_require_preentry_epilogue
         ret
 
 expect_require_locals_primitives:
@@ -98,32 +83,27 @@ expect_require_locals_primitives:
         imm r21, 130
         imm r22, 1
         imm r23, 0                   ; checked expect ch slot
-        imm r24, 17526
-        call transfer_require_local
+        call exact_local_identity_pc
 
         imm r20, 353
         imm r21, 130
         imm r22, 3
         imm r23, 10                  ; checked expect equality
-        imm r24, 17545
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 354
         imm r21, 130
         imm r22, 1
         imm r23, 0
-        imm r24, 17623
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 355
         imm r21, 131
         imm r22, 1
         imm r23, 0
-        imm r24, 17662
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         imm r20, 90
         imm r21, 130
-        imm r23, 17510
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         ret
 
 expect_require_censuses:
@@ -151,8 +131,10 @@ expect_require_censuses:
         imm r29, 0
         call summary_require_expr_census
 
-        imm r20, 17441
-        imm r21, 17712
+        imm r20, 24
+        call exact_proc_entry_r20
+        imm r21, 25
+        call exact_proc_entry_r21
         imm r22, 3
         imm r23, 3
         call skip_scan_call_region

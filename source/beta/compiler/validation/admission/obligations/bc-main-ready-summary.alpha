@@ -31,11 +31,13 @@ main_ready_summary_init:
 main_ready_require_shape:
         ; ready and loop are adjacent blocks of main, procedure 69.
         imm r20, 351
-        imm r21, 51226
-        call exact_require_block_pc
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 352
-        imm r21, 51262
-        call exact_require_block_pc
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 3145728
         imm r21, 351
         imm r22, 69
@@ -49,62 +51,40 @@ main_ready_require_shape:
         imm r21, 351
         imm r22, 0
         imm r23, 352
-        imm r24, 51253
-        call exact_require_transition
+        call exact_transition_identity_pc
 
-        imm r20, 605
+        imm r20, 69
         imm r21, 351
-        imm r22, 1
-        imm r23, 51226
-        call exact_require_event
-        imm r20, 606
+        imm r22, 0
+        imm r23, 0
+        imm r24, 41                  ; emit_prelude procedure identity
+        call summary_require_call_fallthrough_identity
+        imm r20, 69
         imm r21, 351
-        imm r22, 1
-        imm r23, 51235
-        call exact_require_event
-        imm r20, 607
+        imm r22, 0
+        imm r23, 0
+        imm r24, 29                  ; emit_write_str procedure identity
+        call summary_require_call_fallthrough_identity
+        imm r20, 69
         imm r21, 351
-        imm r22, 1
-        imm r23, 51244
-        call exact_require_event
-
-        imm r20, 605
-        imm r21, 0
-        call exact_require_event_arity
-        imm r20, 606
-        imm r21, 0
-        call exact_require_event_arity
-        imm r20, 607
-        imm r21, 0
-        call exact_require_event_arity
-        imm r20, 605
-        imm r21, 0
-        call exact_require_ambient_height
-        imm r20, 606
-        imm r21, 0
-        call exact_require_ambient_height
-        imm r20, 607
-        imm r21, 0
-        call exact_require_ambient_height
-
-        imm r20, 51226
-        imm r21, 41                  ; emit_prelude procedure identity
-        call exact_proc_entry_r21
-        imm r22, 51235               ; checked first continuation
-        call exact_require_call
-        imm r20, 51235
-        imm r21, 20599
-        imm r22, 51244
-        call exact_require_call
-        imm r20, 51244
-        imm r21, 4277
-        imm r22, 51253
-        call exact_require_call
+        imm r22, 0
+        imm r23, 0
+        imm r24, 10                  ; skip_ws procedure identity
+        call summary_require_call_fallthrough_identity
 
         ; No hidden source actions occur in ready: exactly three calls, one
         ; plain transition, and no locals or raw-memory expressions.
-        imm r20, 51226
-        imm r21, 51262
+        imm r20, 351
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r30, r0
+        imm r20, 352
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r21, r0
+        mov r20, r30
         imm r22, 3
         imm r23, 0
         call skip_scan_call_region

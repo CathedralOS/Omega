@@ -54,78 +54,66 @@ statement_gen_store_require_antecedents:
         store r1, r2
         ret
 
-; r20=event,r21=block,r22=pc,r23=arity,r24=target,r25=continuation.
+; r20=source event row, r21=arity, r22=target procedure identity,
+; r23=semantic occurrence, r24=exact same-key cardinality.
 statement_gen_store_require_site:
-        mov r30, r20
-        mov r31, r21
-        mov r32, r22
-        mov r33, r23
-        mov r34, r24
-        mov r35, r25
-        mov r20, r30
-        mov r21, r31
+        mov r32, r21
+        mov r33, r22
+        mov r34, r23
+        mov r35, r24
+        imm r20, 26                   ; gen_store owning procedure identity
+        imm r21, 136
         mov r22, r32
-        mov r23, r33
-        imm r24, 0
+        imm r23, 0
+        mov r24, r33
         mov r25, r34
         mov r26, r35
-        call summary_require_call_site
+        call summary_require_nth_call_fallthrough_identity
         ret
 
 statement_gen_store_require_order:
         ; Exact artifact order is also the semantic trace order.
         imm r20, 172
-        imm r21, 136
-        imm r22, 18278
-        imm r23, 1
-        imm r24, 17441                 ; expect '['
-        imm r25, 18287
+        imm r21, 1
+        imm r22, 24                    ; expect '['
+        imm r23, 0
+        imm r24, 3
         call statement_gen_store_require_site
         imm r20, 173
-        imm r21, 136
-        imm r22, 18287
+        imm r21, 0
+        imm r22, 61                    ; first gen_expr procedure identity
         imm r23, 0
-        imm r24, 61                    ; first gen_expr procedure identity
-        call exact_proc_entry_r24
-        imm r25, 18296
+        imm r24, 2
         call statement_gen_store_require_site
         imm r20, 174
-        imm r21, 136
-        imm r22, 18338
+        imm r21, 1
+        imm r22, 24                    ; expect ']'
         imm r23, 1
-        imm r24, 17441                 ; expect ']'
-        imm r25, 18347
+        imm r24, 3
         call statement_gen_store_require_site
         imm r20, 175
-        imm r21, 136
-        imm r22, 18347
+        imm r21, 0
+        imm r22, 47                    ; emit_push procedure identity
         imm r23, 0
-        imm r24, 47                    ; emit_push procedure identity
-        call exact_proc_entry_r24
-        imm r25, 18356
+        imm r24, 1
         call statement_gen_store_require_site
         imm r20, 176
-        imm r21, 136
-        imm r22, 18398
-        imm r23, 1
-        imm r24, 17441                 ; expect '='
-        imm r25, 18407
+        imm r21, 1
+        imm r22, 24                    ; expect '='
+        imm r23, 2
+        imm r24, 3
         call statement_gen_store_require_site
         imm r20, 177
-        imm r21, 136
-        imm r22, 18407
-        imm r23, 0
-        imm r24, 61                    ; second gen_expr procedure identity
-        call exact_proc_entry_r24
-        imm r25, 18416
+        imm r21, 0
+        imm r22, 61                    ; second gen_expr procedure identity
+        imm r23, 1
+        imm r24, 2
         call statement_gen_store_require_site
         imm r20, 178
-        imm r21, 136
-        imm r22, 18458
-        imm r23, 1
-        imm r24, 44                    ; emit_pop_into procedure identity
-        call exact_proc_entry_r24
-        imm r25, 18467
+        imm r21, 1
+        imm r22, 44                    ; emit_pop_into procedure identity
+        imm r23, 0
+        imm r24, 1
         call statement_gen_store_require_site
         imm r1, 549104
         imm r2, 7
@@ -141,26 +129,22 @@ statement_gen_store_require_width_partition:
         imm r21, 137
         imm r22, 3
         imm r23, 10
-        imm r24, 18512
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 367
         imm r21, 137
         imm r22, 1
         imm r23, 1
-        imm r24, 18502
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 100
         imm r21, 137
         imm r22, 1
         imm r23, 138
-        imm r24, 18571
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 101
         imm r21, 137
         imm r22, 0
         imm r23, 139
-        imm r24, 18590
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 179
         call write_str_require_emit_event_core
         imm r2, 13                    ; "storeb r1,r0\n"

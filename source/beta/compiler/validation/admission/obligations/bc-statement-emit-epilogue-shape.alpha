@@ -26,45 +26,45 @@ statement_emit_epilogue_require_proc:
 
 statement_emit_epilogue_require_block:
         imm r20, 217
-        imm r21, 31970
-        call exact_require_block_pc
+        imm r21, 46
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 217
         imm r21, 217
         imm r22, 46
         call exact_require_proc_blocks
         ret
 
-; Pin an emit row and its exact __write_str call. r20=row,r21=pc.
+; Pin an emit row by its literal semantic key and rejoin its checked call PC.
+; r22=literal,r23=length.
 statement_emit_epilogue_require_emit:
-        mov r10, r20                  ; source-row identity for literal bytes
-        mov r14, r21                  ; row-checked helper call
+        imm r20, 46
         imm r21, 217
-        imm r22, 4
-        mov r23, r14
-        call exact_require_event
+        call exact_unique_emit_event_identity
+        mov r14, r0
+        mov r10, r1
         call check_emit_at_call
         ret
 
 statement_emit_epilogue_require_events:
-        imm r20, 341
-        imm r21, 32030
+        imm r22, statement_emit_epilogue_literal_mov_fp
+        imm r23, 12
         call statement_emit_epilogue_require_emit
-        imm r20, 342
-        imm r21, 32081
+        imm r22, statement_emit_epilogue_literal_load_fp
+        imm r23, 13
         call statement_emit_epilogue_require_emit
-        imm r20, 343
-        imm r21, 32128
+        imm r22, statement_emit_epilogue_literal_word
+        imm r23, 9
         call statement_emit_epilogue_require_emit
-        imm r20, 344
-        imm r21, 32177
+        imm r22, statement_emit_epilogue_literal_add_sp
+        imm r23, 11
         call statement_emit_epilogue_require_emit
-        imm r20, 345
-        imm r21, 32219
+        imm r22, statement_emit_epilogue_literal_ret
+        imm r23, 4
         call statement_emit_epilogue_require_emit
         ; No explicit source return: the compiler supplies this sole epilogue.
-        imm r20, 32228
-        imm r21, 32247
-        call exact_require_epilogue
+        imm r20, 47                   ; emit_push identifies synthetic return
+        call exact_require_preentry_epilogue
         ret
 
 statement_emit_epilogue_require_censuses:
@@ -101,3 +101,14 @@ statement_emit_epilogue_require_decoded:
         imm r24, 1
         call exact_quiet_scan_region
         ret
+
+statement_emit_epilogue_literal_mov_fp:
+        db "mov r15,r14\n"
+statement_emit_epilogue_literal_load_fp:
+        db "load r14,r15\n"
+statement_emit_epilogue_literal_word:
+        db "imm r2,8\n"
+statement_emit_epilogue_literal_add_sp:
+        db "add r15,r2\n"
+statement_emit_epilogue_literal_ret:
+        db "ret\n"

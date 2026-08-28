@@ -26,56 +26,38 @@ statement_gen_block_require_proc:
 
 statement_gen_block_require_blocks:
         imm r20, 315
-        imm r21, 45275
-        call exact_require_block_pc
+        imm r21, 63
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 315
         imm r21, 315
         imm r22, 63
         call exact_require_proc_blocks
         ret
 
-; r20=row,r21=pc,r22=arity,r23=target,r24=continuation.
+; r22=arity,r23=target procedure identity.
 statement_gen_block_require_call:
-        mov r30, r20
-        mov r31, r21
-        mov r32, r22
-        mov r33, r23
-        mov r34, r24
-        mov r20, r30
+        mov r24, r23
+        imm r20, 63
         imm r21, 315
-        mov r22, r31
-        mov r23, r32
-        imm r24, 0
-        mov r25, r33
-        mov r26, r34
-        call summary_require_call_site
+        imm r23, 0
+        call summary_require_call_fallthrough_identity
         ret
 
 statement_gen_block_require_events:
         imm r20, 508
-        imm r21, 45336
         imm r22, 1
-        imm r23, 17441
-        imm r24, 45345
+        imm r23, 24                    ; expect procedure identity
         call statement_gen_block_require_call
         imm r20, 509
-        imm r21, 45345
         imm r22, 0
         imm r23, 62                    ; gen_stmts procedure identity
-        call exact_proc_entry_r23
-        imm r24, 45354
         call statement_gen_block_require_call
-        imm r20, 510
+        imm r20, 63                    ; gen_block procedure identity
         imm r21, 315
-        imm r22, 5
-        imm r23, 45383
-        call exact_require_event
-        imm r20, 45364
-        imm r21, 45383
-        call exact_require_epilogue
-        imm r20, 45384
-        imm r21, 45403
-        call exact_require_epilogue
+        call exact_require_event_epilogue
+        imm r20, 64                    ; emit_state_label identifies synthetic
+        call exact_require_preentry_epilogue
         ret
 
 statement_gen_block_require_data:
@@ -83,18 +65,15 @@ statement_gen_block_require_data:
         imm r21, 315
         imm r22, 1
         imm r23, 123
-        imm r24, 45294
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 726
         imm r21, 315
         imm r22, 1
         imm r23, 0
-        imm r24, 45354
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 346
         imm r21, 315
-        imm r23, 45304
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         ret
 
 statement_gen_block_require_censuses:

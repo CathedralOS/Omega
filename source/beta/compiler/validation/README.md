@@ -102,9 +102,9 @@ same memory-owner rejoins for its complete memory family. The synthesized
 `__write_str` helper resolves from the exact main-prelude successor and mapper
 cell; effect custody owns its sole exhaustive body check, while event and
 summary consumers use its returned relative sites. The final ROOT tape is
-81,727 bytes for the current
+81,649 bytes for the current
 exact subjects, SHA-256
-`e0d11942cfb9be8899e1df6fc9e9f7578eb204e9a6ac0190ff156618c8f3bf9c`.
+`2d49e0409c1e8429ddccd9cb8bb9cf411ade2e6c168d2eab02de1bb46d3881b2`.
 `gen_emit`'s three identical newline events now use checker-owned exact
 cardinality and lexical occurrence rather than source rows. An eighth control
 swaps the first two valid witness PCs and is rejected by the label-emitter
@@ -124,6 +124,10 @@ pop-before-store shape. The remaining cursor, label, slurp, parse/data,
 ranged-store/resource, root-observation, and statement-label consumers now use
 the same checked memory identities and load/store rejoins. No semantic consumer
 calls the transitional coordinate-taking memory adapter.
+The next compact localization tranche covers expression rules,
+declaration/expect shapes, small statement/summary edges, `main.ready`, and the
+root cleanup join. The latter now consumes the checked program-prelude owner
+instead of independently restating the root call and halt bytes.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is

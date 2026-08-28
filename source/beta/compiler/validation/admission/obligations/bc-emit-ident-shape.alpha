@@ -22,14 +22,17 @@ emit_ident_require_shape:
 
 emit_ident_shape_blocks:
         imm r20, 214
-        imm r21, 31465
-        call exact_require_block_pc
+        imm r21, 45
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 215
-        imm r21, 31564
-        call exact_require_block_pc
+        imm r21, 45
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 216
-        imm r21, 31726
-        call exact_require_block_pc
+        imm r21, 45
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 214
         imm r21, 216
         imm r22, 45
@@ -48,33 +51,26 @@ emit_ident_require_transitions:
         imm r21, 215
         imm r22, 1
         imm r23, 216
-        imm r24, 31677              ; checked k<len guard
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 168
         imm r21, 216
         imm r22, 0
         imm r23, 215
-        imm r24, 31941              ; checked strict-successor backedge
-        call exact_require_transition
+        call exact_transition_identity_pc
         ret
 
 emit_ident_require_events:
-        imm r20, 339
+        imm r20, 45                   ; emit_ident_at procedure identity
         imm r21, 215
-        imm r22, 5
-        imm r23, 31725              ; checked explicit return zero
-        call exact_require_event
-        imm r20, 340
+        call exact_require_event_epilogue
+        imm r20, 45
         imm r21, 216
-        imm r22, 3
-        imm r23, 31853              ; checked direct write_byte lowering
-        call exact_require_event
-        imm r20, 31706
-        imm r21, 31725
-        call exact_require_epilogue
-        imm r20, 31950
-        imm r21, 31969
-        call exact_require_epilogue
+        call exact_unique_write_event_identity
+        mov r20, r0
+        imm r21, 18                   ; exact direct write opcode
+        call require_tape_byte
+        imm r20, 46                   ; emit_epilogue identifies synthetic ret
+        call exact_require_preentry_epilogue
         ret
 
 emit_ident_require_locals:
