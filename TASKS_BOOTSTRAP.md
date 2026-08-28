@@ -154,6 +154,13 @@ and are not blocked on this ruling.
   disagreeing, and mutated evidence.
 - [ ] Ensure the publication path is reproducible by running the constituent
   compiler commands directly without `tools/lattice/verify-lattice.sh`.
+- [ ] Make the full Gamma execution practical to repeat. The current paired V1
+  run is already parallel, but after two CPU-hours per execution a read-only
+  sample still places about 91% of time in the audited Alpha VM's common
+  instruction-dispatch path. Profile Alpha dispatch and the generated
+  Delta/Gamma workload, then reduce that cost without changing Alpha or Gamma
+  meaning, hiding a compiler stage, or weakening the exact evidence join. The
+  12-hour safety ceiling is not an acceptable normal gate duration.
 - [x] Retire the unconsumed imperative Gamma compatibility compiler, its native
   artifact, scripts, and private example corpus. It was not the Gamma rung used
   to produce Delta and no default gate or external consumer used it; Git history
