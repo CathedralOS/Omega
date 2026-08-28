@@ -18,6 +18,10 @@ rung or a generic assurance layer.
   surfaces the exact source, assembly, target, replayed-executable,
   reconstruction-obligation, and scoped host/target-admission bindings while
   leaving source-to-artifact refinement explicitly open.
+- `realize-delta-artifact-v1.py` runs the exact V1 clang command from explicit
+  absolute inputs, admits its result through the custody `observe` command,
+  and atomically publishes only the candidate executable, empty process
+  streams, and realization observation into a previously absent directory.
 - `install-verified-artifact-v1.sh` reconstructs and verifies the complete
   supplied publication/custody evidence before atomically installing the exact
   six retained files. `verify-installed-artifact-v1.sh` rechecks both that

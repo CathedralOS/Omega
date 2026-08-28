@@ -185,6 +185,26 @@ verify ARTIFACT_RECEIPT \
   ASSEMBLY_JOIN_ARGUMENTS...
 ```
 
+The adjacent canonical initial-realization runner has no discovery defaults:
+
+```text
+realize-delta-artifact-v1.py DESTINATION ASSEMBLY CLANG LINKER \
+  SDK_SETTINGS LIBSYSTEM_STUB COMPILER_RUNTIME
+```
+
+Every argument must be absolute, `DESTINATION` must be absent, and its parent
+must already exist. The runner executes the same literal V1 command with no
+stdin in a private sibling directory, captures status, elapsed milliseconds,
+stdout, and stderr, and requires the existing `observe` command to accept the
+result. Assembly and all five realization-tool identities are captured before
+the command and must still match both the observation and a post-observation
+snapshot. It then atomically renames the directory into place with an exclusive
+no-replace operation. Failure or a destination race removes the private
+directory and publishes nothing. A successful directory contains exactly
+`delta-compiler`, `realization.stdout`, `realization.stderr`, and
+`realization-observation.json`; tool discovery and later custody receipt
+generation remain explicit caller responsibilities.
+
 `ASSEMBLY_JOIN_ARGUMENTS` are the same explicit manifest, location sidecar,
 tool tapes, template, closed Gamma program, observations, raw outputs,
 assemblies, diagnostics, and role roots consumed by
