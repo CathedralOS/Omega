@@ -3,9 +3,12 @@
 
 This is replaceable orchestration.  ``prepare`` reconstructs the short-lived
 lower-rooted tools and writes explicit runner scripts; it does not elaborate or
-execute the compiler.  Those scripts are the only commands which run the
-translator/interpreter.  ``status`` is read-only.  ``finalize`` performs only
-the independent decoding/reconstruction already owned by the V1 verifier.
+execute the compiler.  Those scripts state the translator, transport, and
+interpreter commands literally.  Public ``stage-start``/``stage-finish``
+commands only keep custody markers around those commands, while ``stage-watch``
+enforces the declared wall-time ceiling.  ``status`` is read-only.  ``finalize``
+performs only the independent decoding/reconstruction already owned by the V1
+verifier.
 """
 
 from __future__ import annotations
@@ -15,6 +18,7 @@ import json
 import os
 import platform
 import secrets
+import signal
 import shlex
 import subprocess
 import sys
@@ -246,22 +250,74 @@ def plan_inputs(root: Path) -> dict:
 
 
 def write_runners(root: Path, attempt_id: str) -> None:
+    python = shlex.quote(sys.executable)
     driver = shlex.quote(str(Path(__file__).resolve()))
     evidence = shlex.quote(str(root))
     token = shlex.quote(attempt_id)
-    scripts = {
-        "run-elaboration.sh": ["elaboration", "packing"],
-        "run-execution-0.sh": ["execution-0"],
-        "run-execution-1.sh": ["execution-1"],
+    commands = {
+        "elaboration": (
+            f"{shlex.quote(str(root / 'artifacts/delta2gamma.exe'))}"
+            f" < {shlex.quote(str(root / 'canonical-source.lf'))}"
+            f" > {shlex.quote(str(root / 'template.gamma'))}"
+            f" 2> {shlex.quote(str(root / 'elaboration.stderr'))}"
+        ),
+        "packing": (
+            f"{python} -B {shlex.quote(str(PACKER))} inject"
+            f" {shlex.quote(str(root / 'template.gamma'))}"
+            f" {shlex.quote(str(root / 'canonical-source.lf'))}"
+            f" {shlex.quote(str(root / 'closed.gamma'))}"
+            f" > /dev/null 2> {shlex.quote(str(root / 'packing.stderr'))}"
+        ),
+        "execution-0": (
+            f"{shlex.quote(str(root / 'artifacts/interp.exe'))}"
+            f" < {shlex.quote(str(root / 'closed.gamma'))}"
+            f" > {shlex.quote(str(root / 'execution-0.raw'))}"
+            f" 2> {shlex.quote(str(root / 'execution-0.stderr'))}"
+        ),
+        "execution-1": (
+            f"{shlex.quote(str(root / 'artifacts/interp.exe'))}"
+            f" < {shlex.quote(str(root / 'closed.gamma'))}"
+            f" > {shlex.quote(str(root / 'execution-1.raw'))}"
+            f" 2> {shlex.quote(str(root / 'execution-1.stderr'))}"
+        ),
     }
-    for name, stages in scripts.items():
-        commands = "\n".join(
-            f"python3 -B {driver} _run-stage {evidence} {stage} {token}"
-            for stage in stages
-        )
+    for stage, command in commands.items():
+        name = f"run-{stage}.sh"
+        # The compiler/transport command and every redirection remain visible
+        # and independently runnable. The driver calls that bracket it own only
+        # marker custody and the attempt-local wall-time ceiling.
+        script = f"""#!/bin/sh
+set -u
+PYTHON={python}
+DRIVER={driver}
+EVIDENCE={evidence}
+STAGE={shlex.quote(stage)}
+TOKEN={token}
+
+"$PYTHON" -B "$DRIVER" stage-start "$EVIDENCE" "$STAGE" "$TOKEN" || exit $?
+
+set +e
+{command} &
+stage_pid=$!
+"$PYTHON" -B "$DRIVER" stage-watch "$EVIDENCE" "$STAGE" "$TOKEN" "$stage_pid" &
+watch_pid=$!
+wait "$stage_pid"
+stage_status=$?
+kill "$watch_pid" 2>/dev/null || :
+wait "$watch_pid" 2>/dev/null || :
+if [ -f "$EVIDENCE/$STAGE.timeout.json" ]; then
+  stage_status=124
+fi
+"$PYTHON" -B "$DRIVER" stage-finish \
+  "$EVIDENCE" "$STAGE" "$TOKEN" "$stage_status"
+custody_status=$?
+set -e
+[ "$custody_status" -eq 0 ] || exit "$custody_status"
+exit "$stage_status"
+"""
         atomic_write(
             root / name,
-            f"#!/bin/sh\nset -eu\n{commands}\n".encode(),
+            script.encode(),
             mode=0o700,
         )
 
@@ -354,55 +410,7 @@ def marker_path(root: Path, stage: str, suffix: str) -> Path:
     return root / f"{stage}.{suffix}.json"
 
 
-def run_process(stage: str, root: Path) -> int:
-    inputs, outputs = stage_paths(root, stage)
-    stderr = outputs[1]
-    if stage == "elaboration":
-        argv = [str(inputs[0])]
-        stdin_path, stdout_path = inputs[1], outputs[0]
-    elif stage == "packing":
-        argv = [sys.executable, "-B", str(PACKER), "inject", str(inputs[0]), str(inputs[1]), str(outputs[0])]
-        stdin_path = None
-        stdout_path = None
-    else:
-        argv = [str(inputs[0])]
-        stdin_path, stdout_path = inputs[1], outputs[0]
-
-    for path in outputs:
-        if path.exists():
-            fail(f"refuse stage output overwrite: {path.name}")
-    stderr_stream = stderr.open("xb")
-    stdin_stream = stdin_path.open("rb") if stdin_path else subprocess.DEVNULL
-    stdout_stream = stdout_path.open("xb") if stdout_path else subprocess.DEVNULL
-    started = time.monotonic()
-    try:
-        process = subprocess.Popen(argv, stdin=stdin_stream, stdout=stdout_stream, stderr=stderr_stream)
-        next_heartbeat = started + 60
-        ceiling = STAGE_CEILINGS[stage]
-        while process.poll() is None:
-            now = time.monotonic()
-            if now - started > ceiling:
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
-                return 124
-            if now >= next_heartbeat:
-                print(f"Delta publication {stage}: {int(now - started)}s elapsed", file=sys.stderr, flush=True)
-                next_heartbeat += 60
-            time.sleep(1)
-        return process.returncode
-    finally:
-        stderr_stream.close()
-        if stdin_path:
-            stdin_stream.close()
-        if stdout_path:
-            stdout_stream.close()
-
-
-def run_stage(root: Path, stage: str, token: str) -> int:
+def start_stage(root: Path, stage: str, token: str) -> None:
     plan = load_plan(root)
     if token != plan["attempt_id"] or stage not in STAGES:
         fail("stage attempt identity")
@@ -413,8 +421,12 @@ def run_stage(root: Path, stage: str, token: str) -> int:
     inputs, outputs = stage_paths(root, stage)
     started_path = marker_path(root, stage, "started")
     finished_path = marker_path(root, stage, "finished")
-    if started_path.exists() or finished_path.exists():
+    timeout_path = marker_path(root, stage, "timeout")
+    if started_path.exists() or finished_path.exists() or timeout_path.exists():
         fail("stage already attempted")
+    for path in outputs:
+        if path.exists():
+            fail(f"refuse stage output overwrite: {path.name}")
     start_epoch = time.time_ns()
     started = {
         "attempt_id": token,
@@ -425,13 +437,88 @@ def run_stage(root: Path, stage: str, token: str) -> int:
         "start_epoch_ns": start_epoch,
     }
     atomic_write(started_path, canonical_json(started))
-    monotonic_start = time.monotonic_ns()
-    status = run_process(stage, root)
+
+
+def load_started_stage(
+    root: Path,
+    plan: dict,
+    stage: str,
+    token: str,
+    allowed_states: tuple[str, ...] = ("running",),
+) -> tuple[dict, list[Path]]:
+    if token != plan["attempt_id"] or stage not in STAGES:
+        fail("stage attempt identity")
+    result = validate_stage(root, plan, stage)
+    if result.get("state") not in allowed_states:
+        fail("stage is not running")
+    started = load_canonical(marker_path(root, stage, "started"), f"{stage} start")
+    _, outputs = stage_paths(root, stage)
+    return started, outputs
+
+
+def watch_stage(root: Path, stage: str, token: str, process_id: int) -> None:
+    plan = load_plan(root)
+    started, _ = load_started_stage(root, plan, stage, token)
+    if process_id <= 1 or process_id == os.getpid():
+        usage("invalid stage process id")
+    ceiling = STAGE_CEILINGS[stage]
+    deadline = started["start_epoch_ns"] + ceiling * 1_000_000_000
+    next_heartbeat = time.monotonic() + 60
+    while time.time_ns() < deadline:
+        remaining = max(0.0, (deadline - time.time_ns()) / 1_000_000_000)
+        time.sleep(min(1.0, remaining))
+        now = time.monotonic()
+        if now >= next_heartbeat:
+            elapsed = max(0, (time.time_ns() - started["start_epoch_ns"]) // 1_000_000_000)
+            print(f"Delta publication {stage}: {elapsed}s elapsed", file=sys.stderr, flush=True)
+            next_heartbeat += 60
+    try:
+        os.kill(process_id, 0)
+    except ProcessLookupError:
+        return
+    timeout = {
+        "attempt_id": token,
+        "prepared_epoch_ns": plan["prepared_epoch_ns"],
+        "schema": MARKER_SCHEMA,
+        "stage": stage,
+        "start_epoch_ns": started["start_epoch_ns"],
+        "timeout_epoch_ns": time.time_ns(),
+    }
+    atomic_write(marker_path(root, stage, "timeout"), canonical_json(timeout))
+    try:
+        os.kill(process_id, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    grace_deadline = time.monotonic() + 5
+    while time.monotonic() < grace_deadline:
+        try:
+            os.kill(process_id, 0)
+        except ProcessLookupError:
+            return
+        time.sleep(0.1)
+    try:
+        os.kill(process_id, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def finish_stage(root: Path, stage: str, token: str, status: int) -> None:
+    plan = load_plan(root)
+    started, outputs = load_started_stage(root, plan, stage, token, ("running", "timed-out"))
+    if isinstance(status, bool) or status < 0 or status > 255:
+        usage("invalid stage process status")
+    timed_out = marker_path(root, stage, "timeout").exists()
+    if timed_out and status != 124:
+        fail("timed-out stage status")
+    if not timed_out and status == 124:
+        fail("unsubstantiated stage timeout")
     for output in outputs:
         if not output.exists():
             output.write_bytes(b"")
     finish_epoch = time.time_ns()
-    elapsed_ms = (time.monotonic_ns() - monotonic_start) // 1_000_000
+    elapsed_ms = max(0, (finish_epoch - started["start_epoch_ns"]) // 1_000_000)
+    if timed_out:
+        elapsed_ms = min(elapsed_ms, STAGE_CEILINGS[stage] * 1000)
     finished = {
         "attempt_id": token,
         "elapsed_milliseconds": elapsed_ms,
@@ -441,21 +528,47 @@ def run_stage(root: Path, stage: str, token: str) -> int:
         "prepared_epoch_ns": plan["prepared_epoch_ns"],
         "schema": MARKER_SCHEMA,
         "stage": stage,
-        "start_epoch_ns": start_epoch,
+        "start_epoch_ns": started["start_epoch_ns"],
         "status": status,
     }
-    atomic_write(finished_path, canonical_json(finished))
-    return status
+    atomic_write(marker_path(root, stage, "finished"), canonical_json(finished))
 
 
 STARTED_KEYS = {"attempt_id", "inputs", "prepared_epoch_ns", "schema", "stage", "start_epoch_ns"}
 FINISHED_KEYS = STARTED_KEYS | {"elapsed_milliseconds", "finish_epoch_ns", "outputs", "status"}
+TIMEOUT_KEYS = {
+    "attempt_id", "prepared_epoch_ns", "schema", "stage", "start_epoch_ns", "timeout_epoch_ns"
+}
+
+
+def validate_timeout(root: Path, plan: dict, stage: str, started: dict) -> bool:
+    path = marker_path(root, stage, "timeout")
+    if not path.exists():
+        return False
+    timeout = load_canonical(path, f"{stage} timeout")
+    strict(timeout, TIMEOUT_KEYS, f"{stage} timeout")
+    if (
+        timeout["schema"] != MARKER_SCHEMA
+        or timeout["attempt_id"] != plan["attempt_id"]
+        or timeout["prepared_epoch_ns"] != plan["prepared_epoch_ns"]
+        or timeout["stage"] != stage
+        or timeout["start_epoch_ns"] != started["start_epoch_ns"]
+        or isinstance(timeout["timeout_epoch_ns"], bool)
+        or not isinstance(timeout["timeout_epoch_ns"], int)
+        or timeout["timeout_epoch_ns"] < started["start_epoch_ns"] + STAGE_CEILINGS[stage] * 1_000_000_000
+        or timeout["timeout_epoch_ns"] > time.time_ns() + 1_000_000_000
+    ):
+        fail(f"{stage} timeout custody")
+    return True
 
 
 def validate_stage(root: Path, plan: dict, stage: str) -> dict:
     started_path = marker_path(root, stage, "started")
     finished_path = marker_path(root, stage, "finished")
+    timeout_path = marker_path(root, stage, "timeout")
     if not started_path.exists() and not finished_path.exists():
+        if timeout_path.exists():
+            fail(f"{stage} timeout without start")
         return {"state": "pending"}
     if not started_path.exists():
         fail(f"{stage} finish without start")
@@ -475,8 +588,12 @@ def validate_stage(root: Path, plan: dict, stage: str) -> dict:
         or started["inputs"] != expected_inputs
     ):
         fail(f"{stage} stale/cross-paired start")
+    timed_out = validate_timeout(root, plan, stage, started)
     if not finished_path.exists():
-        return {"start_epoch_ns": started["start_epoch_ns"], "state": "running"}
+        return {
+            "start_epoch_ns": started["start_epoch_ns"],
+            "state": "timed-out" if timed_out else "running",
+        }
     finished = load_canonical(finished_path, f"{stage} finish")
     strict(finished, FINISHED_KEYS, f"{stage} finish")
     expected_outputs = marker_identity(outputs, f"{stage}_output")
@@ -493,6 +610,10 @@ def validate_stage(root: Path, plan: dict, stage: str) -> dict:
         or finished["elapsed_milliseconds"] > STAGE_CEILINGS[stage] * 1000
         or isinstance(finished["status"], bool)
         or not isinstance(finished["status"], int)
+        or finished["status"] < 0
+        or finished["status"] > 255
+        or (timed_out and finished["status"] != 124)
+        or (not timed_out and finished["status"] == 124)
         or finished["outputs"] != expected_outputs
     ):
         fail(f"{stage} finish custody")
@@ -597,7 +718,7 @@ def finalize(root: Path) -> dict:
 
 def main(arguments: list[str]) -> int:
     if len(arguments) < 2:
-        usage("expected prepare|status|finalize EVIDENCE_DIR")
+        usage("expected prepare|status|finalize|stage-* EVIDENCE_DIR")
     command, spelling, *rest = arguments
     root = Path(spelling)
     if not root.is_absolute():
@@ -614,9 +735,26 @@ def main(arguments: list[str]) -> int:
         receipt = finalize(root)
         sys.stdout.buffer.write(canonical_json(receipt))
         return 0
-    if command == "_run-stage" and len(rest) == 2:
+    if command == "stage-start" and len(rest) == 2:
         stage, token = rest
-        return run_stage(root, stage, token)
+        start_stage(root, stage, token)
+        return 0
+    if command == "stage-watch" and len(rest) == 3:
+        stage, token, process_id = rest
+        try:
+            parsed_process_id = int(process_id, 10)
+        except ValueError:
+            usage("invalid stage process id")
+        watch_stage(root, stage, token, parsed_process_id)
+        return 0
+    if command == "stage-finish" and len(rest) == 3:
+        stage, token, stage_status = rest
+        try:
+            parsed_status = int(stage_status, 10)
+        except ValueError:
+            usage("invalid stage process status")
+        finish_stage(root, stage, token, parsed_status)
+        return 0
     usage("arguments")
 
 

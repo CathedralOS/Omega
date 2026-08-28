@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused, no-long-run tests for the Delta publication attempt driver."""
+"""Focused, bounded-stage tests for the Delta publication attempt driver."""
 
 from __future__ import annotations
 
@@ -70,10 +70,10 @@ class DriverTests(unittest.TestCase):
         self.root = Path(self.temporary.name) / "attempt"
         shutil.copytree(self.base, self.root)
 
-    def run_cli(self, command: str) -> subprocess.CompletedProcess[bytes]:
+    def run_cli(self, command: str, *arguments: str) -> subprocess.CompletedProcess[bytes]:
         return subprocess.run(
             [sys.executable, "-B", str(HERE / "lower_rooted_assembly_publication_v1_driver.py"),
-             command, str(self.root)],
+             command, str(self.root), *arguments],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
@@ -101,8 +101,20 @@ class DriverTests(unittest.TestCase):
             plan["inputs"]["source_image"]["sha256"],
             "a0ecad14670247857e300b5539e0058d8f72054f92fabd1645fc4457b0ac53c9",
         )
-        for name in ("run-elaboration.sh", "run-execution-0.sh", "run-execution-1.sh"):
-            self.assertTrue((self.root / name).stat().st_mode & 0o100)
+        expected_commands = {
+            "run-elaboration.sh": "artifacts/delta2gamma.exe",
+            "run-packing.sh": "encode-gamma-input.py",
+            "run-execution-0.sh": "artifacts/interp.exe",
+            "run-execution-1.sh": "artifacts/interp.exe",
+        }
+        for name, command in expected_commands.items():
+            path = self.root / name
+            self.assertTrue(path.stat().st_mode & 0o100)
+            spelling = path.read_text()
+            self.assertIn(command, spelling)
+            self.assertIn("stage-start", spelling)
+            self.assertIn("stage-finish", spelling)
+            self.assertNotIn("_run-stage", spelling)
         result = self.run_cli("status")
         self.assertEqual(result.returncode, 3, result.stderr)
         status = json.loads(result.stdout)
@@ -196,6 +208,79 @@ class DriverTests(unittest.TestCase):
         result = self.run_cli("status")
         self.assertEqual(result.returncode, 3, result.stderr)
         self.assertEqual(json.loads(result.stdout)["stages"][stage]["state"], "running")
+
+    def test_literal_runners_execute_real_elaboration_and_packing(self) -> None:
+        real_root = Path(self.temporary.name) / "real-stages"
+        driver.prepare(real_root)
+        elaboration = subprocess.run(
+            [str(real_root / "run-elaboration.sh")],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(elaboration.returncode, 0, elaboration.stderr)
+        self.assertEqual((real_root / "elaboration.stderr").read_bytes(), b"")
+        self.assertGreater((real_root / "template.gamma").stat().st_size, 100_000)
+        packing = subprocess.run(
+            [str(real_root / "run-packing.sh")],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(packing.returncode, 0, packing.stderr)
+        self.assertEqual((real_root / "packing.stderr").read_bytes(), b"")
+        self.assertGreater((real_root / "closed.gamma").stat().st_size, 100_000)
+        value, ready = driver.status(real_root)
+        self.assertFalse(ready)
+        self.assertEqual(value["stages"]["elaboration"]["state"], "complete")
+        self.assertEqual(value["stages"]["packing"]["state"], "complete")
+        self.assertEqual(value["stages"]["execution-0"]["state"], "pending")
+
+    def test_literal_execution_runner_invokes_real_gamma_interpreter(self) -> None:
+        real_root = Path(self.temporary.name) / "real-execution"
+        driver.prepare(real_root)
+        (real_root / "template.gamma").write_bytes(b"test-only prerequisite\n")
+        (real_root / "elaboration.stderr").write_bytes(b"")
+        write_marker(real_root, "elaboration")
+        (real_root / "closed.gamma").write_bytes(b"(Pair 0 Nil)")
+        (real_root / "packing.stderr").write_bytes(b"")
+        write_marker(real_root, "packing")
+        execution = subprocess.run(
+            [str(real_root / "run-execution-0.sh")],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(execution.returncode, 0, execution.stderr)
+        self.assertEqual((real_root / "execution-0.raw").read_bytes(), b"(Pair 0 Nil)\n")
+        self.assertEqual((real_root / "execution-0.stderr").read_bytes(), b"")
+        value, ready = driver.status(real_root)
+        self.assertFalse(ready)
+        self.assertEqual(value["stages"]["execution-0"]["state"], "complete")
+
+    def test_stage_marker_interface_rejects_wrong_token_and_status(self) -> None:
+        plan = driver.load_plan(self.root)
+        wrong = self.run_cli("stage-start", "elaboration", "0" * 64)
+        self.assertEqual(wrong.returncode, 251)
+        self.assertEqual(wrong.stdout, b"")
+        started = self.run_cli("stage-start", "elaboration", plan["attempt_id"])
+        self.assertEqual(started.returncode, 0, started.stderr)
+        (self.root / "template.gamma").write_bytes(b"test-only output\n")
+        (self.root / "elaboration.stderr").write_bytes(b"")
+        timeout_without_marker = self.run_cli(
+            "stage-finish", "elaboration", plan["attempt_id"], "124"
+        )
+        self.assertEqual(timeout_without_marker.returncode, 251)
+        self.assertFalse((self.root / "elaboration.finished.json").exists())
+
+    def test_orphan_timeout_marker_is_malformed_not_pending(self) -> None:
+        (self.root / "elaboration.timeout.json").write_bytes(b"{}\n")
+        result = self.run_cli("status")
+        self.assertEqual(result.returncode, 251)
+        self.assertEqual(result.stdout, b"")
 
 
 class UsageTests(unittest.TestCase):

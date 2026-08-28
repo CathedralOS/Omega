@@ -139,21 +139,37 @@ finalize ABSOLUTE_EVIDENCE_DIRECTORY
 `prepare` reconstructs the short-lived Beta compiler installation, extracts
 the assembler tape from the committed Alpha assembler artifact, builds the
 exact `delta2gamma.beta` and `interp.beta` tapes, stamps attempt-local Darwin
-executables, materializes the canonical LF image, and writes three explicit
+executables, materializes the canonical LF image, and writes four explicit
 runner scripts. It does not elaborate the compiler or start either long Gamma
 execution. Ad-hoc-signed executable hashes are attempt-local mutation guards;
 they are never publication identities.
 
-The runner scripts are deliberate, direct commands. Elaboration and packing
-are sequential; the two execution scripts may then run independently. Each
-stage gets a fresh exclusive start marker and finish marker bound to the
-attempt token, preparation epoch, exact input/output identities, process
-status, elapsed diagnostic, and a declared time ceiling. They emit a heartbeat
-every 60 seconds. A stage is never resumed into an existing output or marker.
+The four scripts are `run-elaboration.sh`, `run-packing.sh`,
+`run-execution-0.sh`, and `run-execution-1.sh`. Each states its actual
+executable arguments and file redirections literally: the translator reads the
+canonical LF image and writes the Gamma template; the versioned packer injects
+that same image into the template and writes the closed Gamma program; and each
+interpreter reads that closed program and writes one raw structured result.
+There is no private driver action which selects or conceals those compiler
+commands. In particular, packing is an independently runnable transport step,
+not a second compiler action hidden inside the elaboration runner.
+
+The scripts call the public `stage-start` and `stage-finish` custody operations
+around each literal command. A separate `stage-watch` observes only the
+attempt-local process identifier, emits a heartbeat every 60 seconds, and
+enforces the declared wall-time ceiling; it does not choose an executable,
+arguments, inputs, outputs, or redirections. Elaboration precedes packing; the
+two execution scripts may then run independently. Each stage gets a fresh
+exclusive start marker and finish marker bound to the attempt token,
+preparation epoch, exact input/output identities, process status, elapsed
+diagnostic, and time ceiling. A stage is never resumed into an existing output
+or marker. A timeout receives its own token- and epoch-bound marker and status
+124; an unsubstantiated status 124 rejects.
 
 `status` is read-only. Missing stages are pending, a start without a matching
-finish is running, and a coherent nonzero process status is failed. A marker
-from another token or preparation epoch, a finish without its start, changed
+finish is running (or timed-out once a valid timeout marker exists), and a
+coherent nonzero process status is failed. A marker from another token or
+preparation epoch, a finish or timeout without its start, changed
 inputs/outputs, future timestamps, or a start/finish cross-pair is malformed
 251 rather than reusable evidence. Status zero means all four stages are
 complete; status 3 means a coherent attempt is not complete.
