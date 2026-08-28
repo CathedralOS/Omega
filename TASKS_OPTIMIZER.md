@@ -2325,21 +2325,26 @@ dependency.
   still cannot expose callable metadata, and only the opaque callable carrier
   adds it. This is current scalar-callable custody, not process-entry authority.
 
-  The real process-entry bridge is an engineering join, not an unresolved
-  language-design question. Existing target/program-storage vocabulary already
-  makes `ProgramEntry` target-owned, records its selected source signature,
-  supplies schema-visible root arguments through the generated ABI shell, and
-  currently requires a Unit source result. The scalar-result conditional
-  fixture used by this callable classifier is therefore intentionally not a
-  positive `ProgramEntry`. The next publication slice must add optimized
-  selected vocabulary and fixtures for the actual Unit entry/source shape,
-  then join target-owned ProgramEntry/root/source-signature/program-storage
-  custody without weakening this classifier.
+  The next entry boundary has one settled semantic layer and one genuinely
+  unsettled physical layer. Engineering can add optimized selected vocabulary
+  for the receiver-free straight-line Unit entry/source shape, retain the exact
+  target-owned `ProgramEntry` source signature and calling plans, and construct
+  the existing semantic `ProgramStorageEntry` wrapper object that passes the
+  two `Extent in Granted` roots to the private Terminal symbol. The scalar-
+  result conditional fixture used by the callable classifier remains
+  intentionally ineligible. However, the current UEFI surface explicitly calls
+  its physical shell planned and non-invoked: no authoritative contract maps
+  `(EfiImageHandle, &EfiSystemTable)` to the semantic Image and InitialStorage
+  extents or maps Unit completion/failure to `EfiStatus`. Hosted targets do not
+  yet publish a physical entry contract at all. `OWNER_QUESTIONS.md` Q17 owns
+  that target/runtime design decision. Until it is settled, the semantic
+  wrapper cannot be called an authoritative firmware/process-entry bridge.
 
   Remaining for selected native output: replace the current compiler execution
-  gate with an end-to-end selected-build path that carries an applicable
-  validated object artifact through an authoritative process-entry bridge,
-  native image, and publication custody.
+  gate only after an applicable validated Unit object artifact reaches the
+  semantic ProgramStorage wrapper, Q17 supplies an authoritative physical
+  process-entry contract, and native image plus publication custody are
+  independently validated.
   Until those downstream authorities exist, a build that explicitly selects
   the rule is parsed and identified but still fails without installing output.
 

@@ -816,3 +816,70 @@ contract is settled; only checked Delta source-to-artifact authority is blocked.
 - Tempting but wrong: publish compiler authority from two byte-identical
   executions without checking the artifact against an independently selected
   source meaning.
+
+## Q17 — Physical UEFI bootstrap mapping for ProgramEntry
+
+### Context
+
+Omega already distinguishes a target-owned `ProgramEntry` source signature
+from its physical platform slot. The current UEFI x64 slot fixes the firmware
+surface as `(EfiImageHandle, &EfiSystemTable) -> EfiStatus`, while the selected
+semantic entry requires two qualified structural roots—Image `Extent in
+Granted` and InitialStorage `Extent in Granted`—and returns Unit. The existing
+program-storage bridge constructs only the inner semantic wrapper that forwards
+those roots to the selected source. Repository artifacts intentionally record
+that the physical shell is not emitted and the bootstrap is not invoked.
+
+### Problem statement
+
+No authoritative target/runtime contract explains how the firmware handle and
+system table establish the two semantic extents, which storage and permission
+facts the bootstrap may create, how their lifetimes and cleanup are owned, or
+how normal Unit completion and each admitted failure route map to `EfiStatus`.
+Consequently an optimized Unit object may acquire exact semantic
+ProgramStorage-wrapper custody, but it cannot truthfully claim to be a UEFI
+firmware entry, native image, installation, or publication artifact. Treating
+the current planned wrapper recipe or convenient register values as that
+contract would let backend code invent language-visible roots and outcome
+semantics.
+
+Hosted targets do not currently provide an alternate escape hatch: their
+program-entry slots leave the physical boundary and calling contract
+unspecified.
+
+### Proposed direction
+
+Ratify a target/runtime-owned UEFI bootstrap contract that names the exact
+construction of Image and InitialStorage extents from the firmware inputs,
+including provenance, bounds, `Granted` authority, lifetime, aliasing, and
+cleanup. Define which bootstrap failures are observable, whether the semantic
+Unit entry may return normally after them, and the complete deterministic
+mapping from normal/crash outcomes to `EfiStatus`. Bind the physical shell's
+calling convention, stack/hardening obligations, wrapper bytes, and imported
+firmware services to that contract under an independently replayable identity.
+
+The optimizer may meanwhile implement and validate the receiver-free Unit
+selected shape, source-signature join, and semantic ProgramStorage wrapper
+object. Explicit optimized builds must remain fail-closed and install nothing
+until the physical contract, image validation, installation, and publication
+carriers join that semantic custody.
+
+### Alternates
+
+- Acceptable: make the physical bootstrap a separately authored and verified
+  target-runtime component whose checked postcondition supplies the two exact
+  semantic roots before calling the generated inner wrapper.
+- Acceptable: revise the public semantic `ProgramEntry` signature to receive
+  explicit opaque firmware values, provided Omega then defines how ordinary
+  code obtains the required Image/InitialStorage capabilities rather than
+  silently treating handles as extents.
+- Acceptable: define one fixed successful `EfiStatus` for normal Unit return and
+  a closed failure mapping, if every admitted crash/bootstrap outcome is still
+  represented and independently validated.
+- Tempting but wrong: pass the raw firmware registers directly to the semantic
+  entry because both current shapes happen to use two indirect arguments.
+- Tempting but wrong: fabricate null, zero-length, or ambiently granted extents
+  inside the machine-code wrapper.
+- Tempting but wrong: label the existing semantic wrapper symbol as the UEFI
+  entry or publish an image while `physical_shell_emitted` and
+  `bootstrap_invoked` remain false.
