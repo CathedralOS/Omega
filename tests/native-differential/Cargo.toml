@@ -53,6 +53,7 @@ omega-psi-to-abstract-operations = { path = "../../source/omega-rust/omega/pipel
 omega-terminal-psi-to-native-artifact = { path = "../../source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact" }
 omega-native-artifact = { path = "../../source/omega-rust/omega/backend/artifacts/omega-native-artifact" }
 omega-component-candidate = { path = "../../source/omega-rust/omega/backend/artifacts/omega-component-candidate" }
+omega-program-entry-plan = { path = "../../source/omega-rust/omega/backend/plans/omega-program-entry-plan" }
 omega-effects = { path = "../../source/omega-rust/omega/representations/omega-effects" }
 
 [dev-dependencies]

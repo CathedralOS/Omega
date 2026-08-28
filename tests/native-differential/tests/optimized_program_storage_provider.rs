@@ -18,7 +18,7 @@ use omega_optimization_pipeline::{
     stage_validated_optimized_object_artifact, validate_optimized_object_artifact,
 };
 use omega_optimization_unit::OwnershipEvent;
-use omega_program_storage::{
+use omega_program_entry_plan::{
     ProgramEntryPhysicalContractPlan, ProgramEntrySourceReceiverSignature,
     ProgramStorageEntryRootRole, SelectedProgramEntrySourceSignature,
     SelectedProgramStorageEntryPlan, bind_optimized_program_storage_semantic_entry_contract,
@@ -64,7 +64,7 @@ const PROGRAM_STORAGE_PROVIDER_SOURCE: &str = r#"
     established by
         ProgramStorageEntry::enter;
 
-    boundary trait ProgramStorageEntry {
+    pub boundary trait ProgramStorageEntry {
         machine enter(
             image: Extent in Granted,
             initial_storage: Extent in Granted
@@ -149,7 +149,7 @@ fn checked_program_storage_provider_reaches_optimized_selected_claim_completion(
 
     let selections =
         OptimizationSelections::new([Optimization::CopyPropagation]).expect("named optimization");
-    let request = compiler_baseline_request_v1(&selections);
+    let request = compiler_baseline_request_v1(&selections).expect("nonempty optimizer request");
     let optimized = optimize_verified_psi_input(verified, request)
         .expect("optimize verified ProgramStorage plan");
     let root_machine = optimized.plan().entry;
