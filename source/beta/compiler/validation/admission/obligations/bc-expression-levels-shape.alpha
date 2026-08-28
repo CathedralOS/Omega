@@ -38,28 +38,33 @@ expression_levels_require_proc_meta:
 
 expression_levels_require_blocks:
         imm r20, 267
-        imm r21, 38523
-        call exact_require_block_pc
+        imm r21, 57
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 268
-        imm r21, 38573
-        call exact_require_block_pc
+        imm r21, 57
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 269
-        imm r21, 38757
-        call exact_require_block_pc
+        imm r21, 57
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 267
         imm r21, 269
         imm r22, 57
         call exact_require_proc_blocks
         imm r20, 270
-        imm r21, 58                    ; gen_sum procedure identity
-        call exact_proc_entry_r21
-        call exact_require_block_pc
+        imm r21, 58
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 271
-        imm r21, 38960
-        call exact_require_block_pc
+        imm r21, 58
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 272
-        imm r21, 39144
-        call exact_require_block_pc
+        imm r21, 58
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 270
         imm r21, 272
         imm r22, 58
@@ -71,211 +76,152 @@ expression_levels_require_transitions:
         imm r21, 268
         imm r22, 1
         imm r23, 269
-        imm r24, 38708
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 212
         imm r21, 269
         imm r22, 0
         imm r23, 268
-        imm r24, 38881
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 213
         imm r21, 271
         imm r22, 1
         imm r23, 272
-        imm r24, 39095
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 214
         imm r21, 272
         imm r22, 0
         imm r23, 271
-        imm r24, 39268
-        call exact_require_transition
+        call exact_transition_identity_pc
         ret
 
-; r20=row,r21=block,r22=pc,r23=arity,r24=target,r25=continuation.
+; r20=procedure,r21=block,r22=arity,r23=target procedure identity.
 expression_levels_require_call:
-        mov r26, r25
-        mov r25, r24
-        imm r24, 0
-        call summary_require_call_site
+        mov r24, r23
+        imm r23, 0
+        call summary_require_call_fallthrough_identity
         ret
 
 expression_levels_require_return:
-        mov r23, r22
-        imm r22, 5
-        call exact_require_event
+        call exact_require_event_epilogue
         ret
 
 expression_levels_require_events:
         ; gen_term.
-        imm r20, 421
+        imm r20, 57
         imm r21, 267
-        imm r22, 38555
-        imm r23, 0
-        imm r24, 35881
-        imm r25, 38564
+        imm r22, 0
+        imm r23, 55
         call expression_levels_require_call
-        imm r20, 422
+        imm r20, 57
         imm r21, 267
-        imm r22, 38564
-        imm r23, 0
-        imm r24, 4277
-        imm r25, 38573
+        imm r22, 0
+        imm r23, 10
         call expression_levels_require_call
-        imm r20, 423
+        imm r20, 57
         imm r21, 268
-        imm r22, 38614
-        imm r23, 1
-        imm r24, 34977
-        imm r25, 38623
+        imm r22, 1
+        imm r23, 53
         call expression_levels_require_call
-        imm r20, 424
+        imm r20, 57
         imm r21, 268
-        imm r22, 38573
-        imm r23, 0
-        imm r24, 1609
-        imm r25, 38582
+        imm r22, 0
+        imm r23, 4
         call expression_levels_require_call
-        imm r20, 425
+        imm r20, 57
         imm r21, 268
-        imm r22, 38756
         call expression_levels_require_return
-        imm r20, 426
+        imm r20, 57
         imm r21, 269
-        imm r22, 38757
-        imm r23, 0
-        imm r24, 1609
-        imm r25, 38766
+        imm r22, 0
+        imm r23, 4
         call expression_levels_require_call
-        imm r20, 427
+        imm r20, 57
         imm r21, 269
-        imm r22, 38785
-        imm r23, 0
-        imm r24, 1939
-        imm r25, 38794
+        imm r22, 0
+        imm r23, 5
         call expression_levels_require_call
-        imm r20, 428
+        imm r20, 57
         imm r21, 269
-        imm r22, 38794
-        imm r23, 0
-        imm r24, 47                    ; emit_push procedure identity
-        call exact_proc_entry_r24
-        imm r25, 38803
+        imm r22, 0
+        imm r23, 47
         call expression_levels_require_call
-        imm r20, 429
+        imm r20, 57
         imm r21, 269
-        imm r22, 38803
-        imm r23, 0
-        imm r24, 35881
-        imm r25, 38812
+        imm r22, 0
+        imm r23, 55
         call expression_levels_require_call
-        imm r20, 430
+        imm r20, 57
         imm r21, 269
-        imm r22, 38863
-        imm r23, 1
-        imm r24, 33541
-        imm r25, 38872
+        imm r22, 1
+        imm r23, 49
         call expression_levels_require_call
-        imm r20, 431
+        imm r20, 57
         imm r21, 269
-        imm r22, 38872
-        imm r23, 0
-        imm r24, 4277
-        imm r25, 38881
+        imm r22, 0
+        imm r23, 10
         call expression_levels_require_call
         call expression_levels_require_sum_events
         ret
 
 expression_levels_require_sum_events:
-        imm r20, 432
+        imm r20, 58
         imm r21, 270
-        imm r22, 38942
-        imm r23, 0
-        imm r24, 38523
-        imm r25, 38951
+        imm r22, 0
+        imm r23, 57
         call expression_levels_require_call
-        imm r20, 433
+        imm r20, 58
         imm r21, 270
-        imm r22, 38951
-        imm r23, 0
-        imm r24, 4277
-        imm r25, 38960
+        imm r22, 0
+        imm r23, 10
         call expression_levels_require_call
-        imm r20, 434
+        imm r20, 58
         imm r21, 271
-        imm r22, 39001
-        imm r23, 1
-        imm r24, 35495
-        imm r25, 39010
+        imm r22, 1
+        imm r23, 54
         call expression_levels_require_call
-        imm r20, 435
+        imm r20, 58
         imm r21, 271
-        imm r22, 38960
-        imm r23, 0
-        imm r24, 1609
-        imm r25, 38969
+        imm r22, 0
+        imm r23, 4
         call expression_levels_require_call
-        imm r20, 436
+        imm r20, 58
         imm r21, 271
-        imm r22, 39143
         call expression_levels_require_return
-        imm r20, 437
+        imm r20, 58
         imm r21, 272
-        imm r22, 39144
-        imm r23, 0
-        imm r24, 1609
-        imm r25, 39153
+        imm r22, 0
+        imm r23, 4
         call expression_levels_require_call
-        imm r20, 438
+        imm r20, 58
         imm r21, 272
-        imm r22, 39172
-        imm r23, 0
-        imm r24, 1939
-        imm r25, 39181
+        imm r22, 0
+        imm r23, 5
         call expression_levels_require_call
-        imm r20, 439
+        imm r20, 58
         imm r21, 272
-        imm r22, 39181
-        imm r23, 0
-        imm r24, 47                    ; emit_push procedure identity
-        call exact_proc_entry_r24
-        imm r25, 39190
+        imm r22, 0
+        imm r23, 47
         call expression_levels_require_call
-        imm r20, 440
+        imm r20, 58
         imm r21, 272
-        imm r22, 39190
-        imm r23, 0
-        imm r24, 38523
-        imm r25, 39199
+        imm r22, 0
+        imm r23, 57
         call expression_levels_require_call
-        imm r20, 441
+        imm r20, 58
         imm r21, 272
-        imm r22, 39250
-        imm r23, 1
-        imm r24, 33541
-        imm r25, 39259
+        imm r22, 1
+        imm r23, 49
         call expression_levels_require_call
-        imm r20, 442
+        imm r20, 58
         imm r21, 272
-        imm r22, 39259
-        imm r23, 0
-        imm r24, 4277
-        imm r25, 39268
+        imm r22, 0
+        imm r23, 10
         call expression_levels_require_call
         ; Explicit loop exits and compiler-added fallthroughs.
-        imm r20, 38737
-        imm r21, 38756
-        call exact_require_epilogue
-        imm r20, 38890
-        imm r21, 38909
-        call exact_require_epilogue
-        imm r20, 39124
-        imm r21, 39143
-        call exact_require_epilogue
-        imm r20, 39277
-        imm r21, 39296
-        call exact_require_epilogue
+        imm r20, 58
+        call exact_require_preentry_epilogue
+        imm r20, 59
+        call exact_require_preentry_epilogue
         ret
 
 expression_levels_require_data:
@@ -284,88 +230,72 @@ expression_levels_require_data:
         imm r21, 269
         imm r22, 2
         imm r23, 0
-        imm r24, 38766
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 168
         imm r21, 269
         imm r22, 1
         imm r23, 0
-        imm r24, 38812
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 169
         imm r21, 272
         imm r22, 2
         imm r23, 0
-        imm r24, 39153
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 170
         imm r21, 272
         imm r22, 1
         imm r23, 0
-        imm r24, 39199
-        call transfer_require_local
+        call exact_local_identity_pc
         ; Guard results and explicit zero returns.
         imm r20, 622
         imm r21, 268
         imm r22, 3
         imm r23, 10
-        imm r24, 38649
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 623
         imm r21, 268
         imm r22, 1
         imm r23, 1
-        imm r24, 38639
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 624
         imm r21, 268
         imm r22, 1
         imm r23, 0
-        imm r24, 38727
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 625
         imm r21, 271
         imm r22, 3
         imm r23, 10
-        imm r24, 39036
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 626
         imm r21, 271
         imm r22, 1
         imm r23, 1
-        imm r24, 39026
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 627
         imm r21, 271
         imm r22, 1
         imm r23, 0
-        imm r24, 39114
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ; One classifier operand and two ordinary arguments per loop.
         imm r20, 183
         imm r21, 268
-        imm r23, 38623
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 184
         imm r21, 271
-        imm r23, 39010
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 337
         imm r21, 268
-        imm r23, 38582
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 338
         imm r21, 269
-        imm r23, 38831
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 339
         imm r21, 271
-        imm r23, 38969
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 340
         imm r21, 272
-        imm r23, 39218
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         ret
 
 expression_levels_require_censuses:
@@ -416,7 +346,8 @@ expression_levels_require_censuses:
         ret
 
 expression_levels_require_regions:
-        imm r20, 38523
+        imm r20, 57                    ; gen_term procedure identity
+        call exact_proc_entry_r20
         imm r21, 58                    ; gen_sum procedure identity / end
         call exact_proc_entry_r21
         imm r22, 10
@@ -425,7 +356,8 @@ expression_levels_require_regions:
         call exact_quiet_scan_region
         imm r20, 58                    ; gen_sum procedure identity
         call exact_proc_entry_r20
-        imm r21, 39297
+        imm r21, 59                    ; cmp_op procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 10
         imm r23, 2
         imm r24, 5

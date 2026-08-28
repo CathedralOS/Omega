@@ -28,20 +28,24 @@ expression_gen_expr_require_proc_meta:
 expression_gen_expr_require_blocks:
         imm r20, 303
         imm r21, 61                    ; gen_expr procedure identity
-        call exact_proc_entry_r21
-        call exact_require_block_pc
+        imm r22, 0                     ; procedure entry
+        call exact_block_identity_pc
         imm r20, 304
-        imm r21, 43198
-        call exact_require_block_pc
+        imm r21, 61
+        imm r22, 1                     ; state block
+        call exact_block_identity_pc
         imm r20, 305
-        imm r21, 43406
-        call exact_require_block_pc
+        imm r21, 61
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 306
-        imm r21, 43527
-        call exact_require_block_pc
+        imm r21, 61
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 307
-        imm r21, 43832
-        call exact_require_block_pc
+        imm r21, 61
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 303
         imm r21, 307
         imm r22, 61
@@ -53,20 +57,17 @@ expression_gen_expr_require_transitions:
         imm r21, 304
         imm r22, 1
         imm r23, 305
-        imm r24, 43302
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 250
         imm r21, 305
         imm r22, 0
         imm r23, 306
-        imm r24, 43518
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 251
         imm r21, 306
         imm r22, 1
         imm r23, 307
-        imm r24, 43677
-        call exact_require_transition
+        call exact_transition_identity_pc
         ret
 
 ; r21=source block, r22=arity, r23=target procedure identity. The event
@@ -132,38 +133,32 @@ expression_gen_expr_require_locals:
         imm r21, 303
         imm r22, 2
         imm r23, 0
-        imm r24, 43179
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 193
         imm r21, 304
         imm r22, 1
         imm r23, 0
-        imm r24, 43198
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 194
         imm r21, 305
         imm r22, 1
         imm r23, 0
-        imm r24, 43432
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 195
         imm r21, 306
         imm r22, 2
         imm r23, 1
-        imm r24, 43554
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 196
         imm r21, 306
         imm r22, 1
         imm r23, 1
-        imm r24, 43573
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 197
         imm r21, 307
         imm r22, 1
         imm r23, 1
-        imm r24, 43850
-        call transfer_require_local
+        call exact_local_identity_pc
         ret
 
 expression_gen_expr_require_memory:
@@ -201,173 +196,142 @@ expression_gen_expr_require_primitives:
         imm r21, 303
         imm r22, 1
         imm r23, 2097080
-        imm r24, 43166
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 674
         imm r21, 304
         imm r22, 3
         imm r23, 8
-        imm r24, 43243
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 675
         imm r21, 304
         imm r22, 1
         imm r23, 64
-        imm r24, 43233
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 676
         imm r21, 304
         imm r22, 1
         imm r23, 2097072
-        imm r24, 43321
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 677
         imm r21, 304
         imm r22, 1
         imm r23, 252
-        imm r24, 43347
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 678
         imm r21, 304
         imm r22, 1
         imm r23, 0
-        imm r24, 43376
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 679
         imm r21, 305
         imm r22, 1
         imm r23, 2097080
-        imm r24, 43406
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 680
         imm r21, 305
         imm r22, 2
         imm r23, 3
-        imm r24, 43477
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 681
         imm r21, 305
         imm r22, 1
         imm r23, 1
-        imm r24, 43467
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 682
         imm r21, 306
         imm r22, 3
         imm r23, 13
-        imm r24, 43618
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 683
         imm r21, 306
         imm r22, 1
         imm r23, 0
-        imm r24, 43608
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 684
         imm r21, 306
         imm r22, 1
         imm r23, 2097080
-        imm r24, 43696
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 685
         imm r21, 306
         imm r22, 1
         imm r23, 2097080
-        imm r24, 43722
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 686
         imm r21, 306
         imm r22, 2
         imm r23, 4
-        imm r24, 43761
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 687
         imm r21, 306
         imm r22, 1
         imm r23, 1
-        imm r24, 43751
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 688
         imm r21, 306
         imm r22, 1
         imm r23, 0
-        imm r24, 43802
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 689
         imm r21, 307
         imm r22, 1
         imm r23, 2097080
-        imm r24, 43910
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 690
         imm r21, 307
         imm r22, 1
         imm r23, 2097080
-        imm r24, 43936
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 691
         imm r21, 307
         imm r22, 2
         imm r23, 4
-        imm r24, 43975
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 692
         imm r21, 307
         imm r22, 1
         imm r23, 1
-        imm r24, 43965
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 693
         imm r21, 307
         imm r22, 1
         imm r23, 0
-        imm r24, 44016
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 expression_gen_expr_require_pushes:
         ; Binary-left operands.
         imm r20, 202
         imm r21, 304
-        imm r23, 43217
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 203
         imm r21, 305
-        imm r23, 43451
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 204
         imm r21, 306
-        imm r23, 43592
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 205
         imm r21, 306
-        imm r23, 43735
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 206
         imm r21, 307
-        imm r23, 43949
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         ; emit_cmp argument and four store-address evaluations.
         imm r20, 345
         imm r21, 307
-        imm r23, 43869
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 390
         imm r21, 304
-        imm r23, 43331
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 391
         imm r21, 305
-        imm r23, 43416
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 392
         imm r21, 306
-        imm r23, 43706
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 393
         imm r21, 307
-        imm r23, 43920
-        call exact_require_store_push
+        call exact_require_store_push_identity
         ret
 
 expression_gen_expr_require_censuses:

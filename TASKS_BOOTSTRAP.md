@@ -90,7 +90,7 @@ admission, and optional stress evidence stay under the same compiler owner.
 - [ ] Collapse the remaining Beta admission explosion into one canonical exact
   instruction/event/memory identity format plus small responsibility-specific
   semantic modules. The current bounded admission consists of 189 Alpha modules
-  and 62,667 lines; Checker A is 1,018,589 source bytes and the checker ROOT is
+  and 62,366 lines; Checker A is 1,014,670 source bytes and the checker ROOT is
   81,649 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
   offsets, macro bodies, or equivalent verification permutations.
@@ -117,9 +117,10 @@ admission, and optional stress evidence stay under the same compiler owner.
   families while deleting 352 net lines. The broad compatibility-API census is
   classified: after the compact expression-rule, declaration/expect,
   summary/statement, main-ready/root-prelude, parse/control, classifier,
-  fixed-keyword, and main-bridge tranches it spans 21 modules.
+  fixed-keyword, main-bridge, expression-shape, and classifier tranches it spans
+  13 modules.
   Five are retained by design—the three low-level identity owners and the
-  identity-derived fixed-emitter/gen-emit checks—leaving 16 literal semantic
+  identity-derived fixed-emitter/gen-emit checks—leaving eight literal semantic
   consumers to migrate before r13. Source rows `259`
   and `391` are not artifact PCs. `gen_emit`'s three identical newline events
   use exact-cardinality occurrence identity; an eighth tooth swaps two witness

@@ -52,25 +52,28 @@ expression_leaf_require_proc_meta:
 expression_leaf_require_blocks:
         imm r20, 132
         imm r21, 25                    ; gen_load procedure identity
-        call exact_proc_entry_r21
-        call exact_require_block_pc
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 133
-        imm r21, 17874
-        call exact_require_block_pc
+        imm r21, 25
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 134
-        imm r21, 18006
-        call exact_require_block_pc
+        imm r21, 25
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 135
-        imm r21, 18086
-        call exact_require_block_pc
+        imm r21, 25
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 132
         imm r21, 135
         imm r22, 25
         call exact_require_proc_blocks
         imm r20, 149
         imm r21, 31                    ; gen_write_byte procedure identity
-        call exact_proc_entry_r21
-        call exact_require_block_pc
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 149
         imm r21, 149
         imm r22, 31
@@ -82,21 +85,20 @@ expression_leaf_require_transitions:
         imm r21, 133
         imm r22, 1
         imm r23, 134
-        imm r24, 17978
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 99
         imm r21, 133
         imm r22, 0
         imm r23, 135
-        imm r24, 17997
-        call exact_require_transition
+        call exact_transition_identity_pc
         ret
 
-; r20=row, r21=block, r22=event PC.
+; r20=procedure,r21=block,r22=verifier literal,r23=length.
 expression_leaf_require_emit:
-        mov r23, r22
-        imm r22, 4
-        call exact_require_event
+        call exact_unique_emit_event_identity
+        mov r14, r0
+        mov r10, r1
+        call check_emit_at_call
         ret
 
 ; r20=owning procedure, r21=source block, r22=arity, r23=target procedure.
@@ -137,16 +139,18 @@ expression_leaf_require_events:
         imm r24, 1                     ; second of two identical complete keys
         imm r25, 2                     ; exact cardinality
         call expression_leaf_require_nth_call
-        imm r20, 168
+        imm r20, 25
         imm r21, 134
-        imm r22, 18047
+        imm r22, expression_leaf_literal_loadb
+        imm r23, 12
         call expression_leaf_require_emit
         imm r20, 25
         imm r21, 134
         call exact_require_event_epilogue
-        imm r20, 170
+        imm r20, 25
         imm r21, 135
-        imm r22, 18126
+        imm r22, expression_leaf_literal_load
+        imm r23, 11
         call expression_leaf_require_emit
         imm r20, 25
         imm r21, 135
@@ -174,9 +178,10 @@ expression_leaf_require_events:
         imm r24, 1                     ; second of two identical complete keys
         imm r25, 2                     ; exact cardinality
         call expression_leaf_require_nth_call
-        imm r20, 240
+        imm r20, 31
         imm r21, 149
-        imm r22, 21611
+        imm r22, expression_leaf_literal_write
+        imm r23, 9
         call expression_leaf_require_emit
         imm r20, 31
         imm r21, 149
@@ -191,86 +196,71 @@ expression_leaf_require_data:
         imm r21, 133
         imm r22, 1
         imm r23, 0
-        imm r24, 17874
-        call transfer_require_local
+        call exact_local_identity_pc
 
         ; gen_load expression rows.
         imm r20, 356
         imm r21, 132
         imm r22, 1
         imm r23, 91
-        imm r24, 17763
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 357
         imm r21, 132
         imm r22, 1
         imm r23, 93
-        imm r24, 17823
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 358
         imm r21, 133
         imm r22, 3
         imm r23, 10
-        imm r24, 17919
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 359
         imm r21, 133
         imm r22, 1
         imm r23, 1
-        imm r24, 17909
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 360
         imm r21, 134
         imm r22, 1
         imm r23, 0
-        imm r24, 18056
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 361
         imm r21, 135
         imm r22, 1
         imm r23, 0
-        imm r24, 18135
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 91
         imm r21, 133
-        imm r23, 17893
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 293
         imm r21, 132
-        imm r23, 17773
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 294
         imm r21, 132
-        imm r23, 17833
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
 
         ; gen_write_byte expression rows.
         imm r20, 388
         imm r21, 149
         imm r22, 1
         imm r23, 40
-        imm r24, 21462
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 389
         imm r21, 149
         imm r22, 1
         imm r23, 41
-        imm r24, 21522
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 390
         imm r21, 149
         imm r22, 1
         imm r23, 0
-        imm r24, 21620
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 308
         imm r21, 149
-        imm r23, 21472
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 309
         imm r21, 149
-        imm r23, 21532
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         ret
 
 expression_leaf_require_censuses:
@@ -341,3 +331,10 @@ expression_leaf_require_regions:
         imm r24, 3
         call exact_quiet_scan_region
         ret
+
+expression_leaf_literal_loadb:
+        db "loadb r0,r0\n"
+expression_leaf_literal_load:
+        db "load r0,r0\n"
+expression_leaf_literal_write:
+        db "write r0\n"
