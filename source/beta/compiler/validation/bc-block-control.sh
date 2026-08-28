@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Bounded source-to-artifact control correspondence for the whole bc compiler.
+# Canonical whole-source/artifact maximal-observation check for bc.
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -20,67 +20,31 @@ SOURCE="$OMEGA_PATH_BETA_COMPILER/bc.beta"
 ARTIFACT="$OMEGA_PATH_BETA_COMPILER/artifacts/bc.tape"
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
-. "$GATE_DIR/bc-mutation-cache.sh"
-. "$GATE_DIR/bc-count-lets-teeth.sh"
-. "$GATE_DIR/bc-parse-parameter-teeth.sh"
-. "$GATE_DIR/bc-parse-capacity-teeth.sh"
-. "$GATE_DIR/bc-emit-ident-teeth.sh"
-. "$GATE_DIR/bc-emit-dec-teeth.sh"
-. "$GATE_DIR/bc-fixed-decimal-emitters-teeth.sh"
-. "$GATE_DIR/bc-parse-output-prefix-teeth.sh"
-. "$GATE_DIR/bc-gen-stmts-boundary-teeth.sh"
-. "$GATE_DIR/bc-parse-number-teeth.sh"
-. "$GATE_DIR/bc-parse-char-teeth.sh"
-. "$GATE_DIR/bc-operator-classifier-teeth.sh"
-. "$GATE_DIR/bc-cmp-op-teeth.sh"
-. "$GATE_DIR/bc-fixed-keyword-teeth.sh"
-. "$GATE_DIR/bc-checker-split-teeth.sh"
-. "$GATE_DIR/bc-name-eq-teeth.sh"
-. "$GATE_DIR/bc-lookup-teeth.sh"
-. "$GATE_DIR/bc-bounded-emitters-teeth.sh"
-. "$GATE_DIR/bc-emit-dec-word-teeth.sh"
-. "$GATE_DIR/bc-label-emitters-teeth.sh"
-. "$GATE_DIR/bc-expression-family-teeth.sh"
-. "$GATE_DIR/bc-statement-family-teeth.sh"
-. "$GATE_DIR/bc-statement-family-semantic-teeth.sh"
-. "$GATE_DIR/bc-parse-body-teeth.sh"
-. "$GATE_DIR/bc-resource-classification-teeth.sh"
-. "$GATE_DIR/bc-declaration-budget-teeth.sh"
-. "$GATE_DIR/bc-parse-proc-teeth.sh"
-. "$GATE_DIR/bc-root-observation-teeth.sh"
-. "$GATE_DIR/bc-raw-load-family-teeth.sh"
-. "$GATE_DIR/bc-slurp-summary-teeth.sh"
-. "$GATE_DIR/bc-main-slurp-teeth.sh"
-. "$GATE_DIR/bc-write-str-teeth.sh"
-. "$GATE_DIR/bc-fixed-emitter-teeth.sh"
-. "$GATE_DIR/bc-cursor-leaf-teeth.sh"
-. "$GATE_DIR/bc-skip-ws-teeth.sh"
-. "$GATE_DIR/bc-main-ready-teeth.sh"
-. "$GATE_DIR/bc-main-loop-teeth.sh"
-. "$GATE_DIR/bc-byte-classifier-teeth.sh"
-. "$GATE_DIR/bc-read-ident-teeth.sh"
-. "$GATE_DIR/bc-expect-teeth.sh"
-. "$GATE_DIR/bc-declare-teeth.sh"
-. "$GATE_DIR/bc-let-keyword-teeth.sh"
-. "$GATE_DIR/bc-literal-skip-teeth.sh"
-. "$GATE_DIR/bc-stack-owner-teeth.sh"
-. "$GATE_DIR/bc-ranged-static-teeth.sh"
-. "$GATE_DIR/bc-ranged-transfer-teeth.sh"
-. "$GATE_DIR/bc-frame-summary-teeth.sh"
-. "$GATE_DIR/bc-counter-potential-teeth.sh"
-. "$GATE_DIR/bc-flat-composition-teeth.sh"
-. "$GATE_DIR/bc-coherent-ranged-teeth.sh"
-. "$GATE_DIR/bc-call-bounds-teeth.sh"
-. "$GATE_DIR/bc-artifact-control-flow-teeth.sh"
-. "$GATE_DIR/bc-artifact-effect-emitter-teeth.sh"
-. "$GATE_DIR/bc-artifact-frame-call-teeth.sh"
-. "$GATE_DIR/bc-artifact-local-access-teeth.sh"
-. "$GATE_DIR/bc-artifact-raw-memory-teeth.sh"
-. "$GATE_DIR/bc-artifact-primitive-composition-teeth.sh"
-. "$GATE_DIR/bc-artifact-comparison-teeth.sh"
-. "$GATE_DIR/bc-artifact-stack-push-teeth.sh"
-. "$GATE_DIR/bc-artifact-structural-survival-teeth.sh"
-. "$GATE_DIR/bc-checker-a-shards.sh"
+bc_timing_start() {
+  BC_TIMING_PHASE=$1
+  BC_TIMING_STARTED=$(date +%s)
+  echo "bc timing: $BC_TIMING_PHASE started"
+}
+
+bc_timing_finish() {
+  BC_TIMING_FINISHED=$(date +%s)
+  echo "bc timing: $BC_TIMING_PHASE $((BC_TIMING_FINISHED - BC_TIMING_STARTED))s"
+}
+
+u32_file() {
+  python3 -c 'import struct,sys; sys.stdout.buffer.write(struct.pack("<I", int(sys.argv[1])))' "$1" > "$2"
+}
+
+case_run() {
+  set +e
+  "$T/control-check" < "$3" > "$T/stdout"
+  got=$?
+  set -e
+  [ "$got" = "$2" ] && [ ! -s "$T/stdout" ] || {
+    echo "bc admission FAIL — $1: expected $2/empty, got $got/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
+    exit 1
+  }
+}
 
 bc_timing_start setup-and-witnesses
 
@@ -96,66 +60,7 @@ python3 "$GATE_DIR/bc_block_control_map.py" \
   --source "$SOURCE" \
   --assembly "$T/fixed.alpha" \
   --tape "$ARTIFACT" \
-  --output "$T/control.witness" \
-  --retarget-patch-output "$T/retarget.patch" \
-  --operand-witness-output "$T/operand.witness" \
-  --duplicate-witness-output "$T/duplicate.witness" \
-  --missing-witness-output "$T/missing.witness" \
-  --noncanonical-witness-output "$T/noncanonical.witness" \
-  --call-retarget-patch-output "$T/call-retarget.patch" \
-  --read-register-patch-output "$T/read-register.patch" \
-  --write-register-patch-output "$T/write-register.patch" \
-  --helper-write-patch-output "$T/helper-write.patch" \
-  --emit-byte-patch-output "$T/emit-byte.patch" \
-  --emit-length-patch-output "$T/emit-length.patch" \
-  --emit-pointer-patch-output "$T/emit-pointer.patch" \
-  --emit-helper-patch-output "$T/emit-helper.patch" \
-  --orphan-io-patch-output "$T/orphan-io.patch" \
-  --duplicate-event-witness-output "$T/duplicate-event.witness" \
-  --noncanonical-event-witness-output "$T/noncanonical-event.witness" \
-  --frame-size-patch-output "$T/frame-size.patch" \
-  --saved-fp-patch-output "$T/saved-fp.patch" \
-  --frame-base-patch-output "$T/frame-base.patch" \
-  --param-offset-patch-output "$T/param-offset.patch" \
-  --param-register-patch-output "$T/param-register.patch" \
-  --call-pop-order-patch-output "$T/call-pop-order.patch" \
-  --call-pop-step-patch-output "$T/call-pop-step.patch" \
-  --local-load-slot-patch-output "$T/local-load-slot.patch" \
-  --local-store-slot-patch-output "$T/local-store-slot.patch" \
-  --local-base-patch-output "$T/local-base.patch" \
-  --local-load-opcode-patch-output "$T/local-load-opcode.patch" \
-  --local-store-opcode-patch-output "$T/local-store-opcode.patch" \
-  --duplicate-local-witness-output "$T/duplicate-local.witness" \
-  --noncanonical-local-witness-output "$T/noncanonical-local.witness" \
-  --memory-load-width-patch-output "$T/memory-load-width.patch" \
-  --memory-store-width-patch-output "$T/memory-store-width.patch" \
-  --memory-load-register-patch-output "$T/memory-load-register.patch" \
-  --memory-store-register-patch-output "$T/memory-store-register.patch" \
-  --memory-pop-step-patch-output "$T/memory-pop-step.patch" \
-  --duplicate-memory-witness-output "$T/duplicate-memory.witness" \
-  --noncanonical-memory-witness-output "$T/noncanonical-memory.witness" \
-  --literal-value-patch-output "$T/literal-value.patch" \
-  --literal-register-patch-output "$T/literal-register.patch" \
-  --arithmetic-opcode-patch-output "$T/arithmetic-opcode.patch" \
-  --arithmetic-pop-step-patch-output "$T/arithmetic-pop-step.patch" \
-  --arithmetic-register-patch-output "$T/arithmetic-register.patch" \
-  --duplicate-primitive-witness-output "$T/duplicate-primitive.witness" \
-  --noncanonical-primitive-witness-output "$T/noncanonical-primitive.witness" \
-  --synthetic-literal-witness-output "$T/synthetic-literal.witness" \
-  --composition-order-witness-output "$T/composition-order.witness" \
-  --composition-argument-order-witness-output "$T/composition-argument-order.witness" \
-  --composition-store-order-witness-output "$T/composition-store-order.witness" \
-  --comparison-opcode-patch-output "$T/comparison-opcode.patch" \
-  --comparison-operand-patch-output "$T/comparison-operand.patch" \
-  --comparison-branch-target-patch-output "$T/comparison-branch-target.patch" \
-  --comparison-result-patch-output "$T/comparison-result.patch" \
-  --comparison-pop-step-patch-output "$T/comparison-pop-step.patch" \
-  --push-step-patch-output "$T/push-step.patch" \
-  --push-stack-register-patch-output "$T/push-stack-register.patch" \
-  --push-value-register-patch-output "$T/push-value-register.patch" \
-  --push-opcode-patch-output "$T/push-opcode.patch" \
-  --duplicate-push-witness-output "$T/duplicate-push.witness" \
-  --cross-block-push-witness-output "$T/cross-block-push.witness"
+  --output "$T/control.witness"
 
 # The untrusted mapper never writes the source/tape portion of checker input.
 # Assemble every bundle here from the exact repository source and artifact.
@@ -166,18 +71,11 @@ u32_file "$TAPE_LEN" "$T/tape.len"
 python3 "$GATE_DIR/bc_call_bounds.py" \
   --repo "$OMEGA_REPO_ROOT" \
   --source "$SOURCE" \
-  --output "$T/call-bounds.witness" \
-  --underreport-probe-output "$T/call-bounds-probe.witness" \
-  --underreport-root-output "$T/call-bounds-root.witness"
+  --output "$T/call-bounds.witness"
 make_bundle() { # tape witness output
   cat "$T/source.len" "$SOURCE" "$T/tape.len" "$1" "$2" \
     "$T/call-bounds.witness" > "$3"
 }
-make_bounds_bundle() { # bounds-witness output
-  cat "$T/source.len" "$SOURCE" "$T/tape.len" "$ARTIFACT" \
-    "$T/control.witness" "$1" > "$2"
-}
-
 make_bundle "$ARTIFACT" "$T/control.witness" "$T/control.bundle"
 CONTROL_BUNDLE_CKSUM=$(cksum < "$T/control.bundle")
 require_control_bundle_unchanged() {
@@ -190,8 +88,7 @@ require_control_bundle_unchanged() {
 
 # The root observable excludes invalid-opcode execution only after the exact
 # persisted artifact has passed the independent reachable-structure checker.
-# Establish that owner before any focused mode may exit; the historical matrix
-# below reuses the same executable for its structurally valid mutations.
+# Establish the structural owner before building the canonical conjunction.
 "$ASM" < "$GATE_DIR/bc-artifact-structure.alpha" > "$T/structure-check.tape"
 stamp_seed "$T/structure-check.tape" "$SEED" "$T/structure-check" >/dev/null
 set +e
@@ -203,80 +100,6 @@ if [ "$artifact_structure_status" != 0 ] || [ -s "$T/stdout" ]; then
   exit 1
 fi
 BC_OWNER_ARTIFACT_STRUCTURE=1
-make_bundle "$ARTIFACT" "$T/operand.witness" "$T/operand.bundle"
-make_bundle "$ARTIFACT" "$T/duplicate.witness" "$T/duplicate.bundle"
-make_bundle "$ARTIFACT" "$T/missing.witness" "$T/missing.bundle"
-make_bundle "$ARTIFACT" "$T/noncanonical.witness" "$T/noncanonical.bundle"
-make_bundle "$ARTIFACT" "$T/duplicate-event.witness" "$T/duplicate-event.bundle"
-make_bundle "$ARTIFACT" "$T/noncanonical-event.witness" "$T/noncanonical-event.bundle"
-make_bundle "$ARTIFACT" "$T/duplicate-local.witness" "$T/duplicate-local.bundle"
-make_bundle "$ARTIFACT" "$T/noncanonical-local.witness" "$T/noncanonical-local.bundle"
-make_bundle "$ARTIFACT" "$T/duplicate-memory.witness" "$T/duplicate-memory.bundle"
-make_bundle "$ARTIFACT" "$T/noncanonical-memory.witness" "$T/noncanonical-memory.bundle"
-make_bundle "$ARTIFACT" "$T/duplicate-primitive.witness" "$T/duplicate-primitive.bundle"
-make_bundle "$ARTIFACT" "$T/noncanonical-primitive.witness" "$T/noncanonical-primitive.bundle"
-make_bundle "$ARTIFACT" "$T/synthetic-literal.witness" "$T/synthetic-literal.bundle"
-make_bundle "$ARTIFACT" "$T/composition-order.witness" "$T/composition-order.bundle"
-make_bundle "$ARTIFACT" "$T/composition-argument-order.witness" "$T/composition-argument-order.bundle"
-make_bundle "$ARTIFACT" "$T/composition-store-order.witness" "$T/composition-store-order.bundle"
-make_bundle "$ARTIFACT" "$T/duplicate-push.witness" "$T/duplicate-push.bundle"
-make_bundle "$ARTIFACT" "$T/cross-block-push.witness" "$T/cross-block-push.bundle"
-make_bounds_bundle "$T/call-bounds-probe.witness" "$T/call-bounds-probe.bundle"
-make_bounds_bundle "$T/call-bounds-root.witness" "$T/call-bounds-root.bundle"
-
-cp "$ARTIFACT" "$T/retarget.tape"
-RETARGET_OFFSET=$(dd if="$T/retarget.patch" bs=1 count=4 2>/dev/null | od -An -tu4 | tr -d ' ')
-dd if="$T/retarget.patch" of="$T/retarget.tape" bs=1 skip=4 seek="$RETARGET_OFFSET" count=8 conv=notrunc 2>/dev/null
-make_bundle "$T/retarget.tape" "$T/control.witness" "$T/retarget.bundle"
-
-apply_tape_patch() { # label
-  cp "$ARTIFACT" "$T/$1.tape"
-  PATCH_OFFSET=$(dd if="$T/$1.patch" bs=1 count=4 2>/dev/null | od -An -tu4 | tr -d ' ')
-  PATCH_SIZE=$(wc -c < "$T/$1.patch" | tr -d ' ')
-  PATCH_SIZE=$((PATCH_SIZE - 4))
-  dd if="$T/$1.patch" of="$T/$1.tape" bs=1 skip=4 seek="$PATCH_OFFSET" count="$PATCH_SIZE" conv=notrunc 2>/dev/null
-  make_bundle "$T/$1.tape" "$T/control.witness" "$T/$1.bundle"
-}
-apply_tape_patch call-retarget
-apply_tape_patch read-register
-apply_tape_patch write-register
-apply_tape_patch helper-write
-apply_tape_patch emit-byte
-apply_tape_patch emit-length
-apply_tape_patch emit-pointer
-apply_tape_patch emit-helper
-apply_tape_patch orphan-io
-apply_tape_patch frame-size
-apply_tape_patch saved-fp
-apply_tape_patch frame-base
-apply_tape_patch param-offset
-apply_tape_patch param-register
-apply_tape_patch call-pop-order
-apply_tape_patch call-pop-step
-apply_tape_patch local-load-slot
-apply_tape_patch local-store-slot
-apply_tape_patch local-base
-apply_tape_patch local-load-opcode
-apply_tape_patch local-store-opcode
-apply_tape_patch memory-load-width
-apply_tape_patch memory-store-width
-apply_tape_patch memory-load-register
-apply_tape_patch memory-store-register
-apply_tape_patch memory-pop-step
-apply_tape_patch literal-value
-apply_tape_patch literal-register
-apply_tape_patch arithmetic-opcode
-apply_tape_patch arithmetic-pop-step
-apply_tape_patch arithmetic-register
-apply_tape_patch comparison-opcode
-apply_tape_patch comparison-operand
-apply_tape_patch comparison-branch-target
-apply_tape_patch comparison-result
-apply_tape_patch comparison-pop-step
-apply_tape_patch push-step
-apply_tape_patch push-stack-register
-apply_tape_patch push-value-register
-apply_tape_patch push-opcode
 bc_timing_finish
 
 emit_stack_checker_prefix() {
@@ -307,15 +130,6 @@ emit_name_eq_checker_prefix() {
     "$GATE_DIR/bc-name-eq-control-shape.alpha" \
     "$GATE_DIR/bc-name-eq-data-shape.alpha" \
     "$GATE_DIR/bc-name-eq-summary.alpha"
-}
-
-build_name_eq_checker() {
-  {
-    emit_name_eq_checker_prefix
-    cat "$GATE_DIR/bc-post-name-eq-base.alpha"
-  } > "$T/name-eq-check.alpha"
-  "$ASM" < "$T/name-eq-check.alpha" > "$T/name-eq-check.tape"
-  stamp_seed "$T/name-eq-check.tape" "$SEED" "$T/name-eq-check" >/dev/null
 }
 
 build_lookup_checker() {
@@ -734,17 +548,6 @@ build_statement_family_semantic_checker() {
   fi
   stamp_seed "$T/statement-family-semantic.tape" "$SEED" \
     "$T/statement-family-semantic" >/dev/null
-}
-
-smoke_name_eq_checker() {
-  set +e
-  "$T/name-eq-check" < "$T/control.bundle" > "$T/stdout"
-  name_eq_smoke_status=$?
-  set -e
-  if [ "$name_eq_smoke_status" != 0 ] || [ -s "$T/stdout" ]; then
-    echo "bc block control FAIL — name_eq canonical smoke: expected 0/empty, got $name_eq_smoke_status/$(wc -c < "$T/stdout" | tr -d ' ') bytes" >&2
-    exit 1
-  fi
 }
 
 smoke_lookup_checker() {
@@ -1222,158 +1025,16 @@ establish_root_observation_canonical() {
   smoke_root_observation_checker
 }
 
-# Statement-family focus continues through the canonical prerequisite owners
-# below before testing its conditional semantic implication. No process-local
-# GSBD/XPUB/LOOK/BEMS/E5PK marker is copied between executables.
-
-# Exact family shape and the 65-row semantic induction are intentionally two
-# independent processes over one canonical bundle. Acceptance is conjunction.
-if [ "${BC_BLOCK_FOCUS:-}" = expression-family ]; then
-  bc_timing_start expression-family-focus
-  build_expression_family_checkers
-  smoke_expression_family_checkers
-  expression_family_build_teeth
-  expression_family_reject_teeth
-  bc_timing_finish
-  echo "bc expression family: focused canonical + 16 phase-isolated teeth passed ($(wc -c < "$T/expression-family-shape.tape" | tr -d ' ')-byte shape, $(wc -c < "$T/expression-family-semantic.tape" | tr -d ' ')-byte semantic tapes)"
-  exit 0
-fi
-
-# Checker E independently rebuilds WSTR/cursor/expect/full-Word DECW before
-# composing the label, string-body, gen_emit, and comparison emitter family.
-if [ "${BC_BLOCK_FOCUS:-}" = label-emitters ]; then
-  bc_timing_start label-emitters-focus
-  build_label_emitters_checker
-  smoke_label_emitters_checker
-  label_emitters_build_teeth
-  label_emitters_reject_teeth
-  bc_timing_finish
-  echo "bc label emitters: focused canonical + 37 phase-isolated teeth passed ($(wc -c < "$T/label-emitters-check.tape" | tr -d ' ')-byte checker tape)"
-  exit 0
-fi
-
-# Checker D independently re-executes exact procedure-40 shape and proves the
-# honest signed full-Word relation without importing bounded DECS.
-if [ "${BC_BLOCK_FOCUS:-}" = emit-dec-word ]; then
-  bc_timing_start emit-dec-word-focus
-  build_emit_dec_word_checker
-  smoke_emit_dec_word_checker
-  emit_dec_word_build_teeth
-  emit_dec_word_reject_teeth
-  bc_timing_finish
-  echo "bc emit_dec Word: focused canonical + 36 phase-isolated teeth passed ($(wc -c < "$T/emit-dec-word-check.tape" | tr -d ' ')-byte checker tape)"
-  exit 0
-fi
-
-# The name_eq focus is an independent tranche: it deliberately skips Checker A
-# and imports no process-local theorem cells from it.
-if [ "${BC_BLOCK_FOCUS:-}" = name-eq ]; then
-  bc_timing_start name-eq-focus
-  build_name_eq_checker
-  smoke_name_eq_checker
-  checker_split_build_name_tooth
-  name_eq_build_teeth
-  checker_split_reject_name_tooth
-  name_eq_reject_teeth
-  bc_timing_finish
-  echo "bc name_eq: focused canonical + 32 phase-isolated teeth passed ($(wc -c < "$T/name-eq-check.tape" | tr -d ' ')-byte checker tape)"
-  exit 0
-fi
-
-if [ "${BC_BLOCK_FOCUS:-}" = lookup ]; then
-  bc_timing_start lookup-focus
-  build_lookup_checker
-  smoke_lookup_checker
-  lookup_build_teeth
-  lookup_reject_teeth
-  bc_timing_finish
-  echo "bc lookup: focused canonical + 35 phase-isolated teeth passed ($(wc -c < "$T/lookup-check.tape" | tr -d ' ')-byte checker tape)"
-  exit 0
-fi
-
-# Checker C independently re-executes the lower-rooted WSTR, cursor/expect,
-# and bounded-DECS prerequisites.  Its focus never constructs Checker A or B.
-if [ "${BC_BLOCK_FOCUS:-}" = bounded-emitters ]; then
-  bc_timing_start bounded-emitters-focus
-  build_bounded_emitters_checker
-  smoke_bounded_emitters_checker
-  bounded_emitters_build_teeth
-  bounded_emitters_reject_teeth
-  bc_timing_finish
-  echo "bc bounded emitters: focused canonical + 52 phase-isolated teeth passed ($(wc -c < "$T/bounded-emitters-check.tape" | tr -d ' ')-byte checker tape)"
-  exit 0
-fi
-
-# Statement focus runs only the canonical external owners here. The unfocused
-# gate retains their full historical teeth before constructing Checker A.
-if [ "${BC_BLOCK_FOCUS:-}" = resource-classification ]; then
-  bc_timing_start resource-classification-prerequisites
-  build_expression_family_checkers
-  smoke_expression_family_checkers
-  bc_timing_finish
-elif [ "${BC_BLOCK_FOCUS:-}" = statement-family ] || \
-   [ "${BC_BLOCK_FOCUS:-}" = parse-proc-body ] || \
-   [ "${BC_BLOCK_FOCUS:-}" = declaration-budget ] || \
-   [ "${BC_BLOCK_FOCUS:-}" = parse-proc ] || \
-   [ "${BC_BLOCK_FOCUS:-}" = root-observation ]; then
-  bc_timing_start statement-family-prerequisites
-  if [ "${BC_BLOCK_FOCUS:-}" = root-observation ]; then
-    build_emit_dec_word_checker
-    smoke_emit_dec_word_checker
-  fi
-  build_label_emitters_checker
-  smoke_label_emitters_checker
-  build_expression_family_checkers
-  smoke_expression_family_checkers
-  build_statement_family_shape_checker
-  smoke_statement_family_shape_checker
-  bc_timing_finish
-else
-  bc_timing_start emit-dec-word-canonical
-  build_emit_dec_word_checker
-  smoke_emit_dec_word_checker
-  bc_timing_finish
-  bc_run_cached_teeth emit-dec-word '36 cases' \
-    emit_dec_word_build_teeth emit_dec_word_reject_teeth \
-    "$T/emit-dec-word-check.alpha" "$T/control.bundle" \
-    "$GATE_DIR/bc-emit-dec-word-teeth.sh" \
-    "$GATE_DIR/bc-mutation-cache.sh" "$ARTIFACT" "$ASM" "$SEED" \
-    "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" "$OMEGA_PATH_ALPHA/seed_env.sh"
-
-  bc_timing_start label-emitters-canonical
-  build_label_emitters_checker
-  smoke_label_emitters_checker
-  bc_timing_finish
-  bc_run_cached_teeth label-emitters '37 cases' \
-    label_emitters_build_teeth label_emitters_reject_teeth \
-    "$T/label-emitters-check.alpha" "$T/control.bundle" \
-    "$GATE_DIR/bc-label-emitters-teeth.sh" \
-    "$GATE_DIR/bc-mutation-cache.sh" "$ARTIFACT" "$ASM" "$SEED" \
-    "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" "$OMEGA_PATH_ALPHA/seed_env.sh"
-
-  bc_timing_start expression-family-canonical
-  build_expression_family_checkers
-  smoke_expression_family_checkers
-  bc_timing_finish
-  bc_run_cached_teeth expression-family '16 cases' \
-    expression_family_build_teeth expression_family_reject_teeth \
-    "$T/expression-family-shape.alpha" \
-    "$T/expression-family-semantic.alpha" "$T/control.bundle" \
-    "$GATE_DIR/bc-expression-family-teeth.sh" \
-    "$GATE_DIR/bc-mutation-cache.sh" "$ARTIFACT" "$ASM" "$SEED" \
-    "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" "$OMEGA_PATH_ALPHA/seed_env.sh"
-
-  bc_timing_start statement-family-shape-canonical
-  build_statement_family_shape_checker
-  smoke_statement_family_shape_checker
-  bc_timing_finish
-  bc_run_cached_teeth statement-family-shape '12 cases' \
-    statement_family_build_teeth statement_family_reject_teeth \
-    "$T/statement-family-shape.alpha" "$T/control.bundle" \
-    "$GATE_DIR/bc-statement-family-teeth.sh" \
-    "$GATE_DIR/bc-mutation-cache.sh" "$ARTIFACT" "$ASM" "$SEED" \
-    "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" "$OMEGA_PATH_ALPHA/seed_env.sh"
-fi
+bc_timing_start canonical-prerequisites
+build_emit_dec_word_checker
+smoke_emit_dec_word_checker
+build_label_emitters_checker
+smoke_label_emitters_checker
+build_expression_family_checkers
+smoke_expression_family_checkers
+build_statement_family_shape_checker
+smoke_statement_family_shape_checker
+bc_timing_finish
 
 bc_timing_start checker-a-canonical
 cat "$GATE_DIR/bc-block-control.alpha" \
@@ -1457,9 +1118,7 @@ if [ "$checker_a_tape_bytes" -gt "$checker_a_seed_payload_limit" ]; then
 fi
 stamp_seed "$T/control-check.tape" "$SEED" "$T/control-check" >/dev/null
 
-# Fail fast on the canonical proof before spending most of the gate assembling
-# its mutation matrix. The same valid run used to occur only after every tooth
-# binary had been built, obscuring simple theorem-integration failures.
+# Fail fast on Checker A before composing the later canonical owners.
 set +e
 "$T/control-check" < "$T/control.bundle" > "$T/stdout"
 control_smoke_status=$?
@@ -1472,252 +1131,50 @@ require_control_bundle_unchanged
 BC_OWNER_CHECKER_A=1
 bc_timing_finish
 
-# Focused development mode avoids the historical mutation matrix while still
-# using the exact canonical source/artifact bundle and every prerequisite proof.
-case "${BC_BLOCK_FOCUS:-}" in
-  resource-classification)
-    bc_timing_start resource-classification
-    establish_resource_classification_canonical
-    resource_classification_build_teeth
-    resource_classification_reject_teeth
-    bc_timing_finish
-    echo "bc checked resources: seven exact guards classified into five ResourceKinds without status inversion + 36 phase-isolated teeth passed ($(wc -c < "$T/resource-classification.tape" | tr -d ' ')-byte tape)"
-    exit 0
-    ;;
-  parse-proc-body)
-    bc_timing_start parse-proc-body-conditional-semantics
-    build_lookup_checker
-    smoke_lookup_checker
-    build_bounded_emitters_checker
-    smoke_bounded_emitters_checker
-    build_statement_family_semantic_checker
-    smoke_statement_family_semantic_checker
-    establish_parse_body_canonical
-    parse_body_build_teeth
-    parse_body_reject_teeth
-    bc_timing_finish
-    echo "bc parse_proc genbody: same-bundle statement implication discharged; D=0..64 maximal Ret-or-Div composition through unconditional epilogue/return + 25 teeth passed ($(wc -c < "$T/parse-body.tape" | tr -d ' ')-byte tape)"
-    exit 0
-    ;;
-  declaration-budget)
-    bc_timing_start declaration-budget
-    build_lookup_checker
-    smoke_lookup_checker
-    build_bounded_emitters_checker
-    smoke_bounded_emitters_checker
-    build_statement_family_semantic_checker
-    smoke_statement_family_semantic_checker
-    establish_parse_body_canonical
-    establish_declaration_budget_canonical
-    declaration_budget_build_teeth
-    declaration_budget_reject_teeth
-    bc_timing_finish
-    echo "bc declaration budget: count_lets/PCAP/SREL occurrence rank excludes root declare exhaustion + 14 phase-isolated teeth passed ($(wc -c < "$T/declaration-budget.tape" | tr -d ' ')-byte tape)"
-    exit 0
-    ;;
-  parse-proc)
-    bc_timing_start complete-parse-proc
-    build_lookup_checker
-    smoke_lookup_checker
-    build_bounded_emitters_checker
-    smoke_bounded_emitters_checker
-    build_statement_family_semantic_checker
-    smoke_statement_family_semantic_checker
-    establish_parse_body_canonical
-    establish_declaration_budget_canonical
-    establish_parse_proc_canonical
-    parse_proc_build_teeth
-    parse_proc_reject_teeth
-    bc_timing_finish
-    echo "bc complete parse_proc: exact permissive entry and PLOP/PCAP/PFXS/PBOD(D0) compose to Ret0/Ret252/Div with origins1/3 excluded + 16 phase-isolated teeth passed ($(wc -c < "$T/parse-proc.tape" | tr -d ' ')-byte tape)"
-    exit 0
-    ;;
-  root-observation)
-    bc_timing_start whole-root-observation
-    build_lookup_checker
-    smoke_lookup_checker
-    build_bounded_emitters_checker
-    smoke_bounded_emitters_checker
-    build_statement_family_semantic_checker
-    smoke_statement_family_semantic_checker
-    establish_parse_body_canonical
-    establish_resource_classification_canonical
-    establish_declaration_budget_canonical
-    establish_parse_proc_canonical
-    establish_root_observation_canonical
-    root_observation_build_teeth
-    root_observation_reject_teeth
-    bc_timing_finish
-    echo "bc root observable: exact maximal stdout and Halt/Trap/Exhaust/Diverge equality over every finite source and supported resource profile + root teeth passed ($(wc -c < "$T/root-observation.tape" | tr -d ' ')-byte tape)"
-    exit 0
-    ;;
-  statement-family)
-    bc_timing_start statement-family-conditional-semantics
-    build_lookup_checker
-    smoke_lookup_checker
-    build_bounded_emitters_checker
-    smoke_bounded_emitters_checker
-    build_statement_family_semantic_checker
-    smoke_statement_family_semantic_checker
-    statement_family_build_teeth
-    statement_family_reject_teeth
-    statement_family_semantic_build_teeth
-    statement_family_semantic_reject_teeth
-    bc_timing_finish
-    echo "bc statement family: focused prerequisite conjunction + 12 shape and 22 semantic teeth passed ($(wc -c < "$T/statement-family-shape.tape" | tr -d ' ')-byte shape, $(wc -c < "$T/statement-family-semantic.tape" | tr -d ' ')-byte semantic tapes)"
-    exit 0
-    ;;
-  operator-classifier)
-    operator_classifier_build_teeth
-    operator_classifier_reject_teeth
-    echo "bc operator classifiers: focused canonical + 24 phase-isolated teeth passed ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte checker tape)"
-    exit 0
-    ;;
-  cmp-op)
-    cmp_op_build_teeth
-    cmp_op_reject_teeth
-    echo "bc cmp_op: focused canonical + 41 phase-isolated teeth passed ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte checker tape)"
-    exit 0
-    ;;
-  fixed-keyword)
-    fixed_keyword_build_teeth
-    checker_split_build_fixed_tooth
-    fixed_keyword_reject_teeth
-    checker_split_reject_fixed_tooth
-    echo "bc fixed keywords: focused canonical + 43 phase-isolated teeth passed ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte checker tape)"
-    exit 0
-    ;;
-  parse-char)
-    parse_char_build_teeth
-    parse_char_reject_teeth
-    echo "bc parse_char: focused canonical + 38 phase-isolated teeth passed ($(wc -c < "$T/control-check.tape" | tr -d ' ')-byte checker tape)"
-    exit 0
-    ;;
-  checker-a-shards)
-    checker_a_prepare_shards
-    checker_a_build_shards
-    checker_a_reject_shards
-    echo "bc Checker-A historical shards: exact two-phase mutation inventory passed"
-    exit 0
-    ;;
-  "")
-    ;;
-  *)
-    echo "bc block control FAIL — unknown BC_BLOCK_FOCUS: $BC_BLOCK_FOCUS" >&2
-    exit 2
-    ;;
-esac
-
-# Establish the independent canonical owners, then close the statement
-# implication before spending time on their historical mutation families.
-bc_timing_start independent-canonical-tranches
-build_name_eq_checker
-smoke_name_eq_checker
+bc_timing_start whole-root-observation
 build_lookup_checker
 smoke_lookup_checker
 build_bounded_emitters_checker
 smoke_bounded_emitters_checker
-bc_timing_finish
-
-bc_timing_start statement-family-semantic-canonical
 build_statement_family_semantic_checker
 smoke_statement_family_semantic_checker
-bc_timing_finish
-bc_run_cached_teeth statement-family-semantic '22 cases' \
-  statement_family_semantic_build_teeth \
-  statement_family_semantic_reject_teeth \
-  "$T/statement-family-semantic.alpha" "$T/control.bundle" \
-  "$GATE_DIR/bc-statement-family-semantic-teeth.sh" \
-  "$GATE_DIR/bc-mutation-cache.sh" "$ARTIFACT" "$ASM" "$SEED" \
-  "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" "$OMEGA_PATH_ALPHA/seed_env.sh"
-
-bc_timing_start parse-proc-body-canonical
 establish_parse_body_canonical
-bc_timing_finish
-bc_run_cached_teeth parse-proc-body '25 cases' \
-  parse_body_build_teeth parse_body_reject_teeth \
-  "$T/parse-body.alpha" "$T/control.bundle" \
-  "$GATE_DIR/bc-parse-body-teeth.sh" \
-  "$GATE_DIR/bc-mutation-cache.sh" "$ARTIFACT" "$ASM" "$SEED" \
-  "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" "$OMEGA_PATH_ALPHA/seed_env.sh"
-
-bc_timing_start resource-classification-canonical
 establish_resource_classification_canonical
-bc_timing_finish
-bc_run_cached_teeth resource-classification '36 cases' \
-  resource_classification_build_teeth resource_classification_reject_teeth \
-  "$T/resource-classification.alpha" "$T/control.bundle" \
-  "$GATE_DIR/bc-resource-classification-teeth.sh" \
-  "$GATE_DIR/bc-mutation-cache.sh" "$ARTIFACT" "$ASM" "$SEED" \
-  "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" "$OMEGA_PATH_ALPHA/seed_env.sh"
-
-bc_timing_start declaration-budget-canonical
 establish_declaration_budget_canonical
-bc_timing_finish
-bc_run_cached_teeth declaration-budget '14 cases' \
-  declaration_budget_build_teeth declaration_budget_reject_teeth \
-  "$T/declaration-budget.alpha" "$T/control.bundle" \
-  "$GATE_DIR/bc-declaration-budget-teeth.sh" \
-  "$GATE_DIR/bc-mutation-cache.sh" "$ARTIFACT" "$ASM" "$SEED" \
-  "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" "$OMEGA_PATH_ALPHA/seed_env.sh"
-
-bc_timing_start complete-parse-proc-canonical
 establish_parse_proc_canonical
-bc_timing_finish
-bc_run_cached_teeth complete-parse-proc '16 cases' \
-  parse_proc_build_teeth parse_proc_reject_teeth \
-  "$T/parse-proc.alpha" "$T/control.bundle" \
-  "$GATE_DIR/bc-parse-proc-teeth.sh" \
-  "$GATE_DIR/bc-mutation-cache.sh" "$ARTIFACT" "$ASM" "$SEED" \
-  "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" "$OMEGA_PATH_ALPHA/seed_env.sh"
-
-bc_timing_start root-observation-canonical
 establish_root_observation_canonical
 bc_timing_finish
-bc_run_cached_teeth root-observation '49 cases' \
-  root_observation_build_teeth root_observation_reject_teeth \
-  "$T/root-observation.alpha" "$T/control.bundle" \
-  "$GATE_DIR/bc-root-observation-teeth.sh" \
-  "$GATE_DIR/bc-mutation-cache.sh" "$ARTIFACT" "$ASM" "$SEED" \
-  "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" "$OMEGA_PATH_ALPHA/seed_env.sh"
 
-# These families share the freshly reconstructed canonical bundle but own
-# disjoint phase-isolated mutations. Their green receipts bind the exact
-# canonical checker, bundle, harness, and case inventory. A change to one teeth
-# module therefore reruns that family without recompiling its siblings.
-bc_run_cached_teeth bounded-emitters '52 cases' \
-  bounded_emitters_build_teeth bounded_emitters_reject_teeth \
-  "$T/bounded-emitters-check.alpha" "$T/control.bundle" \
-  "$GATE_DIR/bc-bounded-emitters-teeth.sh" "$GATE_DIR/bc-mutation-cache.sh" \
-  "$ARTIFACT" "$ASM" "$SEED" "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" \
-  "$OMEGA_PATH_ALPHA/seed_env.sh"
-bc_run_cached_teeth checker-split-fixed '1 case' \
-  checker_split_build_fixed_tooth checker_split_reject_fixed_tooth \
-  "$T/control-check.alpha" "$T/control.bundle" \
-  "$GATE_DIR/bc-checker-split-teeth.sh" "$GATE_DIR/bc-mutation-cache.sh" \
-  "$ARTIFACT" "$ASM" "$SEED" "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" \
-  "$OMEGA_PATH_ALPHA/seed_env.sh"
-bc_run_cached_teeth checker-split-name-eq '1 case' \
-  checker_split_build_name_tooth checker_split_reject_name_tooth \
-  "$T/name-eq-check.alpha" "$T/control.bundle" \
-  "$GATE_DIR/bc-checker-split-teeth.sh" "$GATE_DIR/bc-mutation-cache.sh" \
-  "$ARTIFACT" "$ASM" "$SEED" "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" \
-  "$OMEGA_PATH_ALPHA/seed_env.sh"
-bc_run_cached_teeth name-eq '31 cases' \
-  name_eq_build_teeth name_eq_reject_teeth \
-  "$T/name-eq-check.alpha" "$T/control.bundle" \
-  "$GATE_DIR/bc-name-eq-teeth.sh" "$GATE_DIR/bc-mutation-cache.sh" \
-  "$ARTIFACT" "$ASM" "$SEED" "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" \
-  "$OMEGA_PATH_ALPHA/seed_env.sh"
-bc_run_cached_teeth lookup '35 cases' \
-  lookup_build_teeth lookup_reject_teeth \
-  "$T/lookup-check.alpha" "$T/control.bundle" \
-  "$GATE_DIR/bc-lookup-teeth.sh" "$GATE_DIR/bc-mutation-cache.sh" \
-  "$ARTIFACT" "$ASM" "$SEED" "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" \
-  "$OMEGA_PATH_ALPHA/seed_env.sh"
+# Four format-level teeth retain fail-closed input binding without generating
+# checker-source permutations. The canonical ROOT executable decides each one.
+cp "$T/control.bundle" "$T/wrong-source.bundle"
+printf '\161' | dd of="$T/wrong-source.bundle" bs=1 seek=4 conv=notrunc status=none
 
-checker_a_prepare_shards
-checker_a_build_shards
-checker_a_reject_shards
+tape_offset=$((4 + SOURCE_LEN + 4))
+cp "$T/control.bundle" "$T/wrong-tape.bundle"
+printf '\377' | dd of="$T/wrong-tape.bundle" bs=1 seek="$tape_offset" conv=notrunc status=none
 
-echo "bc block control/effects: 71 procedures / 359 blocks / 293 transitions; complete B_bc1 canonical owners, mutation gates, and checker shards passed ($(wc -c < "$T/control-check.tape" | tr -d " ")-byte Alpha checker tape)"
+bundle_size=$(wc -c < "$T/control.bundle" | tr -d ' ')
+dd if="$T/control.bundle" of="$T/truncated.bundle" bs=1 count=$((bundle_size - 1)) status=none
+cp "$T/control.bundle" "$T/wrong-length.bundle"
+u32_file $((SOURCE_LEN - 1)) "$T/wrong-source.len"
+dd if="$T/wrong-source.len" of="$T/wrong-length.bundle" bs=1 seek=0 conv=notrunc status=none
+
+root_case_run() {
+  set +e
+  "$T/root-observation" < "$2" > "$T/stdout"
+  root_case_status=$?
+  set -e
+  if [ "$root_case_status" != 1 ] || [ -s "$T/stdout" ]; then
+    echo "bc admission FAIL — $1 was not rejected" >&2
+    exit 1
+  fi
+}
+root_case_run wrong-source "$T/wrong-source.bundle"
+root_case_run wrong-tape "$T/wrong-tape.bundle"
+root_case_run truncated-witness "$T/truncated.bundle"
+root_case_run wrong-length "$T/wrong-length.bundle"
+
+root_tape_bytes=$(wc -c < "$T/root-observation.tape" | tr -d ' ')
+root_tape_sha256=$(shasum -a 256 "$T/root-observation.tape" | cut -d ' ' -f 1)
+echo "bc admission: exact B_bc1 maximal observation + 4 format-binding teeth passed (${root_tape_bytes}-byte ROOT tape, sha256 ${root_tape_sha256})"

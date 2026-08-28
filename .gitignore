@@ -2,9 +2,6 @@
 /target/
 /dist/
 /build/
-/.lattice-cache/
-# Retired verifier location; local caches may persist.
-/compiler/.lattice-cache/
 /samples/*/build/
 /samples/*/build_win/
 /tests/canaries/*/*/build/
@@ -21,4 +18,3 @@
 
 # Local scratch reproductions (not part of the project)
 /scratch_repro/
-

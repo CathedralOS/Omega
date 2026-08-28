@@ -52,8 +52,11 @@ SHA-256 `df9f5696d7d5f6ac457d74d035ffc4db64f4f68a2f8201f7bb5ea0a28b471a2e`
 and emits a 3035-byte tape with SHA-256
 `6d892139f7e4153dbe30cb353e5eb498c7b1d5260a486470616dc684b55cd67f`.
 That checker accepts framing, reachable control-flow, procedure-region, and
-tape-capacity obligations only. Complete source/artifact admission remains
-open.
+tape-capacity obligations only. The adjacent canonical maximal-observation
+reconstruction emits one 79,003-byte ROOT Alpha tape; its exact digest is
+`33a15b13586df64bcbe714adf517f35cf3e312c1f70c9971a7e5fd3c971ca40a`.
+This is strong executable evidence, but it is not yet a derivation in the
+rooted checker calculus. Complete source/artifact admission remains open.
 
 ## Gamma meaning artifacts
 

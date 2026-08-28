@@ -84,7 +84,7 @@ Git history is their archive.
   whose accepted artifact is constructed and audited below the Beta compiler it
   validates. Alternate Beta, Gamma, Rust, or Python checkers remain differential
   evidence, not acceptance authority.
-- [ ] Collapse the Beta validator's generated checker/permutation explosion into
+- [x] Collapse the Beta validator's generated checker/permutation explosion into
   one canonical obligation format and small responsibility-specific modules.
   Delete cached HTML viewers, duplicated generated programs, receipt matrices,
   and debug-only publication paths when no human or authoritative command
@@ -169,7 +169,7 @@ of compiler modules that do not exercise target selection.
 
 - [x] Maintain one short optional runner that invokes the independently
   executable gates in order.
-- [ ] Remove obsolete aliases, cache profiles, historical bridge formats, and
+- [x] Remove obsolete aliases, cache profiles, historical bridge formats, and
   path manifests when no current compiler invocation consumes them.
 - [x] Every runner failure must name the exact compiler/gate command that can be
   rerun manually.
