@@ -1,7 +1,6 @@
-use omega_compiler::{
-    CompileOptions, Optimization, OptimizationReportRequest, compile_to_checked,
-    compile_to_checked_with_packages,
-};
+use omega_compiler::{CompileOptions, compile_to_checked, compile_to_checked_with_packages};
+use omega_optimization_core::Optimization;
+use omega_optimization_pipeline::OptimizationReportRequest;
 use omega_package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };

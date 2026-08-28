@@ -1,4 +1,5 @@
-use omega_compiler::{BuildObservationClass, CheckedCompilation, compile_to_checked_with_packages};
+use omega_build_evaluation::BuildObservationClass;
+use omega_compiler::{CheckedCompilation, compile_to_checked_with_packages};
 use omega_package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };

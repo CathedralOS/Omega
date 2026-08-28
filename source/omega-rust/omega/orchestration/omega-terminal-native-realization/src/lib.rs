@@ -1,3 +1,10 @@
+#![forbid(unsafe_code)]
+
+//! Canonical Terminal-Psi to target-native realization.
+//!
+//! This stage owns the target-dependent lowering join. It does not own source
+//! compilation, component policy, executable installation, or publication.
+
 use std::collections::BTreeSet;
 
 use omega_terminal_abstract_operations_to_target_operations::{
@@ -158,11 +165,7 @@ pub fn realize_terminal_native_artifact(
                 .map_err(|error| {
                     optimized_physical_stage_error(optimization_selections, error)
                 })?;
-            return Err(
-                crate::pipeline::optimization_gate::optimized_publication_unavailable(
-                    optimization_selections,
-                ),
-            );
+            return Err(optimized_publication_unavailable(optimization_selections));
         }
     };
     let assigned =
@@ -221,5 +224,21 @@ fn optimized_physical_stage_error(
         .join("`, `");
     vec![Diagnostic::error(format!(
         "selected optimizations `{names}` entered the optimized verified physical pipeline but failed at a named validation boundary: {error}; no output was installed"
+    ))]
+}
+
+fn optimized_publication_unavailable(
+    selections: &omega_optimization_core::OptimizationSelections,
+) -> Vec<Diagnostic> {
+    debug_assert!(!selections.is_empty());
+    let names = selections
+        .as_slice()
+        .iter()
+        .map(|optimization| optimization.build_case_name())
+        .collect::<Vec<_>>()
+        .join("`, `");
+    vec![Diagnostic::error(format!(
+        "selected optimization{} `{names}` completed the verified physical pipeline through post-allocation machine validation, but frame/exit, emission, artifact, and optimized component publication validation are not available yet; no output was installed",
+        if selections.as_slice().len() == 1 { "" } else { "s" },
     ))]
 }

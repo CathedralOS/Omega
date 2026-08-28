@@ -6,7 +6,7 @@ use psi_diagnostics::Diagnostic;
 /// Check, Terminal Psi, and retained native artifacts share one checked-Psi
 /// frontend and differ only in how far the result proceeds.
 pub(super) fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diagnostic>> {
-    let checked = crate::pipeline::compile_to_checked_for_terminal(
+    let checked = crate::pipeline::checked_entry::compile_to_checked_for_terminal(
         &request.options,
         request.package_inputs.as_ref(),
     )?;
@@ -140,7 +140,7 @@ fn native_report(
                     "native-artifact Terminal production failed: {error}"
                 ))]
             })?;
-    let native_artifact = crate::pipeline::realize_terminal_native_artifact(
+    let native_artifact = omega_terminal_native_realization::realize_terminal_native_artifact(
         artifact,
         target,
         checked.subsystem(),

@@ -4,13 +4,13 @@
 //! retained only while remaining canaries move to Terminal realization and is
 //! deleted with `StateGraphHarness`; production native artifacts never enter it.
 
-use crate::pipeline::stages::CheckedProgramSurface;
 use crate::pipeline::stage::{
     ABSTRACT_OPERATIONS_TO_TARGET_OPERATIONS, ASSIGNED_TARGET_OPERATIONS_TO_MACHINE_INSTRUCTIONS,
     BACKEND_PLAN_TO_NATIVE_IMAGE_PAYLOAD, CHECKED_TREES_TO_STATE_GRAPH,
     CONTROL_FLOW_TO_ABSTRACT_OPERATIONS, STATE_GRAPH_TO_CONTROL_FLOW,
     TARGET_OPERATIONS_TO_ASSIGNED_TARGET_OPERATIONS,
 };
+use crate::pipeline::stages::CheckedProgramSurface;
 use crate::pipeline::timing::CompileTimings;
 use omega_control_flow::ControlFlowPlan;
 use omega_emission_planning::{EmissionPlanningInput, build_emission_plan};

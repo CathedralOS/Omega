@@ -457,7 +457,8 @@ fn compiler_crate_root_remains_a_small_api_map() {
         "omega-compiler's crate root must map the API, not inventory every domain"
     );
     assert!(lib.contains("pub use compiler::"));
-    assert!(lib.contains("mod public_api;"));
+    assert!(lib.contains("pub use pipeline::checked_entry::"));
+    assert!(!lib.contains("public_api"));
 }
 
 #[test]
@@ -519,8 +520,12 @@ fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
         "omega-compiler must not retain trust-ledger implementations"
     );
 
-    let public_api = std::fs::read_to_string(compiler.join("public_api.rs"))
-        .expect("read omega-compiler public API");
+    assert!(
+        !compiler.join("public_api.rs").exists(),
+        "omega-compiler must not regain a subsystem compatibility facade"
+    );
+    let public_api =
+        std::fs::read_to_string(compiler.join("lib.rs")).expect("read omega-compiler public API");
     assert!(
         !public_api.contains("PreparedTrustLock")
             && !public_api.contains("write_trust_report")
@@ -545,8 +550,8 @@ fn package_review_is_not_owned_or_reexported_by_the_compiler() {
         "omega-package-review must own package review"
     );
 
-    let public_api = std::fs::read_to_string(compiler.join("src/public_api.rs"))
-        .expect("read omega-compiler compatibility API");
+    let public_api =
+        std::fs::read_to_string(compiler.join("src/lib.rs")).expect("read omega-compiler API");
     for forbidden in [
         "PackageReviewCanonicalRow",
         "CheckedPackageReviewProjection",
@@ -581,8 +586,8 @@ fn package_compilation_inputs_are_not_owned_or_reexported_by_the_compiler() {
         "omega-package-compilation must own package compilation inputs"
     );
 
-    let public_api = std::fs::read_to_string(compiler.join("src/public_api.rs"))
-        .expect("read omega-compiler compatibility API");
+    let public_api =
+        std::fs::read_to_string(compiler.join("src/lib.rs")).expect("read omega-compiler API");
     for forbidden in [
         "PackageCompilationInputs",
         "PackageDependencyClosure",
@@ -612,8 +617,8 @@ fn compiler_executable_review_identity_is_build_provenance_owned() {
         "omega-build-provenance must own the compiler executable review identity"
     );
 
-    let public_api = std::fs::read_to_string(compiler.join("src/public_api.rs"))
-        .expect("read omega-compiler compatibility API");
+    let public_api =
+        std::fs::read_to_string(compiler.join("src/lib.rs")).expect("read omega-compiler API");
     assert!(!public_api.contains("CompilerExecutableCommitment"));
 }
 
@@ -634,8 +639,8 @@ fn build_output_custody_is_not_owned_or_reexported_by_the_compiler() {
         "omega-build-output must own retained build output"
     );
 
-    let public_api = std::fs::read_to_string(compiler.join("src/public_api.rs"))
-        .expect("read omega-compiler compatibility API");
+    let public_api =
+        std::fs::read_to_string(compiler.join("src/lib.rs")).expect("read omega-compiler API");
     for forbidden in [
         "BuildStagedOutputMaterializationError",
         "BuildStagedOutputTree",
@@ -1097,9 +1102,8 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         "Psi must own the exact checked-to-canonical-Terminal-artifact handoff"
     );
 
-    let realization_path = root.join(
-        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/terminal/native_artifact.rs",
-    );
+    let realization_path = root
+        .join("source/omega-rust/omega/orchestration/omega-terminal-native-realization/src/lib.rs");
     let realization = std::fs::read_to_string(&realization_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", realization_path.display()));
     assert!(
@@ -1121,11 +1125,11 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         );
     }
     let component_path = root.join(
-        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/terminal/component_candidate.rs",
+        "source/omega-rust/omega/orchestration/omega-terminal-component-candidate/src/lib.rs",
     );
     let component = std::fs::read_to_string(&component_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", component_path.display()));
-    assert!(component.contains("realize_terminal_native_artifact("));
+    assert!(component.contains("native_artifact: TerminalNativeArtifact"));
     for forbidden in [
         "lower_artifact_sections(",
         "lower_to_target_operations",
@@ -1670,10 +1674,11 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
         "optimizer orchestration must retain liveness custody above omega-regalloc"
     );
 
-    for root_name in graph
-        .keys()
-        .filter(|name| name.starts_with("omega-terminal-") || name.contains("selected-instruction"))
-    {
+    for root_name in graph.iter().filter_map(|(name, krate)| {
+        ((name.starts_with("omega-terminal-") || name.contains("selected-instruction"))
+            && krate.layer != "orchestration")
+            .then_some(name)
+    }) {
         let mut pending = vec![root_name.clone()];
         let mut visited = BTreeSet::new();
         while let Some(name) = pending.pop() {

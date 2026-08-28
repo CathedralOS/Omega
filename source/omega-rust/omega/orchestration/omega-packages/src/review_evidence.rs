@@ -1,12 +1,12 @@
 use crate::{CompilerIssuedPackageReview, ImmutableSourceResolution, PackageKey};
-use omega_build_provenance::CompilerExecutableCommitment;
-use omega_compiler::{
+use omega_build_evaluation::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationResult,
     BuildFilesystemProvider, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
     BuildObservationClass, BuildObservationSummary,
 };
+use omega_build_provenance::CompilerExecutableCommitment;
 use omega_package_compilation::PackageSourceConsumptionCommitment;
 use omega_package_review::{
     DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
@@ -279,8 +279,8 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
         for operand in attempt.rooted_path_operand_resolutions() {
             digest.update([operand.operand_ordinal()]);
             digest.update([match operand.root() {
-                omega_compiler::BuildFilesystemRoot::Source => 0,
-                omega_compiler::BuildFilesystemRoot::Output => 1,
+                omega_build_evaluation::BuildFilesystemRoot::Source => 0,
+                omega_build_evaluation::BuildFilesystemRoot::Output => 1,
             }]);
             hash_bytes(&mut digest, operand.relative_path());
         }
@@ -292,13 +292,13 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
         for returned in attempt.returned_paths() {
             digest.update([returned.operand_ordinal()]);
             digest.update([match returned.kind() {
-                omega_compiler::BuildFilesystemReturnedPathKind::ReadLinkPayload => 0,
-                omega_compiler::BuildFilesystemReturnedPathKind::CanonicalPath => 1,
-                omega_compiler::BuildFilesystemReturnedPathKind::FinalPath => 2,
+                omega_build_evaluation::BuildFilesystemReturnedPathKind::ReadLinkPayload => 0,
+                omega_build_evaluation::BuildFilesystemReturnedPathKind::CanonicalPath => 1,
+                omega_build_evaluation::BuildFilesystemReturnedPathKind::FinalPath => 2,
             }]);
             digest.update([match returned.completeness() {
-                omega_compiler::BuildFilesystemReturnedPathCompleteness::Complete => 0,
-                omega_compiler::BuildFilesystemReturnedPathCompleteness::LimitReached => 1,
+                omega_build_evaluation::BuildFilesystemReturnedPathCompleteness::Complete => 0,
+                omega_build_evaluation::BuildFilesystemReturnedPathCompleteness::LimitReached => 1,
             }]);
             hash_bytes(&mut digest, returned.bytes());
         }
@@ -310,10 +310,10 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
         for region in attempt.observed_byte_regions() {
             digest.update([region.output_operand_ordinal()]);
             digest.update([match region.kind() {
-                omega_compiler::BuildFilesystemObservedByteRegionKind::SequentialFileRead => 0,
-                omega_compiler::BuildFilesystemObservedByteRegionKind::PositionedFileRead => 1,
-                omega_compiler::BuildFilesystemObservedByteRegionKind::DirectoryRecords => 2,
-                omega_compiler::BuildFilesystemObservedByteRegionKind::FindEntry => 3,
+                omega_build_evaluation::BuildFilesystemObservedByteRegionKind::SequentialFileRead => 0,
+                omega_build_evaluation::BuildFilesystemObservedByteRegionKind::PositionedFileRead => 1,
+                omega_build_evaluation::BuildFilesystemObservedByteRegionKind::DirectoryRecords => 2,
+                omega_build_evaluation::BuildFilesystemObservedByteRegionKind::FindEntry => 3,
             }]);
             digest.update(region.offset().to_le_bytes());
             digest.update(region.length().to_le_bytes());
@@ -326,9 +326,9 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
         for metadata in attempt.metadata_observations() {
             digest.update([metadata.output_operand_ordinal()]);
             digest.update([match metadata.kind() {
-                omega_compiler::BuildFilesystemMetadataObservationKind::FollowedPath => 0,
-                omega_compiler::BuildFilesystemMetadataObservationKind::OpenDescriptor => 1,
-                omega_compiler::BuildFilesystemMetadataObservationKind::UnfollowedFinalPath => 2,
+                omega_build_evaluation::BuildFilesystemMetadataObservationKind::FollowedPath => 0,
+                omega_build_evaluation::BuildFilesystemMetadataObservationKind::OpenDescriptor => 1,
+                omega_build_evaluation::BuildFilesystemMetadataObservationKind::UnfollowedFinalPath => 2,
             }]);
             digest.update(metadata.device().to_le_bytes());
             digest.update(metadata.mode().to_le_bytes());
