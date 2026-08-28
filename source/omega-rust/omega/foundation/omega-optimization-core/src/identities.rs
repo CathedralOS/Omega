@@ -106,6 +106,14 @@ canonical_identity!(
     b"omega.function-fragment-emission-manifest-identity.v1\0"
 );
 canonical_identity!(
+    TerminalRelocationFreeTextSectionIdentity,
+    b"omega.terminal-relocation-free-text-section-identity.v1\0"
+);
+canonical_identity!(
+    FunctionFragmentTextSectionManifestIdentity,
+    b"omega.function-fragment-text-section-manifest-identity.v1\0"
+);
+canonical_identity!(
     OptimizationDecisionIdentity,
     b"omega.optimization-decision-identity.v1\0"
 );
@@ -455,6 +463,8 @@ mod tests {
             SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(b"same").bytes(),
             FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(b"same")
                 .bytes(),
+            TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(b"same").bytes(),
+            FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationDecisionIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationDecisionSchemaIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationDecisionTargetIdentity::from_canonical_bytes(b"same").bytes(),
@@ -489,6 +499,8 @@ mod tests {
         round_trip!(FunctionRelativeOptimizationRealizationManifestIdentity);
         round_trip!(TerminalFunctionFragmentEmissionIdentity);
         round_trip!(FunctionFragmentEmissionManifestIdentity);
+        round_trip!(TerminalRelocationFreeTextSectionIdentity);
+        round_trip!(FunctionFragmentTextSectionManifestIdentity);
         round_trip!(OptimizationDecisionIdentity);
         round_trip!(OptimizationDecisionSchemaIdentity);
         round_trip!(OptimizationDecisionTargetIdentity);
