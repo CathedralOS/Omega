@@ -95,13 +95,13 @@ do not become additional lattice steps.
 - [x] Put every retained Beta admission module under its actual consumer and
   remove the cached viewers, duplicated generated programs, receipt matrices,
   and default stress/permutation paths that had no authoritative consumer. The
-  bounded whole-compiler command now consumes all 188 retained `bc-*.alpha`
+  bounded whole-compiler command now consumes all 189 retained `bc-*.alpha`
   modules from `validation/admission/obligations/`; the two exact-subject gates
   live in `admission/`, untrusted witness producers in
   `admission/witnesses/`, and optional generated refinement in `stress/`.
 - [ ] Collapse the remaining Beta validator obligation explosion into one
   canonical data format and small responsibility-specific modules. The current
-  188 fragments total 64,650 lines after replacing nine private instruction
+  189 fragments total 65,027 lines after replacing nine private instruction
   scans with shared exact effect-census logic and merging the duplicate
   selected-row decoders into the canonical exact-table helper. Push, pop,
   saved-frame prologue, optional frame allocation, parameter store, and
@@ -125,7 +125,13 @@ do not become additional lattice steps.
   prelude, prologue, allocation, parameter store, pop sequences, push, and
   epilogue. Nine frame, stack, effect, memory, and expression modules consume
   those facts instead of repeating macro extents and successor arithmetic. The
-  current ROOT is 79,894 bytes. Continue replacing
+  Event lookup is now source-row-free: semantic consumers supply a complete
+  checker-owned key, ambiguous keys additionally require exact cardinality and
+  same-key occurrence, and the full canonical event table is scanned before an
+  already-validated witness PC can be returned. The `emit_dec`, fixed-decimal,
+  prelude, and `gen_stmt` families removed 62 event-row literals; a sixth
+  negative tooth swaps two otherwise-valid same-key call PCs and rejects. The
+  current ROOT is 81,940 bytes. Continue replacing
   shape/control/data/publication permutations with data decoded by common
   checks; do not recreate cached viewers or debug-only publication paths. In
   particular, finish one canonical exact instruction table that gives stable
@@ -255,15 +261,18 @@ and are not blocked on this ruling.
   94,903 to 69,833 bytes, passed the Beta corpus and focused structural gates,
   and improved the representative million-call loop by 10.4--10.6%. It was not
   adopted because the semantic admission bundle duplicated old macro shapes
-  and byte PCs throughout its 188 fragments; its first failure was the
+  and byte PCs throughout its fragments; its first failure was the
   `emit_dec Word` canonical smoke. Shared macro-shape decoding has now landed,
   all selected procedure-entry uses resolve by identity, and the emit-dec,
   fixed-emitter, and `gen_stmt` tranches now derive their coordinates from
   source identities. A current direct r13 projection still changes canonical
-  source-event rows from 617 to 611 and moves nearly every artifact coordinate;
-  93 obligation modules retain matching literals. Centralize macro extents and
-  successors for prologue, pop, push, parameter-store, and epilogue consumers,
-  then replace row-number event identity with a checker-scanned semantic key.
+  source events from 617 to 611 and moves checked artifact coordinates in 81
+  obligation modules. Thirty-three can migrate through existing identities;
+  34 need a checked memory-site-to-PC resolver, and 27 need centralized
+  source-relative internal-site or macro-extent identity (the two gap sets
+  overlap, leaving 48 modules needing new resolver coverage). Centralize the
+  synthetic `__write_str` extent first, then add the memory identity resolver
+  and the remaining checked internal-site identities.
   Reapply and admit the compiler change only when it changes `bc.beta`, the
   centralized mapper/shape/ABI owners, generated identities, and adjacent
   manifests rather than dozens of semantic obligations. Do that before another

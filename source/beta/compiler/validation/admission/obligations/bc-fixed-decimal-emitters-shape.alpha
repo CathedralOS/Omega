@@ -75,81 +75,107 @@ fixed_decimal_shape_transitions:
         call exact_transition_identity_pc ; checked nslots>0 guard
         ret
 
-; Kind-four helper event identified by source row/block in r20/r21.
-fixed_decimal_require_emit_site:
-        imm r22, 4
-        call exact_event_identity_pc
-        ret
-
 fixed_decimal_shape_events:
-        imm r20, 316
+        imm r20, 42
         imm r21, 209
-        call fixed_decimal_require_emit_site
-        imm r20, 317
+        imm r22, fixed_decimal_literal_imm_r5_8
+        imm r23, 9
+        call exact_unique_emit_event_identity
+        imm r20, 42
         imm r21, 209
-        call fixed_decimal_require_emit_site
-        imm r20, 318
+        imm r22, fixed_decimal_literal_sub_r15_r5
+        imm r23, 11
+        call exact_unique_emit_event_identity
+        imm r20, 42
         imm r21, 209
-        call fixed_decimal_require_emit_site
-        imm r20, 319
+        imm r22, fixed_decimal_literal_store_r15_r14
+        imm r23, 14
+        call exact_unique_emit_event_identity
+        imm r20, 42
         imm r21, 209
-        call fixed_decimal_require_emit_site
-        imm r20, 320
+        imm r22, fixed_decimal_literal_mov_r14_r15
+        imm r23, 12
+        call exact_unique_emit_event_identity
+        imm r20, 42
         imm r21, 210
-        imm r22, 5
         call exact_require_event_epilogue
-        imm r20, 321
+        imm r20, 42
         imm r21, 211
-        call fixed_decimal_require_emit_site
-        imm r20, 322
+        imm r22, fixed_decimal_literal_imm_r5_prefix
+        imm r23, 7
+        call exact_unique_emit_event_identity
+        imm r20, 42
         imm r21, 211
         imm r22, 1
         imm r23, 0
         imm r24, 40                  ; emit_dec procedure identity
         call summary_require_call_fallthrough_identity
-        imm r20, 323
+        imm r20, 42
         imm r21, 211
-        call fixed_decimal_require_emit_site
-        imm r20, 324
+        imm r22, fixed_decimal_literal_newline
+        imm r23, 1
+        call exact_unique_emit_event_identity
+        imm r20, 42
         imm r21, 211
-        call fixed_decimal_require_emit_site
-        imm r20, 325
+        imm r22, fixed_decimal_literal_sub_r15_r5
+        imm r23, 11
+        call exact_unique_emit_event_identity
+        imm r20, 42
         imm r21, 211
-        imm r22, 5
         call exact_require_event_epilogue
         imm r20, 43                  ; next procedure identifies synthetic ret
         call exact_require_preentry_epilogue
 
-        imm r20, 326
+        imm r20, 43
         imm r21, 212
-        call fixed_decimal_require_emit_site
-        imm r20, 327
+        imm r22, fixed_decimal_literal_mov_r5_r14
+        imm r23, 11
+        call exact_unique_emit_event_identity
+        imm r20, 43
         imm r21, 212
-        call fixed_decimal_require_emit_site
-        imm r20, 328
-        imm r21, 212
-        imm r22, 1
-        imm r23, 0
-        imm r24, 40                  ; emit_dec procedure identity
-        call summary_require_call_fallthrough_identity
-        imm r20, 329
-        imm r21, 212
-        call fixed_decimal_require_emit_site
-        imm r20, 330
-        imm r21, 212
-        call fixed_decimal_require_emit_site
-        imm r20, 331
-        imm r21, 212
-        call fixed_decimal_require_emit_site
-        imm r20, 332
+        imm r22, fixed_decimal_literal_imm_r4_prefix
+        imm r23, 7
+        call exact_unique_emit_event_identity
+        imm r20, 43
         imm r21, 212
         imm r22, 1
         imm r23, 0
         imm r24, 40                  ; emit_dec procedure identity
-        call summary_require_call_fallthrough_identity
-        imm r20, 333
+        imm r25, 0                   ; first of two identical complete keys
+        imm r26, 2                   ; exact cardinality
+        call summary_require_nth_call_fallthrough_identity
+        imm r20, 43
         imm r21, 212
-        call fixed_decimal_require_emit_site
+        imm r22, fixed_decimal_literal_newline
+        imm r23, 1
+        imm r24, 0                   ; first identical newline
+        imm r25, 2                   ; exact cardinality
+        call exact_nth_emit_event_identity
+        imm r20, 43
+        imm r21, 212
+        imm r22, fixed_decimal_literal_sub_r5_r4
+        imm r23, 10
+        call exact_unique_emit_event_identity
+        imm r20, 43
+        imm r21, 212
+        imm r22, fixed_decimal_literal_store_r5_prefix
+        imm r23, 10
+        call exact_unique_emit_event_identity
+        imm r20, 43
+        imm r21, 212
+        imm r22, 1
+        imm r23, 0
+        imm r24, 40                  ; emit_dec procedure identity
+        imm r25, 1                   ; second of two identical complete keys
+        imm r26, 2                   ; exact cardinality
+        call summary_require_nth_call_fallthrough_identity
+        imm r20, 43
+        imm r21, 212
+        imm r22, fixed_decimal_literal_newline
+        imm r23, 1
+        imm r24, 1                   ; second identical newline
+        imm r25, 2                   ; exact cardinality
+        call exact_nth_emit_event_identity
         imm r20, 44                  ; next procedure identifies synthetic ret
         call exact_require_preentry_epilogue
         ret
@@ -319,3 +345,24 @@ fixed_decimal_shape_censuses:
         imm r24, 6                   ; frame/parameter/push stores
         call exact_quiet_scan_region
         ret
+
+fixed_decimal_literal_imm_r5_8:
+        db "imm r5,8\n"
+fixed_decimal_literal_sub_r15_r5:
+        db "sub r15,r5\n"
+fixed_decimal_literal_store_r15_r14:
+        db "store r15,r14\n"
+fixed_decimal_literal_mov_r14_r15:
+        db "mov r14,r15\n"
+fixed_decimal_literal_imm_r5_prefix:
+        db "imm r5,"
+fixed_decimal_literal_newline:
+        db "\n"
+fixed_decimal_literal_mov_r5_r14:
+        db "mov r5,r14\n"
+fixed_decimal_literal_imm_r4_prefix:
+        db "imm r4,"
+fixed_decimal_literal_sub_r5_r4:
+        db "sub r5,r4\n"
+fixed_decimal_literal_store_r5_prefix:
+        db "store r5,r"
