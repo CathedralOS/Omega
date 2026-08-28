@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use omega_calling_conventions::{CallSignature, ValueShape};
 use omega_native_differential_test::admit_native_provider;
+use omega_optimization_validation::validate_verified_psi_optimization_unit;
 use omega_terminal_abstract_operations::TerminalAbstractOperation;
 use omega_terminal_abstract_operations_to_target_operations::{
     AdmittedTerminalBoundarySettlement, lower_to_target_operations_with_provider_executions,
@@ -14,7 +15,10 @@ use omega_terminal_image_emission::{
     encode_terminal_installation_record, validate_terminal_installation_record,
 };
 use omega_terminal_machine_emission::emit_machine_code;
-use omega_terminal_psi_to_abstract_operations::lower_artifact_sections;
+use omega_terminal_psi_to_abstract_operations::{
+    build_verified_psi_optimization_unit, lower_artifact_sections,
+    lower_artifact_sections_for_optimization,
+};
 use omega_terminal_target_operations::{
     TerminalBoundaryRealization, TerminalDirectPortReadU8Realization,
 };
@@ -26,6 +30,7 @@ use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
+use psi_terminal_fuel::TerminalFuelSchedule;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -49,6 +54,20 @@ fn source_whole_content_custody_exit_reaches_canonical_installation() {
     let semantic_bytes = encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("encode proof bundle");
     let profile = AdmissionProfile::default();
+    let optimizer_input =
+        lower_artifact_sections_for_optimization(&semantic_bytes, &proof_bytes, &profile)
+            .expect("verify canonical optimizer input");
+    let verified_unit = build_verified_psi_optimization_unit(
+        optimizer_input,
+        TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("retain content-bearing optimizer unit");
+    validate_verified_psi_optimization_unit(&verified_unit)
+        .expect("content-bearing source custody validates at optimizer admission");
+    assert_eq!(
+        verified_unit.unit().functions[0].content_entry_claims,
+        lowered.semantic_module.machines[0].content_entry_claims
+    );
     let abstract_plan = lower_artifact_sections(&semantic_bytes, &proof_bytes, &profile)
         .expect("verify and lower canonical terminal artifact");
 

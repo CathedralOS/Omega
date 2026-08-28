@@ -11739,7 +11739,7 @@ fn validate_places_and_claims(
                     omega_optimization_unit::OwnershipEvent::Cleanup(_) => continue,
                 };
                 for claim in claims {
-                    if !function.entry_claims.contains(claim) {
+                    if !function_has_claim(function, *claim) {
                         return Err(OptimizationUnitValidationError::UnknownClaim {
                             machine: function.machine,
                             claim: *claim,
@@ -11761,6 +11761,18 @@ fn validate_places_and_claims(
         });
     }
     Ok(())
+}
+
+/// Terminal ownership treats ordinary and content entry claims as one live
+/// claim namespace while retaining their declarations as distinct authority.
+/// `entry_claims` remains the independently checked ordinary-claim index;
+/// content-only claims are resolved from their complete retained catalog.
+fn function_has_claim(function: &PsiOptimizationFunction, claim: ClaimId) -> bool {
+    function.entry_claims.contains(&claim)
+        || function
+            .content_entry_claims
+            .iter()
+            .any(|candidate| candidate.claim == claim)
 }
 
 fn reconstruct_declared_places(
@@ -12778,6 +12790,27 @@ mod tests {
             .unwrap()
     }
 
+    fn content_entry_claim(claim: ClaimId, root: PlaceId) -> psi_terminal::ContentEntryClaim {
+        psi_terminal::ContentEntryClaim {
+            claim,
+            input: psi_core::ContentStructuralPlace {
+                version: psi_core::ContentPlaceVersion::Entry,
+                root,
+                segments: Vec::new(),
+            },
+            projections: vec![psi_terminal::ClaimContentProjection {
+                projection: psi_core::ContentProjectionIdentity {
+                    domain: id(1, psi_core::ContentDomainId::new),
+                    projection_fingerprint: 1,
+                },
+                algebra: psi_core::ContentAlgebra {
+                    kind: psi_core::ContentAlgebraKind::CountedQuantity,
+                    parameter: "validation::content-only-claim".into(),
+                },
+            }],
+        }
+    }
+
     fn structural_result_call_unit() -> PsiOptimizationUnit {
         let caller = id(350, MachineId::new);
         let callee = id(351, MachineId::new);
@@ -13518,6 +13551,144 @@ mod tests {
         refresh_node_derivatives(&mut boundary, 0, 0, 0);
         assert!(matches!(
             validate_psi_optimization_unit(&boundary),
+            Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
+        ));
+    }
+
+    #[test]
+    fn accepts_content_only_internal_claim_transfer_and_rejects_interface_corruption() {
+        let mut baseline = structural_call_unit();
+        let claim = id(1, ClaimId::new);
+        for function in &mut baseline.functions {
+            let root = function.structural_parameters[0].place;
+            function
+                .content_entry_claims
+                .push(content_entry_claim(claim, root));
+        }
+        let TerminalAbstractOperation::CallUnit {
+            claim_transfers, ..
+        } = &mut baseline.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture begins with a structural Unit call")
+        };
+        claim_transfers.push(psi_terminal::ClaimTransfer {
+            claim,
+            argument_index: 0,
+        });
+        refresh_node_derivatives(&mut baseline, 0, 0, 0);
+        validate_psi_optimization_unit(&baseline)
+            .expect("content-only claims participate in the live transfer namespace");
+
+        let mut missing_transfer = baseline.clone();
+        let TerminalAbstractOperation::CallUnit {
+            claim_transfers, ..
+        } = &mut missing_transfer.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture begins with a structural Unit call")
+        };
+        claim_transfers.clear();
+        refresh_node_derivatives(&mut missing_transfer, 0, 0, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&missing_transfer),
+            Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
+        ));
+
+        let mut substituted_projection = baseline;
+        substituted_projection.functions[1].content_entry_claims[0].projections[0]
+            .algebra
+            .parameter = "validation::substituted-content".into();
+        refresh_identity(&mut substituted_projection);
+        assert!(matches!(
+            validate_psi_optimization_unit(&substituted_projection),
+            Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
+        ));
+    }
+
+    #[test]
+    fn accepts_content_only_boundary_completion_and_rejects_correspondence_corruption() {
+        let mut baseline = structural_call_unit();
+        let claim = id(1, ClaimId::new);
+        let caller_root = baseline.functions[0].structural_parameters[0].place;
+        let content = content_entry_claim(claim, caller_root);
+        baseline.functions[0]
+            .content_entry_claims
+            .push(content.clone());
+        let boundary_id = id(346, BoundaryMachineId::new);
+        baseline
+            .boundary_machines
+            .push(psi_terminal::BoundaryMachineDeclaration {
+                id: boundary_id,
+                identity: "validation::content-only-boundary".into(),
+                attachment: None,
+                scalar_parameters: Vec::new(),
+                structural_parameters: vec![baseline.functions[1].structural_parameters[0].clone()],
+                result: None,
+                requires: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                published_service_ceiling: Vec::new(),
+            });
+        let (psi_operation, structural_arguments) =
+            match &baseline.functions[0].blocks[0].nodes[0].operation {
+                TerminalAbstractOperation::CallUnit {
+                    psi_operation,
+                    structural_arguments,
+                    ..
+                } => (*psi_operation, structural_arguments.clone()),
+                _ => panic!("fixture begins with a structural Unit call"),
+            };
+        baseline.functions[0].blocks[0].nodes[0].operation =
+            TerminalAbstractOperation::BoundaryCall {
+                psi_operation,
+                result: None,
+                boundary: boundary_id,
+                arguments: Vec::new(),
+                structural_arguments,
+                completion_claim_sources: vec![
+                    omega_terminal_abstract_operations::TerminalCompletionClaimSource {
+                        claim,
+                        entry: None,
+                        content: Some(content),
+                    },
+                ],
+                completion_receipts: vec![psi_terminal::CompletionReceipt {
+                    claim,
+                    argument_index: 0,
+                }],
+            };
+        refresh_node_derivatives(&mut baseline, 0, 0, 0);
+        validate_psi_optimization_unit(&baseline)
+            .expect("content-only claims participate in the live completion namespace");
+
+        let mut narrowed = baseline.clone();
+        let TerminalAbstractOperation::BoundaryCall {
+            completion_claim_sources,
+            completion_receipts,
+            ..
+        } = &mut narrowed.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture contains a boundary call")
+        };
+        completion_claim_sources.clear();
+        completion_receipts.clear();
+        refresh_node_derivatives(&mut narrowed, 0, 0, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&narrowed),
+            Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
+        ));
+
+        let mut wrong_claim = baseline;
+        let TerminalAbstractOperation::BoundaryCall {
+            completion_receipts,
+            ..
+        } = &mut wrong_claim.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture contains a boundary call")
+        };
+        completion_receipts[0].claim = id(2, ClaimId::new);
+        refresh_node_derivatives(&mut wrong_claim, 0, 0, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&wrong_claim),
             Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
         ));
     }
