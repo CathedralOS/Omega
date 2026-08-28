@@ -81,42 +81,16 @@ label_ref_require_imports:
 ; The whole-frame phase owns its source association; these bytes make the
 ; selected machine handoff explicit in this summary.
 label_ref_bind_parameter:
-        imm r20, 1398
-        imm r21, 2                    ; mov r5,r14
-        call require_tape_byte
-        imm r20, 1399
-        imm r21, 5
-        call require_tape_byte
-        imm r20, 1400
-        imm r21, 14
-        call require_tape_byte
-        imm r20, 1401
-        imm r21, 1                    ; imm r4,8
-        call require_tape_byte
-        imm r20, 1402
-        imm r21, 4
-        call require_tape_byte
-        imm r20, 1403
-        imm r21, 8
-        call require_tape_word
-        imm r20, 1411
-        imm r21, 4                    ; sub r5,r4
-        call require_tape_byte
-        imm r20, 1412
-        imm r21, 5
-        call require_tape_byte
-        imm r20, 1413
-        imm r21, 4
-        call require_tape_byte
-        imm r20, 1414
-        imm r21, 11                   ; store r5,r0
-        call require_tape_byte
-        imm r20, 1415
-        imm r21, 5
-        call require_tape_byte
-        imm r20, 1416
-        imm r21, 0
-        call require_tape_byte
+        imm r0, 2                    ; emit_lref procedure identity
+        call exact_proc_entry_pc
+        mov r20, r0
+        call exact_require_prologue
+        mov r20, r4
+        imm r21, 8                    ; sole parameter/local slot in bytes
+        call exact_require_frame_allocation
+        mov r20, r2
+        imm r21, 0                    ; parameter n
+        call exact_require_parameter_store
         imm r1, 535432
         imm r2, 1                    ; symbolic arbitrary full-Word n
         store r1, r2
@@ -282,8 +256,10 @@ label_ref_prove_terminal:
         ; Own region contains no direct I/O/raw-memory/division/remainder.  WSTR
         ; and DECW supply the two finite child summaries; the fallthrough
         ; epilogue preserves DECW's zero rather than materializing a new value.
-        imm r20, 1366
-        imm r21, 1537
+        imm r20, 2
+        call exact_proc_entry_r20
+        imm r21, 3
+        call exact_proc_entry_r21
         imm r22, 2
         imm r23, 1
         imm r24, 3

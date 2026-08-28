@@ -53,11 +53,11 @@ statement_emit_epilogue_require_events:
         imm r22, statement_emit_epilogue_literal_load_fp
         imm r23, 13
         call statement_emit_epilogue_require_emit
-        imm r22, statement_emit_epilogue_literal_word
-        imm r23, 9
+        imm r22, statement_emit_epilogue_literal_empty
+        imm r23, 0
         call statement_emit_epilogue_require_emit
         imm r22, statement_emit_epilogue_literal_add_sp
-        imm r23, 11
+        imm r23, 12
         call statement_emit_epilogue_require_emit
         imm r22, statement_emit_epilogue_literal_ret
         imm r23, 4
@@ -93,7 +93,8 @@ statement_emit_epilogue_require_censuses:
         ret
 
 statement_emit_epilogue_require_decoded:
-        imm r20, 31970
+        imm r20, 46
+        call exact_proc_entry_r20
         imm r21, 47                    ; emit_push procedure identity
         call exact_proc_entry_r21
         imm r22, 5
@@ -106,9 +107,8 @@ statement_emit_epilogue_literal_mov_fp:
         db "mov r15,r14\n"
 statement_emit_epilogue_literal_load_fp:
         db "load r14,r15\n"
-statement_emit_epilogue_literal_word:
-        db "imm r2,8\n"
+statement_emit_epilogue_literal_empty:
 statement_emit_epilogue_literal_add_sp:
-        db "add r15,r2\n"
+        db "add r15,r13\n"
 statement_emit_epilogue_literal_ret:
         db "ret\n"

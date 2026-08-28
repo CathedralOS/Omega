@@ -1,5 +1,6 @@
-; Exact dynamic raw-load safety closure for the whole-root theorem. Rescan all
-; 95 rows; reject unknown dynamic loads; rejoin the seven exact rows to their
+; Exact dynamic raw-load safety closure for the whole-root theorem. Rescan the
+; complete canonical memory table; reject unknown dynamic loads; rejoin the
+; seven exact dynamic rows to their
 ; owner, guard, and nonwrapping exclusive extent.
 ; Seven rows at630000, stride160:
 ;   +0 ordinal, +8 memory row, +16 owner procedure, +24 block, +32 load PC,
@@ -55,7 +56,8 @@ root_memory_safety_scan_rows:
         imm r13, 0                     ; table loads
         imm r14, 0                     ; all dynamic loads
 root_memory_safety_scan_loop:
-        imm r1, 95
+        imm r1, 524648                ; independently scanned memory-row count
+        load r1, r1
         jlt r10, r1, root_memory_safety_scan_row
         jmp root_memory_safety_require_counts
 root_memory_safety_scan_row:
@@ -149,7 +151,7 @@ root_memory_safety_mark_address:
         ret
 
 root_memory_safety_require_counts:
-        imm r1, 54
+        imm r1, 58
         jeq r11, r1, root_memory_safety_require_src_count
         jmp reject
 root_memory_safety_require_src_count:
@@ -201,7 +203,6 @@ root_memory_safety_select_build:
         imm r11, 13                   ; producer row1 cbyte memory row
         imm r12, 4
         imm r13, 10
-        imm r14, 1896                 ; producer row1 exact load PC
         imm r15, 2
         imm r16, 1
         imm r17, 2097152
@@ -216,7 +217,7 @@ root_memory_safety_select_build:
         imm r28, 616072
         imm r29, 1
         imm r1, 1
-        jeq r10, r1, root_memory_safety_build_selected
+        jeq r10, r1, rms_bs
         imm r1, 2
         jeq r10, r1, root_memory_safety_build_id_char
         imm r1, 3
@@ -234,19 +235,17 @@ root_memory_safety_build_id_char:
         imm r11, 21
         imm r12, 13
         imm r13, 47
-        imm r14, 5803
         imm r15, 2                    ; producer IDCH dynamic class
         imm r19, 2                    ; identifier-slice bound
         imm r24, 527184
         imm r25, 1212367945           ; producer IDCH semantic tag
         imm r26, 526792
         imm r27, 1396984146
-        ret
+        jmp rms_bs
 root_memory_safety_build_namelen:
         imm r11, 44
         imm r12, 35
         imm r13, 174
-        imm r14, 25080
         imm r15, 3
         imm r16, 8
         imm r17, 3153920              ; producer NAMELEN base
@@ -258,20 +257,18 @@ root_memory_safety_build_namelen:
         imm r25, 1397839182
         imm r26, 531848
         imm r27, 1296323662           ; producer NTDM guard tag
-        ret
+        jmp rms_bs
 root_memory_safety_build_nameoff:
         call root_memory_safety_build_namelen
         imm r11, 46
         imm r13, 175
-        imm r14, 25335
         imm r17, 3145728
         imm r23, 3153920
-        ret
+        jmp rms_bs
 root_memory_safety_build_name_a:
         call root_memory_safety_build_namelen
         imm r11, 49
         imm r13, 177
-        imm r14, 25745
         imm r15, 2
         imm r16, 1
         imm r17, 2097152
@@ -279,24 +276,32 @@ root_memory_safety_build_name_a:
         imm r19, 4                    ; name_eq source slice
         imm r22, 1048575
         imm r23, 3145728
-        ret
+        jmp rms_bs
 root_memory_safety_build_name_b:
         call root_memory_safety_build_name_a
         imm r11, 50
-        imm r14, 25888
-        ret
+        jmp rms_bs
 root_memory_safety_build_emit_ident:
         call root_memory_safety_build_id_char
         imm r11, 54                   ; producer emit-ident memory row
         imm r12, 45
         imm r13, 216
-        imm r14, 31850
         imm r19, 5                    ; emit-ident source slice
         imm r24, 528192
         imm r25, 1396984133
         imm r26, 526792
         imm r27, 1396984146
-root_memory_safety_build_selected:
+rms_bs:
+        mov r30, r23
+        mov r31, r22
+        mov r20, r11
+        mov r21, r13
+        imm r22, 1
+        mov r23, r16
+        call exact_memory_identity_pc
+        mov r14, r0
+        mov r22, r31
+        mov r23, r30
         ret
 
 root_memory_safety_validate_selected_site:
@@ -537,7 +542,6 @@ root_memory_safety_select_expected:
         imm r11, 13
         imm r12, 4
         imm r13, 10
-        imm r14, 1896
         imm r15, 2
         imm r16, 1
         imm r17, 2097152
@@ -552,7 +556,7 @@ root_memory_safety_select_expected:
         imm r28, 616072
         imm r29, 1
         imm r1, 1
-        jeq r10, r1, root_memory_safety_expected_selected
+        jeq r10, r1, rms_es
         imm r1, 2
         jeq r10, r1, root_memory_safety_expected_id_char
         imm r1, 3
@@ -570,18 +574,16 @@ root_memory_safety_expected_id_char:
         imm r11, 21
         imm r12, 13
         imm r13, 47
-        imm r14, 5803
         imm r19, 2
         imm r24, 527184
         imm r25, 1212367945
         imm r26, 526792
         imm r27, 1396984146
-        ret
+        jmp rms_es
 root_memory_safety_expected_namelen:
         imm r11, 44
         imm r12, 35
         imm r13, 174
-        imm r14, 25080
         imm r15, 3
         imm r16, 8
         imm r17, 3153920
@@ -593,20 +595,18 @@ root_memory_safety_expected_namelen:
         imm r25, 1397839182
         imm r26, 531848
         imm r27, 1296323662
-        ret
+        jmp rms_es
 root_memory_safety_expected_nameoff:
         call root_memory_safety_expected_namelen
         imm r11, 46
         imm r13, 175
-        imm r14, 25335
         imm r17, 3145728
         imm r23, 3153920
-        ret
+        jmp rms_es
 root_memory_safety_expected_name_a:
         call root_memory_safety_expected_namelen
         imm r11, 49
         imm r13, 177
-        imm r14, 25745
         imm r15, 2
         imm r16, 1
         imm r17, 2097152
@@ -614,24 +614,32 @@ root_memory_safety_expected_name_a:
         imm r19, 4
         imm r22, 1048575
         imm r23, 3145728
-        ret
+        jmp rms_es
 root_memory_safety_expected_name_b:
         call root_memory_safety_expected_name_a
         imm r11, 50
-        imm r14, 25888
-        ret
+        jmp rms_es
 root_memory_safety_expected_emit_ident:
         call root_memory_safety_expected_id_char
         imm r11, 54
         imm r12, 45
         imm r13, 216
-        imm r14, 31850
         imm r19, 5
         imm r24, 528192
         imm r25, 1396984133
         imm r26, 526792
         imm r27, 1396984146
-root_memory_safety_expected_selected:
+rms_es:
+        mov r30, r23
+        mov r31, r22
+        mov r20, r11
+        mov r21, r13
+        imm r22, 1
+        mov r23, r16
+        call exact_memory_identity_pc
+        mov r14, r0
+        mov r22, r31
+        mov r23, r30
         ret
 
 root_memory_safety_publish:
@@ -639,7 +647,7 @@ root_memory_safety_publish:
         imm r2, 1481790285             ; MSRX
         store r1, r2
         imm r1, 631184
-        imm r2, 54
+        imm r2, 58
         store r1, r2                  ; fixed loads
         imm r1, 631192
         imm r2, 5
@@ -660,7 +668,7 @@ root_memory_safety_publish:
         imm r21, 1481790285
         call exact_require_cell
         imm r20, 631184
-        imm r21, 54
+        imm r21, 58
         call exact_require_cell
         imm r20, 631192
         imm r21, 5

@@ -91,7 +91,7 @@ admission, and optional stress evidence stay under the same compiler owner.
   instruction/event/memory identity format plus small responsibility-specific
   semantic modules. The current bounded admission consists of 189 Alpha modules
   and 62,102 lines; Checker A is 1,010,867 source bytes and the checker ROOT is
-  81,725 bytes. Shape, control, data, and
+  81,747 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
   offsets, macro bodies, or equivalent verification permutations.
 - [x] Finish identity localization before changing the shared compiler frame
@@ -125,12 +125,16 @@ admission, and optional stress evidence stay under the same compiler owner.
   and `391` are not artifact PCs. `gen_emit`'s three identical newline events
   use exact-cardinality occurrence identity; an eighth tooth swaps two witness
   PCs and rejects before r13.
-- [ ] Apply the r13 optimization only after that localization. Acceptance is a
+- [x] Apply the r13 optimization only after that localization. Acceptance is a
   change to `bc.beta`, centralized identity/shape/ABI owners, generated exact
   identities, and adjacent manifests—not mechanical edits across unrelated
   semantic modules. Preserve the cold-start fixed point and both exact-subject
-  admission gates. The measured representative Gamma workload improvement was
-  about 10.5%; remeasure the canonical workload after admission.
+  admission gates. Completed: the root prelude reserves `r13=8`; shared push,
+  pop, prologue, epilogue, comparison, and combination emitters consume it;
+  global custody rejects every other candidate write to `r13`. The persisted
+  artifact fell from 52,141 to 40,693 bytes (21.96%) while the fixed point,
+  corpus, structural checker, full exact observation, and all eight binding
+  teeth remain green.
 - [ ] **BLOCKED — OWNER Q18:** ratify the generic guarded
   simulation/coinduction judgment and finite certificate shape, then reconstruct
   the exact compiler proposition below `bc` and check it with the Alpha-owned
@@ -157,10 +161,17 @@ Delta.
   changing Alpha or Gamma meaning, hiding a semantic stage in a runner, or
   weakening exact evidence joins. A 12-hour ceiling is emergency containment,
   not an acceptable normal gate duration.
-- [ ] After the admitted r13 change, profile the exact Delta publication input
+- [x] After the admitted r13 change, profile the exact Delta publication input
   again before attempting another dispatch mechanism or speculative Gamma
   rewrite. Preparation is already sub-second-to-low-second work; prior sampling
   placed roughly 90% of the canonical execution in Alpha instruction dispatch.
+  The admitted artifact reproduces the measured prototype interpreter tape
+  exactly. Two interleaved three-run representative measurements improved by
+  10.64% and 10.83%. A fresh eight-second sample of the exact 2,150,135-byte
+  closed Delta publication program recorded 5,113 of 6,207 samples at Alpha's
+  `next` dispatcher, with nearly all remaining samples in Alpha opcode handlers
+  and no output yet. Dispatch remains the next optimization target; preparation
+  and packing completed in 1.15 seconds and 0.11 seconds respectively.
 - [x] Retain the canonical evaluator input and output explicitly at the Delta
   producer edge, and retain evaluator/type-checker source and build-artifact
   identities at the `bc` → Gamma edge. The Delta publication evaluates an

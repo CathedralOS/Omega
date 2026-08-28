@@ -102,9 +102,8 @@ same memory-owner rejoins for its complete memory family. The synthesized
 `__write_str` helper resolves from the exact main-prelude successor and mapper
 cell; effect custody owns its sole exhaustive body check, while event and
 summary consumers use its returned relative sites. The final ROOT tape is
-81,725 bytes for the current
-exact subjects, SHA-256
-`cfbd2226124851f58f777e624bf36370898e2b317a1f6d900446611d83ff6c28`.
+81,747 bytes for the current exact subjects, SHA-256
+`43098b66b0f85416d67abc28f72cd68f557615a09e4934af201f9b5d3e045409`.
 `gen_emit`'s three identical newline events now use checker-owned exact
 cardinality and lexical occurrence rather than source rows. An eighth control
 swaps the first two valid witness PCs and is rejected by the label-emitter

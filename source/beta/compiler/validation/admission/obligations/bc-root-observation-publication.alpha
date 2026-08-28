@@ -179,7 +179,11 @@ root_observation_publication_loop_miss_payload:
 root_observation_publication_loop_body_payload:
         imm r32, 1                    ; nonzero byte
         imm r33, 5                    ; Body
-        imm r34, 51405
+        imm r20, 353
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r34, r0
         imm r36, 1                    ; main frame active
 root_observation_publication_check_loop_payload:
         mov r20, r10
@@ -221,7 +225,11 @@ root_observation_publication_select_iteration_payload:
         imm r30, 1                    ; exact PPRC row1 Ret0
         imm r31, 1                    ; SWSQ
         imm r32, 0                    ; status0
-        imm r33, 51262
+        imm r20, 352
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r33, r0
         imm r34, 3                    ; exact finite PPRC trace
         imm r35, 0                    ; no resource provenance
         imm r36, 1                    ; completed Tau guard

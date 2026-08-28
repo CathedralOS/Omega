@@ -1,7 +1,8 @@
 ; Conditional exact-output summaries for the two fixed-decimal emitters.
 ;
 ; EPRO covers emit_proc_prologue for 0<=nslots<=1024.  It always appends the
-; four fixed frame-setup lines; zero returns there, while positive nslots also
+; the empty compatibility event plus three fixed frame-setup lines; zero
+; returns there, while positive nslots also
 ; appends "imm r5," || dec(8*nslots) || "\nsub r15,r5\n".
 ;
 ; EPAR covers emit_param_store for 0<=k<4 and appends
@@ -168,12 +169,12 @@ fixed_decimal_append_trace:
 
 fixed_decimal_build_prologue_prefix:
         imm r20, 316
-        imm r21, 9
+        imm r21, 0
         imm r22, 0
         imm r23, 1
         call fixed_decimal_append_fixed
         imm r20, 317
-        imm r21, 11
+        imm r21, 12
         imm r22, 1
         imm r23, 2
         call fixed_decimal_append_fixed
@@ -188,7 +189,7 @@ fixed_decimal_build_prologue_prefix:
         imm r23, 4
         call fixed_decimal_append_fixed
         imm r20, 528656
-        imm r21, 46                  ; checked common prologue bytes
+        imm r21, 38                  ; checked common prologue bytes
         call exact_require_cell
         ret
 
@@ -263,7 +264,7 @@ fixed_decimal_prove_prologue_positive:
         imm r23, 8
         call fixed_decimal_append_fixed
         imm r20, 528656
-        imm r21, 65                  ; fixed bytes, excluding decimal digits
+        imm r21, 57                  ; fixed bytes, excluding decimal digits
         call exact_require_cell
         imm r1, 528584
         imm r2, 1

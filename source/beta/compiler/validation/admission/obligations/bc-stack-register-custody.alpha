@@ -4,7 +4,9 @@
 ; source tables.  This phase transfers those results into one fresh per-PC map,
 ; rejecting duplicate owners, then independently scans every decoded Alpha
 ; instruction.  The map must equal precisely the union of instructions which
-; write r14/r15 or access memory through r15.
+; write r14/r15 or access memory through r15.  Independently, r13 is reserved
+; to the exact root-prelude word-size initialization at PC20; no compiler body
+; instruction may mutate it.
 ;
 ; Owner map: 10354688 (one byte per tape pc).
 ; Counters: 525104 owner/union, 525120 writes-r14, 525128 writes-r15,
@@ -480,10 +482,18 @@ stack_scan_set_memory:
 
 ; r4 is the destination register.
 stack_scan_write_register:
+        imm r1, 13
+        jeq r4, r1, stack_scan_require_word_constant
         imm r1, 14
         jeq r4, r1, stack_scan_set_write14
         imm r1, 15
         jeq r4, r1, stack_scan_set_write15
+        ret
+stack_scan_require_word_constant:
+        imm r1, 20
+        jeq r10, r1, stack_scan_word_constant_ok
+        jmp reject
+stack_scan_word_constant_ok:
         ret
 stack_scan_set_write14:
         imm r20, 1

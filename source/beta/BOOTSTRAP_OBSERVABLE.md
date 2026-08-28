@@ -35,10 +35,10 @@ language observables. After the final input byte, Alpha `read` and Beta
 
 The exact subjects are:
 
-- `compiler/bc.beta`: 32,565 bytes, SHA-256
-  `fe4b5af69f87163ce919d22e2aa662ad0b5f2a044a6904581c91e8638749aa25`;
-- `compiler/artifacts/bc.tape`: 52,141 bytes, SHA-256
-  `1b32401c4c8fb60598e97178d415136227c9aa2231e28d9eb44b30e7a2818a2f`.
+- `compiler/bc.beta`: 32,605 bytes, SHA-256
+  `b6ad15ed9cc540a628b83c671bd8c6629770056a641d72d885e41354a8b06c4c`;
+- `compiler/artifacts/bc.tape`: 40,693 bytes, SHA-256
+  `73a0087da97b0629617ba8ced637a7783b2cc6911be906d1b4df5801e65c2cdd`.
 
 The resource profile fixes:
 
@@ -92,9 +92,9 @@ The retained evidence is intentionally responsibility-specific:
   framing, direct targets, procedure regions, and call/return structure below
   `bc`;
 - `compiler/validation/admission/bc-block-control.sh` reconstructs the canonical
-  whole-source/artifact conjunction and its 82,314-byte ROOT maximal-observation
+  whole-source/artifact conjunction and its 81,747-byte ROOT maximal-observation
   checker (SHA-256
-  `e45032fa8095973892754e82ebc81af180cb6acab1a6e2292e8384b1ce18bbf9`),
+  `43098b66b0f85416d67abc28f72cd68f557615a09e4934af201f9b5d3e045409`),
   then applies four fail-closed format controls, one source-identity/event-PC
   mutation control, two same-key occurrence-order controls for
   `emit_param_store` and `gen_emit`, and one same-block memory-identity swap

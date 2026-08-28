@@ -69,11 +69,11 @@ statement_emit_epilogue_prove_trace:
         imm r22, 2
         call statement_emit_epilogue_require_fragment
         imm r20, 343
-        imm r21, 9                     ; "imm r2,8\n"
+        imm r21, 0                     ; stable empty identity anchor
         imm r22, 3
         call statement_emit_epilogue_require_fragment
         imm r20, 344
-        imm r21, 11                    ; "add r15,r2\n"
+        imm r21, 12                    ; "add r15,r13\n"
         imm r22, 4
         call statement_emit_epilogue_require_fragment
         imm r20, 345
@@ -84,7 +84,7 @@ statement_emit_epilogue_prove_trace:
         imm r2, 5                     ; ordered fragment count
         store r1, r2
         imm r1, 549056
-        imm r2, 49                    ; exact concatenated byte count
+        imm r2, 41                    ; exact concatenated byte count
         store r1, r2
         imm r1, 549064
         imm r2, 1                     ; output only; data state is quiet
@@ -105,10 +105,10 @@ statement_emit_epilogue_require_result:
         imm r21, 13
         call exact_require_cell
         imm r20, 549024
-        imm r21, 9
+        imm r21, 0
         call exact_require_cell
         imm r20, 549032
-        imm r21, 11
+        imm r21, 12
         call exact_require_cell
         imm r20, 549040
         imm r21, 4
@@ -117,7 +117,7 @@ statement_emit_epilogue_require_result:
         imm r21, 5
         call exact_require_cell
         imm r20, 549056
-        imm r21, 49
+        imm r21, 41
         call exact_require_cell
         imm r20, 549064
         imm r21, 1

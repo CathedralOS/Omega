@@ -78,8 +78,15 @@ root_resource_join_build_cleanup:
         imm r20, 69
         imm r21, 354
         call exact_require_event_epilogue ; exact explicit return/epilogue
-        imm r20, 51549
-        imm r21, 51602
+        imm r20, 354
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r30, r0
+        imm r0, 70
+        call exact_proc_entry_pc
+        mov r21, r0
+        mov r20, r30
         imm r22, 0                      ; no calls
         imm r23, 2                      ; explicit plus synthetic returns
         imm r24, 0                      ; no stores, hence status/rho unchanged
@@ -90,25 +97,30 @@ root_resource_join_build_cleanup:
         imm r20, 627000
         imm r2, 1                      ; cleanup constructor id
         store r20, r2
-        imm r1, 8
-        add r20, r1
+        imm r20, 627008
         imm r2, 354                    ; main.resource block
         store r20, r2
-        add r20, r1
-        imm r2, 51549                  ; cleanup start
-        store r20, r2
-        add r20, r1
-        imm r2, 51562                  ; epilogue start
-        store r20, r2
-        add r20, r1
-        imm r2, 51581                  ; epilogue end / explicit return event
-        store r20, r2
-        add r20, r1
-        imm r2, 29                     ; root halt continuation
-        store r20, r2
-        add r20, r1
+        imm r20, 354
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        imm r1, 627016
+        store r1, r0                   ; cleanup start
+        imm r20, 69
+        imm r21, 354
+        call exact_require_event_epilogue
+        imm r20, 627024
+        store r20, r0                  ; epilogue start
+        imm r20, 627032
+        store r20, r4                  ; explicit return instruction
+        imm r20, 69
+        call exact_require_program_prelude
+        imm r20, 627040
+        store r20, r3                  ; root halt continuation
+        imm r20, 627048
         imm r2, 0                      ; unique anchor: cleanup stdout delta zero
         store r20, r2
+        imm r1, 8
         add r20, r1
         imm r2, 1
         store r20, r2                  ; RESOURCE_FAIL preserved
@@ -136,16 +148,32 @@ root_resource_join_require_cleanup:
         call root_resource_join_require_next
         imm r21, 354
         call root_resource_join_require_next
-        imm r21, 51549
-        call root_resource_join_require_next
-        imm r21, 51562
-        call root_resource_join_require_next
-        imm r21, 51581
-        call root_resource_join_require_next
-        imm r21, 29
-        call root_resource_join_require_next
+        imm r20, 354
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r21, r0
+        imm r20, 627016
+        call exact_require_cell
+        imm r20, 69
+        imm r21, 354
+        call exact_require_event_epilogue
+        mov r21, r0
+        imm r20, 627024
+        call exact_require_cell
+        mov r21, r4
+        imm r20, 627032
+        call exact_require_cell
+        imm r20, 69
+        call exact_require_program_prelude
+        mov r21, r3
+        imm r20, 627040
+        call exact_require_cell
+        imm r20, 627048
         imm r21, 0                      ; independently require stdout epsilon
-        call root_resource_join_require_next
+        call exact_require_cell
+        imm r1, 8
+        add r20, r1
         imm r10, 0
 root_resource_join_require_cleanup_flags:
         imm r1, 9

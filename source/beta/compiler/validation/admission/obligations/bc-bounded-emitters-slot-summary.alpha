@@ -261,12 +261,12 @@ bounded_combine_case:
         imm r23, 2
         call bounded_append_fixed
         imm r20, 362
-        imm r21, 9
+        imm r21, 0
         imm r22, 2
         imm r23, 3
         call bounded_append_fixed
         imm r20, 363
-        imm r21, 11
+        imm r21, 12
         imm r22, 3
         imm r23, 4
         call bounded_append_fixed
@@ -312,7 +312,7 @@ bounded_combine_case:
         call bounded_append_fixed
         call bounded_finish_restored
         imm r20, 532048
-        imm r21, 49                   ; fixed bytes; child contributes 3 or 0
+        imm r21, 41                   ; fixed bytes; child contributes 3 or 0
         call exact_require_cell
         imm r20, 532024
         imm r21, 1

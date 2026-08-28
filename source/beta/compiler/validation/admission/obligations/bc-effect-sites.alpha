@@ -279,7 +279,7 @@ enqueue_next_proc_found:
         add r1, r13
         load r7, r1
 enqueue_fallthrough_end:
-        imm r1, 20
+        imm r1, 10
         jlt r7, r1, reject
         mov r0, r7
         sub r0, r1
@@ -368,7 +368,7 @@ require_effect_eof:
         ; Their reader re-establishes EOF before returning to validation.
         jmp call_bounds_read_init
 
-; The only non-source call/halt is the exact 31-byte root prelude.
+; The only non-source call/halt is the exact 41-byte root prelude.
 validate_prelude:
         imm r20, 69                  ; independently scanned main identity
         call exact_require_program_prelude

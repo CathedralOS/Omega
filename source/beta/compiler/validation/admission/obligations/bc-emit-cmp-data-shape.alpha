@@ -55,13 +55,13 @@ emit_cmp_require_events:
         call emit_cmp_require_fixed_event
         imm r20, 465
         imm r21, 285
-        imm r22, emit_cmp_literal_word_bytes
-        imm r23, 9
+        imm r22, emit_cmp_literal_empty
+        imm r23, 0
         call emit_cmp_require_fixed_event
         imm r20, 466
         imm r21, 285
         imm r22, emit_cmp_literal_pop_left
-        imm r23, 11
+        imm r23, 12
         call emit_cmp_require_fixed_event
         imm r21, 285
         imm r22, 0
@@ -434,10 +434,9 @@ emit_cmp_literal_mov_right:
         db "mov r1,r0\n"
 emit_cmp_literal_load_left:
         db "load r0,r15\n"
-emit_cmp_literal_word_bytes:
-        db "imm r5,8\n"
+emit_cmp_literal_empty:
 emit_cmp_literal_pop_left:
-        db "add r15,r5\n"
+        db "add r15,r13\n"
 emit_cmp_literal_jlt_r0_r1:
         db "jlt r0,r1,"
 emit_cmp_literal_jlt_r1_r0:

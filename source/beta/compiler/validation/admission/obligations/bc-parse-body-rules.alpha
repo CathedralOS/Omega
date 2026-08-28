@@ -4,7 +4,7 @@
 ; The theorem is uniform in exact entry BLOCKDEPTH D:
 ;   D<64: Ret(status0), Ret(numeric252), or Div;
 ;   D=64: the immediate depth-exhaustion Ret(numeric252) base only.
-; Every finite row appends the exact five-fragment/49-byte p46 trace, returns
+; Every finite row appends the exact five-fragment/41-byte p46 trace, returns
 ; source zero, and restores exact entry D and the p68 caller. Every Div row
 ; retains the maximal child prefix and live resumptions, never reaches event601,
 ; and assumes neither cursor nor stdout productivity. Numeric252 retains its
@@ -40,10 +40,15 @@ parse_body_require_imports:
 ;   T1=PFXS prefix P; T2=SREL child C; T3=SEPI suffix E;
 ;   T4=P||C; T5=(P||C)||E.
 parse_body_build_trace_terms:
+        imm r20, 348
+        imm r21, 68
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r24, r0
         imm r20, 1
         imm r21, 1                      ; imported PFXS constructor
         imm r22, 1398294096             ; PFXS
-        imm r23, 50945
+        mov r23, r24
         call parse_body_store_trace_term
         imm r20, 2
         imm r21, 2                      ; child trace constructor
@@ -53,7 +58,7 @@ parse_body_build_trace_terms:
         imm r20, 3
         imm r21, 3                      ; fixed suffix constructor
         imm r22, 1229997395             ; SEPI
-        imm r23, 49                     ; exact suffix bytes
+        imm r23, 41                     ; exact suffix bytes
         call parse_body_store_trace_term
         imm r20, 4
         imm r21, 4                      ; concatenation
@@ -69,7 +74,7 @@ parse_body_build_trace_terms:
         imm r2, 5                      ; exact trace-term count
         store r1, r2
         imm r1, 560504
-        imm r2, 49                     ; exact SEPI suffix length
+        imm r2, 41                     ; exact SEPI suffix length
         store r1, r2
         imm r1, 560512
         imm r2, 5                      ; all finite rows root at P||C||E
@@ -313,7 +318,7 @@ parse_body_require_headers:
         imm r21, 64
         call exact_require_cell
         imm r20, 560504
-        imm r21, 49
+        imm r21, 41
         call exact_require_cell
         imm r20, 560512
         imm r21, 5
@@ -342,11 +347,16 @@ parse_body_require_headers:
         ret
 
 parse_body_require_trace_terms:
+        imm r20, 348
+        imm r21, 68
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r25, r0
         imm r20, 560600
         imm r21, 1
         imm r22, 1
         imm r23, 1398294096
-        imm r24, 50945
+        mov r24, r25
         call parse_body_require_trace_term
         imm r20, 560640
         imm r21, 2
@@ -358,7 +368,7 @@ parse_body_require_trace_terms:
         imm r21, 3
         imm r22, 3
         imm r23, 1229997395
-        imm r24, 49
+        imm r24, 41
         call parse_body_require_trace_term
         imm r20, 560720
         imm r21, 4

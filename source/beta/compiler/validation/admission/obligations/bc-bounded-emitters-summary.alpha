@@ -511,18 +511,18 @@ bounded_pop_case:
         imm r23, 3
         call bounded_append_fixed
         imm r20, 337
-        imm r21, 9
+        imm r21, 0
         imm r22, 3
         imm r23, 4
         call bounded_append_fixed
         imm r20, 338
-        imm r21, 11
+        imm r21, 12
         imm r22, 4
         imm r23, 5
         call bounded_append_fixed
         call bounded_finish_restored
         imm r20, 532048
-        imm r21, 31                   ; fixed bytes excluding dec(k)
+        imm r21, 23                   ; fixed bytes excluding dec(k)
         call exact_require_cell
         imm r20, 532024
         imm r21, 1
@@ -543,12 +543,12 @@ bounded_pop_publish:
 bounded_prove_emit_push:
         call bounded_reset_case
         imm r20, 346
-        imm r21, 9
+        imm r21, 0
         imm r22, 0
         imm r23, 1
         call bounded_append_fixed
         imm r20, 347
-        imm r21, 11
+        imm r21, 12
         imm r22, 1
         imm r23, 2
         call bounded_append_fixed
@@ -559,7 +559,7 @@ bounded_prove_emit_push:
         call bounded_append_fixed
         call bounded_finish_restored
         imm r20, 532048
-        imm r21, 33
+        imm r21, 25
         call exact_require_cell
         call bounded_require_dead_restored
         imm r1, 532080

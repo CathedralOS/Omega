@@ -510,14 +510,14 @@ scan_expr_comparison_macro:
         jmp reject
 reserve_comparison_results:
         mov r2, r10
-        imm r1, 30
+        imm r1, 20
         add r2, r1
         imm r1, 8912896
         add r1, r2
         imm r3, 1
         storeb r1, r3
         mov r2, r10
-        imm r1, 49
+        imm r1, 39
         add r2, r1
         imm r1, 8912896
         add r1, r2

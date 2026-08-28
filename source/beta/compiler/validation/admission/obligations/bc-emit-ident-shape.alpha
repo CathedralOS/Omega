@@ -218,8 +218,10 @@ emit_ident_require_censuses:
         imm r29, 0
         call summary_require_expr_census
 
-        imm r20, 31465
-        imm r21, 31970
+        imm r20, 45
+        call exact_proc_entry_r20
+        imm r21, 46
+        call exact_proc_entry_r21
         imm r22, 0                   ; no ordinary calls
         imm r23, 2                   ; explicit and synthetic returns
         imm r24, 1                   ; one direct output
