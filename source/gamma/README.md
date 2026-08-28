@@ -24,11 +24,14 @@ value constructors retain their ordinary representation. Direct call
 expressions also cache their resolved function-table index after the first
 lookup; this is interpreter-private AST metadata and does not alter name
 resolution, evaluation order, fuel, or printed values. These are bounded
-execution properties of the canonical
-interpreter, not extra Gamma syntax; printed values and pattern matching retain
-the language definition in [`LANGUAGE.md`](LANGUAGE.md). Canonical source input
-has a checked 4 MiB ceiling; the adjacent byte exits 252 without evaluation or
-output rather than overlapping the function table. Evaluated call arguments use
+execution properties of the canonical interpreter. Its checked evaluator entry
+establishes positive fuel; subexpression evaluation preserves that invariant,
+and every function-call decrement is checked at the tail-transfer boundary.
+The internal evaluator therefore does not repeat the same fuel test for every
+AST child. This is not extra Gamma syntax; printed values and pattern matching
+retain the language definition in [`LANGUAGE.md`](LANGUAGE.md). Canonical
+source input has a checked 4 MiB ceiling; the adjacent byte exits 252 without
+evaluation or output rather than overlapping the function table. Evaluated call arguments use
 a checked 4 KiB interpreter-private scratch stack, and exhaustion exits 253
 without printing a partial result. Tail transfers therefore do not allocate
 source-visible persistent lists merely to move values between evaluator frames.

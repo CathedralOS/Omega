@@ -954,7 +954,7 @@ proc resolve_var(expr) {
 proc eval_args(args, fuel) {         ; AST arg-CONS -> value-CONS (evaluated)
     state chk { to more when (args != 0)  return 0 }
     state more {
-        let h = eval(word[args + 8], fuel)
+        let h = eval_positive(word[args + 8], fuel)
         let t = eval_args(word[args + 16], fuel)
         return alloc3(6, h, t)
     }
@@ -967,7 +967,7 @@ proc eval_scratch_args(args, fuel) {
     state loop {
         to done when (args == 0)
         to exhausted when (word[2097096] == 14684192)
-        let h = eval(word[args + 8], fuel)
+        let h = eval_positive(word[args + 8], fuel)
         to exhausted when (word[2097088] != 0)
         word[word[2097096]] = h
         word[2097096] = word[2097096] + 8
@@ -996,7 +996,7 @@ proc bind_scratch_args(fi, values) {
 ; stay in the current frame; eval_call discards the whole frame when the tail chain
 ; finishes or transfers to another function.
 proc tail_match_body(scrut, arms, fuel) {
-    let sv = eval(scrut, fuel)
+    let sv = eval_positive(scrut, fuel)
     let arm = arms
     state loop {
         to body when (arm != 0)
@@ -1025,18 +1025,18 @@ proc eval_tail(expr, fuel) {
         to tail_if when (tag == 3)
         to tail_call when (tag == 5)
         to tail_match when (tag == 8)
-        return eval(expr, fuel)
+        return eval_positive(expr, fuel)
     }
     state arena_exhausted { return 14684256 }
     state exhausted { return mk_int(0) }
     state tail_let {
-        let lv = eval(word[expr + 16], fuel)
+        let lv = eval_positive(word[expr + 16], fuel)
         env_push(word[expr + 8], lv)
         expr = word[expr + 24]
         to loop
     }
     state tail_if {
-        to tail_then when (get_int(eval(word[expr + 8], fuel)) != 0)
+        to tail_then when (get_int(eval_positive(word[expr + 8], fuel)) != 0)
         expr = word[expr + 24]
         to loop
     }
@@ -1111,8 +1111,8 @@ proc eval_conapp(con, args, fuel) {
     state compact {
         ; Preserve source argument evaluation order while avoiding the two
         ; value-arglist nodes of the generic constructor representation.
-        let h = eval(word[args + 8], fuel)
-        let t = eval(word[rest + 8], fuel)
+        let h = eval_positive(word[args + 8], fuel)
+        let t = eval_positive(word[rest + 8], fuel)
         return alloc_cons(h, t)
     }
     state node_name {
@@ -1124,8 +1124,8 @@ proc eval_conapp(con, args, fuel) {
         let nrest = word[args + 16]
         to generic when (nrest == 0)
         to generic when (word[nrest + 16] != 0)
-        let left = eval(word[args + 8], fuel)
-        let right = eval(word[nrest + 8], fuel)
+        let left = eval_positive(word[args + 8], fuel)
+        let right = eval_positive(word[nrest + 8], fuel)
         return alloc_node(left, right)
     }
     state chunks_name {
@@ -1137,8 +1137,8 @@ proc eval_conapp(con, args, fuel) {
         let crest = word[args + 16]
         to generic when (crest == 0)
         to generic when (word[crest + 16] != 0)
-        let length = eval(word[args + 8], fuel)
-        let root = eval(word[crest + 8], fuel)
+        let length = eval_positive(word[args + 8], fuel)
+        let root = eval_positive(word[crest + 8], fuel)
         return alloc_chunks(length, root)
     }
     state generic {
@@ -1249,7 +1249,7 @@ proc try_match(pat, val) {
 }
 
 proc eval_match(scrut, arms, fuel) {
-    let sv = eval(scrut, fuel)
+    let sv = eval_positive(scrut, fuel)
     let arm = arms
     let result = 0
     state loop {
@@ -1265,16 +1265,25 @@ proc eval_match(scrut, arms, fuel) {
         to loop
     }
     state matched {
-        result = eval(word[armnode + 16], fuel)
+        result = eval_positive(word[armnode + 16], fuel)
         word[2097112] = savedepth
         return result
     }
 }
 
+; Establish the positive-fuel invariant once at the external evaluator entry.
+; Recursive expression evaluation preserves it; eval_tail rejects zero before
+; re-entering the core; and eval_call decrements only before eval_tail.
 proc eval(expr, fuel) {
-    state arena { to arena_exhausted when (word[2097080] != 0)  to fuelchk }
+    state chk { to positive when (fuel >= 1)  return 0 }
+    state positive { return eval_positive(expr, fuel) }
+}
+
+; Fuel is positive on entry. Keep exhaustion at the decrement boundary instead
+; of rechecking it for every literal, variable, operand, and constructor child.
+proc eval_positive(expr, fuel) {
+    state arena { to arena_exhausted when (word[2097080] != 0)  to live }
     state arena_exhausted { return 14684256 }
-    state fuelchk { to live when (fuel >= 1)  return 0 }   ; OutOfFuel sentinel
     state live {
         let tag = word[expr]
         to t_int when (tag == 0)
@@ -1285,8 +1294,8 @@ proc eval(expr, fuel) {
     state t_var { return resolve_var(expr) }                ; VAR -> value pointer
     state t2 { to t_prim when (tag == 2)  to t3 }
     state t_prim {                   ; PRIM op a b (on integers)
-        let a = get_int(eval(word[expr + 16], fuel))
-        let b = get_int(eval(word[expr + 24], fuel))
+        let a = get_int(eval_positive(word[expr + 16], fuel))
+        let b = get_int(eval_positive(word[expr + 24], fuel))
         let op = word[expr + 8]
         to p_add when (op == '+')
         to p1
@@ -1314,15 +1323,15 @@ proc eval(expr, fuel) {
     state p_lt1 { return mk_int(1) }
     state t3 { to t_if when (tag == 3)  to t4 }
     state t_if {                     ; IF c t e
-        to if_then when (get_int(eval(word[expr + 8], fuel)) != 0)
-        return eval(word[expr + 24], fuel)
+        to if_then when (get_int(eval_positive(word[expr + 8], fuel)) != 0)
+        return eval_positive(word[expr + 24], fuel)
     }
-    state if_then { return eval(word[expr + 16], fuel) }
+    state if_then { return eval_positive(word[expr + 16], fuel) }
     state t4 { to t_let when (tag == 4)  to t5 }
     state t_let {                    ; LET off e body
-        let v = eval(word[expr + 16], fuel)
+        let v = eval_positive(word[expr + 16], fuel)
         env_push(word[expr + 8], v)
-        let r = eval(word[expr + 24], fuel)
+        let r = eval_positive(word[expr + 24], fuel)
         word[2097112] = word[2097112] - 1
         return r
     }
