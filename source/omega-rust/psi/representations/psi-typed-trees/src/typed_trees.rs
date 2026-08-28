@@ -2,7 +2,7 @@ use crate::{
     data, domain, expression, machine, measure, name, proposition, signature, snapshot,
     trait_definition, types, wire,
 };
-use psi_arena::{Arena, HandleSpan};
+use psi_arena::{Arena, Handle, HandleSpan};
 use psi_diagnostics::PhaseSnapshot;
 use psi_symbols::SymbolTable;
 use std::ops::{Deref, DerefMut};
@@ -391,6 +391,7 @@ pub struct TypedTreeTables {
     pub data_payload_fields: Arena<data::DataField>,
     pub domain_definitions: Arena<domain::DomainDefinition>,
     pub proof_facts: Arena<domain::ProofFact>,
+    proof_fact_source_spans: Vec<Option<psi_source::SourceSpan>>,
     pub propositions: Arena<proposition::PropositionDefinition>,
     pub proposition_binders: Arena<proposition::PropositionBinder>,
     pub domain_path_members: Arena<crate::name::Identifier>,
@@ -692,6 +693,27 @@ impl TypedTrees {
 
     pub fn proof_facts(&self, domain: &domain::DomainDefinition) -> &[domain::ProofFact] {
         self.proof_facts.span_or_empty(domain.facts)
+    }
+
+    pub fn proof_fact_source_span(
+        &self,
+        handle: Handle<domain::ProofFact>,
+    ) -> Option<psi_source::SourceSpan> {
+        self.tables
+            .proof_fact_source_spans
+            .get(proof_fact_source_span_index(handle))
+            .copied()
+            .flatten()
+    }
+
+    pub fn set_proof_fact_source_span(
+        &mut self,
+        handle: Handle<domain::ProofFact>,
+        source_span: psi_source::SourceSpan,
+    ) {
+        let index = proof_fact_source_span_index(handle);
+        self.tables.proof_fact_source_spans.resize(index + 1, None);
+        self.tables.proof_fact_source_spans[index] = Some(source_span);
     }
 
     pub fn push_proposition(&mut self, proposition: proposition::PropositionDefinition) {
@@ -1722,6 +1744,13 @@ impl TypedTrees {
     pub fn snapshot_json_pretty(&self) -> Result<String, serde_json::Error> {
         self.snapshot().to_json_pretty()
     }
+}
+
+fn proof_fact_source_span_index(handle: Handle<domain::ProofFact>) -> usize {
+    usize::try_from(handle.arena_index())
+        .expect("proof fact source-span index exceeds usize")
+        .checked_sub(1)
+        .expect("proof fact source-span handle must be valid")
 }
 
 impl PhaseSnapshot for TypedTrees {

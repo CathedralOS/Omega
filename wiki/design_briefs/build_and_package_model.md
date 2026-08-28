@@ -1277,7 +1277,7 @@ authored booleans, and checked published/internal interfaces to agree exactly;
 omission and inference receive no invented location. A public or otherwise
 contract-supplied machine's checked operational fact remains its published may-
 ceiling, not an observation that the current body exercised that permission.
-Review v75/row v33, recovery v9, conflict fingerprint v12, and renderer V11 bind
+Review v75/row v33, recovery v11, conflict fingerprint v14, and renderer V13 bind
 the current source schema. External executable leaves retain the exact authored
 `via` keyword beside the normalized binding identity on the same conformance.
 Projection requires binding/span parity and carries that occurrence under
@@ -1287,8 +1287,14 @@ rejects. Public const declarations additionally retain the exact parsed
 initializer-expression span through symbol resolution and typed lowering,
 before substitution erases the value tree. `PublicConst` rows carry it as
 `const_initializer` beside the declaration-name anchor. Relocation changes the
-explanatory coordinates but not the semantic row bytes. Remaining per-fact
-spans are incremental; absent
+explanatory coordinates but not the semantic row bytes. Transparent public
+propositions retain their complete formula extent at the parser boundary under
+`proposition_formula`; primitive and witness propositions receive no invented
+formula location. Every authored proof fact retains its full semantic-token
+extent under `proof_fact` through syntax, resolution, typed lowering, generic
+synthesis, and checked specialization. Public domain/data facts require that
+custody, as does every fact beneath an authored public contract clause;
+source-free compiler synthesis receives no invented coordinate. Absent
 late-stage spans must be retained by their earlier owner, not reconstructed
 from source text.
 

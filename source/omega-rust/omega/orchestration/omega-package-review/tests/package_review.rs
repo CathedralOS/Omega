@@ -11363,6 +11363,71 @@ fn public_domain_predicate_fact_order_is_canonical_but_content_changes_encoding(
 }
 
 #[test]
+fn public_api_rows_retain_exact_authored_proof_fact_extents() {
+    let package = TempPackage::new();
+    let source = r#"pub data Ledger
+where
+    count <= len,
+{
+    len: u32;
+    count: u32;
+}
+pub domain Ledger::Ready
+requires
+    self.count <= self.len;
+pub trait Bounds {
+    machine clamp(value: u64) -> u64
+    requires value >= 1
+    ensures result >= value;
+}
+"#;
+    package.write("main.omg", source);
+    package.write(
+        "build.omg",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("proof-fact source fixture should check");
+    let rows = project_checked_package_review(&checked)
+        .expect("proof-fact source fixture should project")
+        .canonical_rows()
+        .expect("proof-fact canonical rows");
+
+    let fact_slices = |kind| {
+        let row = rows
+            .iter()
+            .find(|row| row.kind() == kind)
+            .expect("review row with proof facts");
+        row.source()
+            .authored_locations()
+            .expect("authored row locations")
+            .iter()
+            .filter(|location| location.role() == PackageReviewSourceLocationRole::ProofFact)
+            .map(|location| {
+                &source[usize::try_from(location.start_byte()).unwrap()
+                    ..usize::try_from(location.end_byte()).unwrap()]
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        fact_slices(PackageReviewCanonicalRowKind::PublicData),
+        ["count <= len"]
+    );
+    assert_eq!(
+        fact_slices(PackageReviewCanonicalRowKind::PublicDomain),
+        ["self.count <= self.len"]
+    );
+    assert_eq!(
+        fact_slices(PackageReviewCanonicalRowKind::PublicTrait),
+        ["value >= 1", "result >= value"]
+    );
+}
+
+#[test]
 fn review_projects_callable_domain_predicates_through_exact_checked_selection() {
     let package = TempPackage::new();
     package.write(

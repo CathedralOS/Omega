@@ -2414,6 +2414,9 @@ pub enum PackageReviewSourceLocationRole {
     /// formula remains explanatory custody outside normalized proposition
     /// identity.
     PropositionFormula,
+    /// Exact semantic-token extent of one authored proof fact. The location
+    /// remains explanatory custody outside normalized fact identity.
+    ProofFact,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2729,7 +2732,7 @@ pub fn project_checked_package_review(
 
         let (callable, executable_supply) = project_callable(compilation, machine, role, owner)?;
         let mut contract_locations =
-            project_contract_clause_source_locations(compilation.machine_contracts(machine));
+            project_contract_source_locations(compilation, compilation.machine_contracts(machine))?;
         contract_locations.extend(project_machine_invocation_source_locations(
             compilation,
             machine,
@@ -3832,9 +3835,10 @@ fn project_public_traits(
             },
         ));
         for requirement in compilation.trait_machine_signatures(definition) {
-            nested_source_locations.extend(project_contract_clause_source_locations(
+            nested_source_locations.extend(project_contract_source_locations(
+                compilation,
                 compilation.state_signature_contracts(requirement),
-            ));
+            )?);
             nested_source_locations.extend(project_signature_invocation_source_locations(
                 compilation,
                 requirement,
@@ -4557,8 +4561,10 @@ fn project_public_operators(
         };
         let published_crash =
             project_operator_crash_routes(compilation, checked_crash, &context, &binders)?;
-        let mut nested_source_locations =
-            project_contract_clause_source_locations(compilation.operator_contracts(declaration));
+        let mut nested_source_locations = project_contract_source_locations(
+            compilation,
+            compilation.operator_contracts(declaration),
+        )?;
         collect_type_parameter_source_locations(
             compilation,
             declaration_type_parameters,
@@ -4724,6 +4730,11 @@ fn project_public_domains(
             nested_source_locations: {
                 let mut locations = Vec::new();
                 collect_type_parameter_source_locations(compilation, parameters, &mut locations)?;
+                locations.extend(project_required_proof_fact_source_locations(
+                    compilation,
+                    definition.facts,
+                    "public domain predicate",
+                )?);
                 locations
             },
         });
@@ -5606,6 +5617,11 @@ fn project_public_data(
             nested_source_locations: {
                 let mut locations = Vec::new();
                 collect_type_parameter_source_locations(compilation, parameters, &mut locations)?;
+                locations.extend(project_required_proof_fact_source_locations(
+                    compilation,
+                    definition.where_facts,
+                    "public data invariant",
+                )?);
                 locations
             },
         });
@@ -7583,20 +7599,71 @@ fn project_contracts(
     Ok(projected)
 }
 
-fn project_contract_clause_source_locations(
+fn proof_fact_handle(
+    facts: psi_arena::HandleSpan<psi_typed_trees::domain::ProofFact>,
+    offset: u32,
+) -> psi_arena::Handle<psi_typed_trees::domain::ProofFact> {
+    psi_arena::Handle::from_parts(
+        facts
+            .start()
+            .arena_index()
+            .checked_add(offset)
+            .expect("proof fact handle index overflow"),
+        facts.start().generation(),
+    )
+}
+
+fn project_required_proof_fact_source_locations(
+    compilation: &CheckedCompilation,
+    facts: psi_arena::HandleSpan<psi_typed_trees::domain::ProofFact>,
+    subject: &str,
+) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    let mut locations = Vec::with_capacity(facts.len());
+    for offset in 0..facts.count() {
+        let source_span = compilation
+            .proof_fact_source_span(proof_fact_handle(facts, offset))
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "{subject} fact has no exact authored source custody"
+                ))]
+            })?;
+        locations.push(ProjectedNestedSourceLocation {
+            source_span,
+            role: PackageReviewSourceLocationRole::ProofFact,
+        });
+    }
+    Ok(locations)
+}
+
+fn project_contract_source_locations(
+    compilation: &CheckedCompilation,
     contracts: &[psi_typed_trees::signature::SignatureContract],
-) -> Vec<ProjectedNestedSourceLocation> {
-    contracts
-        .iter()
-        .filter_map(|contract| {
-            contract
-                .keyword_source_span
-                .map(|source_span| ProjectedNestedSourceLocation {
+) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    let mut locations = Vec::new();
+    for contract in contracts {
+        if let Some(source_span) = contract.keyword_source_span {
+            locations.push(ProjectedNestedSourceLocation {
+                source_span,
+                role: PackageReviewSourceLocationRole::ContractClause,
+            });
+        }
+        for offset in 0..contract.facts.count() {
+            let fact = proof_fact_handle(contract.facts, offset);
+            match compilation.proof_fact_source_span(fact) {
+                Some(source_span) => locations.push(ProjectedNestedSourceLocation {
                     source_span,
-                    role: PackageReviewSourceLocationRole::ContractClause,
-                })
-        })
-        .collect()
+                    role: PackageReviewSourceLocationRole::ProofFact,
+                }),
+                None if contract.keyword_source_span.is_some() => {
+                    return Err(vec![Diagnostic::error(
+                        "authored package-review contract fact has no exact source custody",
+                    )]);
+                }
+                None => {}
+            }
+        }
+    }
+    Ok(locations)
 }
 
 fn project_machine_service_reach_source_locations(
@@ -8112,9 +8179,10 @@ fn collect_type_parameter_source_locations(
         else {
             continue;
         };
-        locations.extend(project_contract_clause_source_locations(
+        locations.extend(project_contract_source_locations(
+            compilation,
             compilation.state_signature_contracts(signature),
-        ));
+        )?);
         locations.extend(project_signature_invocation_source_locations(
             compilation,
             signature,

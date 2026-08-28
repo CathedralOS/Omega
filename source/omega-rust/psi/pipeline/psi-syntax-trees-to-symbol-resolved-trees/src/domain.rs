@@ -140,7 +140,16 @@ pub(crate) fn lower_proof_facts(
 ) -> Result<psi_arena::HandleSpan<ProofFact>, Diagnostic> {
     let mut lowered = psi_arena::HandleSpan::empty();
 
-    for fact in syntax_trees.items.proof_facts(facts) {
+    for (offset, fact) in syntax_trees.items.proof_facts(facts).iter().enumerate() {
+        let source_fact = psi_arena::Handle::from_parts(
+            facts
+                .start()
+                .arena_index()
+                .checked_add(u32::try_from(offset).expect("proof fact offset overflow"))
+                .expect("proof fact source handle overflow"),
+            facts.start().generation(),
+        );
+        let source_span = syntax_trees.items.proof_fact_source_span(source_fact);
         let fact = match fact {
             syntax::item::ProofFact::Expression(expression) => {
                 let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
@@ -175,6 +184,11 @@ pub(crate) fn lower_proof_facts(
             .declarations
             .proof_facts
             .append_to_span(&mut lowered, fact);
+        if let Some(source_span) = source_span {
+            lowerer
+                .symbol_resolved_trees
+                .set_proof_fact_source_span(fact, source_span);
+        }
         if is_membership && let Some(exposure) = lowerer.current_authored_expression_exposure {
             lowerer
                 .pending_authored_proof_memberships
