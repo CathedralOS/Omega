@@ -441,10 +441,7 @@ pub(super) fn resolve_runtime_storage_place_in_table(
         return None;
     }
     let suffix = path.suffix(1);
-    if let Some(slot) =
-        find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
-            slot_matches_table_path(slot, &path)
-        })
+    if let Some(slot) = find_runtime_frame_slot_for_path(input, dispatch_index, source_key, &path)
         .or_else(|| {
             latest_dispatch_frame_slot(input, dispatch_index, |slot| {
                 slot_matches_table_path(slot, &path)
@@ -540,10 +537,7 @@ pub(super) fn resolve_runtime_bit_field_place_in_table(
         return None;
     }
     let suffix = path.suffix(1);
-    if let Some(slot) =
-        find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
-            slot_matches_table_path(slot, &path)
-        })
+    if let Some(slot) = find_runtime_frame_slot_for_path(input, dispatch_index, source_key, &path)
         .or_else(|| {
             latest_dispatch_frame_slot(input, dispatch_index, |slot| {
                 slot_matches_table_path(slot, &path)
@@ -657,10 +651,7 @@ pub(super) fn resolve_runtime_stored_integer_projection_in_table(
         return None;
     }
     let suffix = path.suffix(1);
-    if let Some(slot) =
-        find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
-            slot_matches_table_path(slot, &path)
-        })
+    if let Some(slot) = find_runtime_frame_slot_for_path(input, dispatch_index, source_key, &path)
         .or_else(|| {
             latest_dispatch_frame_slot(input, dispatch_index, |slot| {
                 slot_matches_table_path(slot, &path)
@@ -1102,11 +1093,7 @@ fn fixed_array_length_of_receiver_in_table(
         return None;
     }
 
-    if let Some(slot) =
-        find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
-            slot_matches_table_path(slot, &path)
-        })
-    {
+    if let Some(slot) = find_runtime_frame_slot_for_path(input, dispatch_index, source_key, &path) {
         let root_field = FieldLayout {
             symbol: slot.symbol,
             name: slot.name.clone(),
@@ -1204,11 +1191,7 @@ fn static_elided_local_value_traced(
     }
     // A MATERIALIZED local has runtime storage and may be mutated after its
     // initializer; never fold it here (the place resolvers read the slot).
-    if find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
-        slot_matches_table_path(slot, &path)
-    })
-    .is_some()
-    {
+    if find_runtime_frame_slot_for_path(input, dispatch_index, source_key, &path).is_some() {
         return None;
     }
     let initializer =
@@ -2109,15 +2092,13 @@ pub(super) fn resolve_runtime_storage_leaf_descriptor_in_table(
         return None;
     }
     let suffix = path.suffix(1);
-    let slot = find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
-        slot_matches_table_path(slot, &path)
-    })
-    .or_else(|| {
-        latest_dispatch_frame_slot(input, dispatch_index, |slot| {
-            slot_matches_table_path(slot, &path)
+    let slot = find_runtime_frame_slot_for_path(input, dispatch_index, source_key, &path)
+        .or_else(|| {
+            latest_dispatch_frame_slot(input, dispatch_index, |slot| {
+                slot_matches_table_path(slot, &path)
+            })
         })
-    })
-    .or_else(|| resymbolized_local_slot_for_path(input, dispatch_index, source_key, &path));
+        .or_else(|| resymbolized_local_slot_for_path(input, dispatch_index, source_key, &path));
 
     let Some(slot) = slot else {
         // Not a frame slot: most `data` fields are machine-owned. Resolve the
@@ -4349,15 +4330,13 @@ fn runtime_frame_slot_for_expression_in_table<'plan>(
 ) -> Option<&'plan omega_runtime_storage::RuntimeFrameSlot> {
     let path = normalized_storage_name_path_in_table(expressions, expression)?;
 
-    find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
-        slot_matches_table_path(slot, &path)
-    })
-    .or_else(|| {
-        latest_dispatch_frame_slot(input, dispatch_index, |slot| {
-            slot_matches_table_path(slot, &path)
+    find_runtime_frame_slot_for_path(input, dispatch_index, source_key, &path)
+        .or_else(|| {
+            latest_dispatch_frame_slot(input, dispatch_index, |slot| {
+                slot_matches_table_path(slot, &path)
+            })
         })
-    })
-    .or_else(|| resymbolized_local_slot_for_path(input, dispatch_index, source_key, &path))
+        .or_else(|| resymbolized_local_slot_for_path(input, dispatch_index, source_key, &path))
 }
 
 /// GENUINELY SCOPED frame-slot resolution for a name-path expression under
@@ -4437,75 +4416,68 @@ fn find_runtime_frame_slot_for_path<'plan>(
     input: &'plan InstructionSelectionInput<'plan>,
     dispatch_index: u32,
     source_key: StateKey,
-    matches_path: impl Fn(&omega_runtime_storage::RuntimeFrameSlot) -> bool,
+    path: &StorageNamePath<'_>,
 ) -> Option<&'plan omega_runtime_storage::RuntimeFrameSlot> {
-    input
-        .runtime_storage
-        .frame_slots
-        .iter()
-        .find_map(|(_, slot)| {
-            (slot.dispatch_index == dispatch_index
-                && slot.source_key == source_key
-                && matches_path(slot))
-            .then_some(slot)
+    find_runtime_frame_slot_for_root_indexed(
+        input.runtime_storage,
+        dispatch_index,
+        source_key,
+        path.head_symbol(),
+        path.member(0).map(Identifier::as_str),
+    )
+}
+
+fn find_runtime_frame_slot_for_root_indexed<'plan>(
+    runtime_storage: &'plan omega_runtime_storage::RuntimeStoragePlan,
+    dispatch_index: u32,
+    source_key: StateKey,
+    root_symbol: SymbolHandle,
+    root_name: Option<&str>,
+) -> Option<&'plan omega_runtime_storage::RuntimeFrameSlot> {
+    let candidates = runtime_storage.frame_slots_matching_root(root_symbol, root_name);
+    select_runtime_frame_slot_for_path(candidates, dispatch_index, source_key)
+}
+
+fn select_runtime_frame_slot_for_path<'plan>(
+    candidates: impl Clone + Iterator<Item = &'plan omega_runtime_storage::RuntimeFrameSlot>,
+    dispatch_index: u32,
+    source_key: StateKey,
+) -> Option<&'plan omega_runtime_storage::RuntimeFrameSlot> {
+    candidates
+        .clone()
+        .find(|slot| slot.dispatch_index == dispatch_index && slot.source_key == source_key)
+        .or_else(|| {
+            candidates.clone().find(|slot| {
+                slot.dispatch_index == dispatch_index
+                    && state_key_matches_statement_source(slot.source_key, source_key)
+            })
         })
         .or_else(|| {
-            input
-                .runtime_storage
-                .frame_slots
-                .iter()
-                .find_map(|(_, slot)| {
-                    (slot.dispatch_index == dispatch_index
-                        && state_key_matches_statement_source(slot.source_key, source_key)
-                        && matches_path(slot))
-                    .then_some(slot)
-                })
-        })
-        .or_else(|| {
-            input
-                .runtime_storage
-                .frame_slots
-                .iter()
-                .filter_map(|(_, slot)| {
-                    (slot.dispatch_index <= dispatch_index
-                        && slot.source_key == source_key
-                        && matches_path(slot))
-                    .then_some(slot)
-                })
-                .max_by_key(|slot| slot.dispatch_index)
-        })
-        .or_else(|| {
-            input
-                .runtime_storage
-                .frame_slots
-                .iter()
-                .filter_map(|(_, slot)| {
-                    (slot.dispatch_index <= dispatch_index
-                        && state_key_matches_statement_source(slot.source_key, source_key)
-                        && matches_path(slot))
-                    .then_some(slot)
+            candidates
+                .clone()
+                .filter(|slot| {
+                    slot.dispatch_index <= dispatch_index && slot.source_key == source_key
                 })
                 .max_by_key(|slot| slot.dispatch_index)
         })
         .or_else(|| {
-            input
-                .runtime_storage
-                .frame_slots
-                .iter()
-                .find_map(|(_, slot)| {
-                    (slot.source_key == source_key && matches_path(slot)).then_some(slot)
+            candidates
+                .clone()
+                .filter(|slot| {
+                    slot.dispatch_index <= dispatch_index
+                        && state_key_matches_statement_source(slot.source_key, source_key)
                 })
+                .max_by_key(|slot| slot.dispatch_index)
         })
         .or_else(|| {
-            input
-                .runtime_storage
-                .frame_slots
-                .iter()
-                .find_map(|(_, slot)| {
-                    (state_key_matches_statement_source(slot.source_key, source_key)
-                        && matches_path(slot))
-                    .then_some(slot)
-                })
+            candidates
+                .clone()
+                .find(|slot| slot.source_key == source_key)
+        })
+        .or_else(|| {
+            candidates
+                .clone()
+                .find(|slot| state_key_matches_statement_source(slot.source_key, source_key))
         })
         .or_else(|| {
             // Inline branch tables can lose the resolved symbol on a callee
@@ -4513,16 +4485,10 @@ fn find_runtime_frame_slot_for_path<'plan>(
             // same-machine slot only when it is unique in this dispatch. This
             // preserves the callee scope without guessing between two locals
             // of the same spelling in different states of one machine.
-            let mut matches = input
-                .runtime_storage
-                .frame_slots
-                .iter()
-                .filter_map(|(_, slot)| {
-                    (slot.dispatch_index == dispatch_index
-                        && slot.source_key.machine == source_key.machine
-                        && matches_path(slot))
-                    .then_some(slot)
-                });
+            let mut matches = candidates.clone().filter(|slot| {
+                slot.dispatch_index == dispatch_index
+                    && slot.source_key.machine == source_key.machine
+            });
             let first = matches.next();
             match (first, matches.next()) {
                 (Some(slot), None) => Some(slot),
@@ -4540,12 +4506,100 @@ fn find_runtime_frame_slot_for_path<'plan>(
             // reference, so it identifies exactly that one slot; take the nearest
             // dispatch at or before this one (segments of one control state share
             // the slot).
-            input
-                .runtime_storage
+            candidates
+                .filter(|slot| slot.dispatch_index <= dispatch_index)
+                .max_by_key(|slot| slot.dispatch_index)
+        })
+}
+
+#[cfg(test)]
+fn find_runtime_frame_slot_for_root_linear<'plan>(
+    runtime_storage: &'plan omega_runtime_storage::RuntimeStoragePlan,
+    dispatch_index: u32,
+    source_key: StateKey,
+    root_symbol: SymbolHandle,
+    root_name: Option<&str>,
+) -> Option<&'plan omega_runtime_storage::RuntimeFrameSlot> {
+    let matches_root = |slot: &omega_runtime_storage::RuntimeFrameSlot| {
+        if root_symbol.is_valid() {
+            slot_matches_root(slot.symbol, root_symbol)
+        } else {
+            root_name.is_some_and(|name| name == slot.name.as_str())
+        }
+    };
+
+    runtime_storage
+        .frame_slots
+        .iter()
+        .find_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && slot.source_key == source_key
+                && matches_root(slot))
+            .then_some(slot)
+        })
+        .or_else(|| {
+            runtime_storage.frame_slots.iter().find_map(|(_, slot)| {
+                (slot.dispatch_index == dispatch_index
+                    && state_key_matches_statement_source(slot.source_key, source_key)
+                    && matches_root(slot))
+                .then_some(slot)
+            })
+        })
+        .or_else(|| {
+            runtime_storage
                 .frame_slots
                 .iter()
                 .filter_map(|(_, slot)| {
-                    (slot.dispatch_index <= dispatch_index && matches_path(slot)).then_some(slot)
+                    (slot.dispatch_index <= dispatch_index
+                        && slot.source_key == source_key
+                        && matches_root(slot))
+                    .then_some(slot)
+                })
+                .max_by_key(|slot| slot.dispatch_index)
+        })
+        .or_else(|| {
+            runtime_storage
+                .frame_slots
+                .iter()
+                .filter_map(|(_, slot)| {
+                    (slot.dispatch_index <= dispatch_index
+                        && state_key_matches_statement_source(slot.source_key, source_key)
+                        && matches_root(slot))
+                    .then_some(slot)
+                })
+                .max_by_key(|slot| slot.dispatch_index)
+        })
+        .or_else(|| {
+            runtime_storage.frame_slots.iter().find_map(|(_, slot)| {
+                (slot.source_key == source_key && matches_root(slot)).then_some(slot)
+            })
+        })
+        .or_else(|| {
+            runtime_storage.frame_slots.iter().find_map(|(_, slot)| {
+                (state_key_matches_statement_source(slot.source_key, source_key)
+                    && matches_root(slot))
+                .then_some(slot)
+            })
+        })
+        .or_else(|| {
+            let mut matches = runtime_storage.frame_slots.iter().filter_map(|(_, slot)| {
+                (slot.dispatch_index == dispatch_index
+                    && slot.source_key.machine == source_key.machine
+                    && matches_root(slot))
+                .then_some(slot)
+            });
+            let first = matches.next();
+            match (first, matches.next()) {
+                (Some(slot), None) => Some(slot),
+                _ => None,
+            }
+        })
+        .or_else(|| {
+            runtime_storage
+                .frame_slots
+                .iter()
+                .filter_map(|(_, slot)| {
+                    (slot.dispatch_index <= dispatch_index && matches_root(slot)).then_some(slot)
                 })
                 .max_by_key(|slot| slot.dispatch_index)
         })
@@ -4781,9 +4835,7 @@ fn resolve_runtime_frame_fixed_indexed_storage_path_target_in_table(
         .member_index(0)
         .or_else(|| root_member_fixed_index(path.member(0)?))?;
     let collection_slot =
-        find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
-            slot_matches_table_path(slot, &path)
-        })?;
+        find_runtime_frame_slot_for_path(input, dispatch_index, source_key, &path)?;
     if runtime_frame_slot_is_inline_fixed_array_storage(input, collection_slot) {
         return None;
     }
@@ -5359,11 +5411,113 @@ fn primitive_layout(
 
 #[cfg(test)]
 mod tests {
+    use omega_runtime_storage::{RuntimeFrameSlot, RuntimeStoragePlan};
     use psi_checked_trees::expression::BinaryOperator;
+    use psi_checked_trees::name::Identifier;
     use psi_checked_trees::types::PrimitiveType;
     use psi_numerics::literals::LandedIntegerType;
+    use psi_symbols::SymbolHandle;
 
-    use super::{binary_operator_result_is_bool, primitive_type_for_landed_integer};
+    use super::{
+        StateKey, binary_operator_result_is_bool, find_runtime_frame_slot_for_root_indexed,
+        find_runtime_frame_slot_for_root_linear, primitive_type_for_landed_integer,
+    };
+
+    fn symbol(index: u32) -> SymbolHandle {
+        SymbolHandle::from_arena_index(index)
+    }
+
+    #[test]
+    fn indexed_frame_slot_lookup_matches_eight_tier_linear_oracle() {
+        let machines = [symbol(1), symbol(2)];
+        let states = [symbol(11), symbol(12), symbol(13)];
+        let root_symbols = [symbol(21), symbol(22)];
+        let mut storage = RuntimeStoragePlan::default();
+        let mut ordinal = 1usize;
+
+        // Cross dispatch, source, segment, resolved-symbol, and unresolved-name
+        // dimensions. Repeated roots in one dispatch intentionally exercise the
+        // unique-same-machine tier's ambiguous case as well as max-by-key ties.
+        for dispatch_index in 0..=4 {
+            for machine in machines {
+                for state in states {
+                    for segment_index in 0..=1 {
+                        for root_kind in 0..3 {
+                            let (root_symbol, root_name) = match root_kind {
+                                0 => (root_symbols[0], "shared"),
+                                1 => (root_symbols[1], "named"),
+                                _ => (SymbolHandle::invalid(), "shared"),
+                            };
+                            storage.frame_slots.insert(RuntimeFrameSlot {
+                                dispatch_index,
+                                source_key: StateKey {
+                                    machine,
+                                    state,
+                                    segment_index,
+                                },
+                                symbol: root_symbol,
+                                name: Identifier::generated(root_name),
+                                byte_offset: ordinal,
+                                ..RuntimeFrameSlot::default()
+                            });
+                            ordinal += 1;
+                        }
+                    }
+                }
+            }
+        }
+        storage.rebuild_frame_slot_index();
+
+        let query_machines = [machines[0], machines[1], symbol(3)];
+        let query_states = [states[0], states[1], states[2], symbol(14)];
+        let roots = [
+            (root_symbols[0], None),
+            (root_symbols[1], None),
+            (symbol(23), None),
+            (SymbolHandle::invalid(), Some("shared")),
+            (SymbolHandle::invalid(), Some("named")),
+            (SymbolHandle::invalid(), Some("missing")),
+        ];
+        let mut comparisons = 0usize;
+
+        for dispatch_index in 0..=6 {
+            for machine in query_machines {
+                for state in query_states {
+                    for segment_index in 0..=1 {
+                        let source_key = StateKey {
+                            machine,
+                            state,
+                            segment_index,
+                        };
+                        for (root_symbol, root_name) in roots {
+                            let indexed = find_runtime_frame_slot_for_root_indexed(
+                                &storage,
+                                dispatch_index,
+                                source_key,
+                                root_symbol,
+                                root_name,
+                            );
+                            let linear = find_runtime_frame_slot_for_root_linear(
+                                &storage,
+                                dispatch_index,
+                                source_key,
+                                root_symbol,
+                                root_name,
+                            );
+                            assert_eq!(
+                                indexed.map(|slot| slot.byte_offset),
+                                linear.map(|slot| slot.byte_offset),
+                                "dispatch={dispatch_index}, source={source_key:?}, root_symbol={root_symbol:?}, root_name={root_name:?}",
+                            );
+                            comparisons += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        assert_eq!(comparisons, 1_008);
+    }
 
     #[test]
     fn comparison_and_logical_binary_results_are_boolean() {
