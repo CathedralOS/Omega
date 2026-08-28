@@ -261,9 +261,11 @@ complete.
     image, and any platform-specific executable chain not admitted by the
     closed backend remain;
   - macOS Git launches now have a concrete Seatbelt and inherited-resource-limit
-    floor, but file reads remain broad, network is phase-limited rather than
-    endpoint-limited, and the deprecated host launcher is not a portable or
-    future-stable backend contract. Linux currently receives inherited rlimits
+    floor, but file reads remain broad and the deprecated host launcher is not
+    a portable or future-stable backend contract. Network children are confined
+    to one compiler-owned loopback broker port and the broker admits only the
+    validated requested endpoint; Linux and Windows route through the broker
+    without yet denying direct egress. Linux currently receives inherited rlimits
     without filesystem/network/exec confinement, and Windows retains only the
     existing process container. No backend yet enforces process-count,
     aggregate descendant CPU/memory, during-write object-store, or transferred-
@@ -272,10 +274,11 @@ complete.
     two-second allowance means neither command nor whole-resolution timeout is
     a strict wall-clock guarantee. Post-helper logical resident ceilings can
     reject oversized custody but cannot prevent temporary disk exhaustion;
-  - SSH uses a content-observed absolute client with Unix custody checks, user
-    configuration disabled, batch mode, zero password prompts, and strict
-    host-key checking, but still consumes the user's default known-host and key
-    files without explicit credential custody;
+  - SSH uses a content-observed absolute client and compiler-owned CONNECT
+    companion with Unix custody checks, user configuration disabled, batch
+    mode, zero password prompts, and strict host-key checking, but still
+    consumes the user's default known-host and key files without explicit
+    credential custody;
   - native enforcement is not yet represented by the opaque resolver receipt;
     the macOS backend therefore remains an engineering floor, not accepted
     package-source evidence.
@@ -820,6 +823,27 @@ complete.
   service authority and creates the typed seam for endpoint brokerage; outbound
   destinations remain unconfined.
 
+  Follow-up 2026-08-28: every transport-discovery and fetch command now opens
+  one compiler-owned, fixed-bound HTTP CONNECT route to the normalized host and
+  port derived from the already-validated Git locator. HTTPS receives an exact
+  command-scoped proxy. SSH uses the separately installed and content-custodied
+  `omega-resolver-connect` companion through a fixed ProxyCommand name; only
+  compiler-authored broker and target environment fields reach it, so locator
+  text never enters shell syntax. The broker resolves and bounds the complete
+  DNS answer before opening an upstream socket, accepts at most 16 CONNECT
+  attempts, rejects changed/malformed/oversized destinations, and records each
+  closed outcome plus the actual connected peer. macOS Seatbelt permits the
+  child only the exact loopback broker port, so endpoint confinement is
+  enforced there; Linux and Windows retain unavailable endpoint-confinement
+  rows because their current backends cannot deny direct egress. Successful
+  remote resolution requires each network command to retain a connected route
+  event joined exactly to its native policy and command outcome. Final
+  observation schema 3 binds those endpoint rows, and Git cache policy v15
+  prevents reuse of state fetched with direct network authority. Native and all
+  157 source-resolver tests cover HTTPS and SSH chains. This does not establish
+  TLS trust, SSH host trust, credential custody, transferred-byte or object-
+  store quotas, or package admission.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the
@@ -878,8 +902,8 @@ complete.
   malformed locators, and refspec-shaped revisions; persists only sanitized
   lineage; and applies compiler-owned locator, revision, entry, byte, and depth
   ceilings. The local-repository route is explicitly test-only. Remaining P0
-  work is strict Linux/Windows native backends, narrowing the macOS read and
-  endpoint grants, effective endpoint and SSH credential custody, aggregate
+  work is strict Linux/Windows native backends, narrowing the macOS read grants,
+  cross-platform endpoint confinement and SSH credential custody, aggregate
   during-operation resource quotas, hostile same-user mutation confinement,
   remaining path-based symlink ACL observations, and a locally reconstructed
   opaque strict receipt. Public requests now admit only HTTPS and
@@ -888,9 +912,9 @@ complete.
   unselected protocol, and HTTP redirects, and permits file transport only
   through the explicit test adapter. Cache identity and metadata bind that
   execution profile even when hosted lineage normalizes HTTPS and SSH together.
-  This removes cross-protocol authority and redirect-selected endpoint
-  substitution but does not yet retain or confine the effective
-  socket/DNS/TLS/SSH endpoint. Helper,
+  Endpoint brokerage now retains the requested endpoint and effective connected
+  peer and confines macOS children to that route; TLS/SSH host trust and
+  Linux/Windows direct-egress denial remain open. Helper,
   diagnostic, and future resolver routes must not bypass the same request
   validator.
 

@@ -249,8 +249,11 @@ with broad reads, exact selected executables, and write-data to `/dev/null`;
 initialization and fetch additionally confine writes to the exact mutable
 quarantine root. Discovery and fetch require one closed authority matching the
 already-validated HTTPS or SSH transport and admit outbound network. Only SSH
-receives exact OpenDirectory libinfo and hostname reads for the pinned client;
-HTTPS receives neither. Neither has an endpoint boundary. Initialization and
+receives exact OpenDirectory libinfo, hostname, and Rust runtime page-size
+reads for the pinned client and connector; HTTPS receives none. Both route
+through an exact compiler-owned loopback broker. On macOS direct child egress
+outside that broker port is denied; Linux and Windows retain unavailable
+endpoint-confinement rows. Initialization and
 inspection deny network and reject transport authority. The applicable write/
 network/exec rows are enforced; strict checking still rejects the remaining
 unavailable guarantees.
@@ -275,7 +278,7 @@ and identities, snapshot subject, tool identities, and cumulative captured-
 output ceiling and observed count. The fixed outcome is
 explicitly `resolved-non-admitting`:
 unavailable native guarantees remain unavailable. Linux/Windows strict
-backends, endpoint/credential evidence, network transfer, object-store and
+backends, TLS/SSH credential evidence, network transfer, object-store and
 descendant aggregate-resource accounting, and the complete source receipt
 remain open, so this does not promote diagnostic source commands into admission.
 
@@ -361,10 +364,14 @@ as the parent Git executable and are rechecked around every launch and at
 completion. On macOS that floor also reads native extended ACLs for invocation
 entries, canonical targets, and every ancestor; any allow entry rejects even
 when ordinary mode bits appear safe. Deny-only entries do not broaden custody,
-and an unreadable ACL fails closed. Cache policy v14 separates entries
-predating this transport-executable and cumulative-output floor. This does not
-certify any executable, bind other Git components, or establish TLS/endpoint custody. SSH
-is noninteractive and strict about host keys, but still consumes
+and an unreadable ACL fails closed. Cache policy v15 separates entries
+predating this transport-executable, cumulative-output, and endpoint-brokerage
+floor. HTTPS receives an exact command-scoped proxy. SSH uses the separately
+custodied `omega-resolver-connect` companion as a fixed ProxyCommand; compiler-
+authored environment fields carry the broker and normalized target without
+placing locator text in shell syntax. This does not certify any executable or
+establish TLS/SSH host trust. SSH is noninteractive and strict about host keys,
+but still consumes
 the user's default known-host and key files. Strict OS confinement, explicit
 credential custody and during-write byte/resource enforcement remain. Ordinary
 resolution is now bounded to 64 Git launches, independent of package file

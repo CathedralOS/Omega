@@ -53,10 +53,13 @@ The current macOS engineering floor now selects a fixed Seatbelt launcher and
 closed resolver phase; it is described below. Every phase uses a self-contained
 compiler-generated policy with no host-profile import and confines writes and
 executable paths; the nonnetwork phases also deny network. Reads remain broad,
-and the network phases do not bind outbound authority to an endpoint. Linux and
-Windows do not yet have equivalent strict backends.
+and each network phase confines its child to one compiler-owned loopback broker
+port. The broker accepts only the normalized host and port derived from the
+validated locator and records the effective connected peer. Linux and Windows
+route selected helpers through the same broker but do not yet deny direct
+egress, so their endpoint-confinement row remains unavailable.
 
-Network destination authority should eventually be brokered. SSH additionally
+SSH additionally
 requires a pinned client, explicit known-host evidence, empty user
 configuration, and an explicit credential-provider class. Ambient agent use is
 a distinct trust class, not the default.
@@ -99,8 +102,9 @@ readable intermediate record.
 The native execution crate now returns a narrower opaque policy observation
 with each command it constructs. It binds the verified backend, closed phase,
 generated policy hash, numeric compiler ceilings, primary executable path,
-normalized bounded descendant-executable path set, mutable root, and a complete
-ordered guarantee vocabulary. Required guarantees are either `Enforced` or
+normalized bounded descendant-executable path set, mutable root, sealed
+endpoint route where applicable, and a complete ordered guarantee vocabulary.
+Required guarantees are either `Enforced` or
 `Unavailable`; phase-inapplicable rows are `NotRequired`. There is no public
 constructor or decoder, path and helper counts are bounded, and
 `require_strict` rejects any unavailable row. Git resolution retains one value
@@ -117,9 +121,11 @@ All grant broad reads, exact selected executables, and write-data to `/dev/null`
 Initialization and fetch additionally grant writes only beneath the exact
 mutable quarantine root. Discovery and fetch require the already-validated
 closed HTTPS or SSH transport authority and grant outbound network. Only SSH
-receives the exact OpenDirectory libinfo lookup and `kern.hostname` read needed
-by the pinned client; HTTPS receives neither. Their endpoint-confinement rows
-remain `Unavailable`. Initialization and inspection deny network and reject a
+receives the exact OpenDirectory libinfo lookup, `kern.hostname`, and
+`hw.pagesize_compat` reads needed by the pinned client and compiler-owned Rust
+connector; HTTPS receives none of them. Each network child may connect only to
+its exact loopback broker port, so macOS endpoint confinement is `Enforced`.
+Initialization and inspection deny network and reject a
 transport authority. Filesystem-write and executable-path rows are
 `Enforced` for every phase, network denial is `Enforced` where applicable, and
 the exact compiler-owned rlimit rows are `Enforced` throughout macOS.
@@ -138,7 +144,10 @@ the closed phase, actual native program and ordered arguments, complete explicit
 environment, working directory, and either null stdin or the exact object-batch
 stdin length and digest. The outcome binds exit code or Unix signal plus exact
 bounded stdout/stderr lengths and digests, and joins positionally to the digest
-of its native policy observation. Successful resolution requires outcome,
+of its native policy observation. Network commands additionally retain the
+sealed route, bounded CONNECT outcomes, and effective peers; successful remote
+issuance requires at least one connected event and exact route-policy equality.
+Successful resolution requires outcome,
 policy, and launch counts to agree. Both capture threads and every command also
 charge one overflow-safe whole-resolution counter. Its compiler-owned ceiling
 is `min(source-byte ceiling + 64 MiB, 576 MiB)`. Exhaustion terminates and reaps
@@ -165,8 +174,8 @@ The observation has no public constructor or decoder and is issued with the
 fixed outcome `resolved-non-admitting`; changing even a source ceiling changes
 its identity. This closes the successful-result join that the narrower rows
 could not express. It deliberately remains below `SourceResolutionReceiptV1`:
-unavailable containment rows remain unavailable, and effective endpoints,
-TLS/SSH trust, credential custody, transferred bytes, object-store/during-write
+unavailable containment rows remain unavailable, and Linux/Windows endpoint
+confinement, TLS/SSH trust, credential custody, transferred bytes, object-store/during-write
 quotas, descendant aggregate resources, and strict acceptance are still absent.
 
 Resolved package custody now also projects a bounded
@@ -394,12 +403,12 @@ sealed SSH command receive the same identity, hash, custody, and ACL treatment;
 they do not grant execution of any unlisted descendant. Both transports recheck
 their executable identity around every Git launch, re-hash the canonical target
 at completion, and retain it separately. Drift rejects. The Git cache policy is
-v14, so a cache fetched before these executable-custody, cumulative-output, and
-transport-authority floors is not silently reused.
+v15, so a cache fetched before these executable-custody, cumulative-output,
+transport-authority, and endpoint-brokerage floors is not silently reused.
 This identifies observed parent bytes and closes ordinary cross-user path
 ownership on Unix; it does not certify Git, the HTTPS helper, or SSH, bind
 other executable components, establish Windows ownership/DACL custody, protect
-against same-user replacement, bind TLS trust or the effective endpoint, or
+against same-user replacement, bind TLS or SSH host trust, or
 prove that an observed file equals an already loaded image. On macOS, every
 concrete selected executable, transport invocation entry, canonical transport
 target, and executable ancestor is opened no-follow, required to preserve its
@@ -432,8 +441,9 @@ during initialization and fetch, and exact process-exec paths for the verified
   Git/helper chain. No phase imports a host profile; initialization and fetch
   confine mutation to the exact quarantine root while discovery and inspection
   admit write-data only to `/dev/null`. Real Git resolution and native canaries
-  exercise those policies. Network phases still permit all outbound
-  destinations rather than brokering the requested endpoint.
+  exercise those policies. Network phases permit only the exact loopback broker
+  port; the parent broker resolves and admits only the validated requested host
+  and port and records the actual connected peer.
 `/usr/bin/sandbox-exec` is deprecated, so this is a concrete current-host floor,
 not a durable macOS backend promise. Failure to establish or revalidate the
 launcher rejects on macOS.
@@ -538,9 +548,11 @@ dots/spaces, and reserved device names independently of the host path parser.
 HTTPS Git commands can select only the observed install-relative
 `git-remote-https` invocation entry and its retained canonical target. Other
 executable components beneath Git remain outside retained identity and the
-macOS backend's execution allowlist. SSH is
-forced through its content-observed absolute client with user configuration
-disabled, `BatchMode`, zero password
+macOS backend's execution allowlist. SSH is forced through its content-observed
+absolute client and the separately custodied `omega-resolver-connect`
+companion. The fixed ProxyCommand receives the broker and target only through
+compiler-authored environment fields; no locator string enters shell syntax.
+User configuration is disabled with `-F none`, with `BatchMode`, zero password
 prompts, and strict host-key checking. It still
 consults the user's default known-host and key files, so host and credential
 custody remain ambient and unsuitable for strict admission. Those conditions
@@ -559,13 +571,15 @@ profile separately from normalized lineage. HTTP, unauthenticated `git://`, ever
 protocol, and HTTP redirects remain disabled; `file` exists solely in the
 explicit test-only local-repository adapter. This prevents a validated HTTPS
 request from silently acquiring SSH/file authority or a redirect-selected
-endpoint. It does not yet retain the effective socket endpoint, pin TLS trust,
-or confine DNS and network access to the requested host, so complete endpoint
-custody still belongs to the native resolver boundary and its receipt.
+endpoint. The broker observation retains the requested endpoint, every bounded
+CONNECT outcome, and each actual connected peer. On macOS the child cannot
+bypass that route; Linux and Windows still can until their native backends deny
+direct egress. None of this pins TLS or SSH host trust.
 
 Parent-owned selected-object-graph authentication and the current macOS native
 enforcement supply real evidence for a later strict receipt but do not by
 themselves make the resolver admissible. Linux/Windows strict isolation,
 hostile same-user and Windows ACL cache custody, aggregate/during-write resource
-ceilings, endpoint custody, explicit SSH trust/credential custody (OWNER Q16),
+ceilings, cross-platform endpoint confinement, explicit SSH trust/credential
+custody (OWNER Q16),
 and the opaque receipt remain open.

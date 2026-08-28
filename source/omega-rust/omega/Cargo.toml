@@ -3,6 +3,7 @@ name = "omega"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
+default-run = "omega"
 
 [[bin]]
 name = "omega"
@@ -14,6 +15,7 @@ omega-compiler = { path = "orchestration/omega-compiler" }
 omega-core = { path = "foundation/omega-core" }
 omega-packages = { path = "orchestration/omega-packages" }
 omega-package-compilation = { path = "orchestration/omega-package-compilation" }
+omega-resolver-execution = { path = "orchestration/omega-resolver-execution" }
 omega-target = { path = "foundation/omega-target" }
 psi-checked-trees-to-terminal = { path = "../psi/pipeline/psi-checked-trees-to-terminal" }
 psi-core = { path = "../psi/foundation/psi-core" }
