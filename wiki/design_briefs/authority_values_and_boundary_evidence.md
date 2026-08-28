@@ -506,6 +506,15 @@ account, lineage, and audit origin. Terminal-artifact, lifecycle-ledger, and
 materialization-plan substitution each return their exact custody for retry;
 none can introduce a second schema or lineage.
 
+The finite installed-instance canary then reuses one real source-derived
+schema and verified Terminal catalog for two distinct installations of the
+same artifact. Their snapshots compose only as two lifecycle-qualified,
+unreduced rows: each retains cardinality one and the common symbolic capacity,
+while its occurrence roster names the exact installed-code instance. Omitting
+one live instance or repeating the other rejects. This is distinct from a
+cardinality-two cohort, which requires two authentic target-owned slot
+occurrences rather than test-authored slot authority.
+
 The selected provider schema retains the canonical carrier of each routed
 entry claim separately from both the complete qualified parameter type and the
 domain identity. Installation joins that carrier directly to the verified
