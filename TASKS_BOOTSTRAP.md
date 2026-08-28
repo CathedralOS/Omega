@@ -148,7 +148,11 @@ Delta.
   cache frame-relative variable byte displacements plus the current value-column
   base, with nested non-tail restoration and tail-transfer tests. That change
   alters the canonical interpreter/tape identities and must start a new pinned
-  attempt rather than invalidating the current one.
+  attempt rather than invalidating the current one. The two required regression
+  cases now live in `source/gamma/test-interp.sh` and pass against the frozen
+  interpreter without changing its identity: one reads a cached caller value
+  after a nested non-tail return, and one alternates mutual tail transfers with
+  different frame arities.
 - [x] The admitted dispatch, fuel-boundary, cached-variable, and canonical-u32
   changes are reflected in the current 50,762-byte interpreter source and its
   72,810-byte tape
