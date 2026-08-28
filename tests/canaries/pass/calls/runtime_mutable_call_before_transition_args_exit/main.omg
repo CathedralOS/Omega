@@ -1,0 +1,78 @@
+// A completed mutable statement call precedes the following transition. Its
+// scalar writes must therefore be visible while transition args materialize.
+use omega::language::std::console;
+
+data Loader {
+    console: Console;
+    line: [u8; 8];
+    tags: [u8; 16384] in Trapping;
+    firsts: [u8; 16384] in Trapping;
+    starts: [u64 in Wrapping; 16384] in Trapping;
+    ends: [u64 in Wrapping; 16384] in Trapping;
+    cursor: u64 [0..=16383];
+    tag: u8;
+    first: u8;
+    start: u64 in Wrapping;
+    end: u64 in Wrapping;
+}
+
+machine Loader::fill(&mut self) {
+    transition self.cursor < 16384 {
+        true -> present(self.cursor)
+        false -> absent()
+    }
+
+    state present(&mut self, index: u64 [0..=16383]) {
+        self.tag = self.tags[index];
+        self.first = self.firsts[index];
+        self.start = self.starts[index];
+        self.end = self.ends[index];
+    }
+
+    state absent(&mut self) {
+        self.tag = 0;
+        self.first = 0;
+        self.start = 0;
+        self.end = 0;
+    }
+}
+
+machine Loader::run(&mut self) {
+    self.console.read_line(&mut self.line);
+    self.tags[1] = self.line[0];
+    self.firsts[1] = self.line[1];
+    self.starts[1] = self.line[2] as u64;
+    self.ends[1] = self.line[3] as u64;
+    self.cursor = 1;
+    self.fill();
+    transition { _ -> loaded(
+        self.tag,
+        self.first,
+        self.start,
+        self.end
+    ) }
+
+    state loaded(
+        &mut self,
+        tag: u8,
+        first: u8,
+        start: u64 in Wrapping,
+        end: u64 in Wrapping
+    ) {
+        transition tag == 5 && first == 27 && start == 33 && end == 44 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(72); }
+}
+
+data Main {
+    loader: Loader;
+}
+
+machine Main::main(&mut self) {
+    self.loader.run();
+}
