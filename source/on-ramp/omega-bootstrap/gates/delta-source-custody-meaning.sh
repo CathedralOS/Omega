@@ -51,9 +51,9 @@ build_beta "$OMEGA_PATH_OMEGA_BOOTSTRAP/meaning/omega2gamma.beta" "$T/elaborate.
 build_beta "$OMEGA_PATH_GAMMA/interp.beta" "$T/interp.exe" \
   || { echo "source-custody meaning FAIL - Gamma interpreter build" >&2; exit 1; }
 
-# Keep elaboration bounded independently of the later executions. The ceiling
-# matches the canonical frontend meaning gate, so this focused probe cannot
-# normalize unchecked compiler growth merely by being a separate script.
+# Keep elaboration bounded independently of the later executions. This frozen
+# checker has a 2 MiB generated-Gamma profile, narrower than the canonical
+# interpreter's independently gated 4 MiB source ceiling.
 python3 - "$T/elaborate.exe" "$CHECKER" "$T/checker.gamma" <<'PY'
 from pathlib import Path
 import subprocess
@@ -97,12 +97,46 @@ PY
 [ -s "$T/checker.gamma" ] && ! grep -q 'E2G-UNSUPPORTED' "$T/checker.gamma" \
   || { echo "source-custody meaning FAIL - checker elaboration unsupported" >&2; exit 1; }
 checker_gamma_bytes=$(wc -c < "$T/checker.gamma" | tr -d ' ')
-checker_gamma_ceiling=1048576
-[ "$checker_gamma_bytes" -le "$checker_gamma_ceiling" ] || {
+checker_gamma_ceiling=2097152
+
+gamma_extent_admitted() {
+  gamma_extent_bytes=$(wc -c < "$1" | tr -d ' ')
+  [ "$gamma_extent_bytes" -le "$checker_gamma_ceiling" ]
+}
+
+gamma_extent_admitted "$T/checker.gamma" || {
   echo "source-custody meaning FAIL - checker Gamma expanded to $checker_gamma_bytes bytes (ceiling $checker_gamma_ceiling)" >&2
   exit 1
 }
 echo "source-custody meaning: checker Gamma $checker_gamma_bytes bytes (ceiling $checker_gamma_ceiling)"
+
+# Exercise both teeth of the profile preflight without paying for two more
+# canonical interpretations of the same valid program. Gamma permits trailing
+# ASCII whitespace, so the exact fixture remains a canonical-source extension
+# of the elaborated checker; the adjacent fixture must be refused before use.
+python3 - "$T/checker.gamma" "$T/checker-exact.gamma" "$T/checker-plus-one.gamma" "$checker_gamma_ceiling" <<'PY'
+from pathlib import Path
+import sys
+
+source_name, exact_name, plus_one_name, ceiling_text = sys.argv[1:]
+source = Path(source_name).read_bytes()
+ceiling = int(ceiling_text)
+if len(source) > ceiling:
+    raise SystemExit("checker already exceeds generated-Gamma profile")
+exact = source + b" " * (ceiling - len(source))
+Path(exact_name).write_bytes(exact)
+Path(plus_one_name).write_bytes(exact + b" ")
+PY
+
+gamma_extent_admitted "$T/checker-exact.gamma" || {
+  echo "source-custody meaning FAIL - exact 2 MiB Gamma profile was not admitted" >&2
+  exit 1
+}
+if gamma_extent_admitted "$T/checker-plus-one.gamma"; then
+  echo "source-custody meaning FAIL - 2 MiB+1 Gamma profile was admitted" >&2
+  exit 1
+fi
+echo "source-custody meaning: PASS Gamma profile exact 2 MiB / reject +1"
 
 mkdir "$T/cases"
 python3 - "$T/cases" "$ACTUAL" <<'PY'
@@ -120,6 +154,32 @@ def case(name, expected, source):
     path.write_bytes(source)
     rows.append((name, expected, path))
 
+case("reject-duplicate-pub", 251, r'''
+pub pub data PublicByte [copy] { value: u8; }
+''')
+case("reject-misplaced-pub", 251, r'''
+data PublicByte [copy] { pub value: u8; }
+''')
+case("accept-pub-guarded-u64-buffer", 0, r'''
+pub data WideBuffer { bytes: [u8; 8] in Trapping; length: u64 [0..=8]; }
+pub machine WideBuffer::read(&self, index: u64 in Trapping) -> u8 {
+    transition index < self.length { true -> present() _ -> absent() }
+    state present(&self) { self.bytes[index] }
+    state absent(&self) { 0 }
+}
+''')
+case("reject-mismatched-u32-u64", 251, r'''
+data Widths { narrow: u32 [0..=8]; wide: u64 [0..=8]; }
+machine Widths::bad(&self) -> bool { self.narrow < self.wide }
+''')
+case("reject-unguarded-u64-index", 251, r'''
+data WideBuffer { bytes: [u8; 8] in Trapping; }
+machine WideBuffer::bad(&self, index: u64 in Trapping) -> u8 { self.bytes[index] }
+''')
+case("reject-u64-symbolic-overflow", 251, r'''
+data WideCounter { value: u64 [0..=2147483647]; }
+machine WideCounter::bad(&mut self) { self.value = self.value + 1; }
+''')
 case("actual-source-unit", 0, actual)
 case("reject-unguarded-index", 251, r'''
 data Buffer { bytes: [u8; 8] in Trapping; length: u32 [0..=8]; }
@@ -166,7 +226,12 @@ for label, expected, source in rows:
     # Name/order independence is already repeated through native and self-built
     # checkers; lower-rung meaning executes the same checker once plus distinct
     # 251/252 paths instead of adding another two-minute equivalent positive.
-    timeout = 150 if label == "actual-source-unit" else 45
+    if label == "actual-source-unit":
+        timeout = 600
+    elif label == "accept-pub-guarded-u64-buffer":
+        timeout = 150
+    else:
+        timeout = 45
     program = encoder.inject(template, source.read_bytes())
     started = time.monotonic()
     print(
@@ -208,20 +273,18 @@ for label, expected, source in rows:
     total += elapsed
     if elapsed > slowest[1]:
         slowest = (label, elapsed)
-    # omega2gamma specifies a bare status for exit-only programs. The checker
-    # has no output boundary, so close that interpreter result with the exact
-    # independently known stdout observation Nil before comparing the pair.
-    expected_scalar = f"{expected}\n".encode("ascii")
-    expected_observation = f"(Pair {expected} Nil)"
-    if process.returncode != expected or stdout != expected_scalar:
+    # omega2gamma returns the exact Delta process observation. This checker has
+    # no output boundary, so every successful interpreter execution must print
+    # the requested status paired with Nil and itself exit successfully.
+    expected_observation = f"(Pair {expected} Nil)\n".encode("ascii")
+    if process.returncode != 0 or stdout != expected_observation:
         stdout_detail = stdout.decode("utf-8", errors="replace")[:240]
         stderr_detail = stderr.decode("utf-8", errors="replace")[:240]
         raise SystemExit(
             f"source-custody meaning FAIL - {label} observed "
             f"process={process.returncode} stdout={stdout_detail!r} "
             f"stderr={stderr_detail!r}; "
-            f"expected interpreter scalar {expected_scalar.decode().strip()!r} "
-            f"for {expected_observation!r}"
+            f"expected {expected_observation.decode().strip()!r}"
         )
     print(
         f"source-custody meaning: PASS {label} => Pair {expected} Nil "
