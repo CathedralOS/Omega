@@ -190,6 +190,9 @@ pub struct RegisterConstraintKey {
 /// environment. Named fields prevent positional key drift in its identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TargetRegisterEnvironmentConstraintKeys {
+    /// Target-applicable bounded structural Unit call. `None` means this
+    /// environment does not claim that ABI/ISA form; it is not a dummy row.
+    pub structural_unit_call: Option<RegisterConstraintKey>,
     pub materialize_i64: RegisterConstraintKey,
     pub copy_i64: RegisterConstraintKey,
     pub add_i64: RegisterConstraintKey,
@@ -1595,6 +1598,10 @@ mod tests {
         )
         .unwrap();
         let keys = TargetRegisterEnvironmentConstraintKeys {
+            structural_unit_call: Some(RegisterConstraintKey {
+                family: RegisterConstraintFamily::Call,
+                variant: 2,
+            }),
             materialize_i64: instruction_key(1),
             copy_i64: instruction_key(5),
             add_i64: instruction_key(6),
@@ -1655,6 +1662,10 @@ mod tests {
         }
 
         for changed_keys in [
+            TargetRegisterEnvironmentConstraintKeys {
+                structural_unit_call: None,
+                ..keys
+            },
             TargetRegisterEnvironmentConstraintKeys {
                 materialize_i64: instruction_key(11),
                 ..keys
