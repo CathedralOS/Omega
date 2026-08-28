@@ -278,7 +278,7 @@ impl SelectedProgramStorageEntryPlan {
         })
     }
 
-    pub(crate) fn with_physical_contract(
+    pub fn with_physical_contract(
         mut self,
         physical_contract: super::ProgramEntryPhysicalContractPlan,
     ) -> Result<Self, ProgramStorageEntryDiagnostic> {
@@ -892,7 +892,7 @@ pub fn bind_emitted_program_storage_entry_native_bridge(
 /// backend plan that will enter emission. Receiver-free source entry requires
 /// a preview so its wrapper can be inserted; the returned bridge is always
 /// replayed against the final, possibly mutated plan.
-pub(super) fn bind_compiler_generated_program_storage_entry_native_bridge(
+pub fn bind_compiler_generated_program_storage_entry_native_bridge(
     binding: Option<ProgramStorageEntryPlanBinding>,
     selected_provider: Option<super::provider_plans::SelectedExternalRootProviderPlan>,
     selected_target: Option<&str>,
@@ -947,7 +947,7 @@ pub(super) fn bind_compiler_generated_program_storage_entry_native_bridge(
 /// image immediately before publication. Receiver-bound continuations are the
 /// sole admitted template-free form; receiver-free bridges retain one exact
 /// final-image evidence row before any output becomes visible.
-pub(super) fn retain_compiler_generated_program_storage_entry_publication_evidence(
+pub fn retain_compiler_generated_program_storage_entry_publication_evidence(
     bridge: Option<&mut ProgramStorageEntryNativeBridgePlan>,
     backend: &omega_backend_plan::BackendPlan,
     checked_image: Option<&omega_image::EmittedImageOutput>,
@@ -2029,7 +2029,7 @@ pub fn bind_program_storage_entry_plan(
 /// Join an optional compiler selection to its exact checked source and
 /// backend-owned entry plan. Absence does not inspect or require backend
 /// storage; presence projects every generated input through the retained plan.
-pub(super) fn bind_compiler_generated_program_storage_entry_plan(
+pub fn bind_compiler_generated_program_storage_entry_plan(
     selected: Option<&SelectedProgramStorageEntryPlan>,
     source_signature: Option<&super::SelectedProgramEntrySourceSignature>,
     backend: &omega_backend_plan::BackendPlan,
@@ -3033,9 +3033,7 @@ mod tests {
         SelectedProgramStorageEntryPlan,
         bind_compiler_generated_program_storage_entry_native_bridge,
         bind_compiler_generated_program_storage_entry_plan,
-        compiler_generated_program_storage_target_profile,
-        retain_compiler_generated_program_storage_entry_publication_evidence,
-        validate_encoded_program_storage_entry,
+        compiler_generated_program_storage_target_profile, validate_encoded_program_storage_entry,
     };
     use omega_backend_plan::{BackendArtifactRoots, BackendPlan, BackendPlanPhaseTiming};
     use omega_calling_conventions::{ValuePlacement, ValueShape};
@@ -3044,7 +3042,7 @@ mod tests {
     use omega_object_file::{SectionKind, SymbolKind, SymbolPlan, SymbolSection};
     use psi_arena::{Arena, HandleSpan};
     use psi_symbols::SymbolHandle;
-    use std::{fs, path::PathBuf, sync::Arc};
+    use std::sync::Arc;
 
     fn continuation_key(state: u32) -> StateKey {
         StateKey {
@@ -3224,106 +3222,6 @@ mod tests {
         .expect("selected UEFI program-storage entry")
     }
 
-    fn repository_root() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../..")
-    }
-
-    fn compile_pending_receiver_bound_bridge(
-        label: &str,
-    ) -> super::ProgramStorageEntryNativeBridgePlan {
-        let build_dir = std::env::temp_dir().join(format!(
-            "omega-program-storage-publication-bound-{}-{label}",
-            std::process::id(),
-        ));
-        let _ = fs::remove_dir_all(&build_dir);
-        let report = crate::compiler::compile(
-            crate::compiler::CompileRequest::new(crate::compiler::CompileOptions {
-                root_path: repository_root()
-                    .join("tests/canaries/pass/build/uefi_program_entry_storage_roots/main.omg"),
-                build_dir: Some(build_dir.clone()),
-                target_name: Some("uefi_x64".into()),
-                write_output: false,
-            })
-            .with_artifact_policy(crate::compiler::ArtifactEmissionPolicy::OutputOnly),
-        )
-        .expect("receiver-bound UEFI program-storage bridge");
-        let bridge = report
-            .program_storage_entry_bridge()
-            .cloned()
-            .expect("pending receiver-bound bridge");
-        let _ = fs::remove_dir_all(build_dir);
-        bridge
-    }
-
-    fn compile_pending_receiver_free_bridge() -> super::ProgramStorageEntryNativeBridgePlan {
-        let directory = std::env::temp_dir().join(format!(
-            "omega-program-storage-publication-free-{}",
-            std::process::id()
-        ));
-        let _ = fs::remove_dir_all(&directory);
-        fs::create_dir_all(&directory).expect("create receiver-free publication fixture");
-        let source = include_str!(
-            "../../../../../../../../tests/canaries/pass/build/uefi_program_entry_storage_roots/main.omg"
-        );
-        let prefix = source
-            .split_once("data Boot {")
-            .expect("UEFI fixture retains its Boot declaration")
-            .0;
-        fs::write(
-            directory.join("main.omg"),
-            format!(
-                r#"{prefix}data Boot {{ }}
-
-machine Boot::launch(
-    image: Extent in Granted,
-    initial_storage: Extent in Granted
-) {{
-    transition {{
-        _ -> retain(image as Extent, initial_storage as Extent)
-    }}
-
-    state retain(image: Extent, initial_storage: Extent) {{
-        transition {{
-            _ -> retain(image, initial_storage)
-        }}
-    }}
-}}
-"#,
-            ),
-        )
-        .expect("write receiver-free publication source");
-        fs::write(
-            directory.join("build.omg"),
-            r#"target uefi_x64 {
-}
-
-machine build(builder: &mut Build) {
-    builder.application("receiver-free-publication-evidence");
-    builder.subsystem = Subsystem::EfiApplication;
-    builder.freestanding = true;
-    builder.roots.bind(uefi_x86_64::ProgramEntry, Boot::launch);
-}
-"#,
-        )
-        .expect("write receiver-free publication build root");
-        let report = crate::compiler::compile(
-            crate::compiler::CompileRequest::new(crate::compiler::CompileOptions {
-                root_path: directory.join("main.omg"),
-                build_dir: Some(directory.join("build")),
-                target_name: Some("uefi_x64".into()),
-                write_output: false,
-            })
-            .with_artifact_policy(crate::compiler::ArtifactEmissionPolicy::OutputOnly),
-        )
-        .expect("receiver-free UEFI program-storage bridge");
-        let bridge = report
-            .program_storage_entry_bridge()
-            .cloned()
-            .expect("pending receiver-free bridge");
-        let _ = fs::remove_dir_all(directory);
-        bridge
-    }
-
     #[test]
     fn absent_compiler_plan_join_has_no_backend_dependency() {
         let backend = backend_plan();
@@ -3367,58 +3265,6 @@ machine build(builder: &mut Build) {
         assert_eq!(
             diagnostics[0].message,
             "selected program-storage entry lost its retained calling plan before backend binding"
-        );
-    }
-
-    #[test]
-    fn compiler_publication_settlement_preserves_absence_and_receiver_bound_exemption() {
-        let backend = backend_plan();
-        retain_compiler_generated_program_storage_entry_publication_evidence(None, &backend, None)
-            .expect("absent bridge needs no publication evidence");
-
-        let mut bridge = compile_pending_receiver_bound_bridge("exemption");
-        assert!(bridge.is_receiver_bound_without_wrapper_template());
-        let original = bridge.clone();
-        retain_compiler_generated_program_storage_entry_publication_evidence(
-            Some(&mut bridge),
-            &backend,
-            None,
-        )
-        .expect("exact receiver-bound bridge is the sole template-free exemption");
-        assert_eq!(bridge, original);
-        assert!(bridge.emitted_wrapper_evidence().is_none());
-    }
-
-    #[test]
-    fn compiler_publication_settlement_checks_template_before_image() {
-        let backend = backend_plan();
-        let mut receiver_bound = compile_pending_receiver_bound_bridge("template-order");
-        receiver_bound.binding.receiver = None;
-        assert!(!receiver_bound.is_receiver_bound_without_wrapper_template());
-        let template = retain_compiler_generated_program_storage_entry_publication_evidence(
-            Some(&mut receiver_bound),
-            &backend,
-            None,
-        )
-        .expect_err("non-exempt template loss must reject before image selection");
-        assert_eq!(template.len(), 1);
-        assert_eq!(
-            template[0].message,
-            "native program-storage publication lost its receiver-free wrapper template without an exact receiver-bound continuation"
-        );
-
-        let mut receiver_free = compile_pending_receiver_free_bridge();
-        assert!(receiver_free.wrapper_body_template().is_some());
-        let image = retain_compiler_generated_program_storage_entry_publication_evidence(
-            Some(&mut receiver_free),
-            &backend,
-            None,
-        )
-        .expect_err("receiver-free bridge requires a checked executable image");
-        assert_eq!(image.len(), 1);
-        assert_eq!(
-            image[0].message,
-            "program-storage entry target emitted no checked executable image"
         );
     }
 

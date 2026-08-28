@@ -429,6 +429,12 @@ impl LegacyDriver {
             })
             .transpose()?
             .flatten();
+        let program_storage_entry_provider = program_storage_entry_provider.map(|selected| {
+            omega_program_storage::ProgramStorageSelectedProviderPlan::new(
+                selected.identity,
+                selected.schema,
+            )
+        });
         let (selected_program_entry_source_signature, program_entry_realization) =
             selected_program_entry.map_or((None, None), |selected| {
                 let (source_signature, calling_plans) = selected.into_parts();

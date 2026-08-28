@@ -1353,12 +1353,26 @@ dependencies = [
 name = "omega-program-storage"
 version = "0.1.0"
 dependencies = [
+ "omega-artifacts",
+ "omega-backend-pipeline",
+ "omega-backend-plan",
  "omega-calling-conventions",
  "omega-control-flow",
+ "omega-effects",
+ "omega-external-roots",
+ "omega-image",
+ "omega-instruction-selection",
+ "omega-isa-x86_64",
  "omega-layout",
+ "omega-machine-bytes",
+ "omega-object-file",
+ "omega-runtime-storage",
  "omega-target",
  "psi-arena",
  "psi-checked-trees",
+ "psi-diagnostics",
+ "psi-extents",
+ "psi-language-semantics",
  "psi-symbols",
  "psi-typed-trees",
 ]

@@ -9,12 +9,26 @@ name = "omega_program_storage"
 path = "src/lib.rs"
 
 [dependencies]
+omega-artifacts = { path = "../omega-artifacts" }
+omega-backend-pipeline = { path = "../omega-backend-pipeline" }
+omega-backend-plan = { path = "../../representations/omega-backend-plan" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
+omega-effects = { path = "../../representations/omega-effects" }
+omega-external-roots = { path = "../omega-external-roots" }
+omega-image = { path = "../../backend/images/omega-image" }
+omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
+omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
 omega-layout = { path = "../../backend/omega-layout" }
+omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
+omega-object-file = { path = "../../backend/object/omega-object-file" }
+omega-runtime-storage = { path = "../../backend/omega-runtime-storage" }
 omega-target = { path = "../../foundation/omega-target" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
+psi-extents = { path = "../../../psi/foundation/psi-extents" }
+psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 
 [dev-dependencies]

@@ -19,7 +19,7 @@ pub struct ProgramEntryPhysicalContractPlan {
 }
 
 impl ProgramEntryPhysicalContractPlan {
-    pub(crate) fn new(
+    pub fn new(
         target_slot: omega_target::ProgramEntrySlotDeclaration,
         requirement_identity: String,
         target_package: omega_target::ProgramEntryPhysicalContractPackage,
