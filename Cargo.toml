@@ -50,6 +50,7 @@ members = [
     "source/omega-rust/omega/orchestration/omega-component-publication",
     "source/omega-rust/omega/orchestration/omega-terminal-native-artifact",
     "source/omega-rust/omega/orchestration/omega-terminal-native-realization",
+    "source/omega-rust/omega/orchestration/omega-selected-dispatch",
     "source/omega-rust/omega/orchestration/omega-terminal-component-candidate",
     "source/omega-rust/omega/orchestration/omega-component-deployment",
     "source/omega-rust/omega/foundation/omega-task-plans",

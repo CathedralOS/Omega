@@ -1,5 +1,3 @@
-#[path = "dispatch/adapter.rs"]
-mod adapter_dispatch;
 mod artifacts;
 mod boundary_report;
 pub(crate) use omega_build_evaluation as build_config;
@@ -10,11 +8,7 @@ pub(crate) mod compatibility;
 mod compile_policy;
 pub(crate) use omega_provider_planning::component_progress;
 mod emitted_program;
-#[path = "dispatch/float_intrinsic.rs"]
-mod float_intrinsic_dispatch;
 pub mod frontend;
-#[path = "dispatch/operator_adapter.rs"]
-mod operator_adapter_dispatch;
 mod optimization_gate;
 mod output;
 #[path = "package/declaration_admission.rs"]

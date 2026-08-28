@@ -60,7 +60,7 @@ struct StagedNamedFloatRewrite {
     execution: StagedNamedFloatExecution,
 }
 
-pub(crate) fn settle_selected_float_intrinsic_dispatch(
+pub fn settle_selected_float_intrinsic_dispatch(
     checked: &mut Arc<CheckedTrees>,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -263,7 +263,7 @@ fn resolve_float_intrinsic_call(
     let ProviderBinding::CompilerIntrinsic { machine, .. } = &row.binding else {
         return Ok(None);
     };
-    if !crate::pipeline::provider_plans::intrinsic_realization_matches_operator(
+    if !omega_provider_planning::plans::intrinsic_realization_matches_operator(
         &checked.typed,
         machine,
         operator,
@@ -273,7 +273,7 @@ fn resolve_float_intrinsic_call(
             plan.name,
         )));
     }
-    let expected = crate::pipeline::provider_plans::compiler_intrinsic_diagnostic_label(
+    let expected = omega_provider_planning::plans::compiler_intrinsic_diagnostic_label(
         &checked.typed,
         operator,
     )
@@ -739,7 +739,7 @@ mod tests {
         let typed =
             psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .expect("type named-float dispatch fixture");
-        let plans = crate::pipeline::provider_plans::derive_satisfies_plans(&typed, None);
+        let plans = omega_provider_planning::plans::derive_satisfies_plans(&typed, None);
         let minimum_plan = plans
             .iter()
             .find(|plan| plan.schema.trait_name.contains("F32::minimum"))
