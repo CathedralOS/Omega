@@ -42,7 +42,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v25";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v26";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -8667,6 +8667,9 @@ fn run_command_bounded_with_stdin_and_budget(
     captured_output_budget: GitCapturedOutputBudget,
 ) -> Result<BoundedCommandOutput, SourceResolveError> {
     let started = Instant::now();
+    let deadline = started.checked_add(timeout).unwrap_or(started);
+    let cleanup_reserve = command_cleanup_reserve(timeout);
+    let execution_deadline = deadline.checked_sub(cleanup_reserve).unwrap_or(started);
     let mut child = command
         .stdin(stdin)
         .stdout(Stdio::piped())
@@ -8695,9 +8698,10 @@ fn run_command_bounded_with_stdin_and_budget(
         captured_output_budget.clone(),
         &sender,
     ) {
-        return fail_after_cleanup(
+        return fail_after_cleanup_before(
             &mut child,
             operation,
+            deadline,
             SourceResolveError::Git {
                 operation: format!("{operation} stdout capture"),
                 status: None,
@@ -8712,9 +8716,10 @@ fn run_command_bounded_with_stdin_and_budget(
         captured_output_budget,
         &sender,
     ) {
-        return fail_after_cleanup(
+        return fail_after_cleanup_before(
             &mut child,
             operation,
+            deadline,
             SourceResolveError::Git {
                 operation: format!("{operation} stderr capture"),
                 status: None,
@@ -8728,17 +8733,29 @@ fn run_command_bounded_with_stdin_and_budget(
     let mut stdout = None;
     let mut stderr = None;
     loop {
+        if Instant::now() >= deadline {
+            return fail_after_cleanup_before(
+                &mut child,
+                operation,
+                deadline,
+                SourceResolveError::GitTimedOut {
+                    operation: operation.to_owned(),
+                    timeout_millis: duration_millis(timeout),
+                },
+            );
+        }
         if status.is_none() {
             status = match child.try_wait() {
                 Ok(Some(status)) => {
-                    terminate_child_bounded(&mut child, operation)?;
+                    terminate_child_before(&mut child, operation, deadline)?;
                     Some(status)
                 }
                 Ok(None) => None,
                 Err(error) => {
-                    return fail_after_cleanup(
+                    return fail_after_cleanup_before(
                         &mut child,
                         operation,
+                        deadline,
                         SourceResolveError::Git {
                             operation: format!("{operation} wait"),
                             status: None,
@@ -8756,26 +8773,28 @@ fn run_command_bounded_with_stdin_and_budget(
             });
         }
 
-        let elapsed = started.elapsed();
-        if elapsed >= timeout {
-            return fail_after_cleanup(
+        let now = Instant::now();
+        if now >= execution_deadline {
+            return fail_after_cleanup_before(
                 &mut child,
                 operation,
+                deadline,
                 SourceResolveError::GitTimedOut {
                     operation: operation.to_owned(),
                     timeout_millis: duration_millis(timeout),
                 },
             );
         }
-        let wait = PROCESS_POLL_INTERVAL.min(timeout.saturating_sub(elapsed));
+        let wait = PROCESS_POLL_INTERVAL.min(execution_deadline.saturating_duration_since(now));
         match receiver.recv_timeout(wait) {
             Ok(capture) => {
                 let bytes = match capture.result {
                     StreamCaptureResult::Complete(bytes) => bytes,
                     StreamCaptureResult::Overflow => {
-                        return fail_after_cleanup(
+                        return fail_after_cleanup_before(
                             &mut child,
                             operation,
+                            deadline,
                             SourceResolveError::GitOutputOverflow {
                                 operation: operation.to_owned(),
                                 stream: capture.stream.name().to_owned(),
@@ -8787,9 +8806,10 @@ fn run_command_bounded_with_stdin_and_budget(
                         );
                     }
                     StreamCaptureResult::ResolutionOverflow(exceeded) => {
-                        return fail_after_cleanup(
+                        return fail_after_cleanup_before(
                             &mut child,
                             operation,
+                            deadline,
                             SourceResolveError::GitResolutionCapturedOutputLimit {
                                 ceiling: exceeded.ceiling,
                                 attempted: exceeded.attempted,
@@ -8797,9 +8817,10 @@ fn run_command_bounded_with_stdin_and_budget(
                         );
                     }
                     StreamCaptureResult::Failed(message) => {
-                        return fail_after_cleanup(
+                        return fail_after_cleanup_before(
                             &mut child,
                             operation,
+                            deadline,
                             SourceResolveError::Git {
                                 operation: format!("{operation} {} capture", capture.stream.name()),
                                 status: None,
@@ -8816,9 +8837,10 @@ fn run_command_bounded_with_stdin_and_budget(
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
                 if stdout.is_none() || stderr.is_none() {
-                    return fail_after_cleanup(
+                    return fail_after_cleanup_before(
                         &mut child,
                         operation,
+                        deadline,
                         SourceResolveError::Git {
                             operation: format!("{operation} capture"),
                             status: None,
@@ -8892,23 +8914,32 @@ where
     }
 }
 
-fn fail_after_cleanup<T>(
+fn command_cleanup_reserve(timeout: Duration) -> Duration {
+    GIT_COMMAND_CLEANUP_TIMEOUT.min(timeout / 4)
+}
+
+fn fail_after_cleanup_before<T>(
     child: &mut GroupChild,
     operation: &str,
+    deadline: Instant,
     original: SourceResolveError,
 ) -> Result<T, SourceResolveError> {
-    match terminate_child_bounded(child, operation) {
+    match terminate_child_before(child, operation, deadline) {
         Ok(()) => Err(original),
         Err(cleanup) => Err(cleanup),
     }
 }
 
-fn terminate_child_bounded(
+fn terminate_child_before(
     child: &mut GroupChild,
     operation: &str,
+    command_deadline: Instant,
 ) -> Result<(), SourceResolveError> {
     let kill_error = child.kill().err();
     let started = Instant::now();
+    let cleanup_budget =
+        GIT_COMMAND_CLEANUP_TIMEOUT.min(command_deadline.saturating_duration_since(started));
+    let cleanup_deadline = started.checked_add(cleanup_budget).unwrap_or(started);
     loop {
         match child.try_wait() {
             Ok(Some(_)) => {
@@ -8931,15 +8962,15 @@ fn terminate_child_bounded(
                 });
             }
         }
-        if started.elapsed() >= GIT_COMMAND_CLEANUP_TIMEOUT {
+        if Instant::now() >= cleanup_deadline {
             let message = match &kill_error {
                 Some(error) => format!(
                     "could not terminate the process group ({error}) or reap it within {} milliseconds",
-                    duration_millis(GIT_COMMAND_CLEANUP_TIMEOUT)
+                    duration_millis(cleanup_budget)
                 ),
                 None => format!(
                     "could not reap the terminated process within {} milliseconds",
-                    duration_millis(GIT_COMMAND_CLEANUP_TIMEOUT)
+                    duration_millis(cleanup_budget)
                 ),
             };
             return Err(SourceResolveError::GitCleanupFailed {
@@ -8947,7 +8978,9 @@ fn terminate_child_bounded(
                 message,
             });
         }
-        std::thread::sleep(PROCESS_POLL_INTERVAL);
+        std::thread::sleep(
+            PROCESS_POLL_INTERVAL.min(cleanup_deadline.saturating_duration_since(Instant::now())),
+        );
     }
 }
 
@@ -9818,6 +9851,20 @@ mod tests {
                 "unexpected overflow error: {error:?}"
             );
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn command_deadline_reserves_cleanup_inside_the_same_budget() {
+        assert_eq!(command_cleanup_reserve(Duration::ZERO), Duration::ZERO);
+        assert_eq!(
+            command_cleanup_reserve(Duration::from_millis(50)),
+            Duration::from_micros(12_500)
+        );
+        assert_eq!(
+            command_cleanup_reserve(Duration::from_secs(120)),
+            GIT_COMMAND_CLEANUP_TIMEOUT
+        );
     }
 
     #[cfg(unix)]

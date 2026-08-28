@@ -521,12 +521,13 @@ framed `cat-file --batch` launch reads all validated blobs in tree order. Each
 subprocess starts in a fresh Unix process group or
 Windows Job Object. Completion and rejection paths attempt to terminate that
 container before returning; ordinary helper and SSH descendants therefore do
-not survive or hold capture pipes open in the tested cases. Cleanup/reaping has
-a separate two-second deadline and fails closed if portable process APIs do not
-finish within it. A descendant escaping its Unix session remains outside this
-portable guarantee, and the cleanup allowance means the per-command deadline
-is not a strict wall-clock guarantee. Overflow and timeout reject explicitly once
-cleanup returns, including for blob reads. On Linux this process container
+not survive or hold capture pipes open in the tested cases. Each command
+reserves cleanup/reaping inside its existing deadline, capped at two seconds and
+at one quarter of a smaller budget, and fails closed if portable process APIs do
+not finish within that reserve. A descendant escaping its Unix session remains
+outside this portable guarantee, and host scheduling or uninterruptible kernel
+work is not a hard wall-clock guarantee. Overflow and timeout reject explicitly
+once cleanup returns, including for blob reads. On Linux this process container
 floor is not an OS sandbox: a hostile Unix descendant may deliberately escape
 into another session. The macOS Seatbelt floor adds phase-specific native
 confinement but not endpoint, read-scope, or aggregate-resource custody.
