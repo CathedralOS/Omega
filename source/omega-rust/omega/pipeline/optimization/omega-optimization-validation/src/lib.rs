@@ -9133,11 +9133,13 @@ fn evaluate_boolean_operation(
                 )
                 .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
                 let (range_operand, constant_operand) = match kind {
-                    ValidatedIntegerRangeComparisonKind::RangeLessThanConstant
+                    ValidatedIntegerRangeComparisonKind::RangeEqualConstant
+                    | ValidatedIntegerRangeComparisonKind::RangeLessThanConstant
                     | ValidatedIntegerRangeComparisonKind::RangeLessOrEqualConstant => {
                         (left, right)
                     }
-                    ValidatedIntegerRangeComparisonKind::ConstantLessThanRange
+                    ValidatedIntegerRangeComparisonKind::ConstantEqualRange
+                    | ValidatedIntegerRangeComparisonKind::ConstantLessThanRange
                     | ValidatedIntegerRangeComparisonKind::ConstantLessOrEqualRange => {
                         (right, left)
                     }
@@ -9215,6 +9217,8 @@ fn evaluate_boolean_operation(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ValidatedIntegerRangeComparisonKind {
+    RangeEqualConstant,
+    ConstantEqualRange,
     RangeLessThanConstant,
     ConstantLessThanRange,
     RangeLessOrEqualConstant,
@@ -9227,8 +9231,20 @@ fn independently_validated_integer_range_comparison_kind(
 ) -> Option<ValidatedIntegerRangeComparisonKind> {
     let kind = if rule
         == OptimizationRuleIdentity::from_canonical_bytes(
-            b"omega.psi-rule.integer-less-than-range-constant.v1",
+            b"omega.psi-rule.integer-equal-range-constant.v1",
         ) {
+        ValidatedIntegerRangeComparisonKind::RangeEqualConstant
+    } else if rule
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.integer-equal-constant-range.v1",
+        )
+    {
+        ValidatedIntegerRangeComparisonKind::ConstantEqualRange
+    } else if rule
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.integer-less-than-range-constant.v1",
+        )
+    {
         ValidatedIntegerRangeComparisonKind::RangeLessThanConstant
     } else if rule
         == OptimizationRuleIdentity::from_canonical_bytes(
@@ -9253,6 +9269,11 @@ fn independently_validated_integer_range_comparison_kind(
     };
     match (kind, operation) {
         (
+            ValidatedIntegerRangeComparisonKind::RangeEqualConstant
+            | ValidatedIntegerRangeComparisonKind::ConstantEqualRange,
+            O::IntegerEqual { .. },
+        )
+        | (
             ValidatedIntegerRangeComparisonKind::RangeLessThanConstant
             | ValidatedIntegerRangeComparisonKind::ConstantLessThanRange,
             O::IntegerLessThan { .. },
@@ -9276,6 +9297,16 @@ fn independently_evaluate_integer_range_comparison(
     let minimum_to_constant = scalar_type.compare(minimum, constant)?;
     let maximum_to_constant = scalar_type.compare(maximum, constant)?;
     match kind {
+        ValidatedIntegerRangeComparisonKind::RangeEqualConstant
+        | ValidatedIntegerRangeComparisonKind::ConstantEqualRange => {
+            if minimum_to_constant.is_eq() && maximum_to_constant.is_eq() {
+                Some(true)
+            } else if minimum_to_constant.is_gt() || maximum_to_constant.is_lt() {
+                Some(false)
+            } else {
+                None
+            }
+        }
         ValidatedIntegerRangeComparisonKind::RangeLessThanConstant => maximum_to_constant
             .is_lt()
             .then_some(true)
@@ -15100,6 +15131,89 @@ mod tests {
 
     fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
         constructor(raw).expect("nonzero test identity")
+    }
+
+    #[test]
+    fn range_equality_rule_orientation_and_evaluation_are_independently_closed() {
+        let operation = AbstractOperation::IntegerEqual {
+            psi_operation: id(90_001, OperationId::new),
+            result: id(90_002, ValueId::new),
+            left: id(90_003, ValueId::new),
+            right: id(90_004, ValueId::new),
+        };
+        let range_left = independently_validated_integer_range_comparison_kind(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.integer-equal-range-constant.v1",
+            ),
+            &operation,
+        );
+        let range_right = independently_validated_integer_range_comparison_kind(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.integer-equal-constant-range.v1",
+            ),
+            &operation,
+        );
+        assert_eq!(
+            range_left,
+            Some(ValidatedIntegerRangeComparisonKind::RangeEqualConstant)
+        );
+        assert_eq!(
+            range_right,
+            Some(ValidatedIntegerRangeComparisonKind::ConstantEqualRange)
+        );
+        assert_eq!(
+            independently_validated_integer_range_comparison_kind(
+                OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.integer-less-than-range-constant.v1",
+                ),
+                &operation,
+            ),
+            None
+        );
+
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        for kind in [range_left.unwrap(), range_right.unwrap()] {
+            assert_eq!(
+                independently_evaluate_integer_range_comparison(
+                    kind,
+                    scalar_type,
+                    IntegerValue::Unsigned(7),
+                    IntegerValue::Unsigned(7),
+                    IntegerValue::Unsigned(7),
+                ),
+                Some(true)
+            );
+            assert_eq!(
+                independently_evaluate_integer_range_comparison(
+                    kind,
+                    scalar_type,
+                    IntegerValue::Unsigned(7),
+                    IntegerValue::Unsigned(9),
+                    IntegerValue::Unsigned(6),
+                ),
+                Some(false)
+            );
+            assert_eq!(
+                independently_evaluate_integer_range_comparison(
+                    kind,
+                    scalar_type,
+                    IntegerValue::Unsigned(7),
+                    IntegerValue::Unsigned(9),
+                    IntegerValue::Unsigned(10),
+                ),
+                Some(false)
+            );
+            assert_eq!(
+                independently_evaluate_integer_range_comparison(
+                    kind,
+                    scalar_type,
+                    IntegerValue::Unsigned(7),
+                    IntegerValue::Unsigned(9),
+                    IntegerValue::Unsigned(8),
+                ),
+                None
+            );
+        }
     }
 
     fn unit() -> PsiOptimizationUnit {

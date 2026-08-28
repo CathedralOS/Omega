@@ -803,9 +803,15 @@ These facts constrain the work below.
   validation reconstructs both, binds the exact operator and operand order,
   and rechecks point-of-use applicability. Checked-source canaries exercise
   true, false, and overlap outcomes for every newly added orientation and
-  retain both fact references in applied decision manifest v5. SCCP pass
-  identity is v3, the optimized-plan projection validator is v30, and the
-  prephysical manifest identity is v29.
+  retain both fact references in applied decision manifest v5. Rules 35–36
+  add `range == literal` and `literal == range`: equality is proven true only
+  for the matching singleton interval, false only when the literal lies
+  outside the closed interval, and otherwise declines. Producer and independent
+  validator bind the authored operand orientation and replay both fact
+  identities at the point of use. Checked-source canaries cover false and
+  overlap outcomes in both orientations, while separate producer and validator
+  tests cover singleton truth. SCCP pass identity is v4, the optimized-plan
+  projection validator is v31, and the prephysical manifest identity is v30.
   The task reopens when the scalar vocabulary grows (including any future
   trapping or exact-float policy). Semantic analyses remain open for the wider
   proof/effect/ownership vocabulary and broader range-consuming rules.
@@ -958,7 +964,7 @@ These facts constrain the work below.
   ownership-fact occurrences, while verified artifact tests reach the exact
   one-block and three-block projections. Its v5 contract consumes the three
   exact ownership facts and is registered under `ControlFlowCleanup` v12; the
-  current prephysical manifest v29 and optimized-plan projection v30 bind that
+  current prephysical manifest v30 and optimized-plan projection v31 bind that
   admission meaning. Ledger v4 already represents both moves.
 - The fifth exact `ControlFlowCleanup` rule,
   `shared-terminal-jump-fusion.v1`, removes one unconditional jump into a
@@ -1633,7 +1639,7 @@ alternate semantic handoff.
   with explicit dominance/use-definition evidence, global typed substitution,
   moved-definition reconstruction, dense-effect accounting, and independent
   replay. Candidate v24, optimization-unit identity v16, ledger v4,
-  prephysical manifest v28, and projection validator v29 bind the current
+  prephysical manifest v30, and projection validator v31 bind the current
   occurrence and function-roster replay.
 
   A standalone pass over blocks that are already unreachable has no admitted
@@ -1654,12 +1660,15 @@ alternate semantic handoff.
   block parameters. Float support waits for complete per-operation exact
   semantics and must never use host arithmetic as a shortcut.
 
-  Current slice: thirty-four exact rules cover every currently evaluable Boolean
+  Current slice: thirty-six exact rules cover every currently evaluable Boolean
   and integer leaf and consume literal or coupled-CFG propagated block-
   parameter facts reconstructed by the independent validator. Rules 31–34
   consume a proof-derived interval plus an exact direct literal for all four
   operand-order/operator forms of `<` and `<=`; they prove only closed-interval
-  outcomes, record both fact identities, and decline overlapping ranges.
+  outcomes, record both fact identities, and decline overlapping ranges. Rules
+  35–36 cover both operand orientations of integer equality against a direct
+  literal, proving true only for the matching singleton interval, false only
+  outside the interval, and declining an interior overlap.
   Structural-field and call results remain
   overdefined because the input has no immutable
   structural version or call-summary constant fact. Float and trapping-policy
@@ -1907,7 +1916,7 @@ alternate semantic handoff.
   retain the typed-zero realization.
   Candidate schema remains v24 so adding the new closed identity tags cannot
   rehash or retie-break existing candidates; optimization-unit identity remains
-  v10. The named v11 pass, prephysical manifest identity v26, and projection
+  v16. The named v11 pass, prephysical manifest identity v26, and projection
   validator v27 bind the expanded eleven-rule schedule;
   ledger v4 already
   represents the relocations. Runtime policy events, other live proof-bearing

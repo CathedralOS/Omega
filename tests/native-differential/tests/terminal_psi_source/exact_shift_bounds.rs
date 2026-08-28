@@ -196,13 +196,13 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
     ));
 
     let optimizer_input =
-        omega_terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+        omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
         )
         .expect("exact shift verifies for optimizer admission");
-    let verified = omega_terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+    let verified = omega_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         optimizer_input,
         TerminalFuelSchedule::CURRENT.identity(),
     )
@@ -454,13 +454,13 @@ fn checked_source_range_proof_folds_a_later_integer_comparison() {
     let semantic = encode_module(&lowered.semantic_module).expect("range fold semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range fold proof");
     let optimizer_input =
-        omega_terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+        omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
         )
         .expect("range fold verifies for optimizer admission");
-    let verified = omega_terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+    let verified = omega_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         optimizer_input,
         TerminalFuelSchedule::CURRENT.identity(),
     )
@@ -498,7 +498,7 @@ fn checked_source_range_proof_folds_a_later_integer_comparison() {
             .flat_map(|block| &block.nodes)
             .any(|node| matches!(
                 node.operation,
-                TerminalAbstractOperation::BooleanConstant {
+                AbstractOperation::BooleanConstant {
                     psi_operation,
                     value: true,
                     ..
@@ -526,18 +526,17 @@ fn checked_source_range_comparison_proves_false_and_declines_overlap() {
         let semantic = encode_module(&lowered.semantic_module).expect("range boundary semantics");
         let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range boundary proof");
         let optimizer_input =
-            omega_terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+            omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
                 &semantic,
                 &proof,
                 &AdmissionProfile::default(),
             )
             .expect("range boundary verifies for optimizer admission");
-        let verified =
-            omega_terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
-                optimizer_input,
-                TerminalFuelSchedule::CURRENT.identity(),
-            )
-            .expect("range boundary retains proof custody");
+        let verified = omega_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+            optimizer_input,
+            TerminalFuelSchedule::CURRENT.identity(),
+        )
+        .expect("range boundary retains proof custody");
         let selections =
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .expect("named SCCP selection");
@@ -560,8 +559,8 @@ fn checked_source_range_comparison_proves_false_and_declines_overlap() {
             .flat_map(|function| &function.blocks)
             .flat_map(|block| &block.nodes)
             .find(|node| match node.operation {
-                TerminalAbstractOperation::BooleanConstant { psi_operation, .. }
-                | TerminalAbstractOperation::IntegerLessThan { psi_operation, .. } => {
+                AbstractOperation::BooleanConstant { psi_operation, .. }
+                | AbstractOperation::IntegerLessThan { psi_operation, .. } => {
                     psi_operation == comparison_operation
                 }
                 _ => false,
@@ -570,11 +569,11 @@ fn checked_source_range_comparison_proves_false_and_declines_overlap() {
         match expected {
             Some(expected) => assert!(matches!(
                 final_operation.operation,
-                TerminalAbstractOperation::BooleanConstant { value, .. } if value == expected
+                AbstractOperation::BooleanConstant { value, .. } if value == expected
             )),
             None => assert!(matches!(
                 final_operation.operation,
-                TerminalAbstractOperation::IntegerLessThan { .. }
+                AbstractOperation::IntegerLessThan { .. }
             )),
         }
     }
@@ -718,6 +717,102 @@ fn checked_source_range_comparisons_cover_both_operand_orders_and_inclusive_orde
             None => assert!(matches!(
                 final_operation.operation,
                 AbstractOperation::IntegerLessThan { .. }
+            )),
+        }
+    }
+}
+
+#[test]
+fn checked_source_range_equality_covers_both_operand_orders_and_declines_overlap() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("range-equality source canaries should compile");
+    for (machine, expected) in [
+        (
+            "terminal_exact_shift_range_equal_constant_false",
+            Some(false),
+        ),
+        (
+            "terminal_exact_shift_constant_equal_range_false",
+            Some(false),
+        ),
+        ("terminal_exact_shift_range_equal_constant_overlap", None),
+        ("terminal_exact_shift_constant_equal_range_overlap", None),
+    ] {
+        let lowered = lower_machine(&checked, machine).expect("range equality machine lowers");
+        let comparison_operation = lowered.semantic_module.machines[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| matches!(operation.kind, OperationKind::IntegerEqual { .. }))
+            .last()
+            .expect("integer equality remains explicit before optimization")
+            .id;
+        let semantic = encode_module(&lowered.semantic_module).expect("range equality semantics");
+        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range equality proof");
+        let optimizer_input =
+            omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+            )
+            .expect("range equality verifies for optimizer admission");
+        let verified = omega_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+            optimizer_input,
+            TerminalFuelSchedule::CURRENT.identity(),
+        )
+        .expect("range equality retains proof custody");
+        let selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .expect("named SCCP selection");
+        let budget =
+            OptimizationWorkBudget::new(512, 64, 64, 64, 16).expect("bounded equality run");
+        let run = run_psi_pipeline(verified, &selections, budget)
+            .expect("range equality pipeline remains valid");
+        let range_commit = run.commits().iter().find(|commit| {
+            commit
+                .declaration()
+                .consumed_facts()
+                .iter()
+                .any(|fact| matches!(fact, OptimizationFactReference::ValueRange(_)))
+        });
+        assert_eq!(
+            range_commit.is_some(),
+            expected.is_some(),
+            "unexpected range-equality decision for {machine}",
+        );
+        if let Some(commit) = range_commit {
+            assert_eq!(commit.declaration().consumed_facts().len(), 2);
+            assert!(
+                commit
+                    .declaration()
+                    .consumed_facts()
+                    .iter()
+                    .any(|fact| matches!(fact, OptimizationFactReference::ScalarConstant(_)))
+            );
+        }
+        let final_operation = run
+            .session()
+            .unit()
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.nodes)
+            .find(|node| match node.operation {
+                AbstractOperation::BooleanConstant { psi_operation, .. }
+                | AbstractOperation::IntegerEqual { psi_operation, .. } => {
+                    psi_operation == comparison_operation
+                }
+                _ => false,
+            })
+            .expect("comparison provenance remains at its exact node");
+        match expected {
+            Some(expected) => assert!(matches!(
+                final_operation.operation,
+                AbstractOperation::BooleanConstant { value, .. } if value == expected
+            )),
+            None => assert!(matches!(
+                final_operation.operation,
+                AbstractOperation::IntegerEqual { .. }
             )),
         }
     }

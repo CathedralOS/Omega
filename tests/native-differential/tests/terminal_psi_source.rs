@@ -3,7 +3,8 @@
 //! and Omega lowering.
 
 use omega_abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractOperation, AbstractOperationPlan, ValueBinding,
+    AbstractBlockEntry, AbstractFunction, AbstractOperation, AbstractOperationPlan,
+    AbstractParameter, ValueBinding,
 };
 use omega_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_artifacts::external_root_manifest_json;
@@ -143,7 +144,7 @@ fn terminal_source_canary(name: &str) -> PathBuf {
         .ancestors()
         .nth(2)
         .expect("native differential tests live under tests/native-differential")
-        .join("tests/omega/pass/psi")
+        .join("tests/omega/pass/terminal_psi")
         .join(name)
         .join("main.omg")
 }
@@ -805,8 +806,13 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
         let scratch = ScratchDirectory(fresh_scratch_directory(
             "omega-native-component-flat-output",
         ));
-        let file_name = runnable.artifact().image().output().file_name.clone();
-        let expected_bytes = runnable.artifact().image().output().bytes.clone();
+        let file_name = runnable
+            .installed_artifact()
+            .image()
+            .output()
+            .file_name
+            .clone();
+        let expected_bytes = runnable.installed_artifact().image().output().bytes.clone();
         let installed_identity = runnable.installed_code();
 
         let wrong_name = scratch.0.join("not-the-sealed-name");
@@ -846,12 +852,16 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
         assert_eq!(published.receipt().byte_count(), expected_bytes.len());
         assert_eq!(
             published.receipt().installation_fingerprint(),
-            installation_fingerprint(published.runnable().artifact().installation())
+            installation_fingerprint(published.runnable().installed_artifact().installation())
                 .expect("terminal installation fingerprint")
         );
         assert_eq!(
             published.receipt().image_fingerprint(),
-            published.runnable().artifact().installation().image()
+            published
+                .runnable()
+                .installed_artifact()
+                .installation()
+                .image()
         );
         assert_eq!(
             std::fs::read(&output_path).expect("read deployed flat output"),
@@ -907,14 +917,18 @@ fn selected_optimizer_source_cannot_create_a_second_native_pipeline() {
     assert!(
         diagnostics[0]
             .message
-            .contains("cannot enter native production"),
+            .contains("cannot yet enter native production"),
         "{}",
         diagnostics[0].message
     );
     assert!(
         diagnostics[0]
             .message
-            .contains("selected-instruction pipeline does not yet cover baseline")
+            .contains(
+                "continuation does not cover baseline frame/exit, executable-image, and publication validation"
+            ),
+        "{}",
+        diagnostics[0].message
     );
     assert!(!diagnostics[0].message.contains("UnsupportedSourceShape"));
     assert!(diagnostics[0].message.contains("no output was installed"));
@@ -938,9 +952,17 @@ fn lower_only_optimizer_source_cannot_create_a_second_native_pipeline() {
     assert_eq!(diagnostics.len(), 1);
     let message = &diagnostics[0].message;
     assert!(message.contains("`SelectedIncomingU12ExactAddImmediate`"));
-    assert!(message.contains("cannot enter native production"));
-    assert!(message.contains("selected-instruction pipeline does not yet cover baseline"));
-    assert!(message.contains("no output was installed"));
+    assert!(
+        message.contains("cannot yet enter native production"),
+        "{message}"
+    );
+    assert!(
+        message.contains(
+            "continuation does not cover baseline frame/exit, executable-image, and publication validation"
+        ),
+        "{message}"
+    );
+    assert!(message.contains("no output was installed"), "{message}");
 }
 
 #[test]
@@ -1167,7 +1189,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         assert!(
             published
                 .runnable()
-                .artifact()
+                .installed_artifact()
                 .installation()
                 .component_progress()
                 .is_some(),
@@ -1175,7 +1197,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         );
         assert_eq!(
             published.receipt().installation_fingerprint(),
-            installation_fingerprint(published.runnable().artifact().installation())
+            installation_fingerprint(published.runnable().installed_artifact().installation())
                 .expect("progress installation fingerprint")
         );
         published
@@ -1331,7 +1353,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         assert!(
             published
                 .runnable()
-                .artifact()
+                .installed_artifact()
                 .installation()
                 .component_progress()
                 .is_some()

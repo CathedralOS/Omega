@@ -150,7 +150,7 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
     .expect("proof-free Boolean module verifies");
     let fixed = derive_fixed_entry_fuel(&verified, machine).expect("fixed Boolean fuel");
     validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
-    assert_eq!(fixed.psi(), original_identity);
+    assert_eq!(fixed.terminal_psi(), original_identity);
     assert_eq!(fixed.schedule(), TerminalFuelSchedule::CURRENT.identity());
     assert_eq!(fixed.ceiling_units(), 2);
 
@@ -337,7 +337,7 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
     .expect("proof-free wrapping-add module verifies");
     let fixed = derive_fixed_entry_fuel(&verified, machine).expect("fixed wrapping-add fuel");
     validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
-    assert_eq!(fixed.psi(), original_identity);
+    assert_eq!(fixed.terminal_psi(), original_identity);
     assert_eq!(fixed.schedule(), TerminalFuelSchedule::CURRENT.identity());
     assert_eq!(fixed.ceiling_units(), 4);
 
@@ -530,7 +530,7 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
     .expect("proof-free saturating-add module verifies");
     let fixed = derive_fixed_entry_fuel(&verified, machine).expect("fixed saturating-add fuel");
     validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
-    assert_eq!(fixed.psi(), original_identity);
+    assert_eq!(fixed.terminal_psi(), original_identity);
     assert_eq!(fixed.schedule(), TerminalFuelSchedule::CURRENT.identity());
     assert_eq!(fixed.ceiling_units(), 4);
 
@@ -1629,7 +1629,7 @@ fn runtime_stack_parameter_matches_interpretation_and_native_execution() {
     .expect("proof-free parameter module verifies");
     let fixed = derive_fixed_entry_fuel(&verified, machine).expect("fixed parameter fuel");
     validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
-    assert_eq!(fixed.psi(), original_identity);
+    assert_eq!(fixed.terminal_psi(), original_identity);
     assert_eq!(fixed.ceiling_units(), 1);
 
     let mut arguments = (1..=8)

@@ -579,7 +579,7 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
     let entry_machine = lowered.semantic_module.entry;
     let abstract_plan = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("shared convergence crosses Omega boundary");
-    let terminal_observations = terminal_entry
+    let terminal_observations = entry
         .blocks
         .iter()
         .flat_map(|block| &block.operations)
@@ -609,7 +609,7 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
         .iter()
         .flat_map(|block| &block.nodes)
         .filter_map(|node| match node.operation {
-            TerminalAbstractOperation::BooleanStructuralField { source, field, .. } => {
+            AbstractOperation::BooleanStructuralField { source, field, .. } => {
                 Some((source, field))
             }
             _ => None,

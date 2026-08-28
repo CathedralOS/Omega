@@ -1360,6 +1360,74 @@ ensures true == true
     }
 }
 
+machine terminal_exact_shift_range_equal_constant_false(value: u64, count: u64) -> bool
+requires true == true
+ensures true == true
+{
+    transition count <= 63u64 {
+        true -> compare_range_equal_false(value, count)
+        _ -> finish_range_equal_false(false)
+    }
+
+    state compare_range_equal_false(value: u64, count: u64) -> bool {
+        let shifted: u64 = value >> count;
+        count == 64u64
+    }
+
+    state finish_range_equal_false(value: bool) -> bool { value }
+}
+
+machine terminal_exact_shift_constant_equal_range_false(value: u64, count: u64) -> bool
+requires true == true
+ensures true == true
+{
+    transition count <= 63u64 {
+        true -> compare_constant_equal_range_false(value, count)
+        _ -> finish_constant_equal_range_false(false)
+    }
+
+    state compare_constant_equal_range_false(value: u64, count: u64) -> bool {
+        let shifted: u64 = value >> count;
+        64u64 == count
+    }
+
+    state finish_constant_equal_range_false(value: bool) -> bool { value }
+}
+
+machine terminal_exact_shift_range_equal_constant_overlap(value: u64, count: u64) -> bool
+requires true == true
+ensures true == true
+{
+    transition count <= 63u64 {
+        true -> compare_range_equal_overlap(value, count)
+        _ -> finish_range_equal_overlap(false)
+    }
+
+    state compare_range_equal_overlap(value: u64, count: u64) -> bool {
+        let shifted: u64 = value >> count;
+        count == 63u64
+    }
+
+    state finish_range_equal_overlap(value: bool) -> bool { value }
+}
+
+machine terminal_exact_shift_constant_equal_range_overlap(value: u64, count: u64) -> bool
+requires true == true
+ensures true == true
+{
+    transition count <= 63u64 {
+        true -> compare_constant_equal_range_overlap(value, count)
+        _ -> finish_constant_equal_range_overlap(false)
+    }
+
+    state compare_constant_equal_range_overlap(value: u64, count: u64) -> bool {
+        let shifted: u64 = value >> count;
+        63u64 == count
+    }
+
+    state finish_constant_equal_range_overlap(value: bool) -> bool { value }
+}
+
 machine terminal_exact_shift_left_runtime(value: u32, count: u32) -> u32
 requires 0u32 == 0u32
 ensures 0u32 == 0u32
