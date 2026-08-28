@@ -55,6 +55,8 @@ MH_REQUIRED_FLAGS = 0x1 | 0x4 | 0x80 | 0x200000  # NOUNDEFS, DYLDLINK, TWOLEVEL,
 LC_SEGMENT_64 = 0x19
 LC_LOAD_DYLIB = 0xC
 LC_LOAD_DYLINKER = 0xE
+LC_SYMTAB = 0x2
+LC_DYSYMTAB = 0xB
 LC_UNIXTHREAD = 0x5
 LC_UUID = 0x1B
 LC_CODE_SIGNATURE = 0x1D
@@ -64,6 +66,10 @@ LC_VERSION_MIN_MACOSX = 0x24
 LC_ENCRYPTION_INFO_64 = 0x2C
 LC_BUILD_VERSION = 0x32
 LC_MAIN = 0x80000028
+LC_DYLD_INFO_ONLY = 0x80000022
+LC_FUNCTION_STARTS = 0x26
+LC_DATA_IN_CODE = 0x29
+LC_SOURCE_VERSION = 0x2A
 LC_LOAD_WEAK_DYLIB = 0x80000018
 LC_REEXPORT_DYLIB = 0x8000001F
 LC_LOAD_UPWARD_DYLIB = 0x80000023
@@ -184,8 +190,12 @@ def validate_macho(raw: bytes) -> dict:
     entry_offset: int | None = None
     minimum_os: int | None = None
     sdk: int | None = None
+    dyld_info: tuple[int, ...] | None = None
+    symbol_table: tuple[int, int, int, int] | None = None
+    dynamic_symbol_table: tuple[int, ...] | None = None
+    linkedit_data: dict[int, tuple[int, int]] = {}
     seen_unique: set[int] = set()
-    for _ in range(count):
+    for load_index in range(count):
         if offset + 8 > commands_end:
             fail("Mach-O load-command header extent")
         command, size = struct.unpack_from("<II", raw, offset)
@@ -223,6 +233,8 @@ def validate_macho(raw: bytes) -> dict:
                 "virtual_address": vmaddr,
                 "virtual_size": vmsize,
                 "flags": segment_flags,
+                "load_index": load_index,
+                "section_count": section_count,
             }
             section_offset = 72
             for _ in range(section_count):
@@ -273,6 +285,35 @@ def validate_macho(raw: bytes) -> dict:
             if size < 24:
                 fail("Mach-O dylib command")
             dylibs.append(_command_string(payload, struct.unpack_from("<I", payload, 8)[0], size, "dylib"))
+        elif command == LC_DYLD_INFO_ONLY:
+            if command in seen_unique or size != 48:
+                fail("Mach-O dyld-info command")
+            dyld_info = struct.unpack_from("<10I", payload, 8)
+            seen_unique.add(command)
+        elif command == LC_SYMTAB:
+            if command in seen_unique or size != 24:
+                fail("Mach-O symbol-table command")
+            symbol_table = struct.unpack_from("<4I", payload, 8)
+            seen_unique.add(command)
+        elif command == LC_DYSYMTAB:
+            if command in seen_unique or size != 80:
+                fail("Mach-O dynamic-symbol-table command")
+            dynamic_symbol_table = struct.unpack_from("<18I", payload, 8)
+            seen_unique.add(command)
+        elif command == LC_SOURCE_VERSION:
+            if command in seen_unique or size != 16 or struct.unpack_from("<Q", payload, 8)[0] != 0:
+                fail("Mach-O source-version command")
+            seen_unique.add(command)
+        elif command in (LC_FUNCTION_STARTS, LC_DATA_IN_CODE):
+            if command in seen_unique or size != 16:
+                fail("Mach-O link-edit data command")
+            linkedit_data[command] = struct.unpack_from("<II", payload, 8)
+            seen_unique.add(command)
+        else:
+            # V1 is a closed container profile. Silently accepting a new load
+            # command would let an unmodeled dependency, fixup mechanism, or
+            # identity-bearing payload enter an otherwise valid receipt.
+            fail("Mach-O load-command profile")
         offset += size
 
     if offset != commands_end:
@@ -305,8 +346,79 @@ def validate_macho(raw: bytes) -> dict:
         )
     ):
         fail("Mach-O page-zero profile")
+    ordered_segment_names = ["__PAGEZERO", "__TEXT"]
+    if "__DATA_CONST" in segments:
+        ordered_segment_names.append("__DATA_CONST")
+    ordered_segment_names.extend(("__DATA", "__LINKEDIT"))
+    ordered_segments = [segments[name] for name in ordered_segment_names]
+    if [row["load_index"] for row in ordered_segments] != sorted(
+        row["load_index"] for row in ordered_segments
+    ) or segments["__LINKEDIT"]["load_index"] != max(
+        row["load_index"] for row in segments.values()
+    ):
+        fail("Mach-O segment command order")
+    previous_virtual_end = 0
+    previous_file_end = 0
+    for name, segment in zip(ordered_segment_names, ordered_segments):
+        if segment["virtual_size"] == 0 or segment["virtual_address"] < previous_virtual_end:
+            fail("Mach-O segment virtual topology")
+        previous_virtual_end = segment["virtual_address"] + segment["virtual_size"]
+        if segment["file_size"]:
+            if segment["file_offset"] < previous_file_end:
+                fail("Mach-O segment file overlap")
+            previous_file_end = segment["file_offset"] + segment["file_size"]
+    if commands_end > segments["__TEXT"]["file_size"]:
+        fail("Mach-O load commands outside text segment")
     if segments["__LINKEDIT"]["file_offset"] + segments["__LINKEDIT"]["file_size"] != len(raw):
         fail("Mach-O complete file coverage")
+    if segments["__LINKEDIT"]["section_count"] != 0:
+        fail("Mach-O link-edit sections")
+    if bss["flags"] & 0xFF != 1 or bss["file_offset"] != 0:
+        fail("Mach-O BSS profile")
+
+    linkedit_start = segments["__LINKEDIT"]["file_offset"]
+    linkedit_end = linkedit_start + segments["__LINKEDIT"]["file_size"]
+
+    def linkedit_range(file_offset: int, extent: int, context: str) -> None:
+        if extent == 0:
+            if file_offset != 0 and not linkedit_start <= file_offset <= linkedit_end:
+                fail(f"Mach-O {context} empty range")
+            return
+        if file_offset < linkedit_start or extent > linkedit_end - file_offset:
+            fail(f"Mach-O {context} range")
+
+    if dyld_info is not None:
+        for index in range(0, len(dyld_info), 2):
+            linkedit_range(dyld_info[index], dyld_info[index + 1], "dyld info")
+    if symbol_table is not None:
+        symbol_offset, symbol_count, string_offset, string_extent = symbol_table
+        linkedit_range(symbol_offset, symbol_count * 16, "symbol table")
+        linkedit_range(string_offset, string_extent, "string table")
+    if dynamic_symbol_table is not None:
+        if symbol_table is None:
+            fail("Mach-O dynamic symbol table without symbol table")
+        symbol_count = symbol_table[1]
+        local_index, local_count, external_index, external_count, undefined_index, undefined_count = dynamic_symbol_table[:6]
+        if (
+            local_index != 0
+            or external_index != local_count
+            or undefined_index != external_index + external_count
+            or undefined_index + undefined_count != symbol_count
+        ):
+            fail("Mach-O dynamic symbol partition")
+        table_shapes = (
+            (dynamic_symbol_table[6], dynamic_symbol_table[7], 8, "table of contents"),
+            (dynamic_symbol_table[8], dynamic_symbol_table[9], 56, "module table"),
+            (dynamic_symbol_table[10], dynamic_symbol_table[11], 4, "external references"),
+            (dynamic_symbol_table[12], dynamic_symbol_table[13], 4, "indirect symbols"),
+            (dynamic_symbol_table[14], dynamic_symbol_table[15], 8, "external relocations"),
+            (dynamic_symbol_table[16], dynamic_symbol_table[17], 8, "local relocations"),
+        )
+        for file_offset, row_count, row_size, context in table_shapes:
+            linkedit_range(file_offset, row_count * row_size, context)
+    for command, (file_offset, extent) in linkedit_data.items():
+        context = "function starts" if command == LC_FUNCTION_STARTS else "data in code"
+        linkedit_range(file_offset, extent, context)
     if minimum_os != MIN_MACOS_11 or sdk is None:
         fail("Mach-O missing build-version target")
     if entry_offset is None or not (

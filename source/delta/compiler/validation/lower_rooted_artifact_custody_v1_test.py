@@ -54,7 +54,7 @@ def section(name: bytes, segment_name: bytes, address: int, extent: int, offset:
     )
 
 
-def minimal_macho() -> bytes:
+def minimal_macho(extra_commands: tuple[bytes, ...] = ()) -> bytes:
     text_offset = 1024
     text_bytes = b"\xc0\x03\x5f\xd6"  # ret
     linkedit = b"LINK"
@@ -78,6 +78,7 @@ def minimal_macho() -> bytes:
             struct.pack("<IIII", 24, 0, 0x00010000, 0x00010000),
             b"/usr/lib/libSystem.B.dylib",
         ),
+        *extra_commands,
     ]
     load_commands = b"".join(commands)
     header = struct.pack(
@@ -259,6 +260,29 @@ class ArtifactCustodyTests(unittest.TestCase):
         dylib = raw.find(b"/usr/lib/libSystem.B.dylib")
         self.assertGreater(dylib, 0)
         raw[dylib] = ord("x")
+        with self.assertRaises(custody.CustodyError):
+            custody.validate_macho(raw)
+
+        # The V1 container profile is closed: a structurally bounded but
+        # unmodeled command cannot ride along outside the target summary.
+        raw = minimal_macho((struct.pack("<IIQ", 0x12345678, 16, 0),))
+        with self.assertRaises(custody.CustodyError):
+            custody.validate_macho(raw)
+
+        # Known link-edit commands are not mere spellings; every retained byte
+        # range must belong to the terminal __LINKEDIT segment.
+        raw = minimal_macho((struct.pack(
+            "<IIII", custody.LC_FUNCTION_STARTS, 16, 1, 8
+        ),))
+        with self.assertRaises(custody.CustodyError):
+            custody.validate_macho(raw)
+
+        # A terminal segment that overlaps __TEXT does not provide complete
+        # non-cross-paired container custody, even if it still ends at EOF.
+        raw = bytearray(minimal_macho())
+        linkedit = raw.find(b"__LINKEDIT") - 8
+        self.assertGreaterEqual(linkedit, 32)
+        struct.pack_into("<QQ", raw, linkedit + 40, 512, len(raw) - 512)
         with self.assertRaises(custody.CustodyError):
             custody.validate_macho(raw)
 
