@@ -12,12 +12,13 @@ use omega_terminal_selected_instructions::TerminalSelectedInstructionPlanIdentit
 use crate::{
     TerminalAllocationLegalityIdentity, TerminalAllocatorAvailabilityIdentity,
     TerminalFixedViewCopyIdentity, TerminalLiteralFoldIdentity, TerminalLiveRangeIdentity,
-    TerminalLivenessIdentity, TerminalRegisterHomeIdentity, ValidatedTerminalAllocationLegality,
-    ValidatedTerminalLiveRanges, ValidatedTerminalRegisterHomes,
+    TerminalLivenessIdentity, TerminalPressureRematerializationIdentity,
+    TerminalRegisterHomeIdentity, ValidatedTerminalAllocationLegality, ValidatedTerminalLiveRanges,
+    ValidatedTerminalRegisterHomes,
 };
 
 const POST_ALLOCATION_MANIFEST_MAGIC: &[u8; 8] = b"OMGPAO\0\0";
-const POST_ALLOCATION_MANIFEST_VERSION: u32 = 4;
+const POST_ALLOCATION_MANIFEST_VERSION: u32 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostAllocationManifestStage {
@@ -50,6 +51,7 @@ pub struct PostAllocationStatistics {
 pub enum PostAllocationSelectedTransformation {
     FixedViewCopy(TerminalFixedViewCopyIdentity),
     LiteralFold(TerminalLiteralFoldIdentity),
+    PressureRematerialization(TerminalPressureRematerializationIdentity),
 }
 
 /// Structured report at the first independently validated physical-home
@@ -79,7 +81,7 @@ pub struct PostAllocationOptimizationManifest {
 impl PostAllocationOptimizationManifest {
     pub fn recomputed_identity(&self) -> PostAllocationOptimizationManifestIdentity {
         let mut canonical = Vec::new();
-        canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v4\0");
+        canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v5\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         PostAllocationOptimizationManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -138,6 +140,9 @@ impl PostAllocationOptimizationManifest {
                 ),
                 2 => PostAllocationSelectedTransformation::LiteralFold(
                     TerminalLiteralFoldIdentity::from_bytes(cursor.array()?),
+                ),
+                3 => PostAllocationSelectedTransformation::PressureRematerialization(
+                    TerminalPressureRematerializationIdentity::from_bytes(cursor.array()?),
                 ),
                 tag => {
                     return Err(
@@ -240,6 +245,9 @@ impl PostAllocationOptimizationManifest {
                 }
                 PostAllocationSelectedTransformation::LiteralFold(identity) => {
                     ("literal-fold", identity.bytes())
+                }
+                PostAllocationSelectedTransformation::PressureRematerialization(identity) => {
+                    ("pressure-rematerialization", identity.bytes())
                 }
             };
             writeln!(
@@ -452,6 +460,9 @@ fn expected_record(
                 (1_u8, identity.bytes())
             }
             PostAllocationSelectedTransformation::LiteralFold(identity) => (2_u8, identity.bytes()),
+            PostAllocationSelectedTransformation::PressureRematerialization(identity) => {
+                (3_u8, identity.bytes())
+            }
         };
         !unique_transformations.insert(key)
     }) {
@@ -564,6 +575,10 @@ fn encode_manifest_content(manifest: &PostAllocationOptimizationManifest) -> Vec
             }
             PostAllocationSelectedTransformation::LiteralFold(identity) => {
                 canonical.push(2);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            PostAllocationSelectedTransformation::PressureRematerialization(identity) => {
+                canonical.push(3);
                 canonical.extend_from_slice(&identity.bytes());
             }
         }
@@ -785,6 +800,13 @@ mod tests {
                     ),
                 )
             },
+            |record| {
+                record.selected_transformations.push(
+                    PostAllocationSelectedTransformation::PressureRematerialization(
+                        TerminalPressureRematerializationIdentity::from_bytes([14; 32]),
+                    ),
+                )
+            },
             |record| record.liveness = TerminalLivenessIdentity([7; 32]),
             |record| record.ranges = TerminalLiveRangeIdentity::from_bytes([8; 32]),
             |record| record.legality = TerminalAllocationLegalityIdentity::from_bytes([9; 32]),
@@ -811,6 +833,18 @@ mod tests {
         let text = baseline.render_text();
         assert!(text.contains("spills: not required"));
         assert!(text.contains("publication: unavailable"));
+        let mut rematerialized = baseline.clone();
+        rematerialized.selected_transformations = vec![
+            PostAllocationSelectedTransformation::PressureRematerialization(
+                TerminalPressureRematerializationIdentity::from_bytes([14; 32]),
+            ),
+        ];
+        rematerialized.identity = rematerialized.recomputed_identity();
+        assert!(
+            rematerialized
+                .render_text()
+                .contains("pressure-rematerialization")
+        );
     }
 
     #[test]
@@ -832,6 +866,9 @@ mod tests {
             )),
             PostAllocationSelectedTransformation::LiteralFold(
                 TerminalLiteralFoldIdentity::from_bytes([13; 32]),
+            ),
+            PostAllocationSelectedTransformation::PressureRematerialization(
+                TerminalPressureRematerializationIdentity::from_bytes([14; 32]),
             ),
         ];
         transformed.identity = transformed.recomputed_identity();
@@ -863,10 +900,10 @@ mod tests {
             Err(PostAllocationOptimizationManifestDecodeError::WrongMagic)
         );
         let mut wrong_version = encoded.clone();
-        wrong_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
         assert_eq!(
             PostAllocationOptimizationManifest::decode(&wrong_version),
-            Err(PostAllocationOptimizationManifestDecodeError::UnsupportedVersion(3))
+            Err(PostAllocationOptimizationManifestDecodeError::UnsupportedVersion(4))
         );
         let content_offset = 8 + 4 + 32;
         let mut unknown_architecture = encoded.clone();
