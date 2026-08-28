@@ -749,3 +749,70 @@ operation requirement identities separate from these value-type identities.
   a success Boolean; either representation erases the specified closed cases.
 - Tempting but wrong: expose `Uncommitted` on the decisive result merely because
   one larger runtime layout would be convenient.
+
+## Q16 — Authoritative Delta v1 language and resource semantics
+
+### Context
+
+The bootstrap decisions require Delta to be an independent, robust
+compiler-host language whose nonoptimizing lower-rung meaning elaborates to
+Gamma. The canonical compiler source currently lives in
+`source/delta/samples/lowermachine.alp`, and the Rust-free implementation of the
+meaning route lives in `source/delta/meaning/omega2gamma.beta`. Publication can
+already bind exact source and repeated emitted assembly, but its V1 receipt
+deliberately does not claim that the translator implements all Delta semantics.
+
+No authoritative Delta language document currently fixes the compositional
+grammar, static and dynamic judgments, allocation/exhaustion behavior, sealed
+byte I/O, process termination, or observation profile. Historical comments in
+the translator instead describe an “Omega kernel subset” and “on-ramp,” which
+conflicts with the ratified decision that Delta is not an Omega subset. An
+implementation and its current accepted corpus cannot select their own semantic
+subject for checked refinement.
+
+### Problem statement
+
+The canonical Delta compiler artifact cannot acquire source-to-artifact
+authority until a checker can reconstruct the intended Delta meaning from an
+independently fixed contract. It is presently ambiguous which fixed storage
+limits are Delta semantics versus replaceable implementation bounds, which
+allocation facilities a robust compiler host guarantees, and which source
+forms are compositional language facilities rather than accidents of the
+single canonical source. Treating `omega2gamma.beta`, the sample corpus, or the
+artifact's behavior as the specification would make the refinement circular.
+
+### Proposed direction
+
+Ratify one `source/delta/LANGUAGE.md` contract for a small C-like deterministic
+compiler host, independent of Omega spelling. Specify the source grammar and
+name/type/control judgments used by the complete canonical compiler; finite
+records, sums, arrays and bounded views; checked arithmetic; deterministic
+storage/allocation with explicit exhaustion; sealed byte input, artifact and
+diagnostic output, and termination; exact resource parameters; and the
+observable result used by refinement. Classify each fixed capacity in the
+current implementation as either a contract input/bound or private storage,
+and require unsupported forms and exhaustion to reject deterministically.
+Then validate the Beta-written Delta-to-Gamma elaboration against that contract
+and keep optimization outside the meaning edge.
+
+This decision need not make Delta valid Omega, add Omega's proof or package
+surface, or prescribe the native compiler's internal representation. Assembly
+reproducibility, strict target-dialect validation, executable reconstruction,
+and ordinary-Omega frontend implementation may continue while the semantic
+contract is settled; only checked Delta source-to-artifact authority is blocked.
+
+### Alternates
+
+- Acceptable: use a smaller explicitly parameterized allocation model backed by
+  one fixed arena, provided exhaustion and lifetime behavior are compositional
+  and sufficient for the complete compiler source.
+- Acceptable: admit additional C-like modules, allocation, or aggregate
+  facilities when they materially reduce total compiler and assurance cost,
+  provided their semantics are fixed independently of the implementation.
+- Tempting but wrong: declare the current translator or canonical source corpus
+  to be the language specification.
+- Tempting but wrong: revive Delta as a named subset of Omega or infer its
+  semantics from similar Omega spelling.
+- Tempting but wrong: publish compiler authority from two byte-identical
+  executions without checking the artifact against an independently selected
+  source meaning.
