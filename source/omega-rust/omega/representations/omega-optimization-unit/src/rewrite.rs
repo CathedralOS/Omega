@@ -457,6 +457,34 @@ pub struct DeadScalarNodeRewrite {
     pub scalar_type: ScalarType,
 }
 
+/// The closed exact-integer identities whose verifier-accepted obligation
+/// permits the operation to disappear while its live result is replaced by an
+/// existing operand. Exact operation identity is never reclassified as a
+/// wrapping policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProofCertifiedScalarIdentityKind {
+    ExactIntegerAddZeroLeft,
+    ExactIntegerAddZeroRight,
+    ExactIntegerSubtractZeroRight,
+    ExactIntegerMultiplyOneLeft,
+    ExactIntegerMultiplyOneRight,
+    ExactIntegerShiftLeftZeroCount,
+    ExactIntegerShiftRightZeroCount,
+}
+
+/// Remove one proof-certified exact integer identity and replace every use of
+/// its live result with the non-identity operand. The removed occurrence and
+/// fuel remain realized at the next co-executed node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProofCertifiedScalarIdentityRewrite {
+    pub location: NodeLocation,
+    pub source_operation: OperationId,
+    pub result: ValueId,
+    pub replacement: ValueId,
+    pub scalar_type: IntegerType,
+    pub identity: ProofCertifiedScalarIdentityKind,
+}
+
 /// Replace every use of a later same-block scalar result with the result of an
 /// earlier, independently identical total scalar expression, then remove the
 /// redundant node. The later source occurrence remains realized at its next
@@ -537,6 +565,7 @@ pub enum PsiRewritePatch {
     EliminateLocalScalarCommonSubexpression(LocalScalarCommonSubexpressionRewrite),
     EliminateDominatedScalarCommonSubexpression(DominatingScalarCommonSubexpressionRewrite),
     EliminatePhiTranslatedScalarCommonSubexpression(PhiTranslatedScalarGvnRewrite),
+    EliminateProofCertifiedScalarIdentity(ProofCertifiedScalarIdentityRewrite),
     PruneUnreachablePrivateMachines(UnreachablePrivateMachinesRewrite),
 }
 
@@ -554,6 +583,10 @@ enum PsiRewriteWitness {
     ScalarEvaluation(ScalarEvaluationWitness),
     RedundantBlockParameter(RedundantBlockParameterWitness),
     AcceptedObligation(AcceptedObligationFactIdentity),
+    ProofCertifiedScalarIdentity {
+        constant_fact: ScalarConstantFactIdentity,
+        obligation_fact: AcceptedObligationFactIdentity,
+    },
     StructuralIdentity,
 }
 
@@ -853,6 +886,35 @@ impl PsiRewriteCandidate {
         )
     }
 
+    pub fn new_proof_certified_scalar_identity(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        provenance: Vec<ProvenanceRewrite>,
+        constant_fact: ScalarConstantFactIdentity,
+        obligation_fact: AcceptedObligationFactIdentity,
+        predicted_cost_delta: i64,
+        patch: ProofCertifiedScalarIdentityRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            vec![ScalarSubstitution {
+                from: patch.result,
+                to: patch.replacement,
+                scalar_type: ScalarType::Integer(patch.scalar_type),
+            }],
+            provenance,
+            PsiRewriteWitness::ProofCertifiedScalarIdentity {
+                constant_fact,
+                obligation_fact,
+            },
+            predicted_cost_delta,
+            PsiRewritePatch::EliminateProofCertifiedScalarIdentity(patch),
+        )
+    }
+
     pub fn new_local_scalar_common_subexpression(
         input: OptimizationUnitIdentity,
         contract: OptimizationRuleContract,
@@ -1066,6 +1128,9 @@ impl PsiRewriteCandidate {
             PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch) => {
                 PsiRewriteDecisionPoint::Node(patch.redundant)
             }
+            PsiRewritePatch::EliminateProofCertifiedScalarIdentity(patch) => {
+                PsiRewriteDecisionPoint::Node(patch.location)
+            }
             PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
                 if patch.machines.is_empty()
                     || patch.machines.windows(2).any(|pair| pair[0] >= pair[1])
@@ -1156,6 +1221,7 @@ impl PsiRewriteCandidate {
                 ScalarEvaluationWitness::ProofCertifiedUnary { .. }
                     | ScalarEvaluationWitness::ProofCertifiedBinary { .. }
             ) | PsiRewriteWitness::AcceptedObligation(_)
+                | PsiRewriteWitness::ProofCertifiedScalarIdentity { .. }
         ) {
             return Err(PsiRewriteCandidateError::ProofWitnessSafetyMismatch);
         }
@@ -1475,6 +1541,33 @@ impl PsiRewriteCandidate {
                     return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
                 }
             }
+            PsiRewritePatch::EliminateProofCertifiedScalarIdentity(patch) => {
+                let input = PsiRealizationSite::Node(patch.location);
+                if substitutions.as_slice()
+                    != [ScalarSubstitution {
+                        from: patch.result,
+                        to: patch.replacement,
+                        scalar_type: ScalarType::Integer(patch.scalar_type),
+                    }]
+                    || patch.result == patch.replacement
+                    || !provenance.iter().any(|row| row.input == input)
+                    || provenance.iter().any(|row| {
+                        let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
+                            return true;
+                        };
+                        site.machine() != patch.location.machine
+                            || site
+                                .node()
+                                .is_some_and(|location| !affected_blocks.contains(&location.block))
+                    })
+                    || !matches!(
+                        witness,
+                        PsiRewriteWitness::ProofCertifiedScalarIdentity { .. }
+                    )
+                {
+                    return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
+                }
+            }
             PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
                 let pruned = patch
                     .machines
@@ -1581,6 +1674,7 @@ impl PsiRewriteCandidate {
             PsiRewriteWitness::ScalarEvaluation(witness) => Some(*witness),
             PsiRewriteWitness::RedundantBlockParameter(_)
             | PsiRewriteWitness::AcceptedObligation(_)
+            | PsiRewriteWitness::ProofCertifiedScalarIdentity { .. }
             | PsiRewriteWitness::StructuralIdentity => None,
         }
     }
@@ -1590,6 +1684,7 @@ impl PsiRewriteCandidate {
             PsiRewriteWitness::ScalarEvaluation(_) => None,
             PsiRewriteWitness::RedundantBlockParameter(witness) => Some(witness),
             PsiRewriteWitness::AcceptedObligation(_) => None,
+            PsiRewriteWitness::ProofCertifiedScalarIdentity { .. } => None,
             PsiRewriteWitness::StructuralIdentity => None,
         }
     }
@@ -1597,8 +1692,26 @@ impl PsiRewriteCandidate {
     pub const fn accepted_obligation_witness(&self) -> Option<AcceptedObligationFactIdentity> {
         match &self.witness {
             PsiRewriteWitness::AcceptedObligation(identity) => Some(*identity),
+            PsiRewriteWitness::ProofCertifiedScalarIdentity {
+                obligation_fact, ..
+            } => Some(*obligation_fact),
             PsiRewriteWitness::ScalarEvaluation(_)
             | PsiRewriteWitness::RedundantBlockParameter(_)
+            | PsiRewriteWitness::StructuralIdentity => None,
+        }
+    }
+
+    pub const fn proof_certified_scalar_identity_witness(
+        &self,
+    ) -> Option<(ScalarConstantFactIdentity, AcceptedObligationFactIdentity)> {
+        match &self.witness {
+            PsiRewriteWitness::ProofCertifiedScalarIdentity {
+                constant_fact,
+                obligation_fact,
+            } => Some((*constant_fact, *obligation_fact)),
+            PsiRewriteWitness::ScalarEvaluation(_)
+            | PsiRewriteWitness::RedundantBlockParameter(_)
+            | PsiRewriteWitness::AcceptedObligation(_)
             | PsiRewriteWitness::StructuralIdentity => None,
         }
     }
@@ -1638,6 +1751,13 @@ impl PsiRewriteCandidate {
             PsiRewriteWitness::AcceptedObligation(identity) => {
                 vec![OptimizationFactReference::AcceptedObligation(*identity)]
             }
+            PsiRewriteWitness::ProofCertifiedScalarIdentity {
+                constant_fact,
+                obligation_fact,
+            } => vec![
+                OptimizationFactReference::ScalarConstant(*constant_fact),
+                OptimizationFactReference::AcceptedObligation(*obligation_fact),
+            ],
             PsiRewriteWitness::RedundantBlockParameter(_)
             | PsiRewriteWitness::StructuralIdentity => Vec::new(),
         };
@@ -1672,7 +1792,7 @@ fn encode_candidate(
     patch: &PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v21\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v22\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     match decision_point {
@@ -1783,6 +1903,14 @@ fn encode_candidate(
         PsiRewriteWitness::AcceptedObligation(identity) => {
             bytes.push(4);
             bytes.extend_from_slice(&identity.bytes());
+        }
+        PsiRewriteWitness::ProofCertifiedScalarIdentity {
+            constant_fact,
+            obligation_fact,
+        } => {
+            bytes.push(5);
+            bytes.extend_from_slice(&constant_fact.bytes());
+            bytes.extend_from_slice(&obligation_fact.bytes());
         }
     }
     bytes.extend_from_slice(&predicted_cost_delta.to_le_bytes());
@@ -1901,6 +2029,23 @@ fn encode_candidate(
                 bytes.extend_from_slice(&incoming.leader_operation.get().to_le_bytes());
                 bytes.extend_from_slice(&incoming.leader_result.get().to_le_bytes());
             }
+        }
+        PsiRewritePatch::EliminateProofCertifiedScalarIdentity(patch) => {
+            bytes.push(15);
+            encode_location(&mut bytes, patch.location);
+            bytes.extend_from_slice(&patch.source_operation.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.result.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.replacement.get().to_le_bytes());
+            encode_integer_type(&mut bytes, patch.scalar_type);
+            bytes.push(match patch.identity {
+                ProofCertifiedScalarIdentityKind::ExactIntegerAddZeroLeft => 1,
+                ProofCertifiedScalarIdentityKind::ExactIntegerAddZeroRight => 2,
+                ProofCertifiedScalarIdentityKind::ExactIntegerSubtractZeroRight => 3,
+                ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyOneLeft => 4,
+                ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyOneRight => 5,
+                ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroCount => 6,
+                ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroCount => 7,
+            });
         }
     }
     bytes
