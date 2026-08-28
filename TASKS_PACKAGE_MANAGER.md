@@ -893,6 +893,18 @@ complete.
   policy. This does not establish TLS trust/custody, and discovery plus SSH
   fetch remain broad; Q16 separately blocks strict SSH authority.
 
+  Follow-up 2026-08-28: macOS HTTPS transport discovery now receives one
+  separately validated exact working read root. File-content reads are confined
+  to that root, exact executable/runtime files, and `/private/etc/ssl`; broad
+  metadata reads remain. The root enters native policy-observation schema 7,
+  and changing it changes canonical policy identity. Native canaries prove
+  working-root and TLS-configuration reads succeed while adjacent content and
+  an escaping symlink fail. A fresh symbolic `HEAD` public GitHub audit proves
+  real `ls-remote`, fetch, authentication, and publication under the narrowed
+  policies. Git cache policy v20 prevents reuse of state discovered under the
+  broader policy. The only remaining broad macOS file-content reads are SSH
+  discovery/fetch, whose trust and credential authority is blocked on Q16.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the

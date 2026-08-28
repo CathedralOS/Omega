@@ -16,12 +16,13 @@ text or containment claims.
 ## Current enforcement
 
 - macOS uses compiler-fixed, self-contained Seatbelt profiles with no host-
-  profile imports. Discovery and SSH fetch admit broad reads. Initialization,
-  inspection, and HTTPS fetch instead admit broad metadata reads but confine file-content reads
-  to their exact mutable quarantine or retained bare repository, the selected
-  executable set, `/dev/null`, and the literal filesystem-root directory entry
-  required by the native process runtime. HTTPS fetch additionally admits the
-  fixed system TLS configuration root `/private/etc/ssl`. Every phase admits the exact compiler-selected
+  profile imports. SSH discovery and fetch admit broad reads. Initialization,
+  inspection, and HTTPS discovery/fetch instead admit broad metadata reads but
+  confine file-content reads to their exact working, mutable-quarantine, or
+  retained-bare-repository root, the selected executable set, `/dev/null`, and
+  the literal filesystem-root directory entry required by the native process
+  runtime. HTTPS discovery/fetch additionally admit the fixed system TLS
+  configuration root `/private/etc/ssl`. Every phase admits the exact compiler-selected
   executable set and write-data to the fixed `/dev/null` sink. Initialization
   and fetch additionally admit writes only beneath the exact mutable quarantine
   root. Discovery and fetch require one explicit closed HTTPS or SSH authority
@@ -48,9 +49,9 @@ text or containment claims.
   observation binding the backend, phase, closed network transport when
   applicable, sealed endpoint route when applicable, generated policy hash,
   numeric resource ceilings, primary executable path, normalized bounded
-  descendant-executable path set, inspection content-read root when applicable,
-  mutable root, and every closed native guarantee as `Enforced`, `Unavailable`,
-  or `NotRequired`. There is no public constructor
+  descendant-executable path set, discovery/inspection content-read roots when
+  applicable, mutable root, and every closed native guarantee as `Enforced`,
+  `Unavailable`, or `NotRequired`. There is no public constructor
   or decoder. This describes configuration, not execution or executable
   content identity; `require_strict` rejects the current backends.
 
@@ -68,8 +69,8 @@ compiler-authored environment fields carry the broker and target authorities,
 so package locator text never becomes shell syntax.
 
 This is engineering enforcement and one input to a future package-source
-receipt, not that accepted receipt. macOS still permits broad reads during
-discovery and SSH fetch plus broad metadata reads in narrowed phases, so
+receipt, not that accepted receipt. macOS still permits broad reads during SSH
+discovery/fetch plus broad metadata reads in narrowed phases, so
 complete filesystem-read confinement remains unavailable. The fixed TLS root
 is not a TLS trust receipt or credential-custody claim. Aggregate resource quotas and
 Linux/Windows endpoint confinement and strict backends remain package-manager
