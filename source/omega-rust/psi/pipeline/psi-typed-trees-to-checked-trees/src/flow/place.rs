@@ -14,6 +14,7 @@ pub(crate) use comparison::{
     canonical_place_overlaps_segments, canonical_place_segments_equal,
     canonical_place_segments_may_overlap,
 };
+pub(crate) use contextual::contextual_canonical_place_from_expression;
 pub(crate) use resolution::{
     effective_member_symbol, expression_type_symbol, resolve_member_symbol_from_type_symbol,
     symbol_type_symbol,

@@ -479,12 +479,12 @@ dominated by the matching case refinement. The retained validity descriptor is
 the intersection of the result occurrence, normalized referenced occurrences,
 and evidence-interface scopes; codec replay preserves that descriptor and
 write-invalidation coordinates independently from the case identity.
-The first caller-side executable carrier remains deliberately fact-only. A
+The bounded caller-side executable carrier preserves fact-only omission. A
 zero-input `CallStructural` over a direct unrestricted, unqualified,
 claim-free payloadless producer imports each guarded row as a case-membership
 implication after exact result-place substitution. It imports neither a raw
 conclusion nor a case-membership fact; structural return rebases the complete
-implication to the caller result. One optional Terminal-only selected-evidence
+implication to the caller result. One optional selected-evidence
 binding may now retain the exact guarded case, row position, obligation, public
 selector, atomic proposition, callee term/interface, distinct caller-local term,
 and result-root validity intersection. Format 31 / vocabulary 33 encode those
@@ -495,9 +495,18 @@ binding still imports no raw conclusion or case fact. The bounded call rejects
 ordinary contract lanes, crash rows, custody transfers, and callee evidence
 contract lanes. Terminal interpretation transports the exact payloadless case,
 fixed fuel composes to four units, and the binding adds no operation or charge.
-Checked/source structural case-arm planning and guarded-term use, source-arm
-validity replay, payload substitution, and tagged-sum target lowering remain
-outside this custody rung.
+The matching checked/source carrier accepts one attached zero-input direct
+caller and producer over the same exact attachment. The caller captures the
+call once in an immutable local and every exhaustive payloadless case arm
+returns that saved result unchanged. Checked planning replays the exact flow
+coordinate, target/receiver, symbol-root association, case coverage, and
+result-root-only validity; at most one named row may be selected, while omission
+stays fact-only. Lowering emits the exact two-machine closure, retains sibling
+guarded rows and producer provenance on the callee, and rejoins the selected row
+to a distinct caller-local term without changing the four-unit runtime. Payload
+substitution, later guarded-term use, erased proof-output linkage, wider
+structural calls, validity invalidation, and tagged-sum target lowering remain
+outside this bounded source rung.
 The current producer serializes forwarded terms as dense module-local
 identities over the exact proposition application and a structured canonical
 carrierless interface; the verifier requires each witness application to carry
