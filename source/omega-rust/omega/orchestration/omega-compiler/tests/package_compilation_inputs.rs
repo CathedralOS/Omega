@@ -389,6 +389,78 @@ fn authored_selection_requires_the_declaration_owner_as_a_direct_dependency() {
 }
 
 #[test]
+fn boundary_machine_signatures_are_public_package_selection_positions() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::middle;\nboundary machine expose(value: LeafValue);\n",
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine relay(value: LeafValue) { }\n",
+    );
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        "pub data LeafValue { value: u64; }\n",
+    );
+
+    let transitive_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+            PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive boundary-signature graph should validate structurally");
+    let diagnostics =
+        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
+            .expect_err("a boundary signature may not select a transitive-only type");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("`root`")
+                && diagnostic.message.contains("`leaf`")
+                && diagnostic.message.contains("direct dependency")
+        }),
+        "unexpected boundary-signature diagnostics: {diagnostics:#?}"
+    );
+
+    let directly_admitted = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct boundary-signature graph should validate");
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
+        .expect("direct dependency should admit the boundary signature type");
+    assert!(checked.authored_declaration_selections().iter().any(|selection| {
+        selection.exposure()
+            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+            && matches!(
+                selection.target(),
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+                    if checked.symbols.display_path(target.selected_symbol(), "::").contains("LeafValue")
+            )
+    }));
+}
+
+#[test]
 fn package_compilation_rejects_authored_reserved_cleanup_selection() {
     let tree = TempTree::new();
     let root = tree.package("root");
@@ -968,6 +1040,19 @@ where Element satisfies Card::PowerOrder
     TempTree::write(root.join("main.omg"), &source("pub ", "pub "));
     compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
         .expect("a public interface may cite its public conformance");
+
+    TempTree::write(root.join("main.omg"), &source("", "boundary "));
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("a boundary interface cannot cite its package-private conformance");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private conformance")
+                && diagnostic.message.contains("PowerOrder")
+        }),
+        "unexpected boundary-conformance diagnostics: {diagnostics:#?}"
+    );
 
     TempTree::write(root.join("main.omg"), &source("", ""));
     compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
