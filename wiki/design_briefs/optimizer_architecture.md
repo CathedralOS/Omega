@@ -802,11 +802,18 @@ remain outside executable `declared_places`. This is catalog and current
 compressed-return correspondence plus producer availability, not authority to
 synthesize locals or a complete consume/cleanup custody replay; hidden
 source-operation provenance remains in the later full custody replay layer.
-Full provider-attachment specialization replay, structural-domain
-content-projection validation, remaining root-kind legality, provider and
-ownership/custody replay, exact payloadless-callee classification, and the wider
-crash/requirement/effect vocabulary remain explicit unfinished validator
-layers. It
+Provider-backed attachments independently replay Terminal's complete closed
+specialization rule. An attached function has exactly one relevant erased
+Record provider field, no structural `self`, and a nonempty unique root roster
+in boundary-ID order; every root retains the exact attachment/field pair and
+names a known unattached boundary. The set of current `BoundaryCall` targets
+must equal that roster, while repeated calls remain legal, and provider roots
+cannot become runtime structural arguments to either `BoundaryCall` or
+`CallUnit`. A source-derived repeated-write Console program exercises this
+optimizer-admission boundary. Structural-domain content-projection validation,
+remaining root-kind legality, ownership/custody replay, exact
+payloadless-callee classification, and the wider crash/requirement/effect
+vocabulary remain explicit unfinished validator layers. It
 also rechecks the complete current
 Terminal-Psi CFG contract—parameter-free entry, closed edges, total
 reachability, and acyclicity—before any rule may inspect the unit. When Terminal

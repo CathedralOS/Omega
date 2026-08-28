@@ -545,11 +545,18 @@ These facts constrain the work below.
   fixed arrays are nonempty. Byte-literal place rows additionally require dense
   declaration ordinals, exact borrowed-view carriers, and one full typed
   executable establishment per catalog row; establishment matching is by
-  identity rather than block storage order. Full provider-attachment
-  specialization replay and structural-domain content-projection validation
-  remain separate validator layers. Every current executable input of a
-  producer-defined root now locates its exact `CallStructural` result,
-  byte-literal, or explicit trivial-affine-local producer and requires strict
+  identity rather than block storage order. Provider-backed attachments now
+  replay Terminal's complete specialization contract: exactly one relevant
+  erased Record field, a nonempty unique boundary-sorted root roster with no
+  structural `self`, exact attachment/field identity and known unattached
+  boundary targets, equality with the current boundary-call set, and no use of
+  provider roots as `BoundaryCall` or `CallUnit` structural arguments.
+  Repeated calls share one requirement root, and a source-derived Console
+  canary passes verified optimizer admission. Structural-domain
+  content-projection validation remains a separate validator layer. Every
+  current executable input of a producer-defined root now locates its exact
+  `CallStructural` result, byte-literal, or explicit trivial-affine-local
+  producer and requires strict
   same-block ordering or CFG dominance without trusting block storage order or
   immutable source frontiers. Structural arguments, observations, returns, and
   cleanup roots participate; compressed return-tuple locals remain
@@ -559,8 +566,8 @@ These facts constrain the work below.
   require dense declaration ordinals and exact empty-Record carriers. The
   validator accepts exactly one establishment representation: full typed
   executable `EstablishTrivialAffineLocal` witnesses, or the currently emitted
-  compressed `ReturnStructural.trivial_affine_locals` tuple. Compressed tuples must match
-  the complete catalog in declaration order, use unique hidden source-operation
+  compressed `ReturnStructural.trivial_affine_locals` tuple. Compressed tuples
+  must match the complete catalog in declaration order, use unique hidden source-operation
   identities disjoint from executable operations, retain the exact
   parameter-zero/result carrier shape, and discard locals then affine tail
   parameters in canonical reverse order. Those no-ABI tuple locals remain
@@ -570,11 +577,10 @@ These facts constrain the work below.
   a canonical immutable catalog of verifier-owned block-entry,
   operation-entry/exit, and edge-entry/available-edge-exit ownership snapshots.
   `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
-  proof/range evidence, full provider-attachment specialization replay, and
-  structural-domain content-projection validation; remaining root-kind
-  legality, provider and full ownership/custody replay, exact payloadless-callee
-  classification, and the crash/requirement/effect vocabulary also remain
-  across the Terminal-Psi lowering boundary.
+  proof/range evidence and structural-domain content-projection validation;
+  remaining root-kind legality, full ownership/custody replay, exact
+  payloadless-callee classification, and the crash/requirement/effect
+  vocabulary also remain across the Terminal-Psi lowering boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
   division, and remainder now retain their exact obligation identities through
   Terminal abstract, target, and assigned-target operations. Exact add,
@@ -1232,14 +1238,18 @@ dependency.
   matrix, including the Record-only provider-attachment exception. Top-level
   type/domain rosters additionally require canonical IDs, unique identities,
   borrowed-view first-class byte carriers, nonempty arrays, independently
-  unique domain semantic identities, and known domain carriers. Full provider-
-  attachment specialization replay and structural-domain content-projection
-  validation remain open. Byte-literal catalogs additionally require dense
-  ordinals, borrowed-view carriers, and exact one-to-one full typed executable
-  witnesses. A unified current-revision producer walk requires each use of a
-  `CallStructural` result, byte literal, or explicit affine local to occur
-  strictly after its producer in the same block or in a CFG-dominated block,
-  independent of block storage order and immutable source-frontier rows.
+  unique domain semantic identities, and known domain carriers. Provider-backed
+  attachments additionally replay Terminal's exact one-field specialization,
+  canonical boundary-root roster, no-`self` shape, root/call set equality, and
+  prohibition on passing requirement roots as runtime structural arguments;
+  repeated calls to one rooted boundary remain valid. Structural-domain
+  content-projection validation remains open. Byte-literal catalogs
+  additionally require dense ordinals, borrowed-view carriers, and exact one-to-one full
+  typed executable witnesses. A unified current-revision producer walk
+  requires each use of a `CallStructural` result, byte literal, or explicit
+  affine local to occur strictly after its producer in the same block or in a
+  CFG-dominated block, independent of block storage order and immutable source-
+  frontier rows.
   Compressed tuple locals impose no executable producer requirement.
   Source-derived content-bearing structural call/return and byte-literal
   boundary canaries pass verified optimizer admission.
@@ -1251,10 +1261,9 @@ dependency.
   and reverse local-plus-affine-tail discard order while keeping no-ABI locals
   out of executable `declared_places`; real one-local, two-local, and
   local-plus-tail source canaries pass admission. Remaining root-kind legality,
-  provider and full ownership/custody replay—including hidden local-operation
+  full ownership/custody replay—including hidden local-operation
   provenance—exact payloadless-callee classification, and the
-  crash/requirement/effect vocabulary
-  remain open.
+  crash/requirement/effect vocabulary remain open.
 
 - **OPT-ANALYSIS-MANAGER.** Add deterministic revision-keyed analysis caching,
   dependency declaration, and precise invalidation.

@@ -93,6 +93,7 @@ pub enum OptimizationUnitValidationError {
         structural_type: StructuralTypeId,
         field: psi_core::StructuralFieldId,
     },
+    InvalidProviderAttachmentSpecialization(MachineId),
     DuplicateStructuralDomain(StructuralDomainId),
     NonCanonicalStructuralDomainOrder,
     InvalidStructuralDomainIdentity(StructuralDomainId),
@@ -10589,6 +10590,126 @@ fn validate_trivial_affine_local_witnesses(
     Ok(())
 }
 
+/// Replay the exact specialization which replaces one relevant opaque Record
+/// field with a canonical boundary-specific provider-root roster. These roots
+/// are retained specialization witnesses, not direct boundary/Unit-call
+/// structural arguments.
+fn validate_provider_attachment_specialization(
+    function: &PsiOptimizationFunction,
+    boundary_machines: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let provider_roots = function
+        .structural_places
+        .iter()
+        .filter_map(|place| match place.kind {
+            StructuralPlaceKind::ProviderAttachment {
+                attachment,
+                field,
+                boundary,
+            } => Some((place.id, attachment, field, boundary)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let provider_fields = function
+        .attachment
+        .and_then(|attachment| types.get(&attachment))
+        .and_then(|attachment| match &attachment.shape {
+            psi_terminal::StructuralTypeShape::Record { fields } => Some(
+                fields
+                    .iter()
+                    .filter(|field| {
+                        !field.relevance.is_erased()
+                            && matches!(
+                                field.field_type,
+                                psi_terminal::StructuralFieldType::Erased { .. }
+                            )
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            _ => None,
+        })
+        .unwrap_or_default();
+    if provider_fields.is_empty() && provider_roots.is_empty() {
+        return Ok(());
+    }
+
+    let invalid = || {
+        OptimizationUnitValidationError::InvalidProviderAttachmentSpecialization(function.machine)
+    };
+    let [provider_field] = provider_fields.as_slice() else {
+        return Err(invalid());
+    };
+    let Some(attachment) = function.attachment else {
+        return Err(invalid());
+    };
+    if provider_roots.is_empty()
+        || function
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.is_self)
+        || provider_roots.windows(2).any(|pair| pair[0].3 >= pair[1].3)
+    {
+        return Err(invalid());
+    }
+
+    let mut specialized_boundaries = BTreeSet::new();
+    let provider_places = provider_roots
+        .iter()
+        .map(|(place, ..)| *place)
+        .collect::<BTreeSet<_>>();
+    for (_, root_attachment, field, boundary) in &provider_roots {
+        let Some(boundary_declaration) = boundary_machines.get(boundary) else {
+            return Err(invalid());
+        };
+        if *root_attachment != attachment
+            || *field != provider_field.id
+            || boundary_declaration.attachment.is_some()
+            || !specialized_boundaries.insert(*boundary)
+        {
+            return Err(invalid());
+        }
+    }
+
+    let mut called_boundaries = BTreeSet::new();
+    for operation in function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .map(|node| &node.operation)
+    {
+        match operation {
+            O::BoundaryCall {
+                boundary,
+                structural_arguments,
+                ..
+            } => {
+                called_boundaries.insert(*boundary);
+                if structural_arguments
+                    .iter()
+                    .any(|argument| provider_places.contains(&argument.place))
+                {
+                    return Err(invalid());
+                }
+            }
+            O::CallUnit {
+                structural_arguments,
+                ..
+            } if structural_arguments
+                .iter()
+                .any(|argument| provider_places.contains(&argument.place)) =>
+            {
+                return Err(invalid());
+            }
+            _ => {}
+        }
+    }
+    if called_boundaries != specialized_boundaries {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
 fn structural_qualifications_match(
     carrier: StructuralTypeId,
     qualifications: &[StructuralDomainId],
@@ -10642,6 +10763,7 @@ fn validate_function(
 ) -> Result<(), OptimizationUnitValidationError> {
     let (byte_sequence_literals, trivial_affine_locals) =
         validate_function_structural_catalog(function, structural_types, structural_domains)?;
+    validate_provider_attachment_specialization(function, boundary_machines, structural_types)?;
     let indexed_entry_claims = function
         .entry_claim_declarations
         .iter()
@@ -13590,6 +13712,111 @@ mod tests {
         candidate
     }
 
+    fn provider_attachment_specialization_unit() -> PsiOptimizationUnit {
+        let machine = id(440, MachineId::new);
+        let block = id(441, BlockId::new);
+        let attachment = id(444, StructuralTypeId::new);
+        let provider_field = id(1, psi_core::StructuralFieldId::new);
+        let first_boundary = id(446, BoundaryMachineId::new);
+        let second_boundary = id(447, BoundaryMachineId::new);
+        let unused_boundary = id(448, BoundaryMachineId::new);
+        let boundary = |id, identity: &str| psi_terminal::BoundaryMachineDeclaration {
+            id,
+            identity: identity.into(),
+            attachment: None,
+            scalar_parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: None,
+            requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        };
+        let call = |psi_operation, boundary| TerminalAbstractOperation::BoundaryCall {
+            psi_operation,
+            result: None,
+            boundary,
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            completion_claim_sources: Vec::new(),
+            completion_receipts: Vec::new(),
+        };
+        let plan = TerminalAbstractOperationPlan {
+            terminal_psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([44; 32]),
+            },
+            entry: machine,
+            structural_types: vec![structural_type(
+                444,
+                psi_terminal::StructuralTypeShape::Record {
+                    fields: vec![structural_leaf_field(
+                        1,
+                        psi_terminal::BindingRelevance::Relevant,
+                        psi_terminal::StructuralFieldType::Erased {
+                            type_identity: "validation::provider".into(),
+                        },
+                    )],
+                },
+            )],
+            boundary_machines: vec![
+                boundary(first_boundary, "validation::provider-first"),
+                boundary(second_boundary, "validation::provider-second"),
+                boundary(unused_boundary, "validation::provider-unused"),
+            ],
+            provider_candidates: Vec::new(),
+            functions: vec![TerminalAbstractFunction {
+                machine,
+                attachment: Some(attachment),
+                entry: block,
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: TerminalAbstractFunctionResult::Unit,
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![TerminalAbstractBlockEntry {
+                    block,
+                    parameters: Vec::new(),
+                    operation_offset: 0,
+                }],
+                operations: vec![
+                    call(id(449, OperationId::new), first_boundary),
+                    call(id(450, OperationId::new), first_boundary),
+                    call(id(451, OperationId::new), second_boundary),
+                    TerminalAbstractOperation::ReturnUnit {
+                        psi_edge: id(452, EdgeId::new),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            }],
+        };
+        let mut unit = reconstruct_psi_optimization_unit_seed(
+            &plan,
+            FuelScheduleIdentity::new(1).expect("nonzero schedule"),
+        )
+        .expect("provider specialization fixture");
+        unit.functions[0].structural_places.extend([
+            psi_terminal::StructuralPlaceDeclaration {
+                id: id(445, PlaceId::new),
+                kind: StructuralPlaceKind::ProviderAttachment {
+                    attachment,
+                    field: provider_field,
+                    boundary: first_boundary,
+                },
+            },
+            psi_terminal::StructuralPlaceDeclaration {
+                id: id(446, PlaceId::new),
+                kind: StructuralPlaceKind::ProviderAttachment {
+                    attachment,
+                    field: provider_field,
+                    boundary: second_boundary,
+                },
+            },
+        ]);
+        refresh_identity(&mut unit);
+        unit
+    }
+
     fn structural_domain(
         raw: u64,
         semantic_raw: u64,
@@ -15949,19 +16176,9 @@ mod tests {
                 },
             };
 
-        let mut valid = structural_catalog_unit(vec![structural_type(
-            444,
-            psi_terminal::StructuralTypeShape::Record {
-                fields: vec![provider_field()],
-            },
-        )]);
-        valid.functions[0].attachment = Some(owner);
-        valid.functions[0]
-            .structural_places
-            .push(provider_place(owner, field));
-        refresh_identity(&mut valid);
+        let valid = provider_attachment_specialization_unit();
         validate_psi_optimization_unit(&valid)
-            .expect("an exact Record provider-attachment root witnesses its relevant erased field");
+            .expect("a complete provider specialization witnesses its relevant erased field");
 
         for (attachment, provider_field_id) in [
             (None, None),
@@ -16021,6 +16238,180 @@ mod tests {
                 )
             );
         }
+    }
+
+    #[test]
+    fn provider_attachment_specialization_replays_exact_roots_calls_and_nonuse() {
+        let baseline = provider_attachment_specialization_unit();
+        validate_psi_optimization_unit(&baseline)
+            .expect("repeated calls share one canonical provider requirement root");
+        let machine = baseline.functions[0].machine;
+        let invalid =
+            OptimizationUnitValidationError::InvalidProviderAttachmentSpecialization(machine);
+        let attachment = baseline.functions[0]
+            .attachment
+            .expect("provider fixture attachment");
+        let first_boundary = baseline.boundary_machines[0].id;
+        let second_boundary = baseline.boundary_machines[1].id;
+        let unused_boundary = baseline.boundary_machines[2].id;
+        let first_provider_place = baseline.functions[0].structural_places[0].id;
+
+        let assert_invalid = |mut unit: PsiOptimizationUnit| {
+            refresh_identity(&mut unit);
+            assert_eq!(validate_psi_optimization_unit(&unit), Err(invalid.clone()));
+        };
+
+        let mut missing_root = baseline.clone();
+        missing_root.functions[0].structural_places.pop();
+        assert_invalid(missing_root);
+
+        let mut extra_root = baseline.clone();
+        extra_root.functions[0]
+            .structural_places
+            .push(psi_terminal::StructuralPlaceDeclaration {
+                id: id(453, PlaceId::new),
+                kind: StructuralPlaceKind::ProviderAttachment {
+                    attachment,
+                    field: id(1, psi_core::StructuralFieldId::new),
+                    boundary: unused_boundary,
+                },
+            });
+        assert_invalid(extra_root);
+
+        let mut reordered_roots = baseline.clone();
+        reordered_roots.functions[0].structural_places.swap(0, 1);
+        assert_invalid(reordered_roots);
+
+        let mut duplicate_root = baseline.clone();
+        let duplicate_kind = duplicate_root.functions[0].structural_places[1].kind;
+        duplicate_root.functions[0].structural_places.push(
+            psi_terminal::StructuralPlaceDeclaration {
+                id: id(453, PlaceId::new),
+                kind: duplicate_kind,
+            },
+        );
+        assert_invalid(duplicate_root);
+
+        let mut wrong_field = baseline.clone();
+        let StructuralPlaceKind::ProviderAttachment { field, .. } =
+            &mut wrong_field.functions[0].structural_places[1].kind
+        else {
+            panic!("provider fixture root")
+        };
+        *field = id(2, psi_core::StructuralFieldId::new);
+        assert_invalid(wrong_field);
+
+        let mut unknown_boundary = baseline.clone();
+        let StructuralPlaceKind::ProviderAttachment { boundary, .. } =
+            &mut unknown_boundary.functions[0].structural_places[1].kind
+        else {
+            panic!("provider fixture root")
+        };
+        *boundary = id(999, BoundaryMachineId::new);
+        assert_invalid(unknown_boundary);
+
+        let mut attached_boundary = baseline.clone();
+        attached_boundary.boundary_machines[1].attachment = Some(attachment);
+        assert_invalid(attached_boundary);
+
+        let mut self_parameter = baseline.clone();
+        let parameter_place = id(454, PlaceId::new);
+        self_parameter.functions[0].structural_parameters.push(
+            psi_terminal::StructuralParameterDeclaration {
+                place: parameter_place,
+                position: 0,
+                is_self: true,
+                structural_type: attachment,
+                multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+                access: psi_terminal::StructuralAccess::Owned,
+                qualifications: Vec::new(),
+            },
+        );
+        self_parameter.functions[0].structural_places.push(
+            psi_terminal::StructuralPlaceDeclaration {
+                id: parameter_place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: true,
+                },
+            },
+        );
+        assert_invalid(self_parameter);
+
+        let mut missing_call = baseline.clone();
+        let TerminalAbstractOperation::BoundaryCall { boundary, .. } =
+            &mut missing_call.functions[0].blocks[0].nodes[2].operation
+        else {
+            panic!("provider fixture call")
+        };
+        *boundary = first_boundary;
+        assert_invalid(missing_call);
+
+        let mut extra_call = baseline.clone();
+        let TerminalAbstractOperation::BoundaryCall { boundary, .. } =
+            &mut extra_call.functions[0].blocks[0].nodes[1].operation
+        else {
+            panic!("provider fixture call")
+        };
+        *boundary = unused_boundary;
+        assert_invalid(extra_call);
+
+        let provider_argument = psi_terminal::StructuralArgument {
+            place: first_provider_place,
+            path: Vec::new(),
+            access: psi_terminal::StructuralAccess::Owned,
+        };
+        let mut boundary_use = baseline.clone();
+        let TerminalAbstractOperation::BoundaryCall {
+            structural_arguments,
+            ..
+        } = &mut boundary_use.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("provider fixture call")
+        };
+        structural_arguments.push(provider_argument.clone());
+        assert_invalid(boundary_use);
+
+        let mut unit_use = baseline.clone();
+        let psi_operation = match unit_use.functions[0].blocks[0].nodes[0].operation {
+            TerminalAbstractOperation::BoundaryCall { psi_operation, .. } => psi_operation,
+            _ => panic!("provider fixture call"),
+        };
+        unit_use.functions[0].blocks[0].nodes[0].operation = TerminalAbstractOperation::CallUnit {
+            psi_operation,
+            callee: machine,
+            structural_arguments: vec![provider_argument],
+            claim_transfers: Vec::new(),
+        };
+        refresh_node_derivatives(&mut unit_use, 0, 0, 0);
+        assert_invalid(unit_use);
+
+        let mut multiple_fields = baseline;
+        let psi_terminal::StructuralTypeShape::Record { fields } =
+            &mut multiple_fields.structural_types[0].shape
+        else {
+            panic!("provider fixture attachment record")
+        };
+        fields.push(structural_leaf_field(
+            2,
+            psi_terminal::BindingRelevance::Relevant,
+            psi_terminal::StructuralFieldType::Erased {
+                type_identity: "validation::second-provider".into(),
+            },
+        ));
+        multiple_fields.functions[0].structural_places.push(
+            psi_terminal::StructuralPlaceDeclaration {
+                id: id(453, PlaceId::new),
+                kind: StructuralPlaceKind::ProviderAttachment {
+                    attachment,
+                    field: id(2, psi_core::StructuralFieldId::new),
+                    boundary: unused_boundary,
+                },
+            },
+        );
+        assert_invalid(multiple_fields);
+
+        assert!(first_boundary < second_boundary);
     }
 
     #[test]
