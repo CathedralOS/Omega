@@ -591,6 +591,12 @@ fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
         clause.via.as_ref(),
         Some(psi_syntax_trees::item::ExternalBinding::CompilerIntrinsic)
     ));
+    let via_source_span = clause
+        .via_keyword_source_span
+        .expect("external binding retains exact `via` custody");
+    let via_start = source.find("via").expect("authored `via`");
+    assert_eq!(via_source_span.span.start, via_start);
+    assert_eq!(via_source_span.span.end, via_start + "via".len());
 }
 
 #[test]

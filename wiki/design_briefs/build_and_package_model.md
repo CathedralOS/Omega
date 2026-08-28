@@ -1229,8 +1229,13 @@ authored booleans, and checked published/internal interfaces to agree exactly;
 omission and inference receive no invented location. A public or otherwise
 contract-supplied machine's checked operational fact remains its published may-
 ceiling, not an observation that the current body exercised that permission.
-Review v74/row v32, recovery v7, conflict fingerprint v10, and renderer V9 bind
-the current source schema. Remaining per-fact spans are incremental; absent
+Review v74/row v32, recovery v8, conflict fingerprint v11, and renderer V10 bind
+the current source schema. External executable leaves retain the exact authored
+`via` keyword beside the normalized binding identity on the same conformance.
+Projection requires binding/span parity and carries that occurrence under
+`external_binding` for public and private trait or operator supply. Semantic
+row bytes remain unchanged; missing, source-free, or contradictory custody
+rejects. Remaining per-fact spans are incremental; absent
 late-stage spans must be retained by their earlier owner, not reconstructed
 from source text.
 

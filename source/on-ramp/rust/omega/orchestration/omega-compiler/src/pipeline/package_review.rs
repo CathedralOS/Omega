@@ -2395,6 +2395,7 @@ pub enum PackageReviewSourceLocationRole {
     Blocking,
     ServiceReach,
     SynchronousInvocation,
+    ExternalBinding,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2740,13 +2741,7 @@ pub fn project_checked_package_review(
                 role: PackageReviewSourceLocationRole::BodyCall,
             }),
         );
-        external_executable_supply.extend(executable_supply.into_iter().map(|row| {
-            ProjectedReviewRow {
-                row,
-                declaration: machine.symbol,
-                nested_source_locations: Vec::new(),
-            }
-        }));
+        external_executable_supply.extend(executable_supply);
         callables.push(ProjectedReviewRow {
             row: callable,
             declaration: machine.symbol,
@@ -2780,15 +2775,11 @@ pub fn project_checked_package_review(
                 ))]);
             }
         }
-        external_executable_supply.extend(
-            project_private_external_executable_supply(compilation, machine, &owner)?
-                .into_iter()
-                .map(|row| ProjectedReviewRow {
-                    row,
-                    declaration: machine.symbol,
-                    nested_source_locations: Vec::new(),
-                }),
-        );
+        external_executable_supply.extend(project_private_external_executable_supply(
+            compilation,
+            machine,
+            &owner,
+        )?);
     }
 
     if build_machine.is_some() && !projected_build_machine {
@@ -7057,7 +7048,7 @@ fn project_callable(
 ) -> Result<
     (
         CheckedPackageCallableReview,
-        Vec<PackageReviewExternalExecutableSupply>,
+        Vec<ProjectedReviewRow<PackageReviewExternalExecutableSupply>>,
     ),
     Vec<Diagnostic>,
 > {
@@ -7327,7 +7318,7 @@ fn project_private_external_executable_supply(
     compilation: &CheckedCompilation,
     machine: &psi_typed_trees::machine::Machine,
     identity: &PackageReviewNominalIdentity,
-) -> Result<Vec<PackageReviewExternalExecutableSupply>, Vec<Diagnostic>> {
+) -> Result<Vec<ProjectedReviewRow<PackageReviewExternalExecutableSupply>>, Vec<Diagnostic>> {
     let machine_type_parameters = compilation.machine_type_parameters(machine);
     let (binders, _) = project_type_parameters(
         compilation,
@@ -10740,7 +10731,7 @@ fn project_callable_conformances(
     (
         Vec<PackageReviewCallableConformance>,
         Vec<PackageReviewOperatorCoordinate>,
-        Vec<PackageReviewExternalExecutableSupply>,
+        Vec<ProjectedReviewRow<PackageReviewExternalExecutableSupply>>,
     ),
     Vec<Diagnostic>,
 > {
@@ -10784,6 +10775,24 @@ fn project_callable_conformances(
     let mut operator_realizations = Vec::new();
     let mut external_executable_supply = Vec::new();
     for conformance in compilation.machine_trait_conformances(machine) {
+        match (
+            conformance.external_binding,
+            conformance.external_binding_source_span,
+        ) {
+            (None, None) | (Some(_), Some(_)) => {}
+            (None, Some(_)) => {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` retains authored `via` custody without an external binding",
+                    machine.name
+                ))]);
+            }
+            (Some(_), None) => {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed external callable `{}` has no exact authored `via` custody",
+                    machine.name
+                ))]);
+            }
+        }
         match (expected_external.as_ref(), conformance.external_binding) {
             (None, None) => {}
             (None, Some(_)) => {
@@ -10902,11 +10911,15 @@ fn project_callable_conformances(
                 if require_public_trait {
                     operator_realizations.push(coordinate.clone());
                 }
-                external_executable_supply.push(PackageReviewExternalExecutableSupply {
-                    callable: callable_identity.clone(),
-                    requirement: PackageReviewExternalRequirement::Operator(coordinate),
-                    binding: binding.clone(),
-                });
+                external_executable_supply.push(project_external_executable_supply_with_source(
+                    machine,
+                    conformance,
+                    PackageReviewExternalExecutableSupply {
+                        callable: callable_identity.clone(),
+                        requirement: PackageReviewExternalRequirement::Operator(coordinate),
+                        binding: binding.clone(),
+                    },
+                )?);
                 continue;
             }
             if !matches!(machine.supply_mode, MachineSupplyMode::CheckedBody)
@@ -11060,11 +11073,15 @@ fn project_callable_conformances(
                 .map(|alias| alias.as_str().to_owned()),
         };
         if let Some((_, binding)) = expected_external.as_ref() {
-            external_executable_supply.push(PackageReviewExternalExecutableSupply {
-                callable: callable_identity.clone(),
-                requirement: PackageReviewExternalRequirement::Trait(row.clone()),
-                binding: binding.clone(),
-            });
+            external_executable_supply.push(project_external_executable_supply_with_source(
+                machine,
+                conformance,
+                PackageReviewExternalExecutableSupply {
+                    callable: callable_identity.clone(),
+                    requirement: PackageReviewExternalRequirement::Trait(row.clone()),
+                    binding: binding.clone(),
+                },
+            )?);
         }
         projected.push(row);
     }
@@ -11091,10 +11108,10 @@ fn project_callable_conformances(
             machine.name
         ))]);
     }
-    external_executable_supply.sort();
+    external_executable_supply.sort_by(|left, right| left.row.cmp(&right.row));
     if external_executable_supply
         .windows(2)
-        .any(|rows| rows[0] == rows[1])
+        .any(|rows| rows[0].row == rows[1].row)
     {
         return Err(vec![Diagnostic::error(format!(
             "reviewed external callable `{}` contains duplicate executable-supply identity",
@@ -11102,6 +11119,27 @@ fn project_callable_conformances(
         ))]);
     }
     Ok((projected, operator_realizations, external_executable_supply))
+}
+
+fn project_external_executable_supply_with_source(
+    machine: &psi_typed_trees::machine::Machine,
+    conformance: &psi_typed_trees::machine::TraitConformance,
+    row: PackageReviewExternalExecutableSupply,
+) -> Result<ProjectedReviewRow<PackageReviewExternalExecutableSupply>, Vec<Diagnostic>> {
+    let Some(source_span) = conformance.external_binding_source_span else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed external callable `{}` has no exact authored `via` custody",
+            machine.name
+        ))]);
+    };
+    Ok(ProjectedReviewRow {
+        row,
+        declaration: machine.symbol,
+        nested_source_locations: vec![ProjectedNestedSourceLocation {
+            source_span,
+            role: PackageReviewSourceLocationRole::ExternalBinding,
+        }],
+    })
 }
 
 fn validate_selected_boundary_operator_checked_adapter(

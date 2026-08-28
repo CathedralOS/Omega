@@ -928,7 +928,9 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
         // The external-leaf suffix constructs the compiler-known closed
         // `Binding` sum explicitly.
         let mut via = None;
+        let mut via_keyword_source_span = None;
         if rest.at_contextual("via") {
+            via_keyword_source_span = Some(rest.current_source_span());
             let next = rest.take_contextual("via")?;
             let (binding, next) = crate::parser::item::parse_external_provider_binding(next)?;
             via = Some(binding);
@@ -941,6 +943,7 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
             requirement,
             alias,
             via,
+            via_keyword_source_span,
         });
         if clause_count == 0 {
             clause_start = handle;
