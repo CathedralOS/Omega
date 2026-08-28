@@ -5,4 +5,9 @@ bc_post_stack_potential:
         imm r1, 531840
         imm r2, 1481003091             ; SPFX
         store r1, r2
-        jmp emit_dec_word_summary_init
+        call emit_dec_word_reset
+        call emit_dec_word_require_stack_root
+        call emit_dec_require_shape
+        call emit_dec_word_domain_init
+        call emit_dec_word_prove_rows
+        jmp emit_dec_word_publication_init
