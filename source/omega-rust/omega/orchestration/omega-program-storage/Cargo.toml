@@ -30,6 +30,7 @@ psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 psi-extents = { path = "../../../psi/foundation/psi-extents" }
 psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
+sha2 = "0.10.9"
 
 [dev-dependencies]
 psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }

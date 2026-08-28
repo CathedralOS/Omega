@@ -28,7 +28,7 @@ pub struct CheckedCompilation {
     own_generated_sources: Vec<omega_build_output::PackageGeneratedSource>,
     selected_target_profile: Option<omega_target::TargetProfile>,
     selected_native_target: Option<omega_target::NativeTarget>,
-    selected_program_entry_machine: Option<String>,
+    selected_program_entry: Option<omega_build_evaluation::SelectedCompilerProgramEntry>,
     selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
     optimization_selections: omega_optimization_core::OptimizationSelections,
     optimization_selection_identity: omega_optimization_core::OptimizationSelectionIdentity,
@@ -143,7 +143,20 @@ impl CheckedCompilation {
     /// checked-only compilation had one. Pure semantic checking is entry-
     /// agnostic; an execution caller must not infer a machine from its name.
     pub fn selected_program_entry_machine(&self) -> Option<&str> {
-        self.selected_program_entry_machine.as_deref()
+        self.selected_program_entry
+            .as_ref()
+            .map(omega_build_evaluation::SelectedCompilerProgramEntry::machine_name)
+    }
+
+    /// Complete build-owned `ProgramEntry` settlement captured while typed
+    /// declarations and evaluated calling plans were still available. The
+    /// source signature and optional target calling plans remain one custody
+    /// object; downstream stages must not reconstruct either from the retained
+    /// machine name.
+    pub const fn selected_program_entry(
+        &self,
+    ) -> Option<&omega_build_evaluation::SelectedCompilerProgramEntry> {
+        self.selected_program_entry.as_ref()
     }
 
     /// Exact symbol of the uniquely selected build machine. No build machine
@@ -658,20 +671,12 @@ fn compile_to_checked_inner_with_replay(
     // no storage root. Authored bindings remain available in the evaluated
     // build configuration, but only an exact target selection may activate one
     // for interpreter or production execution.
-    let selected_program_entry_source_signature = match target_name {
-        Some(target_name) => crate::pipeline::build_config::selected_program_entry_machine(
-            &build_config,
-            Some(target_name),
-        )?
-        .map(|entry| {
-            crate::pipeline::build_config::validate_selected_program_entry_shape(&typed, entry)
-        })
-        .transpose()?,
-        None => None,
-    };
-    let selected_program_entry_machine = selected_program_entry_source_signature
-        .as_ref()
-        .map(|source| source.machine_name().to_owned());
+    let selected_program_entry = crate::pipeline::build_config::select_compiler_program_entry(
+        &typed,
+        &build_config,
+        target_name,
+        &boundary_calling_plan_realizations,
+    )?;
     let target_provider_defaults =
         selected_target_machine_declarations.settle_provider_defaults(&typed)?;
     // PRV4 provider selection mirrors the native pipeline: candidates remain
@@ -759,14 +764,13 @@ fn compile_to_checked_inner_with_replay(
         crate::pipeline::component_progress::build_selected_component_progress_manifest(
             &checked.program,
             &selected_provider_plan_facts,
-            selected_program_entry_source_signature
-                .as_ref()
-                .map(|source| {
-                    crate::pipeline::component_progress::ExactComponentProgressRoot::new(
-                        source.machine_symbol(),
-                        source.normalized_callable_identity(),
-                    )
-                }),
+            selected_program_entry.as_ref().map(|entry| {
+                let source = entry.source_signature();
+                crate::pipeline::component_progress::ExactComponentProgressRoot::new(
+                    source.machine_symbol(),
+                    source.normalized_callable_identity(),
+                )
+            }),
             None,
         )?;
     omega_selected_dispatch::settle_selected_operator_adapter_dispatch(
@@ -818,7 +822,7 @@ fn compile_to_checked_inner_with_replay(
         own_generated_sources,
         selected_target_profile,
         selected_native_target,
-        selected_program_entry_machine,
+        selected_program_entry,
         selected_build_machine_symbol,
         optimization_selections,
         optimization_selection_identity,
