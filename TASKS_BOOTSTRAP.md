@@ -90,7 +90,7 @@ admission, and optional stress evidence stay under the same compiler owner.
 - [ ] Collapse the remaining Beta admission explosion into one canonical exact
   instruction/event/memory identity format plus small responsibility-specific
   semantic modules. The current bounded admission consists of 190 Alpha modules
-  and 61,206 lines; Checker A is 1,011,122 source bytes and the checker ROOT is
+  and 60,937 lines; Checker A is 1,011,122 source bytes and the checker ROOT is
   80,986 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
   offsets, macro bodies, or equivalent verification permutations. The first
@@ -109,9 +109,9 @@ admission, and optional stress evidence stay under the same compiler owner.
   Procedure-entry and inclusive block-range queries consume it in constant time
   without adding a witness or semantic token. Next remove census-only block
   listings family by family while retaining every PC-producing identity call.
-  The first thirteen low-risk consumers now rely on that owner, deleting 30
-  unused block lookups, 14 redundant span scans, six dead helper routines, and
-  189 source lines without changing the exact artifact subject. Four effect
+  The first twenty low-risk consumers now rely on that owner, deleting 83
+  unused block lookups, 23 redundant span scans, thirteen dead helper routines,
+  and 458 source lines without changing the exact artifact subject. Four effect
   censuses and two fixed-emitter summaries also consume their validated live
   table counts instead of stale 242/95/291/355/613-row ceilings.
   Keep frame, effect, memory, stack, ranged-store, and meaning theorems separate

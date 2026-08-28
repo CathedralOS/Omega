@@ -1,8 +1,8 @@
 ; Exact source/artifact shape for gen_expr (procedure61).
+; The canonical procedure inventory owns its total block span and partition.
 
 expression_gen_expr_require_shape:
         call expression_gen_expr_require_proc_meta
-        call expression_gen_expr_require_blocks
         call expression_gen_expr_require_transitions
         call expression_gen_expr_require_events
         call expression_gen_expr_require_data
@@ -17,33 +17,6 @@ expression_gen_expr_require_proc_meta:
         imm r23, 24
         call exact_require_proc_frame_identity
         jmp exact_shape_ok
-
-expression_gen_expr_require_blocks:
-        imm r20, 303
-        imm r21, 61                    ; gen_expr procedure identity
-        imm r22, 0                     ; procedure entry
-        call exact_block_identity_pc
-        imm r20, 304
-        imm r21, 61
-        imm r22, 1                     ; state block
-        call exact_block_identity_pc
-        imm r20, 305
-        imm r21, 61
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 306
-        imm r21, 61
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 307
-        imm r21, 61
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 303
-        imm r21, 307
-        imm r22, 61
-        call exact_require_proc_blocks
-        ret
 
 expression_gen_expr_require_transitions:
         imm r20, 249

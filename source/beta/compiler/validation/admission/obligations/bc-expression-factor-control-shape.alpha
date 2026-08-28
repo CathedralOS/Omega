@@ -1,8 +1,8 @@
 ; Exact control/effect shape for gen_factor (procedure55).
+; The canonical procedure inventory owns its total block span and partition.
 
 expression_factor_control_require_shape:
         call expression_factor_require_proc_meta
-        call expression_factor_require_blocks
         call expression_factor_require_transitions
         call expression_factor_require_events
         ret
@@ -14,65 +14,6 @@ expression_factor_require_proc_meta:
         imm r23, 24
         call exact_require_proc_frame_identity
         jmp exact_shape_ok
-
-expression_factor_require_blocks:
-        imm r20, 243
-        imm r21, 55
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 244
-        imm r21, 55
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 245
-        imm r21, 55
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 246
-        imm r21, 55
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 247
-        imm r21, 55
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 248
-        imm r21, 55
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 249
-        imm r21, 55
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 250
-        imm r21, 55
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 251
-        imm r21, 55
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 252
-        imm r21, 55
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 253
-        imm r21, 55
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 254
-        imm r21, 55
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 255
-        imm r21, 55
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 243
-        imm r21, 255
-        imm r22, 55
-        call exact_require_proc_blocks
-        ret
 
 ; r20=row,r21=source,r22=guarded,r23=target.
 expression_factor_require_transitions:

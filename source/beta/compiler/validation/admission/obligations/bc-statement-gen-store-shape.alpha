@@ -1,9 +1,9 @@
 ; Exact source/artifact shape for gen_store (procedure26).
 ; Callable only: this module publishes no token and has no init edge.
+; The canonical procedure inventory owns its total block span and partition.
 
 statement_gen_store_require_shape:
         call statement_gen_store_require_proc
-        call statement_gen_store_require_blocks
         call statement_gen_store_require_transitions
         call statement_gen_store_require_events
         call statement_gen_store_require_data
@@ -18,29 +18,6 @@ statement_gen_store_require_proc:
         imm r23, 16
         call exact_require_proc_frame_identity
         jmp exact_shape_ok
-
-statement_gen_store_require_blocks:
-        imm r20, 136
-        imm r21, 26
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 137
-        imm r21, 26
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 138
-        imm r21, 26
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 139
-        imm r21, 26
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 136
-        imm r21, 139
-        imm r22, 26
-        call exact_require_proc_blocks
-        ret
 
 statement_gen_store_require_transitions:
         imm r20, 100

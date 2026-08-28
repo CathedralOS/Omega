@@ -1,8 +1,8 @@
 ; Exact shape for the structurally identical gen_term/gen_sum loops (p57/p58).
+; The canonical procedure inventory owns both total block spans and partitions.
 
 expression_levels_require_shape:
         call expression_levels_require_proc_meta
-        call expression_levels_require_blocks
         call expression_levels_require_transitions
         call expression_levels_require_events
         call expression_levels_require_data
@@ -25,41 +25,6 @@ expression_levels_require_proc_meta:
         imm r20, 58
         imm r21, 16
         call expression_levels_require_one_proc
-        ret
-
-expression_levels_require_blocks:
-        imm r20, 267
-        imm r21, 57
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 268
-        imm r21, 57
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 269
-        imm r21, 57
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 267
-        imm r21, 269
-        imm r22, 57
-        call exact_require_proc_blocks
-        imm r20, 270
-        imm r21, 58
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 271
-        imm r21, 58
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 272
-        imm r21, 58
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 270
-        imm r21, 272
-        imm r22, 58
-        call exact_require_proc_blocks
         ret
 
 expression_levels_require_transitions:
